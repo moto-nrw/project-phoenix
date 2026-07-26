@@ -5,6 +5,8 @@ import (
 	"net"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +30,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_UnknownOperator_ReturnsInvalid
 
 func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge_ReturnsInvalid(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
-	op := createTestOperatorForMFAService(t, db, "verify-no-challenge")
+	op := testpkg.CreateTestOperator(t, db)
 
 	err := svc.VerifyCodeForOperator(context.Background(), op.ID, "123456")
 
@@ -38,7 +40,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge_ReturnsInval
 
 func TestOperatorMFAService_VerifyCodeForOperator_WrongCode_ReturnsInvalid(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
-	op := createTestOperatorForMFAService(t, db, "verify-wrong-code")
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(context.Background(), op.ID))
 
 	// Seed an active challenge via StartChallenge so there's a real
@@ -68,7 +70,7 @@ func TestOperatorMFAService_ResendChallenge_InvalidJWT_ReturnsTokenInvalid(t *te
 
 func TestOperatorMFAService_ResendChallenge_WrongScope_ReturnsTokenInvalid(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
-	op := createTestOperatorForMFAService(t, db, "resend-wrong-scope")
+	op := testpkg.CreateTestOperator(t, db)
 
 	// Build a *tenant*-scoped challenge token and try to resend it on the
 	// operator surface — must be rejected so a tenant cookie can't be
@@ -91,7 +93,7 @@ func TestOperatorMFAService_ResendChallenge_WrongScope_ReturnsTokenInvalid(t *te
 
 func TestOperatorMFAService_ResendChallenge_HappyPath(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
-	op := createTestOperatorForMFAService(t, db, "resend-ok")
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(context.Background(), op.ID))
 
 	token, err := svc.StartChallenge(context.Background(), op.ID, net.ParseIP("127.0.0.1"))

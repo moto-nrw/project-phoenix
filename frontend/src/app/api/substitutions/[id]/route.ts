@@ -1,59 +1,26 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
-import {
-  createGetHandler,
-  createPutHandler,
-  createDeleteHandler,
-} from "~/lib/route-wrapper.server";
+import { apiDelete } from "~/lib/api-helpers.server";
+import { createDeleteHandler } from "~/lib/route-wrapper.server";
+import { proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 import type { BackendSubstitution } from "~/lib/substitution-helpers";
-
-// Context type is used implicitly by the route handlers
 
 /**
  * Handler for GET /api/substitutions/[id]
  * Returns a single substitution by ID
  */
-export const GET = createGetHandler(
-  async (
-    request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    const id = params.id as string;
-
-    if (!id) {
-      throw new Error("Substitution ID is required");
-    }
-
-    const endpoint = `/api/substitutions/${id}`;
-
-    // Fetch substitution from the API
-    return await apiGet<BackendSubstitution>(endpoint, token);
-  },
+export const GET = proxyGet<BackendSubstitution>(
+  (params) => `/api/substitutions/${requirePathSegmentParam(params)}`,
+  { raw: true },
 );
 
 /**
  * Handler for PUT /api/substitutions/[id]
  * Updates an existing substitution
  */
-export const PUT = createPutHandler(
-  async (
-    req: NextRequest,
-    body: Partial<BackendSubstitution>,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    const id = params.id as string;
-
-    if (!id) {
-      throw new Error("Substitution ID is required");
-    }
-
-    const endpoint = `/api/substitutions/${id}`;
-
-    // Update substitution via the API
-    return await apiPut<BackendSubstitution>(endpoint, token, body);
-  },
+export const PUT = proxyPut<BackendSubstitution, Partial<BackendSubstitution>>(
+  (params) => `/api/substitutions/${requirePathSegmentParam(params)}`,
+  { raw: true },
 );
 
 /**

@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,9 +23,11 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
+	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
@@ -32,10 +35,14 @@ import (
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
+	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
+	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
+	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
+	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
@@ -44,7 +51,10 @@ import (
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
+	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
+	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
+	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
@@ -76,9 +86,13 @@ type API struct {
 	Activities       *activitiesAPI.Resource
 	Staff            *staffAPI.Resource
 	WorkTimeModels   *worktimemodelsAPI.Resource
+	StaffShifts      *staffshiftsAPI.Resource
+	ShiftTypes       *shifttypesAPI.Resource
 	Feedback         *feedbackAPI.Resource
+	MealPlan         *mealplanAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
+	Display          *displayAPI.Resource
 	Schedules        *schedulesAPI.Resource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
@@ -92,6 +106,10 @@ type API struct {
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
 	Emergency        *emergencyAPI.Resource
+	Messaging        *messagingAPI.Resource
+	Calendar         *calendarAPI.Resource
+	Announcements    *announcementAPI.Resource
+	Reminders        *remindersAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -165,7 +183,11 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 	if httpMetrics != nil {
 		router.Use(httpMetrics.Middleware)
 	}
-	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
+	// Redact the parent calendar-feed token (the sole credential for the public
+	// /public/calendar/{token} feed) from the per-request "path" attribute so it
+	// never lands in access logs.
+	requestLogger := slog.New(customMiddleware.NewFeedTokenRedactor(logger.Handler()))
+	router.Use(slogchi.NewWithConfig(requestLogger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
 		ServerErrorLevel: slog.LevelError,
@@ -207,39 +229,52 @@ func setupCORS(router chi.Router) {
 
 	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Staff-Auth-PIN", "X-Device-Key"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}
 
 	if len(wildcardSuffixes) > 0 {
-		// Build a set for O(1) exact-match lookups
-		exactSet := make(map[string]bool, len(exactOrigins))
-		for _, o := range exactOrigins {
-			exactSet[o] = true
-		}
-		opts.AllowOriginFunc = func(_ *http.Request, origin string) bool {
-			if exactSet[origin] {
-				return true
-			}
-			// Extract the host portion of the origin (e.g. "https://school-a.example.com" → "school-a.example.com")
-			host := origin
-			if idx := strings.Index(origin, "://"); idx >= 0 {
-				host = origin[idx+3:]
-			}
-			for _, suffix := range wildcardSuffixes {
-				if strings.HasSuffix(host, suffix) && len(host) > len(suffix) {
-					return true
-				}
-			}
-			return false
-		}
+		opts.AllowOriginFunc = buildCORSOriginFunc(exactOrigins, wildcardSuffixes)
 	} else {
 		opts.AllowedOrigins = exactOrigins
 	}
 
 	router.Use(cors.Handler(opts))
+}
+
+// buildCORSOriginFunc returns a CORS origin matcher that accepts any exact
+// origin or any origin whose host ends in one of the wildcard suffixes
+// (e.g. ".example.com" matches "https://school-a.example.com").
+func buildCORSOriginFunc(exactOrigins, wildcardSuffixes []string) func(*http.Request, string) bool {
+	// Build a set for O(1) exact-match lookups
+	exactSet := make(map[string]bool, len(exactOrigins))
+	for _, o := range exactOrigins {
+		exactSet[o] = true
+	}
+	return func(_ *http.Request, origin string) bool {
+		if exactSet[origin] {
+			return true
+		}
+		return matchesWildcardSuffix(origin, wildcardSuffixes)
+	}
+}
+
+// matchesWildcardSuffix reports whether the host portion of origin ends in one
+// of the given suffixes (with at least one leading subdomain label).
+func matchesWildcardSuffix(origin string, wildcardSuffixes []string) bool {
+	// Extract the host portion of the origin (e.g. "https://school-a.example.com" → "school-a.example.com")
+	host := origin
+	if idx := strings.Index(origin, "://"); idx >= 0 {
+		host = origin[idx+3:]
+	}
+	for _, suffix := range wildcardSuffixes {
+		if strings.HasSuffix(host, suffix) && len(host) > len(suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 // parseAllowedOrigins parses CORS_ALLOWED_ORIGINS and splits entries into
@@ -348,6 +383,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
+	api.Auth.SetPasskeyService(api.Services.Passkey)
 	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
 	api.Rooms = roomsAPI.NewResource(roomsAPI.ResourceConfig{
 		FacilityService:    api.Services.Facilities,
@@ -375,26 +411,41 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		UserContextService:      api.Services.UserContext,
 		ActiveService:           api.Services.Active,
 		IoTService:              api.Services.IoT,
+		StaffPINAuthenticator:   api.Services.StaffPINAuth,
 		PickupScheduleService:   api.Services.PickupSchedule,
 		ArrivalScheduleService:  api.Services.ArrivalSchedule,
 		InstanceService:         api.Services.Instance,
+		CareDayService:          api.Services.CareDay,
 		SchoolService:           api.Services.Schools,
 		SettingsService:         api.Services.Settings,
+		MasterDataReviewService: api.Services.MasterDataReview,
+		CareRequestService:      api.Services.CareRequests,
+		ExcusedRequestService:   api.Services.ExcusedRequests,
 		StudentStatusDayService: api.Services.StudentStatusDays,
 		StudentHistoryService:   api.Services.StudentHistory,
+		ActivityService:         api.Services.Activities,
+		EnrollmentDecision:      api.Services.EnrollmentDecision,
+		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
 		Broadcaster:             api.Services.RealtimeHub,
+		ParentEventEmitter:      api.Services.ParentEventEmitter,
 		StudentPhotos:           api.Services.StudentPhotos,
 		ListExportService:       api.Services.ListExport,
 		Logger:                  logger.With("handler", "students"),
 		DB:                      db,
 	})
+	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
+	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
+	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
+	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, db, logger.With("handler", "staff-shifts"))
+	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
+	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -402,20 +453,28 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
 		api.Services.EnrollmentDecision,
+		api.Services.EnrollmentReport,
 		api.Services.EnrollmentRollover,
+		api.Services.EnrollmentChangeRequest,
+		api.Services.EnrollmentDeletion,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
 		api.Services.Schools,
 		db,
+		repoFactory.FormSchema,
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
+	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub)
+	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
 	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
+		StaffPINAuthenticator: api.Services.StaffPINAuth,
+		CheckinService:        api.Services.Checkin,
+		StaffClockService:     api.Services.StaffClock,
 		UsersService:          api.Services.Users,
 		ActiveService:         api.Services.Active,
 		ActivitiesService:     api.Services.Activities,
@@ -426,37 +485,45 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PickupScheduleService: api.Services.PickupSchedule,
 		SchoolService:         api.Services.Schools,
 		TimetableDataService:  api.Services.TimetableData,
+		TimetableBridge:       api.Services.TimetableBridge,
 		UnregisteredTagScans:  api.Services.UnregisteredTagScans,
 		Broadcaster:           api.Services.RealtimeHub,
 		Logger:                logger.With("handler", "iot"),
 		DB:                    db,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "sse"))
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
-	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, db)
+	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
+	api.TimeTracking.HolidayService = api.Services.Holidays
+	api.TimeTracking.ClosingDayService = api.Services.ClosingDays
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriodService:  api.Services.CalendarPeriod,
+		ClosingDayService:      api.Services.ClosingDays,
 		MaterializationService: api.Services.Materialization,
 		InstanceService:        api.Services.Instance,
 		OperationsService:      api.Services.TimetableOperations,
 		TemplateSplitService:   api.Services.TemplateSplit,
 		PersonService:          api.Services.Users,
 		TimetableData:          api.Services.TimetableData,
+		CareDayService:         api.Services.CareDay,
 		UserContextService:     api.Services.UserContext,
 		SettingsService:        api.Services.Settings,
+		SlotListsService:       api.Services.SlotLists,
 		Broadcaster:            api.Services.RealtimeHub,
 		Logger:                 logger.With("handler", "timetable"),
 		DB:                     db,
 	})
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
+	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AuthService:                api.Services.OperatorAuth,
+		PasskeyService:             api.Services.OperatorPasskey,
 		MFAService:                 api.Services.OperatorMFA,
 		InvitationService:          api.Services.OperatorInvitation,
 		ProvisioningService:        api.Services.OperatorProvisioning,
@@ -484,6 +551,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.Schools,
 		db,
 	)
+	api.Parent.SetCalendarService(api.Services.Calendar)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
@@ -495,40 +563,63 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Router.ServeHTTP(w, r)
 }
 
+// authRateLimiters bundles the auth-endpoint rate limiters. Each field is nil
+// when rate limiting is disabled; separate instances give email-confirm and
+// invitation endpoints independent per-IP counters so they can't exhaust each
+// other's budget.
+type authRateLimiters struct {
+	auth         *customMiddleware.RateLimiter
+	emailConfirm *customMiddleware.RateLimiter
+	invitation   *customMiddleware.RateLimiter
+}
+
+// buildAuthRateLimiters constructs the stricter auth-endpoint rate limiters
+// from RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE (default 5), wiring the security
+// logger when present.
+func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger) authRateLimiters {
+	authLimit := 5 // default: 5 requests per minute for auth
+	if limit := os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"); limit != "" {
+		if parsed, err := strconv.Atoi(limit); err == nil && parsed > 0 {
+			authLimit = parsed
+		}
+	}
+	limiters := authRateLimiters{
+		auth:         customMiddleware.NewRateLimiter(authLimit, 10), // allow reasonable burst for login attempts
+		emailConfirm: customMiddleware.NewRateLimiter(authLimit, 10),
+		invitation:   customMiddleware.NewRateLimiter(authLimit, 10),
+	}
+	if securityLogger != nil {
+		limiters.auth.SetLogger(securityLogger)
+		limiters.emailConfirm.SetLogger(securityLogger)
+		limiters.invitation.SetLogger(securityLogger)
+	}
+	return limiters
+}
+
 // registerRoutesWithRateLimiting registers all API routes with appropriate rate limiting
 func (a *API) registerRoutesWithRateLimiting() {
-	// Check if rate limiting is enabled
-	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
-
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
 
-	// Configure auth-specific rate limiting if enabled
-	var authRateLimiter *customMiddleware.RateLimiter
-	var emailConfirmLimiter *customMiddleware.RateLimiter
-	var invitationLimiter *customMiddleware.RateLimiter
-	if rateLimitEnabled {
-		// Stricter rate limit for auth endpoints
-		authLimit := 5 // default: 5 requests per minute for auth
-		if limit := os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"); limit != "" {
-			if parsed, err := strconv.Atoi(limit); err == nil && parsed > 0 {
-				authLimit = parsed
-			}
-		}
-		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 10) // allow reasonable burst for login attempts
-		// Separate instances for email-confirm and invitations: same config,
-		// independent per-IP counters. Prevents cross-endpoint budget exhaustion.
-		emailConfirmLimiter = customMiddleware.NewRateLimiter(authLimit, 10)
-		invitationLimiter = customMiddleware.NewRateLimiter(authLimit, 10)
-		if securityLogger != nil {
-			authRateLimiter.SetLogger(securityLogger)
-			emailConfirmLimiter.SetLogger(securityLogger)
-			invitationLimiter.SetLogger(securityLogger)
-		}
+	// Configure auth-specific rate limiting if enabled. When disabled, the
+	// zero-value limiters carry nil fields and the setters below are skipped.
+	var limiters authRateLimiters
+	if os.Getenv("RATE_LIMIT_ENABLED") == "true" {
+		limiters = buildAuthRateLimiters(securityLogger)
 	}
+
+	a.registerPublicRoutes()
+	a.registerTenantRoutes()
+	a.registerPortalRoutes(limiters)
+}
+
+// registerPublicRoutes registers unauthenticated root-level routes: the
+// landing/health probes, the public image/legal-document servers, and the
+// bearer-protected metrics endpoint.
+func (a *API) registerPublicRoutes() {
 	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("MOTO API - Phoenix Project"))
 	})
@@ -546,16 +637,66 @@ func (a *API) registerRoutesWithRateLimiting() {
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
 	})
 
-	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
+	// Public enrollment legal document serving (no auth - parents read it before submitting).
+	a.Router.Get("/public/enrollment-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		filename := chi.URLParam(r, "filename")
+		apiCommon.ServeFile(w, r, "public/uploads/enrollment-legal-documents", filename, "public, max-age=86400")
+	})
+	a.Router.Get("/public/enrollment-form-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		filename := chi.URLParam(r, "filename")
+		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400")
+	})
 
-	// Mount API resources
+	// Public parent calendar subscription feed (no auth — the token in the URL
+	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
+	// the parent's Termine in sync.
+	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
+
+	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
+}
+
+// registerPortalRoutes mounts the root-level portal routers (tenant auth,
+// operator, parent) and applies the auth rate limiters when present.
+func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// Auth routes mounted at root level to match frontend expectations
 	// Rate limiting is applied per-route inside Auth.Router() (only login, register, password-reset)
-	if rateLimitEnabled && authRateLimiter != nil {
-		a.Auth.SetAuthRateLimiter(authRateLimiter.Middleware())
+	if limiters.auth != nil {
+		a.Auth.SetAuthRateLimiter(limiters.auth.Middleware())
 	}
 	a.Router.Mount("/auth", a.Auth.Router())
 
+	// Mount operator dashboard routes at root level (separate from tenant API)
+	// Apply the same auth rate limiter to operator login for brute-force protection
+	if limiters.auth != nil {
+		a.Operator.SetAuthRateLimiter(limiters.auth.Middleware())
+	}
+	if limiters.emailConfirm != nil {
+		a.Operator.SetEmailConfirmRateLimiter(limiters.emailConfirm.Middleware())
+	}
+	if limiters.invitation != nil {
+		a.Operator.SetInvitationRateLimiter(limiters.invitation.Middleware())
+	}
+	a.Router.Mount("/operator", a.Operator.Router())
+
+	// Parent (cross-tenant guardian portal). Mounted at the root level
+	// like /auth and /operator. Public /parent/auth/login + protected
+	// /parent/* routes (the protected ones get added in commit 5).
+	// Reuse the shared authRateLimiter so guardian login gets the same
+	// brute-force protection as tenant and operator login.
+	if limiters.auth != nil {
+		a.Parent.SetAuthRateLimiter(limiters.auth.Middleware())
+	}
+	a.Router.Mount("/parent", a.Parent.Router())
+
+	// Parent-portal SSE stream. Mounted at root (not under /parent, which is a
+	// catch-all mount) and authenticated with ParentMiddleware. Delivers only
+	// whitelisted triggers (parent_message) for the tenants of the guardian's
+	// children.
+	a.Router.Mount("/parent-sse", a.SSE.ParentRouter())
+}
+
+// registerTenantRoutes mounts all tenant API resources under the /api prefix.
+func (a *API) registerTenantRoutes() {
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {
 		// Mount room resources
@@ -563,6 +704,8 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount student resources
 		r.Mount("/students", a.Students.Router())
+		r.Mount("/messages", a.Messaging.Router())
+		r.Mount("/parent-announcements", a.Announcements.Router())
 
 		// Mount guardian resources
 		r.Mount("/guardians", a.Guardians.Router())
@@ -576,12 +719,23 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount staff resources
 		r.Mount("/staff", a.Staff.Router())
 		r.Mount("/work-time-models", a.WorkTimeModels.Router())
+		r.Mount("/staff-shifts", a.StaffShifts.Router())
+		r.Mount("/shift-types", a.ShiftTypes.Router())
+
+		// Mount personal calendar resources
+		r.Mount("/calendar", a.Calendar.Router())
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
 
+		// Mount meal plan resources
+		r.Mount("/meal-plan", a.MealPlan.Router())
+
 		// Mount enrollment resources (parent-enrollment PR 5+)
 		r.Mount("/enrollment", a.Enrollment.Router())
+
+		// Mount info-point display resources (issue #1325)
+		r.Mount("/display", a.Display.Router())
 
 		// Mount suggestions resources
 		r.Mount("/suggestions", a.Suggestions.Router())
@@ -625,6 +779,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount emergency snapshot resources
 		r.Mount("/emergency", a.Emergency.Router())
 
+		// Mount reminders resources (visual-only staff reminders, issue #1457)
+		r.Mount("/reminders", a.Reminders.Router())
+
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
 
@@ -633,27 +790,31 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Add other resource routes here as they are implemented
 	})
+}
 
-	// Mount operator dashboard routes at root level (separate from tenant API)
-	// Apply the same auth rate limiter to operator login for brute-force protection
-	if rateLimitEnabled && authRateLimiter != nil {
-		a.Operator.SetAuthRateLimiter(authRateLimiter.Middleware())
+// servePublicCalendarFeed serves the parent iCalendar subscription feed. There
+// is no auth — the token in the URL is the capability; the service resolves the
+// account by token and aggregates across the parent's tenants.
+func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
+	if a.Services.Calendar == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
 	}
-	if rateLimitEnabled && emailConfirmLimiter != nil {
-		a.Operator.SetEmailConfirmRateLimiter(emailConfirmLimiter.Middleware())
+	token := chi.URLParam(r, "token")
+	filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, calendarService.ErrNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("calendar feed failed",
+			"error", err.Error(),
+		)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
-	if rateLimitEnabled && invitationLimiter != nil {
-		a.Operator.SetInvitationRateLimiter(invitationLimiter.Middleware())
-	}
-	a.Router.Mount("/operator", a.Operator.Router())
-
-	// Parent (cross-tenant guardian portal). Mounted at the root level
-	// like /auth and /operator. Public /parent/auth/login + protected
-	// /parent/* routes (the protected ones get added in commit 5).
-	// Reuse the shared authRateLimiter so guardian login gets the same
-	// brute-force protection as tenant and operator login.
-	if rateLimitEnabled && authRateLimiter != nil {
-		a.Parent.SetAuthRateLimiter(authRateLimiter.Middleware())
-	}
-	a.Router.Mount("/parent", a.Parent.Router())
+	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_, _ = w.Write([]byte(content))
 }

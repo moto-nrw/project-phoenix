@@ -252,6 +252,7 @@ function PendingInvitationsList({
                 {" — "}
                 Läuft ab am{" "}
                 {new Date(inv.expiresAt).toLocaleDateString("de-DE", {
+                  timeZone: "Europe/Berlin",
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",
@@ -328,6 +329,7 @@ function OperatorsList({ operators }: { readonly operators: OperatorInfo[] }) {
                   <p className="text-xs text-gray-400">
                     Letzter Login:{" "}
                     {new Date(op.lastLogin).toLocaleDateString("de-DE", {
+                      timeZone: "Europe/Berlin",
                       day: "2-digit",
                       month: "2-digit",
                       year: "numeric",

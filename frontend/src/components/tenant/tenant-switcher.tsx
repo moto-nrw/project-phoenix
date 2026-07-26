@@ -6,11 +6,13 @@ import { mutate } from "~/lib/swr";
 import {
   listAvailableTenants,
   performTenantSwitch,
-  type TenantInfo,
+  type TenantSummary,
 } from "~/lib/tenant-api";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
+import { trackEvent } from "~/lib/analytics";
 import { env } from "~/env";
+import { Alert } from "~/components/ui/alert";
 
 const logger = createLogger({ component: "TenantSwitcher" });
 
@@ -26,9 +28,10 @@ const logger = createLogger({ component: "TenantSwitcher" });
  * 5. Hard-navigate to new tenant URL
  */
 export function TenantSwitcher() {
-  const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const currentSlug = useTenantSlugSafe();
   const { status } = useSession();
@@ -62,18 +65,24 @@ export function TenantSwitcher() {
   }, [isOpen]);
 
   const handleSwitch = useCallback(
-    async (targetTenant: TenantInfo) => {
+    async (targetTenant: TenantSummary) => {
       if (isSwitching) return;
       setIsSwitching(true);
       setIsOpen(false);
+      setSwitchError("");
 
       try {
-        await performTenantSwitch(targetTenant.slug, signIn, mutate);
+        // The backend resolves the switch target by SUBDOMAIN (same as
+        // login), so pass targetTenant.subdomain — the slug column can
+        // legitimately differ from it (#1975).
+        await performTenantSwitch(targetTenant.subdomain, signIn, mutate);
 
-        logger.info("tenant_switched", {
+        const switchPayload = {
           from_slug: currentSlug ?? "unknown",
-          to_slug: targetTenant.slug,
-        });
+          to_slug: targetTenant.subdomain,
+        };
+        logger.info("tenant_switched", switchPayload);
+        trackEvent("tenant_switched", switchPayload);
 
         // 5. Hard-navigate to the new tenant subdomain.
         // Always use subdomain routing — the proxy rewrites subdomains
@@ -86,8 +95,11 @@ export function TenantSwitcher() {
       } catch (err) {
         logger.error("tenant_switch_failed", {
           error: err instanceof Error ? err.message : String(err),
-          target_slug: targetTenant.slug,
+          target_slug: targetTenant.subdomain,
         });
+        setSwitchError(
+          `Wechsel zu ${targetTenant.name} fehlgeschlagen. Bitte erneut versuchen oder direkt über die Schul-URL anmelden.`,
+        );
         setIsSwitching(false);
       }
     },
@@ -99,11 +111,13 @@ export function TenantSwitcher() {
     return null;
   }
 
-  const currentTenant = tenants.find((t) => t.slug === currentSlug);
-  const otherTenants = tenants.filter((t) => t.slug !== currentSlug);
+  // currentSlug comes from the URL, which is the tenant's subdomain — so
+  // match against subdomain, not the independent slug column (#1975).
+  const currentTenant = tenants.find((t) => t.subdomain === currentSlug);
+  const otherTenants = tenants.filter((t) => t.subdomain !== currentSlug);
 
   // Group other tenants by organization
-  const grouped = new Map<string, TenantInfo[]>();
+  const grouped = new Map<string, TenantSummary[]>();
   for (const t of otherTenants) {
     const orgName = t.organizationName || "Andere";
     const existing = grouped.get(orgName) ?? [];
@@ -116,7 +130,10 @@ export function TenantSwitcher() {
       {/* Trigger button */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setSwitchError("");
+          setIsOpen(!isOpen);
+        }}
         disabled={isSwitching}
         className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
       >
@@ -161,6 +178,14 @@ export function TenantSwitcher() {
               ))}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Visible feedback when a switch fails — a silent no-op here caused
+          #1975 to go unnoticed. */}
+      {switchError && !isOpen && (
+        <div className="absolute right-0 z-50 mt-1 w-72">
+          <Alert type="error" message={switchError} />
         </div>
       )}
     </div>

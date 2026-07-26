@@ -1,8 +1,6 @@
 package students_test
 
 import (
-	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,18 +8,16 @@ import (
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -30,38 +26,29 @@ type testContext struct {
 	db          *bun.DB
 	services    *services.Factory
 	resource    *studentsAPI.Resource
-	broadcaster *recordingBroadcaster
-}
-
-type recordingBroadcaster struct {
-	events []realtime.Event
-}
-
-func (b *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtime.Event) error {
-	b.events = append(b.events, event)
-	return nil
-}
-
-func (b *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
-	b.events = append(b.events, event)
-	return nil
-}
-
-func (b *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
-	b.events = append(b.events, event)
-	return nil
+	broadcaster *testpkg.RecordingBroadcaster
 }
 
 // setupTestContext initializes the test environment.
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
-
+	db, svc := testutil.SetupAPITest(t)
 	repoFactory := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
-	broadcaster := &recordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
+
+	// Real emitter wired to the recording broadcaster so the staff-side guardian
+	// wake (parent_child_updated fan-out after a care write, #1725) is exercised
+	// and assertable via broadcaster.CallsByMethod("guardian"). Message-independent:
+	// it reads the guardian list and broadcasts regardless of the messaging setting.
+	parentEventEmitter := parentmessaging.NewEmitter(
+		db,
+		repoFactory.ParentMessageThread,
+		repoFactory.ParentMessage,
+		svc.Settings,
+		broadcaster,
+		slog.Default(),
+	)
 
 	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
 		StudentRepo: repoFactory.Student,
@@ -76,7 +63,7 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           svc.Users,
 		GuardianService:         svc.Guardian,
-		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentParentNote),
+		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion),
 		EducationService:        svc.Education,
 		UserContextService:      svc.UserContext,
 		ActiveService:           svc.Active,
@@ -85,11 +72,14 @@ func setupTestContext(t *testing.T) *testContext {
 		ArrivalScheduleService:  svc.ArrivalSchedule,
 		SchoolService:           svc.Schools,
 		SettingsService:         svc.Settings,
-		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog),
+		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
 		InstanceService:         svc.Instance,
 		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
+		ExcusedRequestService:   svc.ExcusedRequests,
 		Broadcaster:             broadcaster,
+		ParentEventEmitter:      parentEventEmitter,
 		StudentPhotos:           studentPhotos,
+		ListExportService:       listexport.NewService(),
 		Logger:                  slog.Default(),
 		DB:                      db,
 	})
@@ -108,31 +98,15 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-// setupRouter creates a Chi router with the given handler.
-func setupRouter(handler http.HandlerFunc, urlParam string) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	if urlParam != "" {
-		router.Get(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Put(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Delete(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Post(fmt.Sprintf("/{%s}", urlParam), handler)
-	} else {
-		router.Get("/", handler)
-		router.Post("/", handler)
-	}
-	return router
-}
-
-// executeWithAuth executes a request with JWT claims and permissions.
-func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
-	if claims.TenantID != 0 {
-		ctx = tenant.WithTenantID(ctx, claims.TenantID)
-	}
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-	return rr
+// authExec signs a JWT carrying claims (narrowed to perms) and runs the request
+// through the production Router() so the full middleware chain executes exactly
+// as the real server does (Verifier → Authenticator → TenantMiddleware →
+// RequiresPermission → TenantTxMiddleware). It replaces the old
+// setupRouter+executeWithAuth context-injection pattern: paths must be the real
+// route paths and perms must be the permission the endpoint actually gates on.
+func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
+	t.Helper()
+	claims.Permissions = perms
+	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
+	return testutil.ExecuteRequest(tc.resource.Router(), req)
 }

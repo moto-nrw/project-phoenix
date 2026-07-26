@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -220,23 +221,6 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	})
 }
 
-func TestGuardianProfileRepository_Count(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("counts guardian profiles", func(t *testing.T) {
-		profile := testpkg.CreateTestGuardianProfile(t, db, "count")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
-
-		count, err := repo.Count(ctx)
-		require.NoError(t, err)
-		assert.Greater(t, count, 0)
-	})
-}
-
 func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -357,20 +341,6 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	})
 }
 
-func TestGuardianProfileRepository_UnlinkAccount(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for non-existent profile", func(t *testing.T) {
-		err := repo.UnlinkAccount(ctx, int64(999999))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
-	})
-}
-
 func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -389,21 +359,51 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 // Student Count Tests
 // ============================================================================
 
-func TestGuardianProfileRepository_GetStudentCount(t *testing.T) {
+func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
 
-	t.Run("returns zero for guardian with no students", func(t *testing.T) {
-		profile := testpkg.CreateTestGuardianProfile(t, db, "nostudents")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
-
-		count, err := repo.GetStudentCount(ctx, profile.ID)
-		require.NoError(t, err)
-		assert.Equal(t, 0, count)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "profilechildren")
+	account := testpkg.CreateTestAccount(t, db, "profilechildren")
+	visible := testpkg.CreateTestStudent(t, db, "Visible", "Child", "1a")
+	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(t, db, visible.ID, profile.ID)
+		testpkg.CleanupActivityFixtures(t, db, hidden.ID, profile.ID)
+		testpkg.CleanupAccount(t, db, account.ID)
 	})
+	require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
+
+	visibleRel := &users.StudentGuardian{
+		StudentID:         visible.ID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "parent",
+		GuardianRole:      authorize.GuardianRoleLegalGuardian,
+		Permissions: map[string]interface{}{
+			authorize.GuardianPermissionPortalAccess: true,
+		},
+	}
+	visibleRel.SetTenantID(1)
+	hiddenRel := &users.StudentGuardian{
+		StudentID:         hidden.ID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "other",
+		GuardianRole:      authorize.GuardianRolePickupOnly,
+		Permissions:       map[string]interface{}{},
+	}
+	hiddenRel.SetTenantID(1)
+	require.NoError(t, repositories.NewFactory(db).StudentGuardian.Create(ctx, visibleRel))
+	require.NoError(t, repositories.NewFactory(db).StudentGuardian.Create(ctx, hiddenRel))
+
+	loaded, err := repo.LoadProfileWithChildren(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+	require.Len(t, loaded.Children, 1)
+	assert.Equal(t, visible.ID, loaded.Children[0].StudentID)
+	assert.Equal(t, "Visible", loaded.Children[0].FirstName)
 }
 
 // seedNamedGuardian inserts a guardian with a caller-controlled first name (so

@@ -406,50 +406,6 @@ func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 	})
 }
 
-func TestSupervisorPlannedRepository_FindPrimaryByGroupID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds primary supervisor for a group", func(t *testing.T) {
-		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Supervisor")
-		staff2 := testpkg.CreateTestStaff(t, db, "Secondary", "Supervisor")
-		group := testpkg.CreateTestActivityGroup(t, db, "PrimarySupervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID, 0, 0, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-
-		primary := createSupervisor(t, db, staff1.ID, group.ID, true)
-		secondary := createSupervisor(t, db, staff2.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", primary.ID, secondary.ID)
-
-		found, err := repo.FindPrimaryByGroupID(ctx, group.ID)
-		require.NoError(t, err)
-		assert.Equal(t, primary.ID, found.ID)
-		assert.True(t, found.IsPrimary)
-		// Check that staff and person are loaded
-		assert.NotNil(t, found.Staff)
-		if found.Staff != nil {
-			assert.NotNil(t, found.Staff.Person)
-		}
-	})
-
-	t.Run("returns error when no primary supervisor exists", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "NoPrimary", "Staff")
-		group := testpkg.CreateTestActivityGroup(t, db, "NoPrimaryGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-
-		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
-
-		_, err := repo.FindPrimaryByGroupID(ctx, group.ID)
-		require.Error(t, err)
-	})
-}
-
 func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

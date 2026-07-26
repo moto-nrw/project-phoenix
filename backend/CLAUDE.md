@@ -31,8 +31,8 @@ go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 
 DSN resolution is **fail-fast** (`database/database_config.go`) — there are no localhost fallbacks:
 
-1. `DB_DSN` — used by CLI commands (migrate, cleanup), which connect as the `postgres` **superuser** (the seeder is API-based and opens no DB connection itself)
-2. `TEST_DB_DSN` — only honored when `APP_ENV=test` (test DB on port 5433)
+1. `APP_ENV=test` — requires `TEST_DB_DSN` and never falls through to `DB_DSN` (test DB on port 5433)
+2. Every other environment — requires `DB_DSN`; CLI commands connect as the `postgres` **superuser** (the seeder is API-based and opens no DB connection itself)
 3. Missing config exits with an error
 
 The HTTP server (`serve`) connects as the least-privilege **`phoenix_auth`** role instead (NOINHERIT; can `SET ROLE` to `phoenix_tenant`/`phoenix_admin` per request). `PHOENIX_AUTH_PASSWORD` is mandatory — the server refuses to start without it. This split is what makes RLS enforcement real: request queries run under the tenant role, never as superuser.
@@ -92,7 +92,7 @@ Per-school config resolves tenant DB override → registry default; the service 
 
 ### RFID/IoT Integration
 - Two-layer auth: Device API key (`Authorization: Bearer`) + Staff PIN (`X-Staff-PIN`); devices authenticate without tenant JWTs but are scoped to one school (hence `Resolve*ForTenant` in device auth)
-- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare; per-account staff PINs (separate identity flows) are Argon2id-hashed
+- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare; optional kiosk attribution requires `X-Staff-ID` plus an `X-Staff-Auth-PIN` verified against that account's Argon2id-hashed PIN (`X-Staff-ID` alone is ignored, and binary attendance remains attributed to the authenticated device)
 - Check-in/out tracked in `active.visits`; scheduled statuses (sick/excused/class trip) in `active.student_status_days`
 - **Error strings returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text (see root `CLAUDE.md` Ecosystem)
 
@@ -102,6 +102,24 @@ Per-school config resolves tenant DB override → registry default; the service 
 - Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see Development Commands for the exact CLI shapes — they differ per domain)
 - All deletions logged in `audit.data_deletions`
 - **Logging: no student names at Info level or above** (IDs only; names at Debug)
+
+### Guardian Parent-Portal Permissions
+
+Parent portal guardian permissions are relationship-scoped, not normal tenant
+account permissions. Staff/admin authorization still uses `auth.roles`,
+`auth.permissions`, JWT permissions, and `authorize.RequiresPermission`, but
+parents app access for a child must be decided from the matching
+`users.students_guardians` row.
+
+Never authorize parent portal child visibility or writes only from
+`auth.account_tenants`, `guardian_profiles.account_id`, or the existence of a
+guardian link. Those facts prove membership/relationship only; they do not prove
+permission. Operational fields such as `can_pickup`, `is_emergency_contact`,
+`relationship_type`, and `is_primary` may inform defaults but must not replace
+explicit `parent_portal.*` permission checks.
+
+Detailed rule and implementation guidance:
+`.claude/rules/guardian-parent-permissions.md`.
 
 ## Migration System
 

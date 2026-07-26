@@ -242,8 +242,10 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Admin with supervision overview setting: skip staff/supervision checks
-	if !rs.isAdminWithSupervisionOverview(r) {
+	// Admin overview and open-care both broaden the operational room scope.
+	// Per-student GDPR fields below still use DetermineStudentAccess and are
+	// never broadened by group mode.
+	if !rs.isAdminWithSupervisionOverview(r) && !rs.openCareMode(r.Context()) {
 		staff, err := rs.extractStaffFromRequest(w, r)
 		if err != nil {
 			return
@@ -359,21 +361,6 @@ func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID in
 		results = append(results, *row)
 	}
 	return results, nil
-}
-
-func collectVisitStudentIDs(results []visitWithStudent) []int64 {
-	studentIDs := make([]int64, 0, len(results))
-	seen := make(map[int64]struct{}, len(results))
-
-	for _, result := range results {
-		if _, ok := seen[result.StudentID]; ok {
-			continue
-		}
-		seen[result.StudentID] = struct{}{}
-		studentIDs = append(studentIDs, result.StudentID)
-	}
-
-	return studentIDs
 }
 
 // fetchAttendanceStatusesForVisits fetches today's attendance status for the

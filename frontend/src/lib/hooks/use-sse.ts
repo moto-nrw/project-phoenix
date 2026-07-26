@@ -65,6 +65,9 @@ export function useSSE(
     [onError],
   );
 
+  // connect() stores every EventSource in eventSourceRef; the cleanup below
+  // closes that ref and clears the reconnect timer. The scanner cannot follow
+  // the nested connection factory to its cleanup.
   useEffect(() => {
     if (!enabled) {
       setIsConnected(false);
@@ -153,12 +156,36 @@ export function useSSE(
           "activity_update",
           "active_supervision_changed",
           "dashboard_counts_changed",
+          "staff_time_tracking_changed",
           "arrival_schedule_changed",
+          "pickup_schedule_changed",
           "tenant_settings_changed",
           "instance_started",
           "instance_completed",
           "instance_cancelled",
           "instance_overdue",
+          "parent_message",
+          "parent_message_read",
+          // Named SSE events MUST be registered here or the browser's EventSource
+          // never delivers them (onmessage fires only for UNNAMED events). Both of
+          // these are sent as NAMED events by the backend and consumed by their
+          // handlers (change_requests_changed → staff review queue in useGlobalSSE;
+          // parent_child_updated → the parents-portal ParentRealtimeBridge). Without
+          // this registration those branches are dead and the queues/tabs only
+          // refresh on focus or manual reload (#1845 review).
+          "change_requests_changed",
+          "parent_child_updated",
+          // Same defect, same fix: both are broadcast as NAMED events
+          // (instance_service.go / substitute.go for staffing,
+          // student_handlers.go + master_data_review/care_request/offering
+          // services for companions) and both have live handlers in
+          // useGlobalSSE, so without registration those branches never ran.
+          // Timetable caches — including the per-child Betreuungsplan, whose
+          // blocks a substitute or absence changes — only refreshed on focus or
+          // reload, and a remote "läuft mit" edit stayed invisible until
+          // remount (the #1694 bus it drives never fired).
+          "staffing_deviation_changed",
+          "student_companions_changed",
         ];
 
         for (const eventType of eventTypes) {

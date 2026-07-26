@@ -42,15 +42,12 @@ func (s *stubSettingsResolver) ResolveInt(_ context.Context, key string) (int, e
 }
 
 func TestService_GetPresenceMode_NoSettings_FallsBackToDetailed(t *testing.T) {
-	s := &service{logger: slog.Default()}
+	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
 	assert.Equal(t, "detailed", s.GetPresenceMode(context.Background()))
 }
 
 func TestService_GetPresenceMode_ResolveError_FallsBackToDetailed(t *testing.T) {
-	s := &service{
-		logger:   slog.Default(),
-		settings: &stubSettingsResolver{stringErr: errors.New("db gone")},
-	}
+	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{stringErr: errors.New("db gone")}}
 	assert.Equal(t, "detailed", s.GetPresenceMode(context.Background()))
 }
 
@@ -58,19 +55,14 @@ func TestService_GetPresenceMode_EmptyString_FallsBackToDetailed(t *testing.T) {
 	// When no tenant override AND the registry default happens to resolve to
 	// empty (shouldn't, but be defensive), we still return detailed rather
 	// than propagating the empty string.
-	s := &service{
-		logger:   slog.Default(),
-		settings: &stubSettingsResolver{stringValues: map[string]string{}},
-	}
+	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{stringValues: map[string]string{}}}
 	assert.Equal(t, "detailed", s.GetPresenceMode(context.Background()))
 }
 
 func TestService_GetPresenceMode_Binary_ReturnsBinary(t *testing.T) {
-	s := &service{
-		logger: slog.Default(),
-		settings: &stubSettingsResolver{
-			stringValues: map[string]string{"operations.presence_mode": "binary"},
-		},
+	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+		stringValues: map[string]string{"operations.presence_mode": "binary"},
+	},
 	}
 	assert.Equal(t, "binary", s.GetPresenceMode(context.Background()))
 }
@@ -80,11 +72,9 @@ func TestService_CreateVisit_BinaryMode_IsNoOp(t *testing.T) {
 	// proves the short-circuit — if the gate leaks, this would panic. Visit
 	// must pass Validate() (StudentID/ActiveGroupID/EntryTime), since the
 	// gate is placed after validation to preserve caller-contract errors.
-	s := &service{
-		logger: slog.Default(),
-		settings: &stubSettingsResolver{
-			stringValues: map[string]string{"operations.presence_mode": "binary"},
-		},
+	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+		stringValues: map[string]string{"operations.presence_mode": "binary"},
+	},
 	}
 	visit := &active.Visit{
 		StudentID:     1,
@@ -99,11 +89,9 @@ func TestService_CreateVisit_BinaryMode_IsNoOp(t *testing.T) {
 func TestService_EndVisit_BinaryMode_IsNoOp(t *testing.T) {
 	// Same contract for EndVisit — stale visit IDs from before a mode
 	// switch hit the no-op path instead of a missing-row error.
-	s := &service{
-		logger: slog.Default(),
-		settings: &stubSettingsResolver{
-			stringValues: map[string]string{"operations.presence_mode": "binary"},
-		},
+	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+		stringValues: map[string]string{"operations.presence_mode": "binary"},
+	},
 	}
 
 	err := s.EndVisit(context.Background(), 12345)
@@ -111,11 +99,9 @@ func TestService_EndVisit_BinaryMode_IsNoOp(t *testing.T) {
 }
 
 func TestService_EndDailySessions_BinaryMode_ReturnsEmptySuccess(t *testing.T) {
-	s := &service{
-		logger: slog.Default(),
-		settings: &stubSettingsResolver{
-			stringValues: map[string]string{"operations.presence_mode": "binary"},
-		},
+	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+		stringValues: map[string]string{"operations.presence_mode": "binary"},
+	},
 	}
 
 	result, err := s.EndDailySessions(context.Background())

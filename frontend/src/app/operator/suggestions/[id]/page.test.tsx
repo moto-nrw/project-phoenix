@@ -94,8 +94,10 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal">
         <h2>{title}</h2>
         {children}
-        <button onClick={onClose}>Cancel</button>
-        <button onClick={onConfirm} data-testid="confirm-button">
+        <button type="button" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" onClick={onConfirm} data-testid="confirm-button">
           Confirm
         </button>
       </div>
@@ -640,10 +642,7 @@ describe("OperatorSuggestionDetailPage", () => {
     const deleteButton = screen.getByLabelText("Kommentar löschen");
     fireEvent.click(deleteButton);
 
-    await waitFor(() => {
-      const confirmButton = screen.getByTestId("confirm-button");
-      fireEvent.click(confirmButton);
-    });
+    fireEvent.click(await screen.findByTestId("confirm-button"));
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith("comment_delete_failed", {

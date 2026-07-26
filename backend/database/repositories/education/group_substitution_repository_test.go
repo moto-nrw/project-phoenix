@@ -385,32 +385,6 @@ func TestGroupSubstitutionRepository_FindActive(t *testing.T) {
 	})
 }
 
-func TestGroupSubstitutionRepository_FindActiveByGroup(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds active substitutions for group and date", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveGroup")
-		substitute := testpkg.CreateTestStaff(t, db, "ActiveGroupSubstitute", "Staff")
-
-		today := timezone.TodayDate()
-		startDate := today.AddDays(-1)
-		endDate := today.AddDays(7)
-		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
-
-		defer cleanupSubstitutionRecords(t, db, sub.ID)
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupStaffChain(t, db, substitute.ID)
-
-		subs, err := repo.FindActiveByGroup(ctx, group.ID, today)
-		require.NoError(t, err)
-		assert.NotEmpty(t, subs)
-	})
-}
-
 func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

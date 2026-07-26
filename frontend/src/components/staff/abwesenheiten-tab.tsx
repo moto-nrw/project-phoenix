@@ -1,10 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useSWRConfig } from "swr";
+import { Clock3, Thermometer, Trash2 } from "lucide-react";
 
+import {
+  DenyAbsenceModal,
+  QuestionAbsenceModal,
+} from "~/components/staff/absence-decision-modals";
+import {
+  SickReportModal,
+  type SickReportStaff,
+} from "~/components/staff/sick-report-modal";
+import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
+import {
+  ABSENCE_TYPE_HEX,
+  ABSENCE_TYPE_LABEL,
+  absenceStatusMeta,
+  absenceTypeNoun as absenceTypeLabel,
+  dayCountFor as sharedDayCountFor,
+  dispatchAbsencesRefresh,
+  formatAbsenceRange,
+  formatDayCount,
+} from "~/lib/absence-helpers";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { todayISO } from "~/lib/date-helpers";
@@ -13,127 +43,103 @@ import {
   type StaffAbsenceRow,
   type StaffVacationQuotaSummary,
 } from "~/lib/staff-api";
+import { useTenantMutateMatching } from "~/lib/swr";
+import {
+  VERTRETUNG_GAPS_KEY_PREFIX,
+  VERTRETUNG_WEEK_KEY_PREFIX,
+} from "~/lib/timetable-helpers";
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
-const ABSENCE_TYPE_LABEL: Record<string, string> = {
-  vacation: "Urlaub",
-  sick: "Krank",
-  training: "Fortbildung",
-  other: "Sonstige",
-};
-
-const ABSENCE_TYPE_COLOR: Record<string, string> = {
-  vacation: "bg-[#5080D8]/15 text-[#5080D8]",
-  sick: "bg-[#EAB308]/15 text-amber-700",
-  training: "bg-[#7C3AED]/15 text-purple-700",
-  other: "bg-gray-100 text-gray-600",
-};
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
+const VACATION_WORKFLOW_STATUSES = new Set([
+  "requested",
+  "question",
+  "approved",
+  "declined",
+  "canceled",
+]);
 
 function formatRange(start: string, end: string): string {
-  return start === end
-    ? formatDate(start)
-    : `${formatDate(start)} - ${formatDate(end)}`;
-}
-
-// Mon-Fri working days inclusive (Feiertage kommen in Tranche 3). Used as
-// a fallback when the row predates the backend-computed working_days field.
-function countWorkdaysInclusive(startISO: string, endISO: string): number {
-  const start = new Date(`${startISO}T00:00:00`);
-  const end = new Date(`${endISO}T00:00:00`);
-  if (end.getTime() < start.getTime()) return 0;
-  let n = 0;
-  const cur = new Date(start);
-  while (cur.getTime() <= end.getTime()) {
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) n += 1;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return n;
-}
-
-function formatDayCount(days: number): string {
-  // German decimal comma, drop trailing ",0" so "5" prints as "5 Tage".
-  const rounded = Math.round(days * 10) / 10;
-  const display = Number.isInteger(rounded)
-    ? rounded.toString()
-    : rounded.toFixed(1).replace(".", ",");
-  return `${display} ${rounded === 1 ? "Tag" : "Tage"}`;
+  return formatAbsenceRange(start, end);
 }
 
 function dayCountFor(row: StaffAbsenceRow): number {
-  if (row.working_days != null) return row.working_days;
-  const base = countWorkdaysInclusive(row.date_start, row.date_end);
-  if (base <= 0) return base;
-  const hasBoundaryFields =
-    row.start_half_day !== undefined || row.end_half_day !== undefined;
-  if (!hasBoundaryFields) return row.half_day ? base - 0.5 : base;
-  const start = new Date(`${row.date_start.slice(0, 10)}T00:00:00`);
-  const end = new Date(`${row.date_end.slice(0, 10)}T00:00:00`);
-  let days = base;
-  if (row.start_half_day && isWorkday(start)) days -= 0.5;
-  if (
-    row.end_half_day &&
-    row.date_end.slice(0, 10) !== row.date_start.slice(0, 10) &&
-    isWorkday(end)
-  ) {
-    days -= 0.5;
-  }
-  if (
-    row.end_half_day &&
-    row.date_end.slice(0, 10) === row.date_start.slice(0, 10) &&
-    !row.start_half_day &&
-    isWorkday(end)
-  ) {
-    days -= 0.5;
-  }
-  return days;
+  return sharedDayCountFor({
+    workingDays: row.working_days,
+    dateStart: row.date_start,
+    dateEnd: row.date_end,
+    halfDay: row.half_day,
+    startHalfDay: row.start_half_day,
+    endHalfDay: row.end_half_day,
+    hasBoundaryFields:
+      row.start_half_day !== undefined || row.end_half_day !== undefined,
+  });
 }
 
-function isWorkday(date: Date): boolean {
-  const dow = date.getDay();
-  return dow !== 0 && dow !== 6;
+function statusMeta(status: string) {
+  return absenceStatusMeta(status);
 }
 
-interface StatusMeta {
-  readonly label: string;
-  readonly className: string;
+function pendingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  return absences.filter(
+    (absence) =>
+      absence.status === "requested" || absence.status === "question",
+  );
 }
 
-function statusMeta(status: string): StatusMeta {
-  switch (status) {
-    case "requested":
-      return { label: "Wartet", className: "bg-amber-50 text-amber-700" };
-    case "approved":
-      return {
-        label: "Genehmigt",
-        className: "bg-[#83CD2D]/15 text-[#4a7a15]",
-      };
-    case "declined":
-      return { label: "Abgelehnt", className: "bg-red-50 text-red-700" };
-    case "canceled":
-      return { label: "Storniert", className: "bg-gray-100 text-gray-500" };
-    case "reported":
-      return { label: "Eingetragen", className: "bg-gray-100 text-gray-700" };
-    default:
-      return { label: status, className: "bg-gray-100 text-gray-600" };
-  }
+function upcomingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  const today = todayISO();
+  return absences.filter(
+    (absence) =>
+      (absence.status === "approved" || absence.status === "reported") &&
+      absence.date_end >= today,
+  );
+}
+
+function historicalAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  const today = todayISO();
+  return absences
+    .filter(
+      (absence) =>
+        absence.status === "declined" ||
+        absence.status === "canceled" ||
+        ((absence.status === "approved" || absence.status === "reported") &&
+          absence.date_end < today),
+    )
+    .sort((left, right) => (left.date_start < right.date_start ? 1 : -1));
+}
+
+export function isVacationWorkflowAbsence(row: StaffAbsenceRow): boolean {
+  return (
+    row.absence_type === "vacation" &&
+    VACATION_WORKFLOW_STATUSES.has(row.status)
+  );
+}
+
+function TabLoadingBoundary({
+  loading,
+  children,
+}: {
+  readonly loading: boolean;
+  readonly children: ReactNode;
+}) {
+  if (loading) return <Loading fullPage={false} />;
+  return children;
 }
 
 export function AbwesenheitenTab({
   staffId,
   canEdit,
+  canManageSickReports,
+  staff,
 }: {
   readonly staffId: string;
   readonly canEdit: boolean;
+  readonly canManageSickReports: boolean;
+  // Passed in from the staff detail page so the "Krank melden" modal has the
+  // person's name. Optional so the tab still renders (without the action)
+  // where the staff object is not available (#1843).
+  readonly staff?: SickReportStaff;
 }) {
   const toast = useToast();
   const year = useMemo(() => new Date().getFullYear(), []);
@@ -142,71 +148,84 @@ export function AbwesenheitenTab({
   const [loading, setLoading] = useState(true);
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRow | null>(null);
+  const [questionModal, setQuestionModal] = useState<StaffAbsenceRow | null>(
+    null,
+  );
   const [quotaModal, setQuotaModal] = useState(false);
+  // Snapshot of the staff identity taken when the modal opens: the live
+  // `staff` prop can flip to undefined while onCreated's cache invalidation
+  // refetches the page data, and a conditional `{staff && <Modal/>}` render
+  // would then unmount the modal mid-success-state (#1843).
+  const [sickStaff, setSickStaff] = useState<SickReportStaff | null>(null);
+  const [managedAbsenceType, setManagedAbsenceType] = useState<
+    "sick" | "comp_time"
+  >("sick");
+  const [deleteTarget, setDeleteTarget] = useState<StaffAbsenceRow | null>(
+    null,
+  );
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const { mutate: swrMutate } = useSWRConfig();
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [q, abs] = await Promise.all([
-        staffAbsenceService.getVacationQuota(staffId, year),
-        staffAbsenceService.getAbsences(
-          staffId,
-          `${year}-01-01`,
-          `${year}-12-31`,
-        ),
-      ]);
-      setQuota(q);
-      setAbsences(abs);
-      // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
-      // outside this component and otherwise stays stale after approvals,
-      // denials and stornos. useSWRAuth prefixes every key with the tenant
-      // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
-      // never matches, we use includes for the cache hit.
-      swrMutate(
-        (key) =>
-          typeof key === "string" && key.includes("staff-pending-absences-"),
-      );
-    } catch (err) {
-      logger.error("load_failed", {
-        staff_id: staffId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toast.error("Daten konnten nicht geladen werden.");
-    } finally {
-      setLoading(false);
-    }
-  }, [staffId, year, swrMutate, toast]);
+  // A sick report / its deletion cascades into the Dienst- and
+  // Vertretungsplan, so revalidate those caches alongside the local reload.
+  const refreshPlanCaches = useTenantMutateMatching([
+    "dienstplan-overview-",
+    "dienstplan-shifts-",
+    VERTRETUNG_WEEK_KEY_PREFIX,
+    VERTRETUNG_GAPS_KEY_PREFIX,
+  ]);
+
+  // silent skips the loading flag: the loading boundary unmounts the
+  // whole tab subtree including any open modal, which would wipe the
+  // SickReportModal's success state right after a report (#1843).
+  const reload = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) {
+        setLoading(true);
+      }
+      try {
+        const [q, abs] = await Promise.all([
+          staffAbsenceService.getVacationQuota(staffId, year),
+          staffAbsenceService.getAbsences(
+            staffId,
+            `${year}-01-01`,
+            `${year}-12-31`,
+          ),
+        ]);
+        setQuota(q);
+        setAbsences(abs);
+        // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
+        // outside this component and otherwise stays stale after approvals,
+        // denials and stornos. useSWRAuth prefixes every key with the tenant
+        // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
+        // never matches, we use includes for the cache hit.
+        swrMutate(
+          (key) =>
+            typeof key === "string" && key.includes("staff-pending-absences-"),
+        );
+        // Sidebar pending counter (#1419) listens for this event.
+        dispatchAbsencesRefresh();
+      } catch (err) {
+        logger.error("load_failed", {
+          staff_id: staffId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toast.error("Daten konnten nicht geladen werden.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [staffId, year, swrMutate, toast],
+  );
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const pending = useMemo(
-    () => absences.filter((a) => a.status === "requested"),
-    [absences],
-  );
-  const upcoming = useMemo(() => {
-    const today = todayISO();
-    return absences.filter(
-      (a) =>
-        (a.status === "approved" || a.status === "reported") &&
-        a.date_end >= today,
-    );
-  }, [absences]);
-  const history = useMemo(
-    () =>
-      absences
-        .filter(
-          (a) =>
-            a.status === "declined" ||
-            a.status === "canceled" ||
-            ((a.status === "approved" || a.status === "reported") &&
-              a.date_end < todayISO()),
-        )
-        .sort((a, b) => (a.date_start < b.date_start ? 1 : -1)),
-    [absences],
-  );
+  const pending = useMemo(() => pendingAbsences(absences), [absences]);
+  const upcoming = useMemo(() => upcomingAbsences(absences), [absences]);
+  const history = useMemo(() => historicalAbsences(absences), [absences]);
 
   const handleApprove = async (row: StaffAbsenceRow) => {
     setPendingActionId(row.id);
@@ -223,11 +242,25 @@ export function AbwesenheitenTab({
     }
   };
 
-  if (loading) {
-    return <Loading fullPage={false} />;
-  }
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      await staffAbsenceService.deleteAbsence(staffId, deleteTarget.id);
+      toast.success("Krankmeldung gelöscht.");
+      setDeleteTarget(null);
+      await Promise.all([refreshPlanCaches(), reload()]);
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Löschen fehlgeschlagen.",
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
-  return (
+  const content = (
     <div className="space-y-5">
       {/* Quota KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -262,121 +295,50 @@ export function AbwesenheitenTab({
         />
       </div>
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-3">
+        {canManageSickReports && staff ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setManagedAbsenceType("sick");
+                setSickStaff(staff);
+              }}
+            >
+              <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
+              Krank melden
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setManagedAbsenceType("comp_time");
+                setSickStaff(staff);
+              }}
+            >
+              <Clock3 className="mr-1.5 h-4 w-4" aria-hidden />
+              Freizeitausgleich eintragen
+            </Button>
+          </div>
+        ) : (
+          <span />
+        )}
         <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
           Jahr {year}
         </span>
       </div>
 
-      {/* Pending requests, Inbox-Zero pattern: always shows the slot. With
-          items it surfaces as an amber action card; empty it collapses to a
-          subtle "alles bearbeitet" confirmation so the layout anchor stays. */}
-      {pending.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </span>
-          <div>
-            <p className="text-sm font-medium text-gray-700">
-              Keine offenen Anfragen
-            </p>
-            <p className="text-xs text-gray-400">Alles bearbeitet.</p>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-              {pending.length}
-            </span>
-            <h3 className="text-sm font-bold tracking-wide text-amber-900 uppercase">
-              Eingehende Anfragen
-            </h3>
-          </div>
-          <ul className="space-y-2">
-            {pending.map((row) => {
-              const isBusy = pendingActionId === row.id;
-              return (
-                <li
-                  key={row.id}
-                  className="rounded-2xl border border-amber-100 bg-white p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-                        >
-                          {ABSENCE_TYPE_LABEL[row.absence_type] ??
-                            row.absence_type}
-                        </span>
-                        <p className="text-sm font-medium text-gray-800">
-                          {formatRange(row.date_start, row.date_end)}
-                          {row.half_day && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              (halber Tag)
-                            </span>
-                          )}
-                          {row.working_days != null && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              · {row.working_days}{" "}
-                              {row.working_days === 1 ? "Tag" : "Tage"}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      {row.note && (
-                        <p className="mt-2 text-xs text-gray-600">
-                          <span className="font-medium">Notiz:</span> {row.note}
-                        </p>
-                      )}
-                      {row.requested_at && (
-                        <p className="mt-1 text-[11px] text-gray-400">
-                          Eingegangen {formatDate(row.requested_at)}
-                        </p>
-                      )}
-                    </div>
-                    {canEdit && (
-                      <div className="flex w-full flex-col gap-2 min-[420px]:w-auto min-[420px]:flex-row">
-                        <button
-                          type="button"
-                          onClick={() => setDenyModal(row)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          Ablehnen
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleApprove(row);
-                          }}
-                          disabled={isBusy}
-                          className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
-                        >
-                          {isBusy ? "…" : "Genehmigen"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      <PendingAbsences
+        rows={pending}
+        canEdit={canEdit}
+        pendingActionId={pendingActionId}
+        onApprove={handleApprove}
+        onDeny={setDenyModal}
+        onQuestion={setQuestionModal}
+      />
 
       {/* Upcoming approved absences */}
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
@@ -390,7 +352,15 @@ export function AbwesenheitenTab({
         ) : (
           <ul className="space-y-2">
             {upcoming.map((row) => (
-              <AbsenceRow key={row.id} row={row} />
+              <AbsenceRow
+                key={row.id}
+                row={row}
+                onDelete={
+                  canManageSickReports && !isVacationWorkflowAbsence(row)
+                    ? () => setDeleteTarget(row)
+                    : undefined
+                }
+              />
             ))}
           </ul>
         )}
@@ -408,19 +378,85 @@ export function AbwesenheitenTab({
         ) : (
           <ul className="space-y-2">
             {history.slice(0, 20).map((row) => (
-              <AbsenceRow key={row.id} row={row} />
+              <AbsenceRow
+                key={row.id}
+                row={row}
+                onDelete={
+                  canManageSickReports && !isVacationWorkflowAbsence(row)
+                    ? () => setDeleteTarget(row)
+                    : undefined
+                }
+              />
             ))}
           </ul>
         )}
       </div>
 
       {/* Modals */}
+      {sickStaff && (
+        <SickReportModal
+          isOpen
+          staff={sickStaff}
+          absenceType={managedAbsenceType}
+          onClose={() => setSickStaff(null)}
+          onCreated={() => {
+            Promise.all([refreshPlanCaches(), reload({ silent: true })]).catch(
+              (err: unknown) => {
+                logger.error("post_create_refresh_failed", {
+                  staff_id: staffId,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              },
+            );
+          }}
+        />
+      )}
+      <ConfirmDeleteModal
+        isOpen={deleteTarget !== null}
+        title={`${deleteTarget ? absenceTypeLabel(deleteTarget.absence_type) : "Abwesenheit"} löschen`}
+        description={
+          <>
+            Die Abwesenheit{" "}
+            <strong>
+              {deleteTarget
+                ? formatRange(deleteTarget.date_start, deleteTarget.date_end)
+                : ""}
+            </strong>{" "}
+            wird gelöscht.
+            {deleteTarget?.absence_type === "sick" && (
+              <>
+                {" "}
+                Stornierte Schichten und als abwesend markierte Betreuungsblöcke
+                werden wiederhergestellt, sofern noch kein Ersatz eingetragen
+                wurde.
+              </>
+            )}
+          </>
+        }
+        gate={{ mode: "twoStep" }}
+        loading={deleteLoading}
+        error={deleteError}
+        confirmLabel="Löschen"
+        loadingLabel="Wird gelöscht…"
+        onConfirm={handleDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
       {denyModal && (
         <DenyAbsenceModal
           absence={denyModal}
           onClose={() => setDenyModal(null)}
           onDenied={async () => {
             setDenyModal(null);
+            await reload();
+          }}
+        />
+      )}
+      {questionModal && (
+        <QuestionAbsenceModal
+          absence={questionModal}
+          onClose={() => setQuestionModal(null)}
+          onQuestioned={async () => {
+            setQuestionModal(null);
             await reload();
           }}
         />
@@ -437,6 +473,80 @@ export function AbwesenheitenTab({
           }}
         />
       )}
+    </div>
+  );
+
+  return <TabLoadingBoundary loading={loading}>{content}</TabLoadingBoundary>;
+}
+
+function PendingAbsences({
+  rows,
+  canEdit,
+  pendingActionId,
+  onApprove,
+  onDeny,
+  onQuestion,
+}: {
+  readonly rows: StaffAbsenceRow[];
+  readonly canEdit: boolean;
+  readonly pendingActionId: number | null;
+  readonly onApprove: (row: StaffAbsenceRow) => Promise<void>;
+  readonly onDeny: (row: StaffAbsenceRow) => void;
+  readonly onQuestion: (row: StaffAbsenceRow) => void;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </span>
+        <div>
+          <p className="text-sm font-medium text-gray-700">
+            Keine offenen Anfragen
+          </p>
+          <p className="text-xs text-gray-400">Alles bearbeitet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <h3 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+          Eingehende Anfragen
+        </h3>
+        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          {rows.length}
+        </span>
+      </div>
+      <ul className="divide-y divide-gray-100">
+        {rows.map((row) => (
+          <AbsenceRequestRow
+            key={row.id}
+            row={row}
+            isBusy={pendingActionId === row.id}
+            showActions={canEdit}
+            onApprove={(r) => {
+              onApprove(r);
+            }}
+            onDeny={onDeny}
+            onQuestion={onQuestion}
+          />
+        ))}
+      </ul>
     </div>
   );
 }
@@ -514,18 +624,28 @@ function isRedundantNote(absenceType: string, note: string): boolean {
   return (REDUNDANT_NOTES[absenceType] ?? []).includes(normalized);
 }
 
-function AbsenceRow({ row }: { readonly row: StaffAbsenceRow }) {
+function AbsenceRow({
+  row,
+  onDelete,
+}: {
+  readonly row: StaffAbsenceRow;
+  // Delete action for admin-entered absences (status "reported"), e.g. a sick
+  // report whose plan cascade can be undone. Omitted for read-only rows.
+  readonly onDelete?: () => void;
+}) {
   const meta = statusMeta(row.status);
   const showNote = row.note && !isRedundantNote(row.absence_type, row.note);
+  const canDelete = onDelete && row.status === "reported";
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-          >
-            {ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
-          </span>
+          <StatusDotBadge
+            label={ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+            color={
+              ABSENCE_TYPE_HEX[row.absence_type] ?? LOCATION_COLORS.UNKNOWN
+            }
+          />
           <p className="text-sm font-medium text-gray-800">
             {formatRange(row.date_start, row.date_end)}
             <span className="ml-2 text-xs text-gray-500">
@@ -543,96 +663,21 @@ function AbsenceRow({ row }: { readonly row: StaffAbsenceRow }) {
           </p>
         )}
       </div>
-      <span
-        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
-      >
-        {meta.label}
-      </span>
-    </li>
-  );
-}
-
-function DenyAbsenceModal({
-  absence,
-  onClose,
-  onDenied,
-}: {
-  readonly absence: StaffAbsenceRow;
-  readonly onClose: () => void;
-  readonly onDenied: () => void | Promise<void>;
-}) {
-  const [reason, setReason] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const toast = useToast();
-
-  const handleSubmit = async () => {
-    if (reason.trim().length < 3) {
-      toast.error("Bitte gib eine kurze Begründung ein.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await staffAbsenceService.deny(absence.id, reason.trim());
-      toast.success("Antrag abgelehnt.");
-      await onDenied();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Ablehnung fehlgeschlagen.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal
-      isOpen
-      onClose={() => !submitting && onClose()}
-      title="Antrag ablehnen"
-      footer={
-        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <div className="flex items-center gap-2">
+        <StatusDotBadge label={meta.label} color={meta.color} />
+        {canDelete && (
           <button
             type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            onClick={onDelete}
+            aria-label={`${absenceTypeLabel(row.absence_type)} ${formatRange(row.date_start, row.date_end)} löschen`}
+            title={`${absenceTypeLabel(row.absence_type)} löschen`}
+            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
           >
-            Abbrechen
+            <Trash2 className="h-4 w-4" aria-hidden />
           </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-          >
-            {submitting ? "…" : "Ablehnen"}
-          </button>
-        </div>
-      }
-    >
-      <div className="space-y-3">
-        <p className="text-sm text-gray-700">
-          Antrag {formatRange(absence.date_start, absence.date_end)} (
-          {ABSENCE_TYPE_LABEL[absence.absence_type] ?? absence.absence_type})
-        </p>
-        <label
-          htmlFor="deny-reason"
-          className="block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-        >
-          Begründung
-        </label>
-        <textarea
-          id="deny-reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          rows={4}
-          maxLength={500}
-          placeholder="Wird der Mitarbeiterin per E-Mail mitgeteilt."
-          className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-red-500 focus:outline-none"
-        />
-        <p className="text-right text-xs text-gray-400">{reason.length}/500</p>
+        )}
       </div>
-    </Modal>
+    </li>
   );
 }
 

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR, { useSWRConfig } from "swr";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
@@ -14,7 +14,7 @@ import {
   CardSkeletons,
   SimpleEmptyState,
 } from "../provisioning/provisioning-shared";
-import { CaregiverCapabilityModal } from "~/components/teachers";
+import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { useSession } from "next-auth/react";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";

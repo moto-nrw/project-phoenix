@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -163,14 +164,12 @@ func TestListCareOfferingsHandler_InvalidPhaseIDRejected(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestListCareOfferingsHandler_ServiceErrorReturns400(t *testing.T) {
-	// Note: handler wraps ALL list errors as 400 because it can't
-	// distinguish bad-input from service-side failures cheaply. Pin
-	// the behavior so a future refactor surfaces the change.
+func TestListCareOfferingsHandler_ServiceErrorReturnsGeneric500(t *testing.T) {
 	mock := &mockCareOfferingService{listErr: errors.New("synthetic boom")}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings", nil)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, w.Body.String(), "synthetic boom")
 }
 
 // --- getCareOffering -------------------------------------------------
@@ -196,10 +195,18 @@ func TestGetCareOfferingHandler_HappyPath(t *testing.T) {
 }
 
 func TestGetCareOfferingHandler_NotFoundReturns404(t *testing.T) {
-	mock := &mockCareOfferingService{getByIDErr: errors.New("not found")}
+	mock := &mockCareOfferingService{getByIDErr: enrollmentService.ErrCareOfferingNotFound}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestGetCareOfferingHandler_ServiceErrorReturnsGeneric500(t *testing.T) {
+	mock := &mockCareOfferingService{getByIDErr: errors.New("synthetic boom")}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/1234", nil)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, w.Body.String(), "synthetic boom")
 }
 
 // --- createCareOffering ---------------------------------------------
@@ -222,12 +229,59 @@ func TestCreateCareOfferingHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, "OGS", mock.createInput.Name)
 }
 
-func TestCreateCareOfferingHandler_ServiceErrorReturns400(t *testing.T) {
+func TestCreateCareOfferingHandler_PreservesCountsAsCareFalse(t *testing.T) {
+	mock := &mockCareOfferingService{createResult: makeOfferingModel(1234, 5678, "Randstunde")}
+	router := buildCareOfferingRouter(mock)
+	body := validOfferingBody(5678, "Randstunde")
+	body["counts_as_care"] = false
+
+	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings", body)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, mock.createInput)
+	assert.False(t, mock.createInput.CountsAsCare)
+	assert.True(t, mock.createInput.CountsAsCareSet)
+}
+
+func TestCreateCareOfferingHandler_ServiceErrorReturnsGeneric500(t *testing.T) {
 	mock := &mockCareOfferingService{createErr: errors.New("synthetic boom")}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
 		validOfferingBody(5678, "OGS"))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, w.Body.String(), "synthetic boom")
+}
+
+func TestCreateCareOfferingHandler_DomainValidationReturns400(t *testing.T) {
+	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: invalid linked template", enrollmentService.ErrCareOfferingInvalid)}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
+		validOfferingBody(5678, "OGS"))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *testing.T) {
+	mock := &mockCareOfferingService{createErr: fmt.Errorf("validate linked template: %w", enrollmentService.ErrCareOfferingTemplatePeriodMismatch)}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
+		validOfferingBody(5678, "OGS"))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"status":"error","error":"validate linked template: care offering phase must be within the linked timetable template period","code":"enrollment.care_offering_template_period_mismatch"}`, w.Body.String())
+}
+
+func TestCreateCareOfferingHandler_MissingDaysReturnsStableCode(t *testing.T) {
+	// The service wraps the model validation via wrapCareOfferingInvalid;
+	// the renderer must still resolve the specific sentinel so the admin
+	// editor can show the localized "pick at least one day" message (#1885).
+	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: validate care offering: %w",
+		enrollmentService.ErrCareOfferingInvalid, enrollmentModels.ErrCareOfferingDaysRequired)}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
+		validOfferingBody(5678, "OGS"))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeCareOfferingDaysRequired)
 }
 
 // --- updateCareOffering ---------------------------------------------
@@ -257,12 +311,23 @@ func TestUpdateCareOfferingHandler_HappyPathRefetches(t *testing.T) {
 	assert.Equal(t, int64(1234), mock.getByIDID, "refetch must call GetByID after the update")
 }
 
-func TestUpdateCareOfferingHandler_UpdateErrorReturns400(t *testing.T) {
+func TestUpdateCareOfferingHandler_UpdateErrorReturnsGeneric500(t *testing.T) {
 	mock := &mockCareOfferingService{updateErr: errors.New("synthetic boom")}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
 		validOfferingBody(5678, "X"))
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, w.Body.String(), "synthetic boom")
+}
+
+func TestUpdateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *testing.T) {
+	mock := &mockCareOfferingService{updateErr: enrollmentService.ErrCareOfferingTemplatePeriodMismatch}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
+		validOfferingBody(5678, "X"))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.care_offering_template_period_mismatch"`)
 }
 
 func TestUpdateCareOfferingHandler_RefetchErrorReturns500(t *testing.T) {
@@ -298,10 +363,12 @@ func TestDeleteCareOfferingHandler_HappyPathReturns204(t *testing.T) {
 func TestDeleteCareOfferingHandler_FKViolationReturns400(t *testing.T) {
 	// PG FK violation when request_child_offerings already references
 	// this offering. Admin should see the message + soft-delete instead.
-	mock := &mockCareOfferingService{deleteErr: errors.New("FK violation")}
+	mock := &mockCareOfferingService{deleteErr: errors.New(`violates foreign key constraint "fk_test"`)}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodDelete, "/enrollment/care-offerings/1234", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.care_offering_in_use"`)
+	assert.NotContains(t, w.Body.String(), "fk_test")
 }
 
 // --- cloneCareOffering ----------------------------------------------
@@ -330,10 +397,11 @@ func TestCloneCareOfferingHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, int64(5678), mock.cloneTarget, "target phase from body must be forwarded")
 }
 
-func TestCloneCareOfferingHandler_ServiceErrorReturns400(t *testing.T) {
+func TestCloneCareOfferingHandler_ServiceErrorReturnsGeneric500(t *testing.T) {
 	mock := &mockCareOfferingService{cloneErr: errors.New("synthetic boom")}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings/1234/clone",
 		map[string]any{"target_phase_id": 5678})
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, w.Body.String(), "synthetic boom")
 }

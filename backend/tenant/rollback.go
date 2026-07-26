@@ -27,6 +27,19 @@ func MarkRollback(ctx context.Context) {
 }
 
 func rollbackRequested(ctx context.Context) bool {
+	return RollbackRequested(ctx)
+}
+
+// RollbackRequested reports whether MarkRollback was called on this context.
+// Read-only: it lets a handler test assert that a non-5xx error path asked for
+// a rollback without standing up the whole transaction middleware.
+func RollbackRequested(ctx context.Context) bool {
 	marker, ok := ctx.Value(rollbackMarkerKey{}).(*rollbackMarker)
 	return ok && marker != nil && marker.requested.Load()
+}
+
+// WithRollbackMarker attaches a rollback marker to ctx, so MarkRollback and
+// RollbackRequested work outside the tenant transaction middleware (tests).
+func WithRollbackMarker(ctx context.Context) context.Context {
+	return withRollbackMarker(ctx)
 }

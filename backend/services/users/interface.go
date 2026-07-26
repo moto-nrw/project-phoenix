@@ -54,12 +54,6 @@ type PersonService interface {
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
 
-	// GetFullProfile retrieves a person with all related entities
-	GetFullProfile(ctx context.Context, personID int64) (*userModels.Person, error)
-
-	// FindByGuardianID finds all persons with a guardian relationship to the specified account
-	FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error)
-
 	// Entity lookups (issue #584). These replaced the now-deleted repository
 	// getters (StudentRepository/StaffRepository/TeacherRepository). CONTRACT: each method returns the
 	// repository result and error VERBATIM — no wrapping, no sentinel mapping —
@@ -73,6 +67,11 @@ type PersonService interface {
 
 	// GetStaffByPersonID retrieves the staff record belonging to a person.
 	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+
+	// ResolveStaffIDByAccountID maps a JWT account id to its staff id via the
+	// account → person → staff chain. Used for self-ownership checks and
+	// audit attribution; returns a wrapped error when either lookup fails.
+	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
 
 	// GetStaffWithPerson retrieves a staff member with person data preloaded.
 	GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error)
@@ -131,16 +130,6 @@ type PersonService interface {
 	// change. Teacher-record failures are non-fatal and reported through the
 	// returned TeacherAction; the staff update always persists.
 	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
-
-	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
-	ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error)
-
-	// Authentication operations
-	ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error)
-	ValidateStaffPINForSpecificStaff(ctx context.Context, staffID int64, pin string) (*userModels.Staff, error)
-
-	// GetStudentsByTeacher retrieves students supervised by a teacher (through group assignments)
-	GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error)
 
 	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)

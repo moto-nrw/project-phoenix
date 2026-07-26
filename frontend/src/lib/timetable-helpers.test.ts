@@ -4,9 +4,8 @@ import {
   assignBlockLanes,
   chunkDateRange,
   computeTimetableSetup,
-  countPlanned,
-  countStaffGaps,
-  countTemplateStaffGaps,
+  countPlannedStaff,
+  deviationEventLabel,
   formatDayHeader,
   formatMonthLabel,
   formatWeekLabel,
@@ -16,6 +15,7 @@ import {
   getActivityTypeBadge,
   getCurrentTimeOffset,
   getEventBlockPosition,
+  getGermanWeekdayAdverb,
   getGermanWeekdayLong,
   getGermanWeekdayShort,
   getMonthDays,
@@ -26,21 +26,29 @@ import {
   getYearMonths,
   getYearRange,
   groupInstancesByDate,
+  mapApplyDeviations,
+  mapMoveStaff,
+  mapStaffPool,
   mapAttendance,
   mapConflictCheckResult,
+  mapDeviationHistory,
   mapCreateTemplateResult,
-  mapExceptionConflicts,
   mapGaps,
+  mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapReplanWeekResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
-  mapSubstitute,
+  mapShiftCoverageCheckResult,
   mapTemplates,
   mapWeeklyInstances,
+  firstSchoolDayInPeriod,
+  nextWorkdayISO,
   parseTimeToMinutes,
+  resolveTemplateCalendarPeriodId,
   toISODate,
+  weekdayDatesInRange,
 } from "./timetable-helpers";
 import type { EnrichedInstance, TimetableTemplate } from "./timetable-types";
 
@@ -147,6 +155,52 @@ describe("date and range helpers", () => {
     expect(chunkDateRange("2026-05-06", "2026-05-05", 2)).toEqual([]);
   });
 
+  it("expands selected weekdays across DST without implementing A/B rules", () => {
+    expect(weekdayDatesInRange("2026-03-23", "2026-04-08", [1, 3])).toEqual([
+      "2026-03-23",
+      "2026-03-25",
+      "2026-03-30",
+      "2026-04-01",
+      "2026-04-06",
+      "2026-04-08",
+    ]);
+    expect(weekdayDatesInRange("bad", "2026-04-08", [1])).toEqual([]);
+    expect(weekdayDatesInRange("2026-04-09", "2026-04-08", [1])).toEqual([]);
+    expect(weekdayDatesInRange("2026-04-06", "2026-04-08", [0, 8])).toEqual([]);
+  });
+
+  it("snaps weekend dates to the following Monday, weekdays pass through", () => {
+    expect(nextWorkdayISO("2026-07-18")).toBe("2026-07-20"); // Sa -> Mo
+    expect(nextWorkdayISO("2026-07-19")).toBe("2026-07-20"); // So -> Mo
+    expect(nextWorkdayISO("2026-07-15")).toBe("2026-07-15"); // Mi bleibt
+    expect(nextWorkdayISO("2026-07-20")).toBe("2026-07-20"); // Mo bleibt
+    expect(nextWorkdayISO("2026-07-17")).toBe("2026-07-17"); // Fr bleibt
+    expect(nextWorkdayISO("2026-08-01")).toBe("2026-08-03"); // Monatswechsel
+    expect(nextWorkdayISO("2027-01-03")).toBe("2027-01-04"); // Jahreswechsel
+  });
+
+  it("snaps a weekend jump target to the nearest school day inside the period", () => {
+    const start = "2026-08-01"; // Samstag
+    const end = "2027-07-31";
+    // Sa/So am Zeitraumstart -> folgender Montag im Zeitraum.
+    expect(firstSchoolDayInPeriod(start, end, "2026-08-01")).toBe("2026-08-03");
+    expect(firstSchoolDayInPeriod(start, end, "2026-08-02")).toBe("2026-08-03");
+    // Wochentage bleiben unverändert.
+    expect(firstSchoolDayInPeriod(start, end, "2026-08-03")).toBe("2026-08-03");
+    expect(firstSchoolDayInPeriod(start, end, "2026-08-07")).toBe("2026-08-07");
+    // Sa/So am Zeitraumende -> zurück auf den vorangehenden Freitag.
+    expect(
+      firstSchoolDayInPeriod("2026-08-03", "2026-08-09", "2026-08-08"),
+    ).toBe("2026-08-07");
+    expect(
+      firstSchoolDayInPeriod("2026-08-03", "2026-08-09", "2026-08-09"),
+    ).toBe("2026-08-07");
+    // Zeitraum umfasst nur das Wochenende -> Ziel bleibt stehen.
+    expect(
+      firstSchoolDayInPeriod("2026-08-01", "2026-08-02", "2026-08-01"),
+    ).toBe("2026-08-01");
+  });
+
   it("formats German labels", () => {
     const monday = new Date("2026-05-04T00:00:00");
     const sunday = new Date("2026-05-10T00:00:00");
@@ -162,6 +216,19 @@ describe("date and range helpers", () => {
     expect(formatYearLabel(monday)).toBe("2026");
     expect(getGermanWeekdayLong(monday)).toBe("Montag");
     expect(getGermanWeekdayShort(monday)).toBe("Mo");
+  });
+
+  it.each([
+    ["Montag", "montags"],
+    ["Dienstag", "dienstags"],
+    ["Mittwoch", "mittwochs"],
+    ["Donnerstag", "donnerstags"],
+    ["Freitag", "freitags"],
+    ["Samstag", "samstags"],
+    ["Sonntag", "sonntags"],
+    ["", ""],
+  ])("formats %j as the recurring weekday adverb %j", (weekday, expected) => {
+    expect(getGermanWeekdayAdverb(weekday)).toBe(expected);
   });
 });
 
@@ -193,6 +260,114 @@ describe("activity/status helpers", () => {
 });
 
 describe("backend mappers", () => {
+  it("maps deviation history identifiers and nullable display fields", () => {
+    expect(deviationEventLabel("cancellation")).toBe("Block abgesagt");
+    expect(deviationEventLabel("future_event")).toBe("future_event");
+
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 42,
+            activity_group_id: 7,
+            occurrence_date: "2026-05-04",
+            start_time: "12:00:00",
+            instance_id: 9,
+            event_type: "substitution",
+            subject_staff_id: 11,
+            subject_staff_name: "Ada",
+            related_staff_id: 12,
+            related_staff_name: "Berta",
+            actor_account_id: 13,
+            actor_name: "Planung",
+            reason: "Krankheit",
+            occurred_at: "2026-05-03T12:00:00Z",
+          },
+          {
+            id: 43,
+            occurrence_date: "2026-05-05",
+            start_time: "13:00:00",
+            event_type: "deviation_dropped_by_replan",
+            occurred_at: "2026-05-03T13:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "42",
+          activityGroupId: "7",
+          instanceId: "9",
+          subjectStaffId: "11",
+          relatedStaffId: "12",
+          actorAccountId: "13",
+          reason: "Krankheit",
+        }),
+        expect.objectContaining({
+          id: "43",
+          activityGroupId: undefined,
+          instanceId: undefined,
+          subjectStaffId: undefined,
+          relatedStaffId: undefined,
+          actorAccountId: undefined,
+          reason: undefined,
+        }),
+      ],
+    });
+    expect(mapDeviationHistory({ events: null }).events).toEqual([]);
+  });
+
+  it("maps deviation history old_value/new_value when the backend sends them", () => {
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 44,
+            activity_group_id: 7,
+            occurrence_date: "2026-05-04",
+            start_time: "12:00:00",
+            event_type: "substitution",
+            old_value: { is_absent: false },
+            new_value: { is_absent: true, substitute_staff_id: 12 },
+            occurred_at: "2026-05-03T12:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "44",
+          oldValue: { is_absent: false },
+          newValue: { is_absent: true, substitute_staff_id: 12 },
+        }),
+      ],
+    });
+  });
+
+  it("maps deviation history events without old_value/new_value to undefined", () => {
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 45,
+            occurrence_date: "2026-05-05",
+            start_time: "13:00:00",
+            event_type: "deviation_dropped_by_replan",
+            occurred_at: "2026-05-03T13:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "45",
+          oldValue: undefined,
+          newValue: undefined,
+        }),
+      ],
+    });
+  });
+
   it("maps weekly instances, preferring detailed student rows over id fallback", () => {
     const result = mapWeeklyInstances({
       from: "2026-05-04",
@@ -233,6 +408,8 @@ describe("backend mappers", () => {
           absent_staff_count: 0,
           expected_students_count: 1,
           present_students_count: 1,
+          required_staff_count: 1,
+          assigned_staff_count: 1,
           conflict_warnings: [
             {
               kind: "room",
@@ -277,6 +454,8 @@ describe("backend mappers", () => {
           absent_staff_count: 0,
           expected_students_count: 0,
           present_students_count: 0,
+          required_staff_count: 0,
+          assigned_staff_count: 0,
         },
       ],
     });
@@ -353,31 +532,6 @@ describe("backend mappers", () => {
     ).toMatchObject({ instanceId: "42", roomId: "3" });
 
     expect(
-      mapExceptionConflicts({
-        from: "2026-05-04",
-        to: "2026-05-08",
-        conflicts: [
-          {
-            kind: "modified_instance_time_mismatch",
-            date: "2026-05-04",
-            activity_group_id: 7,
-            instance_id: 42,
-            activity_title: "Mensa",
-            student_id: 21,
-            expected_arrival: "12:00",
-            arrival_source: "schedule",
-            original_start_time: "12:00",
-            modified_start_time: "12:30",
-          },
-        ],
-      }).conflicts[0],
-    ).toMatchObject({
-      activityGroupId: "7",
-      instanceId: "42",
-      studentId: "21",
-    });
-
-    expect(
       mapStartInstanceResult({
         instance_id: 42,
         status: "active",
@@ -451,47 +605,216 @@ describe("backend mappers", () => {
         gaps: undefined as never,
       }),
     ).toMatchObject({ gaps: [] });
-
-    expect(
-      mapExceptionConflicts({
-        from: "2026-05-04",
-        to: "2026-05-08",
-        conflicts: undefined as never,
-      }),
-    ).toMatchObject({ conflicts: [] });
   });
 
-  it("maps substitutes and templates", () => {
+  it("maps gap staffing detail and the acknowledged bucket (#1840)", () => {
+    const result = mapGaps({
+      from: "2026-05-04",
+      to: "2026-05-08",
+      gaps: [
+        {
+          instance_id: 42,
+          date: "2026-05-04",
+          title: "Mensa",
+          start_time: "12:00",
+          end_time: "13:00",
+          room_id: 3,
+          status: "planned",
+          assigned_staff_count: 2,
+          absent_staff_count: 1,
+          present_staff_count: 1,
+          planned_staff_count: 2,
+          understaffed_note: null,
+        },
+      ],
+      acknowledged: [
+        {
+          instance_id: 43,
+          date: "2026-05-04",
+          title: "Freispiel",
+          start_time: "13:00",
+          end_time: "14:00",
+          room_id: 4,
+          status: "planned",
+          assigned_staff_count: 0,
+          absent_staff_count: 0,
+          present_staff_count: 0,
+          planned_staff_count: 1,
+          understaffed_note: "bewusst offen",
+        },
+      ],
+    });
+
+    expect(result.gaps[0]).toMatchObject({
+      instanceId: "42",
+      roomId: "3",
+      presentStaffCount: 1,
+      plannedStaffCount: 2,
+      understaffedNote: undefined,
+    });
+    expect(result.acknowledged[0]).toMatchObject({
+      instanceId: "43",
+      roomId: "4",
+      understaffedNote: "bewusst offen",
+    });
+  });
+
+  it("defaults the acknowledged bucket to an empty array (#1840)", () => {
     expect(
-      mapSubstitute({
-        absent_staff_id: 11,
-        substitute_staff_id: 12,
-        date: "2026-05-04",
+      mapGaps({
+        from: "2026-05-04",
+        to: "2026-05-08",
+        gaps: [],
+        acknowledged: undefined,
+      }),
+    ).toMatchObject({ gaps: [], acknowledged: [] });
+  });
+
+  it("maps an applied-deviations result with affected instances and warnings (#1840)", () => {
+    expect(
+      mapApplyDeviations({
+        instance_id: 42,
+        cancelled: false,
+        understaffed_ack: true,
         affected_instances: [
           {
-            instance_id: 42,
+            instance_id: 43,
             title: "Mensa",
             start_time: "12:00",
-            action: "substituted",
+            action: "marked_absent",
           },
         ],
         warnings: [
           {
-            instance_id: 43,
-            title: "Yoga",
+            instance_id: 44,
+            title: "AG",
             date: "2026-05-04",
             start_time: "14:00",
             end_time: "15:00",
           },
         ],
       }),
+    ).toEqual({
+      instanceId: "42",
+      cancelled: false,
+      understaffedAck: true,
+      affectedInstances: [
+        {
+          instanceId: "43",
+          title: "Mensa",
+          startTime: "12:00",
+          action: "marked_absent",
+        },
+      ],
+      warnings: [
+        {
+          instanceId: "44",
+          title: "AG",
+          date: "2026-05-04",
+          startTime: "14:00",
+          endTime: "15:00",
+        },
+      ],
+    });
+  });
+
+  it("maps applied-deviations with empty optional collections (#1840)", () => {
+    expect(
+      mapApplyDeviations({
+        instance_id: 42,
+        cancelled: true,
+        understaffed_ack: false,
+        affected_instances: undefined as never,
+        warnings: undefined as never,
+      }),
     ).toMatchObject({
-      absentStaffId: "11",
-      substituteStaffId: "12",
-      affectedInstances: [{ instanceId: "42" }],
-      warnings: [{ instanceId: "43" }],
+      instanceId: "42",
+      cancelled: true,
+      affectedInstances: [],
+      warnings: [],
+    });
+  });
+
+  it("maps deviation fields on an instance: reason, ack and cancel note (#1840)", () => {
+    const mapped = mapInstance({
+      id: 42,
+      date: "2026-05-04",
+      start_time: "12:00",
+      end_time: "13:00",
+      title: "Mensa",
+      status: "cancelled",
+      is_spontaneous: false,
+      is_live: false,
+      activity_group_id: 7,
+      activity_type: "care",
+      room_id: 3,
+      room_name: "Mensa",
+      staff: [
+        {
+          staff_id: 11,
+          is_primary: true,
+          is_absent: true,
+          is_substitute: false,
+          absence_reason: "krank",
+        },
+      ],
+      students: [],
+      staff_count: 1,
+      absent_staff_count: 1,
+      understaffed_ack: true,
+      understaffed_note: "keine Vertretung",
+      cancel_reason: "Ausflug",
+      expected_students_count: 0,
+      present_students_count: 0,
+      required_staff_count: 0,
+      assigned_staff_count: 0,
     });
 
+    expect(mapped.staff[0]?.absenceReason).toBe("krank");
+    expect(mapped).toMatchObject({
+      understaffedAck: true,
+      understaffedNote: "keine Vertretung",
+      cancelReason: "Ausflug",
+    });
+  });
+
+  it("maps the Wochennotiz (series_notes) and Tagesnotiz (notes) independently (#1837)", () => {
+    const base = {
+      id: 42,
+      date: "2026-05-04",
+      start_time: "14:00",
+      end_time: "15:00",
+      title: "Betreuung",
+      status: "planned" as const,
+      is_spontaneous: false,
+      is_live: false,
+      activity_type: "care" as const,
+      room_id: 3,
+      room_name: "Aula",
+      staff: [],
+      students: [],
+      staff_count: 0,
+      absent_staff_count: 0,
+      understaffed_ack: false,
+      expected_students_count: 0,
+      present_students_count: 0,
+      required_staff_count: 0,
+      assigned_staff_count: 0,
+    };
+
+    const withBoth = mapInstance({
+      ...base,
+      notes: "Heute ohne Herrn Müller",
+      series_notes: "Raum erst ab 14 Uhr offen",
+    });
+    expect(withBoth.notes).toBe("Heute ohne Herrn Müller");
+    expect(withBoth.seriesNotes).toBe("Raum erst ab 14 Uhr offen");
+
+    const withNeither = mapInstance(base);
+    expect(withNeither.seriesNotes).toBeUndefined();
+  });
+
+  it("maps templates", () => {
     expect(
       mapTemplates({
         templates: [
@@ -505,8 +828,11 @@ describe("backend mappers", () => {
             room_name: "Turnhalle",
             is_open: true,
             max_participants: 12,
+            target_group_type: "none",
             enrollment_count: 8,
             supervisor_count: 1,
+            required_staff_count: 1,
+            assigned_staff_count: 1,
             student_ids: [21],
             staff_ids: [11],
             primary_staff_id: 11,
@@ -518,6 +844,7 @@ describe("backend mappers", () => {
                 end_time: "15:00",
                 week_pattern: 2,
                 calendar_period_id: 5,
+                valid_until: "2026-06-01",
               },
             ],
           },
@@ -529,21 +856,40 @@ describe("backend mappers", () => {
       studentIds: ["21"],
       staffIds: ["11"],
       primaryStaffId: "11",
-      schedules: [{ id: "9", calendarPeriodId: "5" }],
+      schedules: [{ id: "9", calendarPeriodId: "5", validUntil: "2026-06-01" }],
     });
   });
 
-  it("maps optional substitute/template fields without fallback ids", () => {
-    expect(
-      mapSubstitute({
-        absent_staff_id: 11,
-        substitute_staff_id: 12,
-        date: "2026-05-04",
-        affected_instances: undefined as never,
-        warnings: undefined as never,
-      }),
-    ).toMatchObject({ affectedInstances: [], warnings: [] });
+  it("maps the Wochennotiz and mapped shift type onto a template (#1837)", () => {
+    const tpl = mapTemplates({
+      templates: [
+        {
+          id: 7,
+          name: "Betreuung Mo",
+          type: "care",
+          category_id: 2,
+          category_name: "Betreuung",
+          is_open: true,
+          max_participants: 20,
+          target_group_type: "none",
+          enrollment_count: 0,
+          supervisor_count: 0,
+          required_staff_count: 0,
+          assigned_staff_count: 0,
+          notes: "Raum erst ab 14 Uhr offen",
+          shift_type_name: "Betreuung / Zeit am Kind",
+          shift_type_color: "#83CD2D",
+          schedules: [],
+        },
+      ],
+    }).templates[0];
 
+    expect(tpl?.notes).toBe("Raum erst ab 14 Uhr offen");
+    expect(tpl?.shiftTypeName).toBe("Betreuung / Zeit am Kind");
+    expect(tpl?.shiftTypeColor).toBe("#83CD2D");
+  });
+
+  it("maps optional template fields without fallback ids", () => {
     expect(
       mapTemplates({
         templates: [
@@ -555,8 +901,11 @@ describe("backend mappers", () => {
             category_name: "Betreuung",
             is_open: false,
             max_participants: undefined as never,
+            target_group_type: "none",
             enrollment_count: undefined as never,
             supervisor_count: 0,
+            required_staff_count: 0,
+            assigned_staff_count: 0,
             schedules: undefined as never,
           },
         ],
@@ -573,13 +922,126 @@ describe("backend mappers", () => {
       educationGroupName: undefined,
       isOpen: false,
       maxParticipants: undefined,
+      notes: undefined,
+      shiftTypeName: undefined,
+      shiftTypeColor: undefined,
+      calendarPeriodId: undefined,
+      targetGroupType: "none",
+      targetGradeLevel: undefined,
+      targetSchoolClass: undefined,
       enrollmentCount: undefined,
       supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      requiredStaffOverride: undefined,
       studentIds: [],
       staffIds: [],
       primaryStaffId: undefined,
       schedules: [],
     });
+  });
+});
+
+describe("required staff override mapping (#1839)", () => {
+  it("surfaces a manual instance override, leaving it undefined when derived", () => {
+    const withOverride = mapWeeklyInstances({
+      from: "2026-05-04",
+      to: "2026-05-08",
+      instances: [
+        {
+          id: 42,
+          date: "2026-05-04",
+          start_time: "14:00",
+          end_time: "15:00",
+          title: "Schulhof",
+          status: "planned",
+          is_spontaneous: false,
+          is_live: false,
+          activity_type: "care",
+          room_id: 3,
+          room_name: "Hof",
+          staff: [],
+          staff_count: 1,
+          absent_staff_count: 0,
+          expected_students_count: 20,
+          present_students_count: 20,
+          required_staff_count: 3,
+          assigned_staff_count: 1,
+          required_staff_override: 3,
+        },
+      ],
+    }).instances[0]!;
+    expect(withOverride.requiredStaffOverride).toBe(3);
+
+    const derived = mapWeeklyInstances({
+      from: "2026-05-04",
+      to: "2026-05-08",
+      instances: [
+        {
+          id: 43,
+          date: "2026-05-04",
+          start_time: "14:00",
+          end_time: "15:00",
+          title: "Lernzeit",
+          status: "planned",
+          is_spontaneous: false,
+          is_live: false,
+          activity_type: "care",
+          room_id: 3,
+          room_name: "Raum",
+          staff: [],
+          staff_count: 2,
+          absent_staff_count: 0,
+          expected_students_count: 10,
+          present_students_count: 10,
+          required_staff_count: 1,
+          assigned_staff_count: 2,
+        },
+      ],
+    }).instances[0]!;
+    expect(derived.requiredStaffOverride).toBeUndefined();
+  });
+
+  it("passes a template's manual override through mapTemplates", () => {
+    const template = mapTemplates({
+      templates: [
+        {
+          id: 7,
+          name: "Yoga",
+          type: "activity",
+          category_id: 2,
+          category_name: "AG",
+          is_open: true,
+          max_participants: 12,
+          target_group_type: "none",
+          enrollment_count: 8,
+          supervisor_count: 1,
+          required_staff_count: 4,
+          assigned_staff_count: 1,
+          required_staff_override: 4,
+          schedules: [],
+        },
+      ],
+    }).templates[0]!;
+    expect(template.requiredStaffOverride).toBe(4);
+    expect(template.requiredStaffCount).toBe(4);
+  });
+});
+
+describe("resolveTemplateCalendarPeriodId", () => {
+  it("prefers the first schedule pin over the template-level pin", () => {
+    const candidate = {
+      calendarPeriodId: "5",
+      schedules: [{ calendarPeriodId: "6" }],
+    } as TimetableTemplate;
+
+    expect(resolveTemplateCalendarPeriodId(candidate)).toBe("6");
+    expect(
+      resolveTemplateCalendarPeriodId({
+        ...candidate,
+        schedules: [{ calendarPeriodId: undefined }],
+      } as TimetableTemplate),
+    ).toBe("5");
   });
 });
 
@@ -761,6 +1223,45 @@ describe("mapConflictCheckResult", () => {
   });
 });
 
+describe("mapShiftCoverageCheckResult", () => {
+  it("maps exact gap warnings and keeps the array non-null", () => {
+    expect(
+      mapShiftCoverageCheckResult({
+        coverage_warnings: [
+          {
+            staff_id: 12,
+            staff_name: "Ada Lovelace",
+            date: "2026-05-06",
+            start_time: "12:00",
+            end_time: "13:00",
+            uncovered_start_time: "12:30",
+            uncovered_end_time: "13:00",
+            message: "Mittwoch ist nicht vollständig abgedeckt.",
+          },
+        ],
+      }),
+    ).toEqual({
+      coverageWarningCount: 1,
+      coverageWarnings: [
+        {
+          staffId: "12",
+          staffName: "Ada Lovelace",
+          date: "2026-05-06",
+          startTime: "12:00",
+          endTime: "13:00",
+          uncoveredStartTime: "12:30",
+          uncoveredEndTime: "13:00",
+          message: "Mittwoch ist nicht vollständig abgedeckt.",
+        },
+      ],
+    });
+    expect(mapShiftCoverageCheckResult({})).toEqual({
+      coverageWarnings: [],
+      coverageWarningCount: 0,
+    });
+  });
+});
+
 function planInstance(
   overrides: Partial<EnrichedInstance> = {},
 ): EnrichedInstance {
@@ -788,54 +1289,54 @@ function planInstance(
   } as unknown as EnrichedInstance;
 }
 
-function fakeTemplate(staffIds: string[]): TimetableTemplate {
-  return { staffIds } as unknown as TimetableTemplate;
-}
+describe("countPlannedStaff", () => {
+  function staffMember(
+    staffId: string,
+    isAbsent = false,
+  ): EnrichedInstance["staff"][number] {
+    return { staffId, isPrimary: false, isAbsent, isSubstitute: false };
+  }
 
-describe("countPlanned", () => {
-  it("counts non-cancelled instances", () => {
+  it("unions staff across blocks so a person in two blocks counts once", () => {
     expect(
-      countPlanned([
-        planInstance({ id: "a", status: "planned" }),
-        planInstance({ id: "b", status: "active" }),
-        planInstance({ id: "c", status: "completed" }),
-        planInstance({ id: "d", status: "cancelled" }),
+      countPlannedStaff([
+        planInstance({
+          id: "a",
+          staff: [staffMember("s1"), staffMember("s2")],
+        }),
+        planInstance({
+          id: "b",
+          staff: [staffMember("s2"), staffMember("s3")],
+        }),
       ]),
     ).toBe(3);
   });
 
-  it("returns 0 for an empty list", () => {
-    expect(countPlanned([])).toBe(0);
-  });
-});
-
-describe("countStaffGaps", () => {
-  it("counts instances with no effective staff, ignoring cancelled", () => {
+  it("excludes absent staff", () => {
     expect(
-      countStaffGaps([
-        planInstance({ id: "none", staffCount: 0, absentStaffCount: 0 }),
-        planInstance({ id: "all-absent", staffCount: 2, absentStaffCount: 2 }),
-        planInstance({ id: "staffed", staffCount: 1, absentStaffCount: 0 }),
+      countPlannedStaff([
         planInstance({
-          id: "cancelled-gap",
-          status: "cancelled",
-          staffCount: 0,
-          absentStaffCount: 0,
+          id: "a",
+          staff: [staffMember("s1", true), staffMember("s2")],
         }),
       ]),
-    ).toBe(2);
+    ).toBe(1);
   });
-});
 
-describe("countTemplateStaffGaps", () => {
-  it("counts series without assigned staff", () => {
+  it("excludes staff of cancelled instances", () => {
     expect(
-      countTemplateStaffGaps([
-        fakeTemplate([]),
-        fakeTemplate(["7"]),
-        fakeTemplate([]),
+      countPlannedStaff([
+        planInstance({
+          id: "a",
+          status: "cancelled",
+          staff: [staffMember("s1")],
+        }),
       ]),
-    ).toBe(2);
+    ).toBe(0);
+  });
+
+  it("returns 0 for an empty list", () => {
+    expect(countPlannedStaff([])).toBe(0);
   });
 });
 
@@ -843,7 +1344,7 @@ describe("computeTimetableSetup", () => {
   it("completes when period + plan are done (enrollment optional)", () => {
     const result = computeTimetableSetup({
       hasActivePeriod: true,
-      enrollment: "none",
+      careOfferingLink: "unlinked",
       hasPlan: true,
     });
     expect(result.setupComplete).toBe(true);
@@ -857,7 +1358,7 @@ describe("computeTimetableSetup", () => {
   it("is incomplete for a fresh school (no period, no plan)", () => {
     const result = computeTimetableSetup({
       hasActivePeriod: false,
-      enrollment: "none",
+      careOfferingLink: "unlinked",
       hasPlan: false,
     });
     expect(result.setupComplete).toBe(false);
@@ -865,10 +1366,10 @@ describe("computeTimetableSetup", () => {
     expect(result.progressPercent).toBe(0);
   });
 
-  it("counts an active enrollment step toward progress", () => {
+  it("counts a linked care offering toward progress", () => {
     const result = computeTimetableSetup({
       hasActivePeriod: true,
-      enrollment: "active",
+      careOfferingLink: "linked",
       hasPlan: true,
     });
     expect(result.enrollmentDone).toBe(true);
@@ -876,15 +1377,188 @@ describe("computeTimetableSetup", () => {
     expect(result.progressPercent).toBe(100);
   });
 
-  it("drops the enrollment step from progress when status is unknown", () => {
+  // Issue #1651: an active enrollment phase whose offerings link to nothing
+  // must not tick the "Mit der Anmeldung verknüpfen" step.
+  it("leaves the enrollment step open when no care offering is linked", () => {
     const result = computeTimetableSetup({
       hasActivePeriod: true,
-      enrollment: "unknown",
+      careOfferingLink: "unlinked",
+      hasPlan: true,
+    });
+    expect(result.enrollmentApplicable).toBe(true);
+    expect(result.enrollmentDone).toBe(false);
+    expect(result.completedSteps).toBe(2);
+  });
+
+  it("drops the enrollment step from progress when the linkage is unknown", () => {
+    const result = computeTimetableSetup({
+      hasActivePeriod: true,
+      careOfferingLink: "unknown",
       hasPlan: false,
     });
     expect(result.enrollmentApplicable).toBe(false);
     expect(result.totalSteps).toBe(2);
     expect(result.completedSteps).toBe(1);
     expect(result.progressPercent).toBe(50);
+  });
+});
+
+describe("staff pool + move mappers (#1884)", () => {
+  it("labels the new deviation event types", () => {
+    expect(deviationEventLabel("staff_moved")).toBe("Person verschoben");
+    expect(deviationEventLabel("shift_moved")).toBe("Schicht verschoben");
+  });
+
+  it("maps a staff pool response including null collections", () => {
+    expect(
+      mapStaffPool({
+        instance_id: 42,
+        title: "Mensa",
+        date: "2026-05-04",
+        start_time: "12:30",
+        end_time: "13:30",
+        dienstplan_in_use: true,
+        entries: [
+          {
+            staff_id: 7,
+            display_name: "Ina Umzieherin",
+            category: "assigned_elsewhere",
+            on_shift: true,
+            covers_window: true,
+            shift_windows: ["08:00–16:00"],
+            absence_reason: null,
+            assignments: [
+              {
+                instance_id: 41,
+                title: "Schulhof",
+                start_time: "12:00",
+                end_time: "14:00",
+                is_substitute: false,
+              },
+            ],
+          },
+          {
+            staff_id: 8,
+            display_name: "Frido Verfuegbar",
+            category: "on_shift_free",
+            on_shift: true,
+            covers_window: false,
+            shift_windows: null,
+            assignments: null,
+          },
+        ],
+      }),
+    ).toEqual({
+      instanceId: "42",
+      title: "Mensa",
+      date: "2026-05-04",
+      startTime: "12:30",
+      endTime: "13:30",
+      dienstplanInUse: true,
+      entries: [
+        {
+          staffId: "7",
+          displayName: "Ina Umzieherin",
+          category: "assigned_elsewhere",
+          onShift: true,
+          coversWindow: true,
+          shiftWindows: ["08:00–16:00"],
+          absenceReason: undefined,
+          assignments: [
+            {
+              instanceId: "41",
+              title: "Schulhof",
+              startTime: "12:00",
+              endTime: "14:00",
+              isSubstitute: false,
+            },
+          ],
+        },
+        {
+          staffId: "8",
+          displayName: "Frido Verfuegbar",
+          category: "on_shift_free",
+          onShift: true,
+          coversWindow: false,
+          shiftWindows: [],
+          absenceReason: undefined,
+          assignments: [],
+        },
+      ],
+    });
+  });
+
+  it("maps a move result with advisory warnings", () => {
+    expect(
+      mapMoveStaff({
+        target_instance_id: 42,
+        source_instance_id: 41,
+        action: "moved",
+        time_conflicts: [
+          {
+            instance_id: 44,
+            title: "AG",
+            date: "2026-05-04",
+            start_time: "13:00",
+            end_time: "14:00",
+          },
+        ],
+        coverage_warnings: [
+          {
+            staff_id: 7,
+            staff_name: "Ina Umzieherin",
+            date: "2026-05-04",
+            start_time: "12:30",
+            end_time: "13:30",
+            uncovered_start_time: "13:00",
+            uncovered_end_time: "13:30",
+            message: "Keine Schicht deckt 13:00–13:30 ab",
+          },
+        ],
+      }),
+    ).toEqual({
+      targetInstanceId: "42",
+      sourceInstanceId: "41",
+      action: "moved",
+      timeConflicts: [
+        {
+          instanceId: "44",
+          title: "AG",
+          date: "2026-05-04",
+          startTime: "13:00",
+          endTime: "14:00",
+        },
+      ],
+      coverageWarnings: [
+        {
+          staffId: "7",
+          staffName: "Ina Umzieherin",
+          date: "2026-05-04",
+          startTime: "12:30",
+          endTime: "13:30",
+          uncoveredStartTime: "13:00",
+          uncoveredEndTime: "13:30",
+          message: "Keine Schicht deckt 13:00–13:30 ab",
+        },
+      ],
+    });
+  });
+
+  it("maps a pool assign without source and defaults null warning lists", () => {
+    expect(
+      mapMoveStaff({
+        target_instance_id: 42,
+        source_instance_id: null,
+        action: "assigned",
+        time_conflicts: null,
+        coverage_warnings: null,
+      }),
+    ).toEqual({
+      targetInstanceId: "42",
+      sourceInstanceId: undefined,
+      action: "assigned",
+      timeConflicts: [],
+      coverageWarnings: [],
+    });
   });
 });

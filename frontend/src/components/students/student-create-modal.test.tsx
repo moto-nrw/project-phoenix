@@ -30,7 +30,9 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="modal">
         <h2>{title}</h2>
-        <button onClick={onClose}>Close</button>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
         {children}
       </div>
     ) : null,
@@ -129,6 +131,7 @@ vi.mock("~/components/guardians/guardian-form-modal", () => ({
                 },
                 relationshipData: {
                   relationshipType: "parent",
+                  guardianRole: "legal_guardian",
                   isPrimary: true,
                   isEmergencyContact: false,
                   canPickup: true,
@@ -230,6 +233,7 @@ vi.mock("~/components/guardians/guardian-picker-panel", () => ({
             },
             {
               relationshipType: "parent",
+              guardianRole: "legal_guardian",
               isPrimary: false,
               isEmergencyContact: false,
               canPickup: true,
@@ -664,6 +668,7 @@ describe("StudentCreateModal", () => {
           email: "erika@example.com",
           language_preference: "de",
           relationship_type: "parent",
+          guardian_role: "legal_guardian",
           is_primary: true,
           is_emergency_contact: false,
           can_pickup: true,
@@ -955,6 +960,7 @@ describe("StudentCreateModal", () => {
         {
           guardian_profile_id: 777,
           relationship_type: "parent",
+          guardian_role: "legal_guardian",
           can_pickup: true,
           phone_numbers: [],
         },

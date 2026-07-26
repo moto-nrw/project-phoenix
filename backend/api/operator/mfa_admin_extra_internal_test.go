@@ -5,123 +5,39 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 )
 
-// stubTenantMFAService satisfies authSvc.MFAService minimally for the
-// operator admin endpoints (HasEnrollment, GetTenantMFAOverride,
-// OperatorAdminDisable, OperatorSetMFAOverride, etc.).
-type stubTenantMFAService struct {
-	accountBelongsFn       func(ctx context.Context, accountID, tenantID int64) (bool, error)
-	hasEnrollmentFn        func(ctx context.Context, accountID int64) (bool, error)
-	getTenantOverrideFn    func(ctx context.Context, accountID, tenantID int64) (string, error)
-	getGlobalOverrideFn    func(ctx context.Context, accountID int64) (string, error)
-	operatorAdminDisableFn func(ctx context.Context, operatorID, schoolID, accountID int64, reason string) error
-	operatorSetOverrideFn  func(ctx context.Context, operatorID, schoolID, accountID int64, override, reason string) error
-	operatorSetGlobalFn    func(ctx context.Context, operatorID, accountID int64, override, reason string) error
-}
-
-func (s *stubTenantMFAService) AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	if s.accountBelongsFn != nil {
-		return s.accountBelongsFn(ctx, accountID, tenantID)
+// newStubTenantMFAService returns an authtest.MFAServiceMock pre-seeded
+// with the "safe default" behaviors the operator admin endpoint tests
+// (HasEnrollment, GetTenantMFAOverride, OperatorAdminDisable,
+// OperatorSetMFAOverride, etc.) have always relied on when they don't
+// override a specific Fn — e.g. AccountBelongsToTenant defaulting to true
+// and the MFA overrides defaulting to authSvc.MFAAdminOverrideNone rather
+// than an empty string. Tests mutate the returned Fn fields directly.
+func newStubTenantMFAService() *authtest.MFAServiceMock {
+	return &authtest.MFAServiceMock{
+		AccountBelongsToTenantFn: func(context.Context, int64, int64) (bool, error) { return true, nil },
+		IsTrustedDeviceEnabledFn: func(context.Context, int64) bool { return true },
+		TrustedDeviceDaysFn:      func(context.Context, int64) int { return 90 },
+		GetTenantMFAOverrideFn: func(context.Context, int64, int64) (string, error) {
+			return authSvc.MFAAdminOverrideNone, nil
+		},
+		GetGlobalMFAOverrideFn: func(context.Context, int64) (string, error) {
+			return authSvc.MFAAdminOverrideNone, nil
+		},
 	}
-	return true, nil
 }
-
-func (s *stubTenantMFAService) IsRequired(context.Context, *authModels.Account, int64) (bool, error) {
-	return false, nil
-}
-func (s *stubTenantMFAService) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
-	if s.hasEnrollmentFn != nil {
-		return s.hasEnrollmentFn(ctx, accountID)
-	}
-	return false, nil
-}
-func (s *stubTenantMFAService) StartChallenge(context.Context, int64, int64, string, net.IP) (string, error) {
-	return "", nil
-}
-func (s *stubTenantMFAService) VerifyChallenge(context.Context, string, string) (*authSvc.VerifiedChallenge, error) {
-	return nil, nil
-}
-func (s *stubTenantMFAService) ResendChallenge(context.Context, string, net.IP) (string, error) {
-	return "", nil
-}
-func (s *stubTenantMFAService) VerifyCodeForAccount(context.Context, int64, string) error {
-	return nil
-}
-func (s *stubTenantMFAService) Enroll(context.Context, int64) error  { return nil }
-func (s *stubTenantMFAService) Disable(context.Context, int64) error { return nil }
-func (s *stubTenantMFAService) IssueTrustedDevice(context.Context, int64, int64, string, net.IP) (string, time.Time, error) {
-	return "", time.Time{}, nil
-}
-func (s *stubTenantMFAService) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
-	return false, nil
-}
-func (s *stubTenantMFAService) ListTrustedDevices(context.Context, int64, int64) ([]*authModels.MFATrustedDevice, error) {
-	return nil, nil
-}
-func (s *stubTenantMFAService) RevokeTrustedDevice(context.Context, int64, int64, int64) error {
-	return nil
-}
-func (s *stubTenantMFAService) IsTrustedDeviceEnabled(context.Context, int64) bool { return true }
-func (s *stubTenantMFAService) TrustedDeviceDays(context.Context, int64) int       { return 90 }
-func (s *stubTenantMFAService) SetMFAOverride(context.Context, int64, int64, int64, string, string, []string) error {
-	return nil
-}
-func (s *stubTenantMFAService) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, accountID int64, override, reason string) error {
-	if s.operatorSetOverrideFn != nil {
-		return s.operatorSetOverrideFn(ctx, operatorID, schoolID, accountID, override, reason)
-	}
-	return nil
-}
-func (s *stubTenantMFAService) AdminDisable(context.Context, int64, int64, int64, string, []string) error {
-	return nil
-}
-func (s *stubTenantMFAService) OperatorAdminDisable(ctx context.Context, operatorID, schoolID, accountID int64, reason string) error {
-	if s.operatorAdminDisableFn != nil {
-		return s.operatorAdminDisableFn(ctx, operatorID, schoolID, accountID, reason)
-	}
-	return nil
-}
-func (s *stubTenantMFAService) GetAdminState(context.Context, int64, int64, int64, []string) (authSvc.MFAAdminState, error) {
-	return authSvc.MFAAdminState{}, nil
-}
-func (s *stubTenantMFAService) GetTenantMFAOverride(ctx context.Context, accountID, tenantID int64) (string, error) {
-	if s.getTenantOverrideFn != nil {
-		return s.getTenantOverrideFn(ctx, accountID, tenantID)
-	}
-	return authSvc.MFAAdminOverrideNone, nil
-}
-func (s *stubTenantMFAService) GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error) {
-	if s.getGlobalOverrideFn != nil {
-		return s.getGlobalOverrideFn(ctx, accountID)
-	}
-	return authSvc.MFAAdminOverrideNone, nil
-}
-func (s *stubTenantMFAService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorID, accountID int64, override, reason string) error {
-	if s.operatorSetGlobalFn != nil {
-		return s.operatorSetGlobalFn(ctx, operatorID, accountID, override, reason)
-	}
-	return nil
-}
-func (s *stubTenantMFAService) MaskEmailForChallenge(string) string { return "" }
-func (s *stubTenantMFAService) CleanupExpiredChallenges(context.Context, time.Duration) (int64, error) {
-	return 0, nil
-}
-
-var _ authSvc.MFAService = (*stubTenantMFAService)(nil)
 
 // --- helpers -----------------------------------------------------------
 
@@ -157,11 +73,10 @@ func provisioningResourceFor(mfa authSvc.MFAService) *ProvisioningResource {
 // --- tests -------------------------------------------------------------
 
 func TestGetSchoolAccountMFAState_HappyPath(t *testing.T) {
-	mfa := &stubTenantMFAService{
-		hasEnrollmentFn:     func(context.Context, int64) (bool, error) { return true, nil },
-		getTenantOverrideFn: func(context.Context, int64, int64) (string, error) { return authSvc.MFAAdminOverrideForceOn, nil },
-	}
-	mfa.accountBelongsFn = func(context.Context, int64, int64) (bool, error) { return true, nil }
+	mfa := newStubTenantMFAService()
+	mfa.HasEnrollmentFn = func(context.Context, int64) (bool, error) { return true, nil }
+	mfa.GetTenantMFAOverrideFn = func(context.Context, int64, int64) (string, error) { return authSvc.MFAAdminOverrideForceOn, nil }
+	mfa.AccountBelongsToTenantFn = func(context.Context, int64, int64) (bool, error) { return true, nil }
 	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
@@ -172,8 +87,8 @@ func TestGetSchoolAccountMFAState_HappyPath(t *testing.T) {
 }
 
 func TestGetSchoolAccountMFAState_AccountNotInSchool_Returns404(t *testing.T) {
-	mfa := &stubTenantMFAService{}
-	mfa.accountBelongsFn = func(context.Context, int64, int64) (bool, error) { return false, nil }
+	mfa := newStubTenantMFAService()
+	mfa.AccountBelongsToTenantFn = func(context.Context, int64, int64) (bool, error) { return false, nil }
 	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
@@ -185,8 +100,8 @@ func TestGetSchoolAccountMFAState_AccountNotInSchool_Returns404(t *testing.T) {
 }
 
 func TestGetSchoolAccountMFAState_MembershipLookupErrorMapsTo500(t *testing.T) {
-	mfa := &stubTenantMFAService{}
-	mfa.accountBelongsFn = func(context.Context, int64, int64) (bool, error) { return false, errors.New("db down") }
+	mfa := newStubTenantMFAService()
+	mfa.AccountBelongsToTenantFn = func(context.Context, int64, int64) (bool, error) { return false, errors.New("db down") }
 	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
@@ -198,11 +113,10 @@ func TestGetSchoolAccountMFAState_MembershipLookupErrorMapsTo500(t *testing.T) {
 
 func TestResetSchoolAccountMFA_HappyPath(t *testing.T) {
 	var capturedReason string
-	mfa := &stubTenantMFAService{
-		operatorAdminDisableFn: func(_ context.Context, _, _, _ int64, reason string) error {
-			capturedReason = reason
-			return nil
-		},
+	mfa := newStubTenantMFAService()
+	mfa.OperatorAdminDisableFn = func(_ context.Context, _, _, _ int64, reason string) error {
+		capturedReason = reason
+		return nil
 	}
 	rs := provisioningResourceFor(mfa)
 
@@ -216,7 +130,7 @@ func TestResetSchoolAccountMFA_HappyPath(t *testing.T) {
 }
 
 func TestResetSchoolAccountMFA_RequiresOperatorClaim(t *testing.T) {
-	mfa := &stubTenantMFAService{}
+	mfa := newStubTenantMFAService()
 	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
@@ -228,7 +142,7 @@ func TestResetSchoolAccountMFA_RequiresOperatorClaim(t *testing.T) {
 }
 
 func TestResetSchoolAccountMFA_BadJSONRequest(t *testing.T) {
-	mfa := &stubTenantMFAService{}
+	mfa := newStubTenantMFAService()
 	rs := provisioningResourceFor(mfa)
 
 	// Empty reason fails Bind validation
@@ -241,10 +155,9 @@ func TestResetSchoolAccountMFA_BadJSONRequest(t *testing.T) {
 }
 
 func TestResetSchoolAccountMFA_PermissionDenied_Returns403(t *testing.T) {
-	mfa := &stubTenantMFAService{
-		operatorAdminDisableFn: func(context.Context, int64, int64, int64, string) error {
-			return authSvc.ErrMFAPermissionDenied
-		},
+	mfa := newStubTenantMFAService()
+	mfa.OperatorAdminDisableFn = func(context.Context, int64, int64, int64, string) error {
+		return authSvc.ErrMFAPermissionDenied
 	}
 	rs := provisioningResourceFor(mfa)
 
@@ -258,11 +171,10 @@ func TestResetSchoolAccountMFA_PermissionDenied_Returns403(t *testing.T) {
 
 func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
 	var capturedOverride string
-	mfa := &stubTenantMFAService{
-		operatorSetOverrideFn: func(_ context.Context, _, _, _ int64, override, _ string) error {
-			capturedOverride = override
-			return nil
-		},
+	mfa := newStubTenantMFAService()
+	mfa.OperatorSetMFAOverrideFn = func(_ context.Context, _, _, _ int64, override, _ string) error {
+		capturedOverride = override
+		return nil
 	}
 	rs := provisioningResourceFor(mfa)
 
@@ -279,7 +191,7 @@ func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
 }
 
 func TestSetSchoolAccountMFAOverride_RejectsBadOverride(t *testing.T) {
-	mfa := &stubTenantMFAService{}
+	mfa := newStubTenantMFAService()
 	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
@@ -291,10 +203,9 @@ func TestSetSchoolAccountMFAOverride_RejectsBadOverride(t *testing.T) {
 }
 
 func TestSetSchoolAccountMFAOverride_InvalidOverrideFromService(t *testing.T) {
-	mfa := &stubTenantMFAService{
-		operatorSetOverrideFn: func(context.Context, int64, int64, int64, string, string) error {
-			return authSvc.ErrMFAInvalidOverride
-		},
+	mfa := newStubTenantMFAService()
+	mfa.OperatorSetMFAOverrideFn = func(context.Context, int64, int64, int64, string, string) error {
+		return authSvc.ErrMFAInvalidOverride
 	}
 	rs := provisioningResourceFor(mfa)
 
@@ -307,10 +218,9 @@ func TestSetSchoolAccountMFAOverride_InvalidOverrideFromService(t *testing.T) {
 }
 
 func TestSetSchoolAccountMFAOverride_PermissionDenied(t *testing.T) {
-	mfa := &stubTenantMFAService{
-		operatorSetOverrideFn: func(context.Context, int64, int64, int64, string, string) error {
-			return authSvc.ErrMFAPermissionDenied
-		},
+	mfa := newStubTenantMFAService()
+	mfa.OperatorSetMFAOverrideFn = func(context.Context, int64, int64, int64, string, string) error {
+		return authSvc.ErrMFAPermissionDenied
 	}
 	rs := provisioningResourceFor(mfa)
 

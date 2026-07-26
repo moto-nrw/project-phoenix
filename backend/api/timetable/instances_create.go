@@ -11,13 +11,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // createInstanceRequest is the JSON body accepted by POST /instances.
@@ -35,8 +37,38 @@ type createInstanceRequest struct {
 	Notes           *string `json:"notes,omitempty"`
 	RoomID          int64   `json:"room_id"`
 	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
+	ListKind        *string `json:"list_kind,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
+	// RequiredStaff is the optional per-occurrence Personalbedarf pin (#1839);
+	// omitted/null = no pin (inherit the template override, else derive from
+	// the Betreuungsschlüssel), a value = pin for this occurrence.
+	RequiredStaff *int `json:"required_staff,omitempty"`
+}
+
+// normalizeRequiredStaff cleans the optional required_staff override into a
+// pointer: nil or a negative value -> nil ("no override, derive from the
+// Betreuungsschlüssel"); a non-negative value is a manual override. Shared by
+// the instance + template create/update handlers (#1839).
+func normalizeRequiredStaff(v *int) *int {
+	if v == nil || *v < 0 {
+		return nil
+	}
+	return v
+}
+
+// normalizeNotes trims an optional note into a pointer: nil or a
+// whitespace-only value becomes nil (no note); otherwise the trimmed text is
+// returned. Shared by the timetable note fields (Tagesnotiz + Wochennotiz).
+func normalizeNotes(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*v)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 type parsedCreateInstanceRequest struct {
@@ -82,6 +114,20 @@ func parseClockTime(hhmm string) (time.Time, error) {
 	return time.Date(2000, 1, 1, t.Hour(), t.Minute(), 0, 0, time.UTC), nil
 }
 
+func normalizeInstanceListKind(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	kind := strings.TrimSpace(*raw)
+	if kind == "" {
+		return nil, nil
+	}
+	if !activitiesModel.IsValidListKind(kind) {
+		return nil, fmt.Errorf("invalid list_kind %q", kind)
+	}
+	return &kind, nil
+}
+
 func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedCreateInstanceRequest, bool) {
 	req := &createInstanceRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -123,7 +169,7 @@ func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedC
 
 // createInstance handles POST /api/timetable/instances.
 func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
-	if rs.instanceService == nil || rs.timetableData == nil {
+	if rs.InstanceService == nil || rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -134,6 +180,11 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := parsed.req
+	listKind, err := normalizeInstanceListKind(req.ListKind)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	createdBy := rs.resolveStartedByStaffID(r.Context())
 	var createdByPtr *int64
@@ -142,7 +193,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		createdByPtr = &createdByCopy
 	}
 
-	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
+	inst, err := rs.InstanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
 		Date:             parsed.date,
 		StartTime:        parsed.startTime,
 		EndTime:          parsed.endTime,
@@ -151,9 +202,11 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		Notes:            req.Notes,
 		RoomID:           req.RoomID,
 		ActivityGroupID:  req.ActivityGroupID,
+		ListKind:         listKind,
 		StaffIDs:         req.StaffIDs,
 		StudentIDs:       req.StudentIDs,
 		CreatedByStaffID: createdByPtr,
+		RequiredStaff:    normalizeRequiredStaff(req.RequiredStaff),
 	})
 	if err != nil {
 		renderCreateInstanceError(w, r, err)
@@ -163,8 +216,16 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	// Re-fetch as enriched payload so the frontend can drop the fresh row
 	// straight into its SWR cache without a round-trip refetch.
 	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]string)
-	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache)
+	typeCache := make(map[int64]templateMeta)
+	// A failed care-day derivation takes the same route as any other failed
+	// enrichment: the payload is announced as incomplete instead of carrying
+	// counts that quietly read every assigned child as expected again (#1747
+	// review).
+	var enriched enrichedInstance
+	careDays, err := rs.careDaysForInstance(r.Context(), inst)
+	if err == nil {
+		enriched, err = rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), careDays)
+	}
 	if err != nil {
 		// Insert succeeded; enrichment is informational. Fall through with
 		// a partial response rather than failing the whole request.
@@ -189,7 +250,7 @@ func renderCreateInstanceError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case isUniqueViolationOnConstraint(err, "idx_activity_instances_template_unique"):
+	case base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique"):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("instance already exists for this template/date/start_time"),
 			"duplicate_instance",
@@ -198,15 +259,4 @@ func renderCreateInstanceError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"create instance failed", err))
 	}
-}
-
-func isUniqueViolationOnConstraint(err error, constraintName string) bool {
-	if err == nil {
-		return false
-	}
-	var pgErr pgdriver.Error
-	if !errors.As(err, &pgErr) {
-		return false
-	}
-	return pgErr.Field('C') == "23505" && pgErr.Field('n') == constraintName
 }

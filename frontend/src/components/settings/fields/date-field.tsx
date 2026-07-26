@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 interface DateFieldProps {
+  readonly ariaLabel?: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly onBlur?: () => void;
@@ -22,6 +23,7 @@ interface DateFieldProps {
  * matching TimeField's "Jederzeit" affordance for the daily-checkout setting.
  */
 export function DateField({
+  ariaLabel = "Einstellung",
   value,
   onChange,
   onBlur,
@@ -39,6 +41,7 @@ export function DateField({
   if (!value && emptyLabel) {
     return (
       <input
+        aria-label={ariaLabel}
         type="date"
         value={display}
         onChange={(e) => {
@@ -55,6 +58,7 @@ export function DateField({
 
   return (
     <input
+      aria-label={ariaLabel}
       type="date"
       value={display}
       onChange={(e) => {

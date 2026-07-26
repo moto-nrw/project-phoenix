@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useMemo, useState } from "react";
+import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import Link from "next/link";
@@ -27,10 +27,10 @@ import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
-import { buildSchoolColumns } from "~/lib/operator/school-table-columns";
+import { buildSchoolColumns } from "~/components/operator/school-table-columns";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { CaregiverCapabilityModal } from "~/components/teachers";
+import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
@@ -72,6 +72,14 @@ function isTabId(value: string | null | undefined): value is TabId {
 }
 
 export default function OperatorOrganizationDetailPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <OperatorOrganizationDetailPageContent params={params} />
+    </Suspense>
+  );
+}
+
+function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const { slug } = use(params);
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";

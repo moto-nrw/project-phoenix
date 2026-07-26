@@ -70,7 +70,7 @@ vi.mock("~/lib/format-utils", () => ({
   formatCount: (value: number) => new Intl.NumberFormat("de-DE").format(value),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
     <div data-testid="page-header">
       <h1>{title}</h1>
@@ -78,6 +78,7 @@ vi.mock("~/components/ui/page-header", () => ({
         <div data-testid="tabs">
           {tabs.items.map((tab: any) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               className={tabs.activeTab === tab.id ? "active" : ""}
@@ -107,7 +108,7 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal">
         <h2>{title}</h2>
         {children}
-        <button data-testid="confirm-btn" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-btn" onClick={onConfirm}>
           Bestätigen
         </button>
       </div>
@@ -121,7 +122,10 @@ vi.mock("~/components/ui/skeleton", () => ({
 }));
 
 import OperatorOrganizationsPage from "./page";
-import { mockOrg, setupSWR } from "../provisioning/provisioning-test-helpers";
+import {
+  mockOrg,
+  setupSWR,
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 type SWROverrides = Partial<Omit<Parameters<typeof setupSWR>[0], "useSWRMock">>;
 function withDefaultSWR(overrides: SWROverrides = {}) {

@@ -2,13 +2,55 @@ package students
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
+	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
+
+// validateDepartureCompanionNote bounds the free-text "mit wem" companion note
+// length server-side. The column is TEXT and both the staff and enrollment
+// inputs are user free-text, so without this an unbounded payload could be
+// stored and echoed back in the student API/exports (#1694).
+func validateDepartureCompanionNote(note *string) error {
+	if note != nil && utf8.RuneCountInString(*note) > users.MaxDepartureCompanionNoteLen {
+		return fmt.Errorf("departure_companion_note must be at most %d characters", users.MaxDepartureCompanionNoteLen)
+	}
+	return nil
+}
+
+// departureModesAllowAccompanied reports whether the EFFECTIVE departure plan
+// allows the accompanied ("Mit anderem Kind") mode on any weekday. Accompanied
+// can only enter via allowed_departure_modes or departure_days — the legacy
+// bus/pickup maps cannot express it (#1694).
+//
+// It mirrors applyDeparturePlan's persistence precedence: allowed_departure_modes
+// is authoritative when present and departure_days is ignored; departure_days
+// only applies when allowed is absent. Validating the OR of both would reject a
+// request whose persisted plan would NOT contain accompanied — e.g. a new-format
+// allowed payload (no accompanied) that also echoes a stale legacy departure_days
+// carrying accompanied without a companion note.
+func departureModesAllowAccompanied(allowed *users.AllowedDepartureModes, days *users.DepartureDays) bool {
+	if allowed != nil {
+		return allowed.HasMode(users.DepartureAccompanied)
+	}
+	if days != nil {
+		return days.HasMode(users.DepartureAccompanied)
+	}
+	return false
+}
+
+// isBlankCompanionNote reports whether the companion note is missing or
+// whitespace-only.
+func isBlankCompanionNote(note *string) bool {
+	return note == nil || strings.TrimSpace(*note) == ""
+}
 
 // Constants for date formats
 const (
@@ -33,6 +75,9 @@ type StudentResponse struct {
 	GuardianPhone      string           `json:"guardian_phone,omitempty"`
 	GroupID            int64            `json:"group_id,omitempty"`
 	GroupName          string           `json:"group_name,omitempty"`
+	AddressStreet      string           `json:"address_street,omitempty"`
+	AddressCity        string           `json:"address_city,omitempty"`
+	AddressPostalCode  string           `json:"address_postal_code,omitempty"`
 	ExtraInfo          string           `json:"extra_info,omitempty"`
 	HealthInfo         string           `json:"health_info,omitempty"`
 	SupervisorNotes    string           `json:"supervisor_notes,omitempty"`
@@ -49,18 +94,57 @@ type StudentResponse struct {
 	// DepartureDays is the authoritative per-weekday departure mode
 	// (alone/bus/pickup). Bus, BusDays and PickupDays are derived from it and
 	// kept for backward compatibility with clients not yet on departure_days.
-	DepartureDays     users.DepartureDays `json:"departure_days,omitempty"`
-	Bus               bool                `json:"bus"`
-	BusDays           users.BusDays       `json:"bus_days,omitempty"`
-	Sick              bool                `json:"sick"`
-	SickSince         *time.Time          `json:"sick_since,omitempty"`
-	Excused           bool                `json:"excused"`
-	ExcusedSince      *time.Time          `json:"excused_since,omitempty"`
-	ClassTrip         bool                `json:"class_trip"`
-	ClassTripSince    *time.Time          `json:"class_trip_since,omitempty"`
-	DayPlanningStatus string              `json:"day_planning_status,omitempty"`
-	DayPlanningReason string              `json:"day_planning_reason,omitempty"`
-	DayPlanningLabel  string              `json:"day_planning_label,omitempty"`
+	DepartureDays         users.DepartureDays         `json:"departure_days,omitempty"`
+	AllowedDepartureModes users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
+	// departure mode (#1694).
+	DepartureCompanionNote string `json:"departure_companion_note,omitempty"`
+	// CompanionStudentIDs lists the other children in this child's
+	// Laufgemeinschaft on the requested day (users.student_companions): the whole
+	// connected component, not only the direct links, so a page that shows just
+	// the ends of a chain still groups them together. Only populated when the
+	// caller passes include_companions=true and has full access to the child. The
+	// Kindersuche buckets by these ids client-side.
+	CompanionStudentIDs []int64 `json:"companion_student_ids,omitempty"`
+	// DepartureCompanions are this child's own "läuft mit" links, with the
+	// companion's name and weekdays. Server-side only (json:"-"): it exists for
+	// the offline lists, which must print WHO the child walks home with — a
+	// child whose "mit wem" is answered by links has no free-text note to fall
+	// back on, so an export built from the note alone would tell staff nothing
+	// but "Mit anderem Kind". Clients read the links from
+	// GET /api/students/{id}/companions instead, so this never widens the list
+	// payload (or leaks names into a response the caller may not see them in).
+	DepartureCompanions []users.CompanionLink `json:"-"`
+	// CompanionsChanged is the WRITE's verdict, not a property of the child: it
+	// says whether the update that produced this response actually changed the
+	// Laufgemeinschaft (a replaced list, a trimmed weekday, or a widened
+	// companion plan) — the same condition that decides the
+	// student_companions_changed broadcast.
+	//
+	// It exists because a client cannot tell from its own payload: the forms
+	// resubmit the whole departure plan on every save, and reacting to that as a
+	// link change costs an open Laufgemeinschaft editor its draft. Set only on
+	// the update path (a pointer, so reads keep the response shape they have) and
+	// always set there, so an absent key means "this response carries no verdict"
+	// rather than "nothing changed".
+	CompanionsChanged *bool         `json:"companions_changed,omitempty"`
+	Bus               bool          `json:"bus"`
+	BusDays           users.BusDays `json:"bus_days,omitempty"`
+	Sick              bool          `json:"sick"`
+	SickSince         *time.Time    `json:"sick_since,omitempty"`
+	Excused           bool          `json:"excused"`
+	ExcusedSince      *time.Time    `json:"excused_since,omitempty"`
+	ClassTrip         bool          `json:"class_trip"`
+	ClassTripSince    *time.Time    `json:"class_trip_since,omitempty"`
+	DayPlanningStatus string        `json:"day_planning_status,omitempty"`
+	DayPlanningReason string        `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel  string        `json:"day_planning_label,omitempty"`
+	// PendingExcusedNote is set (#1845) when the child has a parent excused-absence
+	// request awaiting office approval that covers the planning day. The child
+	// stays "expected" (this does NOT change DayPlanningStatus); the planning
+	// views render it as an informational "entschuldigt – Freigabe ausstehend"
+	// badge carrying the parent's note so staff can decide it in context.
+	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar
@@ -100,7 +184,6 @@ type SupervisorContact struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Email     string `json:"email,omitempty"`
-	Phone     string `json:"phone,omitempty"`
 	Role      string `json:"role"` // "teacher" or "staff"
 }
 
@@ -161,24 +244,31 @@ type StudentRequest struct {
 	GuardianPhone   string `json:"guardian_phone,omitempty"`
 
 	// Optional fields
-	GroupID         *int64  `json:"group_id,omitempty"`
-	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
-	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
-	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
+	GroupID           *int64  `json:"group_id,omitempty"`
+	AddressStreet     string  `json:"address_street,omitempty"`
+	AddressCity       string  `json:"address_city,omitempty"`
+	AddressPostalCode string  `json:"address_postal_code,omitempty"`
+	ExtraInfo         *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	HealthInfo        *string `json:"health_info,omitempty"`      // Static health and medical information
+	SupervisorNotes   *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	// DepartureDays is the authoritative per-weekday departure mode
 	// (alone/bus/pickup). When provided it supersedes the legacy PickupStatus /
 	// PickupDays / Bus / BusDays inputs below, which remain accepted for clients
 	// not yet migrated.
-	DepartureDays *users.DepartureDays `json:"departure_days,omitempty"`
-	PickupStatus  *string              `json:"pickup_status,omitempty"` // How the child gets home (legacy)
-	PickupDays    *users.PickupDays    `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
-	Bus           *bool                `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
-	BusDays       *users.BusDays       `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
+	DepartureDays         *users.DepartureDays         `json:"departure_days,omitempty"`
+	AllowedDepartureModes *users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
+	// departure mode (#1694).
+	DepartureCompanionNote *string           `json:"departure_companion_note,omitempty"`
+	PickupStatus           *string           `json:"pickup_status,omitempty"` // How the child gets home (legacy)
+	PickupDays             *users.PickupDays `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
+	Bus                    *bool             `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
+	BusDays                *users.BusDays    `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
 
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
 	// scalar guardian_* fields above.
-	Guardians []GuardianInput `json:"guardians,omitempty"`
+	Guardians []guardiansAPI.GuardianWithRelationshipInput `json:"guardians,omitempty"`
 
 	// Weekly recurring arrival/pickup schedules persisted together with the
 	// student in the same atomic transaction. Reuse the bulk-update item DTOs
@@ -186,47 +276,6 @@ type StudentRequest struct {
 	// endpoints (PUT /students/{id}/{arrival,pickup}-schedules).
 	ArrivalSchedules []ArrivalScheduleRequestItem `json:"arrival_schedules,omitempty"`
 	PickupSchedules  []PickupScheduleRequest      `json:"pickup_schedules,omitempty"`
-}
-
-// GuardianPhoneInput is one phone number for a guardian created alongside a student.
-type GuardianPhoneInput struct {
-	PhoneNumber string `json:"phone_number"`
-	PhoneType   string `json:"phone_type,omitempty"` // mobile, home, work, other
-	Label       string `json:"label,omitempty"`
-	IsPrimary   bool   `json:"is_primary,omitempty"`
-}
-
-// GuardianInput is one guardian (profile + relationship + phone numbers) to be
-// created together with a new student. Mirrors the fields managed on the
-// student detail page's guardian form.
-type GuardianInput struct {
-	// GuardianProfileID, when set, links an EXISTING guardian profile to the
-	// new student instead of creating a new one (sibling case, issue #1513).
-	// When present the profile fields below (name, email, address, phone
-	// numbers) are ignored and the existing profile is never mutated — only the
-	// relationship flags apply to the new link.
-	GuardianProfileID *int64 `json:"guardian_profile_id,omitempty"`
-
-	// Profile
-	FirstName              string `json:"first_name"`
-	LastName               string `json:"last_name"`
-	Email                  string `json:"email,omitempty"`
-	AddressStreet          string `json:"address_street,omitempty"`
-	AddressCity            string `json:"address_city,omitempty"`
-	AddressPostalCode      string `json:"address_postal_code,omitempty"`
-	PreferredContactMethod string `json:"preferred_contact_method,omitempty"`
-	LanguagePreference     string `json:"language_preference,omitempty"`
-	Notes                  string `json:"notes,omitempty"`
-
-	// Relationship to the student
-	RelationshipType   string `json:"relationship_type"` // parent, guardian, relative, other
-	IsPrimary          bool   `json:"is_primary,omitempty"`
-	IsEmergencyContact bool   `json:"is_emergency_contact,omitempty"`
-	CanPickup          bool   `json:"can_pickup,omitempty"`
-	PickupNotes        string `json:"pickup_notes,omitempty"`
-	EmergencyPriority  int    `json:"emergency_priority,omitempty"`
-
-	PhoneNumbers []GuardianPhoneInput `json:"phone_numbers,omitempty"`
 }
 
 // UpdateStudentRequest represents a student update request
@@ -238,24 +287,33 @@ type UpdateStudentRequest struct {
 	TagID     *string `json:"tag_id,omitempty"`
 
 	// Student-specific details (optional for update)
-	SchoolClass     *string `json:"school_class,omitempty"`
-	GuardianName    *string `json:"guardian_name,omitempty"`
-	GuardianContact *string `json:"guardian_contact,omitempty"`
-	GuardianEmail   *string `json:"guardian_email,omitempty"`
-	GuardianPhone   *string `json:"guardian_phone,omitempty"`
-	GroupID         *int64  `json:"group_id,omitempty"`
-	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
-	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
-	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
-	// DepartureDays supersedes the legacy pickup/bus inputs below when provided.
-	DepartureDays *users.DepartureDays `json:"departure_days,omitempty"`
-	PickupStatus  *string              `json:"pickup_status,omitempty"` // How the child gets home (legacy)
-	PickupDays    *users.PickupDays    `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
-	Bus           *bool                `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
-	BusDays       *users.BusDays       `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
-	Sick          *bool                `json:"sick,omitempty"`          // true = currently sick
-	SickReason    *string              `json:"sick_reason,omitempty"`   // optional free-text reason stamped on today's sick day
-	Excused       *bool                `json:"excused,omitempty"`       // true = currently excused (not attending today)
+	SchoolClass       *string `json:"school_class,omitempty"`
+	GuardianName      *string `json:"guardian_name,omitempty"`
+	GuardianContact   *string `json:"guardian_contact,omitempty"`
+	GuardianEmail     *string `json:"guardian_email,omitempty"`
+	GuardianPhone     *string `json:"guardian_phone,omitempty"`
+	GroupID           *int64  `json:"group_id,omitempty"`
+	AddressStreet     *string `json:"address_street,omitempty"`
+	AddressCity       *string `json:"address_city,omitempty"`
+	AddressPostalCode *string `json:"address_postal_code,omitempty"`
+	HealthInfo        *string `json:"health_info,omitempty"`      // Static health and medical information
+	SupervisorNotes   *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
+	ExtraInfo         *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	// AllowedDepartureModes supersedes the legacy exclusive departure/pickup/bus
+	// inputs below when provided.
+	AllowedDepartureModes *users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	DepartureDays         *users.DepartureDays         `json:"departure_days,omitempty"`
+	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
+	// departure mode (#1694). A pointer so omitting it leaves the stored note
+	// untouched on update.
+	DepartureCompanionNote *string           `json:"departure_companion_note,omitempty"`
+	PickupStatus           *string           `json:"pickup_status,omitempty"` // How the child gets home (legacy)
+	PickupDays             *users.PickupDays `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
+	Bus                    *bool             `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
+	BusDays                *users.BusDays    `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
+	Sick                   *bool             `json:"sick,omitempty"`          // true = currently sick
+	SickReason             *string           `json:"sick_reason,omitempty"`   // optional free-text reason stamped on today's sick day
+	Excused                *bool             `json:"excused,omitempty"`       // true = currently excused (not attending today)
 
 	// PhotoConsentGiven: documented parental photo-consent flag. The handler
 	// records who set it and when (photo_consent_given_at/_by columns) on a
@@ -263,12 +321,48 @@ type UpdateStudentRequest struct {
 	// same tenant transaction so consent withdrawal can never leave a stored
 	// image behind.
 	PhotoConsentGiven *bool `json:"photo_consent_given,omitempty"`
+	// Companions ("läuft mit") replaces the child's complete Laufgemeinschaft.
+	// It travels with the departure plan on purpose: the link is only legal on a
+	// day the plan allows "Anderes Kind", so both have to be validated against
+	// each other in ONE request instead of racing as two.
+	// nil = leave the links untouched; [] = clear them.
+	Companions *[]CompanionEntry `json:"companions,omitempty"`
+	// CompanionsFingerprint is the fingerprint of the list the client LOADED
+	// before it built Companions (models/users.CompanionLinksFingerprint,
+	// mirrored by companionsFingerprint() in the frontend).
+	//
+	// Because Companions is a complete replacement, two staff members editing
+	// the same child from the same snapshot would both submit everything they
+	// saw and the second write would delete the first one's committed links.
+	// The handler compares this against the stored links while it holds the
+	// child's row lock and answers a mismatch with a retriable 409 instead.
+	//
+	// It is equally required WITHOUT Companions: a departure plan alone removes
+	// links too (the backend trims the weekdays the new plan no longer allows),
+	// and the forms resubmit their whole plan on every save, so a stale plan
+	// deletes an edge somebody else committed just as effectively as a stale list
+	// does. A client that writes a plan therefore sends the fingerprint of the
+	// links it loaded; omitted means the caller makes no claim about the state it
+	// started from, which is refused as soon as the trim would actually drop
+	// something.
+	CompanionsFingerprint *string `json:"companions_fingerprint,omitempty"`
+	// ExtendCompanionPlans confirms widening a companion's own departure plan.
+	ExtendCompanionPlans bool `json:"extend_companion_plans,omitempty"`
+	// ConfirmedCompanionExtensions is WHAT the user confirmed when they set
+	// ExtendCompanionPlans: the companions and weekdays the client showed them,
+	// i.e. the conflicts of the 409 (or of the picker's up-front question).
+	//
+	// The rows are unlocked while the human answers, so the conflict set can grow
+	// in the meantime — another admin narrowing a companion's plan adds one. The
+	// flag alone would authorize that new conflict too and silently widen a child
+	// nobody was asked about, so the write pass only extends what appears here
+	// and answers a wider set with a fresh 409.
+	ConfirmedCompanionExtensions []CompanionEntry `json:"confirmed_companion_extensions,omitempty"`
 }
 
-// RFIDAssignmentRequest represents an RFID tag assignment request
-type RFIDAssignmentRequest struct {
-	RFIDTag string `json:"rfid_tag"`
-}
+// RFIDAssignmentRequest is the RFID tag assignment payload, shared with
+// the device-auth endpoint in api/iot/data (single declaration site).
+type RFIDAssignmentRequest = iotDataAPI.RFIDAssignmentRequest
 
 // RFIDAssignmentResponse represents an RFID tag assignment response
 type RFIDAssignmentResponse struct {
@@ -305,6 +399,88 @@ type PrivacyConsentRequest struct {
 	Details           map[string]interface{} `json:"details,omitempty"`
 }
 
+// validateGuardianRelationships guards that every guardian created alongside the
+// student carries a relationship type. Email/phone format and other field-level
+// rules are enforced at the model layer on insert (which rolls back the whole
+// transaction on failure); the relationship type has no default and is required
+// to link.
+func validateGuardianRelationships(guardians []guardiansAPI.GuardianWithRelationshipInput) error {
+	for i := range guardians {
+		if strings.TrimSpace(guardians[i].RelationshipType) == "" {
+			return errors.New("guardian relationship_type is required")
+		}
+	}
+	return nil
+}
+
+// normalizeDayFields validates and normalizes the per-weekday departure/pickup/bus
+// maps in place, so downstream persistence always sees canonical values.
+func (req *StudentRequest) normalizeDayFields() error {
+	if req.BusDays != nil {
+		if err := req.BusDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.BusDays.Normalize()
+		req.BusDays = &normalized
+	}
+	if req.PickupDays != nil {
+		if err := req.PickupDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.PickupDays.Normalize()
+		req.PickupDays = &normalized
+	}
+	if req.DepartureDays != nil {
+		if err := req.DepartureDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.DepartureDays.Normalize()
+		req.DepartureDays = &normalized
+	}
+	if req.AllowedDepartureModes != nil {
+		if err := req.AllowedDepartureModes.Validate(); err != nil {
+			return err
+		}
+		normalized := req.AllowedDepartureModes.Normalize()
+		req.AllowedDepartureModes = &normalized
+	}
+	return nil
+}
+
+// normalizeDayFields validates and normalizes the per-weekday departure/pickup/bus
+// maps in place, so downstream persistence always sees canonical values.
+func (req *UpdateStudentRequest) normalizeDayFields() error {
+	if req.BusDays != nil {
+		if err := req.BusDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.BusDays.Normalize()
+		req.BusDays = &normalized
+	}
+	if req.PickupDays != nil {
+		if err := req.PickupDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.PickupDays.Normalize()
+		req.PickupDays = &normalized
+	}
+	if req.DepartureDays != nil {
+		if err := req.DepartureDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.DepartureDays.Normalize()
+		req.DepartureDays = &normalized
+	}
+	if req.AllowedDepartureModes != nil {
+		if err := req.AllowedDepartureModes.Validate(); err != nil {
+			return err
+		}
+		normalized := req.AllowedDepartureModes.Normalize()
+		req.AllowedDepartureModes = &normalized
+	}
+	return nil
+}
+
 // Bind validates the student request
 func (req *StudentRequest) Bind(_ *http.Request) error {
 	// Basic validation for person fields
@@ -323,14 +499,9 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 	// Guardian fields are now optional (legacy fields - use guardian_profiles system instead)
 	// No validation required for guardian fields
 
-	// Validate guardians created alongside the student. Email/phone format and
-	// other field-level rules are enforced at the model layer on insert (which
-	// rolls back the whole transaction on failure); here we only guard the
-	// relationship type, which has no default and is required to link.
-	for i := range req.Guardians {
-		if strings.TrimSpace(req.Guardians[i].RelationshipType) == "" {
-			return errors.New("guardian relationship_type is required")
-		}
+	// Validate guardians created alongside the student.
+	if err := validateGuardianRelationships(req.Guardians); err != nil {
+		return err
 	}
 
 	// Validate weekly schedules with the same rules as the bulk-update
@@ -341,26 +512,26 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 	if err := validatePickupScheduleItems(req.PickupSchedules); err != nil {
 		return err
 	}
-	if req.BusDays != nil {
-		if err := req.BusDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.BusDays.Normalize()
-		req.BusDays = &normalized
+	if err := req.normalizeDayFields(); err != nil {
+		return err
 	}
-	if req.PickupDays != nil {
-		if err := req.PickupDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.PickupDays.Normalize()
-		req.PickupDays = &normalized
+	if err := validateDepartureCompanionNote(req.DepartureCompanionNote); err != nil {
+		return err
 	}
-	if req.DepartureDays != nil {
-		if err := req.DepartureDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.DepartureDays.Normalize()
-		req.DepartureDays = &normalized
+	// A day that allows the accompanied ("Mit anderem Kind") departure mode is
+	// only complete with the coupled "mit wem" note. Reject it at the request
+	// boundary so a stale or direct API caller gets a 400 rather than the model's
+	// later invariant surfacing as a 500 on persist. On create there is no stored
+	// note to fall back on, so the request itself must carry it (#1694).
+	//
+	// NOTE: linked companions do NOT satisfy this requirement. The same rule is
+	// enforced one layer down as a model invariant (users.Student.Validate), so
+	// relaxing it here alone would just move the 400 later. Whether a "läuft
+	// mit" link should replace the free-text note is a business decision that
+	// belongs with the rule's owner, not a side effect of this feature.
+	if departureModesAllowAccompanied(req.AllowedDepartureModes, req.DepartureDays) &&
+		isBlankCompanionNote(req.DepartureCompanionNote) {
+		return users.ErrDepartureCompanionNoteRequired
 	}
 
 	return nil
@@ -378,30 +549,52 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	if req.SchoolClass != nil && *req.SchoolClass == "" {
 		return errors.New("school class cannot be empty")
 	}
-	if req.BusDays != nil {
-		if err := req.BusDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.BusDays.Normalize()
-		req.BusDays = &normalized
+	if err := req.normalizeDayFields(); err != nil {
+		return err
 	}
-	if req.PickupDays != nil {
-		if err := req.PickupDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.PickupDays.Normalize()
-		req.PickupDays = &normalized
+	if err := validateDepartureCompanionNote(req.DepartureCompanionNote); err != nil {
+		return err
 	}
-	if req.DepartureDays != nil {
-		if err := req.DepartureDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.DepartureDays.Normalize()
-		req.DepartureDays = &normalized
+	if err := validateCompanionEntries(req.Companions); err != nil {
+		return err
+	}
+	if err := validateCompanionsFingerprint(req.Companions, req.CompanionsFingerprint); err != nil {
+		return err
 	}
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler
 	return nil
+}
+
+// hasCompanionUpdate reports whether the request carries a "läuft mit" list.
+// A nil pointer means "leave the links alone"; an empty slice clears them.
+func (req *UpdateStudentRequest) hasCompanionUpdate() bool {
+	return req.Companions != nil
+}
+
+// touchesCompanions reports whether this request could have changed the child's
+// "läuft mit" links — either by submitting a list, or by writing a departure
+// plan, which TRIMS the links on a weekday the new plan no longer allows.
+//
+// It is a NECESSARY condition, not a sufficient one: the forms resubmit the
+// whole departure plan on every save, so a name-only edit answers true here.
+// applyCompanionUpdate uses it to skip the before-state read and then decides
+// from the actual write whether student_companions_changed is announced — a
+// client reacting to that event discards or blocks an in-progress companion
+// edit, so an event for an unchanged list costs somebody their work.
+//
+// The legacy bus/pickup inputs count: they resolve into the same plan, so they
+// can take the accompanied mode (and with it the links) away. Everything else —
+// a name, an address, a photo, a sick flag — cannot touch a link at all.
+func (req *UpdateStudentRequest) touchesCompanions() bool {
+	return req.hasCompanionUpdate() ||
+		req.DepartureDays != nil ||
+		req.AllowedDepartureModes != nil ||
+		req.DepartureCompanionNote != nil ||
+		req.PickupStatus != nil ||
+		req.PickupDays != nil ||
+		req.Bus != nil ||
+		req.BusDays != nil
 }
 
 func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
@@ -470,20 +663,6 @@ func isValidStudentStatusDayStatus(status string) bool {
 	default:
 		return false
 	}
-}
-
-// Bind validates the RFID assignment request
-func (req *RFIDAssignmentRequest) Bind(_ *http.Request) error {
-	if req.RFIDTag == "" {
-		return errors.New("rfid_tag is required")
-	}
-	if len(req.RFIDTag) < 8 {
-		return errors.New("rfid_tag must be at least 8 characters")
-	}
-	if len(req.RFIDTag) > 64 {
-		return errors.New("rfid_tag must be at most 64 characters")
-	}
-	return nil
 }
 
 // Bind validates the privacy consent request

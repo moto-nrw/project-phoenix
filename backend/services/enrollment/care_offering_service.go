@@ -7,14 +7,31 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // ErrCareOfferingNotFound is the sentinel returned by GetByID when the
 // row doesn't exist (or the tenant can't see it via RLS).
 var ErrCareOfferingNotFound = errors.New("care offering not found")
+
+// ErrCareOfferingInvalid classifies validation and compatibility failures an
+// administrator can correct. Repository, advisory-lock, and other
+// infrastructure errors deliberately do not wrap this sentinel, allowing HTTP
+// handlers to return a generic 500 without leaking database details.
+var ErrCareOfferingInvalid = enrollmentModels.ErrCareOfferingInvalid
+
+// ErrCareOfferingTemplatePeriodMismatch is returned when a linked timetable
+// template's planning period does not fully contain the enrollment phase's
+// service dates. The API maps this sentinel to a stable error code so clients
+// do not have to parse the human-readable error text.
+var ErrCareOfferingTemplatePeriodMismatch = errors.New("care offering phase must be within the linked timetable template period")
 
 // ErrCareOfferingGroupRuleConflict is returned by Create/Update when saving
 // an offering would leave two offerings in the same selection_group with
@@ -45,68 +62,146 @@ type CareOfferingService interface {
 	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
 }
 
+// CareOfferingSeriesValidator is the narrow cross-domain contract used by the
+// timetable split service. Keeping it separate from CareOfferingService avoids
+// making HTTP-layer mocks implement an operation that is never exposed as an
+// enrollment endpoint.
+type CareOfferingSeriesValidator interface {
+	ValidateTemplateSeries(ctx context.Context, groupID int64) error
+}
+
+// CareOfferingMaterializationResourceValidator is the narrow cross-domain
+// contract used before deleting rooms or timeframes. Both FKs use ON DELETE
+// SET NULL, so the owning services must simulate the post-delete timetable
+// before the database silently clears those references.
+type CareOfferingMaterializationResourceValidator interface {
+	ValidateRoomDeletion(ctx context.Context, roomID int64) error
+	ValidateTimeframeChange(ctx context.Context, timeframeID int64, replacement *scheduleModels.Timeframe) error
+	ValidateTimeframeDeletion(ctx context.Context, timeframeID int64) error
+}
+
+// CareOfferingPhaseValidator protects phase service-window updates. Changing
+// the window changes the occurrence set every linked offering must cover.
+type CareOfferingPhaseValidator interface {
+	ValidatePhaseChange(ctx context.Context, phaseID int64, replacement *enrollmentModels.Phase) error
+}
+
 // CareOfferingServiceConfig is the dep-injection bundle.
 type CareOfferingServiceConfig struct {
-	Repo                 enrollmentModels.CareOfferingRepository
-	ActivityGroupRepo    activitiesModels.GroupRepository
-	ActivityScheduleRepo activitiesModels.ScheduleRepository
-	CalendarPeriodRepo   scheduleModels.CalendarPeriodRepository
-	PhaseRepo            enrollmentModels.PhaseRepository
-	Logger               *slog.Logger
+	Repo                     enrollmentModels.CareOfferingRepository
+	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	ActivityGroupRepo        activitiesModels.GroupRepository
+	ActivityScheduleRepo     activitiesModels.ScheduleRepository
+	CalendarPeriodRepo       scheduleModels.CalendarPeriodRepository
+	TimeframeRepo            scheduleModels.TimeframeRepository
+	ActivityExceptionRepo    scheduleModels.ActivityExceptionRepository
+	PhaseRepo                enrollmentModels.PhaseRepository
+	Settings                 interface {
+		ResolveInt(context.Context, string) (int, error)
+	}
+	// LockTemplateRecurrence serializes link validation/writes with template
+	// split/end. Production wires the schedule service's transaction-scoped
+	// tenant recurrence gate; focused service tests may leave it nil.
+	LockTemplateRecurrence func(context.Context) error
+	Logger                 *slog.Logger
 }
 
 type careOfferingService struct {
-	repo                 enrollmentModels.CareOfferingRepository
-	activityGroupRepo    activitiesModels.GroupRepository
-	activityScheduleRepo activitiesModels.ScheduleRepository
-	calendarPeriodRepo   scheduleModels.CalendarPeriodRepository
-	phaseRepo            enrollmentModels.PhaseRepository
-	logger               *slog.Logger
+	CareOfferingServiceConfig
 }
 
 // NewCareOfferingService builds the service.
 func NewCareOfferingService(cfg CareOfferingServiceConfig) CareOfferingService {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	return &careOfferingService{
-		repo:                 cfg.Repo,
-		activityGroupRepo:    cfg.ActivityGroupRepo,
-		activityScheduleRepo: cfg.ActivityScheduleRepo,
-		calendarPeriodRepo:   cfg.CalendarPeriodRepo,
-		phaseRepo:            cfg.PhaseRepo,
-		logger:               logger,
-	}
+	return &careOfferingService{CareOfferingServiceConfig: cfg}
 }
 
 func (s *careOfferingService) List(ctx context.Context) ([]*enrollmentModels.CareOffering, error) {
-	return s.repo.ListByTenant(ctx)
+	offerings, err := s.Repo.ListByTenant(ctx)
+	return validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
 	if phaseID <= 0 {
-		return nil, fmt.Errorf("phase_id must be positive")
+		return nil, careOfferingInvalidf("phase_id must be positive")
 	}
-	return s.repo.ListByPhase(ctx, phaseID)
+	offerings, err := s.Repo.ListByPhase(ctx, phaseID)
+	return validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
 	if phaseID <= 0 {
-		return nil, fmt.Errorf("phase_id must be positive")
+		return nil, careOfferingInvalidf("phase_id must be positive")
 	}
-	return s.repo.ListActiveByPhase(ctx, phaseID)
+	offerings, err := s.Repo.ListActiveByPhase(ctx, phaseID)
+	return validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
 	if id <= 0 {
 		return nil, ErrCareOfferingNotFound
 	}
-	offering, err := s.repo.FindByID(ctx, id)
+	offering, err := s.Repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, ErrCareOfferingNotFound
+		if modelBase.IsNoRows(err) {
+			return nil, ErrCareOfferingNotFound
+		}
+		return nil, fmt.Errorf("load care offering: %w", err)
+	}
+	if offering.AvailabilityRule != nil {
+		if err := offering.AvailabilityRule.NormalizeAndValidate(); err != nil {
+			return nil, fmt.Errorf("care offering %d has an invalid persisted availability rule: %w", offering.ID, err)
+		}
 	}
 	return offering, nil
+}
+
+func validateLoadedAvailabilityRules(offerings []*enrollmentModels.CareOffering, loadErr error) ([]*enrollmentModels.CareOffering, error) {
+	if loadErr != nil {
+		return nil, loadErr
+	}
+	for _, offering := range offerings {
+		if offering.AvailabilityRule != nil {
+			if err := offering.AvailabilityRule.NormalizeAndValidate(); err != nil {
+				return nil, fmt.Errorf("care offering %d has an invalid persisted availability rule: %w", offering.ID, err)
+			}
+		}
+	}
+	return offerings, nil
+}
+
+func (s *careOfferingService) validateAvailabilityRule(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+	if offering.AvailabilityRule == nil || len(offering.AvailabilityRule.Conditions) == 0 {
+		return nil
+	}
+	if s.Settings == nil {
+		return fmt.Errorf("care offering availability validation requires settings service")
+	}
+	gradeMax, err := s.Settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)
+	if err != nil {
+		return fmt.Errorf("resolve tenant grade range: %w", err)
+	}
+	if gradeMax < schoolclass.MinGradeLevel || gradeMax > schoolclass.MaxGradeLevel {
+		return fmt.Errorf("tenant grade range is invalid: maximum %d", gradeMax)
+	}
+	for i, condition := range offering.AvailabilityRule.Conditions {
+		for _, grade := range condition.Value {
+			if grade > gradeMax {
+				return careOfferingInvalidf("availability_rule condition %d contains grade %d outside tenant range 1-%d", i+1, grade, gradeMax)
+			}
+		}
+	}
+	return nil
+}
+
+func careOfferingInvalidf(format string, args ...any) error {
+	return fmt.Errorf("%w: %s", ErrCareOfferingInvalid, fmt.Sprintf(format, args...))
+}
+
+func wrapCareOfferingInvalid(err error, format string, args ...any) error {
+	return fmt.Errorf("%w: %s: %w", ErrCareOfferingInvalid, fmt.Sprintf(format, args...), err)
 }
 
 // normalizeSelectionRule maps an empty rule to the "optional" default so a
@@ -131,7 +226,7 @@ func (s *careOfferingService) checkGroupRuleConsistency(ctx context.Context, off
 		return nil
 	}
 	thisRule := normalizeSelectionRule(offering.SelectionRule)
-	siblings, err := s.repo.ListByPhase(ctx, offering.PhaseID)
+	siblings, err := s.Repo.ListByPhase(ctx, offering.PhaseID)
 	if err != nil {
 		return fmt.Errorf("check selection group consistency: %w", err)
 	}
@@ -151,6 +246,69 @@ func (s *careOfferingService) checkGroupRuleConsistency(ctx context.Context, off
 		}
 	}
 	return nil
+}
+
+func normalizeTriggerOfferingIDs(targetID int64, ids []int64) []int64 {
+	if len(ids) == 0 {
+		return []int64{}
+	}
+	seen := make(map[int64]bool, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 || id == targetID || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+func (s *careOfferingService) validateAutoAddConfig(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+	offering.AutoAddTriggerOfferingIDs = normalizeTriggerOfferingIDs(offering.ID, offering.AutoAddTriggerOfferingIDs)
+	if len(offering.AutoAddTriggerOfferingIDs) == 0 {
+		return nil
+	}
+	if offering.DaysOfWeekMode != enrollmentModels.DaysOfWeekModeParentChoice {
+		return careOfferingInvalidf("an automatically added care offering must allow parent day selection")
+	}
+	siblings, err := s.Repo.ListByPhase(ctx, offering.PhaseID)
+	if err != nil {
+		return fmt.Errorf("check automatic offering triggers: %w", err)
+	}
+	triggerByID := make(map[int64]*enrollmentModels.CareOffering, len(siblings))
+	for _, sibling := range siblings {
+		if sibling.ID == offering.ID {
+			continue
+		}
+		triggerByID[sibling.ID] = sibling
+	}
+	for _, triggerID := range offering.AutoAddTriggerOfferingIDs {
+		trigger := triggerByID[triggerID]
+		if trigger == nil {
+			return careOfferingInvalidf("automatic trigger offering %d must belong to the same phase", triggerID)
+		}
+		if autoAddViolatesExclusiveGroup(offering, trigger) {
+			return careOfferingInvalidf("automatic trigger offering %d cannot auto-add offering %d in exclusive selection group %q", triggerID, offering.ID, strings.TrimSpace(offering.SelectionGroup))
+		}
+	}
+	return nil
+}
+
+func autoAddViolatesExclusiveGroup(target, trigger *enrollmentModels.CareOffering) bool {
+	if target == nil || trigger == nil {
+		return false
+	}
+	group := strings.TrimSpace(target.SelectionGroup)
+	if group == "" || strings.TrimSpace(trigger.SelectionGroup) != group {
+		return false
+	}
+	switch normalizeSelectionRule(target.SelectionRule) {
+	case enrollmentModels.SelectionRuleExactlyOne, enrollmentModels.SelectionRuleAtMostOne:
+		return true
+	default:
+		return false
+	}
 }
 
 type careOfferingTemplateDeps struct {
@@ -179,51 +337,285 @@ func resolveCareOfferingTemplatePeriod(
 	activityGroupID int64,
 ) (*scheduleModels.CalendarPeriod, error) {
 	if activityGroupID <= 0 {
-		return nil, errors.New("activity_group_id must be positive when set")
+		return nil, careOfferingInvalidf("activity_group_id must be positive when set")
 	}
 	if err := deps.validate(); err != nil {
 		return nil, err
 	}
 
 	group, err := deps.activityGroupRepo.FindByID(ctx, activityGroupID)
-	if err != nil || group == nil {
-		return nil, fmt.Errorf("activity_group_id does not reference a template in this tenant")
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, careOfferingInvalidf("activity_group_id does not reference a template in this tenant")
+		}
+		return nil, fmt.Errorf("load linked activity group: %w", err)
+	}
+	if group == nil {
+		return nil, careOfferingInvalidf("activity_group_id does not reference a template in this tenant")
 	}
 	if !group.IsTemplate {
-		return nil, fmt.Errorf("activity_group_id must reference a timetable template")
+		return nil, careOfferingInvalidf("activity_group_id must reference a timetable template")
 	}
 	if group.ArchivedAt != nil {
-		return nil, fmt.Errorf("activity_group_id references an archived timetable template")
+		return nil, careOfferingInvalidf("activity_group_id references an archived timetable template")
 	}
 
-	schedules, err := deps.activityScheduleRepo.FindByGroupID(ctx, activityGroupID)
+	return resolveTemplatePeriodForGroup(ctx, deps, group)
+}
+
+func resolveTemplatePeriodForGroup(
+	ctx context.Context,
+	deps careOfferingTemplateDeps,
+	group *activitiesModels.Group,
+) (*scheduleModels.CalendarPeriod, error) {
+	if group == nil || !group.IsTemplate {
+		return nil, careOfferingInvalidf("activity group must be a timetable template")
+	}
+	schedules, err := deps.activityScheduleRepo.FindByGroupID(ctx, group.ID)
 	if err != nil {
 		return nil, fmt.Errorf("load timetable template schedules: %w", err)
 	}
 	if len(schedules) == 0 {
-		return nil, fmt.Errorf("timetable template must have at least one schedule")
+		return nil, careOfferingInvalidf("timetable template must have at least one schedule")
 	}
 
+	periodID, err := resolveTemplateSchedulePeriodID(group, schedules)
+	if err != nil {
+		return nil, err
+	}
+
+	period, err := deps.calendarPeriodRepo.FindByID(ctx, periodID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, careOfferingInvalidf("calendar period for timetable template not found")
+		}
+		return nil, fmt.Errorf("load timetable template calendar period: %w", err)
+	}
+	if period == nil {
+		return nil, careOfferingInvalidf("calendar period for timetable template not found")
+	}
+	return period, nil
+}
+
+func resolveTemplateSchedulePeriodID(
+	group *activitiesModels.Group,
+	schedules []*activitiesModels.Schedule,
+) (int64, error) {
 	var periodID *int64
 	for _, schedule := range schedules {
-		if schedule.CalendarPeriodID == nil {
-			return nil, fmt.Errorf("timetable template schedules must all have a calendar_period_id")
+		resolvedPeriodID := schedule.CalendarPeriodID
+		if resolvedPeriodID == nil {
+			resolvedPeriodID = group.CalendarPeriodID
+		}
+		if resolvedPeriodID == nil {
+			return 0, careOfferingInvalidf("timetable template schedules must resolve one calendar_period_id from the schedule or template")
 		}
 		if periodID == nil {
-			id := *schedule.CalendarPeriodID
+			id := *resolvedPeriodID
 			periodID = &id
 			continue
 		}
-		if *periodID != *schedule.CalendarPeriodID {
-			return nil, fmt.Errorf("timetable template schedules must use one calendar_period_id")
+		if *periodID != *resolvedPeriodID {
+			return 0, careOfferingInvalidf("timetable template schedules must use one calendar_period_id")
 		}
 	}
+	return *periodID, nil
+}
 
-	period, err := deps.calendarPeriodRepo.FindByID(ctx, *periodID)
-	if err != nil || period == nil {
-		return nil, fmt.Errorf("calendar period for timetable template not found")
+type linkedCareOfferingGroup struct {
+	group     *activitiesModels.Group
+	period    *scheduleModels.CalendarPeriod
+	schedules []*activitiesModels.Schedule
+}
+
+// resolveCareOfferingLinkedGroupsForPhase expands a template link to every
+// live split-series segment whose recurrence window can produce an occurrence
+// during the enrollment phase. A non-template activity remains one group.
+func resolveCareOfferingLinkedGroupsForPhase(
+	ctx context.Context,
+	deps careOfferingTemplateDeps,
+	activityGroupID int64,
+	phase *enrollmentModels.Phase,
+) ([]linkedCareOfferingGroup, error) {
+	group, period, err := resolveCareOfferingLinkedGroupPeriod(ctx, deps, activityGroupID)
+	if err != nil {
+		return nil, err
 	}
-	return period, nil
+	if !group.IsTemplate {
+		return []linkedCareOfferingGroup{{group: group}}, nil
+	}
+
+	series, err := deps.activityGroupRepo.FindTemplateSeries(ctx, activityGroupID)
+	if err != nil {
+		return nil, fmt.Errorf("load timetable template split series: %w", err)
+	}
+	segments := make([]linkedCareOfferingGroup, 0, len(series))
+	for _, segment := range series {
+		linked, include, resolveErr := resolveCareOfferingSeriesSegment(
+			ctx,
+			deps,
+			group,
+			period,
+			segment,
+			phase,
+		)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		if include {
+			segments = append(segments, linked)
+		}
+	}
+	if len(segments) == 0 {
+		return nil, careOfferingInvalidf("timetable template has no recurrence segment during the enrollment phase")
+	}
+	return segments, nil
+}
+
+func resolveCareOfferingSeriesSegment(
+	ctx context.Context,
+	deps careOfferingTemplateDeps,
+	root *activitiesModels.Group,
+	rootPeriod *scheduleModels.CalendarPeriod,
+	segment *activitiesModels.Group,
+	phase *enrollmentModels.Phase,
+) (linkedCareOfferingGroup, bool, error) {
+	if segment == nil {
+		return linkedCareOfferingGroup{}, false, nil
+	}
+	schedules, err := deps.activityScheduleRepo.FindByGroupID(ctx, segment.ID)
+	if err != nil {
+		return linkedCareOfferingGroup{}, false, fmt.Errorf("load split-series segment %d schedules: %w", segment.ID, err)
+	}
+	if !schedulesOverlapEnrollmentPhase(schedules, phase) {
+		return linkedCareOfferingGroup{}, false, nil
+	}
+
+	period := rootPeriod
+	if segment.ID != root.ID {
+		period, err = resolveTemplatePeriodForGroup(ctx, deps, segment)
+		if err != nil {
+			return linkedCareOfferingGroup{}, false, fmt.Errorf("resolve split-series segment %d period: %w", segment.ID, err)
+		}
+	}
+	if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
+		return linkedCareOfferingGroup{}, false, err
+	}
+	return linkedCareOfferingGroup{
+		group:     segment,
+		period:    period,
+		schedules: schedules,
+	}, true, nil
+}
+
+func validateCareOfferingTemplateSegments(
+	segments []linkedCareOfferingGroup,
+	phase *enrollmentModels.Phase,
+	days []string,
+	requireActivePeriod bool,
+) error {
+	if len(segments) == 0 || phase == nil || segments[0].group == nil || !segments[0].group.IsTemplate {
+		return nil
+	}
+	weekdays, err := parseCareOfferingWeekdays(days)
+	if err != nil {
+		return err
+	}
+	for weekday := activitiesModels.WeekdayMonday; weekday <= activitiesModels.WeekdaySunday; weekday++ {
+		if !weekdays[weekday] {
+			continue
+		}
+		if err := validateCareOfferingWeekdayCoverage(segments, phase, weekday, requireActivePeriod); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func parseCareOfferingWeekdays(days []string) (map[int]bool, error) {
+	weekdays := make(map[int]bool, len(days))
+	for _, day := range days {
+		weekday, ok := enrollmentDayToISOWeekday(day)
+		if !ok {
+			return nil, careOfferingInvalidf("care offering day %q is invalid", day)
+		}
+		weekdays[weekday] = true
+	}
+	if len(weekdays) == 0 {
+		return nil, careOfferingInvalidf("a timetable-linked care offering must define at least one available day")
+	}
+	return weekdays, nil
+}
+
+func validateCareOfferingWeekdayCoverage(
+	segments []linkedCareOfferingGroup,
+	phase *enrollmentModels.Phase,
+	weekday int,
+	requireActivePeriod bool,
+) error {
+	occurrences := 0
+	for date := phase.ServiceStartDate; !date.After(phase.ServiceEndDate); date = date.AddDays(1) {
+		if careOfferingISOWeekday(date) != weekday {
+			continue
+		}
+		occurrences++
+		covered, inactiveOnly := careOfferingOccurrenceCovered(segments, date, weekday, requireActivePeriod)
+		if covered {
+			continue
+		}
+		if inactiveOnly {
+			return careOfferingInvalidf("an active timetable-linked care offering requires an active calendar period")
+		}
+		return careOfferingInvalidf(
+			"timetable recurrence does not cover care offering weekday %d on %s",
+			weekday,
+			date.String(),
+		)
+	}
+	if occurrences == 0 {
+		return careOfferingInvalidf(
+			"care offering weekday %d has no occurrence during the enrollment phase",
+			weekday,
+		)
+	}
+	return nil
+}
+
+func careOfferingISOWeekday(date timezone.Date) int {
+	weekday := int(date.Weekday())
+	if weekday == 0 {
+		return activitiesModels.WeekdaySunday
+	}
+	return weekday
+}
+
+func careOfferingOccurrenceCovered(
+	segments []linkedCareOfferingGroup,
+	date timezone.Date,
+	weekday int,
+	requireActivePeriod bool,
+) (covered bool, inactiveOnly bool) {
+	for _, segment := range segments {
+		for _, schedule := range segment.schedules {
+			if schedule == nil || schedule.Weekday != weekday || !scheduleCoversDate(schedule, date) ||
+				!scheduleService.ShouldMaterializeWeekPattern(schedule.WeekPattern, date, segment.period) {
+				continue
+			}
+			if requireActivePeriod && (segment.period == nil || !segment.period.IsActive) {
+				inactiveOnly = true
+				continue
+			}
+			return true, false
+		}
+	}
+	return false, inactiveOnly
+}
+
+func scheduleCoversDate(schedule *activitiesModels.Schedule, date timezone.Date) bool {
+	if schedule == nil || (schedule.ValidFrom != nil && schedule.ValidFrom.After(date)) {
+		return false
+	}
+	return schedule.ValidUntil == nil || schedule.ValidUntil.After(date)
 }
 
 func resolveCareOfferingLinkedGroupPeriod(
@@ -232,15 +624,21 @@ func resolveCareOfferingLinkedGroupPeriod(
 	activityGroupID int64,
 ) (*activitiesModels.Group, *scheduleModels.CalendarPeriod, error) {
 	if activityGroupID <= 0 {
-		return nil, nil, errors.New("activity_group_id must be positive when set")
+		return nil, nil, careOfferingInvalidf("activity_group_id must be positive when set")
 	}
 	if err := deps.validateActivityGroupLookup(); err != nil {
 		return nil, nil, err
 	}
 
 	group, err := deps.activityGroupRepo.FindByID(ctx, activityGroupID)
-	if err != nil || group == nil {
-		return nil, nil, fmt.Errorf("activity_group_id does not reference a group in this tenant")
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, nil, careOfferingInvalidf("activity_group_id does not reference a group in this tenant")
+		}
+		return nil, nil, fmt.Errorf("load linked activity group: %w", err)
+	}
+	if group == nil {
+		return nil, nil, careOfferingInvalidf("activity_group_id does not reference a group in this tenant")
 	}
 	if !group.IsTemplate {
 		return group, nil, nil
@@ -258,7 +656,7 @@ func validatePhaseWithinTemplatePeriod(phase *enrollmentModels.Phase, period *sc
 		return nil
 	}
 	if phase.ServiceStartDate.Before(period.StartDate) || phase.ServiceEndDate.After(period.EndDate) {
-		return fmt.Errorf("care offering phase must be within the linked timetable template period")
+		return wrapCareOfferingInvalid(ErrCareOfferingTemplatePeriodMismatch, "linked timetable template period does not contain the enrollment phase")
 	}
 	return nil
 }
@@ -267,27 +665,218 @@ func (s *careOfferingService) validateLinkedTemplate(ctx context.Context, offeri
 	if offering == nil || offering.ActivityGroupID == nil {
 		return nil
 	}
-	period, err := resolveCareOfferingTemplatePeriod(ctx, careOfferingTemplateDeps{
-		activityGroupRepo:    s.activityGroupRepo,
-		activityScheduleRepo: s.activityScheduleRepo,
-		calendarPeriodRepo:   s.calendarPeriodRepo,
-	}, *offering.ActivityGroupID)
+	deps := careOfferingTemplateDeps{
+		activityGroupRepo:    s.ActivityGroupRepo,
+		activityScheduleRepo: s.ActivityScheduleRepo,
+		calendarPeriodRepo:   s.CalendarPeriodRepo,
+	}
+	// Preserve the admin catalog's template-only contract. Decision
+	// materialization separately supports historical non-template links.
+	if _, err := resolveCareOfferingTemplatePeriod(ctx, deps, *offering.ActivityGroupID); err != nil {
+		return err
+	}
+	if s.PhaseRepo == nil {
+		return errors.New("phase validation dependency is not configured")
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return careOfferingInvalidf("phase_id does not reference a phase in this tenant")
+		}
+		return fmt.Errorf("load care offering phase: %w", err)
+	}
+	if phase == nil {
+		return careOfferingInvalidf("phase_id does not reference a phase in this tenant")
+	}
+	requiresMaterialization, err := s.offeringRequiresMaterialization(ctx, offering)
 	if err != nil {
 		return err
 	}
-	if s.phaseRepo == nil {
-		return errors.New("phase validation dependency is not configured")
+	segments, err := resolveCareOfferingLinkedGroupsForPhase(ctx, deps, *offering.ActivityGroupID, phase)
+	if err != nil {
+		return err
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, offering.PhaseID)
-	if err != nil || phase == nil {
-		return fmt.Errorf("phase_id does not reference a phase in this tenant")
+	if err := validateCareOfferingTemplateSegments(segments, phase, offering.AvailableDays, requiresMaterialization); err != nil {
+		return err
 	}
-	return validatePhaseWithinTemplatePeriod(phase, period)
+	if !requiresMaterialization {
+		return nil
+	}
+	return validateCareOfferingMaterializability(
+		ctx,
+		s.materializationDeps(),
+		segments,
+		phase,
+		offering.AvailableDays,
+		careOfferingMaterializationChange{},
+	)
+}
+
+// offeringRequiresMaterialization protects both catalog-visible offerings and
+// inactive offerings still selected by a non-terminal enrollment request.
+// Deactivation is not a cancellation: Decision materializes the persisted
+// selection later, so recurrence mutations must keep that path valid.
+func (s *careOfferingService) offeringRequiresMaterialization(
+	ctx context.Context,
+	offering *enrollmentModels.CareOffering,
+) (bool, error) {
+	if offering == nil {
+		return false, errors.New("care offering is required")
+	}
+	if offering.IsActive {
+		return true, nil
+	}
+	// A not-yet-created inactive draft cannot have request selections.
+	if offering.ID <= 0 {
+		return false, nil
+	}
+	if s.RequestChildOfferingRepo == nil {
+		return false, errors.New("request child offering repository is not configured")
+	}
+	count, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
+	if err != nil {
+		return false, fmt.Errorf("count materializable care offering selections: %w", err)
+	}
+	return count > 0, nil
+}
+
+func (s *careOfferingService) lockTemplateRecurrence(ctx context.Context) error {
+	if s.LockTemplateRecurrence == nil {
+		return nil
+	}
+	if err := s.LockTemplateRecurrence(ctx); err != nil {
+		return fmt.Errorf("care offering: lock template recurrence: %w", err)
+	}
+	return nil
+}
+
+// ValidateTemplateSeries checks every care offering linked to any live segment
+// in groupID's split lineage against the complete post-split series. The split
+// service calls this after creating the successor but before committing, so a
+// recurrence edit cannot turn an accepted catalog link into a later approval
+// failure.
+func (s *careOfferingService) ValidateTemplateSeries(ctx context.Context, groupID int64) error {
+	if groupID <= 0 {
+		return careOfferingInvalidf("template group id must be positive")
+	}
+	if s.ActivityGroupRepo == nil || s.Repo == nil || s.PhaseRepo == nil {
+		return errors.New("care offering series validation dependencies are not configured")
+	}
+	series, err := s.ActivityGroupRepo.FindTemplateSeries(ctx, groupID)
+	if err != nil {
+		return fmt.Errorf("load template series for care offering validation: %w", err)
+	}
+	// Include groupID even when it was provisionally archived in the current
+	// transaction. FindTemplateSeries intentionally returns only live segments,
+	// but an offering linked to the row being archived must still be found and
+	// rejected before commit.
+	groupIDs := careOfferingSeriesGroupIDs(groupID, series)
+	offerings, err := s.Repo.ListByActivityGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return fmt.Errorf("list care offerings linked to template series: %w", err)
+	}
+	deps := careOfferingTemplateDeps{
+		activityGroupRepo:    s.ActivityGroupRepo,
+		activityScheduleRepo: s.ActivityScheduleRepo,
+		calendarPeriodRepo:   s.CalendarPeriodRepo,
+	}
+	phases := make(map[int64]*enrollmentModels.Phase)
+	for _, offering := range offerings {
+		if err := s.validateTemplateSeriesOffering(ctx, deps, phases, offering); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func careOfferingSeriesGroupIDs(groupID int64, series []*activitiesModels.Group) []int64 {
+	groupIDs := make([]int64, 0, len(series)+1)
+	groupIDs = append(groupIDs, groupID)
+	seen := map[int64]bool{groupID: true}
+	for _, segment := range series {
+		if segment == nil || seen[segment.ID] {
+			continue
+		}
+		groupIDs = append(groupIDs, segment.ID)
+		seen[segment.ID] = true
+	}
+	return groupIDs
+}
+
+func (s *careOfferingService) validateTemplateSeriesOffering(
+	ctx context.Context,
+	deps careOfferingTemplateDeps,
+	phases map[int64]*enrollmentModels.Phase,
+	offering *enrollmentModels.CareOffering,
+) error {
+	if offering == nil || offering.ActivityGroupID == nil {
+		return nil
+	}
+	requiresMaterialization, err := s.offeringRequiresMaterialization(ctx, offering)
+	if err != nil {
+		return fmt.Errorf("inspect care offering %d request selections: %w", offering.ID, err)
+	}
+	if !requiresMaterialization {
+		return nil
+	}
+	phase, err := s.careOfferingSeriesPhase(ctx, phases, offering)
+	if err != nil {
+		return err
+	}
+	segments, err := resolveCareOfferingLinkedGroupsForPhase(ctx, deps, *offering.ActivityGroupID, phase)
+	if err != nil {
+		return fmt.Errorf("care offering %d is incompatible with the split template series: %w", offering.ID, err)
+	}
+	if err := validateCareOfferingTemplateSegments(segments, phase, offering.AvailableDays, requiresMaterialization); err != nil {
+		return fmt.Errorf("care offering %d is incompatible with the split template series: %w", offering.ID, err)
+	}
+	if err := validateCareOfferingMaterializability(
+		ctx,
+		s.materializationDeps(),
+		segments,
+		phase,
+		offering.AvailableDays,
+		careOfferingMaterializationChange{},
+	); err != nil {
+		return fmt.Errorf("care offering %d is incompatible with the split template series: %w", offering.ID, err)
+	}
+	return nil
+}
+
+func (s *careOfferingService) careOfferingSeriesPhase(
+	ctx context.Context,
+	phases map[int64]*enrollmentModels.Phase,
+	offering *enrollmentModels.CareOffering,
+) (*enrollmentModels.Phase, error) {
+	if phase := phases[offering.PhaseID]; phase != nil {
+		return phase, nil
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, careOfferingInvalidf("care offering %d references an unavailable phase", offering.ID)
+		}
+		return nil, fmt.Errorf("load phase for care offering %d: %w", offering.ID, err)
+	}
+	if phase == nil {
+		return nil, careOfferingInvalidf("care offering %d references an unavailable phase", offering.ID)
+	}
+	phases[offering.PhaseID] = phase
+	return phase, nil
 }
 
 func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentModels.CareOffering) (*enrollmentModels.CareOffering, error) {
 	if offering == nil {
-		return nil, fmt.Errorf("offering is required")
+		return nil, careOfferingInvalidf("offering is required")
+	}
+	if err := offering.Validate(); err != nil {
+		return nil, wrapCareOfferingInvalid(err, "validate care offering")
+	}
+	if err := s.validateAvailabilityRule(ctx, offering); err != nil {
+		return nil, err
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return nil, err
 	}
 	if err := s.validateLinkedTemplate(ctx, offering); err != nil {
 		return nil, err
@@ -295,10 +884,16 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 	if err := s.checkGroupRuleConsistency(ctx, offering); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, offering); err != nil {
+	if err := s.validateAutoAddConfig(ctx, offering); err != nil {
 		return nil, err
 	}
-	s.logger.Info("care offering created",
+	if err := s.Repo.Create(ctx, offering); err != nil {
+		return nil, err
+	}
+	if err := s.Repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
+		return nil, err
+	}
+	s.Logger.Info("care offering created",
 		slog.Int64("offering_id", offering.ID),
 		slog.String("name", offering.Name))
 	return offering, nil
@@ -306,7 +901,16 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 
 func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentModels.CareOffering) error {
 	if offering == nil || offering.ID <= 0 {
-		return fmt.Errorf("offering with valid id is required")
+		return careOfferingInvalidf("offering with valid id is required")
+	}
+	if err := offering.Validate(); err != nil {
+		return wrapCareOfferingInvalid(err, "validate care offering")
+	}
+	if err := s.validateAvailabilityRule(ctx, offering); err != nil {
+		return err
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return err
 	}
 	if err := s.validateLinkedTemplate(ctx, offering); err != nil {
 		return err
@@ -314,21 +918,27 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if err := s.checkGroupRuleConsistency(ctx, offering); err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, offering); err != nil {
+	if err := s.validateAutoAddConfig(ctx, offering); err != nil {
 		return err
 	}
-	s.logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
+	if err := s.Repo.Update(ctx, offering); err != nil {
+		return err
+	}
+	if err := s.Repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
+		return err
+	}
+	s.Logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
 	return nil
 }
 
 func (s *careOfferingService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
-		return fmt.Errorf("id must be positive")
+		return careOfferingInvalidf("id must be positive")
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.Repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.logger.Info("care offering deleted", slog.Int64("offering_id", id))
+	s.Logger.Info("care offering deleted", slog.Int64("offering_id", id))
 	return nil
 }
 
@@ -338,14 +948,20 @@ func (s *careOfferingService) Delete(ctx context.Context, id int64) error {
 // repointed at the target.
 func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error) {
 	if sourceID <= 0 {
-		return nil, fmt.Errorf("source id must be positive")
+		return nil, careOfferingInvalidf("source id must be positive")
 	}
 	if targetPhaseID <= 0 {
-		return nil, fmt.Errorf("target phase id must be positive")
+		return nil, careOfferingInvalidf("target phase id must be positive")
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return nil, err
 	}
 
-	source, err := s.repo.FindByID(ctx, sourceID)
+	source, err := s.Repo.FindByID(ctx, sourceID)
 	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, careOfferingInvalidf("source care offering does not exist")
+		}
 		return nil, fmt.Errorf("clone: source lookup: %w", err)
 	}
 
@@ -355,13 +971,20 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 	if source.PhaseID != targetPhaseID && clone.ActivityGroupID != nil {
 		clone.ActivityGroupID = nil
 	}
+	clone.AutoAddTriggerOfferingIDs = nil
+	if err := s.validateAvailabilityRule(ctx, &clone); err != nil {
+		return nil, fmt.Errorf("clone: validate availability rule: %w", err)
+	}
+	if err := s.validateLinkedTemplate(ctx, &clone); err != nil {
+		return nil, fmt.Errorf("clone: validate linked template: %w", err)
+	}
 	if err := s.checkGroupRuleConsistency(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: check selection group consistency: %w", err)
 	}
-	if err := s.repo.Create(ctx, &clone); err != nil {
+	if err := s.Repo.Create(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: create: %w", err)
 	}
-	s.logger.Info("care offering cloned",
+	s.Logger.Info("care offering cloned",
 		slog.Int64("source_id", sourceID),
 		slog.Int64("clone_id", clone.ID),
 		slog.Int64("target_phase_id", targetPhaseID))

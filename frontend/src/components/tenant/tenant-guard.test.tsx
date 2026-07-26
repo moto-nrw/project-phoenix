@@ -34,7 +34,7 @@ vi.mock("next-auth/react", () => ({
   signOut: mockSignOut,
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenant: mockUseTenant,
   useNFCEnabled: vi.fn(() => true),
 }));
@@ -198,6 +198,41 @@ describe("TenantGuard", () => {
     mockUseTenant.mockReturnValue({
       tenantSlug: "school-b",
       tenant: tenantB,
+    });
+    mockPerformTenantSwitch.mockResolvedValue({
+      access_token: "new-access",
+      refresh_token: "new-refresh",
+    });
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    await waitFor(() => {
+      expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+        "school-b",
+        mockSignIn,
+        mockMutate,
+      );
+    });
+
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  // Regression test for #1975: the auto-switch must send the subdomain,
+  // not the slug column — the two can legitimately differ.
+  it("auto-switches with the subdomain when slug differs (#1975)", async () => {
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1, token: "access-token" } },
+      status: "authenticated",
+      update: mockUpdate,
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      tenant: { ...tenantB, slug: "ogs-school-b", subdomain: "school-b" },
     });
     mockPerformTenantSwitch.mockResolvedValue({
       access_token: "new-access",

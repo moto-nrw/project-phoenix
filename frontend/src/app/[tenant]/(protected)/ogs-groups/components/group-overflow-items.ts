@@ -1,4 +1,4 @@
-import type { OverflowMenuItem } from "~/components/ui/page-header";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 
 interface BuildArgs {
   /** Whether the current group is being supervised via substitution. */

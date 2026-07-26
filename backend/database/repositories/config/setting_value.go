@@ -50,25 +50,6 @@ func (r *SettingValueRepository) FindByTenantAndKey(ctx context.Context, tenantI
 	return sv, nil
 }
 
-// FindByTenant retrieves all setting values for a tenant.
-func (r *SettingValueRepository) FindByTenant(ctx context.Context, tenantID int64) ([]*config.SettingValue, error) {
-	var results []*config.SettingValue
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
-		ModelTableExpr(tableSettingValuesAlias).
-		Where(`"setting_value".tenant_id = ?`, tenantID).
-		Order("setting_key ASC").
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find setting values by tenant",
-			Err: err,
-		}
-	}
-	return results, nil
-}
-
 // Upsert inserts or updates a setting value.
 func (r *SettingValueRepository) Upsert(ctx context.Context, sv *config.SettingValue) error {
 	if sv == nil {

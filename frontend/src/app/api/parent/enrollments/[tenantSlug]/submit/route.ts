@@ -1,7 +1,5 @@
-import {
-  createParentPostHandler,
-  parentApiPost,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyPost } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface SubmitResult {
   request_id: string;
@@ -14,13 +12,7 @@ interface SubmitResult {
  * guardian_account_id from the parent JWT and skips captcha — the
  * route wrapper handles auth + 401 retry. Body is forwarded as-is.
  */
-export const POST = createParentPostHandler<SubmitResult, unknown>(
-  async (_request, body, token, params) => {
-    const slug = typeof params.tenantSlug === "string" ? params.tenantSlug : "";
-    return parentApiPost<SubmitResult>(
-      `/parent/enrollments/${encodeURIComponent(slug)}/submit`,
-      token,
-      body,
-    );
-  },
+export const POST = proxyPost<SubmitResult>(
+  (params) =>
+    `/parent/enrollments/${requirePathSegmentParam(params, "tenantSlug")}/submit`,
 );

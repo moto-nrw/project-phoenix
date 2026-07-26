@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -11,7 +12,7 @@ const logger = createLogger({ component: "EnrollmentMeProfileRoute" });
  * when the parent has a session; otherwise it returns 401 fast so the
  * frontend can render the form without autofill.
  */
-export async function GET(_request: NextRequest) {
+async function GETHandler(_request: NextRequest) {
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
@@ -37,3 +38,5 @@ export async function GET(_request: NextRequest) {
     );
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

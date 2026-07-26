@@ -4,12 +4,16 @@
 package enrollment
 
 import (
+	"context"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -23,18 +27,23 @@ type Resource struct {
 	FormSchemaService         enrollmentService.FormSchemaService
 	CareOfferingService       enrollmentService.CareOfferingService
 	RequestService            enrollmentService.RequestService
-	CaptchaService            enrollmentService.CaptchaService
+	CaptchaService            *enrollmentService.CaptchaService
 	PhaseService              enrollmentService.PhaseService
 	DecisionService           enrollmentService.DecisionService
+	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
+	ChangeRequestService      enrollmentService.ChangeRequestService
+	DeletionService           enrollmentService.EnrollmentDeletionService
 	GuardianInvitationService authService.GuardianInvitationService
-	GuardianProfileLoader     usersService.GuardianProfileLoader
+	GuardianProfileLoader     *usersService.GuardianProfileLoader
 	SchoolService             platformSvc.SchoolService
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
-	ListExportService listexport.Service
-	db                *bun.DB
+	ListExportService    *listexport.RendererService
+	db                   *bun.DB
+	legalDocumentRefs    legalDocumentReferenceRepository
+	runInTenantTxForTest func(r *http.Request, fn func(ctx context.Context) error) error
 }
 
 // NewResource constructs the enrollment API resource. PR 7 added the
@@ -47,28 +56,39 @@ func NewResource(
 	formSchemaSvc enrollmentService.FormSchemaService,
 	careOfferingSvc enrollmentService.CareOfferingService,
 	requestSvc enrollmentService.RequestService,
-	captchaSvc enrollmentService.CaptchaService,
+	captchaSvc *enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
 	decisionSvc enrollmentService.DecisionService,
+	reportSvc enrollmentService.ReportService,
 	rolloverSvc enrollmentService.RolloverService,
+	changeRequestSvc enrollmentService.ChangeRequestService,
+	deletionSvc enrollmentService.EnrollmentDeletionService,
 	guardianInvitationSvc authService.GuardianInvitationService,
-	guardianProfileLoader usersService.GuardianProfileLoader,
+	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
+	legalDocumentRefs ...legalDocumentReferenceRepository,
 ) *Resource {
-	return &Resource{
+	rs := &Resource{
 		FormSchemaService:         formSchemaSvc,
 		CareOfferingService:       careOfferingSvc,
 		RequestService:            requestSvc,
 		CaptchaService:            captchaSvc,
 		PhaseService:              phaseSvc,
 		DecisionService:           decisionSvc,
+		ReportService:             reportSvc,
 		RolloverService:           rolloverSvc,
+		ChangeRequestService:      changeRequestSvc,
+		DeletionService:           deletionSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		GuardianProfileLoader:     guardianProfileLoader,
 		SchoolService:             schoolService,
 		db:                        db,
 	}
+	if len(legalDocumentRefs) > 0 {
+		rs.legalDocumentRefs = legalDocumentRefs[0]
+	}
+	return rs
 }
 
 // Router returns a chi router scoped to /enrollment. PR 5 added the
@@ -90,7 +110,12 @@ func (rs *Resource) Router() chi.Router {
 	r.Get("/legal/{tenantSlug}", rs.publicLegalTexts)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
 	r.Get("/requests/{statusToken}", rs.getStatus)
+	r.Get("/requests/{statusToken}/edit-bootstrap", rs.getEditBootstrap)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)
+	r.Put("/requests/{statusToken}", rs.replaceStatus)
+	r.Get("/requests/{statusToken}/change-requests", rs.listPublicChangeRequests)
+	r.Post("/requests/{statusToken}/change-requests", rs.createChangeRequest)
+	r.Post("/requests/{statusToken}/change-requests/{changeRequestId}/messages", rs.replyToChangeRequest)
 	r.Post("/requests/{statusToken}/withdraw", rs.withdrawStatus)
 	r.Post("/requests/{statusToken}/confirm-renewal", rs.confirmRenewal)
 
@@ -108,8 +133,11 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:read")).Get("/{id}", rs.getSchemaByID)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.publishSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Put("/{id}", rs.updateSchema)
+			r.With(authorize.RequiresPermission("config:manage")).Patch("/{id}", rs.renameSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSchema)
 		})
+		r.With(authorize.RequiresPermission("config:manage")).Post("/legal-documents", rs.uploadLegalDocument)
+		r.With(authorize.RequiresPermission("config:manage")).Delete("/legal-documents/{filename}", rs.deleteLegalDocument)
 
 		r.Route("/care-offerings", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listCareOfferings)
@@ -140,6 +168,9 @@ func (rs *Resource) Router() chi.Router {
 				// FROM this phase. Both require config:manage.
 				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover", rs.createRollover)
 				r.With(authorize.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/manual-bootstrap", rs.getManualEnrollmentBootstrap)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/late-invites", rs.createLateInvite)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/manual-approved-enrollments", rs.createManualApprovedEnrollment)
 				// Compact export of every registration in the phase
 				// (PDF for print, XLSX for data). Gated config:manage
 				// (not config:read like the review list): one call
@@ -166,15 +197,41 @@ func (rs *Resource) Router() chi.Router {
 		// the frontend can still cleanly render the form.
 		r.Get("/me/profile", rs.getMyProfile)
 
-		// PR 8 admin review surface. config:read for browse,
-		// config:manage to apply decisions. Decision writes audit
+		// PR 8 admin review surface. config:read for queue browse;
+		// config:manage for detail, export and decisions because those
+		// expose or mutate full enrollment PII. Decision writes audit
 		// reviewed_by/reviewed_at on each child row.
 		r.Route("/admin/requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
 			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
+				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)
+				r.With(authorize.RequiresPermission("config:manage")).Delete("/children/{childId}", rs.deleteAdminChild)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
+				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/data-correction", rs.correctAdminChildData)
+				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/offerings", rs.updateAdminChildOfferings)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/offering-adjustments", rs.listAdminChildOfferingAdjustments)
 			})
+		})
+		r.Route("/admin/change-requests", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminChangeRequests)
+			r.Route("/{id}", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminChangeRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/question", rs.askChangeRequestQuestion)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/approve", rs.approveChangeRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/reject", rs.rejectChangeRequest)
+			})
+		})
+		r.Route("/admin/reports", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:read")).Get("/care-usage", rs.getCareUsageReport)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/care-usage/export", rs.exportCareUsageReport)
+			r.With(authorize.RequiresAllPermissions(permissions.ConfigManage, permissions.UsersRead)).Post("/class-roster/export", rs.exportClassRosterReport)
+		})
+		r.Route("/admin/students/{studentId}/requests", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/export", rs.exportStudentEnrollmentRequests)
 		})
 	})
 

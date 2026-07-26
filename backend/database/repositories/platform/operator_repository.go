@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -31,19 +30,6 @@ func NewOperatorRepository(db *bun.DB) platform.OperatorRepository {
 		Repository: base.NewRepository[*platform.Operator](db, tablePlatformOperators, "Operator"),
 		db:         db,
 	}
-}
-
-// Create inserts a new operator
-func (r *OperatorRepository) Create(ctx context.Context, operator *platform.Operator) error {
-	if operator == nil {
-		return fmt.Errorf("operator cannot be nil")
-	}
-
-	if err := operator.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, operator)
 }
 
 // FindByID retrieves an operator by ID
@@ -112,19 +98,6 @@ func (r *OperatorRepository) FindByEmail(ctx context.Context, email string) (*pl
 	}
 
 	return operator, nil
-}
-
-// Update updates an operator
-func (r *OperatorRepository) Update(ctx context.Context, operator *platform.Operator) error {
-	if operator == nil {
-		return fmt.Errorf("operator cannot be nil")
-	}
-
-	if err := operator.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, operator)
 }
 
 // Delete removes an operator by ID
@@ -209,19 +182,7 @@ func (r *OperatorRepository) ResetMFAAttempts(ctx context.Context, id int64) err
 // UpdateLastLogin updates the last login timestamp
 func (r *OperatorRepository) UpdateLastLogin(ctx context.Context, id int64) error {
 	now := time.Now()
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*platform.Operator)(nil)).
-		ModelTableExpr(tablePlatformOperators).
-		Set("last_login = ?", now).
-		Where("id = ?", id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update operator last login",
-			Err: err,
-		}
-	}
-
-	return nil
+	operator := &platform.Operator{Model: modelBase.Model{ID: id}, LastLogin: &now}
+	_, err := r.UpdateColumns(ctx, operator, "last_login")
+	return err
 }

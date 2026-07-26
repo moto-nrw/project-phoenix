@@ -93,34 +93,6 @@ func TestPasswordResetToken_SetExpiry(t *testing.T) {
 	}
 }
 
-func TestPasswordResetToken_TableName(t *testing.T) {
-	token := &PasswordResetToken{}
-	if got := token.TableName(); got != "auth.password_reset_tokens" {
-		t.Errorf("TableName() = %v, want auth.password_reset_tokens", got)
-	}
-}
-
-func TestPasswordResetToken_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		token := &PasswordResetToken{AccountID: 1, Token: "test", Expiry: time.Now().Add(time.Hour)}
-		err := token.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		token := &PasswordResetToken{AccountID: 1, Token: "test", Expiry: time.Now().Add(time.Hour)}
-		err := token.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestPasswordResetToken_GetID(t *testing.T) {
 	token := &PasswordResetToken{
 		Model: base.Model{ID: 42},

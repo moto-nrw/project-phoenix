@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authConfig, _resetRefreshState } from "./config";
+import { tenantAuthConfig as authConfig } from "./tenant-config";
+import { _resetRefreshState } from "./shared";
 import type { User } from "next-auth";
 
 // Mock ~/env
@@ -9,11 +10,26 @@ vi.mock("~/env", () => ({
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     AUTH_JWT_EXPIRY: "15m",
     AUTH_JWT_REFRESH_EXPIRY: "1h",
+    NEXTAUTH_SECRET: "test-auth-secret-with-sufficient-entropy",
   },
 }));
 
 // Mock fetch globally
 const mockFetch = vi.fn();
+
+function refreshJwt(token: string) {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" }),
+  ).toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({
+      id: 123,
+      token,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60,
+    }),
+  ).toString("base64url");
+  return `${header}.${payload}.test`;
+}
 
 /**
  * Scenario-based stress tests for the JWT callback in NextAuth config.
@@ -66,11 +82,12 @@ describe("JWT callback — refresh scenarios", () => {
 
   // ── Scenario 2: Pre-expiry window (happy path) ────────────────────
   it("scenario 2: pre-expiry window — fetch called, tokens updated", async () => {
+    const newRefreshToken = refreshJwt("new-refresh");
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         access_token: "new-access",
-        refresh_token: "new-refresh",
+        refresh_token: newRefreshToken,
       }),
     });
 
@@ -86,7 +103,7 @@ describe("JWT callback — refresh scenarios", () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     expect(result?.token).toBe("new-access");
-    expect(result?.refreshToken).toBe("new-refresh");
+    expect(result?.refreshToken).toBe(newRefreshToken);
     expect(result?.error).toBeUndefined();
     // tokenExpiry should be reset to ~now + accessTokenExpiry (15 min)
     expect(result?.tokenExpiry).toBeGreaterThan(Date.now() + 14 * 60 * 1000);
@@ -94,11 +111,12 @@ describe("JWT callback — refresh scenarios", () => {
 
   // ── Scenario 3: Token expired 30s ago (idle return) ───────────────
   it("scenario 3: token expired 30s ago — fetch called, tokens refreshed", async () => {
+    const refreshedRefreshToken = refreshJwt("refreshed-refresh");
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         access_token: "refreshed-access",
-        refresh_token: "refreshed-refresh",
+        refresh_token: refreshedRefreshToken,
       }),
     });
 
@@ -114,17 +132,18 @@ describe("JWT callback — refresh scenarios", () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     expect(result?.token).toBe("refreshed-access");
-    expect(result?.refreshToken).toBe("refreshed-refresh");
+    expect(result?.refreshToken).toBe(refreshedRefreshToken);
     expect(result?.error).toBeUndefined();
   });
 
   // ── Scenario 4: Token expired 30min ago (longer idle) ─────────────
   it("scenario 4: token expired 30min ago — fetch called, tokens refreshed", async () => {
+    const refreshedRefreshToken = refreshJwt("refreshed-refresh-long");
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         access_token: "refreshed-access-long",
-        refresh_token: "refreshed-refresh-long",
+        refresh_token: refreshedRefreshToken,
       }),
     });
 
@@ -140,7 +159,7 @@ describe("JWT callback — refresh scenarios", () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     expect(result?.token).toBe("refreshed-access-long");
-    expect(result?.refreshToken).toBe("refreshed-refresh-long");
+    expect(result?.refreshToken).toBe(refreshedRefreshToken);
     expect(result?.error).toBeUndefined();
   });
 
@@ -250,11 +269,12 @@ describe("JWT callback — refresh scenarios", () => {
 
   // ── Scenario 10: No infinite loop after successful refresh ────────
   it("scenario 10: after refresh, second callback does NOT re-fetch", async () => {
+    const freshRefreshToken = refreshJwt("fresh-refresh");
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         access_token: "fresh-access",
-        refresh_token: "fresh-refresh",
+        refresh_token: freshRefreshToken,
       }),
     });
 
@@ -343,8 +363,8 @@ describe("JWT callback — refresh scenarios", () => {
     expect(result?.needsRefresh).toBe(true);
   });
 
-  // ── Scenario 14: Post-expiry refresh failure (network timeout) ─────
-  it("scenario 14: post-expiry + timeout — error = RefreshTokenError", async () => {
+  // ── Scenario 14: Post-expiry network timeout remains retryable ─────
+  it("scenario 14: post-expiry + timeout preserves refresh session", async () => {
     const abortError = new DOMException(
       "The operation was aborted",
       "AbortError",
@@ -363,7 +383,8 @@ describe("JWT callback — refresh scenarios", () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     expect(result?.token).toBe("expired-access"); // unchanged
-    expect(result?.error).toBe("RefreshTokenError");
-    expect(result?.needsRefresh).toBe(true);
+    expect(result?.refreshToken).toBe("valid-refresh");
+    expect(result?.error).toBeUndefined();
+    expect(result?.needsRefresh).toBeUndefined();
   });
 });

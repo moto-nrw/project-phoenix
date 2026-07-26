@@ -25,14 +25,14 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	// Check if user has permission to view this student's data
 	hasFullAccess := rs.checkStudentReadAccess(r, student)
 	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data")))
+		renderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions to access this student's data")))
 		return
 	}
 
 	// Get privacy consents
 	consents, err := rs.StudentService.ListPrivacyConsents(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -103,18 +103,18 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 
 	req := &PrivacyConsentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	if !rs.checkStudentFullAccess(r, student) {
-		renderError(w, r, ErrorForbidden(errors.New("insufficient permissions to update this student's data")))
+		renderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions to update this student's data")))
 		return
 	}
 
 	consents, err := rs.StudentService.ListPrivacyConsents(r.Context(), student.ID)
 	if err != nil && !strings.Contains(err.Error(), "not found") {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -122,18 +122,18 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	rs.applyConsentUpdates(consent, req)
 
 	if err := consent.Validate(); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if consent.ID == 0 {
 			return rs.StudentService.CreatePrivacyConsent(ctx, consent)
 		}
 		return rs.StudentService.UpdatePrivacyConsent(ctx, consent)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

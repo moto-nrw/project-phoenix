@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CalendarClock,
+  Clock,
   HeartPulse,
   MessageCircle,
   Newspaper,
-  Plus,
   ShieldCheck,
   UserRound,
   Users,
@@ -16,70 +17,72 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
-  type ChildFeatures,
-  type ParentNote,
+  type ThreadSummary,
+  listChildThreads,
   listMyChildren,
 } from "~/lib/parent-api";
+import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
   type ChildCare,
-  NotesModal,
-  ParentNotesList,
+  PickupTimeModal,
   SickNoteModal,
   SickStatusSummary,
+  type TodayPickup,
   useChildCare,
 } from "~/components/parent/child-care";
+import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
+import GuardiansPanel from "~/components/parent/guardians-panel";
+import { Button } from "~/components/ui/button";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import { formatChatDateTime } from "~/lib/date-helpers";
 
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
-const SUPPORTED_ACTIONS: Record<string, "sick" | "notes"> = {
+// Modal-backed quick actions. "message" is handled separately — it opens the
+// new-conversation modal rather than a per-action modal.
+const SUPPORTED_ACTIONS: Record<string, "sick" | "pickup"> = {
   sick: "sick",
-  message: "notes",
+  pickupTime: "pickup",
 };
 
 // An action is usable only when it's wired AND the child's school has the
 // matching feature enabled — otherwise the backend would reject it with 403.
-function isActionEnabled(actionKey: string, features: ChildFeatures): boolean {
+// Pickup changes are the exception: existing guardian-authored rows must stay
+// clearable even after the school disables new parent changes.
+function isActionEnabled(actionKey: string, care: ChildCare): boolean {
+  // Messaging shares the operations.parent_notes_enabled gate.
+  if (actionKey === "message") return care.features.notes_enabled;
   const target = SUPPORTED_ACTIONS[actionKey];
-  if (target === "sick") return features.sick_note_enabled;
-  if (target === "notes") return features.notes_enabled;
+  if (target === "sick") return care.features.sick_note_enabled;
+  if (target === "pickup") {
+    return (
+      care.features.pickup_change_enabled ||
+      care.careExceptions.some((entry) => entry.source === "guardian")
+    );
+  }
   return false;
 }
 
 const logger = createLogger({ component: "ChildDetail" });
 
+// Neutral icon tile shared with the parent-facing enrollment flow
+// (PublicInfoCard in public-enrollment-shell.tsx): white surface, subtle
+// border, gray icon. Keeps the parents portal calm and consistent instead of
+// the old per-action pastel tiles. Add size + radius per call site.
+const ACTION_TILE_CLASS =
+  "moto-content-surface flex shrink-0 items-center justify-center border text-gray-600 shadow-sm";
+
 const CHILD_ACTIONS = [
-  {
-    key: "sick",
-    icon: HeartPulse,
-    tone: "text-[#D6373E] bg-[#D6373E]/10",
-  },
-  {
-    key: "pickupTime",
-    icon: CalendarClock,
-    tone: "text-[#5080D8] bg-[#5080D8]/10",
-  },
-  {
-    key: "message",
-    icon: MessageCircle,
-    tone: "text-[#F78C10] bg-[#F78C10]/10",
-  },
-  {
-    key: "pickupPermission",
-    icon: ShieldCheck,
-    tone: "text-[#83CD2D] bg-[#83CD2D]/15",
-  },
-  {
-    key: "people",
-    icon: Users,
-    tone: "text-[#8B5CF6] bg-[#8B5CF6]/10",
-  },
-  {
-    key: "news",
-    icon: Newspaper,
-    tone: "text-[#5080D8] bg-[#5080D8]/10",
-  },
+  { key: "sick", icon: HeartPulse },
+  { key: "pickupTime", icon: CalendarClock },
+  { key: "message", icon: MessageCircle },
+  { key: "pickupPermission", icon: ShieldCheck },
+  { key: "people", icon: Users },
+  { key: "news", icon: Newspaper },
 ] as const;
 
 interface Props {
@@ -97,15 +100,7 @@ function formatDate(
   t: ChildDetailTranslator,
 ): string {
   if (!iso) return t("open");
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
+  return formatLocalizedDate(iso, locale);
 }
 
 function getServiceRange(
@@ -185,19 +180,88 @@ export function ChildDetail({ studentId }: Props) {
 
 function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   const t = useTranslations("parentChildDetail");
+  const tMd = useTranslations("parentMasterData");
   const locale = useLocale();
   const fullName = `${child.first_name} ${child.last_name}`;
   useSetBreadcrumb({ pageTitle: fullName });
   const care = useChildCare(child.student_id);
-  const [modal, setModal] = useState<null | "sick" | "notes">(null);
+  const router = useRouter();
+  const [modal, setModal] = useState<null | "sick" | "pickup">(null);
+  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+
+  // Monotonic request counter so only the latest in-flight thread fetch may
+  // write state. Navigating between children reuses this component (the route
+  // param changes), so without this guard a late response for child A — or a
+  // failed request for child B after viewing A — could leave A's conversation
+  // preview/unread count rendered on B's page.
+  const threadsRequestRef = useRef(0);
+
+  // The child's conversation (this child only), fetched via the per-child
+  // endpoint so we don't pull the guardian's whole cross-tenant inbox just to
+  // render one child. Chat model: at most one conversation per child.
+  const reloadThreads = useCallback(() => {
+    const requestStudentId = child.student_id;
+    const seq = ++threadsRequestRef.current;
+    listChildThreads(requestStudentId)
+      .then((result) => {
+        // Drop a response that lost the race to a newer request (child switch or
+        // a concurrent SSE-triggered reload) so stale data never renders.
+        if (threadsRequestRef.current !== seq) return;
+        setThreads(result);
+      })
+      .catch((err) => {
+        if (threadsRequestRef.current !== seq) return;
+        logger.warn("child_threads_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          student_id: requestStudentId,
+        });
+      });
+  }, [child.student_id]);
+
+  useEffect(() => {
+    // Reset on child change so child A's preview never shows on child B while B's
+    // request is in flight; the seq guard then keeps a late A response from
+    // overwriting B.
+    setThreads([]);
+    reloadThreads();
+  }, [reloadThreads]);
+
+  // Real-time: the portal-wide ParentRealtimeBridge owns the single parents-app
+  // SSE connection and dispatches `parent-conversation-refresh` (carrying the
+  // affected studentId) on every parent_message. Subscribe via the shared hook,
+  // like OgsConversation and the parent messages list, so this card refreshes its
+  // unread count + last-message preview without a remount. Listen ONLY to the
+  // filtered per-conversation event (not the unfiltered `parent-threads-refresh`
+  // the bridge also fires for the same message): the bridge dispatches both on
+  // every event, so the filtered one already covers all cases — and listening to
+  // both reloaded this child twice per own-child message and once per other-child
+  // message. The hook skips a refetch when the event names a DIFFERENT child.
+  // marksRead: false — reloadThreads only re-reads thread summaries; it never
+  // advances a read cursor (that happens when the conversation itself is opened),
+  // so it should refresh even in a background tab rather than deferring to focus.
+  useMessagesActivity({
+    eventName: "parent-conversation-refresh",
+    studentId: child.student_id,
+    onMatch: reloadThreads,
+    marksRead: false,
+  });
 
   const openAction = useCallback(
     (actionKey: string) => {
+      if (!isActionEnabled(actionKey, care)) return;
+      if (actionKey === "message") {
+        router.push(`/parents/messages/${child.student_id}`);
+        return;
+      }
       const target = SUPPORTED_ACTIONS[actionKey];
-      if (target && isActionEnabled(actionKey, care.features)) setModal(target);
+      if (target) setModal(target);
     },
-    [care.features],
+    [care, router, child.student_id],
   );
+
+  const openConversation = useCallback(() => {
+    router.push(`/parents/messages/${child.student_id}`);
+  }, [router, child.student_id]);
 
   const summaryItems = useMemo(
     () => [
@@ -207,7 +271,6 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
     ],
     [child, locale, t],
   );
-  const pickupPeople = getPickupPeople(t);
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -215,22 +278,23 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         child={child}
         fullName={fullName}
         care={care}
+        threads={threads}
         onAction={openAction}
       />
 
       <section className="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm lg:block">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_24rem] xl:grid-cols-[minmax(0,1fr)_30rem]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.8fr)]">
           <div>
             <BackBar />
             <div className="p-5 sm:p-6 lg:p-8">
               <div className="flex min-w-0 items-start gap-4">
-                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-lg font-semibold text-[#4A7A15]">
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-lg font-semibold text-[#5A8E1F]">
                   {getInitials(child) || (
                     <UserRound className="h-7 w-7" aria-hidden="true" />
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                  <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                     {t("childEyebrow")}
                   </p>
                   <h1 className="mt-1 text-3xl font-semibold break-words text-gray-900 sm:text-4xl">
@@ -242,13 +306,13 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
                   </p>
                 </div>
               </div>
-              <div className="mt-7 grid max-w-3xl gap-3 sm:grid-cols-3">
+              <div className="mt-7 grid max-w-3xl grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
                 {CHILD_ACTIONS.slice(0, 3).map((action) => (
                   <DesktopQuickAction
                     key={action.key}
                     action={action}
                     onClick={
-                      isActionEnabled(action.key, care.features)
+                      isActionEnabled(action.key, care)
                         ? () => openAction(action.key)
                         : undefined
                     }
@@ -258,35 +322,53 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             </div>
           </div>
           <div className="moto-dotted-background moto-dotted-background--split border-t border-gray-200 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-            <TodayPanel care={care} />
+            <TodayPanel care={care} threads={threads} />
           </div>
         </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(24rem,0.8fr)]">
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm max-lg:hidden">
+        <section className="min-w-0 rounded-2xl border border-gray-200 bg-white shadow-sm max-lg:hidden">
           <div className="p-5 sm:p-6">
             <PanelHeader
               eyebrow={t("masterDataEyebrow")}
               title={t("masterDataTitle")}
               description={t("masterDataDescription")}
             />
+            {care.features.has_open_change_request && (
+              <div className="mt-3">
+                <OpenRequestBadge />
+              </div>
+            )}
           </div>
           <dl className="divide-y divide-gray-100 border-t border-gray-100">
             {summaryItems.map((item) => (
               <InfoRow key={item.label} label={item.label} value={item.value} />
             ))}
           </dl>
+          <div className="border-t border-gray-100 px-5 py-4 sm:px-6">
+            <Link
+              href={`/parents/children/${child.student_id}/stammdaten`}
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827]"
+            >
+              {tMd("openLink")}
+            </Link>
+          </div>
         </section>
 
-        <div className="grid gap-6 max-lg:hidden">
-          <MessagesPanel
-            notes={care.notes}
+        <div className="grid min-w-0 gap-6 max-lg:hidden">
+          <ChildMessagesPanel
+            studentId={child.student_id}
+            threads={threads}
             composeDisabled={!care.features.notes_enabled}
-            onCompose={() => setModal("notes")}
+            onCompose={openConversation}
           />
-          <PickupPeoplePanel people={pickupPeople} />
-          <NewsPanel />
+          <GuardiansPanel studentId={child.student_id} />
+          <RelatedAccountsPanel
+            studentId={child.student_id}
+            canInvite={care.features.related_accounts_invite_enabled}
+            canRemove={care.features.related_accounts_remove_enabled}
+          />
         </div>
       </div>
 
@@ -294,13 +376,17 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         <SickNoteModal
           onClose={() => setModal(null)}
           onSubmit={care.reportSick}
+          excusedRequiresApproval={care.features.excused_requires_approval}
         />
       )}
-      {modal === "notes" && (
-        <NotesModal
-          notes={care.notes}
+      {modal === "pickup" && (
+        <PickupTimeModal
+          careExceptions={care.careExceptions}
+          careExceptionsLoaded={care.careExceptionsLoaded}
+          pickupChangeEnabled={care.features.pickup_change_enabled}
           onClose={() => setModal(null)}
-          onSubmit={care.postNote}
+          onSubmit={care.saveCareException}
+          onRemove={care.removeCareException}
         />
       )}
     </div>
@@ -311,25 +397,27 @@ function MobileChildAppView({
   child,
   fullName,
   care,
+  threads,
   onAction,
 }: Readonly<{
   child: Child;
   fullName: string;
   care: ChildCare;
+  threads: ThreadSummary[];
   onAction: (actionKey: string) => void;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const tMd = useTranslations("parentMasterData");
   const locale = useLocale();
   const primaryActions = CHILD_ACTIONS.slice(0, 3);
-  const pickupPeople = getPickupPeople(t);
 
   return (
     <div className="space-y-5 lg:hidden">
-      <div className="overflow-hidden rounded-[1.75rem] border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <BackBar />
         <div className="p-5">
           <div className="flex min-w-0 items-center gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-[#83CD2D]/15 text-lg font-semibold text-[#4A7A15]">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-[#83CD2D]/15 text-lg font-semibold text-[#5A8E1F]">
               {getInitials(child) || (
                 <UserRound className="h-6 w-6" aria-hidden="true" />
               )}
@@ -342,7 +430,7 @@ function MobileChildAppView({
                 {child.school_name}
                 {child.school_class ? `, ${child.school_class}` : ""}
               </p>
-              <span className="mt-3 inline-flex max-w-full rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#4A7A15]">
+              <span className="mt-3 inline-flex max-w-full rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#5A8E1F]">
                 {t("careRecorded")}
               </span>
             </div>
@@ -356,7 +444,7 @@ function MobileChildAppView({
             key={action.key}
             action={action}
             onClick={
-              isActionEnabled(action.key, care.features)
+              isActionEnabled(action.key, care)
                 ? () => onAction(action.key)
                 : undefined
             }
@@ -364,58 +452,43 @@ function MobileChildAppView({
         ))}
       </div>
 
-      <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {t("today.sickLabel")}
         </p>
         <div className="mt-2">
-          <SickStatusSummary sickDays={care.sickDays} />
+          <SickStatusSummary
+            sickDays={care.sickDays}
+            excusedRequests={care.excusedRequests}
+            onWithdraw={care.withdrawExcused}
+          />
         </div>
       </section>
 
-      <MessagesPanel
-        notes={care.notes}
+      <ChildMessagesPanel
+        studentId={child.student_id}
+        threads={threads}
         composeDisabled={!care.features.notes_enabled}
         onCompose={() => onAction("message")}
         mobile
       />
 
-      <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
+      <GuardiansPanel studentId={child.student_id} mobile />
+
+      <RelatedAccountsPanel
+        studentId={child.student_id}
+        canInvite={care.features.related_accounts_invite_enabled}
+        canRemove={care.features.related_accounts_remove_enabled}
+        mobile
+      />
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-900">
-            {t("pickupPeopleTitle")}
+            {t("careLabel")}
           </h2>
-          <button
-            type="button"
-            disabled
-            className="inline-flex h-9 items-center rounded-full border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {t("manage")}
-          </button>
+          {care.features.has_open_change_request && <OpenRequestBadge />}
         </div>
-        <div className="mt-4 flex items-start gap-3 overflow-x-auto pb-1">
-          {pickupPeople.map((person) => (
-            <PersonBubble key={person.name} person={person} />
-          ))}
-          <button
-            type="button"
-            disabled
-            className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-gray-500 disabled:cursor-not-allowed disabled:opacity-70"
-            aria-label={t("addPerson")}
-          >
-            <span className="flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-gray-300 bg-gray-50 text-gray-500">
-              <Plus className="h-5 w-5" aria-hidden="true" />
-            </span>
-          </button>
-        </div>
-      </section>
-
-      <NewsPanel mobile />
-
-      <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("careLabel")}
-        </h2>
         <dl className="mt-4 space-y-3">
           <CompactInfoRow
             label={t("periodLabel")}
@@ -426,18 +499,15 @@ function MobileChildAppView({
             value={child.school_class || t("notSet")}
           />
         </dl>
+        <Link
+          href={`/parents/children/${child.student_id}/stammdaten`}
+          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827]"
+        >
+          {tMd("openLink")}
+        </Link>
       </section>
     </div>
   );
-}
-
-function getPickupPeople(t: ChildDetailTranslator) {
-  return [
-    { initials: "MM", name: t("demo.momName"), relation: t("demo.mother") },
-    { initials: "PM", name: t("demo.dadName"), relation: t("demo.father") },
-    { initials: "OM", name: t("demo.grandmaName"), relation: t("demo.pickup") },
-    { initials: "TA", name: t("demo.auntName"), relation: t("demo.pickup") },
-  ];
 }
 
 function MobileQuickAction({
@@ -458,9 +528,7 @@ function MobileQuickAction({
           : "cursor-not-allowed border-gray-100 bg-white"
       }`}
     >
-      <span
-        className={`flex h-11 w-11 items-center justify-center rounded-2xl ${action.tone}`}
-      >
+      <span className={`${ACTION_TILE_CLASS} h-11 w-11 rounded-xl`}>
         <Icon className="h-6 w-6" aria-hidden="true" />
       </span>
       <span className="text-xs leading-4 font-semibold text-gray-900">
@@ -490,12 +558,10 @@ function DesktopQuickAction({
       }`}
       aria-label={enabled ? label : t("comingSoonAria", { label })}
     >
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${action.tone}`}
-      >
+      <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 [overflow-wrap:anywhere]">
         <span className="block text-sm font-semibold text-gray-900">
           {label}
         </span>
@@ -507,9 +573,41 @@ function DesktopQuickAction({
   );
 }
 
-function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
+// Renders today's real pickup state (never a fabricated value, #1725): the
+// effective time (with a "geändert" marker when a same-day override differs
+// from the base plan), "Heute abgemeldet" on an absence, "Keine Abholung heute"
+// when nothing is configured, and a neutral dash when the plan couldn't load.
+function TodayPickupValue({
+  pickup,
+  t,
+}: Readonly<{ pickup: TodayPickup; t: ChildDetailTranslator }>) {
+  switch (pickup.kind) {
+    case "time":
+      return (
+        <>
+          {t("today.pickupTime", { time: pickup.time })}
+          {pickup.changed && (
+            <span className="ml-1 font-medium text-gray-500">
+              · {t("today.pickupChanged")}
+            </span>
+          )}
+        </>
+      );
+    case "absent":
+      return <>{t("today.pickupAbsent")}</>;
+    case "none":
+      return <>{t("today.pickupNone")}</>;
+    default:
+      return <>—</>;
+  }
+}
+
+function TodayPanel({
+  care,
+  threads,
+}: Readonly<{ care: ChildCare; threads: ThreadSummary[] }>) {
   const t = useTranslations("parentChildDetail");
-  const noteCount = care.notes.length;
+  const unread = threads.reduce((sum, thread) => sum + thread.unread, 0);
   return (
     <div className="relative z-10 space-y-4">
       <div>
@@ -522,7 +620,7 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
       </div>
       <div className="space-y-2">
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#D6373E]/10 text-[#D6373E]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <HeartPulse className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -530,12 +628,16 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
               {t("today.sickLabel")}
             </p>
             <div className="mt-0.5">
-              <SickStatusSummary sickDays={care.sickDays} />
+              <SickStatusSummary
+                sickDays={care.sickDays}
+                excusedRequests={care.excusedRequests}
+                onWithdraw={care.withdrawExcused}
+              />
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#5080D8]/10 text-[#5080D8]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <CalendarClock className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -543,12 +645,12 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
               {t("today.pickupLabel")}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-gray-900">
-              {t("today.regularPickup")}
+              <TodayPickupValue pickup={care.todayPickup} t={t} />
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F78C10]/10 text-[#F78C10]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <MessageCircle className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -556,9 +658,11 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
               {t("today.messagesLabel")}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-gray-900">
-              {noteCount === 0
-                ? t("today.noMessagesSent")
-                : t("today.messagesSent", { count: noteCount })}
+              {threads.length === 0
+                ? t("today.noConversations")
+                : unread > 0
+                  ? t("today.unreadCount", { count: unread })
+                  : t("today.conversationsCount", { count: threads.length })}
             </p>
           </div>
         </div>
@@ -567,140 +671,98 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
   );
 }
 
-function MessagesPanel({
-  notes,
+// Shows this child's OGS conversations (filtered to the child) with an unread
+// pill and last activity. Each row opens the thread; "Neue Nachricht" starts a
+// new conversation pre-selected to this child. Mirrors the staff-side
+// ParentMessagesCard.
+function ChildMessagesPanel({
+  studentId,
+  threads,
   onCompose,
   composeDisabled = false,
   mobile = false,
 }: Readonly<{
-  notes: ParentNote[];
+  studentId: string;
+  threads: ThreadSummary[];
   onCompose: () => void;
   composeDisabled?: boolean;
   mobile?: boolean;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const tMsg = useTranslations("parentOgsMessaging");
+  const router = useRouter();
+  // Chat model: at most one conversation per child.
+  const conversation = threads[0];
+  // System-generated bodies (request titles, decision/withdrawal events) are
+  // German on the wire; localize the preview from the structured last-message
+  // fields, falling back to the language-neutral body for plain messages.
+  const previewDescriptor = conversation
+    ? parentThreadPreviewI18nDescriptor({
+        last_message_kind: conversation.last_message_kind,
+        last_event_type: conversation.last_event_type,
+        last_request_type: conversation.last_request_type,
+        last_request_status: conversation.last_request_status,
+      })
+    : null;
+  const previewBody = previewDescriptor
+    ? tMsg(previewDescriptor.key, previewDescriptor.values)
+    : conversation?.last_message_body;
   return (
     <section
       className={
         mobile
-          ? "rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm"
-          : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
+          ? "min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+          : "min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
       }
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex min-w-0 items-start justify-between gap-4">
         <PanelHeader
           eyebrow={t("messages.eyebrow")}
           title={t("messages.title")}
           description={t("messages.description")}
         />
         {!composeDisabled && (
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="md"
             onClick={onCompose}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[#F78C10] px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#dd7c0c]"
+            className="shrink-0"
           >
-            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {t("messages.compose")}
-          </button>
+          </Button>
         )}
       </div>
       <div className="mt-4">
-        <ParentNotesList notes={notes} />
-      </div>
-    </section>
-  );
-}
-
-function PersonBubble({
-  person,
-}: Readonly<{
-  person: ReturnType<typeof getPickupPeople>[number];
-}>) {
-  return (
-    <div className="flex min-w-14 flex-col items-center gap-2">
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
-        {person.initials}
-      </span>
-      <span className="max-w-12 truncate text-xs font-medium text-gray-700">
-        {person.name}
-      </span>
-    </div>
-  );
-}
-
-function PickupPeoplePanel({
-  people,
-}: Readonly<{ people: ReturnType<typeof getPickupPeople> }>) {
-  const t = useTranslations("parentChildDetail");
-  return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex items-start justify-between gap-4">
-        <PanelHeader
-          eyebrow={t("pickupEyebrow")}
-          title={t("pickupPeopleTitle")}
-          description={t("pickupPeopleDescription")}
-        />
-        <button
-          type="button"
-          disabled
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {t("add")}
-        </button>
-      </div>
-      <div className="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-gray-50/70">
-        {people.map((person) => (
-          <div key={person.name} className="flex items-center gap-3 p-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
-              {person.initials}
+        {!conversation || !conversation.last_message_at ? (
+          <p className="text-sm leading-6 text-gray-600">
+            {t("messages.empty")}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => router.push(`/parents/messages/${studentId}`)}
+            className="flex w-full items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-left transition-colors hover:bg-gray-100"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-medium text-gray-900">
+                  {conversation.counterpart_name}
+                </span>
+                <UnreadBadge count={conversation.unread} />
+              </span>
+              {previewBody && (
+                <span className="mt-0.5 block truncate text-sm text-gray-600">
+                  {previewBody}
+                </span>
+              )}
             </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-gray-900">
-                {person.name}
-              </p>
-              <p className="text-sm text-gray-600">{person.relation}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function NewsPanel({ mobile = false }: Readonly<{ mobile?: boolean }>) {
-  const t = useTranslations("parentChildDetail");
-  return (
-    <section
-      className={
-        mobile
-          ? "rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm"
-          : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-      }
-    >
-      {mobile ? (
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("newsTitle")}
-        </h2>
-      ) : (
-        <PanelHeader
-          eyebrow={t("newsEyebrow")}
-          title={t("newsTitle")}
-          description={t("newsDescription")}
-        />
-      )}
-      <div className="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm ring-1 ring-gray-200">
-          <Newspaper className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900">
-            {t("noNewsTitle")}
-          </p>
-          <p className="mt-0.5 text-sm leading-5 text-gray-600">
-            {t("noNewsDescription")}
-          </p>
-        </div>
+            <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+              {formatChatDateTime(conversation.last_message_at)}
+            </span>
+          </button>
+        )}
       </div>
     </section>
   );
@@ -719,6 +781,20 @@ function CompactInfoRow({
         {value}
       </dd>
     </div>
+  );
+}
+
+// "Anfrage offen" pill for the child overview's Stammdaten entry: a pending
+// change request (master data or care schedule) is awaiting an OGS decision.
+// The details live on the Stammdaten page; this only signals that one exists so
+// the parent knows to look without opening it.
+function OpenRequestBadge() {
+  const tMd = useTranslations("parentMasterData");
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+      <Clock className="h-3 w-3" aria-hidden="true" />
+      {tMd("careSchedule.pendingBadge")}
+    </span>
   );
 }
 
@@ -761,7 +837,7 @@ function PanelHeader({
 }>) {
   return (
     <header>
-      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
         {eyebrow}
       </p>
       <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">

@@ -17,7 +17,7 @@ func RequiresPermission(permission string) func(next http.Handler) http.Handler 
 			permissions := jwt.PermissionsFromCtx(r.Context())
 
 			// Check for required permission
-			if !hasPermission(permission, permissions) {
+			if !HasPermission(permission, permissions) {
 				if err := render.Render(w, r, ErrForbidden); err != nil {
 					slog.Error("failed to render forbidden response", slog.String("error", err.Error()))
 				}
@@ -40,7 +40,7 @@ func RequiresAnyPermission(permissions ...string) func(next http.Handler) http.H
 			// Check for any required permission
 			hasAny := false
 			for _, perm := range permissions {
-				if hasPermission(perm, userPermissions) {
+				if HasPermission(perm, userPermissions) {
 					hasAny = true
 					break
 				}
@@ -68,7 +68,7 @@ func RequiresAllPermissions(permissions ...string) func(next http.Handler) http.
 
 			// Check for all required permissions
 			for _, perm := range permissions {
-				if !hasPermission(perm, userPermissions) {
+				if !HasPermission(perm, userPermissions) {
 					if err := render.Render(w, r, ErrForbidden); err != nil {
 						slog.Error("failed to render forbidden response", slog.String("error", err.Error()))
 					}
@@ -84,21 +84,15 @@ func RequiresAllPermissions(permissions ...string) func(next http.Handler) http.
 
 // HasPermission checks if the specified permission is included in the permissions list.
 // Supports wildcard matching for resource and action components (e.g. "admin:*", "config:*").
-// Exported for use by service-layer permission checks that need wildcard support.
+// Also used by service-layer permission checks that need wildcard support.
 func HasPermission(required string, permissions []string) bool {
-	return hasPermission(required, permissions)
-}
-
-// hasPermission checks if the specified permission is included in the permissions list.
-// Supports wildcard matching for resource and action components.
-func hasPermission(required string, permissions []string) bool {
 	// Special case: empty required permission always matches
 	if required == "" {
 		return true
 	}
 
 	// Check for admin wildcard permission first - grants all permissions
-	if hasAdminWildcard(permissions) {
+	if HasAdminWildcard(permissions) {
 		return true
 	}
 
@@ -121,8 +115,12 @@ func hasPermission(required string, permissions []string) bool {
 	return false
 }
 
-// hasAdminWildcard checks if permissions list contains admin wildcard
-func hasAdminWildcard(permissions []string) bool {
+// HasAdminWildcard reports whether the permission set carries a system-wide
+// admin scope (admin:* or *:*). Handlers use this to decide admin-vs-scoped
+// behavior consistently with the rest of the authorization layer instead of
+// relying on the literal "admin" role name (claims.IsAdmin), which misses
+// custom roles and service accounts granted the wildcard.
+func HasAdminWildcard(permissions []string) bool {
 	for _, perm := range permissions {
 		if perm == "admin:*" || perm == "*:*" {
 			return true

@@ -10,7 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -84,14 +86,13 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 	)
 
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		PersonRepo:         repoFactory.Person,
-		RFIDRepo:           repoFactory.RFIDCard,
-		AccountRepo:        repoFactory.Account,
-		PersonGuardianRepo: repoFactory.PersonGuardian,
-		StudentRepo:        repoFactory.Student,
-		StaffRepo:          repoFactory.Staff,
-		TeacherRepo:        repoFactory.Teacher,
-		DB:                 db,
+		PersonRepo:  repoFactory.Person,
+		RFIDRepo:    repoFactory.RFIDCard,
+		AccountRepo: repoFactory.Account,
+		StudentRepo: repoFactory.Student,
+		StaffRepo:   repoFactory.Staff,
+		TeacherRepo: repoFactory.Teacher,
+		DB:          db,
 	})
 
 	activeService := activeSvc.NewService(activeSvc.ServiceDependencies{
@@ -154,6 +155,54 @@ func TestSchulhofService_GetSchulhofStatus_NoInfrastructure(t *testing.T) {
 	assert.Equal(t, 0, status.SupervisorCount)
 	assert.Equal(t, 0, status.StudentCount)
 	assert.Empty(t, status.Supervisors)
+}
+
+func TestSchulhofService_EnsureInfrastructureRejectsLegacyActivityInNonCanonicalRoom(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	tenantID := createFacilityTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
+	ctx := testpkg.TenantContext(tenantID)
+	repoFactory := repositories.NewFactory(db)
+	legacyRoom := &facilitiesModel.Room{Name: "schulhof", Building: "Außengelände"}
+	legacyRoom.SetTenantID(tenantID)
+	require.NoError(t, repoFactory.Room.Create(ctx, legacyRoom))
+	legacyCategory := &activityModels.Category{
+		Name:        constants.SchulhofCategoryName,
+		Description: constants.SchulhofCategoryDescription,
+		Color:       constants.SchulhofColor,
+		IsSystem:    true,
+	}
+	legacyCategory.SetTenantID(tenantID)
+	require.NoError(t, repoFactory.ActivityCategory.Create(ctx, legacyCategory))
+	legacyActivity := &activityModels.Group{
+		Name:            constants.SchulhofActivityName,
+		MaxParticipants: constants.SchulhofMaxParticipants,
+		IsOpen:          true,
+		CategoryID:      legacyCategory.ID,
+		PlannedRoomID:   &legacyRoom.ID,
+		IsSystem:        true,
+	}
+	legacyActivity.SetTenantID(tenantID)
+	require.NoError(t, repoFactory.ActivityGroup.Create(ctx, legacyActivity))
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Test", "Staff")
+	service := setupSchulhofService(t, db)
+
+	status, statusErr := service.GetSchulhofStatus(ctx, staff.ID)
+	require.Error(t, statusErr)
+	assert.Contains(t, statusErr.Error(), "non-canonical room name")
+	assert.Nil(t, status)
+
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "non-canonical room name")
+	assert.Nil(t, activityGroup)
+	persisted, findErr := repoFactory.Room.FindByID(ctx, legacyRoom.ID)
+	require.NoError(t, findErr)
+	assert.Equal(t, "schulhof", persisted.Name)
+	assert.False(t, persisted.IsSystem, "legacy case variant must never be adopted as Schulhof infrastructure")
 }
 
 func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testing.T) {
@@ -726,14 +775,13 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 	)
 
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		PersonRepo:         repoFactory.Person,
-		RFIDRepo:           repoFactory.RFIDCard,
-		AccountRepo:        repoFactory.Account,
-		PersonGuardianRepo: repoFactory.PersonGuardian,
-		StudentRepo:        repoFactory.Student,
-		StaffRepo:          repoFactory.Staff,
-		TeacherRepo:        repoFactory.Teacher,
-		DB:                 db,
+		PersonRepo:  repoFactory.Person,
+		RFIDRepo:    repoFactory.RFIDCard,
+		AccountRepo: repoFactory.Account,
+		StudentRepo: repoFactory.Student,
+		StaffRepo:   repoFactory.Staff,
+		TeacherRepo: repoFactory.Teacher,
+		DB:          db,
 	})
 
 	activeService := activeSvc.NewService(activeSvc.ServiceDependencies{
@@ -915,7 +963,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups(t *testing.T) {
 	)
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 		PersonRepo: repoFactory.Person, RFIDRepo: repoFactory.RFIDCard,
-		AccountRepo: repoFactory.Account, PersonGuardianRepo: repoFactory.PersonGuardian,
+		AccountRepo: repoFactory.Account,
 		StudentRepo: repoFactory.Student, StaffRepo: repoFactory.Staff,
 		TeacherRepo: repoFactory.Teacher, DB: db,
 	})

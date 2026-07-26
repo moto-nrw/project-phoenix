@@ -50,7 +50,7 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -77,7 +77,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     onClearAllFilters,
@@ -93,7 +93,11 @@ vi.mock("~/components/ui/page-header", () => ({
         value={search.value}
         onChange={(event) => search.onChange(event.target.value)}
       />
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -101,7 +105,7 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/teachers", () => ({
+vi.mock("@/components/teachers/staff-master-detail", () => ({
   StaffMasterDetail: ({
     groupDefinitions,
     selectedId,
@@ -131,6 +135,7 @@ vi.mock("@/components/teachers", () => ({
           <span data-testid={`group-title-${group.id}`}>{group.title}</span>
           {group.items.map((teacher) => (
             <button
+              type="button"
               key={teacher.id}
               data-testid={`staff-row-${teacher.id}`}
               onClick={() => onSelect(teacher.id)}
@@ -146,23 +151,40 @@ vi.mock("@/components/teachers", () => ({
           <span data-testid="detail-staff-name">
             {selectedTeacher?.name ?? "unbekannt"}
           </span>
-          <button data-testid="trigger-edit" onClick={onEditClick}>
+          <button
+            type="button"
+            data-testid="trigger-edit"
+            onClick={onEditClick}
+          >
             Edit
           </button>
-          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+          <button
+            type="button"
+            data-testid="trigger-delete"
+            onClick={onDeleteClick}
+          >
             Delete
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            data-testid="trigger-deselect"
+            onClick={() => onSelect(null)}
+          >
             Close
           </button>
           <button
+            type="button"
             data-testid="trigger-notes"
             onClick={() => void onUpdateNotes("Updated note")}
           >
             Save Notes
           </button>
           {onManageCaregiver ? (
-            <button data-testid="trigger-caregiver" onClick={onManageCaregiver}>
+            <button
+              type="button"
+              data-testid="trigger-caregiver"
+              onClick={onManageCaregiver}
+            >
               Caregiver
             </button>
           ) : null}
@@ -170,6 +192,9 @@ vi.mock("@/components/teachers", () => ({
       ) : null}
     </div>
   ),
+}));
+
+vi.mock("@/components/teachers/caregiver-capability-modal", () => ({
   CaregiverCapabilityModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="caregiver-modal" /> : null,
 }));
@@ -187,12 +212,13 @@ vi.mock("@/components/teachers/teacher-edit-modal", () => ({
     isOpen ? (
       <div data-testid="teacher-edit-modal">
         <button
+          type="button"
           data-testid="submit-edit"
           onClick={() => void onSave({ first_name: "Updated" })}
         >
           Save
         </button>
-        <button data-testid="close-edit" onClick={onClose}>
+        <button type="button" data-testid="close-edit" onClick={onClose}>
           Close
         </button>
       </div>
@@ -202,7 +228,11 @@ vi.mock("@/components/teachers/teacher-edit-modal", () => ({
 vi.mock("~/components/admin/invitation-form", () => ({
   InvitationForm: ({ onCreated }: { onCreated: () => void }) => (
     <div data-testid="invitation-form">
-      <button data-testid="invitation-created" onClick={onCreated}>
+      <button
+        type="button"
+        data-testid="invitation-created"
+        onClick={onCreated}
+      >
         Submit Invitation
       </button>
     </div>
@@ -231,7 +261,7 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="modal" data-title={title}>
-        <button data-testid="close-modal" onClick={onClose}>
+        <button type="button" data-testid="close-modal" onClick={onClose}>
           Close
         </button>
         {children}
@@ -248,10 +278,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>

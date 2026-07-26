@@ -210,6 +210,7 @@ export function UnclaimedRooms({
       {/* Dismiss badge - positioned top right corner */}
       {hasSupervisors && (
         <button
+          type="button"
           onClick={handleDismiss}
           className="absolute -top-2 -right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 shadow-sm ring-2 ring-white transition-colors hover:bg-gray-200 hover:text-gray-700"
           aria-label="Banner schließen"
@@ -259,6 +260,7 @@ export function UnclaimedRooms({
       </div>
 
       <button
+        type="button"
         onClick={() => void handleClaim()}
         disabled={claiming}
         className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-[background-color,box-shadow] duration-200 ${

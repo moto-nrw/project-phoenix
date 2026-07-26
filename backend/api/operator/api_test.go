@@ -1,9 +1,14 @@
 package operator_test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -11,7 +16,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // chiWalk traverses all routes in the chi.Router and calls fn for each
@@ -27,46 +34,18 @@ func chiWalk(router chi.Router, fn func(pattern string)) error {
 // non-nil check in NewResource so that the settings routes get wired.
 // Handler behavior is exercised in settings_integration_test.go with a real
 // service.
-type stubSettingsService struct{}
+func stubSettingsService() *configtest.Mock { return &configtest.Mock{} }
 
-func (stubSettingsService) GetSchema(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
+type protectedRouteProvisioningService struct {
+	platformSvc.OperatorProvisioningService
+	createSchoolFn func(context.Context, *platformModels.School, int64, net.IP) (*platformModels.School, error)
 }
-func (stubSettingsService) GetSchemaForOperator(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (stubSettingsService) Resolve(context.Context, string) (any, error) { return nil, nil }
-func (stubSettingsService) ResolveString(context.Context, string) (string, error) {
-	return "", nil
-}
-func (stubSettingsService) ResolveStringForTenant(context.Context, int64, string) (string, error) {
-	return "", nil
-}
-func (stubSettingsService) ResolveBool(context.Context, string) (bool, error) { return false, nil }
-func (stubSettingsService) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
-	return false, nil
-}
-func (stubSettingsService) ResolveInt(context.Context, string) (int, error) { return 0, nil }
-func (stubSettingsService) ResolveIntForTenant(context.Context, int64, string) (int, error) {
-	return 0, nil
-}
-func (stubSettingsService) HasTenantOverride(context.Context, string) (bool, error) {
-	return false, nil
-}
-func (stubSettingsService) SetValue(context.Context, string, any, *int64, []string) error {
-	return nil
-}
-func (stubSettingsService) ResetValue(context.Context, string, *int64, []string) error {
-	return nil
-}
-func (stubSettingsService) GetLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
-}
-func (stubSettingsService) SetLoginImageURL(context.Context, int64, string) (string, error) {
-	return "", nil
-}
-func (stubSettingsService) ClearLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
+
+func (s *protectedRouteProvisioningService) CreateSchool(ctx context.Context, school *platformModels.School, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
+	if s.createSchoolFn != nil {
+		return s.createSchoolFn(ctx, school, operatorID, clientIP)
+	}
+	return school, nil
 }
 
 // TestNewResource verifies that the operator resource can be constructed successfully.
@@ -128,7 +107,7 @@ func TestRouter(t *testing.T) {
 
 	t.Run("settings routes are mounted when SettingsService is provided", func(t *testing.T) {
 		cfg := operator.ResourceConfig{
-			SettingsService: stubSettingsService{},
+			SettingsService: stubSettingsService(),
 		}
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
@@ -165,4 +144,101 @@ func TestRouter(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, found, "expected settings routes NOT to be mounted when SettingsService is nil")
 	})
+}
+
+func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
+	tokenAuth := newOperatorRouteTokenAuth(t)
+	accessToken := operatorRouteAccessToken(t, tokenAuth, 42)
+	authService := &mockOperatorAuthService{
+		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
+			assert.Equal(t, int64(42), id)
+			op := &platformModels.Operator{Active: false}
+			op.ID = id
+			return op, nil
+		},
+	}
+	provisioningService := &protectedRouteProvisioningService{
+		createSchoolFn: func(context.Context, *platformModels.School, int64, net.IP) (*platformModels.School, error) {
+			t.Fatal("inactive operator reached protected provisioning handler")
+			return nil, nil
+		},
+	}
+	router := operator.NewResource(operator.ResourceConfig{
+		AuthService:         authService,
+		ProvisioningService: provisioningService,
+		TokenAuth:           tokenAuth,
+	}).Router()
+
+	req := newCreateSchoolRequest(accessToken, 7)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Operator account is inactive")
+}
+
+func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
+	tokenAuth := newOperatorRouteTokenAuth(t)
+	accessToken := operatorRouteAccessToken(t, tokenAuth, 42)
+	organizationID := 7
+	authService := &mockOperatorAuthService{
+		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
+			assert.Equal(t, int64(42), id)
+			op := &platformModels.Operator{Active: true}
+			op.ID = id
+			return op, nil
+		},
+	}
+	createSchoolCalled := false
+	provisioningService := &protectedRouteProvisioningService{
+		createSchoolFn: func(_ context.Context, school *platformModels.School, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
+			createSchoolCalled = true
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, int64(organizationID), school.OrganizationID)
+			assert.Equal(t, "school@example.com", school.Email)
+			school.ID = 88
+			return school, nil
+		},
+	}
+	router := operator.NewResource(operator.ResourceConfig{
+		AuthService:         authService,
+		ProvisioningService: provisioningService,
+		TokenAuth:           tokenAuth,
+	}).Router()
+
+	req := newCreateSchoolRequest(accessToken, organizationID)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	assert.True(t, createSchoolCalled, "active operator should reach protected provisioning handler")
+}
+
+func newOperatorRouteTokenAuth(t *testing.T) *jwt.TokenAuth {
+	t.Helper()
+	tokenAuth, err := jwt.NewTokenAuthWithSecret("operator-route-test-secret-123456")
+	require.NoError(t, err)
+	tokenAuth.JwtExpiry = 15 * time.Minute
+	return tokenAuth
+}
+
+func operatorRouteAccessToken(t *testing.T, tokenAuth *jwt.TokenAuth, operatorID int) string {
+	t.Helper()
+	token, err := tokenAuth.CreateJWT(jwt.AppClaims{
+		ID:    operatorID,
+		Sub:   "operator-route-test",
+		Roles: []string{"operator"},
+		Scope: "platform",
+	})
+	require.NoError(t, err)
+	return token
+}
+
+func newCreateSchoolRequest(accessToken string, organizationID int) *http.Request {
+	body := fmt.Sprintf(`{"organization_id":%d,"name":"Test School","slug":"test-school","subdomain":"test-sub","email":"school@example.com"}`, organizationID)
+	req := httptest.NewRequest(http.MethodPost, "/schools", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.RemoteAddr = "198.51.100.20:4444"
+	return req
 }

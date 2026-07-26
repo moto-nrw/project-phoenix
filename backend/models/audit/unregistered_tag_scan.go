@@ -26,22 +26,6 @@ type UnregisteredTagScan struct {
 	DeviceName       *string `bun:"device_name,scanonly" json:"device_name,omitempty"`
 }
 
-func (s *UnregisteredTagScan) TableName() string {
-	return "audit.unregistered_tag_scans"
-}
-
-func (s *UnregisteredTagScan) GetID() interface{} {
-	return s.ID
-}
-
-func (s *UnregisteredTagScan) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-func (s *UnregisteredTagScan) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
-}
-
 type UnregisteredTagScanFilter struct {
 	SchoolID       *int64
 	OrganizationID *int64

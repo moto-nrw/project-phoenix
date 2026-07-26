@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -53,15 +52,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Current dateframe endpoint - requires schedules:read permission
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/current-dateframe", rs.getCurrentDateframe)
@@ -255,13 +247,13 @@ func (req *FindAvailableSlotsRequest) Bind(_ *http.Request) error {
 func (rs *Resource) parseDateframeDates(w http.ResponseWriter, r *http.Request, startStr, endStr string) (time.Time, time.Time, bool) {
 	startDate, err := time.Parse(dateLayout, startStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartDate)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStartDate)))
 		return time.Time{}, time.Time{}, false
 	}
 
 	endDate, err := time.Parse(dateLayout, endStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 		return time.Time{}, time.Time{}, false
 	}
 
@@ -272,14 +264,14 @@ func (rs *Resource) parseDateframeDates(w http.ResponseWriter, r *http.Request, 
 func (rs *Resource) parseTimeframeTimes(w http.ResponseWriter, r *http.Request, startStr string, endStr *string) (time.Time, *time.Time, bool) {
 	startTime, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStartTime)))
 		return time.Time{}, nil, false
 	}
 
 	if endStr != nil {
 		endTime, err := time.Parse(time.RFC3339, *endStr)
 		if err != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime)))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndTime)))
 			return time.Time{}, nil, false
 		}
 		return startTime, &endTime, true
@@ -296,7 +288,7 @@ func (rs *Resource) parseOptionalEndDate(w http.ResponseWriter, r *http.Request,
 
 	endDate, err := time.Parse(dateLayout, *endDateStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 		return nil, false
 	}
 
@@ -372,7 +364,7 @@ func (rs *Resource) listDateframes(w http.ResponseWriter, r *http.Request) {
 	// Get dateframes
 	dateframes, err := rs.ScheduleService.ListDateframes(r.Context(), queryOptions)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -389,14 +381,14 @@ func (rs *Resource) getDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID)))
 		return
 	}
 
 	// Get dateframe
 	dateframe, err := rs.ScheduleService.GetDateframe(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("dateframe not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("dateframe not found")))
 		return
 	}
 
@@ -407,7 +399,7 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &DateframeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -440,21 +432,21 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID)))
 		return
 	}
 
 	// Parse request
 	req := &DateframeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing dateframe
 	dateframe, err := rs.ScheduleService.GetDateframe(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("dateframe not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("dateframe not found")))
 		return
 	}
 
@@ -486,7 +478,7 @@ func (rs *Resource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID)))
 		return
 	}
 
@@ -506,21 +498,21 @@ func (rs *Resource) getDateframesByDate(w http.ResponseWriter, r *http.Request) 
 	// Get date from query param
 	dateStr := r.URL.Query().Get("date")
 	if dateStr == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("date parameter is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date parameter is required")))
 		return
 	}
 
 	// Parse date
 	date, err := time.Parse(dateLayout, dateStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid date format")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format")))
 		return
 	}
 
 	// Get dateframes
 	dateframes, err := rs.ScheduleService.FindDateframesByDate(r.Context(), date)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -539,27 +531,27 @@ func (rs *Resource) getOverlappingDateframes(w http.ResponseWriter, r *http.Requ
 	endStr := r.URL.Query().Get("end_date")
 
 	if startStr == "" || endStr == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start_date and end_date parameters are required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("start_date and end_date parameters are required")))
 		return
 	}
 
 	// Parse dates
 	startDate, err := time.Parse(dateLayout, startStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartDate)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStartDate)))
 		return
 	}
 
 	endDate, err := time.Parse(dateLayout, endStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 		return
 	}
 
 	// Get overlapping dateframes
 	dateframes, err := rs.ScheduleService.FindOverlappingDateframes(r.Context(), startDate, endDate)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -576,7 +568,7 @@ func (rs *Resource) getCurrentDateframe(w http.ResponseWriter, r *http.Request) 
 	// Get current dateframe
 	dateframe, err := rs.ScheduleService.GetCurrentDateframe(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("no current dateframe found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("no current dateframe found")))
 		return
 	}
 
@@ -602,7 +594,7 @@ func (rs *Resource) listTimeframes(w http.ResponseWriter, r *http.Request) {
 	// Get timeframes
 	timeframes, err := rs.ScheduleService.ListTimeframes(r.Context(), queryOptions)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -619,14 +611,14 @@ func (rs *Resource) getTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID)))
 		return
 	}
 
 	// Get timeframe
 	timeframe, err := rs.ScheduleService.GetTimeframe(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("timeframe not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("timeframe not found")))
 		return
 	}
 
@@ -637,7 +629,7 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &TimeframeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -670,21 +662,21 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID)))
 		return
 	}
 
 	// Parse request
 	req := &TimeframeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing timeframe
 	timeframe, err := rs.ScheduleService.GetTimeframe(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("timeframe not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("timeframe not found")))
 		return
 	}
 
@@ -716,7 +708,7 @@ func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID)))
 		return
 	}
 
@@ -736,7 +728,7 @@ func (rs *Resource) getActiveTimeframes(w http.ResponseWriter, r *http.Request) 
 	// Get active timeframes
 	timeframes, err := rs.ScheduleService.FindActiveTimeframes(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -755,27 +747,27 @@ func (rs *Resource) getTimeframesByRange(w http.ResponseWriter, r *http.Request)
 	endStr := r.URL.Query().Get("end_time")
 
 	if startStr == "" || endStr == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start_time and end_time parameters are required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("start_time and end_time parameters are required")))
 		return
 	}
 
 	// Parse times
 	startTime, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStartTime)))
 		return
 	}
 
 	endTime, err := time.Parse(time.RFC3339, endStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndTime)))
 		return
 	}
 
 	// Get timeframes
 	timeframes, err := rs.ScheduleService.FindTimeframesByTimeRange(r.Context(), startTime, endTime)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -807,7 +799,7 @@ func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) 
 	// Get recurrence rules
 	rules, err := rs.ScheduleService.ListRecurrenceRules(r.Context(), queryOptions)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -824,14 +816,14 @@ func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID)))
 		return
 	}
 
 	// Get recurrence rule
 	rule, err := rs.ScheduleService.GetRecurrenceRule(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("recurrence rule not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("recurrence rule not found")))
 		return
 	}
 
@@ -842,7 +834,7 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &RecurrenceRuleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -859,7 +851,7 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	if req.EndDate != nil {
 		endDate, err := time.Parse(dateLayout, *req.EndDate)
 		if err != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 			return
 		}
 		rule.EndDate = &endDate
@@ -880,21 +872,21 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID)))
 		return
 	}
 
 	// Parse request
 	req := &RecurrenceRuleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing recurrence rule
 	rule, err := rs.ScheduleService.GetRecurrenceRule(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("recurrence rule not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("recurrence rule not found")))
 		return
 	}
 
@@ -928,7 +920,7 @@ func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID)))
 		return
 	}
 
@@ -948,14 +940,14 @@ func (rs *Resource) getRecurrenceRulesByFrequency(w http.ResponseWriter, r *http
 	// Get frequency from query param
 	frequency := r.URL.Query().Get("frequency")
 	if frequency == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("frequency parameter is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("frequency parameter is required")))
 		return
 	}
 
 	// Get recurrence rules
 	rules, err := rs.ScheduleService.FindRecurrenceRulesByFrequency(r.Context(), frequency)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -972,14 +964,14 @@ func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.R
 	// Get weekday from query param
 	weekday := r.URL.Query().Get("weekday")
 	if weekday == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("weekday parameter is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("weekday parameter is required")))
 		return
 	}
 
 	// Get recurrence rules
 	rules, err := rs.ScheduleService.FindRecurrenceRulesByWeekday(r.Context(), weekday)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -996,14 +988,14 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID)))
 		return
 	}
 
 	// Parse request
 	req := &GenerateEventsRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1038,27 +1030,27 @@ func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &CheckConflictRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Parse times
 	startTime, err := time.Parse(time.RFC3339, req.StartTime)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStartTime)))
 		return
 	}
 
 	endTime, err := time.Parse(time.RFC3339, req.EndTime)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndTime)))
 		return
 	}
 
 	// Check conflict
 	hasConflict, conflictingTimeframes, err := rs.ScheduleService.CheckConflict(r.Context(), startTime, endTime)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1078,7 +1070,7 @@ func (rs *Resource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &FindAvailableSlotsRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1094,7 +1086,7 @@ func (rs *Resource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	// Find available slots
 	availableSlots, err := rs.ScheduleService.FindAvailableSlots(r.Context(), startDate, endDate, duration)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1109,88 +1101,3 @@ func (rs *Resource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
 		"count":           len(availableSlots),
 	}, "Available slots found")
 }
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// ListDateframesHandler returns the list dateframes handler
-func (rs *Resource) ListDateframesHandler() http.HandlerFunc { return rs.listDateframes }
-
-// GetDateframeHandler returns the get dateframe handler
-func (rs *Resource) GetDateframeHandler() http.HandlerFunc { return rs.getDateframe }
-
-// CreateDateframeHandler returns the create dateframe handler
-func (rs *Resource) CreateDateframeHandler() http.HandlerFunc { return rs.createDateframe }
-
-// UpdateDateframeHandler returns the update dateframe handler
-func (rs *Resource) UpdateDateframeHandler() http.HandlerFunc { return rs.updateDateframe }
-
-// DeleteDateframeHandler returns the delete dateframe handler
-func (rs *Resource) DeleteDateframeHandler() http.HandlerFunc { return rs.deleteDateframe }
-
-// GetDateframesByDateHandler returns the get dateframes by date handler
-func (rs *Resource) GetDateframesByDateHandler() http.HandlerFunc { return rs.getDateframesByDate }
-
-// GetOverlappingDateframesHandler returns the get overlapping dateframes handler
-func (rs *Resource) GetOverlappingDateframesHandler() http.HandlerFunc {
-	return rs.getOverlappingDateframes
-}
-
-// GetCurrentDateframeHandler returns the get current dateframe handler
-func (rs *Resource) GetCurrentDateframeHandler() http.HandlerFunc { return rs.getCurrentDateframe }
-
-// ListTimeframesHandler returns the list timeframes handler
-func (rs *Resource) ListTimeframesHandler() http.HandlerFunc { return rs.listTimeframes }
-
-// GetTimeframeHandler returns the get timeframe handler
-func (rs *Resource) GetTimeframeHandler() http.HandlerFunc { return rs.getTimeframe }
-
-// CreateTimeframeHandler returns the create timeframe handler
-func (rs *Resource) CreateTimeframeHandler() http.HandlerFunc { return rs.createTimeframe }
-
-// UpdateTimeframeHandler returns the update timeframe handler
-func (rs *Resource) UpdateTimeframeHandler() http.HandlerFunc { return rs.updateTimeframe }
-
-// DeleteTimeframeHandler returns the delete timeframe handler
-func (rs *Resource) DeleteTimeframeHandler() http.HandlerFunc { return rs.deleteTimeframe }
-
-// GetActiveTimeframesHandler returns the get active timeframes handler
-func (rs *Resource) GetActiveTimeframesHandler() http.HandlerFunc { return rs.getActiveTimeframes }
-
-// GetTimeframesByRangeHandler returns the get timeframes by range handler
-func (rs *Resource) GetTimeframesByRangeHandler() http.HandlerFunc { return rs.getTimeframesByRange }
-
-// ListRecurrenceRulesHandler returns the list recurrence rules handler
-func (rs *Resource) ListRecurrenceRulesHandler() http.HandlerFunc { return rs.listRecurrenceRules }
-
-// GetRecurrenceRuleHandler returns the get recurrence rule handler
-func (rs *Resource) GetRecurrenceRuleHandler() http.HandlerFunc { return rs.getRecurrenceRule }
-
-// CreateRecurrenceRuleHandler returns the create recurrence rule handler
-func (rs *Resource) CreateRecurrenceRuleHandler() http.HandlerFunc { return rs.createRecurrenceRule }
-
-// UpdateRecurrenceRuleHandler returns the update recurrence rule handler
-func (rs *Resource) UpdateRecurrenceRuleHandler() http.HandlerFunc { return rs.updateRecurrenceRule }
-
-// DeleteRecurrenceRuleHandler returns the delete recurrence rule handler
-func (rs *Resource) DeleteRecurrenceRuleHandler() http.HandlerFunc { return rs.deleteRecurrenceRule }
-
-// GetRecurrenceRulesByFrequencyHandler returns the get recurrence rules by frequency handler
-func (rs *Resource) GetRecurrenceRulesByFrequencyHandler() http.HandlerFunc {
-	return rs.getRecurrenceRulesByFrequency
-}
-
-// GetRecurrenceRulesByWeekdayHandler returns the get recurrence rules by weekday handler
-func (rs *Resource) GetRecurrenceRulesByWeekdayHandler() http.HandlerFunc {
-	return rs.getRecurrenceRulesByWeekday
-}
-
-// GenerateEventsHandler returns the generate events handler
-func (rs *Resource) GenerateEventsHandler() http.HandlerFunc { return rs.generateEvents }
-
-// CheckConflictHandler returns the check conflict handler
-func (rs *Resource) CheckConflictHandler() http.HandlerFunc { return rs.checkConflict }
-
-// FindAvailableSlotsHandler returns the find available slots handler
-func (rs *Resource) FindAvailableSlotsHandler() http.HandlerFunc { return rs.findAvailableSlots }

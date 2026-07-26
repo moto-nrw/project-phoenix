@@ -231,6 +231,10 @@ func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Loc
 		"check_in_time":  checkInWall.Format(time.RFC3339),
 		"check_out_time": checkOutWall.Format(time.RFC3339),
 		"break_minutes":  breakMinutes,
+		// A note is mandatory whenever recorded times change while the
+		// deviation-reason gate is on (F8). That gate now defaults on (#1844),
+		// so the backdate PUT must carry one or the seeder 400s.
+		"notes": "Seed-Backdatierung",
 	}
 	if _, err := rt.Client.Put(fmt.Sprintf("/api/time-tracking/%d", sessionID), updateBody); err != nil {
 		return false, fmt.Errorf("put backdate: %w", err)

@@ -31,16 +31,6 @@ func NewOrganizationRepository(db *bun.DB) platform.OrganizationRepository {
 	}
 }
 
-func (r *OrganizationRepository) Create(ctx context.Context, organization *platform.Organization) error {
-	if organization == nil {
-		return fmt.Errorf("organization cannot be nil")
-	}
-	if err := organization.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, organization)
-}
-
 func (r *OrganizationRepository) FindByID(ctx context.Context, id int64) (*platform.Organization, error) {
 	organization := new(platform.Organization)
 	err := base.GetDB(ctx, r.db).NewSelect().

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mutate } from "swr";
 import {
   CalendarDays,
@@ -11,6 +11,7 @@ import {
   Loader2,
   SquarePen,
   StickyNote,
+  Users,
   X,
 } from "lucide-react";
 import { CareDayOverrideModal } from "./care-day-override-modal";
@@ -206,12 +207,14 @@ export function CareScheduleManager({
     [weekDays],
   );
 
-  useEffect(() => {
-    const firstDay = weekDays[0];
-    const lastDay = weekDays[weekDays.length - 1];
+  function showWeek(offset: number): void {
+    setWeekOffset(offset);
+    const visibleDays = getWeekDays(offset);
+    const firstDay = visibleDays[0];
+    const lastDay = visibleDays[visibleDays.length - 1];
     if (!firstDay || !lastDay) return;
     onVisibleDateRangeChange?.(formatDateISO(firstDay), formatDateISO(lastDay));
-  }, [onVisibleDateRangeChange, weekDays]);
+  }
 
   const statusDayByDate = useMemo(() => {
     const entries = new Map<string, StudentStatusDay>();
@@ -300,16 +303,60 @@ export function CareScheduleManager({
     setSelectedDateKey(formatDateISO((today ?? days[0])!.date));
   }, [days, selectedDateKey]);
 
-  const loadCareData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  // Monotonic id claimed by every care-data fetch, in start order: arrival and
+  // pickup are two independent requests and several fetches can be in flight at
+  // once (two SSE announcements, or one racing the refetch after a local save).
+  // A later-started fetch reads the server later, so its data is at least as
+  // fresh — which makes start order the right ordering key.
+  const careDataRequestId = useRef(0);
+  // The newest id whose result actually reached the screen. Ordering is decided
+  // against THIS, not against the newest claim: a claim only means a fetch
+  // started, and it may still fail. Comparing against the newest claim discarded
+  // a successful result the moment any later fetch existed, so an initial load
+  // that succeeded while a doomed SSE refresh was in flight was thrown away and
+  // the editor rendered blank — no data, no error, nothing to retry.
+  const renderedCareDataRequestId = useRef(0);
+
+  const claimCareDataRequest = useCallback(
+    () => ++careDataRequestId.current,
+    [],
+  );
+  /** Would this result be newer than what the user is already looking at? */
+  const isFresherThanRendered = useCallback(
+    (requestId: number) => requestId > renderedCareDataRequestId.current,
+    [],
+  );
+
+  const fetchCareDataInto = useCallback(
+    async (requestId: number) => {
       const [arrival, pickup] = await Promise.all([
         fetchArrivalData(studentId),
         fetchStudentPickupData(studentId),
       ]);
+      // Older than what is on screen — drop it rather than clobber newer state.
+      // A result is never dropped merely because a newer fetch is still running:
+      // if that one succeeds it simply overwrites this a moment later, and if it
+      // fails the user keeps real data instead of an empty editor.
+      if (!isFresherThanRendered(requestId)) return;
+      renderedCareDataRequestId.current = requestId;
       setArrivalData(arrival);
       setPickupData(pickup);
+      // A newer read succeeded, so any banner or spinner an older attempt is
+      // still going to leave behind is already obsolete. Clearing here (rather
+      // than only in loadCareData) is what lets the failure path below bail out
+      // without stranding the UI.
+      setError(null);
+      setIsLoading(false);
+    },
+    [studentId, isFresherThanRendered],
+  );
+
+  const loadCareData = useCallback(async () => {
+    const requestId = claimCareDataRequest();
+    try {
+      setIsLoading(true);
+      setError(null);
+      await fetchCareDataInto(requestId);
     } catch (err) {
       const message =
         err instanceof Error
@@ -319,25 +366,90 @@ export function CareScheduleManager({
         error: message,
         student_id: studentId,
       });
+      // Same ordering rule as the success path, against the same marker: only
+      // stay silent when newer data is ALREADY rendered. If nothing has been
+      // rendered yet the failure is what the user needs to see, even when a
+      // later fetch happens to be in flight.
+      if (!isFresherThanRendered(requestId)) return;
       setError(message);
     } finally {
+      // Deliberately NOT gated on the request id: this is the only path that
+      // sets isLoading, so skipping it for a superseded attempt could strand the
+      // spinner forever when the superseding fetch also fails (the remote
+      // refresh path reports failures to the log only). Clearing it early at
+      // worst hides the spinner a moment before newer data lands.
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [
+    claimCareDataRequest,
+    fetchCareDataInto,
+    isFresherThanRendered,
+    studentId,
+  ]);
 
   const refreshCareData = useCallback(async () => {
-    const [arrival, pickup] = await Promise.all([
-      fetchArrivalData(studentId),
-      fetchStudentPickupData(studentId),
-    ]);
-    setArrivalData(arrival);
-    setPickupData(pickup);
+    await fetchCareDataInto(claimCareDataRequest());
     onUpdate?.();
-  }, [studentId, onUpdate]);
+  }, [claimCareDataRequest, fetchCareDataInto, onUpdate]);
 
   useEffect(() => {
     loadCareData().catch(() => undefined);
   }, [loadCareData]);
+
+  // An open modal holds an unsaved draft that is seeded from arrivalData /
+  // pickupData: CareWeeklyPlanModal re-runs its row-building effect whenever
+  // those props change identity, so writing them mid-edit silently discards
+  // whatever the user has typed.
+  const isEditorOpen = isWeeklyPlanModalOpen || editingDayDate !== null;
+  // Read through a ref inside the listener so opening/closing a modal does not
+  // resubscribe it, and so the check uses the state at event time.
+  const isEditorOpenRef = useRef(isEditorOpen);
+  useEffect(() => {
+    isEditorOpenRef.current = isEditorOpen;
+  }, [isEditorOpen]);
+  const hasDeferredRemoteRefresh = useRef(false);
+
+  const refreshFromRemote = useCallback(() => {
+    // Background refresh: a failure is logged, never surfaced — the user did not
+    // ask for it, and the data already on screen stays valid.
+    fetchCareDataInto(claimCareDataRequest()).catch((err) => {
+      logger.debug("care_schedule_remote_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+    });
+  }, [claimCareDataRequest, fetchCareDataInto, studentId]);
+
+  // React to REMOTE arrival/pickup changes. This editor keeps its arrival/pickup
+  // in local state (not SWR) and stays force-mounted across tabs, so the global
+  // SSE hook's SWR invalidation never reaches it. It announces staleness on this
+  // window event instead; re-fetch quietly (no spinner, no onUpdate — that would
+  // ripple a parent refresh for a change the parent already heard about).
+  //
+  // While a modal is open the refresh is DEFERRED, not dropped: someone else's
+  // edit must never cost this user their in-progress work, and the update is
+  // still applied the moment the editor closes. Local saves keep refreshing
+  // immediately — that path is the user's own action, and the day-override modal
+  // needs to see its own write.
+  useEffect(() => {
+    const onStale = () => {
+      if (isEditorOpenRef.current) {
+        hasDeferredRemoteRefresh.current = true;
+        return;
+      }
+      refreshFromRemote();
+    };
+    window.addEventListener("phoenix:care-schedule-stale", onStale);
+    return () =>
+      window.removeEventListener("phoenix:care-schedule-stale", onStale);
+  }, [refreshFromRemote]);
+
+  // Drain a refresh that arrived while the user was editing.
+  useEffect(() => {
+    if (isEditorOpen || !hasDeferredRemoteRefresh.current) return;
+    hasDeferredRemoteRefresh.current = false;
+    refreshFromRemote();
+  }, [isEditorOpen, refreshFromRemote]);
 
   const handleUpdateWeeklyPlan = async (data: {
     arrivalSchedules: ArrivalScheduleFormEntry[];
@@ -566,7 +678,7 @@ export function CareScheduleManager({
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setWeekOffset(0)}
+              onClick={() => showWeek(0)}
               disabled={weekOffset === 0}
               className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
             >
@@ -589,7 +701,7 @@ export function CareScheduleManager({
           <div>
             <WeekNavButton
               ariaLabel="Vorherige Woche"
-              onClick={() => setWeekOffset((value) => value - 1)}
+              onClick={() => showWeek(weekOffset - 1)}
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Vorherige Woche</span>
@@ -602,7 +714,7 @@ export function CareScheduleManager({
           ) : (
             <button
               type="button"
-              onClick={() => setWeekOffset(0)}
+              onClick={() => showWeek(0)}
               className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
             >
               Zurück zur aktuellen Woche
@@ -611,7 +723,7 @@ export function CareScheduleManager({
           <div>
             <WeekNavButton
               ariaLabel="Nächste Woche"
-              onClick={() => setWeekOffset((value) => value + 1)}
+              onClick={() => showWeek(weekOffset + 1)}
             >
               <span className="hidden sm:inline">Nächste Woche</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -628,8 +740,8 @@ export function CareScheduleManager({
             selectedDay={selectedMobileDay}
             readOnly={readOnly}
             deletingStatusDayId={deletingStatusDayId}
-            onPreviousWeek={() => setWeekOffset((value) => value - 1)}
-            onNextWeek={() => setWeekOffset((value) => value + 1)}
+            onPreviousWeek={() => showWeek(weekOffset - 1)}
+            onNextWeek={() => showWeek(weekOffset + 1)}
             onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
             onEditDay={setEditingDayDate}
             onRequestDeleteStatusDay={setStatusDayToDelete}
@@ -872,6 +984,12 @@ function CareDayCard({
 }) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const hasStatus = day.status !== null;
+  // A guardian-sourced exception means a parent changed this day's pickup or
+  // arrival time from the parents portal — flag it so staff don't mistake it
+  // for their own edit at the door.
+  const parentChanged =
+    day.pickup.exception?.source === "guardian" ||
+    day.arrival.exception?.source === "guardian";
   const boundaries = getCareBoundaries(day, {
     onEditArrival: () => onEditDay(day.date),
     onEditPickup: () => onEditDay(day.date),
@@ -893,6 +1011,12 @@ function CareDayCard({
             </span>
             {day.isToday ? (
               <span className="text-xs font-semibold text-gray-500">Heute</span>
+            ) : null}
+            {parentChanged ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-semibold text-[#3a63b0]">
+                <Users className="h-3 w-3" aria-hidden="true" />
+                Von Eltern
+              </span>
             ) : null}
           </div>
           <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">

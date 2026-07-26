@@ -39,17 +39,6 @@ func NewActivityInstanceRepository(db *bun.DB) schedule.ActivityInstanceReposito
 	}
 }
 
-// Create inserts a new activity instance after running model-level validation.
-func (r *ActivityInstanceRepository) Create(ctx context.Context, i *schedule.ActivityInstance) error {
-	if i == nil {
-		return errActivityInstanceNil
-	}
-	if err := i.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, i)
-}
-
 // CreateTemplateBackedIfAbsent inserts a template-backed activity instance,
 // absorbing the duplicate-template-slot race at the database layer. Catching a
 // 23505 after a plain INSERT would leave the surrounding PostgreSQL
@@ -93,17 +82,6 @@ func (r *ActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Co
 	return affected > 0, nil
 }
 
-// Update writes the given activity instance back to the database.
-func (r *ActivityInstanceRepository) Update(ctx context.Context, i *schedule.ActivityInstance) error {
-	if i == nil {
-		return errActivityInstanceNil
-	}
-	if err := i.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Update(ctx, i)
-}
-
 // MarkCompleted updates only lifecycle columns. It intentionally avoids the
 // generic full-row Update path because SQL TIME columns on activity instances
 // are unsafe to write back after a DB decode round-trip.
@@ -142,9 +120,7 @@ func (r *ActivityInstanceRepository) FindByID(ctx context.Context, id any) (*sch
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -158,27 +134,7 @@ func (r *ActivityInstanceRepository) FindByID(ctx context.Context, id any) (*sch
 
 // List retrieves activity instances matching the provided query options.
 func (r *ActivityInstanceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.ActivityInstance, error) {
-	var instances []*schedule.ActivityInstance
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&instances).
-		ModelTableExpr(modelTblActivityInstance)
-
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-	return instances, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // FindByTenantAndDate returns instances for the current tenant on a given date.
@@ -190,9 +146,7 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 		Where(`"activity_instance".date = ?`, date).
 		Order("start_time ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -214,14 +168,39 @@ func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Contex
 		Where(`"activity_instance".date <= ?`, to).
 		Order("date ASC", "start_time ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tenant and date range",
+			Err: err,
+		}
+	}
+	return instances, nil
+}
+
+// FindByIDs returns the instances matching ids in one tenant-scoped IN query.
+// Custom method (backend-conventions Rule 2): bulk IN lookup with the
+// empty-slice short-circuit callers rely on to skip the round trip entirely,
+// mirroring InstanceStaffRepository.FindByInstanceIDs.
+func (r *ActivityInstanceRepository) FindByIDs(ctx context.Context, ids []int64) ([]*schedule.ActivityInstance, error) {
+	instances := make([]*schedule.ActivityInstance, 0, len(ids))
+	if len(ids) == 0 {
+		return instances, nil
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&instances).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".id IN (?)`, bun.List(ids)).
+		Order("date ASC", "start_time ASC")
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by ids",
 			Err: err,
 		}
 	}
@@ -238,14 +217,41 @@ func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Cont
 		Where(`"activity_instance".date = ?`, date).
 		Order("start_time ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by activity group and date",
+			Err: err,
+		}
+	}
+	return instances, nil
+}
+
+// FindByActivityGroupAndDateRange returns one template's instances within an
+// inclusive range. This custom read is necessary because the generic exact-
+// filter shape cannot express inclusive date bounds; the group predicate is
+// applied in SQL so a long-running probe never loads every tenant block.
+func (r *ActivityInstanceRepository) FindByActivityGroupAndDateRange(
+	ctx context.Context,
+	activityGroupID int64,
+	from, to timezone.Date,
+) ([]*schedule.ActivityInstance, error) {
+	var instances []*schedule.ActivityInstance
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&instances).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
+		Where(`"activity_instance".date >= ?`, from).
+		Where(`"activity_instance".date <= ?`, to).
+		Order("date ASC", "start_time ASC")
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by activity group and date range",
 			Err: err,
 		}
 	}
@@ -264,9 +270,7 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".active_group_id = ?`, activeGroupID)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Limit(1).Scan(ctx)
 	if err != nil {
@@ -300,9 +304,7 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusActive).
 		Where(`"activity_instance".active_group_id IN (?)`, bun.List(activeGroupIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
 
 	res, err := q.Exec(ctx)
 	if err != nil {
@@ -332,13 +334,44 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 // grid). CASCADE removes the instance_staff / instance_students children
 // (declared at DDL level). Custom method (backend-conventions Rule 2):
 // multi-predicate lifecycle delete for the ReplanWeek admin action.
-func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error) {
+//
+// #1840: `preserveDeviations` controls whether instances carrying a
+// Vertretungsplan deviation are kept. Only re-plan (ReplanWeek) passes true:
+// re-plan regenerates the week from the base plan but must NOT wipe the admin's
+// manual overrides, so a deviated row (an acknowledged shortfall, or any
+// instance_staff row marked absent / substitute / bearing an absence reason) is
+// preserved and skipped by the insert-only re-materialization.
+//
+// Template split and template end pass false: both are the destructive
+// "this and all following" series operation. Preserving a deviated old-template
+// row there is wrong — for END it would leave the "ended" series partly alive,
+// and for SPLIT the surviving old row (activity_group_id = old template) plus
+// the freshly materialized successor row (activity_group_id = new template)
+// dedupe apart and the user sees a duplicate block. So the series operation
+// hard-deletes every still-planned non-spontaneous row in the window,
+// deviations included; started/completed/cancelled/spontaneous rows always
+// survive regardless of this flag.
+func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
 	q := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.ActivityInstance)(nil)).
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
 		Where(`"activity_instance".is_spontaneous = ?`, false)
+
+	if preserveDeviations {
+		// Keep deviated instances (#1840, re-plan only). RLS already scopes
+		// instance_staff to the tenant; the explicit tenant match keeps the
+		// correlation safe even under a superuser connection.
+		q = q.
+			Where(`"activity_instance".understaffed_ack = ?`, false).
+			Where(`NOT EXISTS (
+				SELECT 1 FROM schedule.instance_staff AS "dev_is"
+				WHERE "dev_is".instance_id = "activity_instance".id
+				  AND "dev_is".tenant_id = "activity_instance".tenant_id
+				  AND ("dev_is".is_absent OR "dev_is".is_substitute OR "dev_is".absence_reason IS NOT NULL)
+			)`)
+	}
 
 	if to != nil {
 		q = q.Where(`"activity_instance".date <= ?`, *to)
@@ -348,9 +381,7 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 		q = q.Where(`"activity_instance".activity_group_id = ?`, *activityGroupID)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
 
 	res, err := q.Exec(ctx)
 	if err != nil {
@@ -361,4 +392,56 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 	}
 	deleted, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
 	return deleted, nil
+}
+
+// PropagateListKindToFutureInstances re-classifies the future template-backed
+// planned instances of one template whose list_kind still matches the series'
+// previous value, returning the number of rows changed. It closes the gap where
+// editing a series' Listenart (activities.groups.list_kind) left already
+// materialized future occurrences carrying the stale value the classified daily
+// lists filter on, so the series stayed absent from its list until a manual
+// re-plan (#1565 review).
+//
+// Only rows a series edit is allowed to touch are updated:
+//   - date strictly after `after` (today): the materialization/re-plan invariant
+//     that the current and past days are never rewritten is preserved, so a list
+//     already in use today is not reshuffled underneath its readers;
+//   - status = 'planned' and is_spontaneous = false: started/completed/cancelled
+//     and spontaneous rows are never rewritten by a series edit;
+//   - list_kind still equal to `previousKind` (NULL and empty treated alike): an
+//     occurrence individually re-classified via the instance PUT diverges from
+//     the series value and is a single-occurrence edit (EditedChangeListKind that
+//     ReplanWeek reports as lost) — it is left untouched.
+//
+// Custom method (backend-conventions Rule 2): a multi-predicate series-scoped
+// column rewrite the generic filter API cannot express.
+func (r *ActivityInstanceRepository) PropagateListKindToFutureInstances(
+	ctx context.Context,
+	activityGroupID int64,
+	previousKind *string,
+	newKind *string,
+	after timezone.Date,
+) (int64, error) {
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Set(`list_kind = ?`, newKind).
+		Set(`updated_at = ?`, time.Now()).
+		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
+		Where(`"activity_instance".date > ?`, after).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".is_spontaneous = ?`, false).
+		Where(`COALESCE("activity_instance".list_kind, '') = COALESCE(?, '')`, previousKind)
+
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "propagate list kind to future instances",
+			Err: err,
+		}
+	}
+	updated, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+	return updated, nil
 }

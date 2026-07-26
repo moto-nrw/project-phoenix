@@ -224,7 +224,7 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "findbyrole")
 		role := testpkg.CreateTestRole(t, db, "FindByRoleTestRole")
 		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
@@ -251,7 +251,7 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "rolecase")
 		role := testpkg.CreateTestRole(t, db, "CaseSensitiveRole")
 		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		_, err := db.ExecContext(ctx,
 			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
@@ -367,7 +367,7 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "withperms")
 		role := testpkg.CreateTestRole(t, db, "WithPermsRole")
 		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
@@ -490,7 +490,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "rolefilter")
 		role := testpkg.CreateTestRole(t, db, "ListFilterRole")
 		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
@@ -598,4 +598,75 @@ func TestAccountRepository_UpdateValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
+}
+
+func TestAccountRepository_CalendarFeedToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Account
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "feedtoken")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	t.Run("unknown token resolves to nil without error", func(t *testing.T) {
+		found, err := repo.FindByCalendarFeedToken(ctx, "does-not-exist")
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
+
+	t.Run("empty token resolves to nil", func(t *testing.T) {
+		found, err := repo.FindByCalendarFeedToken(ctx, "")
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
+
+	t.Run("set then resolve round-trips", func(t *testing.T) {
+		require.NoError(t, repo.SetCalendarFeedToken(ctx, account.ID, "feed-token-abc"))
+
+		found, err := repo.FindByCalendarFeedToken(ctx, "feed-token-abc")
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, account.ID, found.ID)
+
+		// Rotating invalidates the old token.
+		require.NoError(t, repo.SetCalendarFeedToken(ctx, account.ID, "feed-token-xyz"))
+		old, err := repo.FindByCalendarFeedToken(ctx, "feed-token-abc")
+		require.NoError(t, err)
+		assert.Nil(t, old)
+	})
+}
+
+func TestAccountRepository_EnsureCalendarFeedToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Account
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "ensurefeedtoken")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	// First caller claims the token.
+	first, err := repo.EnsureCalendarFeedToken(ctx, account.ID, "ensure-token-1")
+	require.NoError(t, err)
+	assert.Equal(t, "ensure-token-1", first)
+
+	// A second caller with a different token does NOT overwrite it — it gets the
+	// already-persisted token back. This is what prevents a racing first-time
+	// caller from being handed a URL that a later write overwrote.
+	second, err := repo.EnsureCalendarFeedToken(ctx, account.ID, "ensure-token-2")
+	require.NoError(t, err)
+	assert.Equal(t, "ensure-token-1", second)
+
+	// The persisted token still resolves; the losing token never does.
+	found, err := repo.FindByCalendarFeedToken(ctx, "ensure-token-1")
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, account.ID, found.ID)
+
+	loser, err := repo.FindByCalendarFeedToken(ctx, "ensure-token-2")
+	require.NoError(t, err)
+	assert.Nil(t, loser)
 }

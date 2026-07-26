@@ -3,6 +3,7 @@ package base_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -43,30 +44,6 @@ func TestFilter_ApplyToQuery_Equal(t *testing.T) {
 	// All returned records should have active=true
 	for _, r := range records {
 		assert.True(t, r.Active, "Filter should only return active records")
-	}
-}
-
-func TestFilter_ApplyToQuery_NotEqual(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	ctx := testpkg.TenantContext(1)
-
-	filter := base.NewFilter().WithTableAlias("account").NotEqual("active", false)
-
-	var records []*auth.Account
-	query := db.NewSelect().
-		Model(&records).
-		ModelTableExpr(accountTableAlias)
-
-	query = filter.ApplyToQuery(query)
-
-	err := query.Scan(ctx)
-	require.NoError(t, err)
-
-	// All returned records should NOT have active=false
-	for _, r := range records {
-		assert.True(t, r.Active, "Filter should exclude inactive records")
 	}
 }
 
@@ -415,44 +392,6 @@ func TestSorting_ApplyToQuery_MultipleFields(t *testing.T) {
 // QUERY OPTIONS APPLY TO QUERY TESTS
 // =============================================================================
 
-func TestQueryOptions_ApplyToQuery_Full(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	ctx := testpkg.TenantContext(1)
-
-	sorting := base.Sorting{}
-	sorting.AddField("id", base.SortAsc)
-
-	qo := base.NewQueryOptions().
-		WithPagination(1, 10).
-		WithSorting(sorting)
-	qo.Filter.WithTableAlias("account").Equal("active", true)
-
-	var records []*auth.Account
-	query := db.NewSelect().
-		Model(&records).
-		ModelTableExpr(accountTableAlias)
-
-	query = qo.ApplyToQuery(query)
-
-	err := query.Scan(ctx)
-	require.NoError(t, err)
-
-	// Should have at most 10 records (pagination limit)
-	assert.LessOrEqual(t, len(records), 10, "Pagination should limit results")
-
-	// All records should be active
-	for _, r := range records {
-		assert.True(t, r.Active, "Filter should return active records only")
-	}
-
-	// Records should be sorted ascending
-	for i := 1; i < len(records); i++ {
-		assert.GreaterOrEqual(t, records[i].ID, records[i-1].ID, "Records should be sorted ascending")
-	}
-}
-
 func TestQueryOptions_ApplyToQuery_FilterOnly(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -527,53 +466,29 @@ func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
 	// Should return all records (active=true OR active=false covers all)
 }
 
-func TestFilter_ApplyToQuery_AndCondition(t *testing.T) {
+func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
-
-	mainFilter := base.NewFilter().WithTableAlias("account").Equal("active", true)
-
-	andFilter := base.Filter{}
-	andFilter.WithTableAlias("account").IsNotNull("email")
-	mainFilter.And(andFilter)
-
-	var records []*auth.Account
-	query := db.NewSelect().
-		Model(&records).
-		ModelTableExpr(accountTableAlias)
-
-	query = mainFilter.ApplyToQuery(query)
-
-	err := query.Scan(ctx)
-	require.NoError(t, err)
-
-	for _, r := range records {
-		assert.True(t, r.Active, "Should be active")
-		assert.NotEmpty(t, r.Email, "Email should not be null")
+	type logicalRow struct {
+		Active bool   `bun:"active"`
+		Name   string `bun:"name"`
 	}
-}
 
-func TestFilter_ApplyToQuery_NotIn(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	filter := base.NewFilter().WithTableAlias("item").Equal("active", true)
+	filter.Or(*base.NewFilter().Equal("name", "drop"))
+	filter.And(*base.NewFilter().Equal("name", "drop"))
 
-	ctx := testpkg.TenantContext(1)
-
-	// NotIn with proper []interface{} values
-	filter := base.NewFilter().WithTableAlias("account").NotIn("id", int64(-1), int64(-2))
-
-	var records []*auth.Account
+	var rows []logicalRow
 	query := db.NewSelect().
-		Model(&records).
-		ModelTableExpr(accountTableAlias)
-
+		TableExpr(`(VALUES (TRUE, 'keep'), (FALSE, 'drop')) AS "item"("active", "name")`).
+		ColumnExpr(`"item"."active"`).
+		ColumnExpr(`"item"."name"`)
 	query = filter.ApplyToQuery(query)
 
-	err := query.Scan(ctx)
-	require.NoError(t, err)
-	// Should return all records since no IDs match -1 or -2
+	require.NoError(t, query.Scan(context.Background(), &rows))
+	require.Len(t, rows, 1, "(A OR B) AND C must not degrade to A OR (B AND C)")
+	assert.Equal(t, "drop", rows[0].Name)
 }
 
 func TestFilter_ApplyToQuery_Like(t *testing.T) {
@@ -711,29 +626,6 @@ func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
 	_ = tx.Rollback()
 }
 
-func TestTxHandler_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	ctx := testpkg.TenantContext(1)
-
-	// Start a transaction manually
-	tx, err := db.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback() }()
-
-	handler := base.NewTxHandler(db)
-	handlerWithTx := handler.WithTx(tx)
-
-	require.NotNil(t, handlerWithTx)
-
-	// The handler with tx should reuse the existing transaction
-	gotTx, isNew, err := handlerWithTx.GetTx(ctx)
-	require.NoError(t, err)
-	assert.False(t, isNew, "Should reuse existing transaction")
-	assert.NotNil(t, gotTx)
-}
-
 func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -768,4 +660,43 @@ func TestContextWithTx_NoTxInContext(t *testing.T) {
 	tx, ok := base.TxFromContext(ctx)
 	assert.False(t, ok, "Should return false when no tx in context")
 	assert.Nil(t, tx)
+}
+
+func TestIsRetryableTxError(t *testing.T) {
+	assert.False(t, base.IsRetryableTxError(nil), "nil is not retryable")
+	assert.False(t, base.IsRetryableTxError(errors.New("some error")), "plain errors are not retryable")
+	assert.False(t, base.IsRetryableTxError(fmt.Errorf("wrap: %w", errors.New("inner"))), "non-pg wrapped errors are not retryable")
+}
+
+func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	handler := base.NewTxHandler(db)
+
+	calls := 0
+	err := handler.RunInTxWithRetry(ctx, func(ctx context.Context, _ bun.Tx) error {
+		calls++
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls, "a successful transaction runs exactly once")
+}
+
+func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	handler := base.NewTxHandler(db)
+
+	expected := errors.New("business rule violation")
+	calls := 0
+	err := handler.RunInTxWithRetry(ctx, func(ctx context.Context, _ bun.Tx) error {
+		calls++
+		return expected
+	})
+	require.ErrorIs(t, err, expected)
+	assert.Equal(t, 1, calls, "a non-retryable error must NOT be retried")
 }

@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -34,9 +33,7 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Where(`"profile".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "profile")
 
 	err := query.Scan(ctx)
 
@@ -58,9 +55,7 @@ func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 		Set("avatar = ?", avatar).
 		Where(`"profile".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "profile")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -71,82 +66,6 @@ func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 	}
 
 	return base.AssertRowsAffected(result, 1, "update avatar")
-}
-
-// UpdateBio updates a profile's bio
-func (r *ProfileRepository) UpdateBio(ctx context.Context, id int64, bio string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Profile)(nil)).
-		ModelTableExpr(`users.profiles AS "profile"`).
-		Set("bio = ?", bio).
-		Where(`"profile".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update bio",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "update bio")
-}
-
-// UpdateSettings updates a profile's settings
-func (r *ProfileRepository) UpdateSettings(ctx context.Context, id int64, settings string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Profile)(nil)).
-		ModelTableExpr(`users.profiles AS "profile"`).
-		Set("settings = ?", settings).
-		Where(`"profile".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update settings",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "update settings")
-}
-
-// Create overrides the base Create method to handle validation
-func (r *ProfileRepository) Create(ctx context.Context, profile *users.Profile) error {
-	if profile == nil {
-		return fmt.Errorf("profile cannot be nil")
-	}
-
-	// Validate profile
-	if err := profile.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, profile)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *ProfileRepository) Update(ctx context.Context, profile *users.Profile) error {
-	if profile == nil {
-		return fmt.Errorf("profile cannot be nil")
-	}
-
-	// Validate profile
-	if err := profile.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, profile)
 }
 
 // Delete overrides the base Delete method
@@ -161,9 +80,7 @@ func (r *ProfileRepository) List(ctx context.Context, filters map[string]interfa
 		Model(&profiles).
 		ModelTableExpr(`users.profiles AS "profile"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "profile")
 
 	// Apply filters
 	for field, value := range filters {

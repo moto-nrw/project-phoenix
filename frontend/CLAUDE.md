@@ -66,7 +66,7 @@ src/app/
 
 ### Tenant Context & Navigation
 
-- **`TenantProvider`** (`components/tenant/tenant-provider.tsx`): context holding `tenantSlug` + resolved tenant metadata
+- **`TenantProvider`** (`lib/tenant-context.tsx`): context holding `tenantSlug` + resolved tenant metadata
 - **`useTenant()`** throws outside provider; **`useTenantSlugSafe()`** returns `null` — use for SWR cache key prefixing
 - **`useTenantRouter()`** (`lib/tenant-router.ts`): subdomain-vs-path-aware navigation
 - **`TenantGuard`** (`components/tenant/tenant-guard.tsx`): detects session/URL tenant mismatch (multi-tab) and auto-switches

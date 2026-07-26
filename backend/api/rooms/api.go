@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -30,17 +31,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Resource defines the rooms API resource
+// Resource defines the rooms API resource. ActiveService, PersonService,
+// EducationService, and ListExportService are wired post-construction in
+// api/base.go.
 type Resource struct {
-	FacilityService    facilityService.Service
-	ActiveService      activeService.Service
-	PersonService      userService.PersonService
-	EducationService   educationService.Service
-	ListExportService  listexport.Service
-	SettingsService    configService.SettingsService
-	UserContextService userContextService.UserContextService
-	Logger             *slog.Logger
-	db                 *bun.DB
+	ResourceConfig
+	ActiveService     activeService.Service
+	PersonService     userService.PersonService
+	EducationService  educationService.Service
+	ListExportService *listexport.RendererService
 }
 
 // ResourceConfig wires the rooms resource's collaborators. Kept as a struct
@@ -75,13 +74,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 	if cfg.DB == nil {
 		panic("rooms.NewResource: DB is required")
 	}
-	return &Resource{
-		FacilityService:    cfg.FacilityService,
-		SettingsService:    cfg.SettingsService,
-		UserContextService: cfg.UserContextService,
-		Logger:             cfg.Logger,
-		db:                 cfg.DB,
-	}
+	return &Resource{ResourceConfig: cfg}
 }
 
 // Router returns a configured router for room endpoints
@@ -89,15 +82,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations require rooms:read permission
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/", rs.listRooms)
@@ -209,6 +195,17 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 		queryOptions.Filter.Equal("category", category)
 	}
 
+	// Keep Schulhof available for staff planning while hiding infrastructure
+	// rooms such as WC. The visibility expression stays inside one grouped AND
+	// so it cannot bypass tenant, building, or category predicates.
+	if r.URL.Query().Get("include_system") != "true" {
+		staffVisible := base.NewFilter().
+			Equal("is_system", false).
+			NotIn("name", constants.WCRoomName, constants.WCRoomAliasName)
+		staffVisible.Or(*base.NewFilter().Equal("name", constants.SchulhofRoomName))
+		queryOptions.Filter.And(*staffVisible)
+	}
+
 	// Add pagination if provided
 	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
@@ -274,7 +271,7 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Create room using service
 	tenantID := tenant.FromContext(r.Context())
-	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.FacilityService.CreateRoom(ctx, room)
 	})
 	if err != nil {
@@ -322,7 +319,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Update room using service
 	tenantID := tenant.FromContext(r.Context())
-	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.FacilityService.UpdateRoom(ctx, room)
 	})
 	if err != nil {
@@ -345,7 +342,7 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Delete room using service
 	tenantID := tenant.FromContext(r.Context())
-	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.FacilityService.DeleteRoom(ctx, id)
 	})
 	if err != nil {
@@ -432,10 +429,19 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Keep Schulhof available for staff planning while hiding other system
+	// rooms. Filtered here rather than in GetAvailableRooms because the IoT
+	// kiosk endpoint shares that service method and must keep seeing them.
+	includeSystem := r.URL.Query().Get("include_system") == "true"
+
 	// Convert to response
-	roomResponses := make([]RoomResponse, len(rooms))
-	for i, room := range rooms {
-		roomResponses[i] = newRoomResponseSimple(room)
+	roomResponses := make([]RoomResponse, 0, len(rooms))
+	for _, room := range rooms {
+		if !includeSystem && (constants.IsWCRoomName(room.Name) ||
+			(room.IsSystem && room.Name != constants.SchulhofRoomName)) {
+			continue
+		}
+		roomResponses = append(roomResponses, newRoomResponseSimple(room))
 	}
 
 	// Return response
@@ -506,7 +512,7 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	if startStr := r.URL.Query().Get("start"); startStr != "" {
 		parsedStart, parseErr := time.Parse(time.RFC3339, startStr)
 		if parseErr != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start parameter, expected RFC3339")))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start parameter, expected RFC3339")))
 			return
 		}
 		startTime = parsedStart
@@ -515,14 +521,14 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	if endStr := r.URL.Query().Get("end"); endStr != "" {
 		parsedEnd, parseErr := time.Parse(time.RFC3339, endStr)
 		if parseErr != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end parameter, expected RFC3339")))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end parameter, expected RFC3339")))
 			return
 		}
 		endTime = parsedEnd
 	}
 
 	if startTime.After(endTime) {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start must be before end")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("start must be before end")))
 		return
 	}
 
@@ -577,7 +583,7 @@ func (rs *Resource) resolveRoomHistorySupervisorFilter(
 	logger *slog.Logger,
 ) (*int64, bool) {
 	ctx := r.Context()
-	if common.HasAdminPermissions(jwt.PermissionsFromCtx(ctx)) {
+	if authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx)) {
 		return nil, false
 	}
 
@@ -623,42 +629,3 @@ func (rs *Resource) roomHistoryLogger() *slog.Logger {
 	}
 	return slog.Default().With("endpoint", "room_history")
 }
-
-// =============================================================================
-// Exported Handler Methods for Testing
-// =============================================================================
-// These methods expose the underlying handlers for test access without going
-// through the router's middleware chain.
-
-// ListRoomsHandler returns the handler for listing rooms.
-func (rs *Resource) ListRoomsHandler() http.HandlerFunc { return rs.listRooms }
-
-// GetRoomHandler returns the handler for getting a single room.
-func (rs *Resource) GetRoomHandler() http.HandlerFunc { return rs.getRoom }
-
-// CreateRoomHandler returns the handler for creating a room.
-func (rs *Resource) CreateRoomHandler() http.HandlerFunc { return rs.createRoom }
-
-// UpdateRoomHandler returns the handler for updating a room.
-func (rs *Resource) UpdateRoomHandler() http.HandlerFunc { return rs.updateRoom }
-
-// DeleteRoomHandler returns the handler for deleting a room.
-func (rs *Resource) DeleteRoomHandler() http.HandlerFunc { return rs.deleteRoom }
-
-// GetRoomsByCategoryHandler returns the handler for getting rooms by category.
-func (rs *Resource) GetRoomsByCategoryHandler() http.HandlerFunc { return rs.getRoomsByCategory }
-
-// GetBuildingListHandler returns the handler for getting the building list.
-func (rs *Resource) GetBuildingListHandler() http.HandlerFunc { return rs.getBuildingList }
-
-// GetCategoryListHandler returns the handler for getting the category list.
-func (rs *Resource) GetCategoryListHandler() http.HandlerFunc { return rs.getCategoryList }
-
-// GetAvailableRoomsHandler returns the handler for getting available rooms.
-func (rs *Resource) GetAvailableRoomsHandler() http.HandlerFunc { return rs.getAvailableRooms }
-
-// Note: room history doesn't need a *Handler() wrapper because the method
-// is already exported (GetRoomHistory). Tests bind it into a router via
-// `setupRouter(tc.resource.GetRoomHistory, "id")` directly. See Rule 5 in
-// .claude/rules/backend-conventions.md — new endpoints should follow this
-// pattern; the wrappers above are legacy and pending cleanup.

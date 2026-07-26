@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,6 +21,10 @@ func TestPickupStatusKindBuckets(t *testing.T) {
 		{"Wird abgeholt", "pickedUp"},
 		{"picked_up", "pickedUp"},
 		{"Taxi", "other"},
+		// Accompanied ("Mit anderem Kind") must land in "other", never "self":
+		// the child leaves with a companion, so admin filters must not bucket them
+		// as a self-goer (#1694).
+		{users.PickupStatusAccompanied, "other"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.status, func(t *testing.T) {

@@ -571,6 +571,95 @@ func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
 	})
 }
 
+func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewCalendarPeriodRepository(db)
+	tenantID, ctx := newOverlapTenant(t, db, 580000)
+
+	createTyped := func(cctx context.Context, tid int64, name, periodType string, isActive bool) *scheduleModels.CalendarPeriod {
+		period := &scheduleModels.CalendarPeriod{
+			Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
+			PeriodType:      periodType,
+			StartDate:       timezone.NewDate(2033, time.August, 1),
+			EndDate:         timezone.NewDate(2034, time.July, 31),
+			WeekCycleLength: 1,
+			IsActive:        isActive,
+		}
+		period.SetTenantID(tid)
+		require.NoError(t, repo.Create(cctx, period))
+		return period
+	}
+
+	queryStart := timezone.NewDate(2033, time.September, 1)
+	queryEnd := timezone.NewDate(2033, time.October, 1)
+	activeSemester := createTyped(ctx, tenantID, "ByType-Halbjahr", scheduleModels.PeriodTypeSemester, true)
+	holiday := createTyped(ctx, tenantID, "ByType-Ferien", scheduleModels.PeriodTypeHoliday, true)
+	inactiveSemester := createTyped(ctx, tenantID, "ByType-Halbjahr-Inaktiv", scheduleModels.PeriodTypeSemester, false)
+
+	idsOf := func(periods []*scheduleModels.CalendarPeriod) []int64 {
+		ids := make([]int64, 0, len(periods))
+		for _, p := range periods {
+			ids = append(ids, p.ID)
+		}
+		return ids
+	}
+
+	t.Run("finds only active periods of the same type", func(t *testing.T) {
+		got, err := repo.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeSemester, queryStart, queryEnd, 0)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{activeSemester.ID}, idsOf(got))
+		assert.NotContains(t, idsOf(got), holiday.ID)
+		assert.NotContains(t, idsOf(got), inactiveSemester.ID)
+	})
+
+	t.Run("different type sees only its own overlaps", func(t *testing.T) {
+		got, err := repo.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeHoliday, queryStart, queryEnd, 0)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{holiday.ID}, idsOf(got))
+	})
+
+	t.Run("excludes the period itself", func(t *testing.T) {
+		got, err := repo.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeSemester, queryStart, queryEnd, activeSemester.ID)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("disjoint range finds nothing", func(t *testing.T) {
+		got, err := repo.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeSemester,
+			timezone.NewDate(2040, time.January, 1), timezone.NewDate(2040, time.December, 31), 0)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("cross-tenant isolation", func(t *testing.T) {
+		otherTenantID, otherCtx := newOverlapTenant(t, db, 590000)
+		other := createTyped(otherCtx, otherTenantID, "ByType-Fremd", scheduleModels.PeriodTypeSemester, true)
+
+		got, err := repo.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeSemester, queryStart, queryEnd, 0)
+		require.NoError(t, err)
+		assert.NotContains(t, idsOf(got), other.ID)
+
+		gotOther, err := repo.FindActiveOverlappingByType(otherCtx, scheduleModels.PeriodTypeSemester, queryStart, queryEnd, 0)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{other.ID}, idsOf(gotOther))
+	})
+}
+
+func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	repo := scheduleRepo.NewCalendarPeriodRepository(db)
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, db.Close())
+
+	usage, err := repo.UsageCounts(ctx)
+
+	require.Error(t, err)
+	assert.Nil(t, usage)
+	assert.Contains(t, err.Error(), "usage counts")
+}
+
 func TestCalendarPeriodRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

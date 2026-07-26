@@ -24,7 +24,12 @@ const LOCATION_COLORS: Record<string, LocationColorConfig> = {
 };
 
 // Absence types all share the same gray styling
-const ABSENCE_LOCATIONS = new Set(["Krank", "Urlaub", "Fortbildung"]);
+const ABSENCE_LOCATIONS = new Set([
+  "Krank",
+  "Urlaub",
+  "Fortbildung",
+  "Freizeitausgleich",
+]);
 const ABSENCE_COLOR: LocationColorConfig = [
   "from-gray-50/80 to-slate-100/80",
   "#6B7280",
@@ -54,7 +59,7 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
     return buildLocationStatus(location, directMatch);
   }
 
-  // Absence types (Krank, Urlaub, Fortbildung) get gray styling
+  // Absence types get gray styling.
   if (ABSENCE_LOCATIONS.has(location)) {
     return buildLocationStatus(location, ABSENCE_COLOR);
   }
@@ -141,3 +146,14 @@ export function sortStaff(staff: Staff[]): Staff[] {
     return a.lastName.localeCompare(b.lastName, "de");
   });
 }
+
+/**
+ * Employment types as stored by the backend (users.staff.employment_type).
+ * Shared by the staff detail header and the Zeitkonten filter on /staff so
+ * both spell the German labels the same way.
+ */
+export const employmentTypeLabels: Record<string, string> = {
+  full_time: "Vollzeit",
+  part_time: "Teilzeit",
+  minijob: "Minijob",
+};

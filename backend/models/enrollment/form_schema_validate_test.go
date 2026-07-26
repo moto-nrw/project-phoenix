@@ -106,6 +106,26 @@ func TestFormSchema_Validate_AcceptsLegalBlocks(t *testing.T) {
 	require.NoError(t, s.Validate())
 }
 
+func TestFormSchema_Validate_AcceptsAGBPDFLegalBlock(t *testing.T) {
+	s := validSchema()
+	s.LegalBlocks = []FormLegalBlock{
+		{
+			Key:         ConsentKeyAGB,
+			Kind:        LegalBlockKindTerms,
+			Title:       "AGB / Teilnahmebedingungen",
+			Label:       "Ich akzeptiere die AGB.",
+			Required:    true,
+			Enabled:     true,
+			Source:      LegalBlockSourceStandard,
+			DisplayMode: LegalBlockDisplayModePDF,
+			DocumentURL: "/uploads/enrollment-legal-documents/1_terms.pdf",
+		},
+	}
+
+	require.NoError(t, s.Validate())
+	assert.Equal(t, LegalBlockDisplayModePDF, s.LegalBlocks[0].DisplayMode)
+}
+
 func TestFormSchema_Validate_AcceptsDisabledDataProcessingWithEnabledBlocks(t *testing.T) {
 	// Deliberately supported: pilot schools without a standalone
 	// Datenschutzinformation run their consent via the Elternbrief/AGB
@@ -206,6 +226,16 @@ func TestFormSchema_Validate_RejectsInvalidLegalBlockShape(t *testing.T) {
 			block: FormLegalBlock{Key: "custom_notice", Kind: LegalBlockKindNotice, Title: "T", Label: "L", Required: true, Enabled: true},
 			want:  "cannot be required",
 		},
+		{
+			name:  "pdf mode only allowed for agb",
+			block: FormLegalBlock{Key: ConsentKeyPhoto, Kind: LegalBlockKindConsent, Title: "T", Label: "L", Enabled: true, Source: LegalBlockSourceStandard, DisplayMode: LegalBlockDisplayModePDF, DocumentURL: "/uploads/enrollment-legal-documents/1_terms.pdf"},
+			want:  "cannot use PDF display mode",
+		},
+		{
+			name:  "enabled pdf mode needs document",
+			block: FormLegalBlock{Key: ConsentKeyAGB, Kind: LegalBlockKindTerms, Title: "T", Label: "L", Enabled: true, Source: LegalBlockSourceStandard, DisplayMode: LegalBlockDisplayModePDF},
+			want:  "requires a PDF document",
+		},
 	}
 
 	for _, tt := range tests {
@@ -278,6 +308,44 @@ func TestFormSchema_Validate_RejectsDuplicateKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "allergies")
 }
 
+func TestFormSchema_Validate_RejectsDuplicateReservedTarget(t *testing.T) {
+	// Two fields pointing at the same Stammdaten target produce an undefined
+	// last-field-wins outcome on approval — the departure plan can silently
+	// collapse back into self-goer semantics (#1694), so the schema is rejected.
+	s := validSchema()
+	s.Fields = []FormField{
+		{Key: "heimweg_a", Label: "Erlaubte Heimwege", Type: FormFieldWeekdayMultiMode, Target: TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 0},
+		{Key: "heimweg_b", Label: "Heimwege (Kopie)", Type: FormFieldWeekdayMultiMode, Target: TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 1},
+	}
+	err := s.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate field target")
+	assert.Contains(t, err.Error(), TargetStudentAllowedDepartureModes)
+	assert.Contains(t, err.Error(), "heimweg_a")
+	assert.Contains(t, err.Error(), "heimweg_b")
+}
+
+func TestFormSchema_Validate_AllowsRepeatedEmptyTarget(t *testing.T) {
+	// Free custom fields have no target and may repeat freely.
+	s := validSchema()
+	s.Fields = []FormField{
+		{Key: "allergies", Label: "Allergien", Type: FormFieldText, SortOrder: 0},
+		{Key: "diet", Label: "Diät", Type: FormFieldText, SortOrder: 1},
+	}
+	assert.NoError(t, s.Validate())
+}
+
+func TestFormSchema_Validate_AllowsDistinctLegacyDepartureTargets(t *testing.T) {
+	// The legacy split — Buskind and Abholregelung — are DIFFERENT targets and
+	// legitimately coexist; only the same target twice is rejected.
+	s := validSchema()
+	s.Fields = []FormField{
+		{Key: "bus", Label: "Buskind", Type: FormFieldWeekdayBoolean, Target: TargetStudentBus, AppliesToCh: true, SortOrder: 0},
+		{Key: "abhol", Label: "Abholregelung", Type: FormFieldWeekdayBoolean, Target: TargetStudentPickupStatus, AppliesToCh: true, SortOrder: 1},
+	}
+	assert.NoError(t, s.Validate())
+}
+
 func TestFormSchema_Validate_PropagatesFieldErrorWithIndex(t *testing.T) {
 	// One bad field should fail validation with the offending index in
 	// the error so the admin can find it in the editor list.
@@ -299,9 +367,4 @@ func TestFormSchema_Validate_AcceptsMultipleDistinctFields(t *testing.T) {
 		{Key: "notes", Label: "Notizen", Type: FormFieldTextarea, SortOrder: 2},
 	}
 	assert.NoError(t, s.Validate())
-}
-
-func TestFormSchema_TableName(t *testing.T) {
-	s := &FormSchema{}
-	assert.Equal(t, "enrollment.form_schemas", s.TableName())
 }

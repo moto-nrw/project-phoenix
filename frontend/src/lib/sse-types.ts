@@ -8,20 +8,65 @@ type SSEEventType =
   // instead of one student_checkout per student — see backend issue #848.
   | "bulk_student_checkout"
   | "student_updated"
+  // Tenant-wide signal that a child's Laufgemeinschaft ("läuft mit",
+  // users.student_companions) may have changed: a submitted companion list, or
+  // a departure-plan write, which trims the links on a weekday the new plan no
+  // longer allows. Separate from student_updated because the links are
+  // symmetric and the editing forms hold a draft — reacting to every student
+  // write would discard or block an edit for a rename or a photo upload. See
+  // backend/realtime/events.go EventStudentCompanionsChanged.
+  | "student_companions_changed"
   | "activity_start"
   | "activity_end"
   | "activity_update"
   | "active_supervision_changed"
   | "dashboard_counts_changed"
+  // Tenant-wide, identifier-free trigger emitted after staff work-session
+  // writes commit. Time-account and school-overview caches refetch on it.
+  | "staff_time_tracking_changed"
   | "arrival_schedule_changed"
+  // Pickup-side counterpart of arrival_schedule_changed: a staff write changed
+  // a child's weekly Gehzeit plan or a date-specific pickup exception. Its own
+  // event so only the pickup-derived caches refetch (per-child Betreuungsplan,
+  // student lists, student detail) — those disable focus revalidation, so
+  // before it existed a staff pickup write stayed invisible in every other open
+  // tab. See backend/realtime/events.go EventPickupScheduleChanged.
+  | "pickup_schedule_changed"
   | "tenant_settings_changed"
+  // Tenant-wide staff signal that a parent change-request queue changed (a
+  // request was created/decided/withdrawn). Staff review lists + the pending-count
+  // badge refetch on it, so an open review page updates live without depending on
+  // the parent-messaging pill. Fires only on request transitions. See
+  // backend/realtime/events.go EventChangeRequestsChanged.
+  | "change_requests_changed"
   // Timetable instance lifecycle events emitted by the backend (WP-B9).
   // The weekly planner subscribes to these so admin and office staff see
   // live status changes (start/complete/cancel) without manual refresh.
   | "instance_started"
   | "instance_completed"
   | "instance_cancelled"
-  | "instance_overdue";
+  | "instance_overdue"
+  // Tenant-wide signal that Vertretungsplan staffing state changed on an
+  // instance — absence set/cleared, substitute assigned, understaffed
+  // acknowledgement toggled. These writes emit no instance_* lifecycle event
+  // (planned blocks change no status; active blocks only get a group-scoped
+  // activity_update), so timetable + own-assignment caches refetch on this
+  // instead. See backend/realtime/events.go EventStaffingDeviationChanged.
+  | "staffing_deviation_changed"
+  // Parent-OGS messaging: a parent sent a message or staff replied. A trigger
+  // for the staff inbox / child thread / parent thread to refetch and update
+  // the unread badge. See backend/realtime/events.go EventParentMessage.
+  | "parent_message"
+  // Parent-OGS messaging: the COUNTERPART read the conversation. A trigger for an
+  // open chat to refresh its "Gelesen" receipts only — no new message, no unread
+  // badge change. See backend/realtime/events.go EventParentMessageRead.
+  | "parent_message_read"
+  // Message-INDEPENDENT invalidation delivered to every guardian of a child so an
+  // open parents-app tab refetches that child's care state (e.g. after an excused
+  // request is created/decided/withdrawn), regardless of parent messaging being on.
+  // Carries only student_id; must NOT touch any unread badge or thread list. See
+  // backend/realtime/events.go EventParentChildUpdated.
+  | "parent_child_updated";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
@@ -56,6 +101,11 @@ interface SSEEventData {
 
   // Reason tracking for generic refresh events.
   reason?: string;
+
+  // Parent-messaging field (parent_message events). With student_id, lets an
+  // open chat/conversation skip refetching when the event is about a different
+  // thread/child.
+  thread_id?: string;
 }
 
 export interface SSEEvent {

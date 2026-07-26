@@ -9,6 +9,7 @@ import (
 
 // int64Ptr returns a pointer to the given int64 value.
 func int64Ptr(v int64) *int64 { return &v }
+func intPtr(v int) *int       { return &v }
 
 func TestGroupValidate(t *testing.T) {
 	tests := []struct {
@@ -83,6 +84,42 @@ func TestGroupValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Negative required staff override (#1839)",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       int64Ptr(1),
+				RequiredStaff:   intPtr(-1),
+			},
+			wantErr: true,
+		},
+		{
+			name: "Zero required staff override is valid (#1839)",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       int64Ptr(1),
+				RequiredStaff:   intPtr(0),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Nil required staff override is valid (derive) (#1839)",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       int64Ptr(1),
+				RequiredStaff:   nil,
+			},
+			wantErr: false,
+		},
+		{
 			name: "Missing category ID",
 			group: &Group{
 				Name:            "Test Group",
@@ -155,31 +192,6 @@ func TestGroupHasAvailableSpots(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGroup_TableName(t *testing.T) {
-	group := &Group{}
-	if got := group.TableName(); got != "activities.groups" {
-		t.Errorf("TableName() = %v, want activities.groups", got)
-	}
-}
-
-func TestGroup_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		group := &Group{Name: "Test", CategoryID: 1, MaxParticipants: 10}
-		err := group.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		group := &Group{Name: "Test", CategoryID: 1, MaxParticipants: 10}
-		err := group.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
 }
 
 func TestGroup_GetID(t *testing.T) {
@@ -393,5 +405,230 @@ func TestGroup_IsSupervisedBy(t *testing.T) {
 				t.Errorf("Group.IsSupervisedBy() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// int16Ptr returns a pointer to the given int16 value.
+func int16Ptr(v int16) *int16 { return &v }
+
+// stringPtr returns a pointer to the given string value.
+func stringPtr(v string) *string { return &v }
+
+func baseValidGroup() *Group {
+	return &Group{
+		Name:            "Test Group",
+		MaxParticipants: 10,
+		CategoryID:      1,
+	}
+}
+
+func TestGroupValidate_TargetGroup(t *testing.T) {
+	tests := []struct {
+		name    string
+		group   func() *Group
+		wantErr bool
+	}{
+		{
+			name: "Zero-value TargetGroupType (empty string) is valid - predates this field",
+			group: func() *Group {
+				return baseValidGroup()
+			},
+			wantErr: false,
+		},
+		{
+			name: "Explicit none with no value fields is valid",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeNone
+				return g
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid target group type is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = "not-a-real-type"
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Jahrgang with grade level is valid",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeJahrgang
+				g.TargetGradeLevel = int16Ptr(3)
+				return g
+			},
+			wantErr: false,
+		},
+		{
+			name: "Jahrgang without grade level is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeJahrgang
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Jahrgang with non-positive grade is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeJahrgang
+				g.TargetGradeLevel = int16Ptr(0)
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Jahrgang above supported grade 13 is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeJahrgang
+				g.TargetGradeLevel = int16Ptr(14)
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Jahrgang with school class set is rejected (cross-field)",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeJahrgang
+				g.TargetGradeLevel = int16Ptr(3)
+				g.TargetSchoolClass = stringPtr("3a")
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Klasse with school class is valid",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeKlasse
+				g.TargetSchoolClass = stringPtr("3a")
+				return g
+			},
+			wantErr: false,
+		},
+		{
+			name: "Klasse without school class is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeKlasse
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Klasse with empty-string school class is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeKlasse
+				g.TargetSchoolClass = stringPtr("")
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Klasse with whitespace-only school class is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeKlasse
+				g.TargetSchoolClass = stringPtr(" \t ")
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Gruppe with education_group_id is valid",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeGruppe
+				g.EducationGroupID = int64Ptr(7)
+				return g
+			},
+			wantErr: false,
+		},
+		{
+			name: "Gruppe without education_group_id is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeGruppe
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Angebot with no value fields is valid",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeAngebot
+				return g
+			},
+			wantErr: false,
+		},
+		{
+			name: "Angebot with a grade level set is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeAngebot
+				g.TargetGradeLevel = int16Ptr(2)
+				return g
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.group().Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Group.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestIsValidTargetGroupType(t *testing.T) {
+	valid := []string{"", TargetGroupTypeJahrgang, TargetGroupTypeKlasse, TargetGroupTypeGruppe, TargetGroupTypeAngebot, TargetGroupTypeNone}
+	for _, v := range valid {
+		if !IsValidTargetGroupType(v) {
+			t.Errorf("IsValidTargetGroupType(%q) = false, want true", v)
+		}
+	}
+
+	invalid := []string{"jahrgangg", "KLASSE", "unknown"}
+	for _, v := range invalid {
+		if IsValidTargetGroupType(v) {
+			t.Errorf("IsValidTargetGroupType(%q) = true, want false", v)
+		}
+	}
+}
+
+func TestGroupValidateTargetGroup_TrimsSchoolClass(t *testing.T) {
+	class := "  Klasse 3a  "
+	group := baseValidGroup()
+	group.TargetGroupType = TargetGroupTypeKlasse
+	group.TargetSchoolClass = &class
+
+	if err := group.ValidateTargetGroup(); err != nil {
+		t.Fatalf("ValidateTargetGroup() unexpected error: %v", err)
+	}
+	if got := *group.TargetSchoolClass; got != "Klasse 3a" {
+		t.Fatalf("TargetSchoolClass = %q, want trimmed class", got)
+	}
+}
+
+func TestGroupValidateTargetGroup_CanonicalizesEmptyType(t *testing.T) {
+	group := baseValidGroup()
+
+	if err := group.ValidateTargetGroup(); err != nil {
+		t.Fatalf("ValidateTargetGroup() unexpected error: %v", err)
+	}
+	if group.TargetGroupType != TargetGroupTypeNone {
+		t.Fatalf("TargetGroupType = %q, want %q", group.TargetGroupType, TargetGroupTypeNone)
 	}
 }

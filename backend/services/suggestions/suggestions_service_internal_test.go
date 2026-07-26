@@ -37,10 +37,7 @@ func TestTruncateRunes_ReturnsOriginalWhenWithinLimit(t *testing.T) {
 }
 
 func TestNotifyNewPost_NoDispatcherDoesNothing(t *testing.T) {
-	svc := &suggestionsService{
-		notifyEmails: []string{"ops@example.com"},
-		frontendURL:  "https://frontend.test",
-	}
+	svc := &suggestionsService{ServiceConfig: ServiceConfig{FrontendURL: "https://frontend.test"}, notifyEmails: []string{"ops@example.com"}}
 
 	assert.NotPanics(t, func() {
 		svc.notifyNewPost(&modelSuggestions.Post{
@@ -64,10 +61,7 @@ func TestNotifyNewPost_NoRecipientsDoesNothing(t *testing.T) {
 }
 
 func TestNotifyNewComment_NoDispatcherDoesNothing(t *testing.T) {
-	svc := &suggestionsService{
-		notifyEmails: []string{"ops@example.com"},
-		frontendURL:  "https://frontend.test",
-	}
+	svc := &suggestionsService{ServiceConfig: ServiceConfig{FrontendURL: "https://frontend.test"}, notifyEmails: []string{"ops@example.com"}}
 
 	assert.NotPanics(t, func() {
 		svc.notifyNewComment(

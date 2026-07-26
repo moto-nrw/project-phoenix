@@ -4,11 +4,8 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
-	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // ErrGuardianProfileNotFound is returned by repositories when no guardian
@@ -56,24 +53,9 @@ type GuardianProfile struct {
 	Notes *string `bun:"notes" json:"notes,omitempty"` // Staff/admin notes
 
 	// Relations (not stored in database)
-	Account      *auth.AccountParent    `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	// Account links to auth.accounts (FK repointed from the deprecated
+	// auth.accounts_parents table by migration 1.15.57).
 	PhoneNumbers []*GuardianPhoneNumber `bun:"rel:has-many,join:id=guardian_profile_id" json:"phone_numbers,omitempty"`
-}
-
-// BeforeAppendModel sets the correct table expression
-func (g *GuardianProfile) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (g *GuardianProfile) TableName() string {
-	return "users.guardian_profiles"
 }
 
 // Validate ensures guardian data is valid
@@ -135,7 +117,7 @@ func (g *GuardianProfile) GetPreferredContact() string {
 	if primary := g.GetPrimaryPhone(); primary != "" {
 		return primary
 	}
-	return ptrString(g.Email)
+	return base.Deref(g.Email)
 }
 
 // GetPrimaryPhone returns the primary phone number from PhoneNumbers relation
@@ -167,7 +149,7 @@ func (g *GuardianProfile) GetPhoneByType(phoneType PhoneType) string {
 func (g *GuardianProfile) getContactByMethod(method string) string {
 	switch method {
 	case "email":
-		return ptrString(g.Email)
+		return base.Deref(g.Email)
 	case "mobile", "sms":
 		return g.GetPhoneByType(PhoneTypeMobile)
 	case "phone":
@@ -175,14 +157,6 @@ func (g *GuardianProfile) getContactByMethod(method string) string {
 	default:
 		return ""
 	}
-}
-
-// ptrString safely dereferences a string pointer, returning empty string if nil
-func ptrString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 // CanInvite checks if guardian can be invited to create an account
@@ -196,17 +170,16 @@ func (g *GuardianProfile) HasEmail() bool {
 	return g.Email != nil && *g.Email != ""
 }
 
-// GetID returns the entity's ID
-func (g *GuardianProfile) GetID() interface{} {
-	return g.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (g *GuardianProfile) GetCreatedAt() time.Time {
-	return g.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (g *GuardianProfile) GetUpdatedAt() time.Time {
-	return g.UpdatedAt
+// HasPortalAccount reports whether the guardian is backed by a portal account.
+// It is true when EITHER has_account is set OR account_id is present. The two
+// columns are expected to stay in sync (linking an account sets both, unlinking
+// clears both — see the repository's LinkAccount/UnlinkAccount), but nothing in
+// the schema enforces that invariant, so this derives from both and fails safe.
+// Authorization guards that protect an account holder's data (their contact
+// fields and their pickup/emergency authority) MUST use this rather than the raw
+// HasAccount flag: on a drifted row (account_id set, has_account=false) the raw
+// flag would wrongly treat the guardian as account-less and let another parent
+// edit their data, while isSelf already keys off account_id (#1667 review).
+func (g *GuardianProfile) HasPortalAccount() bool {
+	return g.HasAccount || g.AccountID != nil
 }

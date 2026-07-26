@@ -2,8 +2,9 @@
  * Tests for ActivityManagementModal Component
  * Tests the rendering, update functionality, and error message handling
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import {
   ActivityManagementModal,
   getDeleteErrorMessage,
@@ -82,11 +83,6 @@ describe("getDeleteErrorMessage", () => {
 // =============================================================================
 
 // Mock all dependencies
-vi.mock("react-dom", async () => ({
-  ...(await vi.importActual("react-dom")),
-  createPortal: (children: React.ReactNode) => children,
-}));
-
 vi.mock("~/lib/activity-api", () => ({
   updateActivity: vi.fn(),
   deleteActivity: vi.fn(),
@@ -97,22 +93,6 @@ vi.mock("~/lib/use-notification", () => ({
     (operation: string, entity: string, name: string) =>
       `${operation} ${entity} ${name}`,
   ),
-}));
-
-vi.mock("~/hooks/useScrollLock", () => ({
-  useScrollLock: vi.fn(),
-}));
-
-vi.mock("~/hooks/useModalAnimation", () => ({
-  useModalAnimation: vi.fn((isOpen: boolean, onClose: () => void) => ({
-    isAnimating: true,
-    isExiting: false,
-    handleClose: onClose,
-  })),
-}));
-
-vi.mock("~/hooks/useModalBlurEffect", () => ({
-  useModalBlurEffect: vi.fn(),
 }));
 
 vi.mock("~/hooks/useActivityForm", () => ({
@@ -135,24 +115,60 @@ vi.mock("~/hooks/useActivityForm", () => ({
   })),
 }));
 
-vi.mock("~/components/ui/modal-utils", () => ({
-  scrollableContentClassName: "scrollable-content",
-  getContentAnimationClassName: vi.fn(() => "animated-content"),
-  renderModalCloseButton: vi.fn(({ onClose }: { onClose: () => void }) => (
-    <button onClick={onClose} data-testid="close-button">
-      Close
-    </button>
-  )),
-  renderModalLoadingSpinner: vi.fn(() => (
-    <div data-testid="loading-spinner">Loading...</div>
-  )),
-  renderModalErrorAlert: vi.fn(({ message }: { message: string }) => (
-    <div data-testid="error-alert">{message}</div>
-  )),
-  renderButtonSpinner: vi.fn(() => <span data-testid="button-spinner" />),
+vi.mock("~/lib/api-error-message", () => ({
   getApiErrorMessage: vi.fn((_err: unknown) => "Error message"),
-  ModalWrapper: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="modal-wrapper">{children}</div>
+}));
+
+vi.mock("~/components/ui/form-modal", () => ({
+  FormModal: ({
+    isOpen,
+    title,
+    children,
+    footer,
+  }: {
+    isOpen: boolean;
+    title: string;
+    children: ReactNode;
+    footer?: ReactNode;
+  }) =>
+    isOpen ? (
+      <div data-testid="form-modal">
+        <h2>{title}</h2>
+        {children}
+        {footer && <div>{footer}</div>}
+      </div>
+    ) : null,
+}));
+
+vi.mock("~/components/ui/alert", () => ({
+  Alert: ({ type, message }: { type: string; message: string }) => (
+    <div role="alert" data-type={type}>
+      {message}
+    </div>
+  ),
+}));
+
+type MockButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  readonly variant?: string;
+  readonly size?: string;
+};
+
+vi.mock("~/components/ui/button", () => ({
+  Button: ({
+    children,
+    variant: _variant,
+    size: _size,
+    ...props
+  }: MockButtonProps) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock("~/components/ui/icons", () => ({
+  SpinnerIcon: () => (
+    <span data-testid="button-spinner" aria-label="Wird geladen" />
   ),
 }));
 
@@ -191,7 +207,7 @@ describe("ActivityManagementModal", () => {
       />,
     );
 
-    expect(screen.getByTestId("modal-wrapper")).toBeInTheDocument();
+    expect(screen.getByTestId("form-modal")).toBeInTheDocument();
   });
 
   it("displays activity name in header", async () => {
@@ -298,10 +314,39 @@ describe("ActivityManagementModal", () => {
       />,
     );
 
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+
     await waitFor(() => {
-      expect(screen.getByText("Category 1")).toBeInTheDocument();
-      expect(screen.getByText("Category 2")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Category 1" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Category 2" }),
+      ).toBeInTheDocument();
     });
+  });
+
+  it("does not clip the open category menu with an overflow-hidden ancestor", async () => {
+    render(
+      <ActivityManagementModal
+        isOpen={true}
+        onClose={mockOnClose}
+        activity={mockActivity}
+      />,
+    );
+
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+
+    const listbox = await screen.findByRole("listbox");
+    for (
+      let node = listbox.parentElement;
+      node && node !== document.body;
+      node = node.parentElement
+    ) {
+      expect(node.className).not.toMatch(/(?:^|\s)overflow-hidden(?:\s|$)/);
+    }
   });
 
   it("disables inputs when read-only", () => {

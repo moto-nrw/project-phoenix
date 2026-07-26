@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Modal } from "./modal";
-import { Input, Alert } from "./index";
+import { Alert } from "./alert";
+import { Input } from "./input";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
@@ -12,7 +13,44 @@ const logger = createLogger({ component: "PasswordReset" });
 interface PasswordResetModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
+  readonly onRequestReset?: (email: string) => Promise<{ message: string }>;
+  readonly rateLimitStorageKey?: string;
+  readonly copy?: PasswordResetModalCopy;
 }
+
+interface PasswordResetModalCopy {
+  readonly title: string;
+  readonly description: string;
+  readonly emailLabel: string;
+  readonly cancel: string;
+  readonly submit: string;
+  readonly submitting: string;
+  readonly successTitle: string;
+  readonly successMessage: string;
+  readonly successHint: string;
+  readonly close: string;
+  readonly rateLimitError: (countdown: string) => string;
+  readonly genericError: string;
+}
+
+const DEFAULT_PASSWORD_RESET_MODAL_COPY: PasswordResetModalCopy = {
+  title: "Passwort zurücksetzen",
+  description:
+    "Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.",
+  emailLabel: "E-Mail-Adresse",
+  cancel: "Abbrechen",
+  submit: "Link senden",
+  submitting: "Wird gesendet...",
+  successTitle: "E-Mail versendet!",
+  successMessage:
+    "Wir haben Ihnen eine E-Mail mit einem Link zum Zurücksetzen Ihres Passworts gesendet.",
+  successHint:
+    "Bitte überprüfen Sie Ihren Posteingang und folgen Sie den Anweisungen in der E-Mail.",
+  close: "Schließen",
+  rateLimitError: (countdown) =>
+    `Zu viele Versuche. Bitte versuche es erneut in ${countdown}.`,
+  genericError: "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+};
 
 // Email Icon Component
 const EmailIcon = ({ className }: { className?: string }) => (
@@ -61,6 +99,9 @@ const formatCountdown = (totalSeconds: number): string => {
 export function PasswordResetModal({
   isOpen,
   onClose,
+  onRequestReset = requestPasswordReset,
+  rateLimitStorageKey = "passwordResetRateLimitUntil",
+  copy = DEFAULT_PASSWORD_RESET_MODAL_COPY,
 }: PasswordResetModalProps) {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -70,20 +111,18 @@ export function PasswordResetModal({
   const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
 
-  const RATE_LIMIT_STORAGE_KEY = "passwordResetRateLimitUntil";
-
   useEffect(() => {
     if (typeof globalThis === "undefined") return;
-    const stored = globalThis.localStorage.getItem(RATE_LIMIT_STORAGE_KEY);
+    const stored = globalThis.localStorage.getItem(rateLimitStorageKey);
     if (!stored) return;
 
     const timestamp = Number(stored);
     if (!Number.isNaN(timestamp) && timestamp > Date.now()) {
       setRateLimitUntil(timestamp);
     } else if (!Number.isNaN(timestamp)) {
-      globalThis.localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
+      globalThis.localStorage.removeItem(rateLimitStorageKey);
     }
-  }, []);
+  }, [rateLimitStorageKey]);
 
   useEffect(() => {
     if (!rateLimitUntil) {
@@ -97,22 +136,20 @@ export function PasswordResetModal({
         setRateLimitUntil(null);
         setSecondsRemaining(0);
         if (typeof globalThis !== "undefined") {
-          globalThis.localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
+          globalThis.localStorage.removeItem(rateLimitStorageKey);
         }
         setError("");
       } else {
         const diffSeconds = Math.ceil((rateLimitUntil - now) / 1000);
         setSecondsRemaining(diffSeconds);
-        setError(
-          `Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(diffSeconds)}.`,
-        );
+        setError(copy.rateLimitError(formatCountdown(diffSeconds)));
       }
     };
 
     updateCountdown();
     const intervalId = globalThis.setInterval(updateCountdown, 1000);
     return () => globalThis.clearInterval(intervalId);
-  }, [rateLimitUntil]);
+  }, [copy, rateLimitStorageKey, rateLimitUntil]);
 
   const rateLimitActive =
     rateLimitUntil !== null && rateLimitUntil > Date.now();
@@ -130,7 +167,7 @@ export function PasswordResetModal({
     e.preventDefault();
     if (rateLimitActive) {
       setError(
-        `Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(Math.max(secondsRemaining, 0))}.`,
+        copy.rateLimitError(formatCountdown(Math.max(secondsRemaining, 0))),
       );
       return;
     }
@@ -139,7 +176,7 @@ export function PasswordResetModal({
     setError("");
 
     try {
-      await requestPasswordReset(email);
+      await onRequestReset(email);
       setIsSuccess(true);
     } catch (err) {
       const apiError = err as ApiError | undefined;
@@ -156,22 +193,18 @@ export function PasswordResetModal({
         setRateLimitUntil(retryUntil);
         setSecondsRemaining(retrySeconds);
         if (typeof globalThis !== "undefined") {
+          // This is a numeric rate-limit expiry, not an authentication token.
           globalThis.localStorage.setItem(
-            RATE_LIMIT_STORAGE_KEY,
+            rateLimitStorageKey,
             retryUntil.toString(),
           );
         }
-        setError(
-          `Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(retrySeconds)}.`,
-        );
+        setError(copy.rateLimitError(formatCountdown(retrySeconds)));
       } else {
         logger.error("password_reset_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        const errorMessage =
-          apiError?.message ??
-          "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
-        setError(errorMessage);
+        setError(copy.genericError);
       }
     } finally {
       setIsLoading(false);
@@ -186,22 +219,17 @@ export function PasswordResetModal({
             {/* Success State */}
             <CheckIcon className="mx-auto mb-4 h-12 w-12 text-[#83cd2d]" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
-              E-Mail versendet!
+              {copy.successTitle}
             </h1>
-            <p className="mt-4 text-gray-600">
-              Wir haben Ihnen eine E-Mail mit einem Link zum Zurücksetzen Ihres
-              Passworts gesendet.
-            </p>
-            <p className="mt-2 text-sm text-gray-500">
-              Bitte überprüfen Sie Ihren Posteingang und folgen Sie den
-              Anweisungen in der E-Mail.
-            </p>
+            <p className="mt-4 text-gray-600">{copy.successMessage}</p>
+            <p className="mt-2 text-sm text-gray-500">{copy.successHint}</p>
             <div className="mt-6">
               <button
+                type="button"
                 onClick={handleClose}
                 className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none"
               >
-                <span>Schließen</span>
+                <span>{copy.close}</span>
               </button>
             </div>
           </>
@@ -210,12 +238,9 @@ export function PasswordResetModal({
             {/* Request Form State */}
             <EmailIcon className="mx-auto mb-4 h-12 w-12 text-gray-700" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
-              Passwort zurücksetzen
+              {copy.title}
             </h1>
-            <p className="mt-4 text-gray-600">
-              Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link
-              zum Zurücksetzen Ihres Passworts.
-            </p>
+            <p className="mt-4 text-gray-600">{copy.description}</p>
 
             <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
               {error && (
@@ -229,7 +254,7 @@ export function PasswordResetModal({
                   htmlFor="reset-email"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  E-Mail-Adresse
+                  {copy.emailLabel}
                 </label>
                 <Input
                   id="reset-email"
@@ -252,7 +277,7 @@ export function PasswordResetModal({
                   disabled={isLoading}
                   className="inline-flex items-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Abbrechen
+                  {copy.cancel}
                 </button>
                 <button
                   type="submit"
@@ -281,10 +306,10 @@ export function PasswordResetModal({
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         ></path>
                       </svg>
-                      <span>Wird gesendet...</span>
+                      <span>{copy.submitting}</span>
                     </>
                   ) : (
-                    <span>Link senden</span>
+                    <span>{copy.submit}</span>
                   )}
                 </button>
               </div>

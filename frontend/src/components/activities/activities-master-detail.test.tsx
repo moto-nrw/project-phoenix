@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -27,10 +27,15 @@ vi.mock("~/components/ui/database/database-form", () => ({
         {nameField?.disabled ? (
           <span data-testid="name-disabled">{nameField.helperText}</span>
         ) : null}
-        <button onClick={() => void onSubmit({ name: "Updated Activity" })}>
+        <button
+          type="button"
+          onClick={() => void onSubmit({ name: "Updated Activity" })}
+        >
           Save
         </button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     );
   },

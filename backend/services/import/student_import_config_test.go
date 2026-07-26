@@ -5,10 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func futureBirthdayForTests() time.Time {
@@ -37,11 +42,39 @@ func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
 	assert.True(t, enrollmentStartsInFuture(&tomorrow))
 }
 
+func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermissions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	factory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "Import", "Guardian", "1a")
+	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
+
+	config := NewStudentImportConfig(StudentImportDeps{
+		GuardianRepo:      factory.GuardianProfile,
+		GuardianPhoneRepo: factory.GuardianPhoneNumber,
+		RelationRepo:      factory.StudentGuardian,
+	}, db)
+
+	err := config.createSingleGuardianRelationship(ctx, student.ID, importModels.GuardianImportData{
+		FirstName:        "Import",
+		LastName:         "Parent",
+		Email:            "import-parent@example.test",
+		RelationshipType: "Elternteil",
+	}, 1)
+	require.NoError(t, err)
+
+	relationships, err := factory.StudentGuardian.FindByStudentID(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, relationships, 1)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, relationships[0].GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(relationships[0], authorize.GuardianPermissionPortalAccess))
+}
+
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	tests := []struct {
@@ -120,10 +153,9 @@ func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	tests := []struct {
@@ -222,10 +254,9 @@ func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_EnrollmentDates(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	baseRow := func() importModels.StudentImportRow {
@@ -282,10 +313,9 @@ func TestStudentImportConfig_Validate_EnrollmentDates(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_ConsentDates(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	baseRow := func() importModels.StudentImportRow {
@@ -333,11 +363,68 @@ func TestStudentImportConfig_Validate_ConsentDates(t *testing.T) {
 	})
 }
 
+// TestStudentImportConfig_Validate_AccompaniedCompanionNote pins the import
+// preview gate for the accompanied departure mode (#1694): a row that sets any
+// Gehweise cell to "Mit anderem Kind" but leaves Begleitung blank must surface
+// a row error in the preview pass, before createStudentFromRow builds a student
+// the model rejects mid-import.
+func TestStudentImportConfig_Validate_AccompaniedCompanionNote(t *testing.T) {
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
+	}
+
+	hasBegleitungError := func(errs []importModels.ValidationError) bool {
+		for _, e := range errs {
+			if e.Field == "begleitung" && e.Severity == importModels.ErrorSeverityError {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("accompanied day without Begleitung is flagged", func(t *testing.T) {
+		row := importModels.StudentImportRow{
+			FirstName:         "Max",
+			LastName:          "Mustermann",
+			SchoolClass:       "1A",
+			DataRetentionDays: 30,
+			DepartureDays:     map[string]string{"mon": "accompanied"},
+		}
+		errs := config.Validate(context.Background(), &row)
+		assert.True(t, hasBegleitungError(errs), "expected a begleitung error, got %+v", errs)
+	})
+
+	t.Run("accompanied day with Begleitung passes", func(t *testing.T) {
+		row := importModels.StudentImportRow{
+			FirstName:              "Max",
+			LastName:               "Mustermann",
+			SchoolClass:            "1A",
+			DataRetentionDays:      30,
+			DepartureDays:          map[string]string{"mon": "accompanied"},
+			DepartureCompanionNote: "Geschwisterkind Lena",
+		}
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasBegleitungError(errs), "unexpected begleitung error: %+v", errs)
+	})
+
+	t.Run("non-accompanied plan needs no Begleitung", func(t *testing.T) {
+		row := importModels.StudentImportRow{
+			FirstName:         "Max",
+			LastName:          "Mustermann",
+			SchoolClass:       "1A",
+			DataRetentionDays: 30,
+			DepartureDays:     map[string]string{"mon": "bus"},
+		}
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasBegleitungError(errs), "unexpected begleitung error: %+v", errs)
+	})
+}
+
 func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	tests := []struct {
@@ -402,10 +489,9 @@ func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 	futureISO := futureBirthdayISOForTests()
 	futureGermanLong := futureBirthdayGermanLongForTests()
@@ -473,10 +559,9 @@ func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_ErrorSeverity(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	row := importModels.StudentImportRow{
@@ -636,10 +721,9 @@ func TestValidateGuardianLanguage(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_GuardianLanguageWarning(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	row := importModels.StudentImportRow{
@@ -674,10 +758,9 @@ func TestStudentImportConfig_Validate_GuardianLanguageWarning(t *testing.T) {
 // ============================================================================
 
 func TestStudentImportConfig_Validate_PickupSchedule(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	tests := []struct {
@@ -767,10 +850,9 @@ func TestStudentImportConfig_Validate_PickupSchedule(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_ArrivalSchedule(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	tests := []struct {
@@ -882,10 +964,9 @@ func TestGuardianLanguagePreference(t *testing.T) {
 // ============================================================================
 
 func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	row := importModels.StudentImportRow{
@@ -918,10 +999,9 @@ func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing
 }
 
 func TestStudentImportConfig_Validate_MultipleInvalidPickupSchedules(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	row := importModels.StudentImportRow{
@@ -956,10 +1036,9 @@ func TestStudentImportConfig_Validate_MultipleInvalidPickupSchedules(t *testing.
 }
 
 func TestStudentImportConfig_Validate_PickupScheduleEmptyListIsValid(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	row := importModels.StudentImportRow{
@@ -981,10 +1060,9 @@ func TestStudentImportConfig_Validate_PickupScheduleEmptyListIsValid(t *testing.
 }
 
 func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	t.Run("weekday error message contains weekday number", func(t *testing.T) {
@@ -1036,9 +1114,7 @@ func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) 
 // ============================================================================
 
 func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
-	config := &StudentImportConfig{
-		arrivalScheduleRepo: nil,
-	}
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{ArrivalScheduleRepo: nil}}
 
 	schedules := []importModels.ArrivalScheduleImportData{
 		{Weekday: 1, ExpectedArrival: "08:00"},
@@ -1049,9 +1125,7 @@ func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
 }
 
 func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T) {
-	config := &StudentImportConfig{
-		arrivalScheduleRepo: nil,
-	}
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{ArrivalScheduleRepo: nil}}
 
 	err := config.createArrivalSchedules(context.Background(), 123, nil)
 	assert.NoError(t, err)
@@ -1061,8 +1135,9 @@ func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T)
 }
 
 func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
-	config := &StudentImportConfig{
-		pickupScheduleRepo: nil, // No repo
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{
+		// No repo
+		PickupScheduleRepo: nil},
 	}
 
 	schedules := []importModels.PickupScheduleImportData{
@@ -1075,8 +1150,9 @@ func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
 }
 
 func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) {
-	config := &StudentImportConfig{
-		pickupScheduleRepo: nil, // Would panic if called, but shouldn't be
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{
+		// Would panic if called, but shouldn't be
+		PickupScheduleRepo: nil},
 	}
 
 	// Should return nil (no-op) when schedules is empty
@@ -1092,10 +1168,9 @@ func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) 
 // ============================================================================
 
 func TestStudentImportConfig_Validate_GuardianWithProfileFieldsStillValidatesContact(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	// Guardian has profile fields but NO contact info -> should still require contact
@@ -1134,10 +1209,9 @@ func TestStudentImportConfig_Validate_GuardianWithProfileFieldsStillValidatesCon
 // ============================================================================
 
 func TestStudentImportConfig_Validate_PickupScheduleBoundaryWeekdays(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	tests := []struct {
@@ -1187,10 +1261,9 @@ func TestStudentImportConfig_Validate_PickupScheduleBoundaryWeekdays(t *testing.
 }
 
 func TestStudentImportConfig_Validate_PickupTimeBoundaryValues(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
+		groupCache: make(map[string]*education.Group),
+	}},
 	}
 
 	tests := []struct {
@@ -1305,23 +1378,23 @@ func TestStudentImportConfig_EntityName(t *testing.T) {
 
 func TestStringPtr(t *testing.T) {
 	t.Run("returns pointer to string", func(t *testing.T) {
-		result := stringPtr("test")
+		result := strutil.TrimToNil("test")
 		assert.NotNil(t, result)
 		assert.Equal(t, "test", *result)
 	})
 
 	t.Run("returns nil for empty string", func(t *testing.T) {
-		result := stringPtr("")
+		result := strutil.TrimToNil("")
 		assert.Nil(t, result)
 	})
 
 	t.Run("returns nil for whitespace-only string", func(t *testing.T) {
-		result := stringPtr("   ")
+		result := strutil.TrimToNil("   ")
 		assert.Nil(t, result)
 	})
 
 	t.Run("trims whitespace", func(t *testing.T) {
-		result := stringPtr("  test  ")
+		result := strutil.TrimToNil("  test  ")
 		assert.NotNil(t, result)
 		assert.Equal(t, "test", *result)
 	})

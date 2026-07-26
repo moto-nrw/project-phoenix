@@ -4,15 +4,19 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
+
+// StaffPINAuthenticator verifies a staff-specific PIN inside the staff
+// member's tenant boundary. Device middleware uses this narrow interface to
+// bind kiosk attribution to a person without depending on the full auth API.
+type StaffPINAuthenticator interface {
+	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*userModels.Staff, error)
+}
 
 // AuthService defines the operations for authentication and user management
 type AuthService interface {
-	base.TransactionalService
-
 	// Existing methods
 	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
 	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
@@ -36,14 +40,11 @@ type AuthService interface {
 	LoginParent(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
 	LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error)
-	ValidateToken(ctx context.Context, token string) (*auth.Account, *jwt.AppClaims, error)
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
 	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
-	Logout(ctx context.Context, refreshToken string) error
 	LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error
 	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
 	GetAccountByID(ctx context.Context, id int) (*auth.Account, error)
-	GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error)
 	// VerifyAccountTenantMembership reports whether the account has a tenant
 	// mapping for the given school (issue #584 lookup; repository result
 	// returned verbatim).
@@ -52,7 +53,6 @@ type AuthService interface {
 	// Role Management
 	CreateRole(ctx context.Context, name, description string, baseRole *string) (*auth.Role, error)
 	GetRoleByID(ctx context.Context, id int) (*auth.Role, error)
-	GetRoleByName(ctx context.Context, name string) (*auth.Role, error)
 	UpdateRole(ctx context.Context, role *auth.Role) error
 	DeleteRole(ctx context.Context, id int) error
 	ListRoles(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error)
@@ -95,6 +95,7 @@ type AuthService interface {
 
 	// Password Reset
 	InitiatePasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error)
+	InitiateParentPasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error)
 	ResetPassword(ctx context.Context, token, newPassword string) error
 	CleanupExpiredRateLimits(ctx context.Context) (int, error)
 

@@ -1,12 +1,7 @@
 "use client";
 
-import useSWR from "swr";
-
-import {
-  SETTINGS_SCHEMA_SWR_KEY,
-  fetchSettingsSchema,
-  type ResolvedSetting,
-} from "~/lib/settings-api";
+import { getSettingValue } from "~/lib/settings-api";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 
 const DEFAULT_START_HOUR = 9;
 const DEFAULT_END_HOUR = 17;
@@ -20,35 +15,23 @@ function parseHour(value: unknown, fallback: number): number {
   return h;
 }
 
-function findSetting(
-  schema: Awaited<ReturnType<typeof fetchSettingsSchema>>,
-  key: string,
-): ResolvedSetting | undefined {
-  if (!schema) return undefined;
-  for (const tab of schema.tabs) {
-    for (const cat of tab.categories) {
-      for (const item of cat.items) {
-        if (item.key === key) return item;
-      }
-    }
-  }
-  return undefined;
-}
-
 export function useTimetableDayHours(): {
   dayStartHour: number;
   dayEndHour: number;
 } {
-  const { data } = useSWR(SETTINGS_SCHEMA_SWR_KEY, fetchSettingsSchema, {
+  const { data } = useSettingsSchema(true, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
 
-  const startSetting = findSetting(data ?? null, "timetable.day_start_time");
-  const endSetting = findSetting(data ?? null, "timetable.day_end_time");
-
-  const dayStartHour = parseHour(startSetting?.value, DEFAULT_START_HOUR);
-  const dayEndHourRaw = parseHour(endSetting?.value, DEFAULT_END_HOUR);
+  const dayStartHour = parseHour(
+    getSettingValue(data, "timetable.day_start_time"),
+    DEFAULT_START_HOUR,
+  );
+  const dayEndHourRaw = parseHour(
+    getSettingValue(data, "timetable.day_end_time"),
+    DEFAULT_END_HOUR,
+  );
 
   const dayEndHour =
     dayEndHourRaw <= dayStartHour ? DEFAULT_END_HOUR : dayEndHourRaw;

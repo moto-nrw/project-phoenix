@@ -21,9 +21,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Setup Go with cache
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -65,57 +65,18 @@ jobs:
           # mistaken for findings.
           DEADCODE_OUTPUT=$(go tool deadcode -test ./... 2>&1 | grep -v '^go: ' || true)
 
-          # Define exclusion patterns (false positives or planned-but-unwired code)
-          # cmd/root.go:Execute is the Cobra CLI entry point called by main()
-          # Multi-tenancy Phase 1 foundation primitives — wired in Phases 2-3
-          EXCLUSIONS=(
-            "cmd/root.go:.*Execute"
-            "tenant/context.go:.*IsOrgScope"
-            "tenant/context.go:.*NewContext"
-            "tenant/tx.go:.*WithAdminTx"
-            "database/repositories/base/helpers.go:.*AssertRowsAffected"
-            "database/repositories/base/tenant_db.go:.*GetDB"
-            "models/base/tenant.go:.*TenantModel"
-            "models/platform/organization.go:.*Organization"
-            "models/platform/school.go:.*School"
-            "models/auth/account_tenant.go:.*AccountTenant"
-            "test/fixtures.go:.*CreateTestOrganization"
-            "test/fixtures.go:.*CreateTestSchool"
-            "test/fixtures.go:.*CreateTestSchoolForOrg"
-            "test/fixtures.go:.*CreateTestAccountTenant"
-            "test/fixtures.go:.*CleanupTenantFixtures"
-          )
-
-          # Build grep exclusion pattern
-          EXCLUDE_PATTERN=""
-          for pattern in "${EXCLUSIONS[@]}"; do
-            if [[ -n "$EXCLUDE_PATTERN" ]]; then
-              EXCLUDE_PATTERN="$EXCLUDE_PATTERN|$pattern"
-            else
-              EXCLUDE_PATTERN="$pattern"
-            fi
-          done
-
-          # Filter out exclusions
-          if [[ -n "$EXCLUDE_PATTERN" ]]; then
-            FILTERED_OUTPUT=$(echo "$DEADCODE_OUTPUT" | grep -vE "$EXCLUDE_PATTERN" || true)
-          else
-            FILTERED_OUTPUT="$DEADCODE_OUTPUT"
-          fi
-
           # Check if any dead code remains
-          if [[ -n "$FILTERED_OUTPUT" ]]; then
+          if [[ -n "$DEADCODE_OUTPUT" ]]; then
             echo ""
             echo "❌ Dead code detected:"
             echo ""
-            echo "$FILTERED_OUTPUT" | while IFS= read -r line; do
+            echo "$DEADCODE_OUTPUT" | while IFS= read -r line; do
               if [[ -n "$line" ]]; then
                 echo "  $line"
               fi
             done
             echo ""
             echo "Please remove dead code or document why it should be kept."
-            echo "To add an exclusion, edit .github/workflows/lint.yml"
             exit 1
           else
             echo "No dead code detected"
@@ -146,15 +107,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Setup Go with cache
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
       - name: golang ci lint
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v6
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v6
         with:
           version: latest
           args: --timeout 10m
@@ -168,14 +129,21 @@ jobs:
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
       SKIP_ENV_VALIDATION: "true" # Skip validation during linting
+      # knip loads playwright.config.ts, which fail-fasts on its required E2E
+      # env vars at import time. Provide placeholders so static analysis can
+      # load the config (these are never used to run a real browser here).
+      API_URL: "http://localhost:8080"
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+      NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+      TENANT_DOMAIN: "localhost"
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Enable corepack
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: "24"
           cache: "pnpm"
@@ -192,6 +160,10 @@ jobs:
       - name: Run typecheck
         working-directory: frontend
         run: pnpm run typecheck
+
+      - name: Check frontend dependency graph
+        working-directory: frontend
+        run: pnpm depcruise
 
       - name: Check for unused code
         working-directory: frontend
@@ -214,6 +186,36 @@ jobs:
 
           echo "All npm dependency licenses are compatible"
 
+  frontend-react-doctor:
+    # Changed-scope only: the existing codebase has ~1000 findings, so a full
+    # scan would always fail. This gates only issues introduced by the PR
+    # (fails on error severity, warnings are advisory). Push builds skip it —
+    # there is no PR base to diff against.
+    if: ${{ inputs.run-frontend && github.event_name == 'pull_request' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: "24"
+
+      - name: React Doctor (new issues vs base)
+        working-directory: frontend
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          npx --ignore-scripts -y react-doctor@0.8.1 . --yes \
+            --scope changed \
+            --base "origin/$BASE_REF" \
+            --no-telemetry \
+            --no-supply-chain
+
   frontend-build:
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -223,13 +225,13 @@ jobs:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
       SKIP_ENV_VALIDATION: "true"
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Enable corepack
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: "24"
           cache: "pnpm"
@@ -242,3 +244,7 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
+
+      - name: Build Storybook
+        working-directory: frontend
+        run: pnpm run build-storybook

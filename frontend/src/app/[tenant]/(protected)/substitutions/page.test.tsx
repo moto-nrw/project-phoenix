@@ -5,7 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import SubstitutionsPage from "./page";
 
 // Hoist mocks
@@ -62,7 +62,7 @@ vi.mock("~/lib/substitution-api", () => ({
   },
 }));
 
-// Mock breadcrumb context (pages no longer use ResponsiveLayout)
+// Mock breadcrumb context used by the page header
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
   useBreadcrumb: vi.fn(() => ({ breadcrumb: {}, setBreadcrumb: vi.fn() })),
@@ -72,7 +72,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 // Mock PageHeaderWithSearch
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,
@@ -94,18 +94,24 @@ vi.mock("~/components/ui/page-header", () => ({
           onChange={(e) => search.onChange(e.target.value)}
         />
         <button
+          type="button"
           data-testid="filter-available"
           onClick={() => statusFilter?.onChange("available")}
         >
           Available
         </button>
         <button
+          type="button"
           data-testid="filter-substitution"
           onClick={() => statusFilter?.onChange("substitution")}
         >
           In Substitution
         </button>
-        <button data-testid="clear-filters" onClick={onClearAllFilters}>
+        <button
+          type="button"
+          data-testid="clear-filters"
+          onClick={onClearAllFilters}
+        >
           Clear
         </button>
       </div>
@@ -129,7 +135,7 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="assignment-modal" role="dialog">
         <h2>{title}</h2>
-        <button data-testid="modal-close" onClick={onClose}>
+        <button type="button" data-testid="modal-close" onClick={onClose}>
           Close
         </button>
         {children}
@@ -152,10 +158,10 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal" role="dialog">
         <h2>{title}</h2>
         {children}
-        <button data-testid="confirm-end" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-end" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-end" onClick={onClose}>
+        <button type="button" data-testid="cancel-end" onClick={onClose}>
           Cancel
         </button>
       </div>
@@ -180,6 +186,7 @@ import { useSession } from "next-auth/react";
 // eslint-disable-next-line no-restricted-imports -- test mock
 import { useRouter } from "next/navigation";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
+import { useOpenCareGroupMode } from "~/lib/tenant-context";
 
 // Test data
 const mockTeachers = [
@@ -300,6 +307,25 @@ describe("SubstitutionsPage", () => {
     } as never);
   });
 
+  describe("open-care gating (#1940)", () => {
+    afterEach(() => {
+      vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
+    });
+
+    it("shows the unavailable notice for open-care tenants", () => {
+      vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+
+      render(<SubstitutionsPage />);
+
+      expect(
+        screen.getByText("Gruppenzugriff nicht verfügbar"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Verfügbare pädagogische Fachkräfte"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("Loading and Error States", () => {
     it("shows loading state while session is loading", () => {
       vi.mocked(useSession).mockReturnValue({
@@ -389,7 +415,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(screen.getByText("Verfügbar")).toBeInTheDocument();
-      expect(screen.getByText(/Vertretung: Gruppe 1A/)).toBeInTheDocument();
+      expect(screen.getByText(/Zugriff: Gruppe 1A/)).toBeInTheDocument();
     });
 
     it("shows empty state when no teachers match filter", async () => {
@@ -511,10 +537,10 @@ describe("SubstitutionsPage", () => {
       expect(screen.getByText("Tagesübergaben")).toBeInTheDocument();
     });
 
-    it("displays active substitutions (Vertretungen) section", () => {
+    it("displays active substitutions (längerfristige Zugriffe) section", () => {
       render(<SubstitutionsPage />);
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Längerfristige Zugriffe")).toBeInTheDocument();
     });
 
     it("shows empty state when no active transfers", () => {
@@ -624,13 +650,13 @@ describe("SubstitutionsPage", () => {
       });
 
       // Default is 1 day
-      expect(screen.getByText("Vertretung für heute")).toBeInTheDocument();
+      expect(screen.getByText("Zugriff für heute")).toBeInTheDocument();
 
       // Click plus
       fireEvent.click(screen.getByLabelText("Tage erhöhen"));
 
       await waitFor(() => {
-        expect(screen.getByText("Vertretung für 2 Tage")).toBeInTheDocument();
+        expect(screen.getByText("Zugriff für 2 Tage")).toBeInTheDocument();
       });
     });
 
@@ -650,14 +676,14 @@ describe("SubstitutionsPage", () => {
       fireEvent.click(screen.getByLabelText("Tage erhöhen"));
 
       await waitFor(() => {
-        expect(screen.getByText("Vertretung für 3 Tage")).toBeInTheDocument();
+        expect(screen.getByText("Zugriff für 3 Tage")).toBeInTheDocument();
       });
 
       // Click minus
       fireEvent.click(screen.getByLabelText("Tage verringern"));
 
       await waitFor(() => {
-        expect(screen.getByText("Vertretung für 2 Tage")).toBeInTheDocument();
+        expect(screen.getByText("Zugriff für 2 Tage")).toBeInTheDocument();
       });
     });
 
@@ -679,9 +705,11 @@ describe("SubstitutionsPage", () => {
       // Get the modal element to scope our queries
       const modal = screen.getByTestId("assignment-modal");
 
-      // Select a group
+      // Select a group — the CustomSelect menu is portaled to document.body,
+      // so options are queried at screen level, not inside the modal element
       const groupSelect = within(modal).getByRole("combobox");
-      fireEvent.change(groupSelect, { target: { value: "Gruppe 1A" } });
+      fireEvent.click(groupSelect);
+      fireEvent.click(screen.getByRole("option", { name: "Gruppe 1A" }));
 
       // Click assign button (the one inside the modal with exact text "Zuweisen")
       const assignButton = within(modal).getByRole("button", {
@@ -692,7 +720,7 @@ describe("SubstitutionsPage", () => {
       await waitFor(() => {
         expect(mockCreateSubstitution).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          expect.stringContaining("Vertretung für"),
+          expect.stringContaining("Zugriff auf"),
         );
       });
     });
@@ -733,7 +761,7 @@ describe("SubstitutionsPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-        expect(screen.getByText("Vertretung beenden?")).toBeInTheDocument();
+        expect(screen.getByText("Zugriff beenden?")).toBeInTheDocument();
       });
     });
 
@@ -813,7 +841,7 @@ describe("SubstitutionsPage", () => {
         expect(mockDeleteSubstitution).toHaveBeenCalled();
         // Error message should be displayed
         expect(
-          screen.getByText("Fehler beim Beenden der Vertretung."),
+          screen.getByText("Fehler beim Beenden des Zugriffs."),
         ).toBeInTheDocument();
       });
     });
@@ -897,7 +925,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByText("Keine aktiven Vertretungen"),
+        screen.getByText("Keine aktiven längerfristigen Zugriffe"),
       ).toBeInTheDocument();
     });
   });

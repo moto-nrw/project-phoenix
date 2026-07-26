@@ -9,7 +9,7 @@ WORKDIR /app
 
 FROM base AS deps
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
@@ -39,6 +39,12 @@ ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
 ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
 
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ENV NEXT_PUBLIC_POSTHOG_KEY=${NEXT_PUBLIC_POSTHOG_KEY}
+
+ARG NEXT_PUBLIC_POSTHOG_HOST
+ENV NEXT_PUBLIC_POSTHOG_HOST=${NEXT_PUBLIC_POSTHOG_HOST}
+
 # Public client env is embedded into the browser bundle during next build, so
 # validate those build args before skipping the full runtime-secret schema.
 RUN pnpm run validate:build-env
@@ -61,6 +67,13 @@ WORKDIR /app
 COPY --from=builder --chown=root:nodejs --chmod=0555 /app/.next/standalone ./
 COPY --from=builder --chown=root:nodejs --chmod=0555 /app/.next/static ./.next/static
 COPY --from=builder --chown=root:nodejs --chmod=0555 /app/public ./public
+
+# Next.js writes optimized images and incremental cache entries at runtime.
+# Keep application files read-only while allowing the non-root runtime user to
+# create cache entries under .next/cache.
+RUN mkdir -p .next/cache && \
+    chown -R nextjs:nodejs .next/cache && \
+    chmod 0750 .next/cache
 
 USER nextjs
 

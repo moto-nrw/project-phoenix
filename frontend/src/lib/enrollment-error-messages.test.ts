@@ -31,6 +31,17 @@ describe("enrollment-error-messages", () => {
     ).toContain("bereits voll");
   });
 
+  it("maps an incompatible Regeltermin period to a German explanation", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "care offering phase must be within the linked timetable template period",
+        "enrollment.care_offering_template_period_mismatch",
+      ),
+    ).toBe(
+      "Der Planungszeitraum des gewählten Regeltermins muss den gesamten Betreuungszeitraum der Anmeldephase abdecken. Wähle einen passenden Regeltermin oder entferne die Verknüpfung.",
+    );
+  });
+
   it("does not expose unknown English backend text to the UI", async () => {
     const logger = { error: vi.fn(), warn: vi.fn() };
     const error = await readEnrollmentError(
@@ -51,6 +62,24 @@ describe("enrollment-error-messages", () => {
         rawMessage: "weird backend error",
       }),
     );
+  });
+
+  it("maps the off-list pickup time code to a German message", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        'invalid submission: child 0 field "pickup_times": weekday "mon" time "15:00" is not an allowed pickup time',
+        "enrollment.pickup_time_not_allowed",
+      ),
+    ).toContain("vorgegebenen Liste");
+  });
+
+  it("maps the late-invite invalid code to a German message", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "late invite is invalid",
+        "enrollment.late_invite_invalid",
+      ),
+    ).toContain("Nachzügler-Link");
   });
 
   it("keeps already-German backend messages", () => {

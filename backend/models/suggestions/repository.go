@@ -60,9 +60,6 @@ type CommentRepository interface {
 
 	// Delete soft-deletes a comment by ID
 	Delete(ctx context.Context, id int64) error
-
-	// CountByPostID counts non-deleted comments for a post
-	CountByPostID(ctx context.Context, postID int64) (int, error)
 }
 
 // Reader type constants for namespace isolation between operators and users.

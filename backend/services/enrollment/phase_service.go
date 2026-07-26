@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,14 +10,18 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // PhaseService sentinel errors. The HTTP layer maps these to status
 // codes; tests assert on them via errors.Is.
 var (
-	ErrPhaseNotFound = errors.New("phase not found")
-	ErrInvalidPhase  = errors.New("invalid phase")
+	ErrPhaseNotFound             = errors.New("phase not found")
+	ErrInvalidPhase              = errors.New("invalid phase")
+	ErrPhaseDuplicateName        = errors.New("phase name already exists")
+	ErrPhaseCareOfferingConflict = errors.New("phase change is incompatible with a linked care offering")
 )
 
 // PhaseDeleteImpact summarizes what a phase delete will remove vs keep.
@@ -66,17 +71,28 @@ type PhaseServiceConfig struct {
 	RequestRepo      enrollmentModels.RequestRepository
 	RequestChildRepo enrollmentModels.RequestChildRepository
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
-	DB               *bun.DB
-	Logger           *slog.Logger
+	FormSchemaRepo   enrollmentModels.FormSchemaRepository
+	// CalendarPeriods validates phase→calendar-period links on
+	// Create/Update. Optional: when nil (unit tests with mocks), the
+	// link is accepted unvalidated and the FK constraint still holds.
+	CalendarPeriods                 scheduleService.CalendarPeriodService
+	LockTemplateRecurrence          func(context.Context) error
+	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
+	DB                              *bun.DB
+	Logger                          *slog.Logger
 }
 
 type phaseService struct {
-	repo             enrollmentModels.PhaseRepository
-	requestRepo      enrollmentModels.RequestRepository
-	requestChildRepo enrollmentModels.RequestChildRepository
-	careOfferingRepo enrollmentModels.CareOfferingRepository
-	txHandler        *modelBase.TxHandler
-	logger           *slog.Logger
+	repo                            enrollmentModels.PhaseRepository
+	requestRepo                     enrollmentModels.RequestRepository
+	requestChildRepo                enrollmentModels.RequestChildRepository
+	careOfferingRepo                enrollmentModels.CareOfferingRepository
+	formSchemaRepo                  enrollmentModels.FormSchemaRepository
+	calendarPeriods                 scheduleService.CalendarPeriodService
+	lockTemplateRecurrence          func(context.Context) error
+	validateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
+	txHandler                       *modelBase.TxHandler
+	logger                          *slog.Logger
 }
 
 func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
@@ -89,12 +105,80 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		txHandler = modelBase.NewTxHandler(cfg.DB)
 	}
 	return &phaseService{
-		repo:             cfg.Repo,
-		requestRepo:      cfg.RequestRepo,
-		requestChildRepo: cfg.RequestChildRepo,
-		careOfferingRepo: cfg.CareOfferingRepo,
-		txHandler:        txHandler,
-		logger:           logger,
+		repo:                            cfg.Repo,
+		requestRepo:                     cfg.RequestRepo,
+		requestChildRepo:                cfg.RequestChildRepo,
+		careOfferingRepo:                cfg.CareOfferingRepo,
+		formSchemaRepo:                  cfg.FormSchemaRepo,
+		calendarPeriods:                 cfg.CalendarPeriods,
+		lockTemplateRecurrence:          cfg.LockTemplateRecurrence,
+		validateCareOfferingPhaseChange: cfg.ValidateCareOfferingPhaseChange,
+		txHandler:                       txHandler,
+		logger:                          logger,
+	}
+}
+
+// validateCalendarPeriodLink checks that a linked calendar period exists
+// for the current tenant. The lookup runs inside the tenant transaction,
+// so RLS scopes it — this is what actually blocks cross-tenant links,
+// because FK constraint checks bypass RLS.
+func (s *phaseService) validateCalendarPeriodLink(ctx context.Context, phase *enrollmentModels.Phase) error {
+	if phase.CalendarPeriodID == nil || s.calendarPeriods == nil {
+		return nil
+	}
+	if _, err := s.calendarPeriods.GetPeriodByID(ctx, *phase.CalendarPeriodID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: calendar period %d not found", ErrInvalidPhase, *phase.CalendarPeriodID)
+		}
+		return fmt.Errorf("validate calendar period link: %w", err)
+	}
+	return nil
+}
+
+func (s *phaseService) validateFormSchemaLink(ctx context.Context, phase *enrollmentModels.Phase) error {
+	if phase.FormSchemaID == nil || s.formSchemaRepo == nil {
+		return nil
+	}
+	if _, err := s.formSchemaRepo.FindByID(ctx, *phase.FormSchemaID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: form schema %d not found", ErrInvalidPhase, *phase.FormSchemaID)
+		}
+		return fmt.Errorf("validate form schema link: %w", err)
+	}
+	return nil
+}
+
+func translatePhaseWriteError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case isPhaseDuplicateName(err):
+		return fmt.Errorf("%w: %v", ErrPhaseDuplicateName, err)
+	case errors.Is(err, sql.ErrNoRows):
+		return fmt.Errorf("%w: %v", ErrPhaseNotFound, err)
+	case isPhaseReferenceViolation(err):
+		return fmt.Errorf("%w: %v", ErrInvalidPhase, err)
+	default:
+		return err
+	}
+}
+
+func isPhaseReferenceViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	if pgErr.Field('C') != "23503" {
+		return false
+	}
+	switch pgErr.Field('n') {
+	case "phases_form_schema_id_fkey", "phases_calendar_period_id_fkey":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -115,7 +199,10 @@ func (s *phaseService) GetByID(ctx context.Context, id int64) (*enrollmentModels
 	}
 	phase, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, ErrPhaseNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrPhaseNotFound
+		}
+		return nil, fmt.Errorf("get phase %d: %w", id, err)
 	}
 	return phase, nil
 }
@@ -124,8 +211,17 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 	if phase == nil {
 		return nil, fmt.Errorf("%w: phase is required", ErrInvalidPhase)
 	}
-	if err := s.repo.Create(ctx, phase); err != nil {
+	if err := phase.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidPhase, err)
+	}
+	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return nil, err
+	}
+	if err := s.validateFormSchemaLink(ctx, phase); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Create(ctx, phase); err != nil {
+		return nil, translatePhaseWriteError(err)
 	}
 	s.logger.Info("phase created",
 		slog.Int64("phase_id", phase.ID),
@@ -138,10 +234,52 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 	if phase == nil || phase.ID <= 0 {
 		return fmt.Errorf("%w: phase with valid id is required", ErrInvalidPhase)
 	}
-	if err := s.repo.Update(ctx, phase); err != nil {
+	if err := phase.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidPhase, err)
+	}
+	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return err
 	}
+	if err := s.validateFormSchemaLink(ctx, phase); err != nil {
+		return err
+	}
+	if err := s.validateCareOfferingPhaseUpdate(ctx, phase); err != nil {
+		return err
+	}
+	if err := s.repo.Update(ctx, phase); err != nil {
+		return translatePhaseWriteError(err)
+	}
 	s.logger.Info("phase updated", slog.Int64("phase_id", phase.ID))
+	return nil
+}
+
+func (s *phaseService) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollmentModels.Phase) error {
+	if s.validateCareOfferingPhaseChange == nil {
+		return nil
+	}
+	if s.lockTemplateRecurrence == nil {
+		return errors.New("phase update care-offering validation requires the template recurrence lock")
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return fmt.Errorf("lock template recurrence for phase update: %w", err)
+	}
+	existing, err := s.repo.FindByID(ctx, phase.ID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return fmt.Errorf("%w: phase %d", ErrPhaseNotFound, phase.ID)
+		}
+		return fmt.Errorf("load phase for care-offering validation: %w", err)
+	}
+	if existing.ServiceStartDate == phase.ServiceStartDate &&
+		existing.ServiceEndDate == phase.ServiceEndDate {
+		return nil
+	}
+	if err := s.validateCareOfferingPhaseChange(ctx, phase.ID, phase); err != nil {
+		if errors.Is(err, ErrCareOfferingInvalid) {
+			return fmt.Errorf("%w: %v", ErrPhaseCareOfferingConflict, err)
+		}
+		return fmt.Errorf("validate care offerings for phase update: %w", err)
+	}
 	return nil
 }
 
@@ -153,7 +291,10 @@ func (s *phaseService) DeleteImpact(ctx context.Context, id int64) (*PhaseDelete
 		return nil, ErrPhaseNotFound
 	}
 	if _, err := s.repo.FindByID(ctx, id); err != nil {
-		return nil, ErrPhaseNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrPhaseNotFound
+		}
+		return nil, fmt.Errorf("phase delete impact: find phase: %w", err)
 	}
 
 	impact := &PhaseDeleteImpact{}
@@ -198,7 +339,10 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("%w: id must be positive", ErrInvalidPhase)
 	}
 	if _, err := s.repo.FindByID(ctx, id); err != nil {
-		return ErrPhaseNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrPhaseNotFound
+		}
+		return fmt.Errorf("phase delete: find phase: %w", err)
 	}
 
 	deletedRequests := 0

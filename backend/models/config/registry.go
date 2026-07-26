@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sync"
@@ -97,6 +96,21 @@ type Dependency struct {
 	Value     any    `json:"value"`
 }
 
+// DependsOnEq builds a Dependency that shows the setting when key equals value.
+func DependsOnEq(key string, value any) *Dependency {
+	return &Dependency{Key: key, Condition: "eq", Value: value}
+}
+
+// DependsOnNeq builds a Dependency that shows the setting when key does not equal value.
+func DependsOnNeq(key string, value any) *Dependency {
+	return &Dependency{Key: key, Condition: "neq", Value: value}
+}
+
+// Range builds ValidationRules constraining a numeric setting to [minVal, maxVal].
+func Range(minVal, maxVal float64) *ValidationRules {
+	return &ValidationRules{Min: &minVal, Max: &maxVal}
+}
+
 // SelectOptions provides static choices for a FieldSelect setting.
 type SelectOptions struct {
 	Static []SelectOption `json:"static,omitempty"`
@@ -111,6 +125,7 @@ type SelectOption struct {
 // TabOrder defines the display ordering of setting tabs.
 var TabOrder = []string{
 	"operations",
+	"reminders",
 	"devices",
 	"enrollment",
 	"gdpr",
@@ -176,14 +191,6 @@ func toFloat(v any) (float64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-// MarshalDefault returns the default value as JSON bytes.
-func (d *Definition) MarshalDefault() (json.RawMessage, error) {
-	if d.Default == nil {
-		return json.RawMessage("null"), nil
-	}
-	return json.Marshal(d.Default)
 }
 
 // --- Registry singleton ---

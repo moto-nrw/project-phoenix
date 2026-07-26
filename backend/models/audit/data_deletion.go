@@ -42,11 +42,6 @@ const (
 	DeletionTypeStudentChangeLogRetention = "student_change_log_retention"
 )
 
-// TableName returns the database table name
-func (dd *DataDeletion) TableName() string {
-	return "audit.data_deletions"
-}
-
 // Validate ensures the data-deletion record is internally consistent before
 // it hits the DB. Mirrors the chk_data_deletions_subject_xor constraint so
 // callers get a clear Go-side error instead of a 23514 pg error.

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Frequency constants for recurrence rules
@@ -16,9 +15,6 @@ const (
 	FrequencyMonthly = "monthly"
 	FrequencyYearly  = "yearly"
 )
-
-// tableScheduleRecurrenceRules is the schema-qualified table name for recurrence rules
-const tableScheduleRecurrenceRules = "schedule.recurrence_rules"
 
 // Calendar bounds for a month-day entry in a monthly recurrence rule.
 const (
@@ -39,21 +35,6 @@ type RecurrenceRule struct {
 	MonthDays     []int      `bun:"month_days,array" json:"month_days,omitempty"`
 	EndDate       *time.Time `bun:"end_date" json:"end_date,omitempty"`
 	Count         *int       `bun:"count" json:"count,omitempty"`
-}
-
-func (r *RecurrenceRule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableScheduleRecurrenceRules)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableScheduleRecurrenceRules)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (r *RecurrenceRule) TableName() string {
-	return tableScheduleRecurrenceRules
 }
 
 // Validate ensures recurrence rule data is valid
@@ -198,19 +179,4 @@ func (r *RecurrenceRule) Clone() *RecurrenceRule {
 	}
 
 	return clone
-}
-
-// GetID implements the Entity interface
-func (r *RecurrenceRule) GetID() interface{} {
-	return r.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (r *RecurrenceRule) GetCreatedAt() time.Time {
-	return r.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (r *RecurrenceRule) GetUpdatedAt() time.Time {
-	return r.UpdatedAt
 }

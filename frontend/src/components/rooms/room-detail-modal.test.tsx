@@ -9,7 +9,7 @@ import { RoomDetailModal } from "./room-detail-modal";
 // ----------------------------------------------------------------------------
 
 const mockUseIsMobile = vi.fn(() => false);
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: () => mockUseIsMobile(),
 }));
 

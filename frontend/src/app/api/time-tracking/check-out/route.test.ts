@@ -112,3 +112,27 @@ describe("POST /api/time-tracking/check-out", () => {
     expect(json.data).toEqual(mockCheckOutData);
   });
 });
+
+describe("POST /api/time-tracking/check-out with F9 reason", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue(defaultSession);
+  });
+
+  it("forwards the deviation reason to the backend", async () => {
+    mockApiPost.mockResolvedValueOnce({ data: { session_id: 123 } });
+
+    const request = createMockRequest("/api/time-tracking/check-out", {
+      method: "POST",
+      body: { reason: "Elterngespräch lief länger" },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/time-tracking/check-out",
+      "test-token",
+      { reason: "Elterngespräch lief länger" },
+    );
+    expect(response.status).toBe(200);
+  });
+});

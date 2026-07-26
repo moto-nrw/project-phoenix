@@ -13,13 +13,21 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useLatest } from "~/lib/hooks/use-latest";
+import {
+  useAttendanceWebEnabled,
+  useShowTimetableCounts,
+} from "~/lib/tenant-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type {
+  FilterConfig,
+  ActiveFilter,
+} from "~/components/ui/page-header/types";
 import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
@@ -31,6 +39,7 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
+  StudentPendingExcusedRow,
 } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
@@ -47,6 +56,7 @@ import type {
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
+import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -55,14 +65,11 @@ import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   getSchoolYear,
 } from "~/lib/student-helpers";
-import { UnclaimedRooms } from "~/components/active";
+import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
 import { combineTimeNotes, getStudentAbsence } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import {
   ActiveSupervisionLoadingView,
   EmptyRoomsView,
@@ -75,12 +82,15 @@ import {
   SpontaneousActivityStart,
   type SpontaneousActivityStartPayload,
 } from "~/components/active-supervisions/spontaneous-activity-start";
+import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
   SCHULHOF_ROOM_NAME,
   SCHULHOF_TAB_ID,
+  activeSupervisionRosterKey,
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  withActiveSupervisionPresence,
 } from "~/components/active-supervisions/view-model";
 import type {
   ActiveSupervisionRoom,
@@ -240,7 +250,498 @@ function RosterSummaryStat({
   );
 }
 
+type RosterAction =
+  "check-in" | "check-out" | "excused" | "absent" | "expected";
+
+interface RosterRowActionsProps {
+  readonly row: TimetableRosterRow;
+  readonly onAction: (
+    action: RosterAction,
+    row: TimetableRosterRow,
+  ) => Promise<void>;
+}
+
+function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
+  const runAction = async (action: RosterAction) => {
+    await onAction(action, row);
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {!row.currentlyPresent && row.status === "expected" ? (
+        <button
+          type="button"
+          onClick={() => runAction("check-in")}
+          className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+        >
+          Einchecken
+        </button>
+      ) : null}
+      {!row.currentlyPresent && row.status !== "expected" ? (
+        <button
+          type="button"
+          onClick={() => runAction("check-in")}
+          className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+        >
+          Wieder einchecken
+        </button>
+      ) : null}
+      {row.currentlyPresent ? (
+        <button
+          type="button"
+          onClick={() => runAction("check-out")}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+        >
+          Raum verlassen
+        </button>
+      ) : null}
+      {row.planned &&
+      row.status === "expected" &&
+      isCareDayExpected(row.careDayStatus) ? (
+        <>
+          <button
+            type="button"
+            onClick={() => runAction("excused")}
+            className="rounded-md border border-[#D89A16] px-3 py-2 text-sm font-medium text-[#A66F00]"
+          >
+            Entschuldigt
+          </button>
+          <button
+            type="button"
+            onClick={() => runAction("absent")}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+          >
+            Abwesend
+          </button>
+        </>
+      ) : null}
+      {row.planned && !row.currentlyPresent && row.status === "absent" ? (
+        <button
+          type="button"
+          onClick={() => runAction("expected")}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+        >
+          Zurück auf erwartet
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+interface TimetableRosterRowProps {
+  readonly attendanceWebEnabled: boolean;
+  readonly instanceIsSpontaneous: boolean;
+  readonly row: TimetableRosterRow;
+  readonly onAction: RosterRowActionsProps["onAction"];
+}
+
+function TimetableRosterStudentRow({
+  attendanceWebEnabled,
+  instanceIsSpontaneous,
+  row,
+  onAction,
+}: TimetableRosterRowProps) {
+  const attendanceDetail = [
+    row.substatus ? ATTENDANCE_SUBSTATUS_LABELS[row.substatus] : null,
+    row.note,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="font-medium text-gray-900">
+          {row.studentName || `Kind ${row.studentId}`}
+        </div>
+        <div className="mt-1 text-sm text-gray-500">
+          {rosterStudentMeta(row, instanceIsSpontaneous)}
+        </div>
+        {attendanceDetail ? (
+          <div className="mt-1 text-sm text-[#D89A16]">{attendanceDetail}</div>
+        ) : null}
+      </div>
+      {attendanceWebEnabled ? (
+        <RosterRowActions row={row} onAction={onAction} />
+      ) : null}
+    </div>
+  );
+}
+
+interface TimetableRosterSectionProps {
+  readonly attendanceWebEnabled: boolean;
+  readonly instanceIsSpontaneous: boolean;
+  readonly onAction: RosterRowActionsProps["onAction"];
+  readonly rows: TimetableRosterRow[];
+  readonly showTimetableCounts: boolean;
+  readonly title: string;
+}
+
+function TimetableRosterSection({
+  attendanceWebEnabled,
+  instanceIsSpontaneous,
+  onAction,
+  rows,
+  showTimetableCounts,
+  title,
+}: TimetableRosterSectionProps) {
+  if (rows.length === 0) return null;
+  const countLabel = showTimetableCounts ? ` (${rows.length})` : "";
+
+  return (
+    <section className="moto-content-surface overflow-hidden rounded-lg border">
+      <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
+        {title}
+        {countLabel}
+      </div>
+      {rows.map((row) => (
+        <TimetableRosterStudentRow
+          key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
+          attendanceWebEnabled={attendanceWebEnabled}
+          instanceIsSpontaneous={instanceIsSpontaneous}
+          row={row}
+          onAction={onAction}
+        />
+      ))}
+    </section>
+  );
+}
+
+function confirmExpectedLabel(
+  isConfirmingExpected: boolean,
+  showTimetableCounts: boolean,
+  count: number,
+): string {
+  if (isConfirmingExpected) return "Bestätigt...";
+  if (showTimetableCounts) return `${count} erwartete bestätigen`;
+  return "Erwartete bestätigen";
+}
+
+interface TimetableRosterHeaderProps {
+  readonly attendanceWebEnabled: boolean;
+  readonly confirmableExpectedRows: TimetableRosterRow[];
+  readonly isCompletingInstance: boolean;
+  readonly isConfirmingExpected: boolean;
+  readonly roster: TimetableRoster;
+  readonly showTimetableCounts: boolean;
+  readonly summary: {
+    readonly absent: number;
+    readonly departed: number;
+    readonly expected: number;
+    readonly present: number;
+    readonly unplanned: number;
+  };
+  readonly onComplete: () => Promise<void>;
+  readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
+}
+
+function TimetableRosterHeader({
+  attendanceWebEnabled,
+  confirmableExpectedRows,
+  isCompletingInstance,
+  isConfirmingExpected,
+  roster,
+  showTimetableCounts,
+  summary,
+  onComplete,
+  onConfirmExpected,
+}: TimetableRosterHeaderProps) {
+  const handleConfirmExpectedClick = async () => {
+    await onConfirmExpected(confirmableExpectedRows);
+  };
+  const handleCompleteClick = async () => {
+    await onComplete();
+  };
+  const confirmLabel = confirmExpectedLabel(
+    isConfirmingExpected,
+    showTimetableCounts,
+    confirmableExpectedRows.length,
+  );
+
+  return (
+    <div className="moto-content-surface overflow-hidden rounded-2xl border border-[#83CD2D]/30 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 border-b border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/20 text-[#4A7A15]">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-[#4A7A15] uppercase">
+              Aktiv
+            </p>
+            <h2 className="truncate text-base font-semibold text-gray-900">
+              {roster.instance.title}
+            </h2>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          {attendanceWebEnabled ? (
+            <button
+              type="button"
+              disabled={
+                isConfirmingExpected || confirmableExpectedRows.length === 0
+              }
+              onClick={handleConfirmExpectedClick}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] focus-visible:ring-2 focus-visible:ring-[#83CD2D]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              {confirmLabel}
+            </button>
+          ) : null}
+          {attendanceWebEnabled ? (
+            <button
+              type="button"
+              disabled={isCompletingInstance}
+              onClick={handleCompleteClick}
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+            >
+              Beenden
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {showTimetableCounts ? (
+        <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
+          <RosterSummaryStat label="Anwesend" value={summary.present} />
+          <RosterSummaryStat label="Erwartet" value={summary.expected} />
+          <RosterSummaryStat label="Abwesend" value={summary.absent} />
+          <RosterSummaryStat label="Gegangen" value={summary.departed} />
+          <RosterSummaryStat label="Ungeplant" value={summary.unplanned} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface AddUnplannedStudentFormProps {
+  readonly isAddingStudent: boolean;
+  readonly results: Student[];
+  readonly search: string;
+  readonly onAdd: (studentId: string) => Promise<void>;
+  readonly onSearchChange: (value: string) => void;
+}
+
+function AddUnplannedStudentForm({
+  isAddingStudent,
+  results,
+  search,
+  onAdd,
+  onSearchChange,
+}: AddUnplannedStudentFormProps) {
+  const addStudent = async (studentId: string) => {
+    await onAdd(studentId);
+  };
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const onlyResult = results[0];
+    if (onlyResult && results.length === 1) {
+      await addStudent(onlyResult.id.toString());
+    }
+  };
+
+  return (
+    <form
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+      onSubmit={handleSubmit}
+    >
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <UserPlus className="h-4 w-4 text-gray-400" aria-hidden="true" />
+        Kind ungeplant hinzufügen
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          type="search"
+          name="unplanned-student-search"
+          aria-label="Kind ungeplant suchen"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Weiteres Kind suchen..."
+          className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={isAddingStudent || results.length !== 1}
+          className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] disabled:opacity-50"
+        >
+          Hinzufügen
+        </button>
+      </div>
+      {results.length > 0 ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {results.map((student) => (
+            <button
+              key={student.id}
+              type="button"
+              disabled={isAddingStudent}
+              onClick={() => addStudent(student.id.toString())}
+              className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#83CD2D] disabled:opacity-50"
+            >
+              <span className="font-medium text-gray-900">
+                {student.name ||
+                  [student.first_name, student.second_name]
+                    .filter(Boolean)
+                    .join(" ")}
+              </span>
+              <span className="ml-2 text-gray-500">
+                {[student.school_class, student.group_name]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </form>
+  );
+}
+
+interface TimetableRosterContentProps {
+  readonly addStudentResults: Student[];
+  readonly addStudentSearch: string;
+  readonly attendanceWebEnabled: boolean;
+  readonly isAddingStudent: boolean;
+  readonly isCompletingInstance: boolean;
+  readonly isConfirmingExpected: boolean;
+  readonly roster: TimetableRoster;
+  readonly showTimetableCounts: boolean;
+  readonly onAddStudent: (studentId: string) => Promise<void>;
+  readonly onComplete: () => Promise<void>;
+  readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
+  readonly onRosterAction: RosterRowActionsProps["onAction"];
+  readonly onSearchChange: (value: string) => void;
+}
+
+function TimetableRosterContent({
+  addStudentResults,
+  addStudentSearch,
+  attendanceWebEnabled,
+  isAddingStudent,
+  isCompletingInstance,
+  isConfirmingExpected,
+  roster,
+  showTimetableCounts,
+  onAddStudent,
+  onComplete,
+  onConfirmExpected,
+  onRosterAction,
+  onSearchChange,
+}: TimetableRosterContentProps) {
+  const present = roster.rows.filter(
+    (row) => row.currentlyPresent && row.planned,
+  );
+  // The care plan decides who counts as expected (#1747): rows the plan does
+  // not place here today — not booked, or the day was cancelled — go into
+  // their own section below, never into "Erwartet" and never into the bulk
+  // confirm, which would persist attendance for a child who is not coming.
+  const expected = roster.rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "expected" &&
+      isCareDayExpected(row.careDayStatus),
+  );
+  // An absence a sick / excused / class-trip day status wrote onto a day the
+  // child was never booked into care belongs here too, not under "Abwesend":
+  // the block has not ended yet, so nothing has undone that false absence, and
+  // the header count already groups it this way (#1747).
+  const notScheduled = roster.rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      isNotScheduledRow(row.status, row.careDayStatus),
+  );
+  const absent = roster.rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "absent" &&
+      !isNotScheduledRow(row.status, row.careDayStatus),
+  );
+  const departed = roster.rows.filter(
+    (row) =>
+      !row.currentlyPresent &&
+      (row.status === "present" || (row.isUnplanned && row.visitId)),
+  );
+  const unplanned = roster.rows.filter(
+    (row) => row.isUnplanned && row.currentlyPresent,
+  );
+  const confirmableExpectedRows = expected.filter(
+    (row) => row.planned && !row.currentlyPresent,
+  );
+  const instanceIsSpontaneous = roster.instance.isSpontaneous;
+  const unplannedTitle = instanceIsSpontaneous ? "Teilnehmende" : "Ungeplant";
+  const sectionProps = {
+    attendanceWebEnabled,
+    instanceIsSpontaneous,
+    onAction: onRosterAction,
+    showTimetableCounts,
+  };
+
+  return (
+    <div className="space-y-4">
+      <TimetableRosterHeader
+        attendanceWebEnabled={attendanceWebEnabled}
+        confirmableExpectedRows={confirmableExpectedRows}
+        isCompletingInstance={isCompletingInstance}
+        isConfirmingExpected={isConfirmingExpected}
+        roster={roster}
+        showTimetableCounts={showTimetableCounts}
+        summary={{
+          absent: absent.length,
+          departed: departed.length,
+          expected: expected.length,
+          present: present.length,
+          unplanned: unplanned.length,
+        }}
+        onComplete={onComplete}
+        onConfirmExpected={onConfirmExpected}
+      />
+      {attendanceWebEnabled ? (
+        <AddUnplannedStudentForm
+          isAddingStudent={isAddingStudent}
+          results={addStudentResults}
+          search={addStudentSearch}
+          onAdd={onAddStudent}
+          onSearchChange={onSearchChange}
+        />
+      ) : null}
+      <TimetableRosterSection
+        title="Anwesend"
+        rows={present}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Erwartet"
+        rows={expected}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Heute nicht eingeplant"
+        rows={notScheduled}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Entschuldigt / Abwesend"
+        rows={absent}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Nicht mehr im Raum"
+        rows={departed}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title={unplannedTitle}
+        rows={unplanned}
+        {...sectionProps}
+      />
+    </div>
+  );
+}
+
 function MeinRaumPageContent() {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const showTimetableCounts = useShowTimetableCounts();
   const router = useTenantRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession({
@@ -269,6 +770,8 @@ function MeinRaumPageContent() {
   const [plannedNow, setPlannedNow] = useState<PlannedTimetableInstance[]>([]);
   const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
     useState<string | null>(null);
+  const [missingRosterActiveGroupIds, setMissingRosterActiveGroupIds] =
+    useState<Set<string>>(() => new Set());
   const [isStartingInstance, setIsStartingInstance] = useState<string | null>(
     null,
   );
@@ -310,8 +813,7 @@ function MeinRaumPageContent() {
   const [isSchulhofTabSelected, setIsSchulhofTabSelected] = useState(false);
 
   // Ref to always have latest schulhofStatus (prevents stale closure in callbacks)
-  const schulhofStatusRef = useRef<SchulhofStatusResponse | null>(null);
-  schulhofStatusRef.current = schulhofStatus;
+  const schulhofStatusRef = useLatest(schulhofStatus);
 
   // Cached active groups for UnclaimedRooms (avoids duplicate API call)
   const [cachedActiveGroups, setCachedActiveGroups] = useState<
@@ -351,13 +853,18 @@ function MeinRaumPageContent() {
   // or because the sidebar navigated with the room's actual ID (not "schulhof")
   const isSchulhofActive =
     isSchulhofTabSelected || currentRoom?.room_name === SCHULHOF_ROOM_NAME;
-  const occupiedRoomIds = useMemo(
-    () =>
-      allRooms
-        .map((room) => room.room_id)
-        .filter((roomId): roomId is string => Boolean(roomId)),
-    [allRooms],
-  );
+  const occupiedRoomIds = useMemo(() => {
+    const ids = allRooms
+      .map((room) => room.room_id)
+      .filter((roomId): roomId is string => Boolean(roomId));
+    // Schulhof is tracked separately from allRooms, so keep its live room id
+    // in the occupancy set. The spontaneous modal deliberately treats that
+    // one destination as navigation to the dedicated supervision instead of
+    // disabling it; every normal occupied room remains unavailable to start.
+    if (schulhofStatus?.activeGroupId && schulhofStatus.roomId)
+      ids.push(schulhofStatus.roomId);
+    return ids;
+  }, [allRooms, schulhofStatus?.activeGroupId, schulhofStatus?.roomId]);
 
   // Set breadcrumb so header shows current room name
   useSetBreadcrumb({
@@ -594,10 +1101,10 @@ function MeinRaumPageContent() {
     setGroupNameToIdMap(nameToIdMap);
     groupNameToIdMapRef.current = nameToIdMap;
 
-    // Set Schulhof status for permanent tab
-    if (data.schulhofStatus) {
-      setSchulhofStatus(data.schulhofStatus);
-    }
+    // Clear stale status as well: room discovery and status provisioning are
+    // independent requests, so a missing status must not leave an old shortcut
+    // active.
+    setSchulhofStatus(dashboardError ? null : data.schulhofStatus);
 
     // Cache active groups for UnclaimedRooms component
     if (data.supervisedGroups.length > 0) {
@@ -699,6 +1206,7 @@ function MeinRaumPageContent() {
     setIsLoading(false);
   }, [
     dashboardData,
+    dashboardError,
     updateRoomStudentCount,
     selectedRoomId,
     isSchulhofTabSelected,
@@ -817,7 +1325,9 @@ function MeinRaumPageContent() {
       });
     },
     {
-      keepPreviousData: true, // Prevent loading flash during refetch
+      // Never expose one room's children under another room's heading while
+      // the new key loads. Same-key SSE revalidation still keeps its cache.
+      keepPreviousData: false,
       revalidateOnFocus: false, // Handled by global SSE
     },
   );
@@ -831,11 +1341,12 @@ function MeinRaumPageContent() {
     }
   }, [swrVisitsData, currentRoomId, updateRoomStudentCount]);
 
-  const timetableRosterKey = selectedTimetableInstanceId
-    ? `timetable-roster-${selectedTimetableInstanceId}`
-    : currentRoomId && !isSchulhofActive
-      ? `timetable-roster-active-group-${currentRoomId}`
-      : null;
+  const timetableRosterKey = activeSupervisionRosterKey({
+    selectedTimetableInstanceId,
+    currentRoomId,
+    isSchulhofActive,
+    missingRosterActiveGroupIds,
+  });
   const {
     data: timetableRoster,
     isLoading: isTimetableRosterLoading,
@@ -857,6 +1368,14 @@ function MeinRaumPageContent() {
           (err.message.includes("404") ||
             err.message.toLowerCase().includes("not found"))
         ) {
+          if (!selectedTimetableInstanceId && currentRoomId) {
+            setMissingRosterActiveGroupIds((current) => {
+              if (current.has(currentRoomId)) return current;
+              const next = new Set(current);
+              next.add(currentRoomId);
+              return next;
+            });
+          }
           return null;
         }
         throw err;
@@ -948,6 +1467,9 @@ function MeinRaumPageContent() {
   // Handle dashboard error
   useEffect(() => {
     if (dashboardError) {
+      // Fail closed for the dedicated Schulhof workflow while SWR may still
+      // expose the previous dashboard data during a failed revalidation.
+      setSchulhofStatus(null);
       if (dashboardError.message.includes("403")) {
         setError("Sie haben aktuell keinen aktiven Raum zur Supervision.");
         setHasAccess(false);
@@ -957,6 +1479,15 @@ function MeinRaumPageContent() {
       setIsLoading(false);
     }
   }, [dashboardError]);
+
+  useEffect(() => {
+    if (schulhofStatus?.exists || !isSchulhofTabSelected) return;
+
+    setIsSchulhofTabSelected(false);
+    setSelectedRoomId(allRooms[0]?.id ?? null);
+    setSelectedTimetableInstanceId(null);
+    setStudents([]);
+  }, [allRooms, isSchulhofTabSelected, schulhofStatus?.exists]);
 
   // Derive loading state from SWR
   useEffect(() => {
@@ -1080,6 +1611,25 @@ function MeinRaumPageContent() {
     },
     [currentStaffId, mutateDashboard, router],
   );
+
+  const handleOpenSchulhofSupervision = useCallback(() => {
+    if (!schulhofStatusRef.current?.exists) {
+      setError(
+        "Die Schulhof-Aufsicht ist gerade nicht verfügbar. Bitte laden Sie die Seite neu.",
+      );
+      return;
+    }
+    setIsSchulhofTabSelected(true);
+    setSelectedRoomId(null);
+    setSelectedTimetableInstanceId(null);
+    router.push("/active-supervisions?room=schulhof");
+    localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
+    localStorage.setItem("sidebar-last-room-name", SCHULHOF_ROOM_NAME);
+    // The keyed SWR subscription becomes active with the Schulhof tab and is
+    // the single owner of loading its visits. A second manual request can land
+    // later and overwrite a fresher SSE revalidation.
+    setStudents([]);
+  }, [router, schulhofStatusRef]);
 
   const handleRosterAction = useCallback(
     async (
@@ -1438,10 +1988,11 @@ function MeinRaumPageContent() {
     <SpontaneousActivityStart
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id}
-      disabled={isSchulhofActive}
       isStarting={isStartingSpontaneous}
       occupiedRoomIds={occupiedRoomIds}
+      schulhofSupervisionAvailable={schulhofStatus?.exists === true}
       onStart={(payload) => void handleStartSpontaneousActivity(payload)}
+      onOpenSchulhofSupervision={handleOpenSchulhofSupervision}
     />
   ) : null;
 
@@ -1477,242 +2028,22 @@ function MeinRaumPageContent() {
     }
 
     if (currentTimetableRoster) {
-      const isSpontaneousInstance =
-        currentTimetableRoster.instance.isSpontaneous;
-      const present = currentTimetableRoster.rows.filter(
-        (row) => row.currentlyPresent && row.planned,
-      );
-      const expected = currentTimetableRoster.rows.filter(
-        (row) =>
-          row.planned && !row.currentlyPresent && row.status === "expected",
-      );
-      const absent = currentTimetableRoster.rows.filter(
-        (row) =>
-          row.planned && !row.currentlyPresent && row.status === "absent",
-      );
-      const departed = currentTimetableRoster.rows.filter(
-        (row) =>
-          !row.currentlyPresent &&
-          (row.status === "present" || (row.isUnplanned && row.visitId)),
-      );
-      const unplanned = currentTimetableRoster.rows.filter(
-        (row) => row.isUnplanned && row.currentlyPresent,
-      );
-      const confirmableExpectedRows = expected.filter(
-        (row) => row.planned && !row.currentlyPresent,
-      );
-      const renderRosterRow = (row: TimetableRosterRow) => (
-        <div
-          key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
-          className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <div className="font-medium text-gray-900">
-              {row.studentName || `Kind ${row.studentId}`}
-            </div>
-            <div className="mt-1 text-sm text-gray-500">
-              {rosterStudentMeta(row, isSpontaneousInstance)}
-            </div>
-            {row.substatus || row.note ? (
-              <div className="mt-1 text-sm text-[#D89A16]">
-                {[
-                  row.substatus
-                    ? ATTENDANCE_SUBSTATUS_LABELS[row.substatus]
-                    : null,
-                  row.note,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {!row.currentlyPresent && row.status === "expected" ? (
-              <button
-                type="button"
-                onClick={() => void handleRosterAction("check-in", row)}
-                className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
-              >
-                Einchecken
-              </button>
-            ) : null}
-            {!row.currentlyPresent && row.status !== "expected" ? (
-              <button
-                type="button"
-                onClick={() => void handleRosterAction("check-in", row)}
-                className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
-              >
-                Wieder einchecken
-              </button>
-            ) : null}
-            {row.currentlyPresent ? (
-              <button
-                type="button"
-                onClick={() => void handleRosterAction("check-out", row)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-              >
-                Raum verlassen
-              </button>
-            ) : null}
-            {row.planned && row.status === "expected" ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleRosterAction("excused", row)}
-                  className="rounded-md border border-[#D89A16] px-3 py-2 text-sm font-medium text-[#A66F00]"
-                >
-                  Entschuldigt
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleRosterAction("absent", row)}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-                >
-                  Abwesend
-                </button>
-              </>
-            ) : null}
-            {row.planned && !row.currentlyPresent && row.status === "absent" ? (
-              <button
-                type="button"
-                onClick={() => void handleRosterAction("expected", row)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-              >
-                Zurück auf erwartet
-              </button>
-            ) : null}
-          </div>
-        </div>
-      );
-
-      const section = (title: string, rows: TimetableRosterRow[]) =>
-        rows.length > 0 ? (
-          <section className="moto-content-surface overflow-hidden rounded-lg border">
-            <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
-              {title} ({rows.length})
-            </div>
-            {rows.map(renderRosterRow)}
-          </section>
-        ) : null;
-
       return (
-        <div className="space-y-4">
-          <div className="moto-content-surface overflow-hidden rounded-2xl border border-[#83CD2D]/30 shadow-sm backdrop-blur-md">
-            <div className="flex flex-col gap-3 border-b border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/20 text-[#4A7A15]">
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold tracking-wide text-[#4A7A15] uppercase">
-                    Aktiv
-                  </p>
-                  <h2 className="truncate text-base font-semibold text-gray-900">
-                    {currentTimetableRoster.instance.title}
-                  </h2>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                <button
-                  type="button"
-                  disabled={
-                    isConfirmingExpected || confirmableExpectedRows.length === 0
-                  }
-                  onClick={() =>
-                    void handleConfirmExpectedStudents(confirmableExpectedRows)
-                  }
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] focus-visible:ring-2 focus-visible:ring-[#83CD2D]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  {isConfirmingExpected
-                    ? "Bestätigt..."
-                    : `${confirmableExpectedRows.length} erwartete bestätigen`}
-                </button>
-                <button
-                  type="button"
-                  disabled={isCompletingInstance}
-                  onClick={() => void handleCompleteTimetableInstance()}
-                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-                >
-                  Beenden
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
-              <RosterSummaryStat label="Anwesend" value={present.length} />
-              <RosterSummaryStat label="Erwartet" value={expected.length} />
-              <RosterSummaryStat label="Abwesend" value={absent.length} />
-              <RosterSummaryStat label="Gegangen" value={departed.length} />
-              <RosterSummaryStat label="Ungeplant" value={unplanned.length} />
-            </div>
-          </div>
-          <form
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const onlyResult = addStudentResults[0];
-              if (onlyResult && addStudentResults.length === 1) {
-                void handleAddUnplannedStudent(onlyResult.id.toString());
-              }
-            }}
-          >
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
-              <UserPlus className="h-4 w-4 text-gray-400" aria-hidden="true" />
-              Kind ungeplant hinzufügen
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                type="search"
-                value={addStudentSearch}
-                onChange={(event) => setAddStudentSearch(event.target.value)}
-                placeholder="Weiteres Kind suchen..."
-                className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={isAddingStudent || addStudentResults.length !== 1}
-                className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] disabled:opacity-50"
-              >
-                Hinzufügen
-              </button>
-            </div>
-            {addStudentResults.length > 0 ? (
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {addStudentResults.map((student) => (
-                  <button
-                    key={student.id}
-                    type="button"
-                    disabled={isAddingStudent}
-                    onClick={() =>
-                      void handleAddUnplannedStudent(student.id.toString())
-                    }
-                    className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#83CD2D] disabled:opacity-50"
-                  >
-                    <span className="font-medium text-gray-900">
-                      {student.name ||
-                        [student.first_name, student.second_name]
-                          .filter(Boolean)
-                          .join(" ")}
-                    </span>
-                    <span className="ml-2 text-gray-500">
-                      {[student.school_class, student.group_name]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </form>
-          {section("Anwesend", present)}
-          {section("Erwartet", expected)}
-          {section("Entschuldigt / Abwesend", absent)}
-          {section("Nicht mehr im Raum", departed)}
-          {section(
-            isSpontaneousInstance ? "Teilnehmende" : "Ungeplant",
-            unplanned,
-          )}
-        </div>
+        <TimetableRosterContent
+          addStudentResults={addStudentResults}
+          addStudentSearch={addStudentSearch}
+          attendanceWebEnabled={attendanceWebEnabled}
+          isAddingStudent={isAddingStudent}
+          isCompletingInstance={isCompletingInstance}
+          isConfirmingExpected={isConfirmingExpected}
+          roster={currentTimetableRoster}
+          showTimetableCounts={showTimetableCounts}
+          onAddStudent={handleAddUnplannedStudent}
+          onComplete={handleCompleteTimetableInstance}
+          onConfirmExpected={handleConfirmExpectedStudents}
+          onRosterAction={handleRosterAction}
+          onSearchChange={setAddStudentSearch}
+        />
       );
     }
 
@@ -1755,6 +2086,10 @@ function MeinRaumPageContent() {
               const studentArrival = arrivalTimesData?.get(
                 student.id.toString(),
               );
+              const presentStudent = withActiveSupervisionPresence(student);
+              const arrivalExceptionAbsent =
+                (studentArrival?.isException ?? false) &&
+                !studentArrival?.expectedArrival;
 
               return (
                 <StudentCard
@@ -1771,19 +2106,7 @@ function MeinRaumPageContent() {
                   }
                   locationBadge={
                     <StudentPresenceBadge
-                      student={(() => {
-                        const badgePlanning = getStudentPresenceBadgePlanning({
-                          ...student,
-                          arrival_is_exception: studentArrival?.isException,
-                          arrival_time: studentArrival?.expectedArrival,
-                          arrival_notes: studentArrival?.notes,
-                        });
-                        return {
-                          ...student,
-                          not_arrival_today: badgePlanning.notArrivalToday,
-                          not_arrival_reason: badgePlanning.notArrivalReason,
-                        };
-                      })()}
+                      student={presentStudent}
                       displayMode="contextAware"
                       userGroups={myGroupIds}
                       groupRooms={myGroupRooms}
@@ -1803,20 +2126,25 @@ function MeinRaumPageContent() {
                           Gruppe: {student.group_name}
                         </StudentInfoRow>
                       )}
+                      {student.pending_excused_note !== undefined && (
+                        <StudentPendingExcusedRow
+                          note={student.pending_excused_note}
+                        />
+                      )}
                       {(() => {
                         const absence = getStudentAbsence({
-                          sick: student.sick,
-                          classTrip: student.class_trip,
-                          excused: student.excused,
+                          sick: presentStudent.sick,
+                          classTrip: presentStudent.class_trip,
+                          excused: presentStudent.excused,
                         });
-                        if (absence && !student.actual_pickup_time) {
+                        if (absence && !presentStudent.actual_pickup_time) {
                           return <StudentAbsenceRow label={absence.label} />;
                         }
                         const dayPlanningNotComingLabel =
-                          getDayPlanningNotComingLabel(student);
+                          getDayPlanningNotComingLabel(presentStudent);
                         if (
                           dayPlanningNotComingLabel &&
-                          !student.actual_pickup_time
+                          !presentStudent.actual_pickup_time
                         ) {
                           return (
                             <StudentAbsenceRow
@@ -1829,13 +2157,13 @@ function MeinRaumPageContent() {
                             <ArrivalTimeRow
                               arrivalTime={studentArrival?.expectedArrival}
                               actualTime={student.actual_arrival_time}
-                              isException={studentArrival?.isException ?? false}
-                              isAbsent={
-                                (studentArrival?.isException ?? false) &&
-                                !studentArrival?.expectedArrival
+                              isException={
+                                !arrivalExceptionAbsent &&
+                                (studentArrival?.isException ?? false)
                               }
+                              isAbsent={false}
                               notes={
-                                studentArrival
+                                studentArrival && !arrivalExceptionAbsent
                                   ? combineTimeNotes(
                                       studentArrival.notes,
                                       studentArrival.dayNotes,
@@ -1973,37 +2301,7 @@ function MeinRaumPageContent() {
                       : (currentRoom?.id ?? ""),
                     onTabChange: (tabId) => {
                       if (tabId === SCHULHOF_TAB_ID) {
-                        // Switch to Schulhof tab
-                        setIsSchulhofTabSelected(true);
-                        setSelectedRoomId(null);
-                        setSelectedTimetableInstanceId(null);
-                        router.push("/active-supervisions?room=schulhof");
-                        localStorage.setItem(
-                          "sidebar-last-room",
-                          SCHULHOF_TAB_ID,
-                        );
-                        localStorage.setItem(
-                          "sidebar-last-room-name",
-                          SCHULHOF_ROOM_NAME,
-                        );
-                        // Load Schulhof visits if supervising (use ref to avoid stale closure)
-                        const currentSchulhofStatus = schulhofStatusRef.current;
-                        if (
-                          currentSchulhofStatus?.isUserSupervising &&
-                          currentSchulhofStatus?.activeGroupId
-                        ) {
-                          loadRoomVisits(
-                            currentSchulhofStatus.activeGroupId,
-                            SCHULHOF_ROOM_NAME,
-                            groupNameToIdMapRef.current,
-                          )
-                            .then(setStudents)
-                            .catch(() => {
-                              // Error already handled in loadRoomVisits
-                            });
-                        } else {
-                          setStudents([]);
-                        }
+                        handleOpenSchulhofSupervision();
                       } else {
                         // Switch to regular room
                         setIsSchulhofTabSelected(false);
@@ -2125,6 +2423,18 @@ function MeinRaumPageContent() {
             onToggle={() => handleToggleSchulhof().catch(() => undefined)}
           />
         )}
+
+      {currentRoom &&
+      (!isSchulhofActive || schulhofStatus?.isUserSupervising) ? (
+        <div className="mb-4">
+          <Suspense fallback={null}>
+            <TransitStudentsSection
+              fromReferrer="/active-supervisions"
+              collapsible
+            />
+          </Suspense>
+        </div>
+      ) : null}
 
       {/* Student Grid - Mobile Optimized */}
       {(!isSchulhofActive || schulhofStatus?.isUserSupervising) &&

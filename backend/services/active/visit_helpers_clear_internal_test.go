@@ -134,11 +134,7 @@ func (m *mockStudentRepoForClear) Update(_ context.Context, s *userModels.Studen
 // logger and the given settings + student-repo stubs. Only the fields that
 // auto-clear exercises are populated.
 func newTestServiceWithLogger(s SettingsResolver, repo userModels.StudentRepository) *service {
-	return &service{
-		studentRepo: repo,
-		settings:    s,
-		logger:      slog.New(slog.NewTextHandler(new(bytes.Buffer), nil)),
-	}
+	return &service{ServiceDependencies: ServiceDependencies{StudentRepo: repo, Logger: slog.New(slog.NewTextHandler(new(bytes.Buffer), nil))}, settings: s}
 }
 
 // TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin — no studentRepo

@@ -2,7 +2,6 @@ package education
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -24,11 +23,6 @@ type GroupSubstitution struct {
 	Group           *Group       `bun:"-" json:"group,omitempty"`
 	RegularStaff    *users.Staff `bun:"-" json:"regular_staff,omitempty"`
 	SubstituteStaff *users.Staff `bun:"-" json:"substitute_staff,omitempty"`
-}
-
-// TableName returns the database table name
-func (gs *GroupSubstitution) TableName() string {
-	return "education.group_substitution"
 }
 
 // Validate ensures group substitution data is valid
@@ -96,19 +90,4 @@ func (gs *GroupSubstitution) SetSubstituteStaff(staff *users.Staff) {
 	if staff != nil {
 		gs.SubstituteStaffID = staff.ID
 	}
-}
-
-// GetID returns the entity's ID
-func (m *GroupSubstitution) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *GroupSubstitution) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *GroupSubstitution) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

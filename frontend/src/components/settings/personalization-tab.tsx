@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { sessionFetch } from "~/lib/session-cache";
 import { loginImageSrc } from "~/lib/tenant-api";

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 )
 
 // The tests in this file lift PR-diff coverage on the MFA model helpers
@@ -50,29 +49,6 @@ func TestMFACredential_Validate(t *testing.T) {
 	}
 }
 
-func TestMFACredential_AccessorsAndTableName(t *testing.T) {
-	now := time.Now()
-	cred := &MFACredential{AccountID: 7, Method: MFAMethodEmail}
-	cred.ID = 99
-	cred.CreatedAt = now
-	cred.UpdatedAt = now.Add(time.Hour)
-
-	assert.Equal(t, int64(99), cred.GetID())
-	assert.Equal(t, now, cred.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Hour), cred.GetUpdatedAt())
-	assert.Equal(t, "auth.mfa_credentials", cred.TableName())
-}
-
-func TestMFACredential_BeforeAppendModel_SetsTableExprForUpdateAndDelete(t *testing.T) {
-	cred := &MFACredential{}
-	// Both branches set ModelTableExpr; calling with a noop query type just
-	// exercises the type-switch fallthrough. The branches that ARE typed
-	// (UpdateQuery / DeleteQuery) need a real bun.IDB to construct, so we
-	// rely on the in-package coverage hit and assert no error.
-	assert.NoError(t, cred.BeforeAppendModel(nil))
-	assert.NoError(t, cred.BeforeAppendModel(&bun.SelectQuery{}))
-}
-
 // --- MFAEmailChallenge ---
 
 func TestMFAEmailChallenge_IsConsumed(t *testing.T) {
@@ -83,50 +59,12 @@ func TestMFAEmailChallenge_IsConsumed(t *testing.T) {
 	assert.True(t, consumed.IsConsumed())
 }
 
-func TestMFAEmailChallenge_AccessorsAndTableName(t *testing.T) {
-	now := time.Now()
-	c := &MFAEmailChallenge{AccountID: 8, CodeHash: "h", ExpiresAt: now}
-	c.ID = 101
-	c.CreatedAt = now
-	c.UpdatedAt = now.Add(time.Hour)
-
-	assert.Equal(t, int64(101), c.GetID())
-	assert.Equal(t, now, c.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Hour), c.GetUpdatedAt())
-	assert.Equal(t, "auth.mfa_email_challenges", c.TableName())
-}
-
-func TestMFAEmailChallenge_BeforeAppendModel_DoesNotPanicOnFallthrough(t *testing.T) {
-	c := &MFAEmailChallenge{}
-	assert.NoError(t, c.BeforeAppendModel(nil))
-	assert.NoError(t, c.BeforeAppendModel(&bun.SelectQuery{}))
-}
-
 // --- MFATrustedDevice ---
 
 func TestMFATrustedDevice_IsRevoked(t *testing.T) {
 	now := time.Now()
 	assert.False(t, (&MFATrustedDevice{ExpiresAt: now.Add(time.Hour)}).IsRevoked())
 	assert.True(t, (&MFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now}).IsRevoked())
-}
-
-func TestMFATrustedDevice_AccessorsAndTableName(t *testing.T) {
-	now := time.Now()
-	d := &MFATrustedDevice{AccountID: 9, TenantID: 100, TokenHash: "h", ExpiresAt: now}
-	d.ID = 202
-	d.CreatedAt = now
-	d.UpdatedAt = now.Add(time.Hour)
-
-	assert.Equal(t, int64(202), d.GetID())
-	assert.Equal(t, now, d.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Hour), d.GetUpdatedAt())
-	assert.Equal(t, "auth.mfa_trusted_devices", d.TableName())
-}
-
-func TestMFATrustedDevice_BeforeAppendModel_DoesNotPanicOnFallthrough(t *testing.T) {
-	d := &MFATrustedDevice{}
-	assert.NoError(t, d.BeforeAppendModel(nil))
-	assert.NoError(t, d.BeforeAppendModel(&bun.SelectQuery{}))
 }
 
 // The Account MFA lockout helpers (IsMFALocked / IncrementMFAAttempts /

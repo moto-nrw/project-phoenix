@@ -213,7 +213,7 @@ export function PendingInvitationsList({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {sortedInvitations.map((invitation, index) => {
+              {sortedInvitations.map((invitation) => {
                 const isValidDate = isValidDateString(invitation.expiresAt);
                 const isExpired = isDateExpired(invitation.expiresAt);
                 const expiresDate = isValidDate
@@ -222,7 +222,7 @@ export function PendingInvitationsList({
 
                 return (
                   <tr
-                    key={`${invitation.id}-${invitation.email}-${index}`}
+                    key={invitation.id}
                     className="transition-colors hover:bg-gray-50/50"
                   >
                     <td className="max-w-0 truncate px-3 py-2 text-xs font-medium text-gray-900 md:px-4 md:py-3 md:text-sm">

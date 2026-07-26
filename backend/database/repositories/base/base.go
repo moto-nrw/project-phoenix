@@ -3,9 +3,11 @@ package base
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -116,6 +118,24 @@ func (r *Repository[T]) FindByID(ctx context.Context, id any) (T, error) {
 	return entityVal, nil
 }
 
+// FindByIDOrNil behaves like FindByID but returns the zero value and a nil error
+// when no row matches, instead of a wrapped sql.ErrNoRows. Repositories whose
+// service layer treats "not found" as nil (rather than an error) delegate their
+// FindByID override here instead of hand-rolling the query — keeping tenant
+// scoping and table/alias derivation in one place (backend-conventions Rule 2).
+func (r *Repository[T]) FindByIDOrNil(ctx context.Context, id any) (T, error) {
+	entity, err := r.FindByID(ctx, id)
+	if err != nil {
+		var dbErr *modelBase.DatabaseError
+		if errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			var zero T
+			return zero, nil
+		}
+		return entity, err
+	}
+	return entity, nil
+}
+
 // Update updates an existing entity in the database
 func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 	// Check if entity is nil using reflection
@@ -222,42 +242,38 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 	return entities, nil
 }
 
-// Count returns the number of entities matching the filters
-func (r *Repository[T]) Count(ctx context.Context, filters map[string]any) (int, error) {
-	entityVal := r.newEntityValue()
+// ListWithOptions retrieves entities matching the query options, supporting
+// the full Filter operator set plus sorting and pagination. The single-table
+// twin of the hand-rolled per-repo List(QueryOptions) copies; returns a nil
+// slice when nothing matches (callers that must serialize JSON [] coerce).
+func (r *Repository[T]) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]T, error) {
+	var entities []T
 
-	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
-	// Get the entity name in lowercase to use as alias
-	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	query := GetDB(ctx, r.DB).NewSelect().
-		Model(entityVal).
+		Model(&entities).
 		ModelTableExpr(tableExpr).
-		Column("id")
+		ColumnExpr(fmt.Sprintf(`"%s".*`, entityName))
 
-	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+	query = r.applyTenantFilter(ctx, query, entityName)
+
+	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias(entityName)
 		}
+		query = options.ApplyToQuery(query)
 	}
 
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("? = ?", bun.Ident(field), value)
-		}
-	}
-
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count",
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list with options",
 			Err: err,
 		}
 	}
 
-	return count, nil
+	return entities, nil
 }
 
 // CountWithOptions returns the number of entities matching the query options.
@@ -365,6 +381,42 @@ func (r *Repository[T]) DeleteOlderThan(ctx context.Context, dateColumn string, 
 	return deleted, nil
 }
 
+// DeleteBefore deletes all matching rows whose column (a TIMESTAMPTZ instant)
+// is strictly before cutoff and returns the number of rows deleted. The
+// time.Time twin of DeleteOlderThan for expiry-style cleanup jobs. op becomes
+// the DatabaseError Op so per-repo cleanup wrappers keep their exact error
+// strings (they surface in scheduler failure logs, which are frozen).
+// column must be a compile-time constant column name, never user input.
+func (r *Repository[T]) DeleteBefore(ctx context.Context, column string, cutoff time.Time, op string) (int64, error) {
+	entityVal := r.newEntityValue()
+
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
+
+	query := GetDB(ctx, r.DB).NewDelete().
+		Model(entityVal).
+		ModelTableExpr(tableExpr).
+		Where("? < ?", bun.Ident(column), cutoff)
+
+	if r.TenantScoped {
+		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+		}
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: op, Err: err}
+	}
+
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: op, Err: err}
+	}
+
+	return deleted, nil
+}
+
 // UpdateColumns updates only the named columns of entity (matched by primary
 // key) and returns the number of rows affected, so callers own the 0-rows
 // decision. Unlike Update, it does not run entity validation: callers update
@@ -424,13 +476,6 @@ func (r *Repository[T]) newEntityValue() any {
 	return reflect.New(entityType).Interface()
 }
 
-// Transaction executes a function within a database transaction
-func (r *Repository[T]) Transaction(ctx context.Context, fn func(tx bun.Tx) error) error {
-	return r.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		return fn(tx)
-	})
-}
-
 // AssertRowsAffected checks that a DML statement affected exactly the expected number of rows.
 func AssertRowsAffected(result sql.Result, expected int64, op string) error {
 	n, err := result.RowsAffected()
@@ -456,6 +501,15 @@ func TenantWhere(ctx context.Context, alias string) (string, int64, bool) {
 	return "", 0, false
 }
 
+// WithTenantFilter applies the TenantWhere defense-in-depth tenant_id filter
+// for alias to q, returning q unchanged when no tenant is in ctx.
+func WithTenantFilter[Q interface{ Where(string, ...any) Q }](ctx context.Context, q Q, alias string) Q {
+	if where, val, ok := TenantWhere(ctx, alias); ok {
+		return q.Where(where, val)
+	}
+	return q
+}
+
 // toSnakeCase converts a CamelCase string to snake_case
 // Example: "StudentGuardian" -> "student_guardian"
 func toSnakeCase(s string) string {
@@ -473,11 +527,23 @@ func toSnakeCase(s string) string {
 	return result.String()
 }
 
-// AcquireXactLock takes a transaction-scoped advisory lock on the hashed key.
-// Requires a transaction in ctx (TenantTxMiddleware / WithTenantTx); the lock
-// releases automatically at COMMIT/ROLLBACK. Issue #584: shared helper so
-// services never run ExecContext themselves (Rule 11).
+// AcquireXactLock takes an EXCLUSIVE transaction-scoped advisory lock on the
+// hashed key. Requires a transaction in ctx (TenantTxMiddleware / WithTenantTx);
+// the lock releases automatically at COMMIT/ROLLBACK. Issue #584: shared helper
+// so services never run ExecContext themselves (Rule 11).
 func AcquireXactLock(ctx context.Context, db *bun.DB, key string) error {
 	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	return err
+}
+
+// AcquireXactLockShared takes a SHARED transaction-scoped advisory lock on the
+// hashed key. Shared holders never block one another, so concurrent readers of
+// the same key proceed in parallel; a shared holder only conflicts with an
+// EXCLUSIVE holder (AcquireXactLock) on the same key. Use this for read paths
+// that must be mutually exclusive with a writer but not with each other — it
+// avoids serializing every reader behind the exclusive lock. Same tx/auto-release
+// semantics as AcquireXactLock.
+func AcquireXactLockShared(ctx context.Context, db *bun.DB, key string) error {
+	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", key)
 	return err
 }

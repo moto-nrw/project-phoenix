@@ -13,8 +13,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { useIsMobile } from "~/hooks/useIsMobile";
-import { useScrollLock } from "~/hooks/useScrollLock";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import {
   Drawer,
   DrawerClose,

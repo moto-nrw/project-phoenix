@@ -20,6 +20,7 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	authResource            *AuthResource
+	passkeyService          platformSvc.OperatorPasskeyService
 	mfaResource             *MFAResource
 	provisioningResource    *ProvisioningResource
 	settingsResource        *SettingsResource
@@ -32,11 +33,13 @@ type Resource struct {
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
 	invitationRateLimiter   func(http.Handler) http.Handler
+	operatorLookup          OperatorLookup
 }
 
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService                platformSvc.OperatorAuthService
+	PasskeyService             platformSvc.OperatorPasskeyService
 	MFAService                 platformSvc.OperatorMFAService
 	InvitationService          platformSvc.OperatorInvitationService
 	ProvisioningService        platformSvc.OperatorProvisioningService
@@ -107,6 +110,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 	resource := &Resource{
 		authResource:          NewAuthResource(cfg.AuthService),
+		passkeyService:        cfg.PasskeyService,
 		mfaResource:           NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
 		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
@@ -115,6 +119,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
 		unregisteredTagScans:  cfg.UnregisteredTagScanService,
 		tokenAuth:             tokenAuth,
+		operatorLookup:        cfg.AuthService,
 	}
 	if cfg.SettingsService != nil {
 		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService)
@@ -130,9 +135,29 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Public routes (no auth required) — rate-limited for brute-force protection.
-	// Login and email-confirm use separate rate limiter instances so that
-	// flooding one endpoint cannot exhaust the budget for the other.
+	rs.mountPublicAuthRoutes(r)
+	rs.mountRefreshRoute(r)
+	rs.mountMFAEnrollmentRoutes(r)
+	rs.mountProtectedRoutes(r)
+
+	return r
+}
+
+// useRateLimiter applies primary (falling back to fallback) when non-nil.
+func useRateLimiter(r chi.Router, primary, fallback func(http.Handler) http.Handler) {
+	limiter := primary
+	if limiter == nil {
+		limiter = fallback
+	}
+	if limiter != nil {
+		r.Use(limiter)
+	}
+}
+
+// mountPublicAuthRoutes registers the unauthenticated /auth routes.
+// Login and email-confirm use separate rate limiter instances so that
+// flooding one endpoint cannot exhaust the budget for the other.
+func (rs *Resource) mountPublicAuthRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			if rs.authRateLimiter != nil {
@@ -147,183 +172,240 @@ func (rs *Resource) Router() chi.Router {
 			// token yet.
 			r.Post("/mfa/verify", rs.mfaResource.Verify)
 			r.Post("/mfa/resend", rs.mfaResource.Resend)
+			r.Post("/passkeys/login/options", rs.PasskeyLoginOptions)
+			r.Post("/passkeys/login/verify", rs.PasskeyLoginVerify)
 		})
 		r.Group(func(r chi.Router) {
-			limiter := rs.emailConfirmRateLimiter
-			if limiter == nil {
-				limiter = rs.authRateLimiter
-			}
-			if limiter != nil {
-				r.Use(limiter)
-			}
+			useRateLimiter(r, rs.emailConfirmRateLimiter, rs.authRateLimiter)
 			r.Post("/email-confirm", rs.profileResource.ConfirmEmailChange)
 		})
 		r.Group(func(r chi.Router) {
-			limiter := rs.invitationRateLimiter
-			if limiter == nil {
-				limiter = rs.authRateLimiter
-			}
-			if limiter != nil {
-				r.Use(limiter)
-			}
+			useRateLimiter(r, rs.invitationRateLimiter, rs.authRateLimiter)
 			r.Post("/invitations/validate", rs.invitationsResource.ValidateInvitation)
 			r.Post("/invitations/accept", rs.invitationsResource.AcceptInvitation)
 		})
 	})
+}
 
-	// Refresh token route (requires valid refresh JWT, no scope check)
+// mountRefreshRoute registers the refresh token route (requires valid refresh
+// JWT, no scope check).
+func (rs *Resource) mountRefreshRoute(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.AuthenticateRefreshJWT)
 		r.Post("/auth/refresh", rs.authResource.RefreshToken)
 	})
+}
 
-	// Enrollment-only routes (issue #1308): operator-side mirror of the
-	// tenant /auth/mfa/enroll/* group. Accepts the narrow enrollment JWT
-	// that operator login mints when no MFA credential is on file. The
-	// enrollment authenticator guarantees mfa_enrollment_pending=true so
-	// these routes are reachable only from a pre-enrollment session, never
-	// from a full operator access token.
+// mountMFAEnrollmentRoutes registers the enrollment-only routes (issue #1308):
+// operator-side mirror of the tenant /auth/mfa/enroll/* group. Accepts the
+// narrow enrollment JWT that operator login mints when no MFA credential is on
+// file. The enrollment authenticator guarantees mfa_enrollment_pending=true so
+// these routes are reachable only from a pre-enrollment session, never from a
+// full operator access token.
+func (rs *Resource) mountMFAEnrollmentRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.MFAEnrollmentAuthenticator)
 		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
 		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
 	})
+}
 
-	// Protected routes (require operator auth)
+// mountProtectedRoutes registers every route behind the operator auth chain.
+func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
+		r.Use(RequiresActiveOperator(rs.operatorLookup))
 
-		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
-		r.Get("/roles", rs.provisioningResource.ListSystemRoles)
-		r.Get("/stats", rs.provisioningResource.GetProvisioningStats)
-		r.Route("/devices", func(r chi.Router) {
-			r.Get("/", rs.provisioningResource.ListAllDevices)
-			r.Post("/", rs.provisioningResource.CreateDevice)
-			r.Post("/{id}/set-api-key", rs.provisioningResource.SetDeviceAPIKey)
-			r.Delete("/{id}", rs.provisioningResource.DeleteDevice)
-		})
+		rs.mountPasskeyRoutes(r)
+		rs.mountProvisioningRoutes(r)
+		rs.mountSchoolRoutes(r)
+		rs.mountPersonRoutes(r)
+		rs.mountTagScanRoutes(r)
+		rs.mountAccountMFARoutes(r)
+		rs.mountSuggestionRoutes(r)
+		rs.mountProfileRoutes(r)
+		rs.mountTrustedDeviceRoutes(r)
+		rs.mountInvitationRoutes(r)
+		rs.mountAnnouncementRoutes(r)
+	})
+}
 
-		r.Route("/organizations", func(r chi.Router) {
-			r.Get("/", rs.provisioningResource.ListOrganizations)
-			r.Get("/summaries", rs.provisioningResource.ListOrganizationSummaries)
-			r.Post("/", rs.provisioningResource.CreateOrganization)
-			r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
-			r.Delete("/{id}", rs.provisioningResource.SoftDeleteOrganization)
-			r.Post("/{id}/restore", rs.provisioningResource.RestoreOrganization)
-			r.Get("/{id}/accounts", rs.provisioningResource.ListOrganizationAccounts)
-			r.Get("/{id}/devices", rs.provisioningResource.ListOrganizationDevices)
-			r.Get("/{id}/schools", rs.provisioningResource.ListOrganizationSchoolSummaries)
-			r.Get("/{id}/persons", rs.provisioningResource.ListOrganizationPersons)
-		})
+// mountPasskeyRoutes registers passkey management for the currently-authenticated
+// operator.
+//
+// Keep these as individual leaves instead of r.Route("/auth/passkeys", ...)
+// because public passkey login also lives under /auth/passkeys/login/*.
+// A protected subtree on /auth/passkeys shadows those public login routes in
+// chi and makes anonymous passkey login fail with 401.
+//
+// Register the list endpoint under BOTH the no-slash and trailing-slash forms:
+// chi treats "/auth/passkeys" and "/auth/passkeys/" as distinct patterns (no
+// RedirectSlashes on this router), and the old r.Route("/auth/passkeys").Get("/")
+// form answered both. The proxy sends the slash form, but direct authenticated
+// operator clients hit the no-slash form, so dropping it 404s them.
+func (rs *Resource) mountPasskeyRoutes(r chi.Router) {
+	r.Get("/auth/passkeys", rs.PasskeyList)
+	r.Get("/auth/passkeys/", rs.PasskeyList)
+	r.Post("/auth/passkeys/enrollment/challenge", rs.PasskeyEnrollmentChallenge)
+	r.Post("/auth/passkeys/register/options", rs.PasskeyRegisterOptions)
+	r.Post("/auth/passkeys/register/verify", rs.PasskeyRegisterVerify)
+	r.Delete("/auth/passkeys/{passkeyId}", rs.PasskeyRevoke)
+}
 
-		r.Route("/schools", func(r chi.Router) {
-			r.Get("/", rs.provisioningResource.ListSchools)
-			r.Get("/summaries", rs.provisioningResource.ListSchoolSummaries)
-			r.Post("/", rs.provisioningResource.CreateSchool)
-			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
-			r.Delete("/{id}", rs.provisioningResource.SoftDeleteSchool)
-			r.Post("/{id}/restore", rs.provisioningResource.RestoreSchool)
-			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
-			r.Post("/{id}/create-account", rs.provisioningResource.CreateSchoolAccount)
-			r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
-			r.Route("/{id}/accounts/{accountId}/caregiver-capability", func(r chi.Router) {
-				r.Get("/", rs.provisioningResource.GetSchoolAccountCaregiverCapability)
-				r.Post("/", rs.provisioningResource.EnableSchoolAccountCaregiverCapability)
-				r.Delete("/", rs.provisioningResource.DisableSchoolAccountCaregiverCapability)
-			})
-			// MFA admin actions for school staff. Operator-side mirror of the
-			// tenant-admin MFA endpoints — same write semantics, separate
-			// audit metadata (actor_type=operator).
-			r.Route("/{id}/accounts/{accountId}/mfa", func(r chi.Router) {
-				r.Get("/", rs.provisioningResource.GetSchoolAccountMFAState)
-				r.Delete("/", rs.provisioningResource.ResetSchoolAccountMFA)
-				r.Put("/override", rs.provisioningResource.SetSchoolAccountMFAOverride)
-			})
-			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
-			r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
-			if rs.settingsResource != nil {
-				r.Route("/{id}/settings", func(r chi.Router) {
-					r.Get("/schema", rs.settingsResource.GetSchoolSettingsSchema)
-					r.Get("/values/{key}/reveal", rs.settingsResource.RevealSchoolSettingValue)
-					r.Put("/values/{key}", rs.settingsResource.SetSchoolSettingValue)
-					r.Delete("/values/{key}", rs.settingsResource.ResetSchoolSettingValue)
-				})
-			}
-		})
-
-		r.Route("/persons", func(r chi.Router) {
-			r.Delete("/{id}", rs.provisioningResource.SoftDeletePerson)
-		})
-
-		if rs.unregisteredTagScans != nil {
-			r.Route("/unregistered-tag-scans", func(r chi.Router) {
-				r.Get("/", rs.ListUnregisteredTagScans)
-				r.Post("/{id}/resolve", rs.ResolveUnregisteredTagScan)
-			})
-		}
-
-		// Account-wide MFA override surface ("mailbox lockout emergency
-		// switch"). Deliberately decoupled from /schools/{id}/accounts/{}
-		// because the platform-wide override row applies regardless of
-		// which school an account belongs to — see #1430 review round 2.
-		r.Route("/accounts/{accountId}/mfa", func(r chi.Router) {
-			r.Get("/global-override", rs.provisioningResource.GetAccountMFAGlobalOverride)
-			r.Put("/global-override", rs.provisioningResource.SetAccountMFAGlobalOverride)
-		})
-
-		// Suggestions management
-		r.Route("/suggestions", func(r chi.Router) {
-			r.Get("/", rs.suggestionsResource.ListSuggestions)
-			r.Get("/unread-count", rs.suggestionsResource.GetUnreadCount)
-			r.Get("/unviewed-count", rs.suggestionsResource.GetUnviewedCount)
-			r.Get("/{id}", rs.suggestionsResource.GetSuggestion)
-			r.Put("/{id}/status", rs.suggestionsResource.UpdateStatus)
-			r.Put("/{id}/hidden", rs.suggestionsResource.HidePost)
-			r.Delete("/{id}", rs.suggestionsResource.DeletePost)
-			r.Post("/{id}/view", rs.suggestionsResource.MarkPostViewed)
-			r.Post("/{id}/comments", rs.suggestionsResource.AddComment)
-			r.Post("/{id}/comments/read", rs.suggestionsResource.MarkCommentsRead)
-			r.Delete("/{id}/comments/{commentId}", rs.suggestionsResource.DeleteComment)
-		})
-
-		// Profile management
-		r.Route("/profile", func(r chi.Router) {
-			r.Get("/", rs.profileResource.GetProfile)
-			r.Put("/", rs.profileResource.UpdateProfile)
-			r.Post("/password", rs.profileResource.ChangePassword)
-			r.Post("/email-change", rs.profileResource.InitiateEmailChange)
-		})
-
-		// MFA enrollment lives in its own group above (uses the dedicated
-		// MFAEnrollmentAuthenticator). Self-service trusted-device
-		// management stays here — ownership is enforced in the service.
-		r.Get("/auth/mfa/trusted-devices", rs.mfaResource.ListTrustedDevices)
-		r.Delete("/auth/mfa/trusted-devices/{deviceId}", rs.mfaResource.RevokeTrustedDevice)
-
-		// Operator invitations
-		r.Route("/invitations", func(r chi.Router) {
-			r.Post("/", rs.invitationsResource.CreateInvitation)
-			r.Get("/", rs.invitationsResource.ListInvitations)
-			r.Post("/{id}/resend", rs.invitationsResource.ResendInvitation)
-			r.Delete("/{id}", rs.invitationsResource.RevokeInvitation)
-		})
-
-		// Announcements management
-		r.Route("/announcements", func(r chi.Router) {
-			r.Get("/", rs.announcementsResource.ListAnnouncements)
-			r.Post("/", rs.announcementsResource.CreateAnnouncement)
-			r.Get("/{id}", rs.announcementsResource.GetAnnouncement)
-			r.Put("/{id}", rs.announcementsResource.UpdateAnnouncement)
-			r.Delete("/{id}", rs.announcementsResource.DeleteAnnouncement)
-			r.Post("/{id}/publish", rs.announcementsResource.PublishAnnouncement)
-			r.Get("/{id}/stats", rs.announcementsResource.GetStats)
-			r.Get("/{id}/views", rs.announcementsResource.GetViewDetails)
-		})
+// mountProvisioningRoutes registers account/role/stat/device/organization
+// provisioning endpoints.
+func (rs *Resource) mountProvisioningRoutes(r chi.Router) {
+	r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
+	r.Get("/roles", rs.provisioningResource.ListSystemRoles)
+	r.Get("/stats", rs.provisioningResource.GetProvisioningStats)
+	r.Route("/devices", func(r chi.Router) {
+		r.Get("/", rs.provisioningResource.ListAllDevices)
+		r.Post("/", rs.provisioningResource.CreateDevice)
+		r.Post("/{id}/set-api-key", rs.provisioningResource.SetDeviceAPIKey)
+		r.Delete("/{id}", rs.provisioningResource.DeleteDevice)
 	})
 
-	return r
+	r.Route("/organizations", func(r chi.Router) {
+		r.Get("/", rs.provisioningResource.ListOrganizations)
+		r.Get("/summaries", rs.provisioningResource.ListOrganizationSummaries)
+		r.Post("/", rs.provisioningResource.CreateOrganization)
+		r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
+		r.Delete("/{id}", rs.provisioningResource.SoftDeleteOrganization)
+		r.Post("/{id}/restore", rs.provisioningResource.RestoreOrganization)
+		r.Get("/{id}/accounts", rs.provisioningResource.ListOrganizationAccounts)
+		r.Get("/{id}/devices", rs.provisioningResource.ListOrganizationDevices)
+		r.Get("/{id}/schools", rs.provisioningResource.ListOrganizationSchoolSummaries)
+		r.Get("/{id}/persons", rs.provisioningResource.ListOrganizationPersons)
+	})
+}
+
+// mountSchoolRoutes registers the /schools subtree, including the optional
+// per-school settings endpoints.
+func (rs *Resource) mountSchoolRoutes(r chi.Router) {
+	r.Route("/schools", func(r chi.Router) {
+		r.Get("/", rs.provisioningResource.ListSchools)
+		r.Get("/summaries", rs.provisioningResource.ListSchoolSummaries)
+		r.Post("/", rs.provisioningResource.CreateSchool)
+		r.Put("/{id}", rs.provisioningResource.UpdateSchool)
+		r.Delete("/{id}", rs.provisioningResource.SoftDeleteSchool)
+		r.Post("/{id}/restore", rs.provisioningResource.RestoreSchool)
+		r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
+		r.Post("/{id}/create-account", rs.provisioningResource.CreateSchoolAccount)
+		r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
+		r.Route("/{id}/accounts/{accountId}/caregiver-capability", func(r chi.Router) {
+			r.Get("/", rs.provisioningResource.GetSchoolAccountCaregiverCapability)
+			r.Post("/", rs.provisioningResource.EnableSchoolAccountCaregiverCapability)
+			r.Delete("/", rs.provisioningResource.DisableSchoolAccountCaregiverCapability)
+		})
+		// MFA admin actions for school staff. Operator-side mirror of the
+		// tenant-admin MFA endpoints — same write semantics, separate
+		// audit metadata (actor_type=operator).
+		r.Route("/{id}/accounts/{accountId}/mfa", func(r chi.Router) {
+			r.Get("/", rs.provisioningResource.GetSchoolAccountMFAState)
+			r.Delete("/", rs.provisioningResource.ResetSchoolAccountMFA)
+			r.Put("/override", rs.provisioningResource.SetSchoolAccountMFAOverride)
+		})
+		r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
+		r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
+		if rs.settingsResource != nil {
+			r.Route("/{id}/settings", func(r chi.Router) {
+				r.Get("/schema", rs.settingsResource.GetSchoolSettingsSchema)
+				r.Get("/values/{key}/reveal", rs.settingsResource.RevealSchoolSettingValue)
+				r.Put("/values/{key}", rs.settingsResource.SetSchoolSettingValue)
+				r.Delete("/values/{key}", rs.settingsResource.ResetSchoolSettingValue)
+			})
+		}
+	})
+}
+
+// mountPersonRoutes registers platform-level person management.
+func (rs *Resource) mountPersonRoutes(r chi.Router) {
+	r.Route("/persons", func(r chi.Router) {
+		r.Delete("/{id}", rs.provisioningResource.SoftDeletePerson)
+	})
+}
+
+// mountTagScanRoutes registers the optional unregistered-tag-scan surface.
+func (rs *Resource) mountTagScanRoutes(r chi.Router) {
+	if rs.unregisteredTagScans == nil {
+		return
+	}
+	r.Route("/unregistered-tag-scans", func(r chi.Router) {
+		r.Get("/", rs.ListUnregisteredTagScans)
+		r.Post("/{id}/resolve", rs.ResolveUnregisteredTagScan)
+	})
+}
+
+// mountAccountMFARoutes registers the account-wide MFA override surface
+// ("mailbox lockout emergency switch"). Deliberately decoupled from
+// /schools/{id}/accounts/{} because the platform-wide override row applies
+// regardless of which school an account belongs to — see #1430 review round 2.
+func (rs *Resource) mountAccountMFARoutes(r chi.Router) {
+	r.Route("/accounts/{accountId}/mfa", func(r chi.Router) {
+		r.Get("/global-override", rs.provisioningResource.GetAccountMFAGlobalOverride)
+		r.Put("/global-override", rs.provisioningResource.SetAccountMFAGlobalOverride)
+	})
+}
+
+// mountSuggestionRoutes registers suggestions management.
+func (rs *Resource) mountSuggestionRoutes(r chi.Router) {
+	r.Route("/suggestions", func(r chi.Router) {
+		r.Get("/", rs.suggestionsResource.ListSuggestions)
+		r.Get("/unread-count", rs.suggestionsResource.GetUnreadCount)
+		r.Get("/unviewed-count", rs.suggestionsResource.GetUnviewedCount)
+		r.Get("/{id}", rs.suggestionsResource.GetSuggestion)
+		r.Put("/{id}/status", rs.suggestionsResource.UpdateStatus)
+		r.Put("/{id}/hidden", rs.suggestionsResource.HidePost)
+		r.Delete("/{id}", rs.suggestionsResource.DeletePost)
+		r.Post("/{id}/view", rs.suggestionsResource.MarkPostViewed)
+		r.Post("/{id}/comments", rs.suggestionsResource.AddComment)
+		r.Post("/{id}/comments/read", rs.suggestionsResource.MarkCommentsRead)
+		r.Delete("/{id}/comments/{commentId}", rs.suggestionsResource.DeleteComment)
+	})
+}
+
+// mountProfileRoutes registers operator profile management.
+func (rs *Resource) mountProfileRoutes(r chi.Router) {
+	r.Route("/profile", func(r chi.Router) {
+		r.Get("/", rs.profileResource.GetProfile)
+		r.Put("/", rs.profileResource.UpdateProfile)
+		r.Post("/password", rs.profileResource.ChangePassword)
+		r.Post("/email-change", rs.profileResource.InitiateEmailChange)
+	})
+}
+
+// mountTrustedDeviceRoutes registers self-service trusted-device management.
+// MFA enrollment lives in its own group (uses the dedicated
+// MFAEnrollmentAuthenticator); ownership here is enforced in the service.
+func (rs *Resource) mountTrustedDeviceRoutes(r chi.Router) {
+	r.Get("/auth/mfa/trusted-devices", rs.mfaResource.ListTrustedDevices)
+	r.Delete("/auth/mfa/trusted-devices/{deviceId}", rs.mfaResource.RevokeTrustedDevice)
+}
+
+// mountInvitationRoutes registers operator invitation management.
+func (rs *Resource) mountInvitationRoutes(r chi.Router) {
+	r.Route("/invitations", func(r chi.Router) {
+		r.Post("/", rs.invitationsResource.CreateInvitation)
+		r.Get("/", rs.invitationsResource.ListInvitations)
+		r.Post("/{id}/resend", rs.invitationsResource.ResendInvitation)
+		r.Delete("/{id}", rs.invitationsResource.RevokeInvitation)
+	})
+}
+
+// mountAnnouncementRoutes registers announcements management.
+func (rs *Resource) mountAnnouncementRoutes(r chi.Router) {
+	r.Route("/announcements", func(r chi.Router) {
+		r.Get("/", rs.announcementsResource.ListAnnouncements)
+		r.Post("/", rs.announcementsResource.CreateAnnouncement)
+		r.Get("/{id}", rs.announcementsResource.GetAnnouncement)
+		r.Put("/{id}", rs.announcementsResource.UpdateAnnouncement)
+		r.Delete("/{id}", rs.announcementsResource.DeleteAnnouncement)
+		r.Post("/{id}/publish", rs.announcementsResource.PublishAnnouncement)
+		r.Get("/{id}/stats", rs.announcementsResource.GetStats)
+		r.Get("/{id}/views", rs.announcementsResource.GetViewDetails)
+	})
 }

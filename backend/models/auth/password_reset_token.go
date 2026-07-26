@@ -5,11 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableAuthPasswordResetTokens is the schema-qualified table name for password reset tokens
-const tableAuthPasswordResetTokens = "auth.password_reset_tokens"
 
 // PasswordResetToken represents a token used for password reset operations
 type PasswordResetToken struct {
@@ -26,25 +22,10 @@ type PasswordResetToken struct {
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 }
 
-// TableName returns the database table name
-func (t *PasswordResetToken) TableName() string {
-	return tableAuthPasswordResetTokens
-}
-
-func (t *PasswordResetToken) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableAuthPasswordResetTokens)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableAuthPasswordResetTokens)
-	}
-	return nil
-}
-
 // Validate ensures password reset token data is valid. It performs pure field
 // validation only. Expiry/used consumability is wall-clock policy owned by the
-// auth service (services/auth.PasswordResetTokenValid) and the repository's
-// FindValidByToken, per issue #586 (Rule 12: models hold data, not decisions).
+// repository's FindValidByToken, per issue #586 (Rule 12: models hold data, not
+// decisions).
 func (t *PasswordResetToken) Validate() error {
 	if t.AccountID <= 0 {
 		return errors.New("account ID is required")
@@ -60,19 +41,4 @@ func (t *PasswordResetToken) Validate() error {
 // SetExpiry sets the token expiry time to a specified duration from now
 func (t *PasswordResetToken) SetExpiry(duration time.Duration) {
 	t.Expiry = time.Now().Add(duration)
-}
-
-// GetID returns the entity's ID
-func (m *PasswordResetToken) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *PasswordResetToken) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *PasswordResetToken) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

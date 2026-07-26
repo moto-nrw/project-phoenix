@@ -12,38 +12,46 @@ import Image from "next/image";
 interface BrandLinkProps {
   readonly isScrolled?: boolean;
   readonly href?: string;
+  readonly label?: string | null;
 }
 
 export function BrandLink({
   isScrolled = false,
   href = "/dashboard",
+  label,
 }: BrandLinkProps) {
+  const displayLabel = label?.trim() || "moto";
+  const usesTenantLabel = Boolean(label?.trim());
+
   return (
-    <Link href={href} className="group flex items-center space-x-3">
-      <div className="transition-transform duration-200 group-hover:scale-110">
+    <Link
+      href={href}
+      className="group flex max-w-[180px] min-w-0 items-center space-x-3 sm:max-w-[240px] lg:max-w-[280px]"
+    >
+      <div>
         <Image
-          src="/images/moto_transparent.png"
-          alt="moto"
-          width={907}
-          height={646}
-          className="h-9 w-auto"
+          src="/images/moto_transparent.webp"
+          alt=""
+          width={56}
+          height={40}
+          className="h-8 w-11 object-contain sm:h-10 sm:w-14"
           priority
         />
       </div>
 
-      <div className="flex items-center space-x-3">
+      <div className="flex min-w-0 items-center space-x-3">
         <span
-          className={`font-bold tracking-tight transition-all duration-150 group-hover:scale-105 ${
-            isScrolled ? "text-lg lg:text-xl" : "text-xl"
+          className={`truncate leading-none transition-all duration-150 ${
+            usesTenantLabel
+              ? `font-semibold text-gray-900 ${
+                  isScrolled ? "text-sm lg:text-base" : "text-base lg:text-lg"
+                }`
+              : `[font-family:var(--font-moto)] font-bold text-gray-950 ${
+                  isScrolled ? "text-xl lg:text-[22px]" : "text-[22px]"
+                }`
           }`}
-          style={{
-            background: "linear-gradient(135deg, #5080d8, #83cd2d)",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
         >
-          moto
+          {displayLabel}
         </span>
       </div>
     </Link>

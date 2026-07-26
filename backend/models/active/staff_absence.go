@@ -7,11 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
-
-const tableActiveStaffAbsences = "active.staff_absences"
 
 // Absence duration constants.
 const (
@@ -25,14 +21,21 @@ const (
 	AbsenceTypeVacation = "vacation"
 	AbsenceTypeTraining = "training"
 	AbsenceTypeOther    = "other"
+	// AbsenceTypeCompTime is Freizeitausgleich (#1420 5b): the day keeps its
+	// Soll but is deliberately NOT credited, so approving it reduces the
+	// Stundenkonto by the day's contractual target.
+	AbsenceTypeCompTime = "comp_time"
 )
 
 // AbsenceStatus constants. `reported` = admin-direct entry (skips approval),
-// `requested` = vacation request pending approval, `approved`/`declined` =
-// post-decision terminal states, `canceled` = MA withdrew before decision.
+// `requested` = vacation request pending approval, `question` = Rückfrage from
+// the Leitung awaiting the staff member's amended resubmit, `approved`/
+// `declined` = post-decision terminal states, `canceled` = MA withdrew before
+// decision.
 const (
 	AbsenceStatusReported  = "reported"
 	AbsenceStatusRequested = "requested"
+	AbsenceStatusQuestion  = "question"
 	AbsenceStatusApproved  = "approved"
 	AbsenceStatusDeclined  = "declined"
 	AbsenceStatusCanceled  = "canceled"
@@ -44,12 +47,14 @@ var ValidAbsenceTypes = []string{
 	AbsenceTypeVacation,
 	AbsenceTypeTraining,
 	AbsenceTypeOther,
+	AbsenceTypeCompTime,
 }
 
 // ValidAbsenceStatuses lists all valid absence statuses
 var ValidAbsenceStatuses = []string{
 	AbsenceStatusReported,
 	AbsenceStatusRequested,
+	AbsenceStatusQuestion,
 	AbsenceStatusApproved,
 	AbsenceStatusDeclined,
 	AbsenceStatusCanceled,
@@ -75,28 +80,7 @@ type StaffAbsence struct {
 	DecisionNote      string        `bun:"decision_note" json:"decision_note,omitempty"`
 	RequestedAt       time.Time     `bun:"requested_at,notnull,default:current_timestamp" json:"requested_at"`
 	SubstituteStaffID *int64        `bun:"substitute_staff_id" json:"substitute_staff_id,omitempty"`
-
-	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 }
-
-// BeforeAppendModel implements the model hook for schema-qualified queries
-func (sa *StaffAbsence) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActiveStaffAbsences)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActiveStaffAbsences)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActiveStaffAbsences)
-	}
-	return nil
-}
-
-func (sa *StaffAbsence) GetID() any              { return sa.ID }
-func (sa *StaffAbsence) GetCreatedAt() time.Time { return sa.CreatedAt }
-func (sa *StaffAbsence) GetUpdatedAt() time.Time { return sa.UpdatedAt }
-func (sa *StaffAbsence) TableName() string       { return tableActiveStaffAbsences }
 
 // Validate validates the absence record
 func (sa *StaffAbsence) Validate() error {

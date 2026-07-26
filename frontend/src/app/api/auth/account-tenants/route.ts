@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AccountTenantsRoute" });
@@ -9,7 +10,7 @@ const logger = createLogger({ component: "AccountTenantsRoute" });
  * GET /api/auth/account-tenants
  * Returns the list of tenants the current user has access to.
  */
-export async function GET(_request: NextRequest) {
+async function GETHandler(_request: NextRequest) {
   try {
     const session = await auth();
     const token = session?.user?.token;
@@ -46,3 +47,5 @@ export async function GET(_request: NextRequest) {
     );
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

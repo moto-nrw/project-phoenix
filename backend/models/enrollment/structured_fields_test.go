@@ -83,6 +83,32 @@ func TestWeekdaySchedule_Validate_AcceptsEmptyDayValueAsSkip(t *testing.T) {
 	assert.NoError(t, WeekdaySchedule{"mon": "", "tue": " "}.Validate())
 }
 
+func TestWeekdaySchedule_ValidateAllowed_AcceptsListedTimes(t *testing.T) {
+	allowed := []string{"14:45", "16:00"}
+	s := WeekdaySchedule{"mon": "14:45", "wed": "16:00", "fri": ""}
+	assert.NoError(t, s.ValidateAllowed(allowed))
+}
+
+func TestWeekdaySchedule_ValidateAllowed_RejectsOffListTime(t *testing.T) {
+	err := WeekdaySchedule{"mon": "15:00"}.ValidateAllowed([]string{"14:45", "16:00"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not an allowed pickup time")
+}
+
+func TestWeekdaySchedule_ValidateAllowed_EmptyDaysStayValid(t *testing.T) {
+	// A parent leaving every day blank is still valid under a restricted
+	// list — "kein fester Eintrag" is a legitimate answer.
+	assert.NoError(t, WeekdaySchedule{"mon": "", "tue": " "}.ValidateAllowed([]string{"14:45"}))
+}
+
+func TestWeekdaySchedule_ValidateAllowed_StillRejectsMalformedTime(t *testing.T) {
+	// ValidateAllowed runs the format check first, so a junk time fails
+	// even before the membership check.
+	err := WeekdaySchedule{"mon": "25:99"}.ValidateAllowed([]string{"25:99"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "HH:MM")
+}
+
 // ---- WeekdayBoolean -----------------------------------------------------
 
 func TestWeekdayBoolean_Validate_AcceptsKnownWeekdays(t *testing.T) {

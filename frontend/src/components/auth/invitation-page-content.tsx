@@ -13,7 +13,7 @@ import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
 import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
-import { useTenantSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 
 const logger = createLogger({ component: "InvitationPageContent" });

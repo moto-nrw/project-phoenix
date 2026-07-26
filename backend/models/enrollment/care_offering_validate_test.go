@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -91,12 +92,16 @@ func TestCareOffering_Validate_AvailableDaysIsCaseInsensitive(t *testing.T) {
 	assert.NoError(t, c.Validate())
 }
 
-func TestCareOffering_Validate_EmptyAvailableDaysOK(t *testing.T) {
-	// No days = no care days configured yet; admin can save and add
-	// later. The submission service enforces availability separately.
+func TestCareOffering_Validate_EmptyAvailableDaysRejected(t *testing.T) {
+	// Business rule changed with #1885: the weekday selection is a
+	// deliberate, required input. An offering without days silently
+	// hid the misconfiguration that produced wrong enrollments in
+	// production (Mo-Fr default vs. "Montags" offering).
 	c := validCareOffering()
 	c.AvailableDays = nil
-	assert.NoError(t, c.Validate())
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "available_days")
 }
 
 func TestCareOffering_Validate_RejectsNegativeCapacity(t *testing.T) {
@@ -158,6 +163,29 @@ func TestCareOffering_Validate_AcceptsCapacityWhenNotRequired(t *testing.T) {
 	cap := 20
 	c.Capacity = &cap
 	assert.NoError(t, c.Validate())
+}
+
+func TestCareOffering_Validate_NormalizesAutoAddGradeLevels(t *testing.T) {
+	c := validCareOffering()
+	c.AutoAddGradeLevels = []int{2, 1, 2, 4}
+
+	require.NoError(t, c.Validate())
+
+	assert.Equal(t, []int{2, 1, 4}, c.AutoAddGradeLevels)
+}
+
+func TestCareOffering_Validate_RejectsInvalidAutoAddGradeLevels(t *testing.T) {
+	for _, level := range []int{0, -1, 14} {
+		t.Run(fmt.Sprintf("grade_%d", level), func(t *testing.T) {
+			c := validCareOffering()
+			c.AutoAddGradeLevels = []int{level}
+
+			err := c.Validate()
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "auto_add_grade_levels")
+		})
+	}
 }
 
 func TestCareOffering_HasUnlimitedCapacity_NilIsUnlimited(t *testing.T) {

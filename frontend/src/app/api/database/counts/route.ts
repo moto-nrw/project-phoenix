@@ -1,5 +1,4 @@
-import { createGetHandler } from "~/lib/route-wrapper.server";
-import { apiGet } from "~/lib/api-helpers.server";
+import { proxyGet } from "~/lib/route-proxy.server";
 
 // Database stats response type matching backend
 interface DatabaseStats {
@@ -23,6 +22,6 @@ interface DatabaseStats {
   };
 }
 
-export const GET = createGetHandler(async (_request, token) => {
-  return await apiGet<DatabaseStats>(`/api/database/stats`, token);
+export const GET = proxyGet<DatabaseStats>(`/api/database/stats`, {
+  raw: true,
 });

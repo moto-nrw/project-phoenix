@@ -39,9 +39,11 @@
   "parentNav": {
     "start": "Home",
     "children": "My children",
+    "mealPlan": "Meal plan",
     "comingSoon": "Coming soon",
     "calendar": "Calendar",
     "messages": "Messages",
+    "news": "News",
     "contactData": "Contact details",
     "soon": "Soon",
     "refresh": "Refresh data",
@@ -52,6 +54,20 @@
     "role": "Parent",
     "childProfile": "Child profile",
     "loading": "Loading..."
+  },
+  "parentMealPlan": {
+    "title": "Meal plan",
+    "subtitle": "What's being served at care.",
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "today": "Today",
+    "noMeal": "No meal entered",
+    "empty": "There is currently no meal plan available for your school.",
+    "loadError": "The meal plan could not be loaded.",
+    "emptyWeek": "No meal plan has been entered for this week yet.",
+    "weekHeading": "This week",
+    "school": "School",
+    "week": "Week"
   },
   "parentDashboard": {
     "eyebrow": "Parent portal",
@@ -67,6 +83,8 @@
     "newsDescription": "Messages from care and the parent portal appear here.",
     "noNewsTitle": "No news yet",
     "noNewsDescription": "New notices will appear directly on the start page.",
+    "newsShowAll": "Show all news",
+    "noNewsPageDescription": "As soon as your care team publishes an announcement, it will appear here.",
     "loadError": "The overview could not be loaded. Please refresh the page or try again later.",
     "unknownError": "Unknown error",
     "notSet": "Not set",
@@ -82,7 +100,15 @@
       "rejected": "Rejected",
       "withdrawn": "Withdrawn"
     },
-    "dateRangeConnector": "to"
+    "dateRangeConnector": "to",
+    "newsNew": "New",
+    "newsImportant": "Important",
+    "newsMarkRead": "Mark as read",
+    "newsAcknowledge": "Read and confirmed",
+    "newsAcknowledged": "Confirmed",
+    "newsRead": "Read",
+    "newsActionError": "Action failed. Please try again.",
+    "newsStaleError": "This announcement is no longer current. Please reload the page."
   },
   "parentChildren": {
     "eyebrow": "My children",
@@ -111,12 +137,74 @@
     "masterDataEyebrow": "Child data",
     "masterDataTitle": "Master data",
     "masterDataDescription": "The most important details about child and care.",
-    "pickupEyebrow": "Pickup",
-    "pickupPeopleTitle": "Pickup permissions",
-    "pickupPeopleDescription": "People who are allowed to pick up this child.",
-    "manage": "Manage",
-    "add": "Add",
-    "addPerson": "Add person",
+    "guardians": {
+      "eyebrow": "Pickup & contact",
+      "title": "Pickup permissions & contacts",
+      "description": "Legal guardians and people who may pick up your child.",
+      "loadError": "Contacts could not be loaded.",
+      "loading": "Loading…",
+      "empty": "No contacts have been added yet.",
+      "contactSaved": "Contact details saved.",
+      "pickupSaved": "Pickup details saved.",
+      "relationships": {
+        "parent": "Parent",
+        "guardian": "Legal guardian",
+        "relative": "Relative",
+        "other": "Other person",
+        "contact": "Contact"
+      },
+      "badges": {
+        "primary": "Primary",
+        "canPickup": "May pick up",
+        "emergency": "Emergency contact"
+      },
+      "editContact": "Edit",
+      "managePickup": "Manage pickup permission",
+      "contactTitle": "Edit contact details",
+      "pickupTitle": "Manage pickup",
+      "close": "Close",
+      "cancel": "Cancel",
+      "save": "Save",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "street": "Street and house number",
+      "postalCode": "Postal code",
+      "city": "City",
+      "phoneNumbers": "Phone numbers",
+      "phonePlaceholder": "Phone number",
+      "phoneTypeLabel": "Phone number type",
+      "phoneTypes": {
+        "mobile": "Mobile",
+        "home": "Home",
+        "work": "Work",
+        "other": "Other"
+      },
+      "removePhone": "Remove phone number",
+      "addPhone": "Add number",
+      "nameRequired": "First and last name are required.",
+      "contactSaveError": "Contact details could not be saved.",
+      "pickupSaveError": "Pickup details could not be saved.",
+      "canPickupLabel": "May pick up",
+      "canPickupDescription": "This person is allowed to pick up the child.",
+      "emergencyLabel": "Emergency contact",
+      "emergencyDescription": "Will be contacted in an emergency.",
+      "pickupNotes": "Pickup note",
+      "pickupNotesPlaceholder": "e.g. Comes by bike",
+      "errors": {
+        "contactInvalid": "Please check the contact details.",
+        "relationshipInvalid": "Please check the pickup details.",
+        "emailConflict": "This email address is already used for another contact.",
+        "hasOwnAccount": "This person manages their contact details through their own parent account.",
+        "sharedAcrossFamilies": "This contact is shared with several families and can only be changed by the school.",
+        "notLinked": "This contact does not belong to this child.",
+        "permissionDenied": "You are not allowed to make this change.",
+        "noChange": "No change was submitted.",
+        "socialWorkerManaged": "These contact details are managed by the school.",
+        "roleManaged": "This person is a legal guardian and can only be edited by themselves or the school.",
+        "managementDisabled": "Contact management is disabled for this school."
+      }
+    },
     "newsEyebrow": "Updates",
     "newsTitle": "News",
     "newsDescription": "Messages about the group and care.",
@@ -126,12 +214,12 @@
     "comingSoonAria": "{label} coming soon",
     "actions": {
       "sick": {
-        "label": "Report sick",
-        "description": "Daily note for this child"
+        "label": "Report absence",
+        "description": "Report sick or excused"
       },
       "pickupTime": {
-        "label": "Change pickup time",
-        "description": "Share pickup information"
+        "label": "Change arrival & pickup time",
+        "description": "Set pickup/arrival for a day"
       },
       "message": {
         "label": "Write message",
@@ -154,59 +242,117 @@
       "title": "Today",
       "description": "Current notes for this child.",
       "sickLabel": "Daily note",
-      "noSick": "No sick note",
+      "noSick": "No absence",
       "pickupLabel": "Pickup",
-      "regularPickup": "Regular pickup",
+      "pickupTime": "{time}",
+      "pickupChanged": "changed",
+      "pickupAbsent": "Absent today",
+      "pickupNone": "No pickup today",
       "messagesLabel": "Messages",
-      "noMessages": "No new messages",
-      "noMessagesSent": "No messages sent",
-      "messagesSent": "{count, plural, one {# message sent} other {# messages sent}}"
-    },
-    "demo": {
-      "momName": "Mom",
-      "dadName": "Dad",
-      "grandmaName": "Grandma",
-      "auntName": "Aunt",
-      "mother": "Mother",
-      "father": "Father",
-      "pickup": "Pickup"
+      "noConversations": "No conversations",
+      "unreadCount": "{count, plural, one {# unread message} other {# unread messages}}",
+      "conversationsCount": "{count, plural, one {# conversation} other {# conversations}}"
     },
     "messages": {
       "eyebrow": "Parent portal",
-      "title": "Messages to the team",
-      "description": "Short notes to the care team.",
-      "compose": "Write"
+      "title": "Messages with the OGS",
+      "description": "Conversations about your child.",
+      "compose": "New message",
+      "empty": "No conversations yet. Send the OGS the first message."
     }
   },
   "parentChildCare": {
     "close": "Close",
     "cancel": "Cancel",
     "sick": {
-      "title": "Report sick",
-      "intro": "Report your child sick for one or more days. The care team sees the report immediately.",
+      "title": "Report absence",
+      "intro": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. The care team sees the report immediately.",
+      "introApproval": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. A sick report is seen by the care team immediately; an excused absence must be confirmed by the team.",
+      "kindLabel": "Type of absence",
+      "kindSick": "Sick",
+      "kindExcused": "Excused",
       "from": "From",
       "to": "To",
       "daysCount": "{count, plural, one {# day will be reported.} other {# days will be reported.}}",
-      "reasonLabel": "Reason (optional)",
-      "reasonPlaceholder": "e.g. fever, doctor's appointment",
+      "reasonLabel": "Note (optional)",
+      "reasonPlaceholder": "e.g. fever, dentist appointment",
       "invalidDate": "Please choose a valid date (end date after start date).",
-      "saveError": "The sick note could not be saved.",
-      "submit": "Send sick note"
-    },
-    "notes": {
-      "title": "Message to the team",
-      "newLabel": "New message",
-      "placeholder": "Short note to the care team …",
-      "empty": "Please enter a message.",
-      "sendError": "The message could not be sent.",
-      "send": "Send",
-      "lastSent": "Recently sent",
-      "listEmpty": "No messages sent yet."
+      "saveError": "The absence could not be saved.",
+      "submittedButRefreshFailed": "The absence was submitted but could not be displayed. Please reload the page.",
+      "overlapError": "One of these days already has an open absence request.",
+      "submit": "Send absence",
+      "reasonLabelRequired": "Note (required)",
+      "reasonRequiredError": "Please add a note explaining why your child is excused.",
+      "approvalHint": "This absence must be confirmed by the team."
     },
     "summary": {
-      "none": "No sick note",
-      "oneDay": "Sick on {date}",
-      "range": "Sick {from} – {to}"
+      "none": "No absence",
+      "oneDay": "Absent on {date}",
+      "range": "Absent {from} – {to}",
+      "sickLabel": "Sick",
+      "excusedLabel": "Excused",
+      "pendingLabel": "Approval pending",
+      "rejectedLabel": "Rejected",
+      "withdraw": "Withdraw",
+      "withdrawError": "Withdrawal failed. Please refresh the page.",
+      "withdrawAlreadyDecided": "The OGS has already processed this request, so it can no longer be withdrawn.",
+      "reasonPrefix": "Reason"
+    },
+    "pickup": {
+      "title": "Change arrival & pickup time",
+      "intro": "Set a different pickup or arrival time for a single day. The change applies to that day only.",
+      "dateLabel": "Day",
+      "pickupLabel": "Pickup time",
+      "arrivalLabel": "Arrival time",
+      "noTime": "Please enter at least one time.",
+      "saveError": "The change could not be saved.",
+      "loadError": "The currently saved times could not be loaded. Please reload the page and try again.",
+      "errorDisabled": "Changing the pickup time is not enabled for this school.",
+      "errorStaffConflict": "The school has already set special times for this day. Please contact the team.",
+      "errorRaced": "This day was just changed. Please reload the page and try again.",
+      "errorPastDate": "Changes cannot be saved for days in the past.",
+      "errorTooFar": "That day is too far in the future. Please pick a day within the next two months.",
+      "staffSet": "The school has already set special times for this day (pickup: {pickup}, arrival: {arrival}).",
+      "existingHint": "A change is already set for {date}. Saving overwrites it.",
+      "reset": "Reset",
+      "submit": "Save"
+    },
+    "actions": {
+      "sick": {
+        "label": "Report absence",
+        "shortLabel": "Absence",
+        "hint": "Report your child absent for one or more days"
+      },
+      "pickup": {
+        "label": "Pickup for one day",
+        "shortLabel": "Pickup",
+        "hint": "Adjust the pickup or arrival time for a single day"
+      }
+    },
+    "request": {
+      "submit": "Send request",
+      "sendError": "The request could not be sent.",
+      "careSchedule": {
+        "title": "Change care times",
+        "intro": "Weekly schedule Mon–Fri as a request to the school. Only filled-in entries are changed, empty fields stay as before.",
+        "noChange": "Please adjust at least one day.",
+        "arrival": "Arrival time",
+        "pickup": "Pickup time",
+        "modeAria": "Departure mode {day}"
+      },
+      "weekday": {
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday"
+      },
+      "careMode": {
+        "unchanged": "Unchanged",
+        "alone": "Goes alone",
+        "bus": "Takes the bus",
+        "pickup": "Is picked up"
+      }
     }
   },
   "parentLogin": {
@@ -220,13 +366,72 @@
     "loading": "Loading...",
     "submitting": "Signing in...",
     "submit": "Sign in",
-    "forgotPassword": "Forgot your password? Please contact your OGS.",
+    "forgotPassword": "Forgot your password?",
     "errors": {
       "accountInactive": "Your account is disabled. Please contact the school.",
       "rateLimited": "Too many login attempts. Please try again later.",
       "invalidCredentials": "Login is not possible. Please check your credentials or use the school login if you are staff.",
       "invalid": "Invalid login details",
       "generic": "Login error. Please try again."
+    }
+  },
+  "parentPasswordResetModal": {
+    "title": "Reset password",
+    "description": "Enter your email address and we will send you a link to reset your password.",
+    "emailLabel": "Email address",
+    "cancel": "Cancel",
+    "submit": "Send link",
+    "submitting": "Sending...",
+    "successTitle": "Email sent!",
+    "successMessage": "We have sent you an email with a link to reset your password.",
+    "successHint": "Please check your inbox and follow the instructions in the email.",
+    "close": "Close",
+    "errors": {
+      "rateLimited": "Too many attempts. Please try again in {countdown}.",
+      "generic": "An error occurred. Please try again."
+    }
+  },
+  "parentPasswordResetPage": {
+    "backToLogin": "Back to sign in",
+    "errors": {
+      "missingToken": "The reset token is invalid or missing. Please request a new link.",
+      "invalidToken": "Invalid reset token.",
+      "generic": "An error occurred. Please try again.",
+      "invalidRequest": "Please check the link and password requirements, then try again.",
+      "expired": "This password reset link has expired. Please request a new link.",
+      "notFound": "We could not find this password reset link. Please request a new link."
+    },
+    "validation": {
+      "tooShort": "The password must be at least 8 characters long.",
+      "missingUppercase": "The password must include at least one uppercase letter.",
+      "missingLowercase": "The password must include at least one lowercase letter.",
+      "missingNumber": "The password must include at least one number.",
+      "missingSpecial": "The password must include at least one special character.",
+      "passwordMismatch": "The passwords do not match."
+    },
+    "success": {
+      "eyebrow": "Password changed",
+      "title": "Password changed successfully",
+      "subtitle": "You will be redirected to the sign-in page automatically.",
+      "body": "You can sign in again in a moment."
+    },
+    "form": {
+      "eyebrow": "Reset password",
+      "title": "Set a new password",
+      "subtitle": "Choose a strong password for your account.",
+      "passwordLabel": "New password",
+      "confirmPasswordLabel": "Confirm password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "submitting": "Saving...",
+      "submit": "Change password"
+    },
+    "requirements": {
+      "title": "Password requirements:",
+      "minLength": "At least 8 characters",
+      "mixedCase": "Uppercase and lowercase letters",
+      "number": "At least one number",
+      "special": "At least one special character"
     }
   },
   "guardianInvite": {
@@ -334,6 +539,7 @@
       "guardianKicker": "Step 1",
       "guardianTitle": "Legal guardian",
       "guardianDescription": "Enter the person who can answer questions and should receive the status link.",
+      "additionalGuardianLabel": "Guardian {index}",
       "extraKicker": "Additional questions",
       "extraTitle": "More information",
       "extraDescription": "The OGS needs this information in addition to the basic data. Required questions are marked with an asterisk.",
@@ -352,8 +558,12 @@
       "email": "Email *",
       "phone": "Phone",
       "phoneRequired": "Phone *",
+      "emailPlain": "Email",
       "dateOfBirth": "Date of birth *",
       "gradeLevel": "Grade level *",
+      "schoolClass": "Class",
+      "schoolClassRequired": "Class *",
+      "schoolClassOpen": "Class not yet assigned",
       "choose": "Please choose",
       "grade": "Grade {grade}"
     },
@@ -366,6 +576,7 @@
       "validPhone": "Please enter a valid phone number.",
       "dob": "Please enter the date of birth.",
       "grade": "Please select a grade level.",
+      "schoolClass": "Please select a class.",
       "agb": "Please accept the terms.",
       "data": "Please consent to data processing.",
       "emailContact": "Please consent to email contact.",
@@ -378,6 +589,7 @@
       "phoneList": "Please enter at least one phone number.",
       "contactList": "Please enter at least one complete contact with email or phone number.",
       "schedule": "Please enter at least one time.",
+      "scheduleEveryDay": "Please enter a time for each care day.",
       "select": "Please choose an option.",
       "dayMissing": "Child {child}: please select at least one day for “{offering}”.",
       "groupExactlyOne": "Please choose exactly one offer for “{group}”.",
@@ -385,10 +597,12 @@
       "groupAtMostOne": "Please choose at most one offer for “{group}”.",
       "pickupConfirm": "Please confirm the pickup arrangement (select days or leave empty).",
       "weekdayRequired": "Please select at least one weekday.",
-      "weekdayModeConfirm": "Please confirm the departure arrangement."
+      "weekdayModeConfirm": "Please confirm the departure arrangement.",
+      "weekdayMultiModeRequired": "Please choose at least one way home for each care day."
     },
     "actions": {
       "addChild": "Add another child",
+      "addGuardian": "Add another guardian",
       "remove": "Remove",
       "submit": "Submit enrollment",
       "submitting": "Submitting…",
@@ -409,13 +623,17 @@
       "optionalHint": "Choose the offers you want for this child.",
       "chooseExactlyOne": "Please choose exactly one offer.",
       "chooseAtLeastOne": "Please choose at least one offer.",
+      "automaticBadge": "automatic",
       "selectableDays": "Selectable days: ",
       "days": "Days: ",
+      "automaticDays": "{days} automatic",
+      "manualDays": "{days} manual",
       "holiday": "incl. holiday care",
       "lunch": "incl. lunch",
       "ruleExactlyOne": "Please choose exactly one",
       "ruleAtLeastOne": "Please choose at least one",
-      "ruleAtMostOne": "At most one"
+      "ruleAtMostOne": "At most one",
+      "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed."
     },
     "consent": {
       "agb": "I accept the school's terms and conditions.",
@@ -443,6 +661,10 @@
       "removeNumber": "Remove number",
       "addPhone": "Add phone number",
       "emptySchedule": "Empty fields mean: no information for this day.",
+      "everyDayTime": "Please enter a time for each care day.",
+      "atLeastOneTime": "Please enter at least one time.",
+      "selectTime": "Please select",
+      "timeUnavailable": "no longer available",
       "noneContact": "No additional contact entered yet.",
       "relationship": "Relationship (e.g. grandma, uncle, neighbor)",
       "optionalEmail": "Email (optional)",
@@ -458,11 +680,23 @@
       "phoneNumbers": "Phone numbers",
       "pickupDaysHelp": "Select the days on which the child is picked up. On unselected days the child goes home alone.",
       "busDaysHelp": "Select the days on which the child takes the bus.",
-      "departureModeHelp": "Choose how your child goes home for each weekday. The default is “Goes alone”.",
+      "departureModeHelp": "Choose how your child goes home for each weekday. The default is “Walks home”.",
+      "weekdayMultiModeHelp": "Choose every way home that is allowed for your child on each care day.",
+      "weekdayMultiModeNoDays": "Choose the care days first.",
+      "weekdayMultiModeUniform": "Same ways home for all care days",
+      "weekdayMultiModeUniformHint": "Make the selection once; it applies to every care day.",
+      "weekdayMultiModeUniformConfirmTitle": "Use one selection for all days?",
+      "weekdayMultiModeUniformConfirmBody": "You have chosen different ways home for individual care days. Turning on a shared selection deletes those per-day entries and you make the selection again.",
+      "weekdayMultiModeUniformConfirmCta": "Delete and continue",
+      "weekdayMultiModeUniformConfirmCancel": "Cancel",
+      "departureCompanionLabel": "With which child?",
+      "departureCompanionPlaceholder": "e.g. sibling, friend, name",
+      "departureCompanionRequired": "Please state which child your child goes home with.",
       "departureModes": {
-        "alone": "Goes alone",
+        "alone": "Walks home",
         "bus": "Bus",
-        "pickup": "Pickup"
+        "pickup": "Picked up",
+        "accompanied": "With another child"
       }
     },
     "months": [
@@ -523,6 +757,7 @@
     "submittedTitle": "Thank you. Your enrollment has been submitted.",
     "statusTitle": "Status of your enrollment",
     "submittedDescription": "The OGS reviews your information. You can see the current status on this page. Save the link or keep the confirmation email.",
+    "duplicateWarning": "At least one child may already have an active enrollment in this phase. The new enrollment was saved anyway. Contact the OGS if you have questions.",
     "statusDescription": "Your enrollment was received on {date}. Here you can see the current status, your contact details and the enrolled children.",
     "nextTitle": "What happens next",
     "currentTitle": "Current status",
@@ -551,10 +786,40 @@
     "withdrawChild": "Withdraw this child",
     "guardianTitle": "Legal guardian",
     "edit": "Edit",
+    "editFull": "Edit enrollment",
+    "editLoading": "Loading enrollment…",
+    "editLoadError": "Enrollment cannot be edited",
+    "editSaveError": "Changes could not be saved",
+    "editSubmit": "Save changes",
+    "changeRequestTitle": "Request a change",
+    "changeRequestDescription": "This enrollment has already been reviewed. Your changes will therefore be sent to the OGS as a request and applied only after approval.",
+    "changeRequestEyebrow": "For review",
+    "changeRequestReasonLabel": "Note about the change, optional",
+    "changeRequestReasonPlaceholder": "What changed?",
+    "changeRequestSubmit": "Send change request",
+    "changeRequestSaveError": "The change request could not be saved",
+    "requestChange": "Request change",
+    "changeRequestReplySaved": "Reply sent.",
+    "changeRequestsEyebrow": "Changes",
+    "changeRequestsTitle": "Change requests",
+    "changeRequestsDescription": "Here you can see requests that are still being reviewed, questions from the OGS and completed decisions.",
+    "changeRequestsEmpty": "No change request sent yet.",
+    "changeRequestCreated": "Sent on {date}",
+    "changeRequestAdminCorrection": "Corrected by the OGS on {date}",
+    "changeRequestDiffTitle": "Requested changes",
+    "changeRequestDiffEmpty": "No recognizable field changes.",
+    "changeRequestBefore": "Before",
+    "changeRequestRequested": "Requested",
+    "changeRequestDecisionNote": "Decision:",
+    "changeRequestReplyLabel": "Reply",
+    "changeRequestReplySending": "Sending…",
+    "changeRequestReplySubmit": "Send reply",
+    "backToStatus": "Back to status",
     "nameLabel": "Name",
     "emailLabel": "Email",
     "phoneLabel": "Phone",
     "notProvided": "Not provided",
+    "additionalGuardiansLabel": "Additional guardians",
     "firstNameLabel": "First name",
     "lastNameLabel": "Last name",
     "phoneOptionalLabel": "Phone, optional",
@@ -563,6 +828,7 @@
     "save": "Save",
     "cancel": "Cancel",
     "editLocked": "Changes are only possible while no decision has been made yet. Please contact the OGS for changes.",
+    "editLockedWithChangeRequest": "Direct edits are no longer possible. You can send a change request to the OGS instead.",
     "manageEyebrow": "Manage enrollment",
     "withdrawAllTitle": "Withdraw entire enrollment",
     "withdrawTitle": "Withdraw enrollment",
@@ -577,6 +843,184 @@
       "pending_renewal": "Confirmation required",
       "auto_renewed": "Preselected",
       "pending_admin_review": "Under review"
+    },
+    "changeRequestStatus": {
+      "pending_review": "Waiting for review",
+      "needs_parent_response": "Question open",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled"
+    },
+    "changeRequestAuthor": {
+      "parent": "You",
+      "staff": "OGS",
+      "system": "System"
+    },
+    "diff": {
+      "yes": "Yes",
+      "no": "No",
+      "childEntry": "Child",
+      "additionalGuardianEntry": "Additional person",
+      "snapshot": {
+        "additional_guardians": "Additional guardians",
+        "children": "Children",
+        "consent_flags": "Consents",
+        "custom_data": "Additional information",
+        "guardian_email": "Email",
+        "guardian_first_name": "First name",
+        "guardian_last_name": "Last name",
+        "guardian_phone": "Phone",
+        "phase_id": "Enrollment phase"
+      },
+      "child": {
+        "custom_data": "Additional information",
+        "date_of_birth": "Date of birth",
+        "first_name": "First name",
+        "last_name": "Last name",
+        "offering_days": "Care days",
+        "offering_ids": "Care offerings",
+        "target_grade_level": "Target grade",
+        "target_school_class": "Class"
+      },
+      "guardian": {
+        "email": "Email",
+        "first_name": "First name",
+        "last_name": "Last name",
+        "phone": "Phone"
+      },
+      "record": {
+        "automatic_selected_days": "Automatic",
+        "available_days": "Available days",
+        "days_of_week_mode": "Mode",
+        "email": "Email",
+        "first_name": "First name",
+        "last_name": "Last name",
+        "manual_selected_days": "Manual",
+        "offering_id": "Care offering",
+        "offering_ids": "Care offerings",
+        "phone": "Phone",
+        "selected_days": "Days"
+      },
+      "weekday": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      }
     }
+  },
+  "parentMasterData": {
+    "title": "Master data",
+    "subtitle": "Here you can see the data stored for your child. You can change most fields directly; some changes are reviewed by the team first.",
+    "back": "Back",
+    "loadError": "The master data could not be loaded. Please refresh the page.",
+    "saved": "Saved",
+    "saveError": "The change could not be saved.",
+    "openLink": "View & change master data",
+    "editableHint": "Changes are saved automatically.",
+    "readonlyHint": "This information is maintained by the OGS.",
+    "requestHint": "These changes are reviewed by the team before they are applied.",
+    "requestButton": "Request change",
+    "requestSubmitted": "Request sent. The team will review your change.",
+    "requestError": "The request could not be sent.",
+    "noChanges": "There are no changes to submit.",
+    "pendingBadge": "Under review",
+    "pendingNotice": "A change to this field is awaiting confirmation by the team.",
+    "editDisabled": "Editing master data is disabled for this OGS.",
+    "requestDisabled": "Change requests are disabled for this OGS.",
+    "notSet": "Not provided",
+    "sections": {
+      "child": "Child details",
+      "health": "Health",
+      "contact": "Your contact details",
+      "departure": "Permanent ways home",
+      "careSchedule": "Care times"
+    },
+    "fields": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "birthday": "Date of birth",
+      "schoolClass": "Class",
+      "status": "Status",
+      "carePeriod": "Care period",
+      "healthInfo": "Health notes / allergies",
+      "email": "Email address",
+      "addressStreet": "Street and number",
+      "addressCity": "City",
+      "addressPostalCode": "Postal code",
+      "contactMethod": "Preferred contact method",
+      "language": "Language",
+      "phone": "Phone number",
+      "day": "Day"
+    },
+    "contactMethods": {
+      "email": "Email",
+      "phone": "Phone",
+      "mobile": "Mobile",
+      "sms": "SMS"
+    },
+    "departureModes": {
+      "pickup": "Picked up",
+      "bus": "Bus",
+      "alone": "Goes alone",
+      "accompanied": "Goes with another child",
+      "none": "Not specified"
+    },
+    "departureDays": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri"
+    },
+    "careSchedule": {
+      "hint": "Your current weekly schedule. Permanent changes are reviewed by the team before they apply.",
+      "arrival": "Drop-off time",
+      "pickup": "Pick-up time",
+      "modes": "Way home",
+      "loadError": "The care times could not be loaded. Please refresh the page.",
+      "pendingBadge": "Under review",
+      "pendingNotice": "Your request is being reviewed by the team. The current schedule applies until it is confirmed.",
+      "requestedAt": "Requested on {date}",
+      "withdraw": "Withdraw",
+      "withdrawError": "The request could not be withdrawn.",
+      "withdrawConfirmTitle": "Withdraw request?",
+      "withdrawConfirmBody": "Do you really want to withdraw your change request? The current schedule stays unchanged."
+    }
+  },
+  "parentOgsMessaging": {
+    "readByStaff": "Read",
+    "requestTypeCareSchedule": "Request: Change recurring care times",
+    "requestTitleFallback": "Request",
+    "statusOpen": "Open",
+    "statusDone": "Done",
+    "statusRejected": "Rejected",
+    "statusWithdrawn": "Withdrawn",
+    "eventRequestConfirmed": "Request confirmed",
+    "eventRequestConfirmedCareSchedule": "Request confirmed, care times applied",
+    "eventRequestCreatedCareSchedule": "Care times change requested",
+    "eventRequestCreatedMasterData": "Master data change requested",
+    "eventRequestConfirmedMasterData": "Request confirmed, master data applied",
+    "eventRequestCreatedExcusedAbsence": "Excused absence requested",
+    "eventRequestConfirmedExcusedAbsence": "Request confirmed, absence recorded",
+    "eventRequestRejected": "Request rejected",
+    "eventRequestRejectedReason": "Request rejected: {reason}",
+    "eventRequestWithdrawn": "Request withdrawn",
+    "diffHeading": "Your requested changes",
+    "diffCareArrival": "Arrival time",
+    "diffCarePickup": "Pickup time",
+    "diffCareDepartureMode": "Departure type",
+    "diffWeekday1": "Monday",
+    "diffWeekday2": "Tuesday",
+    "diffWeekday3": "Wednesday",
+    "diffWeekday4": "Thursday",
+    "diffWeekday5": "Friday",
+    "diffModeAlone": "Goes alone",
+    "diffModeBus": "Takes the bus",
+    "diffModePickup": "Is picked up",
+    "diffModeAccompanied": "With another child"
   }
 }

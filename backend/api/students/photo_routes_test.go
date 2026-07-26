@@ -288,9 +288,9 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 		"DB must store the canonical /uploads/student-photos/ prefix, got %q", stored)
 
 	// Tenant-scoped broadcast emitted so SSE clients re-fetch the
-	// student. The recordingBroadcaster captures every event; we
+	// student. The RecordingBroadcaster captures every event; we
 	// just need to see at least one.
-	assert.NotEmpty(t, tc.broadcaster.events, "expected at least one broadcast event")
+	assert.NotEmpty(t, tc.broadcaster.Events(), "expected at least one broadcast event")
 }
 
 // TestUploadStudentPhoto_HappyPath_ConsentAcknowledged exercises the
@@ -524,7 +524,7 @@ func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedStudentWithPhoto(t, tc, student.ID)
 
-	tc.broadcaster.events = nil // reset before action
+	tc.broadcaster.Reset() // reset before action
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
@@ -534,7 +534,7 @@ func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "Foto entfernt")
 	assert.Equal(t, "", readStudentPhotoPath(t, tc, student.ID),
 		"successful delete must NULL out photo_path")
-	assert.NotEmpty(t, tc.broadcaster.events, "delete must emit a tenant broadcast")
+	assert.NotEmpty(t, tc.broadcaster.Events(), "delete must emit a tenant broadcast")
 }
 
 // TestDeleteStudentPhoto_Idempotent — student has no photo yet. The

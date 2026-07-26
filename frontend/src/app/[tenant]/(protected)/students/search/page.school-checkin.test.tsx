@@ -43,7 +43,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 
 // Page gates the toggle on binary mode; override the global mock
 // (src/test/setup.ts defaults to "detailed") so the button renders.
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSafe: vi.fn(() => ({
     tenantSlug: "test-tenant",
@@ -65,6 +65,7 @@ vi.mock("~/components/students/school-checkin-fab", () => ({
     mockFab(props);
     return (
       <button
+        type="button"
         data-testid="school-checkin-fab"
         data-active={props.isActive}
         data-pending={props.pendingCount}
@@ -85,6 +86,7 @@ vi.mock("~/components/students/school-checkin-mode-mobile", () => ({
     pendingCount: number;
   }) => (
     <button
+      type="button"
       data-testid="school-checkin-mobile"
       data-active={props.isActive}
       onClick={props.onToggle}
@@ -108,6 +110,7 @@ vi.mock("~/components/students/student-card", () => ({
     mockStudentCard(props);
     return (
       <button
+        type="button"
         data-testid={`student-card-${props.studentId}`}
         data-checkin-mode={props.checkinMode ?? false}
         data-checkin-state={props.checkinState ?? ""}
@@ -155,7 +158,7 @@ vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     actionButton,
     mobileActionButton,

@@ -32,16 +32,10 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsende",
 		SortOrder:       2,
-		DependsOn: &config.Dependency{
-			Key:       config.KeySessionEndEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		AccessPolicy: config.AccessOperatorOnly,
+		DependsOn:       config.DependsOnEq(config.KeySessionEndEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minTimeout := float64(1)
-	maxTimeout := float64(60)
 	config.Register(config.Definition{
 		Key:             config.KeySessionEndTimeoutMinutes,
 		Label:           "Sitzungsende Timeout (Minuten)",
@@ -53,13 +47,9 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsende",
 		SortOrder:       3,
-		Validation:      &config.ValidationRules{Min: &minTimeout, Max: &maxTimeout},
-		DependsOn: &config.Dependency{
-			Key:       config.KeySessionEndEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		AccessPolicy: config.AccessOperatorOnly,
+		Validation:      config.Range(1, 60),
+		DependsOn:       config.DependsOnEq(config.KeySessionEndEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	// --- Student Daily Checkout ---
@@ -75,11 +65,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       1,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceNFCEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -93,15 +79,9 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       2,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceNFCEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
-	minDelta := float64(0)
-	maxDelta := float64(120)
 	config.Register(config.Definition{
 		Key:             config.KeyPerStudentCheckoutDeltaMinutes,
 		Label:           "Vorlaufzeit vor Abholung (Minuten)",
@@ -113,12 +93,8 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       3,
-		Validation:      &config.ValidationRules{Min: &minDelta, Max: &maxDelta},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyPerStudentCheckoutEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(0, 120),
+		DependsOn:       config.DependsOnEq(config.KeyPerStudentCheckoutEnabled, true),
 	})
 
 	// --- Abandoned Session Cleanup (system tab — automated background process) ---
@@ -137,8 +113,6 @@ func init() {
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minInterval := float64(5)
-	maxInterval := float64(120)
 	config.Register(config.Definition{
 		Key:             config.KeySessionCleanupIntervalMinutes,
 		Label:           "Bereinigungsintervall (Minuten)",
@@ -150,17 +124,11 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsbereinigung",
 		SortOrder:       11,
-		Validation:      &config.ValidationRules{Min: &minInterval, Max: &maxInterval},
-		DependsOn: &config.Dependency{
-			Key:       config.KeySessionCleanupEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		AccessPolicy: config.AccessOperatorOnly,
+		Validation:      config.Range(5, 120),
+		DependsOn:       config.DependsOnEq(config.KeySessionCleanupEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minThreshold := float64(10)
-	maxThreshold := float64(480)
 	config.Register(config.Definition{
 		Key:             config.KeySessionAbandonedThresholdMin,
 		Label:           "Inaktivitätsschwelle (Minuten)",
@@ -172,17 +140,11 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsbereinigung",
 		SortOrder:       12,
-		Validation:      &config.ValidationRules{Min: &minThreshold, Max: &maxThreshold},
-		DependsOn: &config.Dependency{
-			Key:       config.KeySessionCleanupEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		AccessPolicy: config.AccessOperatorOnly,
+		Validation:      config.Range(10, 480),
+		DependsOn:       config.DependsOnEq(config.KeySessionCleanupEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minInactivityTimeout := float64(1)
-	maxInactivityTimeout := float64(480)
 	config.Register(config.Definition{
 		Key:             config.KeySessionInactivityTimeoutMin,
 		Label:           "Standard-Sitzungstimeout (Minuten)",
@@ -194,7 +156,7 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsbereinigung",
 		SortOrder:       13,
-		Validation:      &config.ValidationRules{Min: &minInactivityTimeout, Max: &maxInactivityTimeout},
+		Validation:      config.Range(1, 480),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
@@ -228,8 +190,52 @@ func init() {
 		SortOrder:       1,
 	})
 
-	// Break auto-end interval is NOT registered here — it controls a global ticker
-	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingEnforcePlannedStart,
+		Label:           "Einstempeln erst ab geplanter Startzeit",
+		Description:     "Wenn aktiviert, können Mitarbeitende erst ab der Startzeit einstempeln, die im Arbeitszeitmodell für den jeweiligen Tag hinterlegt ist. Tage ohne Startzeit bleiben unverändert.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       2,
+	})
+
+	config.Register(config.Definition{
+		Key:         config.KeyTimeTrackingRequireDeviationReason,
+		Label:       "Begründung bei Abweichung vom Dienstplan",
+		Description: "Wenn aktiviert, verlangt das Ein- und Ausstempeln außerhalb des Toleranzfensters um die geplante Schichtzeit eine Begründung. Gilt auch für nachträgliche Änderungen eigener Zeiten. Tage ohne geplante Schicht bleiben unverändert.",
+		Type:        config.FieldBoolean,
+		// Default on (#1844): Planabweichungen sollen standardmäßig begründet
+		// werden, damit spätere Zeiten (später Bus, längerer Einsatz) im Audit-Log
+		// nachvollziehbar sind. Schulen können es pro Mandant abschalten.
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       3,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingDeviationToleranceMinutes,
+		Label:           "Toleranzfenster für Abweichungen (Minuten)",
+		Description:     "So viele Minuten darf die Ist-Zeit von der geplanten Schichtzeit abweichen, bevor eine Begründung verlangt wird.",
+		Type:            config.FieldNumber,
+		Default:         15,
+		Validation:      config.Range(0, 120),
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       4,
+		DependsOn:       config.DependsOnEq(config.KeyTimeTrackingRequireDeviationReason, true),
+	})
+
+	// Break auto-end interval is NOT registered here. It controls a global ticker
+	// and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 
 	// --- Status flag auto-clear (Krank / Entschuldigt badge lifecycle) ---
 
@@ -300,6 +306,42 @@ func init() {
 			Static: []config.SelectOption{
 				{Label: "Detailliert (Räume & Aktivitäten)", Value: config.PresenceModeDetailed},
 				{Label: "Binär (nur An-/Abwesend)", Value: config.PresenceModeBinary},
+			},
+		},
+	})
+
+	// --- Bundesland (public-holiday calendar, operator-only, #1418 3a) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyFederalState,
+		Label:           "Bundesland",
+		Description:     "Bundesland des Standorts. Bestimmt die gesetzlichen Feiertage in der Zeiterfassung (Soll = 0 an Feiertagen).",
+		Type:            config.FieldSelect,
+		Default:         "DE-NW",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "standort",
+		SortOrder:       45,
+		AccessPolicy:    config.AccessOperatorOnly,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Baden-Württemberg", Value: "DE-BW"},
+				{Label: "Bayern", Value: "DE-BY"},
+				{Label: "Berlin", Value: "DE-BE"},
+				{Label: "Brandenburg", Value: "DE-BB"},
+				{Label: "Bremen", Value: "DE-HB"},
+				{Label: "Hamburg", Value: "DE-HH"},
+				{Label: "Hessen", Value: "DE-HE"},
+				{Label: "Mecklenburg-Vorpommern", Value: "DE-MV"},
+				{Label: "Niedersachsen", Value: "DE-NI"},
+				{Label: "Nordrhein-Westfalen", Value: "DE-NW"},
+				{Label: "Rheinland-Pfalz", Value: "DE-RP"},
+				{Label: "Saarland", Value: "DE-SL"},
+				{Label: "Sachsen", Value: "DE-SN"},
+				{Label: "Sachsen-Anhalt", Value: "DE-ST"},
+				{Label: "Schleswig-Holstein", Value: "DE-SH"},
+				{Label: "Thüringen", Value: "DE-TH"},
 			},
 		},
 	})
@@ -381,8 +423,6 @@ func init() {
 	// Date transitions only happen on day boundaries — the interval is a
 	// safety-net for restarts and clock drift, not a precision dial.
 
-	minActivationInterval := float64(5)
-	maxActivationInterval := float64(1440)
 	config.Register(config.Definition{
 		Key:             config.KeyStudentActivationIntervalMin,
 		Label:           "Kinderaktivierung Intervall (Minuten)",
@@ -394,7 +434,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "schüleraktivierung",
 		SortOrder:       50,
-		Validation:      &config.ValidationRules{Min: &minActivationInterval, Max: &maxActivationInterval},
+		Validation:      config.Range(5, 1440),
 	})
 
 	// --- Web-An/Abmeldung Zugriff (who can toggle presence via web UI) ---
@@ -429,11 +469,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "anwesenheit",
 		SortOrder:       42,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyCareConcept,
-			Condition: "eq",
-			Value:     config.CareConceptOpenRooms,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyCareConcept, config.CareConceptOpenRooms),
 	})
 
 	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---
@@ -468,16 +504,38 @@ func init() {
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
-		WritePermission: "config:update",
+		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       60,
 	})
 
+	// Optional office/OGS approval gate for parent-submitted EXCUSED absences
+	// ("entschuldigt"), issue #1845. Default OFF (opt-in): with it off, an
+	// excused absence is written straight to the child's status days exactly like
+	// a Krankmeldung (only a note is now mandatory). With it ON, an excused
+	// absence becomes a PENDING request in the change-request queue that staff
+	// must confirm before it takes effect; Krankmeldungen stay direct regardless.
+	// Only meaningful while the sick-note feature above is enabled; DependsOn
+	// hides it otherwise.
+	config.Register(config.Definition{
+		Key:             config.KeyParentExcusedRequiresApproval,
+		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
+		Description:     "Wenn aktiviert, wird eine entschuldigte Abmeldung über das Elternportal zunächst eine Anfrage, die das Team auf der Seite „Änderungsanfragen“ bestätigen oder ablehnen muss. Bis zur Bestätigung gilt das Kind als erwartet. Krankmeldungen werden weiterhin sofort eingetragen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn:       &config.Dependency{Key: config.KeyParentSickNoteEnabled, Condition: "eq", Value: true},
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyParentNotesEnabled,
-		Label:           "Elternnachrichten über Elternportal",
-		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal kurze Nachrichten zu ihrem Kind hinterlassen. Die neuesten Nachrichten erscheinen in der Kinderdetailansicht.",
+		Label:           "Eltern-OGS-Nachrichten",
+		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal Nachrichten zu ihrem Kind schreiben und das Team kann direkt antworten. Die Unterhaltungen erscheinen im zentralen Nachrichten-Posteingang und in der Kinderdetailansicht.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -485,5 +543,162 @@ func init() {
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       61,
+	})
+
+	// Whether a guardian sees the individual staff member's name (first name +
+	// last initial, e.g. "Anna M.") on team replies instead of the neutral
+	// "OGS [Schulname]" label. Defaults ON so a messaging-active school attributes
+	// replies to a person by default. Only messages SENT while this is on are
+	// revealed: the per-message visibility is frozen at send time on
+	// users.parent_messages.staff_name_visible, so enabling it never retroactively
+	// exposes older replies written under anonymity. Hidden in the UI unless
+	// messaging (parent_notes_enabled) is on, since it only affects those messages.
+	config.Register(config.Definition{
+		Key:             config.KeyParentMessageStaffNameVisible,
+		Label:           "Name des Teammitglieds in Nachrichten anzeigen",
+		Description:     "Wenn aktiviert, sehen Eltern bei Antworten des Teams den Vornamen und den ersten Buchstaben des Nachnamens der antwortenden Person (z. B. „Anna M.“) statt nur „OGS [Schulname]“. Gilt nur für Nachrichten, die ab der Aktivierung geschrieben werden; ältere Nachrichten bleiben anonym. Bereits mit Namen gesendete Nachrichten bleiben sichtbar, wenn die Funktion später wieder deaktiviert wird.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn:       config.DependsOnEq(config.KeyParentNotesEnabled, true),
+	})
+
+	// Related-accounts management. Whether a parent may invite further
+	// guardians to their own child, and whether they may revoke another
+	// account's access. Sensitive (controls access to child data) -> manage.
+	config.Register(config.Definition{
+		Key:             config.KeyGuardianParentInviteMode,
+		Label:           "Weitere Bezugspersonen einladen (Eltern)",
+		Description:     "Legt fest, ob Eltern über das Elternportal weitere Bezugspersonen zu ihrem Kind einladen dürfen. \"Mit Freigabe\" stellt die Einladung dem Team zur Bestätigung in eine Warteschlange. Das Team kann unabhängig davon immer einladen.",
+		Type:            config.FieldSelect,
+		Default:         config.ParentInviteModeDisabled,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       63,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Deaktiviert", Value: config.ParentInviteModeDisabled},
+				{Label: "Direkt", Value: config.ParentInviteModeDirect},
+				{Label: "Mit Freigabe durch das Team", Value: config.ParentInviteModeStaffApproval},
+			},
+		},
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyGuardianParentCanRemove,
+		Label:           "Bezugspersonen entfernen (Eltern)",
+		Description:     "Wenn aktiviert, dürfen Eltern den Zugang anderer Konten zu ihrem Kind über das Elternportal entfernen. Die primäre Bezugsperson kann nicht von Eltern entfernt werden. Das Team kann unabhängig davon immer entfernen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       64,
+		DependsOn:       config.DependsOnNeq(config.KeyGuardianParentInviteMode, config.ParentInviteModeDisabled),
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentPickupChangeEnabled,
+		Label:           "Abholzeit über Elternportal ändern",
+		Description:     "Wenn aktiviert, können Eltern über das Elternportal für einen einzelnen Tag eine abweichende Abhol- und Bringzeit hinterlegen. Die Änderung gilt nur für diesen Tag und erscheint im Betreuungsplan als von den Eltern geändert.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       65,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentMasterDataEditEnabled,
+		Label:           "Stammdaten über Elternportal bearbeiten",
+		Description:     "Wenn aktiviert, können Eltern die von ihnen gepflegten Stammdaten ihres Kindes (Gesundheitsangaben, eigene Kontaktdaten) direkt über das Elternportal ändern. Die Änderungen werden sofort übernommen und protokolliert.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       66,
+	})
+
+	// Defaults ON, like the other parents-portal write features. The
+	// safety-critical part (granting/revoking pickup authority) is constrained
+	// structurally, not by this toggle: the can_pickup / is_emergency_contact
+	// flags can only ever be set for guardians WITHOUT their own portal account,
+	// and every change is audited (audit.guardian_changes). So the toggle
+	// only governs whether the feature is exposed at all; a school can still
+	// switch it off. config:manage because it can expose pickup-authority changes.
+	// NOTE: this toggle also gates a parent editing their OWN contact data — the
+	// only portal path for that is UpdateGuardianContact (isSelf). Switching it
+	// off therefore disables self-edit too; the Description says so explicitly.
+	config.Register(config.Definition{
+		Key:             config.KeyParentGuardianManagementEnabled,
+		Label:           "Kontaktdaten und Abholberechtigung über Elternportal verwalten",
+		Description:     "Wenn aktiviert, können berechtigte Eltern über das Elternportal ihre eigenen Kontaktdaten sowie die von Bezugspersonen ohne eigenen Zugang bearbeiten und deren Abhol- und Notfallberechtigung setzen. Bezugspersonen mit eigenem Konto bleiben geschützt: deren Daten und Berechtigungen ändert nur das Team. Ist die Funktion deaktiviert, können Eltern auch ihre eigenen Kontaktdaten nicht mehr über das Portal ändern.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       67,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentMasterDataRequestEnabled,
+		Label:           "Stammdaten-Änderungen zur Freigabe einreichen",
+		Description:     "Wenn aktiviert, können Eltern für besonders sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) über das Elternportal Änderungen vorschlagen. Diese werden dem Team zur Prüfung und Freigabe vorgelegt und erst nach Bestätigung übernommen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
+	})
+
+	// Essensplan. Unlike the other parents-portal features this one is
+	// opt-out (default ON): every school gets the meal plan out of the box and
+	// can switch it off if it doesn't serve food. When on, staff maintain a
+	// per-day dish + optional note and parents can view the current and next
+	// week in the parents portal.
+	config.Register(config.Definition{
+		Key:             config.KeyMealPlanEnabled,
+		Label:           "Essensplan",
+		Description:     "Wenn aktiviert, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
+	})
+
+	// Parent broadcast announcements (#1669). When on, staff with the
+	// communications:announce permission can publish news to guardians, and
+	// guardians see the Neuigkeiten feed in the parents portal. Defaults ON
+	// (opt-out), like the other parents-portal features: schools get it
+	// immediately and can disable per school.
+	config.Register(config.Definition{
+		Key:             config.KeyParentNewsEnabled,
+		Label:           "Elternmitteilungen (Neuigkeiten)",
+		Description:     "Wenn aktiviert, kann das Team über das Elternportal Mitteilungen an ausgewählte Elterngruppen senden (ganze Schule, Klassen, Gruppen, AGs, einzelne Kinder oder offene Anmeldungen). Eltern sehen die Mitteilungen als Neuigkeiten im Elternportal; optional kann eine Lesebestätigung verlangt werden.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
 	})
 }

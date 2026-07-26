@@ -1,9 +1,12 @@
 package common
 
 import (
+	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 
@@ -32,20 +35,10 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	}
 }
 
-// Common error variables
-var (
-	ErrInvalidRequest   = errors.New("invalid request")
-	ErrUnauthorized     = errors.New("unauthorized")
-	ErrForbidden        = errors.New("forbidden")
-	ErrInternalServer   = errors.New("internal server error")
-	ErrResourceNotFound = errors.New("resource not found")
-	ErrConflict         = errors.New("resource conflict")
-	ErrTooManyRequests  = errors.New("too many requests")
-	ErrGone             = errors.New("resource no longer available")
-)
+// ErrUnauthorized is the sentinel for authentication failures.
+var ErrUnauthorized = errors.New("unauthorized")
 
-// LogRenderError is the format string for logging render errors
-const LogRenderError = "Error rendering error response: %v"
+const statusClientClosedRequest = 499
 
 // Validation error messages
 const (
@@ -57,7 +50,6 @@ const (
 	MsgInvalidAccountID       = "invalid account ID"
 	MsgInvalidPermissionID    = "invalid permission ID"
 	MsgInvalidParentAccountID = "invalid parent account ID"
-	MsgInvalidSettingID       = "invalid setting ID"
 	MsgInvalidRoomID          = "invalid room ID"
 	MsgInvalidWeekday         = "invalid weekday"
 	MsgInvalidPersonID        = "invalid person ID"
@@ -258,12 +250,52 @@ func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)
 }
 
+// ErrorRequestTimeout returns a 408 Request Timeout response for request
+// contexts whose deadline expired before the handler could complete.
+func ErrorRequestTimeout(err error) render.Renderer {
+	return newErrResponse(http.StatusRequestTimeout, err)
+}
+
+// ErrorClientClosed returns the de-facto 499 status for a client-canceled
+// request. Keeping this below 500 avoids Sentry noise for disconnects.
+func ErrorClientClosed(err error) render.Renderer {
+	return newErrResponse(statusClientClosedRequest, err)
+}
+
 // ErrorServiceUnavailable returns a 503 Service Unavailable response. Used
 // when a transient dependency (settings DB, MFA-credentials lookup, etc.)
 // makes a security decision impossible and the safe behaviour is to refuse
 // the request without globally locking other callers out.
 func ErrorServiceUnavailable(err error) render.Renderer {
 	return newErrResponse(http.StatusServiceUnavailable, err)
+}
+
+// IsTransientDatabaseError reports whether err represents a temporary database
+// connectivity failure rather than a domain validation error. Callers can use
+// this to retry a whole transaction once or return 503 after retry exhaustion.
+func IsTransientDatabaseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if errors.Is(err, driver.ErrBadConn) {
+		return true
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		code := pgErr.Field('C')
+		return len(code) >= 2 && code[:2] == "08"
+	}
+
+	return strings.Contains(err.Error(), "driver: bad connection")
 }
 
 // IsConstraintViolation checks if an error is a PostgreSQL constraint violation
@@ -291,4 +323,16 @@ func IsConstraintViolation(err error) bool {
 // ErrorGone returns a 410 Gone error response
 func ErrorGone(err error) render.Renderer {
 	return newErrResponse(http.StatusGone, err)
+}
+
+// RequireDependency writes a 503 response built from unavailableErr when ok
+// is false and returns ok unchanged. Handlers use it to guard optional
+// service dependencies:
+//
+//	if !common.RequireDependency(w, r, rs.MFAService != nil, errMFAServiceUnavailable) { return }
+func RequireDependency(w http.ResponseWriter, r *http.Request, ok bool, unavailableErr error) bool {
+	if !ok {
+		RenderError(w, r, newErrResponse(http.StatusServiceUnavailable, unavailableErr))
+	}
+	return ok
 }

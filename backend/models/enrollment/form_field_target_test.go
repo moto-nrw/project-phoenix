@@ -172,6 +172,94 @@ func TestIsStructuredFieldType_RejectsScalars(t *testing.T) {
 	}
 }
 
+func newPickupScheduleField() *FormField {
+	return &FormField{
+		Key:         "pickup_times",
+		Label:       "Abholzeiten",
+		Type:        FormFieldWeekdaySchedule,
+		AppliesToCh: true,
+		Target:      TargetSchedulePickup,
+		SortOrder:   0,
+	}
+}
+
+func TestFormField_Validate_AcceptsAllowedTimesOnWeekdaySchedule(t *testing.T) {
+	f := newPickupScheduleField()
+	f.AllowedTimes = []string{" 14:45 ", "16:00"}
+	require.NoError(t, f.Validate())
+	// Entries are trimmed in place so the stored schema is canonical.
+	assert.Equal(t, []string{"14:45", "16:00"}, f.AllowedTimes)
+}
+
+func TestFormField_Validate_RejectsAllowedTimesOnNonScheduleField(t *testing.T) {
+	f := &FormField{
+		Key:          "favourite_time",
+		Label:        "Lieblingszeit",
+		Type:         FormFieldText,
+		AllowedTimes: []string{"14:45"},
+		SortOrder:    0,
+	}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "allowed_times")
+}
+
+func TestFormField_Validate_RejectsAllowedTimesOnArrivalField(t *testing.T) {
+	// Fixed times are a pickup-only feature; the arrival schedule stays
+	// free-entry, so allowed_times on it must be rejected even though it
+	// is also a weekday_schedule field.
+	f := &FormField{
+		Key:          "arrival_times",
+		Label:        "Ankunftszeiten",
+		Type:         FormFieldWeekdaySchedule,
+		AppliesToCh:  true,
+		Target:       TargetScheduleArrival,
+		AllowedTimes: []string{"08:00"},
+	}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "allowed_times")
+}
+
+func TestFormField_Validate_RejectsMalformedAllowedTime(t *testing.T) {
+	f := newPickupScheduleField()
+	f.AllowedTimes = []string{"14:45", "nope"}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "HH:MM")
+}
+
+func TestFormField_Validate_RejectsDuplicateAllowedTime(t *testing.T) {
+	f := newPickupScheduleField()
+	f.AllowedTimes = []string{"14:45", "14:45"}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate")
+}
+
+func TestFormField_Validate_RejectsEmptyAllowedTimeEntry(t *testing.T) {
+	f := newPickupScheduleField()
+	f.AllowedTimes = []string{"14:45", "   "}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty")
+}
+
+func TestFormField_Validate_RejectsAllowedTimesOnInfoField(t *testing.T) {
+	// allowed_times constrains an input, so it is a question-field concept.
+	// An information block has no input; validateInfo must reject it rather
+	// than silently ignoring a misconfigured schema.
+	f := &FormField{
+		Key:          "infotext_1",
+		Type:         FormFieldInfo,
+		Content:      "Bitte die Abholzeiten beachten.",
+		AllowedTimes: []string{"14:45"},
+	}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "allowed_times")
+}
+
 func TestReservedTargets_AllEntriesHaveValidType(t *testing.T) {
 	// Guard: every entry in ReservedTargets must reference a
 	// valid FormFieldType. Prevents silent typos that would only

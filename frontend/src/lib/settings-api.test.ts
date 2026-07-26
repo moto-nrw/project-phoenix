@@ -15,6 +15,7 @@ const {
   resetSettingValue,
   revealSettingValue,
   applyOptimisticSchemaUpdate,
+  getSettingValue,
   SETTINGS_SCHEMA_SWR_KEY,
 } = await import("./settings-api");
 
@@ -212,10 +213,46 @@ describe("resetSettingValue", () => {
 
 describe("SETTINGS_SCHEMA_SWR_KEY", () => {
   it("is the literal string used by every SWR consumer", () => {
-    // The key is a string constant rather than a hash so cross-component
-    // mutate() calls hit the same cache entry. Locking the value keeps
-    // the bridge / sidebar / mobile-bottom-nav in sync.
+    // The shared base key is tenant-prefixed by useSWRAuth/useTenantMutate.
+    // Locking the value keeps all readers and invalidation paths in sync.
     expect(SETTINGS_SCHEMA_SWR_KEY).toBe("settings-schema");
+  });
+});
+
+describe("getSettingValue", () => {
+  const schema = {
+    tabs: [
+      {
+        categories: [
+          {
+            items: [
+              { key: "timetable.enabled", value: false },
+              { key: "operations.meal_plan_enabled", value: true },
+            ],
+          },
+        ],
+      },
+    ],
+  } as NonNullable<SchemaForTest>;
+
+  it("returns true and false values without treating false as missing", () => {
+    expect(getSettingValue(schema, "timetable.enabled")).toBe(false);
+    expect(getSettingValue(schema, "operations.meal_plan_enabled")).toBe(true);
+  });
+
+  it("returns undefined for missing schemas and keys", () => {
+    expect(getSettingValue(null, "timetable.enabled")).toBeUndefined();
+    expect(getSettingValue(schema, "missing.key")).toBeUndefined();
+  });
+
+  it("ignores malformed nested API collections", () => {
+    const malformedSchema = {
+      tabs: [{ categories: null }, { categories: [{ items: null }] }],
+    } as unknown as NonNullable<SchemaForTest>;
+
+    expect(
+      getSettingValue(malformedSchema, "timetable.enabled"),
+    ).toBeUndefined();
   });
 });
 
@@ -225,10 +262,9 @@ describe("applyOptimisticSchemaUpdate", () => {
     overrides: Partial<{
       type: "boolean" | "number" | "time" | "text" | "password" | "select";
       value: unknown;
+      default: unknown;
       depends_on:
-        | { key: string; condition: string; value: unknown }
-        | null
-        | undefined;
+        { key: string; condition: string; value: unknown } | null | undefined;
     }> = {},
   ) {
     return {
@@ -236,7 +272,7 @@ describe("applyOptimisticSchemaUpdate", () => {
       label: key,
       description: "",
       type: overrides.type ?? "boolean",
-      default: false,
+      default: overrides.default ?? false,
       value: overrides.value ?? false,
       is_default: true,
       writable: true,
@@ -275,6 +311,36 @@ describe("applyOptimisticSchemaUpdate", () => {
     // Untouched item stays as-is.
     expect(items[1]!.value).toBe(10);
     expect(items[1]!.is_default).toBe(true);
+  });
+
+  it("keeps is_default when the new value equals the registry default", () => {
+    // Boolean toggled away from default (false) to true, then back to false.
+    // Toggling back to the default must restore the "Standard" badge without
+    // waiting for a refetch (issue #1680).
+    const schema = makeSchema([
+      makeItem("a", { type: "boolean", value: true }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "a", false);
+
+    const item = next.tabs[0]!.categories[0]!.items[0]!;
+    expect(item.value).toBe(false);
+    expect(item.is_default).toBe(true);
+  });
+
+  it("keeps a resettable setting non-default even when saved at the default value", () => {
+    // A number set to its registry default still wrote an override row, so the
+    // reset button must stay available (is_default false). The value-based
+    // badge is boolean-only (issue #1680).
+    const schema = makeSchema([
+      makeItem("a", { type: "number", value: 99, default: 30 }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "a", 30);
+
+    const item = next.tabs[0]!.categories[0]!.items[0]!;
+    expect(item.value).toBe(30);
+    expect(item.is_default).toBe(false);
   });
 
   it("masks password fields with bullets instead of leaking the cleartext", () => {

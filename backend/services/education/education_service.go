@@ -3,6 +3,8 @@ package education
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -257,30 +259,6 @@ func (s *service) CountGroups(ctx context.Context, options *base.QueryOptions) (
 	return count, nil
 }
 
-// FindGroupByName finds a group by its name
-func (s *service) FindGroupByName(ctx context.Context, name string) (*education.Group, error) {
-	group, err := s.groupRepo.FindByName(ctx, name)
-	if err != nil {
-		return nil, &EducationError{Op: "FindGroupByName", Err: ErrGroupNotFound}
-	}
-	return group, nil
-}
-
-// FindGroupsByRoom finds all groups assigned to a specific room
-func (s *service) FindGroupsByRoom(ctx context.Context, roomID int64) ([]*education.Group, error) {
-	// Verify room exists
-	_, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return nil, &EducationError{Op: "FindGroupsByRoom", Err: ErrRoomNotFound}
-	}
-
-	groups, err := s.groupRepo.FindByRoom(ctx, roomID)
-	if err != nil {
-		return nil, &EducationError{Op: "FindGroupsByRoom", Err: err}
-	}
-	return groups, nil
-}
-
 // FindGroupWithRoom retrieves a group with its associated room
 func (s *service) FindGroupWithRoom(ctx context.Context, groupID int64) (*education.Group, error) {
 	group, err := s.groupRepo.FindWithRoom(ctx, groupID)
@@ -290,85 +268,7 @@ func (s *service) FindGroupWithRoom(ctx context.Context, groupID int64) (*educat
 	return group, nil
 }
 
-// AssignRoomToGroup assigns a room to a group
-func (s *service) AssignRoomToGroup(ctx context.Context, groupID, roomID int64) error {
-	// Verify group exists
-	group, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return &EducationError{Op: "AssignRoomToGroup", Err: ErrGroupNotFound}
-	}
-
-	// Verify room exists
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return &EducationError{Op: "AssignRoomToGroup", Err: ErrRoomNotFound}
-	}
-
-	// Update group's room
-	group.SetRoom(room)
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		return &EducationError{Op: "AssignRoomToGroup", Err: err}
-	}
-
-	return nil
-}
-
-// RemoveRoomFromGroup removes a room assignment from a group
-func (s *service) RemoveRoomFromGroup(ctx context.Context, groupID int64) error {
-	// Verify group exists
-	group, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return &EducationError{Op: "RemoveRoomFromGroup", Err: ErrGroupNotFound}
-	}
-
-	// Remove room assignment
-	group.SetRoom(nil)
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		return &EducationError{Op: "RemoveRoomFromGroup", Err: err}
-	}
-
-	return nil
-}
-
 // Group-Teacher operations
-
-// AddTeacherToGroup adds a teacher to a group
-func (s *service) AddTeacherToGroup(ctx context.Context, groupID, teacherID int64) error {
-	// Verify group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return &EducationError{Op: "AddTeacherToGroup", Err: ErrGroupNotFound}
-	}
-
-	// Verify teacher exists
-	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
-	if err != nil {
-		return &EducationError{Op: "AddTeacherToGroup", Err: ErrTeacherNotFound}
-	}
-
-	// Check if relationship already exists
-	relations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
-	if err == nil {
-		for _, rel := range relations {
-			if rel.TeacherID == teacherID {
-				return &EducationError{Op: "AddTeacherToGroup", Err: ErrDuplicateTeacherInGroup}
-			}
-		}
-	}
-
-	// Create group-teacher relationship
-	groupTeacher := &education.GroupTeacher{
-		GroupID:   groupID,
-		TeacherID: teacher.ID,
-	}
-	groupTeacher.SetTenantID(tenant.FromContext(ctx))
-
-	if err := s.groupTeacherRepo.Create(ctx, groupTeacher); err != nil {
-		return &EducationError{Op: "AddTeacherToGroup", Err: err}
-	}
-
-	return nil
-}
 
 // RemoveTeacherFromGroup removes a teacher from a group
 func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error {
@@ -493,57 +393,21 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 		return []*users.Teacher{}, nil
 	}
 
-	// Extract teacher IDs
 	teacherIDs := make([]int64, 0, len(relations))
 	for _, rel := range relations {
 		teacherIDs = append(teacherIDs, rel.TeacherID)
 	}
-
 	if len(teacherIDs) == 0 {
 		return []*users.Teacher{}, nil
 	}
 
-	// Build query options with an IN filter for teacher IDs
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-
-	// Convert int64 slice to []interface{}
-	interfaceIDs := make([]interface{}, len(teacherIDs))
-	for i, id := range teacherIDs {
-		interfaceIDs[i] = id
-	}
-
-	filter.In("id", interfaceIDs...)
-	options.Filter = filter
-
-	// Get teachers using the modern ListWithOptions method
-	teachers, err := s.teacherRepo.ListWithOptions(ctx, options)
+	// Batch fetch teachers with staff+person in one query — same path as
+	// GetTeachersForGroups; replaces the per-teacher N+1 enrichment.
+	teachers, err := s.teacherRepo.FindWithStaffAndPersonByIDs(ctx, teacherIDs)
 	if err != nil {
 		return nil, &EducationError{Op: "GetGroupTeachers", Err: err}
 	}
-
-	// Always filter to ensure we only return teachers that were requested
-	var filteredTeachers []*users.Teacher
-	idMap := make(map[int64]bool)
-	for _, id := range teacherIDs {
-		idMap[id] = true
-	}
-
-	// Fetch staff and person data for each teacher
-	for _, teacher := range teachers {
-		if idMap[teacher.ID] {
-			// Try to get teacher with staff and person data
-			fullTeacher, err := s.teacherRepo.FindWithStaffAndPerson(ctx, teacher.ID)
-			if err == nil {
-				filteredTeachers = append(filteredTeachers, fullTeacher)
-			} else {
-				// If fetch fails, use teacher without staff/person data
-				filteredTeachers = append(filteredTeachers, teacher)
-			}
-		}
-	}
-
-	return filteredTeachers, nil
+	return teachers, nil
 }
 
 // GetTeachersForGroups batch-loads all teachers for multiple groups in 2 queries
@@ -564,10 +428,7 @@ func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (m
 		teacherIDSet[rel.TeacherID] = true
 	}
 
-	teacherIDs := make([]int64, 0, len(teacherIDSet))
-	for id := range teacherIDSet {
-		teacherIDs = append(teacherIDs, id)
-	}
+	teacherIDs := slices.Collect(maps.Keys(teacherIDSet))
 
 	if len(teacherIDs) == 0 {
 		result := make(map[int64][]*users.Teacher)

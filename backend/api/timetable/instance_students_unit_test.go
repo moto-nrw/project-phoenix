@@ -76,7 +76,16 @@ func (f *fakeRepo) List(context.Context, *modelsBase.QueryOptions) ([]*schedule.
 func (f *fakeRepo) FindByInstanceID(context.Context, int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
+func (f *fakeRepo) FindByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
 func (f *fakeRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) FindNotScheduledCandidatesByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
 	panic("unused")
 }
 func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*schedule.InstanceStudent, error) {
@@ -86,7 +95,11 @@ func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, timezon
 	panic("unused")
 }
 func (f *fakeRepo) DeleteByInstanceID(context.Context, int64) error { panic("unused") }
-func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string) (int, error) {
+func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeRepo) MarkNotScheduled(context.Context, []schedule.StudentInstanceRef) error {
 	panic("unused")
 }
 
@@ -94,7 +107,32 @@ func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Cont
 	panic("unused")
 }
 
+func (f *fakeRepo) HasPlannedSlotsInRange(context.Context, timezone.Date, timezone.Date) (bool, error) {
+	panic("unused")
+}
+
 func (f *fakeRepo) UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, error) {
+	panic("unused")
+}
+func (f *fakeRepo) CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) error {
+	panic("unused")
+}
+func (f *fakeRepo) ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, error) {
+	panic("unused")
+}
+func (f *fakeRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ApplyStatusDay(context.Context, int64, timezone.Date, int64, string) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ReleaseStatusDay(context.Context, int64) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
 	panic("unused")
 }
 
@@ -152,7 +190,7 @@ func TestPatchHandler_500_RepoNotWired(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestPatchHandler_400_InvalidInstanceID(t *testing.T) {
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/abc/students/2", map[string]any{"status": "absent"}))
@@ -161,7 +199,7 @@ func TestPatchHandler_400_InvalidInstanceID(t *testing.T) {
 }
 
 func TestPatchHandler_400_InvalidStudentID(t *testing.T) {
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/xyz", map[string]any{"status": "absent"}))
@@ -170,7 +208,7 @@ func TestPatchHandler_400_InvalidStudentID(t *testing.T) {
 }
 
 func TestPatchHandler_400_ZeroInstanceID(t *testing.T) {
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/0/students/2", map[string]any{"status": "absent"}))
@@ -178,7 +216,7 @@ func TestPatchHandler_400_ZeroInstanceID(t *testing.T) {
 }
 
 func TestPatchHandler_400_NegativeIDs(t *testing.T) {
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/-1/students/2", map[string]any{"status": "absent"}))
@@ -190,7 +228,7 @@ func TestPatchHandler_400_NegativeIDs(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestPatchHandler_400_MalformedJSON(t *testing.T) {
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", "{not json"))
@@ -199,7 +237,7 @@ func TestPatchHandler_400_MalformedJSON(t *testing.T) {
 }
 
 func TestPatchHandler_400_EmptyBody_MeansNoChanges(t *testing.T) {
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	// Empty body → parser returns zero patch → HasChanges false → 400.
@@ -212,7 +250,7 @@ func TestPatchHandler_400_EmptyBody_MeansNoChanges(t *testing.T) {
 func TestPatchHandler_400_BodyReadError(t *testing.T) {
 	// A broken reader forces io.ReadAll to return an error, exercising the
 	// "failed to read request body" branch.
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	req := httptest.NewRequest(http.MethodPatch, "/instances/1/students/2", brokenReader{})
@@ -223,7 +261,7 @@ func TestPatchHandler_400_BodyReadError(t *testing.T) {
 }
 
 func TestPatchHandler_400_NonStringNote(t *testing.T) {
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", `{"note": 5}`))
@@ -247,7 +285,7 @@ func TestPatchHandler_404_NotFound_ErrNoRows(t *testing.T) {
 			return nil, sql.ErrNoRows
 		},
 	}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -263,7 +301,7 @@ func TestPatchHandler_404_NotFound_WrappedDatabaseError(t *testing.T) {
 			return nil, &modelsBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}
 		},
 	}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -277,7 +315,7 @@ func TestPatchHandler_404_NotFound_NilRowNilError(t *testing.T) {
 			return nil, nil
 		},
 	}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -290,7 +328,7 @@ func TestPatchHandler_500_FindError_NotNotFound(t *testing.T) {
 			return nil, errors.New("connection reset")
 		},
 	}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -309,7 +347,7 @@ func TestPatchHandler_500_UpdateError(t *testing.T) {
 			return updateErr
 		},
 	}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -333,7 +371,7 @@ func TestPatchHandler_500_ReloadAfterUpdateFails(t *testing.T) {
 			return nil, errors.New("reload failure")
 		},
 	}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -358,7 +396,7 @@ func TestPatchHandler_500_ReloadReturnsNil(t *testing.T) {
 			return nil, nil
 		},
 	}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -376,7 +414,7 @@ func TestPatchHandler_400_CrossFieldRuleAfterFind(t *testing.T) {
 	current.ID = 11
 
 	repo := &fakeRepo{currentState: current}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"substatus": "late"}))
@@ -421,7 +459,7 @@ func TestPatchHandler_200_HappyPath(t *testing.T) {
 			return updated, nil
 		},
 	}
-	res := &Resource{timetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/100/students/200", map[string]any{
@@ -477,30 +515,6 @@ func TestMapAttendanceToResponse_WithoutCheckedInAt(t *testing.T) {
 	assert.Nil(t, resp.CheckedInAt)
 	assert.Nil(t, resp.Substatus)
 	assert.Nil(t, resp.Note)
-}
-
-// -----------------------------------------------------------------------------
-// isNotFoundDBError — exhaustive matrix
-// -----------------------------------------------------------------------------
-
-func TestIsNotFoundDBError(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{"nil error", nil, false},
-		{"plain sql.ErrNoRows", sql.ErrNoRows, false}, // not wrapped in DatabaseError
-		{"DatabaseError wrapping ErrNoRows", &modelsBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}, true},
-		{"DatabaseError wrapping other err", &modelsBase.DatabaseError{Op: "find", Err: errors.New("boom")}, false},
-		{"plain other error", errors.New("timeout"), false},
-		{"wrapped DatabaseError", fmt.Errorf("outer: %w", &modelsBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}), true},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, isNotFoundDBError(tc.err))
-		})
-	}
 }
 
 // -----------------------------------------------------------------------------
@@ -594,7 +608,11 @@ func TestDecodePatchBody_Direct(t *testing.T) {
 
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
 // these tests.
-func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time) error {
+func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []schedule.StudentInstanceRef) error {
+	panic("unused")
+}
+
+func (f *fakeRepo) CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error) {
 	panic("unused")
 }
 

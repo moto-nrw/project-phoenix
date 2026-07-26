@@ -324,12 +324,6 @@ These settings control whether entire feature areas are visible in the sidebar/n
 | `operations.activity_full_percent` | number | `80` | `dashboard_helpers.go:458` | Percentage at which activity shows "ending soon" status |
 | `operations.dashboard_refresh_seconds` | number | `300` | `frontend: dashboard/page.tsx:264` | Dashboard auto-refresh interval |
 
-### Break Management
-
-| Proposed Key | Type | Default | Hardcoded In | Description |
-|---|---|---|---|---|
-| `operations.break_auto_end_enabled` | boolean | `true` | env var `BREAK_AUTO_END_ENABLED` | Auto-end breaks when time expires |
-
 **Note:** Break compliance thresholds (6h/9h, 30min/45min) are German labor law (ArbZG). These could be org-level overrides for Träger with stricter internal policies, but changing them has legal implications.
 
 ---

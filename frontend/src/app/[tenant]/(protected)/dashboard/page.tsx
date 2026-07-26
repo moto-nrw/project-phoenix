@@ -1,9 +1,10 @@
 "use client";
 
 import { createLogger } from "~/lib/logger";
-import { useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import Link from "next/link";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
@@ -17,10 +18,10 @@ import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
 import {
   useNFCEnabled,
+  useOpenCareGroupMode,
   usePresenceMode,
-} from "~/components/tenant/tenant-provider";
-
-import { Loading } from "~/components/ui/loading";
+} from "~/lib/tenant-context";
+import { DashboardSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "DashboardPage" });
 
@@ -256,7 +257,9 @@ const InfoCard: React.FC<InfoCardProps> = ({
 
 function DashboardContent() {
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const nfcEnabled = useNFCEnabled();
+  const openCareGroupMode = useOpenCareGroupMode();
   const presenceMode = usePresenceMode();
   const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
   const { data: session, status } = useSession({
@@ -287,23 +290,13 @@ function DashboardContent() {
 
   const error = swrError ? "Fehler beim Laden der Dashboard-Daten" : null;
 
-  useEffect(() => {
-    if (status === "authenticated" && session) {
-      if (session.error === "RefreshTokenExpired") {
-        logger.info("session refresh token expired, redirecting to login");
-        router.push("/");
-        return;
-      }
-
-      if (!session.user?.token) {
-        logger.info("no valid token in session, redirecting to login");
-        router.push("/");
-      }
-    }
-  }, [status, session, router]);
-
-  if (status === "loading") {
-    return <Loading fullPage={false} />;
+  if (
+    status === "authenticated" &&
+    session &&
+    (session.error === "RefreshTokenExpired" || !session.user?.token)
+  ) {
+    logger.info("invalid session, redirecting to login");
+    redirect(tenantPath("/"));
   }
 
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
@@ -380,14 +373,16 @@ function DashboardContent() {
           loading={isLoading}
           href="/students/search?status=entschuldigt"
         />
-        <StatCard
-          title="Aktive Gruppen"
-          value={dashboardData?.activeOGSGroups ?? 0}
-          icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-          color="from-[#83CD2D] to-[#70b525]"
-          loading={isLoading}
-          href="/ogs-groups"
-        />
+        {!openCareGroupMode ? (
+          <StatCard
+            title="Aktive Gruppen"
+            value={dashboardData?.activeOGSGroups ?? 0}
+            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            color="from-[#83CD2D] to-[#70b525]"
+            loading={isLoading}
+            href="/ogs-groups"
+          />
+        ) : null}
         {showActivitySurfaces ? (
           <StatCard
             title="Aktive Aktivitäten"
@@ -521,9 +516,9 @@ function DashboardContent() {
               }
               return (
                 <div className="space-y-2">
-                  {activities.slice(0, 5).map((activity, idx) => (
+                  {activities.slice(0, 5).map((activity) => (
                     <div
-                      key={`${activity.name}-${activity.category}-${idx}`}
+                      key={activity.id}
                       className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
                     >
                       <div className="min-w-0 flex-1">
@@ -547,56 +542,58 @@ function DashboardContent() {
         ) : null}
 
         {/* Active Groups */}
-        <InfoCard
-          title="Aktive Gruppen"
-          icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-          href="/ogs-groups"
-        >
-          {(() => {
-            if (isLoading) {
+        {!openCareGroupMode ? (
+          <InfoCard
+            title="Aktive Gruppen"
+            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            href="/ogs-groups"
+          >
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-14 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const groups = dashboardData?.activeGroupsSummary;
+              if (!groups || groups.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine aktiven Gruppen
+                  </p>
+                );
+              }
               return (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
+                <div className="space-y-2">
+                  {groups.slice(0, 5).map((group) => (
                     <div
-                      key={i}
-                      className="h-14 animate-pulse rounded-lg bg-gray-100"
-                    ></div>
+                      key={`${group.type}-${group.name}`}
+                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900">
+                          {group.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {group.location} • {group.studentCount} Kinder
+                        </p>
+                      </div>
+                      <div
+                        className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
+                      ></div>
+                    </div>
                   ))}
                 </div>
               );
-            }
-            const groups = dashboardData?.activeGroupsSummary;
-            if (!groups || groups.length === 0) {
-              return (
-                <p className="py-8 text-center text-sm text-gray-500">
-                  Keine aktiven Gruppen
-                </p>
-              );
-            }
-            return (
-              <div className="space-y-2">
-                {groups.slice(0, 5).map((group) => (
-                  <div
-                    key={`${group.type}-${group.name}`}
-                    className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">
-                        {group.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {group.location} • {group.studentCount} Kinder
-                      </p>
-                    </div>
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
-                    ></div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </InfoCard>
+            })()}
+          </InfoCard>
+        ) : null}
 
         {/* Betreuer Summary */}
         <InfoCard
@@ -655,7 +652,7 @@ function DashboardContent() {
 // Main Dashboard Page Component
 export default function DashboardPage() {
   return (
-    <RoleGuard variant="adminOnly">
+    <RoleGuard variant="adminOnly" fallback={<DashboardSkeleton />}>
       <UserContextProvider>
         <DashboardContent />
       </UserContextProvider>

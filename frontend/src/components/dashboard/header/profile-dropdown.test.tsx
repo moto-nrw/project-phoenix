@@ -196,6 +196,27 @@ describe("ProfileDropdownMenu", () => {
     expect(profileLink).toHaveAttribute("href", "/profile");
   });
 
+  it("renders a custom profile link label when provided", () => {
+    const onClose = vi.fn();
+    const onLogout = vi.fn();
+    render(
+      <ProfileDropdownMenu
+        isOpen={true}
+        displayName="Max Mustermann"
+        userEmail="max@example.com"
+        onClose={onClose}
+        onLogout={onLogout}
+        profileUrl="/operator/settings"
+        profileLabel="Profileinstellungen"
+      />,
+    );
+
+    const profileLink = screen.getByRole("link", {
+      name: /profileinstellungen/i,
+    });
+    expect(profileLink).toHaveAttribute("href", "/operator/settings");
+  });
+
   it("does not render profile link when profileUrl is not provided", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();

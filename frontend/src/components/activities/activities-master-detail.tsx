@@ -14,7 +14,7 @@ import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
-import { activitiesConfig } from "@/lib/database/configs/activities.config";
+import { activitiesConfig } from "@/components/database/configs/activities.config";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 import { buildActivityFormSections } from "./activity-form-sections";
 

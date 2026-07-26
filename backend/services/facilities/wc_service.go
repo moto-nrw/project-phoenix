@@ -3,6 +3,7 @@
 package facilities
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -38,10 +39,7 @@ var errWCActivityNotFound = errors.New("WC activity not found")
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil.
 func (s *wcService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewWCService creates a new WC service.
@@ -90,6 +88,7 @@ func (s *wcService) EnsureInfrastructure(ctx context.Context) (*activityModels.G
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
+		IsSystem:        true,
 	}
 
 	createdActivity, err := s.activityService.CreateGroup(ctx, newActivity, []int64{}, []*activityModels.Schedule{})
@@ -157,6 +156,7 @@ func (s *wcService) ensureWCRoom(ctx context.Context) (*facilities.Room, error) 
 		Capacity: &capacity,
 		Category: &category,
 		Color:    &color,
+		IsSystem: true,
 	}
 
 	if err := s.facilityService.CreateRoom(ctx, newRoom); err != nil {
@@ -198,6 +198,7 @@ func (s *wcService) ensureWCCategory(ctx context.Context) (*activityModels.Categ
 		Name:        constants.WCCategoryName,
 		Description: constants.WCCategoryDescription,
 		Color:       constants.WCColor,
+		IsSystem:    true,
 	}
 
 	createdCategory, err := s.activityService.CreateCategory(ctx, newCategory)

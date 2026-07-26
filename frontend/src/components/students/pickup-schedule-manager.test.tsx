@@ -51,10 +51,15 @@ vi.mock("./pickup-schedule-form-modal", () => ({
     isOpen ? (
       <div data-testid="pickup-schedule-form-modal">
         <span>Schedule Modal</span>
-        <button onClick={onClose} data-testid="close-schedule-modal">
+        <button
+          type="button"
+          onClick={onClose}
+          data-testid="close-schedule-modal"
+        >
           Close
         </button>
         <button
+          type="button"
           onClick={() =>
             onSubmit({
               schedules: [
@@ -81,7 +86,11 @@ vi.mock("./pickup-day-edit-modal", () => ({
     isOpen ? (
       <div data-testid="pickup-day-edit-modal">
         <span>Day Edit Modal</span>
-        <button onClick={onClose} data-testid="close-day-edit-modal">
+        <button
+          type="button"
+          onClick={onClose}
+          data-testid="close-day-edit-modal"
+        >
           Close
         </button>
       </div>

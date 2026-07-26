@@ -3,8 +3,6 @@
 package groups
 
 import (
-	"errors"
-	"net/http"
 	"testing"
 	"time"
 
@@ -12,42 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
-
-// =============================================================================
-// Error Helper Tests
-// =============================================================================
-
-func TestErrorConflict_ReturnsCorrectStatus(t *testing.T) {
-	err := errors.New("conflict error")
-	response := ErrorConflict(err)
-
-	errResp, ok := response.(*ErrorResponse)
-	assert.True(t, ok, "Expected *ErrorResponse")
-	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Equal(t, "conflict error", errResp.ErrorText)
-}
-
-func TestErrorInternalServer_ReturnsCorrectStatus(t *testing.T) {
-	err := errors.New("internal server error")
-	response := ErrorInternalServer(err)
-
-	errResp, ok := response.(*ErrorResponse)
-	assert.True(t, ok, "Expected *ErrorResponse")
-	assert.Equal(t, http.StatusInternalServerError, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Equal(t, "internal server error", errResp.ErrorText)
-}
-
-func TestErrorInternalServer_EmptyMessage(t *testing.T) {
-	err := errors.New("")
-	response := ErrorInternalServer(err)
-
-	errResp, ok := response.(*ErrorResponse)
-	assert.True(t, ok, "Expected *ErrorResponse")
-	assert.Equal(t, http.StatusInternalServerError, errResp.HTTPStatusCode)
-	assert.Equal(t, "", errResp.ErrorText)
-}
 
 // =============================================================================
 // buildNoRoomResponse Tests
@@ -209,18 +171,6 @@ func TestTeacherResponse_Fields(t *testing.T) {
 	assert.Equal(t, "Doe", resp.LastName)
 	assert.Equal(t, "Math", resp.Specialization)
 	assert.Equal(t, "lead", resp.Role)
-}
-
-func TestErrorResponse_Fields(t *testing.T) {
-	errResp := &ErrorResponse{
-		HTTPStatusCode: http.StatusBadRequest,
-		Status:         "error",
-		ErrorText:      "bad request",
-	}
-
-	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Equal(t, "bad request", errResp.ErrorText)
 }
 
 // NOTE: NewResource requires non-nil services, tested via integration tests in groups_test.go

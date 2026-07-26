@@ -1,6 +1,7 @@
 package students
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -134,7 +136,7 @@ func evaluateWebCheckinAccess(mode string, supervisorHasAccess bool) error {
 // happens not to teach the student's group would get a 403 in
 // `group_supervisors` mode, which contradicts the rest of the admin model.
 func (rs *Resource) enforceWebCheckinAccess(ctx context.Context, staffID, studentID int64) error {
-	if common.HasAdminPermissions(jwt.PermissionsFromCtx(ctx)) {
+	if authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx)) {
 		return nil
 	}
 
@@ -145,6 +147,16 @@ func (rs *Resource) enforceWebCheckinAccess(ctx context.Context, staffID, studen
 		configModel.WebCheckinAccessGroupSupervisors,
 		rs.getLogger(),
 	)
+	if rs.SettingsService == nil {
+		return errors.New("settings service is not configured")
+	}
+	groupMode, groupModeErr := rs.SettingsService.ResolveString(ctx, configModel.KeyGroupMode)
+	if groupModeErr != nil {
+		return fmt.Errorf("group mode resolution failed: %w", groupModeErr)
+	}
+	if groupMode == configModel.GroupModeOpenCare {
+		return nil
+	}
 	if mode == configModel.WebCheckinAccessAllStaff {
 		return evaluateWebCheckinAccess(mode, false)
 	}
@@ -250,8 +262,5 @@ func labelForAttendanceStatus(status string) string {
 
 // getLogger returns a nil-safe logger for handler use.
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.Logger != nil {
-		return rs.Logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }

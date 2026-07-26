@@ -59,6 +59,10 @@ func (m *mockMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int)
 	return baseDate, baseDate.AddDays(weeksAhead*7 - 1)
 }
 
+func (m *mockMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
+	return nil, nil
+}
+
 // -----------------------------------------------------------------------------
 // resolveMaterializationWindow — pure logic, no HTTP plumbing.
 // -----------------------------------------------------------------------------

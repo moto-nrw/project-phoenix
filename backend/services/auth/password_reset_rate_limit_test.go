@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -19,7 +21,7 @@ import (
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
 
-func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *capturingMailer, sqlmock.Sqlmock, func()) {
+func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *testpkg.CapturingMailer, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
 	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
@@ -35,7 +37,7 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 	accountRepo := newStubAccountRepository(account)
 	tokenRepo := newStubPasswordResetTokenRepository()
 	rateRepo := newTestRateLimitRepo()
-	mailer := newCapturingMailer()
+	mailer := testpkg.NewCapturingMailer()
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 

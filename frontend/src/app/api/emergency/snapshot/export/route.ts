@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EmergencyExportRoute" });
@@ -35,7 +36,7 @@ async function proxyExport(token: string) {
   return new NextResponse(data, { status: 200, headers });
 }
 
-export async function POST(_request: NextRequest) {
+async function POSTHandler(_request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
@@ -59,3 +60,5 @@ export async function POST(_request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

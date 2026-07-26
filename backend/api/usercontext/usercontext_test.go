@@ -10,7 +10,6 @@ package usercontext_test
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -50,11 +49,8 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
-
+	db, serviceFactory := testutil.SetupAPITest(t)
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
 
 	resource := usercontextAPI.NewResource(serviceFactory.UserContext, db)
 

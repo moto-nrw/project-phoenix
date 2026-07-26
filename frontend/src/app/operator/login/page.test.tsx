@@ -8,11 +8,14 @@ import {
 } from "@testing-library/react";
 
 // Mock dependencies
-const { mockPush, mockSignIn, mockUseSession } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-  mockSignIn: vi.fn(),
-  mockUseSession: vi.fn(),
-}));
+const { mockPush, mockRedirect, mockSignIn, mockSignOut, mockUseSession } =
+  vi.hoisted(() => ({
+    mockPush: vi.fn(),
+    mockRedirect: vi.fn(),
+    mockSignIn: vi.fn(),
+    mockSignOut: vi.fn(),
+    mockUseSession: vi.fn(),
+  }));
 
 const originalFetch = global.fetch;
 
@@ -41,6 +44,7 @@ function mockAuthenticatedResponse(): typeof global.fetch {
 }
 
 vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
   useRouter: () => ({ push: mockPush }),
 }));
 
@@ -51,6 +55,7 @@ vi.mock("next/image", () => ({
 
 vi.mock("next-auth/react", () => ({
   signIn: mockSignIn,
+  signOut: mockSignOut,
   useSession: mockUseSession,
 }));
 
@@ -60,15 +65,7 @@ vi.mock("~/lib/operator-url", () => ({
   isOperatorSubdomain: () => false,
 }));
 
-vi.mock("~/components/ui", () => ({
-  Input: ({
-    value,
-    onChange,
-    ...props
-  }: React.InputHTMLAttributes<HTMLInputElement> & {
-    value?: string;
-    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  }) => <input value={value} onChange={onChange} {...props} />,
+vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => (
     <div role="alert">{message}</div>
   ),
@@ -217,7 +214,25 @@ describe("OperatorLoginPage", () => {
 
     render(<OperatorLoginPage />);
 
-    expect(mockPush).toHaveBeenCalledWith("/operator/suggestions");
+    expect(mockRedirect).toHaveBeenCalledWith("/operator/suggestions");
+  });
+
+  it("clears an errored operator session before redirecting", async () => {
+    mockSignOut.mockResolvedValue(undefined);
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: {
+        error: "RefreshTokenExpired",
+        user: { scope: "platform", token: "stale-token" },
+      },
+    });
+
+    render(<OperatorLoginPage />);
+
+    expect(mockRedirect).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    });
   });
 
   it("shows loading screen while checking auth", () => {

@@ -338,31 +338,6 @@ func TestPerson_HasAccount(t *testing.T) {
 	}
 }
 
-func TestPerson_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		person := &Person{FirstName: "John", LastName: "Doe"}
-		err := person.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		person := &Person{FirstName: "John", LastName: "Doe"}
-		err := person.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
-func TestPerson_TableName(t *testing.T) {
-	person := &Person{}
-	if got := person.TableName(); got != "users.persons" {
-		t.Errorf("TableName() = %v, want users.persons", got)
-	}
-}
-
 func TestPerson_GetID(t *testing.T) {
 	person := &Person{
 		Model:     base.Model{ID: 42},

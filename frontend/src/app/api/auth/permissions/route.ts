@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -26,7 +27,7 @@ interface ErrorResponse {
   error: string;
 }
 
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
@@ -57,8 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = (await response.json()) as
-      | ApiResponse<BackendPermission[]>
-      | BackendPermission[];
+      ApiResponse<BackendPermission[]> | BackendPermission[];
     return NextResponse.json(data);
   } catch (error) {
     logger.error("get permissions failed", {
@@ -71,7 +71,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const GET = withTenantAuth(GETHandler);
+
+async function POSTHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
@@ -109,3 +111,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

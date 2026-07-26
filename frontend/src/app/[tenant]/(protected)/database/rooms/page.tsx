@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -11,19 +11,20 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { roomsConfig } from "@/lib/database/configs/rooms.config";
+import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
-import { RoomCreateModal, RoomsMasterDetail } from "@/components/rooms";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -56,6 +57,14 @@ function parseRoomsGrouping(value: string | null): RoomsGroupingMode {
 }
 
 export default function RoomsPage() {
+  return (
+    <Suspense fallback={null}>
+      <RoomsPageContent />
+    </Suspense>
+  );
+}
+
+function RoomsPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
@@ -434,10 +443,12 @@ export default function RoomsPage() {
         />
       ) : null}
 
-      <RoomCreateModal
+      <DatabaseFormModal<Room>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateRoom}
+        mode="create"
+        config={roomsConfig}
+        onSubmit={handleCreateRoom}
       />
 
       {selectedRoom && (

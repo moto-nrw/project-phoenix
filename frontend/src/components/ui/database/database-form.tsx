@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { DatabaseTheme } from "./themes";
-import { getThemeClassNames } from "./themes";
+import type { DatabaseTheme } from "~/lib/database/themes";
+import { getThemeClassNames } from "~/lib/database/themes";
 import { getAccentRing, getAccentText } from "./accents";
 import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
+import useSWR from "swr";
 
 const logger = createLogger({ component: "DatabaseForm" });
 
@@ -107,29 +109,6 @@ function applyInitialData<T>(
     } else {
       formData[key] = value;
     }
-  }
-}
-
-/** Fetches and applies privacy consent data for student forms */
-async function applyPrivacyConsent<T>(
-  formData: Record<string, unknown>,
-  initialData: Partial<T>,
-  sections: FormSection[],
-): Promise<void> {
-  // Only fetch if editing a student with privacy consent fields
-  const hasId = "id" in initialData && typeof initialData.id === "string";
-  if (!hasId || !hasPrivacyConsentFields(sections)) {
-    return;
-  }
-
-  const consent = await fetchPrivacyConsentForStudent(initialData.id as string);
-  if (consent) {
-    formData.privacy_consent_accepted = consent.accepted;
-    formData.data_retention_days = consent.data_retention_days;
-    logger.debug("set privacy consent fields", {
-      privacy_consent_accepted: consent.accepted,
-      data_retention_days: consent.data_retention_days,
-    });
   }
 }
 
@@ -259,6 +238,19 @@ export function DatabaseForm<T = Record<string, unknown>>({
   submitButtonGradient,
   stickyActions = false,
 }: DatabaseFormProps<T>) {
+  const privacyStudentId =
+    initialData &&
+    "id" in initialData &&
+    typeof initialData.id === "string" &&
+    hasPrivacyConsentFields(sections)
+      ? initialData.id
+      : null;
+  const { data: privacyConsent } = useSWR(
+    privacyStudentId
+      ? `/api/students/${privacyStudentId}/privacy-consent`
+      : null,
+    () => fetchPrivacyConsentForStudent(privacyStudentId!),
+  );
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<string | null>(null);
   const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
@@ -272,6 +264,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     {},
   );
   const loadedFieldsRef = useRef<Set<string>>(new Set());
+  const dirtyPrivacyFieldsRef = useRef<Set<string>>(new Set());
   // Track mount state to avoid setState on unmounted component
   const isMountedRef = useRef(true);
 
@@ -288,29 +281,39 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
   // Initialize form data from sections
   useEffect(() => {
-    const initializeFormData = async () => {
-      const initialFormData: Record<string, unknown> = {};
+    const initialFormData: Record<string, unknown> = {};
 
-      // Set defaults from sections using helper
-      for (const section of sections) {
-        for (const field of section.fields) {
-          initialFormData[field.name] = getDefaultValueForField(field);
-        }
+    // Set defaults from sections using helper
+    for (const section of sections) {
+      for (const field of section.fields) {
+        initialFormData[field.name] = getDefaultValueForField(field);
       }
+    }
 
-      // Override with initial data if provided
-      if (initialData) {
-        applyInitialData(initialFormData, initialData, sections);
+    if (initialData) {
+      applyInitialData(initialFormData, initialData, sections);
+    }
 
-        // Fetch privacy consent for students if editing
-        await applyPrivacyConsent(initialFormData, initialData, sections);
-      }
-
-      setFormData(initialFormData);
-    };
-
-    void initializeFormData();
+    dirtyPrivacyFieldsRef.current.clear();
+    setFormData(initialFormData);
   }, [initialData, sections]);
+
+  // Apply separately fetched consent without resetting unrelated form edits.
+  // Preserve consent fields too once the user has changed them locally.
+  useEffect(() => {
+    if (!privacyConsent) return;
+
+    setFormData((currentFormData) => {
+      const nextFormData = { ...currentFormData };
+      if (!dirtyPrivacyFieldsRef.current.has("privacy_consent_accepted")) {
+        nextFormData.privacy_consent_accepted = privacyConsent.accepted;
+      }
+      if (!dirtyPrivacyFieldsRef.current.has("data_retention_days")) {
+        nextFormData.data_retention_days = privacyConsent.data_retention_days;
+      }
+      return nextFormData;
+    });
+  }, [privacyConsent]);
 
   // Load async options for select fields
   useEffect(() => {
@@ -354,6 +357,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
     >,
   ) => {
     const { name, value, type } = e.target as HTMLInputElement;
+    if (name === "privacy_consent_accepted" || name === "data_retention_days") {
+      dirtyPrivacyFieldsRef.current.add(name);
+    }
 
     if (type === "checkbox") {
       const { checked } = e.target as HTMLInputElement;
@@ -406,8 +412,26 @@ export function DatabaseForm<T = Record<string, unknown>>({
       return;
     }
 
+    const submitData = { ...formData };
+    // The student proxy writes the Datenschutz pair BEFORE the student PUT, so
+    // whatever this payload carries is stored even when the rest of the save is
+    // refused. While editing, the two fields are echoes of the separately
+    // fetched server consent unless the user touched them — resubmitting that
+    // copy would overwrite a change somebody else made since it was fetched.
+    // Both go or both stay: the proxy's consent PUT upserts the pair, so a lone
+    // field resets the other to its default. On create there is nothing to echo
+    // (no privacyStudentId), and the values travel as before.
+    if (
+      privacyStudentId &&
+      !dirtyPrivacyFieldsRef.current.has("privacy_consent_accepted") &&
+      !dirtyPrivacyFieldsRef.current.has("data_retention_days")
+    ) {
+      delete submitData.privacy_consent_accepted;
+      delete submitData.data_retention_days;
+    }
+
     try {
-      await onSubmit(formData as T);
+      await onSubmit(submitData as T);
     } catch (err) {
       logger.error("failed to submit form", {
         error: err instanceof Error ? err.message : String(err),
@@ -530,44 +554,34 @@ export function DatabaseForm<T = Record<string, unknown>>({
               {field.label}
               {field.required && "*"}
             </label>
-            <div className="relative">
-              <select
-                id={field.name}
-                name={field.name}
-                value={(formData[field.name] as string) ?? ""}
-                onChange={handleChange}
-                required={field.required}
-                className={`${baseInputClasses} appearance-none pr-10`}
-                disabled={loadingOptions[field.name]}
-              >
-                {!hasEmptyOption && (
-                  <option value="">
-                    {loadingOptions[field.name]
-                      ? "Optionen werden geladen..."
-                      : (field.placeholder ?? "Bitte wählen")}
-                  </option>
-                )}
-                {selectOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {/* Dropdown chevron */}
-              <svg
-                className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
+            <CustomSelect
+              id={field.name}
+              name={field.name}
+              ariaLabel={field.label}
+              value={(formData[field.name] as string) ?? ""}
+              options={[
+                ...(!hasEmptyOption
+                  ? [
+                      {
+                        value: "",
+                        label: loadingOptions[field.name]
+                          ? "Optionen werden geladen..."
+                          : (field.placeholder ?? "Bitte wählen"),
+                      },
+                    ]
+                  : []),
+                ...selectOptions,
+              ]}
+              onChange={(next) => {
+                if (field.name === "data_retention_days") {
+                  dirtyPrivacyFieldsRef.current.add(field.name);
+                }
+                setFormData((prev) => ({ ...prev, [field.name]: next }));
+              }}
+              required={field.required}
+              invalid={hasError}
+              disabled={loadingOptions[field.name]}
+            />
             {field.helperText && (
               <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
@@ -626,49 +640,32 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
 
             {/* Dropdown for adding new selections */}
-            <div className="relative">
-              <select
-                id={field.name}
-                value=""
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value && !selectedValues.includes(value)) {
-                    setFormData((prev) => ({
-                      ...prev,
-                      [field.name]: [...selectedValues, value],
-                    }));
-                  }
-                }}
-                className={`${baseInputClasses} appearance-none pr-10`}
-                disabled={loadingOptions[field.name]}
-              >
-                <option value="">
-                  {loadingOptions[field.name]
-                    ? "Optionen werden geladen..."
-                    : (field.placeholder ?? "Weitere hinzufügen...")}
-                </option>
-                {multiselectOptions
-                  .filter((option) => !selectedValues.includes(option.value))
-                  .map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-              </select>
-              <svg
-                className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
+            <CustomSelect
+              id={field.name}
+              ariaLabel={field.label}
+              value=""
+              placeholder={
+                loadingOptions[field.name]
+                  ? "Optionen werden geladen..."
+                  : (field.placeholder ?? "Weitere hinzufügen...")
+              }
+              options={multiselectOptions
+                .filter((option) => !selectedValues.includes(option.value))
+                .map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+              onChange={(next) => {
+                if (next && !selectedValues.includes(next)) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    [field.name]: [...selectedValues, next],
+                  }));
+                }
+              }}
+              invalid={hasError}
+              disabled={loadingOptions[field.name]}
+            />
 
             {field.helperText && (
               <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
@@ -680,10 +677,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
       case "number": {
         // Handle both number and empty string values
         const numberValue = formData[field.name] as
-          | string
-          | number
-          | undefined
-          | null;
+          string | number | undefined | null;
         const displayValue =
           numberValue === "" ||
           numberValue === undefined ||

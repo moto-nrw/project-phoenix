@@ -87,16 +87,11 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div data-testid="loading">Loading...</div>,
-}));
-
 // Mock PageHeaderWithSearch — renders filters, activeFilters, and the
 // overflow-menu items so the existing "Gruppe übergeben" assertions keep
 // working. The real OverflowMenu requires a click to expose its items, but
 // for tests we render them flat so getByLabelText still finds them.
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     title,
     filters,
@@ -127,6 +122,7 @@ vi.mock("~/components/ui/page-header", () => ({
       {actionButton}
       {overflowMenu?.map((item) => (
         <button
+          type="button"
           key={item.label}
           aria-label={item.label}
           data-testid={`overflow-${item.label}`}
@@ -140,6 +136,7 @@ vi.mock("~/components/ui/page-header", () => ({
         <div key={f.id} data-testid={`filter-${f.id}`} data-value={f.value}>
           {f.options.map((opt) => (
             <button
+              type="button"
               key={opt.value}
               data-testid={`filter-${f.id}-${opt.value}`}
               onClick={() => f.onChange(opt.value)}
@@ -153,13 +150,18 @@ vi.mock("~/components/ui/page-header", () => ({
         <span key={af.id} data-testid={`active-filter-${af.id}`}>
           {af.label}
           <button
+            type="button"
             data-testid={`remove-filter-${af.id}`}
             onClick={af.onRemove}
           />
         </span>
       ))}
       {onClearAllFilters && (
-        <button data-testid="clear-all-filters" onClick={onClearAllFilters} />
+        <button
+          type="button"
+          data-testid="clear-all-filters"
+          onClick={onClearAllFilters}
+        />
       )}
     </div>
   ),
@@ -432,8 +434,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 // Mock useUserContext
 const mockUserContext = vi.fn(() => ({
   userContext: undefined as
-    | { currentStaff: { id: string; personId: string } | null }
-    | undefined,
+    { currentStaff: { id: string; personId: string } | null } | undefined,
   isLoading: false,
   error: undefined,
   isReady: true,
@@ -477,8 +478,8 @@ describe("OGSGroupPage", () => {
   it("shows loading state initially", async () => {
     render(<OGSGroupPage />);
 
-    // Initial loading state should show loading component
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    // Initial loading state should show the page-shell skeleton
+    expect(screen.getByTestId("ogs-groups-skeleton")).toBeInTheDocument();
   });
 
   it("renders with SSE error boundary wrapper", () => {
@@ -550,8 +551,8 @@ describe("OGSGroupPage", () => {
 
     render(<OGSGroupPage />);
 
-    // Should show loading state while SWR is loading
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    // Should show the page-shell skeleton while SWR is loading
+    expect(screen.getByTestId("ogs-groups-skeleton")).toBeInTheDocument();
   });
 
   it("displays group data when available", async () => {

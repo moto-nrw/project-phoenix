@@ -3,13 +3,16 @@ package enrollment_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +32,7 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 		RequestRepo:      repoFactory.Request,
 		RequestChildRepo: repoFactory.RequestChild,
 		CareOfferingRepo: repoFactory.CareOffering,
+		FormSchemaRepo:   repoFactory.FormSchema,
 		DB:               db,
 		Logger:           slog.Default(),
 	})
@@ -115,6 +119,21 @@ func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
 	second := minimalPhase(t.Name() + "-dup")
 	_, err = svc.Create(ctx, second)
 	require.Error(t, err, "UNIQUE(tenant_id, name) must reject duplicate")
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseDuplicateName))
+}
+
+func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
+	svc, _, _, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phase := minimalPhase(t.Name())
+	missing := int64(999_999_999)
+	phase.FormSchemaID = &missing
+
+	_, err := svc.Create(ctx, phase)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
 }
 
 func TestPhaseService_Update_AppliesChanges(t *testing.T) {
@@ -135,6 +154,101 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 	assert.Equal(t, "phase-"+t.Name()+"-renamed", refreshed.Name)
 	assert.False(t, refreshed.IsActive)
 	assert.Equal(t, enrollmentModels.PhaseCareOverflowReject, refreshed.CareOverflowMode)
+}
+
+func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(t *testing.T) {
+	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	created, err := baseService.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+	originalEnd := created.ServiceEndDate
+	lockCalls := 0
+	validatorCalls := 0
+	guardedService := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo:             repoFactory.Phase,
+		RequestRepo:      repoFactory.Request,
+		RequestChildRepo: repoFactory.RequestChild,
+		CareOfferingRepo: repoFactory.CareOffering,
+		FormSchemaRepo:   repoFactory.FormSchema,
+		LockTemplateRecurrence: func(context.Context) error {
+			lockCalls++
+			return nil
+		},
+		ValidateCareOfferingPhaseChange: func(
+			_ context.Context,
+			phaseID int64,
+			replacement *enrollmentModels.Phase,
+		) error {
+			validatorCalls++
+			assert.Equal(t, created.ID, phaseID)
+			assert.Equal(t, originalEnd.AddDays(7), replacement.ServiceEndDate)
+			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentModels.ErrCareOfferingInvalid)
+		},
+		DB:     db,
+		Logger: slog.Default(),
+	})
+
+	created.Name += "-metadata-only"
+	require.NoError(t, guardedService.Update(ctx, created),
+		"metadata-only changes must not be rejected by unrelated legacy care-offering state")
+	assert.Zero(t, validatorCalls)
+
+	created.ServiceEndDate = originalEnd.AddDays(7)
+	err = guardedService.Update(ctx, created)
+	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict)
+	assert.Equal(t, 2, lockCalls)
+	assert.Equal(t, 1, validatorCalls)
+
+	stored, findErr := repoFactory.Phase.FindByID(ctx, created.ID)
+	require.NoError(t, findErr)
+	assert.Equal(t, originalEnd, stored.ServiceEndDate,
+		"a rejected service-window expansion must not be persisted")
+}
+
+func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
+	svc, _, _, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	first, err := svc.Create(ctx, minimalPhase(t.Name()+"-first"))
+	require.NoError(t, err)
+	second, err := svc.Create(ctx, minimalPhase(t.Name()+"-second"))
+	require.NoError(t, err)
+
+	second.Name = first.Name
+	err = svc.Update(ctx, second)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseDuplicateName))
+}
+
+func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
+	svc, _, _, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+
+	missing := int64(999_999_999)
+	created.FormSchemaID = &missing
+	err = svc.Update(ctx, created)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+}
+
+func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
+	svc, _, _, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phase := minimalPhase(t.Name())
+	phase.ID = 999_999_999
+
+	err := svc.Update(ctx, phase)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
 }
 
 func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T) {
@@ -353,4 +467,216 @@ func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
 	_, err := svc.GetByID(ctx, 999_999_999)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+}
+
+func TestPhaseService_GetByID_PreservesRepositoryFailure(t *testing.T) {
+	repoErr := errors.New("database unavailable")
+	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo: findByIDErrorPhaseRepo{err: repoErr},
+	})
+
+	_, err := svc.GetByID(context.Background(), 123)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, repoErr)
+	assert.False(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+}
+
+type findByIDErrorPhaseRepo struct {
+	enrollmentModels.PhaseRepository
+	err error
+}
+
+func (r findByIDErrorPhaseRepo) FindByID(context.Context, int64) (*enrollmentModels.Phase, error) {
+	return nil, r.err
+}
+
+// phaseServiceWithCalendarPeriods wires the optional CalendarPeriods dep
+// on top of the standard setup so the link validation actually runs.
+func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseService, *repositories.Factory, *bun.DB, func()) {
+	t.Helper()
+	_, repoFactory, db, cleanup := setupPhaseTest(t)
+	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo:             repoFactory.Phase,
+		RequestRepo:      repoFactory.Request,
+		RequestChildRepo: repoFactory.RequestChild,
+		CareOfferingRepo: repoFactory.CareOffering,
+		FormSchemaRepo:   repoFactory.FormSchema,
+		CalendarPeriods:  scheduleService.NewCalendarPeriodService(repoFactory.CalendarPeriod, slog.Default()),
+		DB:               db,
+		Logger:           slog.Default(),
+	})
+	return svc, repoFactory, db, cleanup
+}
+
+func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
+	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := &scheduleModels.CalendarPeriod{
+		Name:            "period-" + t.Name(),
+		PeriodType:      scheduleModels.PeriodTypeSemester,
+		StartDate:       timezone.NewDate(2026, 8, 1),
+		EndDate:         timezone.NewDate(2027, 1, 31),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	period.SetTenantID(1)
+	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
+	defer func() {
+		_, _ = db.NewDelete().
+			TableExpr("schedule.calendar_periods").
+			Where("id = ?", period.ID).
+			Exec(context.Background())
+	}()
+
+	phase := minimalPhase(t.Name())
+	phase.CalendarPeriodID = &period.ID
+
+	created, err := svc.Create(ctx, phase)
+	require.NoError(t, err)
+	require.NotNil(t, created.CalendarPeriodID)
+	assert.Equal(t, period.ID, *created.CalendarPeriodID)
+
+	fetched, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fetched.CalendarPeriodID)
+	assert.Equal(t, period.ID, *fetched.CalendarPeriodID)
+}
+
+// Regression: the repo's explicit Set() list in Update() was missing
+// calendar_period_id, so linking an EXISTING phase to a period silently
+// persisted nothing (create worked, update didn't).
+func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
+	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := &scheduleModels.CalendarPeriod{
+		Name:            "period-" + t.Name(),
+		PeriodType:      scheduleModels.PeriodTypeSemester,
+		StartDate:       timezone.NewDate(2026, 8, 1),
+		EndDate:         timezone.NewDate(2027, 1, 31),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	period.SetTenantID(1)
+	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
+	defer func() {
+		_, _ = db.NewDelete().
+			TableExpr("schedule.calendar_periods").
+			Where("id = ?", period.ID).
+			Exec(context.Background())
+	}()
+
+	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+	require.Nil(t, created.CalendarPeriodID)
+
+	created.CalendarPeriodID = &period.ID
+	require.NoError(t, svc.Update(ctx, created))
+
+	fetched, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fetched.CalendarPeriodID, "update must persist the calendar period link")
+	assert.Equal(t, period.ID, *fetched.CalendarPeriodID)
+
+	// Unlinking must persist too (NULL round-trip).
+	fetched.CalendarPeriodID = nil
+	require.NoError(t, svc.Update(ctx, fetched))
+	unlinked, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Nil(t, unlinked.CalendarPeriodID)
+}
+
+func TestPhaseService_Create_RejectsUnknownCalendarPeriod(t *testing.T) {
+	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phase := minimalPhase(t.Name())
+	missing := int64(999_999_999)
+	phase.CalendarPeriodID = &missing
+
+	_, err := svc.Create(ctx, phase)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+}
+
+func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
+	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+
+	missing := int64(999_999_999)
+	created.CalendarPeriodID = &missing
+	err = svc.Update(ctx, created)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+}
+
+func TestPhaseService_Create_PropagatesCalendarPeriodLookupFailure(t *testing.T) {
+	lookupErr := errors.New("synthetic database failure")
+	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		CalendarPeriods: failingCalendarPeriodService{err: lookupErr},
+		Logger:          slog.Default(),
+	})
+	ctx := testpkg.TenantContext(1)
+
+	phase := minimalPhase(t.Name())
+	periodID := int64(42)
+	phase.CalendarPeriodID = &periodID
+
+	_, err := svc.Create(ctx, phase)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, lookupErr)
+	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+}
+
+type failingCalendarPeriodService struct {
+	err error
+}
+
+func (s failingCalendarPeriodService) GetAllPeriods(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
+	return nil, s.err
+}
+
+func (s failingCalendarPeriodService) GetActivePeriods(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
+	return nil, s.err
+}
+
+func (s failingCalendarPeriodService) GetPeriodByID(context.Context, int64) (*scheduleModels.CalendarPeriod, error) {
+	return nil, s.err
+}
+
+func (s failingCalendarPeriodService) CreatePeriod(context.Context, *scheduleModels.CalendarPeriod) error {
+	return s.err
+}
+
+func (s failingCalendarPeriodService) UpdatePeriod(context.Context, *scheduleModels.CalendarPeriod) error {
+	return s.err
+}
+
+func (s failingCalendarPeriodService) DeletePeriod(context.Context, int64) error {
+	return s.err
+}
+
+func (s failingCalendarPeriodService) EnsureDefaultSchoolYear(context.Context) ([]*scheduleModels.CalendarPeriod, bool, error) {
+	return nil, false, s.err
+}
+
+func (s failingCalendarPeriodService) FindActiveOverlaps(context.Context, *scheduleModels.CalendarPeriod) ([]*scheduleModels.CalendarPeriod, error) {
+	return nil, s.err
+}
+
+func (s failingCalendarPeriodService) GetUsageCounts(context.Context) (map[int64]scheduleModels.CalendarPeriodUsage, error) {
+	return nil, s.err
+}
+
+func (failingCalendarPeriodService) ShouldMaterialize(int, timezone.Date, *scheduleModels.CalendarPeriod) bool {
+	return false
 }

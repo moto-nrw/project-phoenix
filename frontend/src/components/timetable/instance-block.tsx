@@ -3,22 +3,25 @@
 /**
  * InstanceBlock — absolutely-positioned event card for the WeeklyCalendarGrid.
  *
- * Visual style matches the TemplateCard idiom:
- * - 3px left color-bar tied to activity type via `getActivityColor`
- * - neutral surface with single hairline border and subtle shadow
- * - status indicator as a 6px dot, not a noisy pill
- * - text hierarchy: title 12px semibold, time/room 10px gray-500
- *
- * Brand colours come exclusively from the helpers in `timetable-helpers.ts`.
- * Cancelled instances render with a dashed red border + line-through, matching
- * the month-grid convention.
+ * Die Block-Rezeptur (weiße Fläche, 3px Farbkante, 10-Prozent-Tönung,
+ * `cancelled`-Rendering, genau ein Status-Icon) lebt ausschließlich im
+ * Kit-Baustein `ui/plan-block.tsx` (docs/planung-redesign/docs/06-betreuungsplan.md
+ * Abschnitt 2.2, plan-design-guards.test.ts). InstanceBlock baut keine eigene
+ * Farbfläche mehr: es leitet nur die Kategoriefarbe ab, komponiert den
+ * datenreichen Fuß (Besetzung als `CoverageIndicator`, Personen-/Kinderzahlen,
+ * Spontan-, Abwesend- und Ersatz-Marker) und positioniert den Block absolut in
+ * seiner Tagesspalte. Die Daten-Props bleiben unverändert.
  */
+
+import type { ReactNode } from "react";
 
 import { TriangleAlert } from "lucide-react";
 
+import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import { PlanBlock } from "~/components/ui/plan-block";
 import { getActivityColor } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
-import { timetableStatusColors } from "./timetable-style";
+import { useShowTimetableCounts } from "~/lib/tenant-context";
 
 interface InstanceBlockProps {
   instance: EnrichedInstance;
@@ -32,10 +35,21 @@ interface InstanceBlockProps {
   width: string;
   isSelected: boolean;
   onClick: () => void;
+  /**
+   * Markiert diesen Block als OFFENE (nicht quittierte) Personal-Lücke — seine
+   * Instanz-ID liegt im `gapInstanceIds`-Set des WeeklyCalendarGrid. Treibt das
+   * eine #F78C10-Lücken-Icon. Ein abgesagter Block ignoriert das Flag: das
+   * Cancelled-Rendering hat Vorrang und zeigt kein Lücken-Icon.
+   */
+  isGap?: boolean;
 }
 
 const COMPACT_HEIGHT_PX = 48;
 const TINY_HEIGHT_PX = 30;
+
+/** Bewusst-unbesetzt-Blöcke lesen sich vollständig neutral: graue Kante, keine
+ *  Tönung; die Semantik trägt der CoverageIndicator-Vermerk (Spec 5.3). */
+const ACK_EDGE_COLOR = "#6B7280";
 
 export function InstanceBlock({
   instance,
@@ -45,100 +59,160 @@ export function InstanceBlock({
   width,
   isSelected,
   onClick,
+  isGap = false,
 }: InstanceBlockProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const isCancelled = instance.status === "cancelled";
   const isActive = instance.status === "active";
   const hasConflict = instance.conflictWarnings.length > 0;
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
 
-  const ringClass = isSelected
-    ? "ring-2 ring-offset-1 ring-gray-900"
-    : "ring-0 hover:ring-1 hover:ring-gray-300";
+  // #1840 Vertretungsplan deviation signals. A removed substitute keeps
+  // is_substitute=true but is marked is_absent=true — they are no longer
+  // covering, so only a NON-absent substitute counts as an active replacement.
+  const isUnderstaffedAck = instance.understaffedAck === true && !isCancelled;
+  const hasSubstitute = instance.staff.some(
+    (s) => s.isSubstitute && !s.isAbsent,
+  );
+  const absentCount = instance.absentStaffCount;
 
-  const borderClass = isCancelled
-    ? "border border-dashed border-[#FF3130]"
-    : "border border-gray-200";
-  const activityColor = isCancelled
-    ? timetableStatusColors.cancelled
+  const edgeColor = isUnderstaffedAck
+    ? ACK_EDGE_COLOR
     : getActivityColor(instance.activityType);
 
+  // Genau ein Status-Icon (PlanBlock erlaubt eines). Priorität:
+  // cancelled (kein Icon, Cancelled-Rendering gewinnt) > offene Lücke >
+  // bewusst unbesetzt (kein Icon, per CoverageIndicator-Vermerk) > Konflikt.
+  let statusIcon: ReactNode = null;
+  if (!isCancelled) {
+    if (isGap) {
+      statusIcon = (
+        <TriangleAlert
+          className="h-3.5 w-3.5 text-[#F78C10]"
+          aria-label="Offene Lücke"
+        />
+      );
+    } else if (!isUnderstaffedAck && hasConflict) {
+      statusIcon = (
+        <TriangleAlert
+          className="h-3.5 w-3.5 text-[#EAB308]"
+          aria-label={`${instance.conflictWarnings.length} Konflikte`}
+        />
+      );
+    }
+  }
+
+  // Besetzung als CoverageIndicator (Kriterium 6). Abgesagte Blöcke haben
+  // keinen Bedarf; bewusst unbesetzt zeigt den grauen Vermerk unabhängig von
+  // der Soll-Zahl; sonst nur bei tatsächlichem Personalbedarf.
+  let coverage: ReactNode = null;
+  if (!isCancelled) {
+    if (isUnderstaffedAck) {
+      coverage = (
+        <CoverageIndicator
+          size="sm"
+          state="acknowledged"
+          note="bewusst unbesetzt"
+        />
+      );
+    } else if (instance.requiredStaffCount > 0) {
+      coverage = (
+        <CoverageIndicator
+          size="sm"
+          state={
+            instance.assignedStaffCount >= instance.requiredStaffCount
+              ? "covered"
+              : "gap"
+          }
+          current={instance.assignedStaffCount}
+          total={instance.requiredStaffCount}
+        />
+      );
+    }
+  }
+
+  const totalStudents =
+    instance.expectedStudentsCount + instance.presentStudentsCount;
+
+  const footer = isTiny ? undefined : (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      {!isCompact && !isCancelled && instance.roomName && (
+        <span className="truncate text-[10px] text-gray-500">
+          {instance.roomName}
+        </span>
+      )}
+
+      {!isCompact && instance.isSpontaneous && !isCancelled && (
+        <span
+          className="truncate text-[10px] font-semibold text-gray-600"
+          title="Dieser Termin wurde spontan gestartet und war nicht geplant."
+        >
+          Spontan
+        </span>
+      )}
+
+      {!isCancelled && (coverage || isActive || !isCompact) && (
+        <span className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
+          {isActive && (
+            <span
+              className="inline-block h-1.5 w-1.5 rounded-full bg-[#83CD2D]"
+              aria-label="läuft"
+            />
+          )}
+          {coverage}
+          {!isCompact && (
+            <span className="truncate">
+              {instance.staffCount} P
+              {showTimetableCounts && ` · ${totalStudents} K`}
+              {showTimetableCounts && isActive && totalStudents > 0
+                ? ` · ${instance.presentStudentsCount} anwesend`
+                : ""}
+            </span>
+          )}
+        </span>
+      )}
+
+      {!isCancelled && (absentCount > 0 || hasSubstitute) && (
+        <span className="flex flex-wrap gap-1 text-[10px]">
+          {absentCount > 0 && (
+            <span className="font-semibold text-[#CC2626]">
+              {absentCount} abwesend
+            </span>
+          )}
+          {hasSubstitute && (
+            <span className="font-semibold text-[#5A8E1F]">Ersatz</span>
+          )}
+        </span>
+      )}
+    </span>
+  );
+
   return (
-    <button
-      type="button"
+    <PlanBlock
+      timeRange={`${instance.startTime} – ${instance.endTime}`}
+      label={instance.title}
+      color={edgeColor}
+      tinted={!isUnderstaffedAck}
+      // Sehr niedrige Blöcke (<=30px) einzeilig rendern — das zweizeilige
+      // Default-Layout (Zeitzeile + Titel) würde in der Höhe abgeschnitten.
+      size={isTiny ? "compact" : "default"}
+      status={isCancelled ? "cancelled" : "default"}
+      selected={isSelected}
+      statusIcon={statusIcon}
+      footer={footer}
       onClick={onClick}
-      aria-pressed={isSelected}
-      className={`group absolute ${ringClass} ${borderClass} cursor-pointer overflow-hidden rounded-xl border-l-[3px] bg-white text-left shadow-sm transition-[background-color,border-color,box-shadow] hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`}
+      className="overflow-hidden"
+      // Inline `position: absolute` schlägt die `relative`-Klasse der
+      // PlanBlock-Basis; die Kalenderspalte positioniert den Block per Pixel.
       style={{
+        position: "absolute",
         top: `${top}px`,
         height: `${Math.max(height, 18)}px`,
         left,
         width,
-        borderLeftColor: activityColor,
-        padding: isTiny ? "2px 6px" : "4px 6px",
       }}
-    >
-      <div className="flex h-full flex-col gap-0.5">
-        <div className="flex items-start justify-between gap-1">
-          <span
-            className={`min-w-0 truncate font-semibold text-gray-900 ${
-              isCancelled ? "text-gray-400 line-through" : ""
-            } ${isTiny ? "text-[11px]" : "text-xs"}`}
-          >
-            {isActive && !isCancelled && (
-              <span
-                className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-[#83CD2D] align-middle"
-                aria-label="läuft"
-              />
-            )}
-            {instance.title}
-          </span>
-          {hasConflict && (
-            <TriangleAlert
-              className="h-3 w-3 shrink-0 text-[#EAB308]"
-              aria-label={`${instance.conflictWarnings.length} Konflikte`}
-            />
-          )}
-        </div>
-
-        {!isTiny && (
-          <div
-            className={`truncate text-[10px] tabular-nums ${
-              isCancelled ? "text-gray-400 line-through" : "text-gray-500"
-            }`}
-          >
-            {instance.startTime} – {instance.endTime}
-            {!isCompact && instance.roomName ? ` · ${instance.roomName}` : ""}
-          </div>
-        )}
-
-        {!isCompact && instance.isSpontaneous && !isCancelled && (
-          <div
-            className="truncate text-[10px] font-semibold text-gray-600"
-            title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-          >
-            <span
-              className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
-              style={{
-                backgroundColor: activityColor,
-              }}
-              aria-hidden
-            />
-            Spontan
-          </div>
-        )}
-
-        {!isCompact && !isCancelled && (
-          <div className="truncate text-[10px] text-gray-500">
-            {instance.staffCount} P ·{" "}
-            {instance.expectedStudentsCount + instance.presentStudentsCount} K
-            {isActive &&
-            instance.expectedStudentsCount + instance.presentStudentsCount > 0
-              ? ` · ${instance.presentStudentsCount} anwesend`
-              : ""}
-          </div>
-        )}
-      </div>
-    </button>
+      aria-label={`${instance.title}, ${instance.startTime} bis ${instance.endTime}`}
+    />
   );
 }

@@ -67,13 +67,14 @@ const timetableRetentionDefaultDays = 365
 
 // TimetableCleanupResult summarises one cleanup run.
 type TimetableCleanupResult struct {
-	Success           bool
-	InstancesDeleted  int
-	ExceptionsDeleted int
-	StudentsAffected  int
-	RetentionDays     int
-	CutoffDate        timezone.Date
-	DurationMS        int64
+	Success                bool
+	InstancesDeleted       int
+	ExceptionsDeleted      int
+	DeviationEventsDeleted int
+	StudentsAffected       int
+	RetentionDays          int
+	CutoffDate             timezone.Date
+	DurationMS             int64
 }
 
 // TimetableCleanupPreview is returned by PreviewExpiredTimetableData —
@@ -114,17 +115,21 @@ type timetableCleanupService struct {
 	exceptionRepo       scheduleModel.ActivityExceptionRepository
 	instanceStudentRepo scheduleModel.InstanceStudentRepository
 	auditRepo           audit.DataDeletionRepository
+	deviationEventRepo  audit.DeviationEventRepository
 	settings            config.SettingsService
 	logger              *slog.Logger
 }
 
 // NewTimetableCleanupService constructs the cleanup service. settings may be
 // nil in tests; when nil, retention resolves to the last-resort default 365.
+// deviationEventRepo may be nil in legacy tests; when nil, the protocol
+// cleanup step is skipped.
 func NewTimetableCleanupService(
 	instanceRepo scheduleModel.ActivityInstanceRepository,
 	exceptionRepo scheduleModel.ActivityExceptionRepository,
 	instanceStudentRepo scheduleModel.InstanceStudentRepository,
 	auditRepo audit.DataDeletionRepository,
+	deviationEventRepo audit.DeviationEventRepository,
 	settings config.SettingsService,
 	logger *slog.Logger,
 ) TimetableCleanupService {
@@ -136,6 +141,7 @@ func NewTimetableCleanupService(
 		exceptionRepo:       exceptionRepo,
 		instanceStudentRepo: instanceStudentRepo,
 		auditRepo:           auditRepo,
+		deviationEventRepo:  deviationEventRepo,
 		settings:            settings,
 		logger:              logger,
 	}
@@ -179,20 +185,34 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 		return nil, fmt.Errorf("delete activity_exceptions: %w", err)
 	}
 
+	// 5. Delete audit.deviation_events (#1886). Keyed on occurrence_date —
+	// the SAME age predicate the parent instances use — so the protocol for a
+	// slot disappears in lockstep with the instances it annotates. No PII
+	// beyond IDs, so no data_deletions rows.
+	var deviationEventsDeleted int64
+	if s.deviationEventRepo != nil {
+		deviationEventsDeleted, err = s.deviationEventRepo.DeleteOlderThan(ctx, cutoff)
+		if err != nil {
+			return nil, fmt.Errorf("delete deviation_events: %w", err)
+		}
+	}
+
 	result := &TimetableCleanupResult{
-		Success:           true,
-		InstancesDeleted:  int(instancesDeleted),
-		ExceptionsDeleted: int(exceptionsDeleted),
-		StudentsAffected:  len(studentCounts),
-		RetentionDays:     retentionDays,
-		CutoffDate:        cutoff,
-		DurationMS:        time.Since(start).Milliseconds(),
+		Success:                true,
+		InstancesDeleted:       int(instancesDeleted),
+		ExceptionsDeleted:      int(exceptionsDeleted),
+		DeviationEventsDeleted: int(deviationEventsDeleted),
+		StudentsAffected:       len(studentCounts),
+		RetentionDays:          retentionDays,
+		CutoffDate:             cutoff,
+		DurationMS:             time.Since(start).Milliseconds(),
 	}
 
 	s.logger.Info("timetable cleanup completed",
 		slog.Int64("tenant_id", tenantID),
 		slog.Int("instances_deleted", result.InstancesDeleted),
 		slog.Int("exceptions_deleted", result.ExceptionsDeleted),
+		slog.Int("deviation_events_deleted", result.DeviationEventsDeleted),
 		slog.Int("students_affected", result.StudentsAffected),
 		slog.Int("retention_days", retentionDays),
 		slog.String("cutoff_date", cutoff.Format("2006-01-02")),

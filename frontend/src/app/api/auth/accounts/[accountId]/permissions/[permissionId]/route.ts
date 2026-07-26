@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { apiDelete, handleApiError } from "~/lib/api-helpers.server";
 
-export async function DELETE(
+async function DELETEHandler(
   request: NextRequest,
   context: { params: Promise<Record<string, string | string[] | undefined>> },
 ) {
@@ -37,3 +38,5 @@ export async function DELETE(
     return handleApiError(error);
   }
 }
+
+export const DELETE = withTenantAuth(DELETEHandler);

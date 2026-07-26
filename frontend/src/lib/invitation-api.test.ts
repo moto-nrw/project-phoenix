@@ -362,6 +362,24 @@ describe("invitation-api", () => {
       });
     });
 
+    it("maps tenant_subdomain from the accept response (#1977)", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            account_id: 77,
+            email: "test@example.com",
+            tenant_subdomain: "burbach",
+          },
+        }),
+      });
+
+      const result = await acceptInvitation("test-token-123", acceptRequest);
+
+      expect(result.tenantSubdomain).toBe("burbach");
+    });
+
     it("throws error when accept fails", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,

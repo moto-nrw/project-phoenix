@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -26,120 +25,68 @@ import (
 // AccessAdminOnly setting (e.g. the OGS device PIN). Surfaced as HTTP 403.
 const errAdminOnlyForOperator = "this setting is admin-only and cannot be modified by operators"
 
-// errPresenceModeSwitchBlockedMsg is the German user-facing copy returned
-// when an operator tries to flip operations.presence_mode while students are
-// still checked in for the day. staticcheck ST1005 (capitalization / trailing
-// punctuation) is waived at the callsite with a nolint directive, matching
-// the convention in api/groups for German user-facing errors.
-const errPresenceModeSwitchBlockedMsg = "Moduswechsel während aktiver Anwesenheit nicht möglich. Bitte zunächst Tagesabschluss durchführen."
-
-// ErrPresenceModeSwitchBlocked is the sentinel returned by
-// enforcePresenceModeSwitchGuard so callers can branch on it via errors.Is
-// without relying on string equality (which breaks the moment any wrapper
-// modifies the message). Mirrors the SettingsService error pattern
-// (DefinitionNotFoundError / InvalidValueError).
-//
-//nolint:staticcheck // ST1005: German user-facing message
-var ErrPresenceModeSwitchBlocked = errors.New(errPresenceModeSwitchBlockedMsg)
-
-// enforcePresenceModeSwitchGuard rejects an in-progress write to
-// operations.presence_mode when any student is currently checked in for the
-// tenant. Runs inside the same tenant transaction as the write itself so RLS
-// scopes the attendance query automatically. Callers may bypass the guard
-// with `?force=true` for operational recovery.
-//
-// Why guard only the switch, not every write: the cascading impact of
-// flipping presence mode mid-day (stale open visits, SSE events mis-keyed,
-// device UX inconsistent with the tenant it's authenticated for) is far
-// larger than any other operator setting. Other keys don't need this.
-func enforcePresenceModeSwitchGuard(ctx context.Context, activeSvc activeSvc.Service, key string, force bool) error {
-	if key != configModel.KeyPresenceMode {
-		return nil
-	}
-	if force {
-		return nil
-	}
-	// Bind the Berlin calendar date as a DATE literal (matches how
-	// performCheckIn writes active.attendance.date). Using CURRENT_DATE on
-	// the postgres side would be wrong: the PG session is UTC, so between
-	// 22:00–24:00 UTC (i.e. ~00:00–02:00 Berlin) CURRENT_DATE returns
-	// "yesterday" while open rows for the new Berlin day already exist
-	// under "today" — and the guard would silently let the switch through
-	// in exactly the window it's supposed to block.
-	today := timezone.TodayDate()
-	exists, err := activeSvc.HasOpenAttendanceOn(ctx, today)
-	if err != nil {
-		return fmt.Errorf("failed to check active attendance before mode switch: %w", err)
-	}
-	if exists {
-		return ErrPresenceModeSwitchBlocked
-	}
-	return nil
-}
+const errLegalAGBDocumentManagedByUpload = "AGB document URL is managed by the file upload endpoint"
 
 // guardOperatorWrite blocks the operator from set/reset/reveal on AccessAdminOnly settings.
-// Returns true when the handler should abort (response has already been written).
-func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool {
-	def := configModel.GetDefinition(key)
-	if def == nil {
+// The access-policy decision lives in the settings service (CheckOperatorWritable);
+// this maps the returned error to the operator HTTP response. Returns true when
+// the handler should abort (response has already been written).
+func (rs *SettingsResource) guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool {
+	err := rs.settingsService.CheckOperatorWritable(key)
+	if err == nil {
+		return false
+	}
+	var notFound *configSvc.DefinitionNotFoundError
+	if errors.As(err, &notFound) {
 		render.Render(w, r, ErrNotFound(fmt.Sprintf("setting %q not found", key))) //nolint:errcheck
 		return true
 	}
-	if def.AccessPolicy == configModel.AccessAdminOnly {
-		render.Render(w, r, ErrForbidden(errAdminOnlyForOperator)) //nolint:errcheck
-		return true
+	render.Render(w, r, ErrForbidden(errAdminOnlyForOperator)) //nolint:errcheck
+	return true
+}
+
+func guardOperatorDirectManagedSettingWrite(w http.ResponseWriter, r *http.Request, key string) bool {
+	if key != configModel.KeyEnrollmentLegalAGBDocumentURL {
+		return false
 	}
-	return false
+	render.Render(w, r, ErrForbidden(errLegalAGBDocumentManagedByUpload)) //nolint:errcheck
+	return true
 }
 
 // SettingsResource handles operator-level settings management for schools.
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
-	broadcaster     realtime.Broadcaster
-	// schoolRepo lets the resource emit `school_slug` in set/reset
+	// operatorSettings owns the set/reset orchestration (presence-mode guard,
+	// tenant transaction, side-effect hook, SSE broadcast).
+	operatorSettings configSvc.OperatorSettingsService
+	// schoolService lets the resource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` Next.js cache after tenant-resolve-affecting
 	// toggles (currently only operations.student_photos_enabled).
 	schoolService platformSvc.SchoolService
-	activeService activeSvc.Service
-	// onValueSet shares its signature with config.ValueSetCallback — see
-	// that type for the in-tx vs post-commit contract. Duplicated here
-	// (rather than imported) so api/operator stays free of api/config
-	// dependency, mirroring the rest of the operator package's isolation.
-	onValueSet func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)
+	// onValueSet runs inside the write transaction and returns an optional
+	// post-commit closure. Mirrors the tenant SettingsResource.OnValueSet
+	// contract so side effects apply uniformly regardless of who flipped the
+	// value; passed to the operatorSettings service on each write.
+	onValueSet configSvc.OperatorValueSetHook
 }
 
 // NewSettingsResource creates a new operator settings resource. broadcaster
 // emits the cross-origin tenant_settings_changed SSE event so open tenant
 // tabs invalidate their settings caches when an operator flips a value.
-// schoolRepo enriches the response with the school's slug so the frontend
+// schoolService enriches the response with the school's slug so the frontend
 // operator proxy can additionally bust the `tenant-${slug}` Next.js cache
 // for tenant-resolve-affecting settings (e.g. student_photos_enabled).
-// Both are optional — nil disables the corresponding mechanism.
+// broadcaster and activeService are optional — nil disables the corresponding
+// mechanism (broadcast fan-out / presence-mode guard).
 func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, schoolService platformSvc.SchoolService, activeService activeSvc.Service) *SettingsResource {
 	return &SettingsResource{
-		settingsService: svc,
-		db:              db,
-		broadcaster:     broadcaster,
-		schoolService:   schoolService,
-		activeService:   activeService,
+		settingsService:  svc,
+		db:               db,
+		operatorSettings: configSvc.NewOperatorSettingsService(svc, db, broadcaster, activeService, slog.Default()),
+		schoolService:    schoolService,
 	}
-}
-
-// scheduleSettingsBroadcast queues a tenant_settings_changed SSE event to
-// fire after the OUTERMOST tenant tx commits. Mirrors the tenant-side
-// helper so both writers fan out the same event shape.
-func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenantID int64, key string) {
-	if rs.broadcaster == nil || tenantID == 0 {
-		return
-	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
-			Source: &key,
-		})
-		_ = rs.broadcaster.BroadcastToTenant(tenantID, event)
-	})
 }
 
 // OnValueSet registers a callback that runs after a setting value change is
@@ -147,7 +94,7 @@ func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenan
 // the optional postCommit closure it returns runs only after a successful
 // commit. Mirrors the tenant SettingsResource.OnValueSet contract so side
 // effects apply uniformly regardless of who flipped the value.
-func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)) {
+func (rs *SettingsResource) OnValueSet(fn configSvc.OperatorValueSetHook) {
 	rs.onValueSet = fn
 }
 
@@ -220,7 +167,10 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return
 	}
 	key := chi.URLParam(r, "key")
-	if guardOperatorWrite(w, r, key) {
+	if rs.guardOperatorWrite(w, r, key) {
+		return
+	}
+	if guardOperatorDirectManagedSettingWrite(w, r, key) {
 		return
 	}
 
@@ -237,40 +187,13 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 	// switch). Everything else ignores the flag.
 	force := r.URL.Query().Get("force") == "true"
 
-	// Audit-log force-bypass writes on guarded keys so we have a trail when
-	// an operator overrides the safety check. This is intentionally a Warn
-	// (not Info) so it surfaces in standard log review.
-	if force && key == configModel.KeyPresenceMode {
-		slog.Warn("operator_setting_force_bypass",
-			slog.Int64("operator_id", changedBy),
-			slog.Int64("school_id", schoolID),
-			slog.String("setting_key", key),
-		)
-	}
-
-	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, tx bun.Tx) error {
-		if err := enforcePresenceModeSwitchGuard(ctx, rs.activeService, key, force); err != nil {
-			return err
-		}
-		if err := rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, nil); err != nil {
-			return err
-		}
-		if rs.onValueSet != nil {
-			cb, err := rs.onValueSet(ctx, schoolID, key, req.Value)
-			if err != nil {
-				return err
-			}
-			tenant.RegisterAfterCommit(ctx, cb)
-		}
-		rs.scheduleSettingsBroadcast(ctx, schoolID, key)
-		return nil
-	})
+	err := rs.operatorSettings.SetValue(r.Context(), schoolID, key, req.Value, changedBy, force, rs.onValueSet)
 	if err != nil {
 		// Dedicated 409 path for the mode-switch block so the frontend can
 		// surface the "daily end required" copy without heuristics. errors.Is
 		// keeps the branch resilient to wrapping, unlike string equality.
-		if errors.Is(err, ErrPresenceModeSwitchBlocked) {
-			render.Render(w, r, ErrConflict(errPresenceModeSwitchBlockedMsg)) //nolint:errcheck
+		if errors.Is(err, configSvc.ErrPresenceModeSwitchBlocked) {
+			render.Render(w, r, ErrConflict(configSvc.ErrPresenceModeSwitchBlocked.Error())) //nolint:errcheck
 			return
 		}
 		renderOperatorSettingsError(w, r, err)
@@ -293,34 +216,17 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 		return
 	}
 	key := chi.URLParam(r, "key")
-	if guardOperatorWrite(w, r, key) {
+	if rs.guardOperatorWrite(w, r, key) {
+		return
+	}
+	if guardOperatorDirectManagedSettingWrite(w, r, key) {
 		return
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
 
-	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
-		if err := rs.settingsService.ResetValue(ctx, key, &changedBy, nil); err != nil {
-			return err
-		}
-		// Photo disable/reset needs the same downstream cleanup regardless
-		// of whether the operator chose PUT false or DELETE reset. Other
-		// settings keep their development-era reset semantics.
-		if rs.onValueSet != nil && requiresPhotoMutationResponse(key) {
-			def := configModel.GetDefinition(key)
-			if def != nil {
-				cb, err := rs.onValueSet(ctx, schoolID, key, def.Default)
-				if err != nil {
-					return err
-				}
-				tenant.RegisterAfterCommit(ctx, cb)
-			}
-		}
-		rs.scheduleSettingsBroadcast(ctx, schoolID, key)
-		return nil
-	})
-	if err != nil {
+	if err := rs.operatorSettings.ResetValue(r.Context(), schoolID, key, changedBy, rs.onValueSet); err != nil {
 		renderOperatorSettingsError(w, r, err)
 		return
 	}
@@ -343,7 +249,7 @@ func (rs *SettingsResource) RevealSchoolSettingValue(w http.ResponseWriter, r *h
 		return
 	}
 	key := chi.URLParam(r, "key")
-	if guardOperatorWrite(w, r, key) {
+	if rs.guardOperatorWrite(w, r, key) {
 		return
 	}
 

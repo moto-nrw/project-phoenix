@@ -18,15 +18,28 @@ vi.mock("@/lib/auth-service", () => ({
   },
 }));
 
-vi.mock("@/lib/auth-helpers", () => ({
-  getRoleDisplayName: (name: string) => {
+vi.mock("@/lib/auth-helpers", () => {
+  const getRoleDisplayName = (name: string) => {
     const names: Record<string, string> = {
       admin: "Administrator",
       betreuer: "Betreuer",
     };
     return names[name] ?? name;
-  },
-}));
+  };
+  return {
+    getRoleDisplayName,
+    toAssignableRoleOptions: (roles: { id: string; name: string }[]) =>
+      roles
+        .filter(
+          (role) => !["guardian", "teacher"].includes(role.name.toLowerCase()),
+        )
+        .map((role) => ({
+          id: Number(role.id),
+          name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
+        }))
+        .filter((role) => !Number.isNaN(role.id)),
+  };
+});
 
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
@@ -138,6 +151,8 @@ describe("TeacherForm", () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/System-Rolle/)).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByLabelText(/System-Rolle/));
 
     expect(
       screen.queryByRole("option", { name: "guardian" }),
@@ -254,9 +269,8 @@ describe("TeacherForm", () => {
     fireEvent.change(screen.getByLabelText(/Nachname/), {
       target: { value: "Doe" },
     });
-    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
-      target: { value: "1" },
-    });
+    fireEvent.click(screen.getByLabelText(/System-Rolle/));
+    fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
     fireEvent.change(screen.getByLabelText(/^Passwort \*/), {
       target: { value: "ValidPass1!" },
     });
@@ -462,9 +476,8 @@ describe("TeacherForm", () => {
       expect(screen.getByLabelText(/System-Rolle/)).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
-      target: { value: "1" },
-    });
+    fireEvent.click(screen.getByLabelText(/System-Rolle/));
+    fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
 
     expect(
       screen.getByText("Rolle kann später geändert werden"),
@@ -498,9 +511,8 @@ describe("TeacherForm", () => {
     fireEvent.change(screen.getByLabelText(/Position/), {
       target: { value: " Betreuung " },
     });
-    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
-      target: { value: "2" },
-    });
+    fireEvent.click(screen.getByLabelText(/System-Rolle/));
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
     fireEvent.change(screen.getByLabelText(/^Passwort \*/), {
       target: { value: "ValidPass1!" },
     });

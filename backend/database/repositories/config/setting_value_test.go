@@ -66,36 +66,6 @@ func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
 	assert.Nil(t, found)
 }
 
-func TestSettingValueRepository_FindByTenant(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	repo := configRepo.NewSettingValueRepository(db)
-	ctx := testpkg.TenantContext(1)
-
-	// Clean up first to avoid interference from other tests
-	_ = repo.Delete(ctx, 1, "test.find_a")
-	_ = repo.Delete(ctx, 1, "test.find_b")
-
-	require.NoError(t, repo.Upsert(ctx, newSV("test.find_a", `"a"`)))
-	require.NoError(t, repo.Upsert(ctx, newSV("test.find_b", `"b"`)))
-
-	results, err := repo.FindByTenant(ctx, 1)
-	require.NoError(t, err)
-
-	found := 0
-	for _, r := range results {
-		if r.SettingKey == "test.find_a" || r.SettingKey == "test.find_b" {
-			found++
-		}
-	}
-	assert.Equal(t, 2, found)
-
-	t.Cleanup(func() {
-		_ = repo.Delete(ctx, 1, "test.find_a")
-		_ = repo.Delete(ctx, 1, "test.find_b")
-	})
-}
-
 func TestSettingValueRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -158,13 +128,6 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	notFound, err := repo.FindByTenantAndKey(ctxA, tenantA, "test.isolation_nonexistent")
 	require.NoError(t, err)
 	assert.Nil(t, notFound)
-
-	// FindByTenant returns only the queried tenant's rows
-	allA, err := repo.FindByTenant(ctxA, tenantA)
-	require.NoError(t, err)
-	for _, sv := range allA {
-		assert.Equal(t, tenantA, sv.TenantID, "FindByTenant should only return rows for the requested tenant")
-	}
 
 	t.Cleanup(func() {
 		_ = repo.Delete(ctxA, tenantA, "test.isolation")

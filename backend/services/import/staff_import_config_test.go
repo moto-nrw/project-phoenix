@@ -12,10 +12,11 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -74,10 +75,25 @@ func (r stubStaffAccountRepo) Create(context.Context, *authModels.Account) error
 func (r stubStaffAccountRepo) FindByID(context.Context, interface{}) (*authModels.Account, error) {
 	panic("not implemented")
 }
+func (r stubStaffAccountRepo) FindByIDForUpdate(context.Context, int64) (*authModels.Account, error) {
+	panic("not implemented")
+}
 func (r stubStaffAccountRepo) FindByEmail(context.Context, string) (*authModels.Account, error) {
 	return r.account, r.err
 }
 func (r stubStaffAccountRepo) FindByUsername(context.Context, string) (*authModels.Account, error) {
+	panic("not implemented")
+}
+
+func (r stubStaffAccountRepo) FindByCalendarFeedToken(context.Context, string) (*authModels.Account, error) {
+	panic("not implemented")
+}
+
+func (r stubStaffAccountRepo) EnsureCalendarFeedToken(context.Context, int64, string) (string, error) {
+	panic("not implemented")
+}
+
+func (r stubStaffAccountRepo) SetCalendarFeedToken(context.Context, int64, string) error {
 	panic("not implemented")
 }
 func (r stubStaffAccountRepo) Update(context.Context, *authModels.Account) error {
@@ -153,93 +169,23 @@ func (r stubStaffAccountTenantRepo) ListAllAccounts(context.Context) ([]authMode
 	panic("not implemented")
 }
 
-type stubStaffSchoolRepo struct {
-	school *platformModels.School
-	err    error
-}
-
-func (r stubStaffSchoolRepo) Create(context.Context, *platformModels.School) error {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) FindByID(context.Context, int64) (*platformModels.School, error) {
-	return r.school, r.err
-}
-func (r stubStaffSchoolRepo) FindByIDForShare(context.Context, int64) (*platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) FindByIDForUpdate(context.Context, int64) (*platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) FindBySlug(context.Context, string) (*platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) FindByOrganizationAndSlug(context.Context, int64, string) (*platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) FindBySubdomain(context.Context, string) (*platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) List(context.Context) ([]*platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) ListActive(context.Context) ([]platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) ListPublic(context.Context) ([]platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) Update(context.Context, *platformModels.School) error {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) SoftDelete(context.Context, int64) error { panic("not implemented") }
-func (r stubStaffSchoolRepo) Restore(context.Context, int64) error    { panic("not implemented") }
-func (r stubStaffSchoolRepo) CountByIDs(context.Context, []int64) (int, error) {
-	panic("not implemented")
-}
-func (r stubStaffSchoolRepo) CountNonDeletedByOrganizationID(context.Context, int64) (int, error) {
-	panic("not implemented")
-}
-
-type stubStaffInvitationService struct {
-	req authsvc.InvitationRequest
-	err error
-}
-
-func (s *stubStaffInvitationService) GetTenantSlugForToken(_ context.Context, _ string) string {
-	return ""
-}
-
-func (s *stubStaffInvitationService) WithTx(bun.Tx) interface{} { return s }
-func (s *stubStaffInvitationService) CreateInvitation(_ context.Context, req authsvc.InvitationRequest) (*authModels.InvitationToken, error) {
-	s.req = req
-	if s.err != nil {
-		return nil, s.err
+// newStaffInvitationServiceMock wires an authtest.InvitationServiceMock to
+// reproduce stubStaffInvitationService's exact behavior: CreateInvitation
+// captures the request (readable via the returned *authsvc.InvitationRequest)
+// and returns err when set, else a token with staffImportTestInviteID. All
+// other methods keep the mock's zero-value defaults.
+func newStaffInvitationServiceMock(err error) (*authtest.InvitationServiceMock, *authsvc.InvitationRequest) {
+	captured := &authsvc.InvitationRequest{}
+	m := &authtest.InvitationServiceMock{
+		CreateInvitationFn: func(_ context.Context, req authsvc.InvitationRequest) (*authModels.InvitationToken, error) {
+			*captured = req
+			if err != nil {
+				return nil, err
+			}
+			return &authModels.InvitationToken{Model: base.Model{ID: staffImportTestInviteID}}, nil
+		},
 	}
-	return &authModels.InvitationToken{Model: base.Model{ID: staffImportTestInviteID}}, nil
-}
-func (s *stubStaffInvitationService) ValidateInvitation(context.Context, string) (*authsvc.InvitationValidationResult, error) {
-	panic("not implemented")
-}
-func (s *stubStaffInvitationService) AcceptInvitation(context.Context, string, authsvc.UserRegistrationData) (*authModels.Account, error) {
-	panic("not implemented")
-}
-func (s *stubStaffInvitationService) ResendInvitation(context.Context, int64, int64) error {
-	panic("not implemented")
-}
-func (s *stubStaffInvitationService) ListPendingInvitations(context.Context) ([]*authModels.InvitationToken, error) {
-	panic("not implemented")
-}
-func (s *stubStaffInvitationService) RevokeInvitation(context.Context, int64, int64) error {
-	panic("not implemented")
-}
-func (s *stubStaffInvitationService) InvalidatePendingInvitationsByTenantID(context.Context, int64) (int, error) {
-	panic("not implemented")
-}
-func (s *stubStaffInvitationService) CleanupExpiredInvitations(context.Context) (int, error) {
-	panic("not implemented")
+	return m, captured
 }
 
 func TestStaffImportConfig_PreloadReferenceData_LoadsRoleDisplayNamesAndSchool(t *testing.T) {
@@ -249,10 +195,14 @@ func TestStaffImportConfig_PreloadReferenceData_LoadsRoleDisplayNamesAndSchool(t
 			{Model: base.Model{ID: staffImportTestRoleID}, Name: "user"},
 			{Model: base.Model{ID: staffImportTestRoleID + 10}, Name: "koordination"},
 		}},
-		SchoolRepo: stubStaffSchoolRepo{school: &platformModels.School{
-			Model: base.Model{ID: staffImportTestTenantID},
-			Name:  "OGS Phoenix",
-		}},
+		SchoolRepo: &testpkg.SchoolRepoMock{
+			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: staffImportTestTenantID},
+					Name:  "OGS Phoenix",
+				}, nil
+			},
+		},
 	})
 
 	require.NoError(t, config.PreloadReferenceData(ctx))
@@ -432,7 +382,7 @@ func TestStaffImportConfig_FindExisting(t *testing.T) {
 }
 
 func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
-	invitations := &stubStaffInvitationService{}
+	invitations, req := newStaffInvitationServiceMock(nil)
 	config := NewStaffImportConfig(StaffImportDeps{InvitationService: invitations})
 	config.schoolName = "OGS Phoenix"
 	ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
@@ -448,23 +398,24 @@ func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, staffImportTestInviteID, id)
-	assert.Equal(t, "anna@example.com", invitations.req.Email)
-	assert.Equal(t, staffImportTestRoleID, invitations.req.RoleID)
-	assert.Equal(t, staffImportTestTenantID, invitations.req.TenantID)
-	assert.Equal(t, staffImportTestActorID, invitations.req.CreatedBy)
-	assert.Equal(t, "OGS Phoenix", invitations.req.SchoolName)
-	require.NotNil(t, invitations.req.FirstName)
-	require.NotNil(t, invitations.req.LastName)
-	require.NotNil(t, invitations.req.Position)
-	assert.Equal(t, "Anna", *invitations.req.FirstName)
-	assert.Equal(t, "Lehmann", *invitations.req.LastName)
-	assert.Equal(t, "Leitung", *invitations.req.Position)
+	assert.Equal(t, "anna@example.com", req.Email)
+	assert.Equal(t, staffImportTestRoleID, req.RoleID)
+	assert.Equal(t, staffImportTestTenantID, req.TenantID)
+	assert.Equal(t, staffImportTestActorID, req.CreatedBy)
+	assert.Equal(t, "OGS Phoenix", req.SchoolName)
+	require.NotNil(t, req.FirstName)
+	require.NotNil(t, req.LastName)
+	require.NotNil(t, req.Position)
+	assert.Equal(t, "Anna", *req.FirstName)
+	assert.Equal(t, "Lehmann", *req.LastName)
+	assert.Equal(t, "Leitung", *req.Position)
 }
 
 func TestStaffImportConfig_Create_ReturnsInvitationError(t *testing.T) {
 	inviteErr := errors.New("invite failed")
+	invitations, _ := newStaffInvitationServiceMock(inviteErr)
 	config := NewStaffImportConfig(StaffImportDeps{
-		InvitationService: &stubStaffInvitationService{err: inviteErr},
+		InvitationService: invitations,
 	})
 
 	_, err := config.Create(context.Background(), importModels.StaffImportRow{})
@@ -484,11 +435,11 @@ func TestStaffImportConfig_PreloadReferenceData_ReturnsRoleListError(t *testing.
 }
 
 func TestStaffImportConfig_InvitationServiceCompileGuard(t *testing.T) {
-	var _ authsvc.InvitationService = (*stubStaffInvitationService)(nil)
+	var _ authsvc.InvitationService = (*authtest.InvitationServiceMock)(nil)
 	var _ authModels.RoleRepository = stubStaffRoleRepo{}
 	var _ authModels.AccountRepository = stubStaffAccountRepo{}
 	var _ authModels.AccountTenantRepository = stubStaffAccountTenantRepo{}
-	var _ platformModels.SchoolRepository = stubStaffSchoolRepo{}
+	var _ platformModels.SchoolRepository = (*testpkg.SchoolRepoMock)(nil)
 }
 
 // Stub for the issue #585 refactor interface addition — unused here.

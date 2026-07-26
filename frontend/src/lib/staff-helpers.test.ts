@@ -82,6 +82,14 @@ describe("getStaffLocationStatus", () => {
     expect(result.customBgColor).toBe("#6B7280");
   });
 
+  it("returns Freizeitausgleich status with gray styling", () => {
+    const staff = createSampleStaff({ currentLocation: "Freizeitausgleich" });
+    const result = getStaffLocationStatus(staff);
+
+    expect(result.label).toBe("Freizeitausgleich");
+    expect(result.customBgColor).toBe("#6B7280");
+  });
+
   it("returns Anwesend for staff in a specific room (supervising)", () => {
     const staff = createSampleStaff({ currentLocation: "Werkraum" });
     const result = getStaffLocationStatus(staff);

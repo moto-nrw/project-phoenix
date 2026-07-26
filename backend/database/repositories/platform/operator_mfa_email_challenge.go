@@ -23,7 +23,7 @@ type OperatorMFAEmailChallengeRepository struct {
 
 func NewOperatorMFAEmailChallengeRepository(db *bun.DB) platform.OperatorMFAEmailChallengeRepository {
 	return &OperatorMFAEmailChallengeRepository{
-		Repository: base.NewRepository[*platform.OperatorMFAEmailChallenge](db, operatorMFAEmailChallengeTable, "OperatorMFAEmailChallenge"),
+		Repository: base.NewRepository[*platform.OperatorMFAEmailChallenge](db, operatorMFAEmailChallengeTable, "OperatorMfaEmailChallenge"),
 		db:         db,
 	}
 }
@@ -89,17 +89,6 @@ func (r *OperatorMFAEmailChallengeRepository) CountRecentByOperatorID(ctx contex
 }
 
 func (r *OperatorMFAEmailChallengeRepository) DeleteExpired(ctx context.Context) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*platform.OperatorMFAEmailChallenge)(nil)).
-		ModelTableExpr(operatorMFAEmailChallengeTable).
-		Where("expires_at < ?", time.Now()).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired operator mfa email challenges", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired operator mfa email challenges", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expires_at", time.Now(), "delete expired operator mfa email challenges")
+	return int(deleted), err
 }

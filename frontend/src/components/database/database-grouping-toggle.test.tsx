@@ -48,7 +48,9 @@ describe("DatabaseGroupingToggle", () => {
     const onChange = vi.fn();
     render(
       <div>
-        <button data-testid="outside">elsewhere</button>
+        <button type="button" data-testid="outside">
+          elsewhere
+        </button>
         <DatabaseGroupingToggle
           value="none"
           options={[...options]}

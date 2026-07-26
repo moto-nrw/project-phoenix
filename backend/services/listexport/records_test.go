@@ -1,12 +1,12 @@
 package listexport
 
 import (
-	"archive/zip"
 	"bytes"
-	"io"
 	"strings"
 	"testing"
 	"time"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func sampleRecord(title string) Record {
@@ -23,6 +23,32 @@ func sampleRecord(title string) Record {
 			}},
 		},
 	}
+}
+
+// traceRecords runs the measuring pass of the designed record layout and
+// returns its page count and emitted-text trace. The old writer's tests
+// asserted content by string search in raw PDF bytes; compressed streams +
+// subset fonts make that impossible, so the rules assert here instead.
+func traceRecords(t *testing.T, doc RecordDocument) (int, []string) {
+	t.Helper()
+	chrome, err := newPageChrome(false, doc.Title, doc.Subtitle, doc.GeneratedAt, doc.Filters, doc.Footer)
+	if err != nil {
+		t.Fatalf("newPageChrome: %v", err)
+	}
+	l := &recordLayout{pageChrome: chrome, doc: doc}
+	if err := l.run(); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	return l.page, l.trace
+}
+
+func traceContains(trace []string, want string) bool {
+	for _, s := range trace {
+		if strings.Contains(s, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestRenderRecords_ProducesValidPDF(t *testing.T) {
@@ -48,9 +74,14 @@ func TestRenderRecords_ProducesValidPDF(t *testing.T) {
 	if !bytes.HasPrefix(file.Data, []byte("%PDF-1.")) {
 		t.Errorf("data does not start with PDF header")
 	}
-	for _, want := range []string{"E-Mail", "Kind: Lina", "Betreuungsangebote", "%%EOF"} {
-		if !bytes.Contains(file.Data, []byte(want)) {
-			t.Errorf("rendered PDF missing %q", want)
+	if !bytes.Contains(file.Data, []byte("/ToUnicode")) {
+		t.Error("expected embedded ToUnicode CMap so PDF text stays extractable")
+	}
+
+	_, trace := traceRecords(t, doc)
+	for _, want := range []string{"E-Mail", "Kind: Lina", "Betreuungsangebote"} {
+		if !traceContains(trace, want) {
+			t.Errorf("record layout missing %q", want)
 		}
 	}
 }
@@ -62,23 +93,31 @@ func TestRenderRecords_PaginatesAcrossPages(t *testing.T) {
 	}
 	doc := RecordDocument{Title: "Viele", GeneratedAt: time.Now(), Records: records}
 
-	file, err := (&RendererService{}).RenderRecords(doc, "viele")
-	if err != nil {
-		t.Fatalf("RenderRecords: %v", err)
-	}
-	pages := bytes.Count(file.Data, []byte("/Type /Page /Parent"))
+	pages, trace := traceRecords(t, doc)
 	if pages < 2 {
 		t.Errorf("expected multiple pages for 80 records, got %d", pages)
+	}
+	// No record dropped: every heading appears in the trace.
+	count := 0
+	for _, s := range trace {
+		if strings.HasPrefix(s, "Familie Nr ") {
+			count++
+		}
+	}
+	if count != 80 {
+		t.Errorf("headings in layout = %d, want 80", count)
 	}
 }
 
 func TestRenderRecords_EmptyRecords(t *testing.T) {
-	file, err := (&RendererService{}).RenderRecords(RecordDocument{Title: "Leer", GeneratedAt: time.Now()}, "leer")
-	if err != nil {
-		t.Fatalf("RenderRecords: %v", err)
-	}
-	if !bytes.Contains(file.Data, []byte("Keine Anmeldungen")) {
+	doc := RecordDocument{Title: "Leer", GeneratedAt: time.Now()}
+	_, trace := traceRecords(t, doc)
+	if !traceContains(trace, "Keine Anmeldungen") {
 		t.Errorf("empty document should render the placeholder line")
+	}
+
+	if _, err := (&RendererService{}).RenderRecords(doc, "leer"); err != nil {
+		t.Fatalf("RenderRecords: %v", err)
 	}
 }
 
@@ -91,13 +130,10 @@ func TestRenderRecords_WritesGroupHeadings(t *testing.T) {
 		},
 	}
 
-	file, err := NewService().RenderRecords(doc, "Anmeldungen Test")
-	if err != nil {
-		t.Fatalf("RenderRecords: %v", err)
-	}
+	_, trace := traceRecords(t, doc)
 	for _, want := range []string{"Bestätigte Anmeldungen", "Familie Muster"} {
-		if !bytes.Contains(file.Data, []byte(pdfLiteralString(want))) {
-			t.Errorf("rendered PDF missing %q", want)
+		if !traceContains(trace, want) {
+			t.Errorf("record layout missing %q", want)
 		}
 	}
 }
@@ -122,7 +158,7 @@ func TestRenderRecordsDOCX_UsesRecordBlocksInsteadOfWideTable(t *testing.T) {
 		t.Errorf("filename = %q, want .docx suffix", file.Filename)
 	}
 
-	xml := readDocxDocumentXML(t, file.Data)
+	xml := testpkg.ReadDocxDocumentXML(t, file.Data)
 	if strings.Contains(xml, "<w:tbl>") {
 		t.Fatal("record DOCX must not render the wide table layout")
 	}
@@ -146,39 +182,10 @@ func TestRenderRecordsDOCX_WritesGroupHeadings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderRecordsDOCX: %v", err)
 	}
-	xml := readDocxDocumentXML(t, file.Data)
+	xml := testpkg.ReadDocxDocumentXML(t, file.Data)
 	for _, want := range []string{"Bestätigte Anmeldungen", "Familie Muster"} {
 		if !strings.Contains(xml, want) {
 			t.Errorf("record DOCX missing %q", want)
 		}
 	}
-}
-
-func readDocxDocumentXML(t *testing.T, data []byte) string {
-	t.Helper()
-	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		t.Fatalf("zip reader error = %v", err)
-	}
-	for _, entry := range reader.File {
-		if entry.Name != "word/document.xml" {
-			continue
-		}
-		rc, err := entry.Open()
-		if err != nil {
-			t.Fatalf("open document.xml error = %v", err)
-		}
-		defer func() {
-			if err := rc.Close(); err != nil {
-				t.Errorf("close document.xml error = %v", err)
-			}
-		}()
-		content, err := io.ReadAll(rc)
-		if err != nil {
-			t.Fatalf("read document.xml error = %v", err)
-		}
-		return string(content)
-	}
-	t.Fatal("DOCX missing word/document.xml")
-	return ""
 }

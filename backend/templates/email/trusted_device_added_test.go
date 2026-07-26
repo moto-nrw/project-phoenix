@@ -33,7 +33,7 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 		{
 			name: "happy path with IP",
 			data: map[string]any{
-				"LogoURL":     "https://example.com/images/moto_transparent.png",
+				"LogoURL":     "https://example.com/images/moto-logo-mit-schriftzug.png",
 				"SecurityURL": "https://demo.moto-app.de/settings?tab=settings-security",
 				"DeviceLabel": "Chrome auf macOS",
 				"IPAddress":   "203.0.113.42",
@@ -55,7 +55,7 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 				// Account-locked fallback: contact admin
 				"Administration",
 				// Branding chrome
-				"moto Logo",
+				`alt="moto"`,
 				"Unterstützt von",
 			},
 		},

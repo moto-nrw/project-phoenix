@@ -22,17 +22,18 @@
 //     never wall-clock timestamps. See calendar_period_service.ShouldMaterialize
 //     for the anchor math.
 //
-//   - Transaction boundary is the caller's. The scheduler wraps each tenant
-//     in its own WithTenantTx; the HTTP handler uses the tenant middleware's
-//     tx. We do not open nested transactions — a hard DB error bubbles up and
-//     aborts the tenant's run; the scheduler will retry on the next matching
-//     weekday.
+//   - Transactional tenant recurrence gate. The service reuses the scheduler/
+//     HTTP tenant transaction or opens an RLS-aware tenant transaction when
+//     called directly, then holds the tenant recurrence gate through every
+//     bounds read and instance insert. This serializes against split/end/PUT
+//     without cross-tenant contention.
 //
 //   - Duplicate template-slot races are absorbed via INSERT ... ON CONFLICT DO
 //     NOTHING and counted as raced, not fatal.
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -40,16 +41,23 @@ import (
 	"sort"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // MaxMaterializationWindowDays caps how many civil days a single call may
 // cover. 56 days (8 weeks) matches the manual-endpoint validation and keeps
 // one tenant's run well under a minute even with many templates.
-const MaxMaterializationWindowDays = 56
+const (
+	MaxMaterializationWindowDays = 56
+	materializeForTenantOp       = "materialize for tenant"
+)
 
 // MaterializationSource identifies who triggered the run. Included in structured
 // logs so the Grafana dashboards can split scheduler cadence from manual spikes.
@@ -109,8 +117,8 @@ const (
 type MaterializationService interface {
 	// MaterializeForTenant creates missing schedule.activity_instances (plus
 	// their instance_staff / instance_students rows) for the current tenant
-	// for every civil date in [from, to]. The caller is expected to have
-	// established tenant context and a transaction.
+	// for every civil date in [from, to]. Tenant context is required; an
+	// ambient transaction is reused and direct calls open their own.
 	//
 	// source is a logging tag only — it has no behavioural effect. Use
 	// MaterializationSourceScheduler or MaterializationSourceManual.
@@ -122,6 +130,18 @@ type MaterializationService interface {
 	// forward to the following Monday — we never plan the current partial
 	// week); `to` is `from + weeksAhead*7 − 1` days.
 	ResolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Date)
+
+	// DetectEditedInWindow returns the planned, template-backed occurrences of
+	// one template in [from, to] whose content diverges from what the current
+	// template would materialize — the single-occurrence edits a series re-plan
+	// (#1875) would silently discard. Read-only; runs under the caller's
+	// ambient tenant (RLS) transaction. Deviation-only rows (absences,
+	// substitutes, understaffed ack, required_staff pin) are NOT reported —
+	// ReplanWeek preserves those. When includeDeletions is set, individually
+	// deleted occurrences (cancelled exceptions) are ALSO reported — a
+	// following-series split resurrects them under the successor template; a
+	// same-template re-plan preserves them, so callers on that path pass false.
+	DetectEditedInWindow(ctx context.Context, activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]EditedOccurrence, error)
 }
 
 // materializationService is the concrete implementation.
@@ -137,13 +157,19 @@ type materializationService struct {
 	exceptionRepo   schedule.ActivityExceptionRepository
 	timeframeRepo   schedule.TimeframeRepository
 	calendarService CalendarPeriodService
+	db              *bun.DB
+	broadcaster     realtime.Broadcaster
 	logger          *slog.Logger
 }
 
 // NewMaterializationService constructs a MaterializationService with all
 // repository dependencies. The CalendarPeriodService is injected (rather than
 // reconstructed) so the shared A/B week algorithm stays the single source of
-// truth for the DST-safe math.
+// truth for the DST-safe math. Production wiring must provide db so direct
+// calls get an RLS-aware transaction and recurrence gate; nil is reserved for
+// pure repository-double unit tests. broadcaster is optional (nil → no SSE);
+// production wiring must provide it so runs that create instances invalidate
+// the staffing caches (#1844).
 func NewMaterializationService(
 	groupRepo activities.GroupRepository,
 	scheduleRepo activities.ScheduleRepository,
@@ -156,6 +182,8 @@ func NewMaterializationService(
 	exceptionRepo schedule.ActivityExceptionRepository,
 	timeframeRepo schedule.TimeframeRepository,
 	calendarService CalendarPeriodService,
+	db *bun.DB,
+	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) MaterializationService {
 	return &materializationService{
@@ -170,15 +198,14 @@ func NewMaterializationService(
 		exceptionRepo:   exceptionRepo,
 		timeframeRepo:   timeframeRepo,
 		calendarService: calendarService,
+		db:              db,
+		broadcaster:     broadcaster,
 		logger:          logger,
 	}
 }
 
 func (s *materializationService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // ResolveWindow computes the next full Monday–Sunday span covering weeksAhead
@@ -190,7 +217,8 @@ func (s *materializationService) ResolveWindow(baseDate timezone.Date, weeksAhea
 }
 
 // MaterializeForTenant implements the core of WP-B8. See the interface comment
-// for contract. The caller supplies tenant context + transaction.
+// for contract. Tenant context is mandatory; an ambient transaction is reused,
+// otherwise production wiring opens an RLS-aware tenant transaction.
 func (s *materializationService) MaterializeForTenant(
 	ctx context.Context,
 	from, to timezone.Date,
@@ -199,13 +227,59 @@ func (s *materializationService) MaterializeForTenant(
 	start := time.Now()
 	tenantID := tenant.FromContext(ctx)
 
-	if to.Before(from) {
-		return nil, &ScheduleError{Op: "materialize for tenant", Err: errors.New("to_date must not be before from_date")}
+	if err := validateMaterializationWindow(from, to); err != nil {
+		return nil, err
 	}
-	if days := from.DaysUntil(to) + 1; days > MaxMaterializationWindowDays {
-		return nil, &ScheduleError{Op: "materialize for tenant", Err: fmt.Errorf("window exceeds %d days", MaxMaterializationWindowDays)}
+	if s.db != nil {
+		if tenantID <= 0 {
+			return nil, &ScheduleError{Op: materializeForTenantOp, Err: errors.New("no tenant in context")}
+		}
+		if _, ok := modelBase.TxFromContext(ctx); !ok {
+			return s.materializeForTenantInTransaction(ctx, tenantID, from, to, source)
+		}
+		if err := lockTenantRecurrenceWrites(ctx, s.db); err != nil {
+			return nil, &ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
+		}
 	}
 
+	return s.materializeForTenantLocked(ctx, tenantID, from, to, source, start)
+}
+
+func validateMaterializationWindow(from, to timezone.Date) error {
+	if to.Before(from) {
+		return &ScheduleError{Op: materializeForTenantOp, Err: errors.New("to_date must not be before from_date")}
+	}
+	if days := from.DaysUntil(to) + 1; days > MaxMaterializationWindowDays {
+		return &ScheduleError{Op: materializeForTenantOp, Err: fmt.Errorf("window exceeds %d days", MaxMaterializationWindowDays)}
+	}
+	return nil
+}
+
+// materializeForTenantInTransaction deliberately re-enters the public method.
+// That keeps transaction detection and recurrence locking on one path while
+// preserving the partial result returned when a later insert fails.
+func (s *materializationService) materializeForTenantInTransaction(
+	ctx context.Context,
+	tenantID int64,
+	from, to timezone.Date,
+	source MaterializationSource,
+) (*MaterializationResult, error) {
+	var result *MaterializationResult
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		result, err = s.MaterializeForTenant(txCtx, from, to, source)
+		return err
+	})
+	return result, err
+}
+
+func (s *materializationService) materializeForTenantLocked(
+	ctx context.Context,
+	tenantID int64,
+	from, to timezone.Date,
+	source MaterializationSource,
+	start time.Time,
+) (*MaterializationResult, error) {
 	result := &MaterializationResult{From: from, To: to}
 
 	s.getLogger().Info("materialization starting",
@@ -282,6 +356,14 @@ func (s *materializationService) MaterializeForTenant(
 		if err := s.materializeTemplate(ctx, tmpl, from, to, periods, existingIdx, exceptionIdx, timeframeByID, result); err != nil {
 			return result, err
 		}
+	}
+
+	// Materialization is not one of the instance CRUD paths, so nothing else
+	// tells the staffing caches (planner, "Heute geplant" card) that new
+	// assignments exist. Skip pure no-op re-runs — the scheduler sweeps the
+	// same window nightly.
+	if result.InstancesCreated > 0 || result.InstanceStaffCreated > 0 {
+		broadcastStaffingChanged(ctx, s.broadcaster, s.getLogger(), "materialization")
 	}
 
 	s.finishLog(tenantID, source, result, start)
@@ -414,6 +496,13 @@ func (s *materializationService) materializeTemplate(
 
 			periodID := period.ID
 			templateID := tmpl.ID
+			// RequiredStaff stays NULL on materialized rows: the template's
+			// Personalbedarf override is inherited at read time (#1839). Copying
+			// it here would make a template-level value indistinguishable from a
+			// deliberate per-occurrence pin, so a later series edit of the
+			// override could never propagate past ReplanWeek's deviation
+			// snapshot. A non-NULL instance value is therefore always a
+			// single-occurrence pin.
 			instance := &schedule.ActivityInstance{
 				Date:             date,
 				ActivityGroupID:  &templateID,
@@ -422,6 +511,7 @@ func (s *materializationService) materializeTemplate(
 				StartTime:        effective.StartTime,
 				EndTime:          effective.EndTime,
 				RoomID:           effective.RoomID,
+				ListKind:         tmpl.ListKind,
 				Status:           schedule.InstanceStatusPlanned,
 				IsSpontaneous:    false,
 			}
@@ -502,6 +592,12 @@ func (s *materializationService) copyEnrollments(
 			return &ScheduleError{Op: "materialize template: copy enrollment", Err: err}
 		}
 		result.InstanceStudentsCreated++
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+		return &ScheduleError{Op: "materialize template: apply student status days", Err: err}
 	}
 	return nil
 }
@@ -782,31 +878,14 @@ func schedulePinnedPeriodID(tmpl *activities.Group, sch *activities.Schedule) *i
 	if sch != nil && sch.CalendarPeriodID != nil {
 		return sch.CalendarPeriodID
 	}
-	// activities.groups doesn't currently expose a calendar_period_id column
-	// at the model level — only schedules and enrollments/supervisors do.
-	// Keep the signature future-proof: if the model gains the field later,
-	// selectPeriod already honours it without further changes.
-	_ = tmpl
-	return nil
-}
-
-// mergeDecision is the per-candidate branch used by the materialization loop.
-// Exposed as a pure function so tests can cover each status without a DB.
-type mergeDecision int
-
-const (
-	mergeDecisionInsert mergeDecision = iota
-	mergeDecisionSkipExisting
-)
-
-// decideMerge chooses what to do given an existing row of the given status.
-// Under the WP-B8 insert-only policy, every non-nil existing row is skipped —
-// template propagation becomes the "Re-plan week" WP-B9 action.
-func decideMerge(existingStatus string) mergeDecision {
-	if existingStatus == "" {
-		return mergeDecisionInsert
+	// The schedule row's own pin (checked above) is the more specific,
+	// materialization-time-authoritative value. The template's pin
+	// (activities.Group.CalendarPeriodID, issue #1838) is the fallback for
+	// templates whose schedule rows carry no explicit pin.
+	if tmpl != nil && tmpl.CalendarPeriodID != nil {
+		return tmpl.CalendarPeriodID
 	}
-	return mergeDecisionSkipExisting
+	return nil
 }
 
 // --- indexing helpers (not part of the public surface) ---

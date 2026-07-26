@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,16 +33,39 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		IsSpontaneous: true,
 	})
 	instanceStudent := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+
+	// A second student who is checked in and still open — the bridge must
+	// stamp their slot checkout when the daily session end closes the visits.
+	presentStudent := testpkg.CreateTestStudent(t, db, "DailySync", "Present", "9z")
+	presentRow := testpkg.CreateTestInstanceStudent(t, db, instance.ID, presentStudent.ID, scheduleModels.AttendanceStatusPresent)
+	checkedInAt := time.Now().Add(-2 * time.Hour)
+	_, err := db.NewUpdate().
+		Table("schedule.instance_students").
+		Set("checked_in_at = ?", checkedInAt).
+		Where("id = ?", presentRow.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", instanceStudent.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", instanceStudent.ID, presentRow.ID)
 		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activity.ID, room.ID, student.ID)
+		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activity.ID, room.ID, student.ID, presentStudent.ID)
 	})
 
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+	instanceStudentRepo := scheduleRepo.NewInstanceStudentRepository(db)
 	s := &Scheduler{
-		instanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
-		instanceStudentRepo: scheduleRepo.NewInstanceStudentRepository(db),
-		logger:              slog.Default(),
+		instanceRepo:        instanceRepo,
+		instanceStudentRepo: instanceStudentRepo,
+		// Completion runs through the shared bridge now, so the nightly job and
+		// the force-start path leave identical rows behind (#1747). Care days
+		// stay unwired here: with no care plans in play every expected row is
+		// stamped absent, exactly as this test asserts below.
+		timetableBridge: scheduleSvc.NewTimetableBridgeService(scheduleSvc.TimetableBridgeDependencies{
+			Instances:        instanceRepo,
+			InstanceStudents: instanceStudentRepo,
+		}),
+		logger: slog.Default(),
 	}
 	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &activeSvc.DailySessionCleanupResult{
 		EndedActiveGroupIDs: []int64{activeGroup.ID},
@@ -67,4 +91,15 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Scan(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, reloadedStudent.Status)
+
+	var reloadedPresent scheduleModels.InstanceStudent
+	err = db.NewSelect().
+		Model(&reloadedPresent).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".id = ?`, presentRow.ID).
+		Scan(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, reloadedPresent.Status, "observed presence must be preserved")
+	require.NotNil(t, reloadedPresent.CheckedOutAt, "daily session end must close the open slot checkout")
+	assert.False(t, reloadedPresent.CheckedOutAt.Before(checkedInAt))
 }

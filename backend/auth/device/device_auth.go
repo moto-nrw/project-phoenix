@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -220,94 +220,178 @@ type SchoolLookup interface {
 	GetSchoolByID(ctx context.Context, id int64) (*platform.School, error)
 }
 
-func deviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Validate API key and get device
-			device, errResp := extractAndValidateAPIKey(r, iotService)
-			if errResp != nil {
-				if err := render.Render(w, r, errResp); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
+// StaffPINAuthenticator verifies that a staff ID and account PIN belong to
+// the device tenant before the middleware exposes staff identity to handlers.
+type StaffPINAuthenticator interface {
+	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*users.Staff, error)
+}
 
-			// Reject requests for devices belonging to soft-deleted schools.
-			// Devices use long-lived API keys (not 15-min JWTs), so deleted schools
-			// must be blocked immediately rather than waiting for token expiry.
-			if errResp := rejectDeletedSchool(r.Context(), schools, device); errResp != nil {
-				if err := render.Render(w, r, errResp); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Extract staff PIN from X-Staff-PIN header
-			staffPIN := r.Header.Get("X-Staff-PIN")
-			if staffPIN == "" {
-				slog.Warn("device authentication failed: missing X-Staff-PIN header")
-				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrMissingPIN)); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Resolve OGS PIN: settings service (per-tenant) → env var fallback
-			var ogsPin string
-			if pinResolver != nil && device.TenantID > 0 {
-				ogsPin = pinResolver(r.Context(), device.TenantID)
-			}
-			if ogsPin == "" {
-				slog.Warn("settings service returned no PIN, falling back to OGS_DEVICE_PIN env var",
-					slog.Int64("tenant_id", device.TenantID),
-				)
-				ogsPin = os.Getenv("OGS_DEVICE_PIN")
-			}
-			if ogsPin == "" {
-				slog.Error("OGS_DEVICE_PIN not configured")
-				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN)); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Validate PIN using constant-time comparison
-			if !SecureCompareStrings(staffPIN, ogsPin) {
-				slog.Warn("device authentication failed: invalid PIN")
-				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN)); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Authentication successful - set device context
-			ctx := context.WithValue(r.Context(), CtxDevice, device)
-			ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
-
-			// Inject tenant context from the authenticated device so
-			// tenant.FromContext(ctx) works in downstream services (e.g., CreateVisit).
-			// Device-auth routes don't use jwt.TenantMiddleware.
-			if device.TenantID > 0 {
-				ctx = tenant.WithTenantID(ctx, device.TenantID)
-			}
-
-			slog.Debug("device authentication successful",
-				slog.String("device_id", device.DeviceID),
-			)
-			updateDeviceLastSeen(r, iotService, device)
-
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+func renderDeviceAuthError(w http.ResponseWriter, r *http.Request, errResp render.Renderer) {
+	if err := render.Render(w, r, errResp); err != nil {
+		slog.Error("failed to render device auth error", slog.String("error", err.Error()))
 	}
 }
 
-// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
+func resolveDevicePIN(ctx context.Context, tenantID int64, pinResolver PINResolver) string {
+	if pinResolver != nil && tenantID > 0 {
+		if pin := pinResolver(ctx, tenantID); pin != "" {
+			return pin
+		}
+	}
+
+	slog.Warn("settings service returned no PIN, falling back to OGS_DEVICE_PIN env var",
+		slog.Int64("tenant_id", tenantID),
+	)
+	return os.Getenv("OGS_DEVICE_PIN")
+}
+
+func validateDevicePIN(r *http.Request, device *iot.Device, pinResolver PINResolver) render.Renderer {
+	staffPIN := r.Header.Get("X-Staff-PIN")
+	if staffPIN == "" {
+		slog.Warn("device authentication failed: missing X-Staff-PIN header")
+		return ErrDeviceUnauthorized(ErrMissingPIN)
+	}
+
+	ogsPIN := resolveDevicePIN(r.Context(), device.TenantID, pinResolver)
+	if ogsPIN == "" {
+		slog.Error("OGS_DEVICE_PIN not configured")
+		return ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	if !SecureCompareStrings(staffPIN, ogsPIN) {
+		slog.Warn("device authentication failed: invalid PIN")
+		return ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	return nil
+}
+
+func authenticateStaffContext(
+	ctx context.Context,
+	authenticator StaffPINAuthenticator,
+	device *iot.Device,
+	staffIDHeader, staffPIN string,
+) (*users.Staff, render.Renderer) {
+	if staffIDHeader == "" && staffPIN == "" {
+		return nil, nil
+	}
+	// Deployed PyrePortal versions send X-Staff-ID without a personal PIN.
+	// Keep those requests working, but do not trust or expose the ID.
+	if staffPIN == "" {
+		return nil, nil
+	}
+	if staffIDHeader == "" || authenticator == nil {
+		slog.Warn("device staff authentication failed: incomplete credentials",
+			slog.String("device_id", device.DeviceID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	staffID, err := strconv.ParseInt(staffIDHeader, 10, 64)
+	if err != nil || staffID <= 0 {
+		slog.Warn("device staff authentication failed: invalid staff ID",
+			slog.String("device_id", device.DeviceID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	staff, err := authenticator.AuthenticateStaffPIN(ctx, device.TenantID, staffID, staffPIN)
+	if err != nil || staff == nil || staff.TenantID != device.TenantID {
+		slog.Warn("device staff authentication failed",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("staff_id", staffID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+	return staff, nil
+}
+
+func authenticatedDeviceContext(r *http.Request, device *iot.Device, staff *users.Staff) context.Context {
+	ctx := context.WithValue(r.Context(), CtxDevice, device)
+	ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
+	if staff != nil {
+		ctx = context.WithValue(ctx, CtxStaff, staff)
+	}
+
+	// Device-auth routes don't use jwt.TenantMiddleware.
+	if device.TenantID > 0 {
+		ctx = tenant.WithTenantID(ctx, device.TenantID)
+	}
+	return ctx
+}
+
+func serveAuthenticatedDeviceRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+	next http.Handler,
+	iotService iotSvc.Service,
+	schools SchoolLookup,
+	staffPINAuthenticator StaffPINAuthenticator,
+	pinResolver PINResolver,
+) {
+	device, errResp := extractAndValidateAPIKey(r, iotService)
+	if errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
+		return
+	}
+
+	// Devices use long-lived API keys, so deleted schools must be blocked
+	// immediately rather than waiting for token expiry.
+	if errResp := rejectDeletedSchool(r.Context(), schools, device); errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
+		return
+	}
+
+	if errResp := validateDevicePIN(r, device, pinResolver); errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
+		return
+	}
+
+	staff, errResp := authenticateStaffContext(
+		r.Context(),
+		staffPINAuthenticator,
+		device,
+		r.Header.Get("X-Staff-ID"),
+		r.Header.Get("X-Staff-Auth-PIN"),
+	)
+	if errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
+		return
+	}
+
+	ctx := authenticatedDeviceContext(r, device, staff)
+	slog.Debug("device authentication successful",
+		slog.String("device_id", device.DeviceID),
+	)
+	updateDeviceLastSeen(r, iotService, device)
+	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// DeviceAuthenticator validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
-// The middleware sets device context for downstream handlers.
+// Optional X-Staff-ID attribution requires a matching X-Staff-Auth-PIN; after
+// verification the middleware sets staff context for downstream handlers.
 // Rejects requests for devices belonging to soft-deleted schools.
 // pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
-	return deviceAuthenticator(iotService, schools, pinResolver)
+func DeviceAuthenticator(
+	iotService iotSvc.Service,
+	schools SchoolLookup,
+	staffPINAuthenticator StaffPINAuthenticator,
+	pinResolver PINResolver,
+) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			serveAuthenticatedDeviceRequest(
+				w,
+				r,
+				next,
+				iotService,
+				schools,
+				staffPINAuthenticator,
+				pinResolver,
+			)
+		})
+	}
 }
 
 // DeviceOnlyAuthenticator is a middleware that validates only device API keys.

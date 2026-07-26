@@ -1,6 +1,7 @@
 package users
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -35,6 +36,8 @@ type StaffOffboardingServiceDependencies struct {
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	InstanceStaffRepo      scheduleModels.InstanceStaffRepository
+	StaffShiftRepo         scheduleModels.StaffShiftRepository
+	StaffShiftSeriesRepo   scheduleModels.StaffShiftSeriesRepository
 	StaffAbsenceRepo       activeModels.StaffAbsenceRepository
 	AccountTenantRepo      authModels.AccountTenantRepository
 	RoleRepo               authModels.RoleRepository
@@ -46,51 +49,20 @@ type StaffOffboardingServiceDependencies struct {
 }
 
 type staffOffboardingService struct {
-	personRepo             userModels.PersonRepository
-	staffRepo              userModels.StaffRepository
-	teacherRepo            userModels.TeacherRepository
-	groupSupervisorRepo    activeModels.GroupSupervisorRepository
-	groupTeacherRepo       educationModels.GroupTeacherRepository
-	groupSubstitutionRepo  educationModels.GroupSubstitutionRepository
-	activitySupervisorRepo activitiesModels.SupervisorPlannedRepository
-	instanceStaffRepo      scheduleModels.InstanceStaffRepository
-	staffAbsenceRepo       activeModels.StaffAbsenceRepository
-	accountTenantRepo      authModels.AccountTenantRepository
-	roleRepo               authModels.RoleRepository
-	accountPermissionRepo  authModels.AccountPermissionRepository
-	dataDeletionRepo       auditModels.DataDeletionRepository
-	authService            authSvc.AuthService
-	txHandler              *modelBase.TxHandler
-	logger                 *slog.Logger
+	StaffOffboardingServiceDependencies
+	txHandler *modelBase.TxHandler
 }
 
 // NewStaffOffboardingService creates a tenant-scoped staff offboarding service.
 func NewStaffOffboardingService(deps StaffOffboardingServiceDependencies) StaffOffboardingService {
 	return &staffOffboardingService{
-		personRepo:             deps.PersonRepo,
-		staffRepo:              deps.StaffRepo,
-		teacherRepo:            deps.TeacherRepo,
-		groupSupervisorRepo:    deps.GroupSupervisorRepo,
-		groupTeacherRepo:       deps.GroupTeacherRepo,
-		groupSubstitutionRepo:  deps.GroupSubstitutionRepo,
-		activitySupervisorRepo: deps.ActivitySupervisorRepo,
-		instanceStaffRepo:      deps.InstanceStaffRepo,
-		staffAbsenceRepo:       deps.StaffAbsenceRepo,
-		accountTenantRepo:      deps.AccountTenantRepo,
-		roleRepo:               deps.RoleRepo,
-		accountPermissionRepo:  deps.AccountPermissionRepo,
-		dataDeletionRepo:       deps.DataDeletionRepo,
-		authService:            deps.AuthService,
-		txHandler:              modelBase.NewTxHandler(deps.DB),
-		logger:                 deps.Logger,
+		StaffOffboardingServiceDependencies: deps,
+		txHandler:                           modelBase.NewTxHandler(deps.DB),
 	}
 }
 
 func (s *staffOffboardingService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // OffboardStaff removes a staff member from daily operations and revokes their
@@ -117,7 +89,7 @@ func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID int
 }
 
 func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID int64, deletedBy string) error {
-	staff, err := s.staffRepo.FindByID(ctx, staffID)
+	staff, err := s.StaffRepo.FindByID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil // idempotent: already gone (or soft-deleted)
@@ -127,7 +99,7 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 
 	// Active supervisions block offboarding. With soft delete there is no FK
 	// safety net anymore, so a failing pre-check is a hard error.
-	supervisors, err := s.groupSupervisorRepo.FindActiveByStaffID(ctx, staffID)
+	supervisors, err := s.GroupSupervisorRepo.FindActiveByStaffID(ctx, staffID)
 	if err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("active supervision check: %w", err)}
 	}
@@ -144,12 +116,12 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 	// reference otherwise and blocks work-time-model deletion via the RESTRICT
 	// FK while the live-staff pre-check reports zero assignments.
 	if staff.WorkTimeModelID != nil {
-		if err := s.staffRepo.ClearWorkTimeModel(ctx, staffID); err != nil {
+		if err := s.StaffRepo.ClearWorkTimeModel(ctx, staffID); err != nil {
 			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("clear work time model: %w", err)}
 		}
 	}
 
-	if err := s.staffRepo.Delete(ctx, staffID); err != nil {
+	if err := s.StaffRepo.Delete(ctx, staffID); err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: err}
 	}
 
@@ -166,42 +138,61 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffID int64) (map[string]any, error) {
 	counts := map[string]any{}
 
-	teacher, err := s.teacherRepo.FindByStaffID(ctx, staffID)
+	teacher, err := s.TeacherRepo.FindByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("load teacher record: %w", err)}
 	}
 	if teacher != nil {
-		groupAssignments, err := s.groupTeacherRepo.DeleteByTeacherID(ctx, teacher.ID)
+		groupAssignments, err := s.GroupTeacherRepo.DeleteByTeacherID(ctx, teacher.ID)
 		if err != nil {
 			return nil, &UsersError{Op: opOffboardStaff, Err: err}
 		}
 		counts["group_teacher"] = groupAssignments
 
-		if err := s.teacherRepo.Delete(ctx, teacher.ID); err != nil {
+		if err := s.TeacherRepo.Delete(ctx, teacher.ID); err != nil {
 			return nil, &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("failed to delete teacher record: %w", err)}
 		}
 	}
 
-	supervisions, err := s.activitySupervisorRepo.DeleteByStaffID(ctx, staffID)
+	supervisions, err := s.ActivitySupervisorRepo.DeleteByStaffID(ctx, staffID)
 	if err != nil {
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}
 	}
 	counts["activity_supervisors"] = supervisions
 
 	today := timezone.TodayDate()
-	substitutions, err := s.groupSubstitutionRepo.DeleteActiveOrFutureByStaffID(ctx, staffID, today)
+	substitutions, err := s.GroupSubstitutionRepo.DeleteActiveOrFutureByStaffID(ctx, staffID, today)
 	if err != nil {
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}
 	}
 	counts["group_substitutions"] = substitutions
 
-	instanceAssignments, err := s.instanceStaffRepo.DeleteUpcomingByStaffID(ctx, staffID, today)
+	instanceAssignments, err := s.InstanceStaffRepo.DeleteUpcomingByStaffID(ctx, staffID, today)
 	if err != nil {
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}
 	}
 	counts["timetable_instance_staff"] = instanceAssignments
 
-	absences, err := s.staffAbsenceRepo.DeleteNonHistoricalByStaffID(ctx, staffID, today)
+	if s.StaffShiftRepo != nil {
+		staffShifts, err := s.StaffShiftRepo.DeleteUpcomingByStaffID(ctx, staffID, today)
+		if err != nil {
+			return nil, &UsersError{Op: opOffboardStaff, Err: err}
+		}
+		counts["staff_shifts"] = staffShifts
+	}
+
+	// Cap shift series (#1889) so a later admin split cannot materialize new
+	// rows for the offboarded staff member; staff rows are soft-deleted, so
+	// the FK cascade never fires.
+	if s.StaffShiftSeriesRepo != nil {
+		cappedSeries, err := s.StaffShiftSeriesRepo.CapAllByStaffID(ctx, staffID, today)
+		if err != nil {
+			return nil, &UsersError{Op: opOffboardStaff, Err: err}
+		}
+		counts["staff_shift_series"] = cappedSeries
+	}
+
+	absences, err := s.StaffAbsenceRepo.DeleteNonHistoricalByStaffID(ctx, staffID, today)
 	if err != nil {
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}
 	}
@@ -215,7 +206,7 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 // is kept so historical records keep resolving the staff member's name.
 // Deletion counts for the audit record are added to counts.
 func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, personID int64, counts map[string]any) error {
-	person, err := s.personRepo.FindByID(ctx, personID)
+	person, err := s.PersonRepo.FindByID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
@@ -227,7 +218,7 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 	}
 
 	if person.TagID != nil {
-		if err := s.personRepo.UnlinkFromRFIDCard(ctx, person.ID); err != nil {
+		if err := s.PersonRepo.UnlinkFromRFIDCard(ctx, person.ID); err != nil {
 			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("unlink rfid card: %w", err)}
 		}
 	}
@@ -243,7 +234,7 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 	// by name mirrors the parent login gate (auth_login_parent.go); custom
 	// roles that merely map to the guardian base role are removed because they
 	// grant no parent access yet would keep the staff portal open.
-	roles, err := s.roleRepo.FindByAccountID(ctx, accountID)
+	roles, err := s.RoleRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("load account roles: %w", err)}
 	}
@@ -253,7 +244,7 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 			hasGuardian = true
 			continue
 		}
-		if err := s.authService.RemoveRoleFromAccount(ctx, int(accountID), int(role.ID)); err != nil {
+		if err := s.AuthService.RemoveRoleFromAccount(ctx, int(accountID), int(role.ID)); err != nil {
 			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("remove role %q: %w", role.Name, err)}
 		}
 	}
@@ -261,7 +252,7 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 	// Clear direct tenant-scoped permission grants. Re-invitation reactivates
 	// the same account ID, so leftover grants would silently restore old
 	// elevated permissions on a lower-privilege re-invite.
-	permissionsDeleted, err := s.accountPermissionRepo.DeleteByAccountID(ctx, accountID)
+	permissionsDeleted, err := s.AccountPermissionRepo.DeleteByAccountID(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("delete direct account permissions: %w", err)}
 	}
@@ -270,7 +261,7 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 	// Free the partial unique index on persons.account_id so a re-invitation
 	// can link a fresh person to the same account. Guardian portal access does
 	// not depend on this link (guardians link via guardian_profiles.account_id).
-	if err := s.personRepo.UnlinkFromAccount(ctx, person.ID); err != nil {
+	if err := s.PersonRepo.UnlinkFromAccount(ctx, person.ID); err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("unlink account: %w", err)}
 	}
 
@@ -291,18 +282,18 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 		return nil
 	}
 
-	if err := s.accountTenantRepo.Deactivate(ctx, accountID, tenantID); err != nil {
+	if err := s.AccountTenantRepo.Deactivate(ctx, accountID, tenantID); err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("deactivate tenant mapping: %w", err)}
 	}
 
 	// Deactivate the account entirely (and revoke all tokens) only when it has
 	// no active mapping to any other school.
-	remaining, err := s.accountTenantRepo.FindActiveByAccountID(ctx, accountID)
+	remaining, err := s.AccountTenantRepo.FindActiveByAccountID(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("check remaining tenant mappings: %w", err)}
 	}
 	if len(remaining) == 0 {
-		if err := s.authService.DeactivateAccount(ctx, int(accountID)); err != nil {
+		if err := s.AuthService.DeactivateAccount(ctx, int(accountID)); err != nil {
 			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("deactivate account: %w", err)}
 		}
 	}
@@ -336,7 +327,7 @@ func (s *staffOffboardingService) recordAudit(ctx context.Context, staffID int64
 		deletion.Metadata[k] = v
 	}
 
-	if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {
+	if err := s.DataDeletionRepo.Create(ctx, deletion); err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("record data deletion: %w", err)}
 	}
 	return nil

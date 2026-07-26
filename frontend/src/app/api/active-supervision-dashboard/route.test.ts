@@ -368,6 +368,28 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(response.status).toBe(500);
   });
 
+  it("keeps normal supervision available while disabling a failed Schulhof status", async () => {
+    mockApiGet
+      .mockResolvedValueOnce({ data: [] }) // supervised
+      .mockResolvedValueOnce({ data: [] }) // unclaimed
+      .mockResolvedValueOnce({ data: { id: 5, person_id: 50 } }) // staff
+      .mockResolvedValueOnce({ data: [] }) // educational groups
+      .mockRejectedValueOnce(
+        new Error("API error (500): Schulhof status unavailable"),
+      )
+      .mockResolvedValueOnce(emptyPlannedNowResponse);
+
+    const request = createMockRequest("/api/active-supervision-dashboard");
+    const response = await GET(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    const json =
+      await parseJsonResponse<ApiResponse<{ schulhofStatus: unknown }>>(
+        response,
+      );
+    expect(json.data.schulhofStatus).toBeNull();
+  });
+
   it("falls back to own supervisions when admin endpoint returns 403", async () => {
     // Dual-role / setting-disabled admin: /supervisors/all returns 403 and
     // the BFF should silently use the caregiver endpoint. Tested with an

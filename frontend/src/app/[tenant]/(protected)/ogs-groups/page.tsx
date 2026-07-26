@@ -12,10 +12,14 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
+import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type {
+  FilterConfig,
+  ActiveFilter,
+} from "~/components/ui/page-header/types";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import {
@@ -43,7 +47,6 @@ import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
-import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
@@ -51,7 +54,9 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
+  StudentPendingExcusedRow,
 } from "~/components/students/student-card";
+import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -59,7 +64,7 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { usePresenceMode } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
@@ -78,6 +83,7 @@ import {
 } from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
+import { OgsGroupsPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 
@@ -117,6 +123,9 @@ interface BackendStudentFromBFF {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
+  // Parent's note for a still-pending "entschuldigt" request covering today.
+  // Informational only — the child stays "expected".
+  pending_excused_note?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
   // Authenticated photo URL (already rewritten by the backend response
@@ -190,6 +199,7 @@ function mapStudentForOgsPage(
       day_planning_status: student.day_planning_status,
       day_planning_reason: student.day_planning_reason,
       day_planning_label: student.day_planning_label,
+      pending_excused_note: student.pending_excused_note,
       actual_arrival_time: student.actual_arrival_time,
       actual_pickup_time: student.actual_pickup_time,
       // Photo URL is forwarded as-is. Backend has already rewritten it
@@ -228,7 +238,7 @@ function GroupAbsenceOverview({
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession({
+  const { data: session } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
@@ -1164,8 +1174,8 @@ function OGSGroupPageContent() {
     return filters;
   }, [sortMode, searchTerm, attendanceFilter]);
 
-  if (status === "loading" || isLoading || hasAccess === null) {
-    return <Loading fullPage={false} />;
+  if (isLoading || hasAccess === null) {
+    return <OgsGroupsPageSkeleton />;
   }
 
   // If user doesn't have access, show empty state
@@ -1269,7 +1279,7 @@ function OGSGroupPageContent() {
   // Render helper for student grid content
   const renderStudentContent = () => {
     if (isLoading) {
-      return <Loading fullPage={false} />;
+      return <StudentCardGridSkeleton />;
     }
     if (students.length === 0) {
       return (
@@ -1359,6 +1369,11 @@ function OGSGroupPageContent() {
                   }
                   extraContent={
                     <>
+                      {student.pending_excused_note !== undefined && (
+                        <StudentPendingExcusedRow
+                          note={student.pending_excused_note}
+                        />
+                      )}
                       {studentAbsence && !student.actual_pickup_time ? (
                         <StudentAbsenceRow label={studentAbsence.label} />
                       ) : (
@@ -1610,8 +1625,16 @@ function OGSGroupPageContent() {
 // Main component with Suspense wrapper
 export default function OGSGroupPage() {
   return (
-    <RoleGuard variant="staffOnly">
-      <Suspense fallback={<Loading fullPage={false} />}>
+    <OpenCareModeGuard>
+      <OGSGroupPageGuarded />
+    </OpenCareModeGuard>
+  );
+}
+
+function OGSGroupPageGuarded() {
+  return (
+    <RoleGuard variant="staffOnly" fallback={<OgsGroupsPageSkeleton />}>
+      <Suspense fallback={<OgsGroupsPageSkeleton />}>
         <SSEErrorBoundary>
           <OGSGroupPageContent />
         </SSEErrorBoundary>

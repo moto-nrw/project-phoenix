@@ -55,6 +55,24 @@ func TestClaimsFromCtx_WrongType(t *testing.T) {
 	assert.Equal(t, AppClaims{}, result)
 }
 
+func TestActorAccountIDFromCtx(t *testing.T) {
+	t.Run("missing claims", func(t *testing.T) {
+		assert.Nil(t, ActorAccountIDFromCtx(context.Background()))
+	})
+
+	t.Run("zero account id", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), CtxClaims, AppClaims{})
+		assert.Nil(t, ActorAccountIDFromCtx(ctx))
+	})
+
+	t.Run("valid account id", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), CtxClaims, AppClaims{ID: 42})
+		accountID := ActorAccountIDFromCtx(ctx)
+		require.NotNil(t, accountID)
+		assert.Equal(t, int64(42), *accountID)
+	})
+}
+
 func TestPermissionsFromCtx_ValidPermissions(t *testing.T) {
 	permissions := []string{"read", "write", "delete"}
 	ctx := context.WithValue(context.Background(), CtxPermissions, permissions)
@@ -548,7 +566,6 @@ func TestErrorTypes(t *testing.T) {
 	assert.Equal(t, "token unauthorized", ErrTokenUnauthorized.Error())
 	assert.Equal(t, "token expired", ErrTokenExpired.Error())
 	assert.Equal(t, "invalid access token", ErrInvalidAccessToken.Error())
-	assert.Equal(t, "invalid refresh token", ErrInvalidRefreshToken.Error())
 }
 
 // =============================================================================

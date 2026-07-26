@@ -7,18 +7,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/collation"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
 const presenceModeBinary = "binary"
-
-type Service interface {
-	RenderSnapshot(ctx context.Context) (listexport.File, error)
-	BuildSnapshotDocument(ctx context.Context, generatedAt time.Time) (listexport.Document, error)
-}
 
 type attendanceReader interface {
 	ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error)
@@ -52,17 +50,13 @@ type Dependencies struct {
 	VisitRepo           visitLocationReader
 	StudentGuardianRepo guardianContactReader
 	ActiveService       activePresenceReader
-	ListExport          listexport.Service
+	ListExport          *listexport.RendererService
 }
 
-type service struct {
-	attendanceRepo      attendanceReader
-	studentRepo         studentReader
-	personRepo          personReader
-	visitRepo           visitLocationReader
-	studentGuardianRepo guardianContactReader
-	activeService       activePresenceReader
-	listExport          listexport.Service
+// Service renders the emergency list ("Notfallliste") snapshot: every
+// currently checked-in student with location and emergency contacts.
+type Service struct {
+	Dependencies
 }
 
 type snapshotRow struct {
@@ -77,32 +71,24 @@ type snapshotRow struct {
 	GuardianPhone   string
 }
 
-func NewService(deps Dependencies) Service {
-	return &service{
-		attendanceRepo:      deps.AttendanceRepo,
-		studentRepo:         deps.StudentRepo,
-		personRepo:          deps.PersonRepo,
-		visitRepo:           deps.VisitRepo,
-		studentGuardianRepo: deps.StudentGuardianRepo,
-		activeService:       deps.ActiveService,
-		listExport:          deps.ListExport,
-	}
+func NewService(deps Dependencies) *Service {
+	return &Service{Dependencies: deps}
 }
 
-func (s *service) RenderSnapshot(ctx context.Context) (listexport.File, error) {
+func (s *Service) RenderSnapshot(ctx context.Context) (listexport.File, error) {
 	doc, err := s.BuildSnapshotDocument(ctx, time.Now())
 	if err != nil {
 		return listexport.File{}, err
 	}
-	return s.listExport.Render(doc, listexport.FormatPDF, "notfallliste")
+	return s.ListExport.Render(doc, listexport.FormatPDF, "notfallliste")
 }
 
-func (s *service) BuildSnapshotDocument(ctx context.Context, generatedAt time.Time) (listexport.Document, error) {
-	if s.attendanceRepo == nil || s.studentRepo == nil || s.personRepo == nil || s.listExport == nil || s.visitRepo == nil || s.studentGuardianRepo == nil {
+func (s *Service) BuildSnapshotDocument(ctx context.Context, generatedAt time.Time) (listexport.Document, error) {
+	if s.AttendanceRepo == nil || s.StudentRepo == nil || s.PersonRepo == nil || s.ListExport == nil || s.VisitRepo == nil || s.StudentGuardianRepo == nil {
 		return listexport.Document{}, fmt.Errorf("emergency snapshot service is not configured")
 	}
 
-	studentIDs, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
+	studentIDs, err := s.AttendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 	if err != nil {
 		return listexport.Document{}, err
 	}
@@ -127,12 +113,12 @@ func (s *service) BuildSnapshotDocument(ctx context.Context, generatedAt time.Ti
 	}, nil
 }
 
-func (s *service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]snapshotRow, error) {
+func (s *Service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]snapshotRow, error) {
 	if len(studentIDs) == 0 {
 		return []snapshotRow{}, nil
 	}
 
-	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +128,7 @@ func (s *service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]s
 		personIDs = append(personIDs, student.PersonID)
 	}
 
-	persons, err := s.personRepo.FindByIDs(ctx, personIDs)
+	persons, err := s.PersonRepo.FindByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -158,12 +144,7 @@ func (s *service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]s
 	}
 
 	rows := buildSnapshotRows(studentIDs, students, persons, locations, contacts)
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].Location != rows[j].Location {
-			return rows[i].Location < rows[j].Location
-		}
-		return rows[i].Name < rows[j].Name
-	})
+	sortSnapshotRows(rows)
 	return rows, nil
 }
 
@@ -189,9 +170,9 @@ func buildSnapshotRows(
 			Name:            person.GetFullName(),
 			SchoolClass:     student.SchoolClass,
 			Location:        locations[id],
-			GuardianName:    ptrString(student.GuardianName),
-			GuardianContact: ptrString(student.GuardianContact),
-			GuardianPhone:   ptrString(student.GuardianPhone),
+			GuardianName:    base.Deref(student.GuardianName),
+			GuardianContact: base.Deref(student.GuardianContact),
+			GuardianPhone:   base.Deref(student.GuardianPhone),
 		}
 		if row.Location == "" {
 			row.Location = "Unterwegs"
@@ -200,23 +181,32 @@ func buildSnapshotRows(
 			row.ContactName = contact.Name
 			row.ContactPhone = contact.Phone
 		}
-		row.ContactName = joinUnique(row.ContactName, row.GuardianName)
-		row.ContactPhone = joinUnique(row.ContactPhone, row.GuardianPhone, row.GuardianContact)
+		row.ContactName = strutil.JoinUnique(row.ContactName, row.GuardianName)
+		row.ContactPhone = strutil.JoinUnique(row.ContactPhone, row.GuardianPhone, row.GuardianContact)
 		rows = append(rows, row)
 	}
 	return rows
 }
 
-func (s *service) loadCurrentLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
-	if s.activeService != nil && s.activeService.GetPresenceMode(ctx) == presenceModeBinary {
+func sortSnapshotRows(rows []snapshotRow) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Location != rows[j].Location {
+			return rows[i].Location < rows[j].Location
+		}
+		return collation.CompareGerman(rows[i].Name, rows[j].Name) < 0
+	})
+}
+
+func (s *Service) loadCurrentLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+	if s.ActiveService != nil && s.ActiveService.GetPresenceMode(ctx) == presenceModeBinary {
 		return s.loadBinaryLocations(ctx, studentIDs)
 	}
 
-	return s.visitRepo.GetCurrentRoomNamesForStudents(ctx, studentIDs)
+	return s.VisitRepo.GetCurrentRoomNamesForStudents(ctx, studentIDs)
 }
 
-func (s *service) loadBinaryLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
-	statuses, err := s.activeService.GetStudentsAttendanceStatuses(ctx, studentIDs)
+func (s *Service) loadBinaryLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+	statuses, err := s.ActiveService.GetStudentsAttendanceStatuses(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -247,8 +237,8 @@ type guardianContact struct {
 	Phone string
 }
 
-func (s *service) loadGuardianContacts(ctx context.Context, studentIDs []int64) (map[int64]guardianContact, error) {
-	rows, err := s.studentGuardianRepo.ListEmergencyContactRows(ctx, studentIDs)
+func (s *Service) loadGuardianContacts(ctx context.Context, studentIDs []int64) (map[int64]guardianContact, error) {
+	rows, err := s.StudentGuardianRepo.ListEmergencyContactRows(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -256,8 +246,8 @@ func (s *service) loadGuardianContacts(ctx context.Context, studentIDs []int64) 
 	contacts := make(map[int64]guardianContact, len(rows))
 	for _, row := range rows {
 		current := contacts[row.StudentID]
-		current.Name = joinUnique(current.Name, strings.TrimSpace(row.FirstName.String+" "+row.LastName.String))
-		current.Phone = joinUnique(current.Phone, row.PhoneNumber.String)
+		current.Name = strutil.JoinUnique(current.Name, strings.TrimSpace(row.FirstName.String+" "+row.LastName.String))
+		current.Phone = strutil.JoinUnique(current.Phone, row.PhoneNumber.String)
 		contacts[row.StudentID] = current
 	}
 	return contacts, nil
@@ -275,31 +265,4 @@ func buildDocumentRows(rows []snapshotRow) []listexport.Row {
 		}})
 	}
 	return result
-}
-
-func joinUnique(values ...string) string {
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		for _, part := range strings.Split(value, ";") {
-			trimmed := strings.TrimSpace(part)
-			if trimmed == "" {
-				continue
-			}
-			key := strings.ToLower(trimmed)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			result = append(result, trimmed)
-		}
-	}
-	return strings.Join(result, "; ")
-}
-
-func ptrString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }

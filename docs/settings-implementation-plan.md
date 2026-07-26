@@ -284,3 +284,34 @@ Parked from the RFC for later, if ever needed:
 | **1. Backend** | Registry, table, resolver, 3 endpoints, register 11 settings, compat wrapper | — |
 | **2. Scheduler** | Make scheduler tenant-aware, replace `os.Getenv()` calls with resolver | — |
 | **3. Frontend** | Settings page with schema-driven rendering, 4 field components | — |
+
+---
+
+## Issue 1856 activation rollout
+
+Ten previously registered settings now have runtime consumers. Before deploying this activation, inventory existing overrides without modifying them:
+
+```bash
+docker compose run --rm server go run . settings overrides
+docker compose run --rm server go run . settings overrides --json
+```
+
+Review non-default values with the responsible operator or school. Preserve `config.setting_values` and `config.setting_audit`; no cleanup migration removes either. The activated keys are `attendance.web_enabled`, `operations.group_mode`, `timetable.show_expected_children_count`, `enrollment.collect_grade_level`, `enrollment.care_offerings_enabled`, `enrollment.notify_per_decision`, `enrollment.duplicate_handling`, `enrollment.rejected_retention_days`, `enrollment.waitlist_enabled`, and `enrollment.auto_invite_guardian_on_approval`.
+
+Resolution failures on permission, mutation, and deletion paths fail the request or retain restrictive behavior. Disabling care offerings preserves the catalog and stored selections. Disabling waitlists makes a phase overflow mode of `waitlist` effectively `allow`, so no forbidden waitlist status is created. Rejected enrollment cleanup runs under the existing nightly GDPR schedule and deletes only requests whose children are all rejected and older than the configured retention period. Decision emails use tenant-scoped outbox idempotency keys.
+
+### `operations.group_mode` access inventory
+
+`open_care` broadens group scope only after the route permission check succeeds. It does not change student-data access, photo access, planned or actual pickup-time access, or any other GDPR setting.
+
+| Path | Fixed groups | Open care |
+|---|---|---|
+| Active-room dashboard read and filter | Staff member's supervised rooms | All active rooms |
+| Active-room roster read | Requires supervision of the active room | Any staff member with `groups:read`; student fields keep their normal GDPR filter |
+| Web check-in | Requires the configured group or supervision match | Any staff member with the route's check-in permission |
+| Transit assignment and room moves | Source and target must fall within supervised groups | Any staff member with `visits:update` may use any active source and target |
+| Timetable `planned-now`, roster, start, complete, and attendance writes | Requires instance assignment or admin overview | Any staff member with `schedules:read` may operate the instance |
+
+### Rejected-enrollment cascade policy
+
+The cleanup selects a request only when it has children, every child is rejected, and every rejection date is older than the tenant's retention cutoff. A request with any approved, waitlisted, withdrawn, submitted, or under-review child stays intact. The cleanup first deletes email-outbox rows linked to the request, then deletes the request. Database cascades remove request children, child offerings, extra guardians, change requests and messages, and offering-adjustment audit rows. It does not delete students, guardian profiles, accounts, phases, form schemas, or care-offering catalogs. A savepoint rolls back the whole request cleanup if any dependent delete fails.

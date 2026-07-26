@@ -6,20 +6,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 )
-
-type stubTenantBroadcaster struct {
-	realtime.Broadcaster
-	calls int
-	err   error
-}
-
-func (s *stubTenantBroadcaster) BroadcastToTenant(_ int64, _ realtime.Event) error {
-	s.calls++
-	return s.err
-}
 
 func TestResourceBroadcastStudentUpdated(t *testing.T) {
 	// nil broadcaster: no-op.
@@ -28,16 +17,18 @@ func TestResourceBroadcastStudentUpdated(t *testing.T) {
 	// zero tenantID logs and skips.
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
-	(&Resource{Broadcaster: &stubTenantBroadcaster{}, Logger: logger}).broadcastStudentUpdated(0, 100)
+	(&Resource{ResourceConfig: ResourceConfig{Broadcaster: testpkg.NewRecordingBroadcaster(), Logger: logger}}).broadcastStudentUpdated(0, 100)
 	assert.Contains(t, buf.String(), "no tenant context")
 
 	// happy path increments the stub.
-	b := &stubTenantBroadcaster{}
-	(&Resource{Broadcaster: b, Logger: slog.Default()}).broadcastStudentUpdated(42, 100)
-	assert.Equal(t, 1, b.calls)
+	b := testpkg.NewRecordingBroadcaster()
+	(&Resource{ResourceConfig: ResourceConfig{Broadcaster: b, Logger: slog.Default()}}).broadcastStudentUpdated(42, 100)
+	assert.Equal(t, 1, len(b.CallsByMethod("tenant")))
 
 	// broadcaster error is logged, never propagated.
 	buf.Reset()
-	(&Resource{Broadcaster: &stubTenantBroadcaster{err: errors.New("hub down")}, Logger: logger}).broadcastStudentUpdated(42, 100)
+	errBroadcaster := testpkg.NewRecordingBroadcaster()
+	errBroadcaster.Err = errors.New("hub down")
+	(&Resource{ResourceConfig: ResourceConfig{Broadcaster: errBroadcaster, Logger: logger}}).broadcastStudentUpdated(42, 100)
 	assert.Contains(t, buf.String(), "failed to broadcast student update")
 }

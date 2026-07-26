@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Common validation error messages for arrival schedule models.
@@ -34,21 +33,6 @@ type StudentArrivalSchedule struct {
 	ExpectedArrival time.Time `bun:"expected_arrival,notnull" json:"expected_arrival"`
 	Notes           *string   `bun:"notes" json:"notes,omitempty"`
 	CreatedBy       int64     `bun:"created_by,notnull" json:"created_by"`
-}
-
-func (s *StudentArrivalSchedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_schedules AS "schedule"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_schedules AS "schedule"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (s *StudentArrivalSchedule) TableName() string {
-	return "schedule.student_arrival_schedules"
 }
 
 // Validate ensures arrival schedule data is valid
@@ -79,46 +63,18 @@ func (s *StudentArrivalSchedule) GetWeekdayName() string {
 	return ""
 }
 
-// GetID implements the Entity interface
-func (s *StudentArrivalSchedule) GetID() any {
-	return s.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (s *StudentArrivalSchedule) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (s *StudentArrivalSchedule) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
-}
-
 // StudentArrivalException represents a date-specific arrival exception
 type StudentArrivalException struct {
 	base.Model `bun:"schema:schedule,table:student_arrival_exceptions"`
 	base.TenantModel
 
-	StudentID       int64         `bun:"student_id,notnull" json:"student_id"`
-	ExceptionDate   timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
-	ExpectedArrival *time.Time    `bun:"expected_arrival" json:"expected_arrival,omitempty"`
-	Reason          *string       `bun:"reason" json:"reason,omitempty"`
-	CreatedBy       int64         `bun:"created_by,notnull" json:"created_by"`
-}
-
-func (e *StudentArrivalException) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_exceptions AS "exception"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_exceptions AS "exception"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (e *StudentArrivalException) TableName() string {
-	return "schedule.student_arrival_exceptions"
+	StudentID         int64         `bun:"student_id,notnull" json:"student_id"`
+	ExceptionDate     timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
+	ExpectedArrival   *time.Time    `bun:"expected_arrival" json:"expected_arrival,omitempty"`
+	Reason            *string       `bun:"reason" json:"reason,omitempty"`
+	Source            string        `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
+	CreatedBy         int64         `bun:"created_by,nullzero" json:"created_by,omitempty"`
+	CreatedByGuardian *int64        `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
 }
 
 // Validate ensures arrival exception data is valid
@@ -132,8 +88,8 @@ func (e *StudentArrivalException) Validate() error {
 	if e.Reason != nil && len(*e.Reason) > scheduleReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
 	}
-	if e.CreatedBy <= 0 {
-		return errors.New(errMsgArrivalCreatedByRequired)
+	if err := validateExceptionAuthor(e.Source, e.CreatedBy, e.CreatedByGuardian); err != nil {
+		return err
 	}
 	return nil
 }
@@ -141,21 +97,6 @@ func (e *StudentArrivalException) Validate() error {
 // IsAbsent returns true if this exception indicates the student will not arrive (no arrival)
 func (e *StudentArrivalException) IsAbsent() bool {
 	return e.ExpectedArrival == nil
-}
-
-// GetID implements the Entity interface
-func (e *StudentArrivalException) GetID() any {
-	return e.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (e *StudentArrivalException) GetCreatedAt() time.Time {
-	return e.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (e *StudentArrivalException) GetUpdatedAt() time.Time {
-	return e.UpdatedAt
 }
 
 // StudentArrivalNote represents a date-specific note for a student's arrival
@@ -167,21 +108,6 @@ type StudentArrivalNote struct {
 	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`
 	Content   string        `bun:"content,notnull" json:"content"`
 	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
-}
-
-func (n *StudentArrivalNote) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (n *StudentArrivalNote) TableName() string {
-	return "schedule.student_arrival_notes"
 }
 
 // Validate ensures arrival note data is valid
@@ -204,21 +130,6 @@ func (n *StudentArrivalNote) Validate() error {
 	return nil
 }
 
-// GetID implements the Entity interface
-func (n *StudentArrivalNote) GetID() any {
-	return n.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (n *StudentArrivalNote) GetCreatedAt() time.Time {
-	return n.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (n *StudentArrivalNote) GetUpdatedAt() time.Time {
-	return n.UpdatedAt
-}
-
 // StudentArrivalScheduleRepository defines operations for managing student arrival schedules
 type StudentArrivalScheduleRepository interface {
 	base.Repository[*StudentArrivalSchedule]
@@ -231,6 +142,12 @@ type StudentArrivalScheduleRepository interface {
 
 	// FindByStudentIDsAndWeekday finds arrival schedules for multiple students and a specific weekday (bulk query)
 	FindByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*StudentArrivalSchedule, error)
+
+	// FindByStudentIDs returns every weekday row for the given students in a
+	// single query. The care-day derivation needs the whole week per child:
+	// "no row for today" only means "not in care today" if the child has rows
+	// for other weekdays — a child with no plan at all must stay visible.
+	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*StudentArrivalSchedule, error)
 
 	// UpsertSchedule creates or updates an arrival schedule for a student and weekday
 	UpsertSchedule(ctx context.Context, schedule *StudentArrivalSchedule) error
@@ -260,6 +177,11 @@ type StudentArrivalExceptionRepository interface {
 	// date. Used by the timetable per-student week endpoint to pre-load all
 	// exceptions in a single query.
 	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*StudentArrivalException, error)
+
+	// FindByStudentIDsAndDateRange is the bulk form of the above: every
+	// exception for the given students within the inclusive range, so a
+	// planner window resolves in one query instead of one per day.
+	FindByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]*StudentArrivalException, error)
 
 	// DeleteByStudentID deletes all arrival exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error

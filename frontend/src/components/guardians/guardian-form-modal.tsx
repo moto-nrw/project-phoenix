@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Plus, Star, Trash2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import type {
   GuardianFormData,
   GuardianWithRelationship,
+  GuardianRole,
   PhoneType,
 } from "@/lib/guardian-helpers";
 import {
@@ -14,8 +16,11 @@ import {
   LANGUAGE_PREFERENCES,
 } from "@/lib/guardian-helpers";
 import {
+  GuardianRoleSelect,
   RelationshipTypeSelect,
   RelationshipPermissionsFields,
+  defaultGuardianRoleForRelationshipType,
+  guardianRoleOperationalDefaults,
 } from "~/components/guardians/guardian-relationship-fields";
 import { createLogger } from "~/lib/logger";
 
@@ -23,6 +28,7 @@ const logger = createLogger({ component: "GuardianForm" });
 
 export interface RelationshipFormData {
   readonly relationshipType: string;
+  readonly guardianRole: GuardianRole;
   readonly isPrimary: boolean;
   readonly isEmergencyContact: boolean;
   readonly canPickup: boolean;
@@ -49,6 +55,7 @@ export interface GuardianEntry {
   email: string;
   phoneNumbers: PhoneEntry[];
   relationshipType: string;
+  guardianRole: GuardianRole;
   isEmergencyContact: boolean;
   // Relationship flags (preserved in edit mode)
   isPrimary: boolean;
@@ -84,9 +91,10 @@ export function createEmptyEntry(): GuardianEntry {
     email: "",
     phoneNumbers: [createEmptyPhone(true)], // Start with one primary phone
     relationshipType: "parent",
+    guardianRole: "legal_guardian",
     isEmergencyContact: false,
     isPrimary: false,
-    canPickup: true,
+    canPickup: false,
     emergencyPriority: 1,
     addressStreet: "",
     addressCity: "",
@@ -178,6 +186,7 @@ export function toEntry(data: GuardianWithRelationship): GuardianEntry {
     email: data.email ?? "",
     phoneNumbers,
     relationshipType: data.relationshipType ?? "parent",
+    guardianRole: data.guardianRole ?? "custom",
     isEmergencyContact: data.isEmergencyContact ?? false,
     // Preserve relationship flags for edit mode
     isPrimary: data.isPrimary ?? false,
@@ -266,6 +275,28 @@ export default function GuardianFormModal({
     setEntries((prev) =>
       prev.map((entry) =>
         entry.id === id ? { ...entry, [field]: value } : entry,
+      ),
+    );
+  };
+
+  const updateGuardianRole = (id: string, role: GuardianRole) => {
+    const defaults = guardianRoleOperationalDefaults(role);
+    setEntries((prev) =>
+      prev.map((entry) =>
+        entry.id === id ? { ...entry, ...defaults, guardianRole: role } : entry,
+      ),
+    );
+  };
+
+  const updateRelationshipType = (id: string, relationshipType: string) => {
+    const guardianRole =
+      defaultGuardianRoleForRelationshipType(relationshipType);
+    const defaults = guardianRoleOperationalDefaults(guardianRole);
+    setEntries((prev) =>
+      prev.map((entry) =>
+        entry.id === id
+          ? { ...entry, ...defaults, relationshipType, guardianRole }
+          : entry,
       ),
     );
   };
@@ -439,6 +470,7 @@ export default function GuardianFormModal({
       },
       relationshipData: {
         relationshipType: entry.relationshipType,
+        guardianRole: entry.guardianRole,
         isPrimary: entry.isPrimary,
         isEmergencyContact: entry.isEmergencyContact,
         canPickup: entry.canPickup,
@@ -604,9 +636,13 @@ export default function GuardianFormModal({
                 <RelationshipTypeSelect
                   id={`guardian-relationship-type-${entry.id}`}
                   value={entry.relationshipType}
-                  onChange={(value) =>
-                    updateEntry(entry.id, "relationshipType", value)
-                  }
+                  onChange={(value) => updateRelationshipType(entry.id, value)}
+                  disabled={isLoading}
+                />
+                <GuardianRoleSelect
+                  id={`guardian-role-${entry.id}`}
+                  value={entry.guardianRole}
+                  onChange={(value) => updateGuardianRole(entry.id, value)}
                   disabled={isLoading}
                 />
               </div>
@@ -666,29 +702,26 @@ export default function GuardianFormModal({
                   >
                     {/* Phone Type Select */}
                     <div className="w-full sm:w-32">
-                      <select
+                      <CustomSelect
                         id={`phone-type-${entry.id}-${phone.id}`}
                         value={phone.phoneType}
-                        onChange={(e) =>
+                        options={(
+                          Object.keys(PHONE_TYPE_LABELS) as PhoneType[]
+                        ).map((type) => ({
+                          value: type,
+                          label: PHONE_TYPE_LABELS[type],
+                        }))}
+                        onChange={(next) =>
                           updatePhone(
                             entry.id,
                             phone.id,
                             "phoneType",
-                            e.target.value as PhoneType,
+                            next as PhoneType,
                           )
                         }
-                        className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
                         disabled={isLoading}
-                        aria-label={`Telefontyp ${phoneIndex + 1}`}
-                      >
-                        {(Object.keys(PHONE_TYPE_LABELS) as PhoneType[]).map(
-                          (type) => (
-                            <option key={type} value={type}>
-                              {PHONE_TYPE_LABELS[type]}
-                            </option>
-                          ),
-                        )}
-                      </select>
+                        ariaLabel={`Telefontyp ${phoneIndex + 1}`}
+                      />
                     </div>
 
                     {/* Phone Number Input */}
@@ -901,47 +934,22 @@ export default function GuardianFormModal({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                 <div>
                   <label
+                    id={`guardian-language-${entry.id}-label`}
                     htmlFor={`guardian-language-${entry.id}`}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
                     Bevorzugte Sprache
                   </label>
-                  <div className="relative">
-                    <select
-                      id={`guardian-language-${entry.id}`}
-                      value={entry.languagePreference}
-                      onChange={(e) =>
-                        updateEntry(
-                          entry.id,
-                          "languagePreference",
-                          e.target.value,
-                        )
-                      }
-                      className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-                      disabled={isLoading}
-                    >
-                      {LANGUAGE_PREFERENCES.map((lang) => (
-                        <option key={lang.value} value={lang.value}>
-                          {lang.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </div>
-                  </div>
+                  <CustomSelect
+                    id={`guardian-language-${entry.id}`}
+                    ariaLabelledBy={`guardian-language-${entry.id}-label`}
+                    value={entry.languagePreference}
+                    options={LANGUAGE_PREFERENCES}
+                    onChange={(next) =>
+                      updateEntry(entry.id, "languagePreference", next)
+                    }
+                    disabled={isLoading}
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label

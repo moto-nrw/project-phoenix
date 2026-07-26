@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // RFID card validation configuration
@@ -20,8 +18,6 @@ var (
 	MaxRFIDCardLength = 64
 )
 
-const rfidCardTableName = "users.rfid_cards"
-
 // RFIDCard represents a physical RFID card used for identification and access
 type RFIDCard struct {
 	base.StringIDModel `bun:"schema:users,table:rfid_cards"`
@@ -29,19 +25,15 @@ type RFIDCard struct {
 	Active bool `bun:"active,notnull,default:true" json:"active"`
 }
 
-func (r *RFIDCard) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(rfidCardTableName)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(rfidCardTableName)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (r *RFIDCard) TableName() string {
-	return rfidCardTableName
+// NormalizeTagID normalizes an RFID tag ID: trims spaces, removes the
+// common separators (: - space), and uppercases. Canonical implementation
+// shared by RFIDCard.Validate, the users repositories, and api/iot.
+func NormalizeTagID(tagID string) string {
+	tagID = strings.TrimSpace(tagID)
+	tagID = strings.ReplaceAll(tagID, ":", "")
+	tagID = strings.ReplaceAll(tagID, "-", "")
+	tagID = strings.ReplaceAll(tagID, " ", "")
+	return strings.ToUpper(tagID)
 }
 
 // Validate ensures the RFID card data is valid
@@ -50,16 +42,8 @@ func (r *RFIDCard) Validate() error {
 		return errors.New("RFID card ID is required")
 	}
 
-	// Trim spaces from ID
-	r.ID = strings.TrimSpace(r.ID)
-
-	// Normalize RFID tag format - remove common separators
-	r.ID = strings.ReplaceAll(r.ID, ":", "")
-	r.ID = strings.ReplaceAll(r.ID, "-", "")
-	r.ID = strings.ReplaceAll(r.ID, " ", "")
-
-	// Convert to uppercase for consistency
-	r.ID = strings.ToUpper(r.ID)
+	// Normalize the RFID tag format for consistency
+	r.ID = NormalizeTagID(r.ID)
 
 	// Validate ID length after normalization
 	idLength := len(r.ID)
@@ -92,19 +76,4 @@ func (r *RFIDCard) Activate() {
 // Deactivate sets the RFID card as inactive
 func (r *RFIDCard) Deactivate() {
 	r.Active = false
-}
-
-// GetID returns the ID of the RFID card
-func (r *RFIDCard) GetID() interface{} {
-	return r.ID
-}
-
-// GetCreatedAt returns the creation timestamp of the RFID card
-func (r *RFIDCard) GetCreatedAt() time.Time {
-	return r.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp of the RFID card
-func (r *RFIDCard) GetUpdatedAt() time.Time {
-	return r.UpdatedAt
 }

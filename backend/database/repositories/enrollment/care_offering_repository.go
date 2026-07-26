@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -51,9 +52,12 @@ func (r *CareOfferingRepository) FindByID(ctx context.Context, id int64) (*enrol
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("care offering %d not found", id)
+			return nil, fmt.Errorf("care offering %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find care offering: %w", err)
+	}
+	if err := r.hydrateAutoAddTriggers(ctx, []*enrollment.CareOffering{offering}); err != nil {
+		return nil, err
 	}
 	return offering, nil
 }
@@ -85,6 +89,9 @@ func (r *CareOfferingRepository) Update(ctx context.Context, offering *enrollmen
 		Set("price_cents = ?", offering.PriceCents).
 		Set("is_active = ?", offering.IsActive).
 		Set("is_required = ?", offering.IsRequired).
+		Set("counts_as_care = ?", offering.CountsAsCare).
+		Set("auto_add_grade_levels = ?", offering.AutoAddGradeLevels).
+		Set("availability_rule = ?", offering.AvailabilityRule).
 		Set("selection_group = ?", offering.SelectionGroup).
 		Set("selection_rule = ?", offering.SelectionRule).
 		Set("sort_order = ?", offering.SortOrder).
@@ -97,6 +104,47 @@ func (r *CareOfferingRepository) Update(ctx context.Context, offering *enrollmen
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
 		return fmt.Errorf("care offering %d not found", offering.ID)
+	}
+	return nil
+}
+
+func (r *CareOfferingRepository) ReplaceAutoAddTriggers(ctx context.Context, targetOfferingID int64, triggerOfferingIDs []int64) error {
+	if targetOfferingID <= 0 {
+		return fmt.Errorf("target offering id must be positive")
+	}
+	db := base.GetDB(ctx, r.db)
+	if _, err := db.NewDelete().
+		Model((*enrollment.CareOfferingAutoTrigger)(nil)).
+		ModelTableExpr(`enrollment.care_offering_auto_triggers AS "care_offering_auto_trigger"`).
+		Where(`"care_offering_auto_trigger".target_care_offering_id = ?`, targetOfferingID).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("failed to delete care offering auto triggers: %w", err)
+	}
+	if len(triggerOfferingIDs) == 0 {
+		return nil
+	}
+	rows := make([]*enrollment.CareOfferingAutoTrigger, 0, len(triggerOfferingIDs))
+	seen := make(map[int64]bool, len(triggerOfferingIDs))
+	for _, triggerID := range triggerOfferingIDs {
+		if triggerID <= 0 || triggerID == targetOfferingID || seen[triggerID] {
+			continue
+		}
+		seen[triggerID] = true
+		row := &enrollment.CareOfferingAutoTrigger{
+			TargetCareOfferingID:  targetOfferingID,
+			TriggerCareOfferingID: triggerID,
+		}
+		base.EnsureTenantID(ctx, row)
+		rows = append(rows, row)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	if _, err := db.NewInsert().
+		Model(&rows).
+		ModelTableExpr(`enrollment.care_offering_auto_triggers AS "care_offering_auto_trigger"`).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("failed to insert care offering auto triggers: %w", err)
 	}
 	return nil
 }
@@ -131,6 +179,9 @@ func (r *CareOfferingRepository) ListByTenant(ctx context.Context) ([]*enrollmen
 	if err != nil {
 		return nil, fmt.Errorf("failed to list care offerings: %w", err)
 	}
+	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
+		return nil, err
+	}
 	return offerings, nil
 }
 
@@ -146,6 +197,57 @@ func (r *CareOfferingRepository) ListByPhase(ctx context.Context, phaseID int64)
 		Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list care offerings by phase: %w", err)
+	}
+	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
+		return nil, err
+	}
+	return offerings, nil
+}
+
+// ListByIDs returns the exact care offerings referenced by ids. It is not
+// phase-scoped because rollover request children can intentionally carry
+// source-phase offering IDs into the target phase.
+func (r *CareOfferingRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.CareOffering, error) {
+	if len(ids) == 0 {
+		return []*enrollment.CareOffering{}, nil
+	}
+	var offerings []*enrollment.CareOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&offerings).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".id IN (?)`, bun.List(ids)).
+		OrderExpr(`"care_offering".sort_order, "care_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list care offerings by ids: %w", err)
+	}
+	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
+		return nil, err
+	}
+	return offerings, nil
+}
+
+func (r *CareOfferingRepository) ListByActivityGroupIDs(
+	ctx context.Context,
+	activityGroupIDs []int64,
+) ([]*enrollment.CareOffering, error) {
+	if len(activityGroupIDs) == 0 {
+		return []*enrollment.CareOffering{}, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("tenant id is required to list care offerings by activity groups")
+	}
+	var offerings []*enrollment.CareOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&offerings).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".tenant_id = ?`, tenantID).
+		Where(`"care_offering".activity_group_id IN (?)`, bun.List(activityGroupIDs)).
+		OrderExpr(`"care_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list care offerings by activity groups: %w", err)
 	}
 	return offerings, nil
 }
@@ -181,5 +283,44 @@ func (r *CareOfferingRepository) ListActiveByPhase(ctx context.Context, phaseID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list active offerings by phase: %w", err)
 	}
+	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
+		return nil, err
+	}
 	return offerings, nil
+}
+
+func (r *CareOfferingRepository) hydrateAutoAddTriggers(ctx context.Context, offerings []*enrollment.CareOffering) error {
+	if len(offerings) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(offerings))
+	byID := make(map[int64]*enrollment.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		if offering == nil || offering.ID <= 0 {
+			continue
+		}
+		offering.CountsAsCareSet = true
+		offering.AutoAddTriggerOfferingIDs = []int64{}
+		ids = append(ids, offering.ID)
+		byID[offering.ID] = offering
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var rows []*enrollment.CareOfferingAutoTrigger
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`enrollment.care_offering_auto_triggers AS "care_offering_auto_trigger"`).
+		Where(`"care_offering_auto_trigger".target_care_offering_id IN (?)`, bun.List(ids)).
+		OrderExpr(`"care_offering_auto_trigger".target_care_offering_id, "care_offering_auto_trigger".trigger_care_offering_id`).
+		Scan(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load care offering auto triggers: %w", err)
+	}
+	for _, row := range rows {
+		if offering := byID[row.TargetCareOfferingID]; offering != nil {
+			offering.AutoAddTriggerOfferingIDs = append(offering.AutoAddTriggerOfferingIDs, row.TriggerCareOfferingID)
+		}
+	}
+	return nil
 }

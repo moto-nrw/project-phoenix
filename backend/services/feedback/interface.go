@@ -12,7 +12,6 @@ type Service interface {
 	// Core operations
 	CreateEntry(ctx context.Context, entry *feedback.Entry) error
 	GetEntryByID(ctx context.Context, id int64) (*feedback.Entry, error)
-	UpdateEntry(ctx context.Context, entry *feedback.Entry) error
 	DeleteEntry(ctx context.Context, id int64) error
 	ListEntries(ctx context.Context, filters map[string]interface{}) ([]*feedback.Entry, error)
 
@@ -24,9 +23,6 @@ type Service interface {
 	GetEntriesByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*feedback.Entry, error)
 
 	// Statistics and reporting
-	CountByDay(ctx context.Context, day timezone.Date) (int, error)
-	CountByStudent(ctx context.Context, studentID int64) (int, error)
-	CountMensaFeedback(ctx context.Context, isMensaFeedback bool) (int, error)
 
 	// Batch operations
 	CreateEntries(ctx context.Context, entries []*feedback.Entry) ([]error, error)

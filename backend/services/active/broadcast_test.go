@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -20,90 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// groupBroadcastCall records a BroadcastToGroup call with the topic it targeted,
-// so tests can assert which edu:{id} topic an event was routed to (not just that
-// some group broadcast happened).
-type groupBroadcastCall struct {
-	topic string
-	event realtime.Event
-}
-
-// mockBroadcaster records all broadcast calls for assertion.
-type mockBroadcaster struct {
-	mu         sync.Mutex
-	allCalls   []realtime.Event
-	groupCalls []groupBroadcastCall
-}
-
-func (m *mockBroadcaster) BroadcastToGroup(_ int64, topic string, event realtime.Event) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.allCalls = append(m.allCalls, event)
-	m.groupCalls = append(m.groupCalls, groupBroadcastCall{topic: topic, event: event})
-	return nil
-}
-
-// groupCallsForTopic returns every BroadcastToGroup call routed to the given topic.
-func (m *mockBroadcaster) groupCallsForTopic(topic string) []groupBroadcastCall {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]groupBroadcastCall, 0)
-	for _, c := range m.groupCalls {
-		if c.topic == topic {
-			out = append(out, c)
-		}
-	}
-	return out
-}
-
-func (m *mockBroadcaster) BroadcastToAll(event realtime.Event) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.allCalls = append(m.allCalls, event)
-	return nil
-}
-
-func (m *mockBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.allCalls = append(m.allCalls, event)
-	return nil
-}
-
-func (m *mockBroadcaster) getAllCalls() []realtime.Event {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	result := make([]realtime.Event, len(m.allCalls))
-	copy(result, m.allCalls)
-	return result
-}
-
-func (m *mockBroadcaster) hasEventType(t realtime.EventType) bool {
-	for _, e := range m.getAllCalls() {
-		if e.Type == t {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *mockBroadcaster) eventsOfType(t realtime.EventType) []realtime.Event {
-	events := make([]realtime.Event, 0)
-	for _, e := range m.getAllCalls() {
-		if e.Type == t {
-			events = append(events, e)
-		}
-	}
-	return events
-}
-
-func setupServiceWithBroadcaster(t *testing.T) (active.Service, *mockBroadcaster) {
+func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
-	broadcaster := &mockBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -155,9 +77,9 @@ func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
-	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
+	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
 		"expected dashboard_counts_changed after CreateVisit")
-	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
+	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after CreateVisit")
 }
 
@@ -174,16 +96,14 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
 
 	// Clear calls from visit creation
-	broadcaster.mu.Lock()
-	broadcaster.allCalls = nil
-	broadcaster.mu.Unlock()
+	broadcaster.Reset()
 
 	err := svc.EndVisit(testpkg.TenantContext(1), visit.ID)
 	require.NoError(t, err)
 
-	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
+	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
 		"expected dashboard_counts_changed after EndVisit")
-	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
+	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after EndVisit")
 }
 
@@ -192,7 +112,7 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
-	broadcaster := &mockBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
 		VisitRepo:          repos.ActiveVisit,
@@ -229,25 +149,23 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 		student.ID, visit.ID,
 	)
 
-	broadcaster.mu.Lock()
-	broadcaster.allCalls = nil
-	broadcaster.mu.Unlock()
+	broadcaster.Reset()
 
 	visit.ActiveGroupID = targetGroup.ID
 	err := svc.UpdateVisit(testpkg.TenantContext(1), visit)
 	require.NoError(t, err)
 
-	checkouts := broadcaster.eventsOfType(realtime.EventStudentCheckOut)
+	checkouts := broadcaster.EventsOfType(realtime.EventStudentCheckOut)
 	require.NotEmpty(t, checkouts, "expected student_checkout for source group")
 	assert.Equal(t, strconv.FormatInt(sourceGroup.ID, 10), checkouts[0].ActiveGroupID)
 
-	checkins := broadcaster.eventsOfType(realtime.EventStudentCheckIn)
+	checkins := broadcaster.EventsOfType(realtime.EventStudentCheckIn)
 	require.NotEmpty(t, checkins, "expected student_checkin for target group")
 	assert.Equal(t, strconv.FormatInt(targetGroup.ID, 10), checkins[0].ActiveGroupID)
 
-	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
+	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
 		"expected dashboard_counts_changed after visit move")
-	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
+	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after visit move")
 }
 
@@ -265,15 +183,13 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, db, student.ID, session.ID, time.Now(), nil)
 	defer testpkg.CleanupActivityFixtures(t, db, room.ID, staff.ID, activityGroup.ID, session.ID, student.ID, visit.ID)
 
-	broadcaster.mu.Lock()
-	broadcaster.allCalls = nil
-	broadcaster.mu.Unlock()
+	broadcaster.Reset()
 
 	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
 	require.NoError(t, err)
 
 	// Should have dashboard_counts_changed from the batch student checkout
-	calls := broadcaster.getAllCalls()
+	calls := broadcaster.Events()
 	found := false
 	for _, call := range calls {
 		if call.Type == realtime.EventDashboardCountsChanged {
@@ -282,7 +198,7 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "expected dashboard_counts_changed after EndActivitySession with active visits")
-	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
+	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after EndActivitySession")
 }
 
@@ -310,16 +226,14 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 		studentA.ID, studentB.ID, visitA.ID, visitB.ID,
 	)
 
-	broadcaster.mu.Lock()
-	broadcaster.allCalls = nil
-	broadcaster.mu.Unlock()
+	broadcaster.Reset()
 
 	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
 	require.NoError(t, err)
 
 	// No per-student student_checkout events on the bulk path — those would be
 	// the 2N burst that overflowed the channel buffer.
-	assert.Empty(t, broadcaster.eventsOfType(realtime.EventStudentCheckOut),
+	assert.Empty(t, broadcaster.EventsOfType(realtime.EventStudentCheckOut),
 		"bulk session end must not emit per-student student_checkout events")
 
 	// Exactly one bulk_student_checkout on the active-group topic, carrying both
@@ -327,7 +241,7 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 	// OGS group assigned; the active-group topic always fires.)
 	sessionIDStr := strconv.FormatInt(session.ID, 10)
 	var activeTopicBulk *realtime.Event
-	for _, e := range broadcaster.eventsOfType(realtime.EventBulkStudentCheckOut) {
+	for _, e := range broadcaster.EventsOfType(realtime.EventBulkStudentCheckOut) {
 		if e.ActiveGroupID == sessionIDStr {
 			evt := e
 			activeTopicBulk = &evt
@@ -345,7 +259,7 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 	// Dashboard refreshes are constant per batch, not one-per-student: the
 	// checkout batch fires one and broadcastActivityEndEvent fires one, so two
 	// students still yield two — independent of how many were checked out.
-	assert.Len(t, broadcaster.eventsOfType(realtime.EventDashboardCountsChanged), 2,
+	assert.Len(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged), 2,
 		"session end fires a fixed number of dashboard refreshes regardless of student count")
 }
 
@@ -392,10 +306,7 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 		session.ID, activityGroup.ID, room.ID, staff.ID,
 	)
 
-	broadcaster.mu.Lock()
-	broadcaster.allCalls = nil
-	broadcaster.groupCalls = nil
-	broadcaster.mu.Unlock()
+	broadcaster.Reset()
 
 	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
 	require.NoError(t, err)
@@ -405,24 +316,24 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 	idC := strconv.FormatInt(studentC.ID, 10)
 
 	// edu:{groupX} gets one bulk event carrying A and B only.
-	groupXCalls := broadcaster.groupCallsForTopic("edu:" + strconv.FormatInt(groupX.ID, 10))
+	groupXCalls := broadcaster.GroupCallsForTopic("edu:" + strconv.FormatInt(groupX.ID, 10))
 	require.Len(t, groupXCalls, 1, "groupX edu topic must receive exactly one bulk event")
-	require.Equal(t, realtime.EventBulkStudentCheckOut, groupXCalls[0].event.Type)
-	require.NotNil(t, groupXCalls[0].event.Data.StudentIDs)
-	assert.ElementsMatch(t, []string{idA, idB}, *groupXCalls[0].event.Data.StudentIDs,
+	require.Equal(t, realtime.EventBulkStudentCheckOut, groupXCalls[0].Event.Type)
+	require.NotNil(t, groupXCalls[0].Event.Data.StudentIDs)
+	assert.ElementsMatch(t, []string{idA, idB}, *groupXCalls[0].Event.Data.StudentIDs,
 		"groupX event must carry only groupX's students")
 
 	// edu:{groupY} gets one bulk event carrying C only — not A/B.
-	groupYCalls := broadcaster.groupCallsForTopic("edu:" + strconv.FormatInt(groupY.ID, 10))
+	groupYCalls := broadcaster.GroupCallsForTopic("edu:" + strconv.FormatInt(groupY.ID, 10))
 	require.Len(t, groupYCalls, 1, "groupY edu topic must receive exactly one bulk event")
-	require.NotNil(t, groupYCalls[0].event.Data.StudentIDs)
-	assert.ElementsMatch(t, []string{idC}, *groupYCalls[0].event.Data.StudentIDs,
+	require.NotNil(t, groupYCalls[0].Event.Data.StudentIDs)
+	assert.ElementsMatch(t, []string{idC}, *groupYCalls[0].Event.Data.StudentIDs,
 		"groupY event must carry only groupY's student")
 
 	// The active-group topic still carries every student.
 	sessionIDStr := strconv.FormatInt(session.ID, 10)
 	var activeTopicBulk *realtime.Event
-	for _, e := range broadcaster.eventsOfType(realtime.EventBulkStudentCheckOut) {
+	for _, e := range broadcaster.EventsOfType(realtime.EventBulkStudentCheckOut) {
 		if e.ActiveGroupID == sessionIDStr && e.Data.StudentIDs != nil && len(*e.Data.StudentIDs) == 3 {
 			evt := e
 			activeTopicBulk = &evt
@@ -455,6 +366,6 @@ func TestBroadcast_DailyCheckoutSendsDashboardCounts(t *testing.T) {
 
 	svc.BroadcastDailyCheckout(testpkg.TenantContext(1), student.ID)
 
-	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
+	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
 		"expected dashboard_counts_changed after BroadcastDailyCheckout")
 }

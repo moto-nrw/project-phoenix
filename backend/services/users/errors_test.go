@@ -15,18 +15,12 @@ func TestUsersErrorVariables(t *testing.T) {
 		expected string
 	}{
 		{"ErrPersonNotFound", ErrPersonNotFound, "person not found"},
-		{"ErrInvalidPersonData", ErrInvalidPersonData, "invalid person data"},
 		{"ErrPersonIdentifierRequired", ErrPersonIdentifierRequired, "either tag ID or account ID is required"},
 		{"ErrAccountNotFound", ErrAccountNotFound, "account not found"},
 		{"ErrRFIDCardNotFound", ErrRFIDCardNotFound, "RFID card not found"},
 		{"ErrAccountAlreadyLinked", ErrAccountAlreadyLinked, "account is already linked to another person"},
 		{"ErrRFIDCardAlreadyLinked", ErrRFIDCardAlreadyLinked, "RFID card is already linked to another person"},
-		{"ErrGuardianNotFound", ErrGuardianNotFound, "guardian not found"},
-		{"ErrStaffNotFound", ErrStaffNotFound, "staff member not found"},
 		{"ErrTeacherNotFound", ErrTeacherNotFound, "teacher not found"},
-		{"ErrStaffAlreadyExists", ErrStaffAlreadyExists, "staff member already exists for this person"},
-		{"ErrTeacherAlreadyExists", ErrTeacherAlreadyExists, "teacher already exists for this staff member"},
-		{"ErrInvalidPIN", ErrInvalidPIN, "invalid staff PIN"},
 	}
 
 	for _, tt := range tests {
@@ -40,18 +34,12 @@ func TestUsersErrorVariables(t *testing.T) {
 func TestUsersErrorsAreDistinct(t *testing.T) {
 	errorVars := []error{
 		ErrPersonNotFound,
-		ErrInvalidPersonData,
 		ErrPersonIdentifierRequired,
 		ErrAccountNotFound,
 		ErrRFIDCardNotFound,
 		ErrAccountAlreadyLinked,
 		ErrRFIDCardAlreadyLinked,
-		ErrGuardianNotFound,
-		ErrStaffNotFound,
 		ErrTeacherNotFound,
-		ErrStaffAlreadyExists,
-		ErrTeacherAlreadyExists,
-		ErrInvalidPIN,
 	}
 
 	for i, err1 := range errorVars {
@@ -91,10 +79,10 @@ func TestUsersError(t *testing.T) {
 	t.Run("errors.Is works with wrapped UsersError", func(t *testing.T) {
 		usersErr := &UsersError{
 			Op:  "CreatePerson",
-			Err: ErrInvalidPersonData,
+			Err: ErrPersonNotFound,
 		}
 
-		assert.True(t, errors.Is(usersErr, ErrInvalidPersonData))
+		assert.True(t, errors.Is(usersErr, ErrPersonNotFound))
 	})
 
 	t.Run("errors.As works with UsersError", func(t *testing.T) {
@@ -109,7 +97,7 @@ func TestUsersError(t *testing.T) {
 	})
 
 	t.Run("nested error wrapping", func(t *testing.T) {
-		baseErr := ErrStaffNotFound
+		baseErr := ErrTeacherNotFound
 		usersErr := &UsersError{
 			Op:  "GetStaffByID",
 			Err: baseErr,
@@ -117,7 +105,7 @@ func TestUsersError(t *testing.T) {
 		wrappedErr := errors.Join(errors.New("context: processing staff data"), usersErr)
 
 		// Should still be able to identify the base error
-		assert.True(t, errors.Is(wrappedErr, ErrStaffNotFound))
+		assert.True(t, errors.Is(wrappedErr, ErrTeacherNotFound))
 
 		// Should also be able to unwrap to UsersError
 		var targetErr *UsersError

@@ -1,4 +1,4 @@
-import type { AccentColor } from "./themes";
+import type { AccentColor } from "~/lib/database/themes";
 
 type AccentClasses = {
   text: string;

@@ -1,19 +1,14 @@
 package middleware
 
 import (
+	"cmp"
 	"log/slog"
 	"net/http"
 	"time"
 )
 
 // SecurityEvent types
-const (
-	EventAuthFailure      = "AUTH_FAILURE"
-	EventRateLimitExceed  = "RATE_LIMIT_EXCEEDED"
-	EventSuspiciousAccess = "SUSPICIOUS_ACCESS"
-	EventAccountLocked    = "ACCOUNT_LOCKED"
-	EventInvalidToken     = "INVALID_TOKEN"
-)
+const EventRateLimitExceed = "RATE_LIMIT_EXCEEDED"
 
 // SecurityLogger provides structured security event logging
 type SecurityLogger struct {
@@ -22,15 +17,16 @@ type SecurityLogger struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (sl *SecurityLogger) getLogger() *slog.Logger {
-	if sl.logger != nil {
-		return sl.logger
-	}
-	return slog.Default()
+	return cmp.Or(sl.logger, slog.Default())
 }
 
 // NewSecurityLogger creates a new security logger
 func NewSecurityLogger() *SecurityLogger {
-	return &SecurityLogger{logger: slog.Default().With("component", "security")}
+	// Redact calendar-feed tokens: security events log r.URL.Path, which for a
+	// rate-limited /public/calendar/{token} request would otherwise capture the
+	// token (the feed's sole credential).
+	redacted := slog.New(NewFeedTokenRedactor(slog.Default().Handler()))
+	return &SecurityLogger{logger: redacted.With("component", "security")}
 }
 
 // LogEvent logs a security event with context

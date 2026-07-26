@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import DatabasePage from "./page";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import useSWR from "swr";
 
 const mockSession = mockSessionData();
 
@@ -35,13 +36,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-fullpage={fullPage} aria-label="Lädt..." />
-  ),
-}));
-
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -78,7 +73,21 @@ global.fetch = vi.fn(() =>
 );
 
 import { useSession } from "next-auth/react";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+
+function mockCounts(
+  data: unknown = mockCountsResponse.data,
+  overrides: Record<string, unknown> = {},
+) {
+  vi.mocked(useSWR).mockReturnValue({
+    data,
+    error: undefined,
+    isLoading: false,
+    isValidating: false,
+    mutate: vi.fn(),
+    ...overrides,
+  } as never);
+}
 
 describe("DatabasePage", () => {
   beforeEach(() => {
@@ -89,6 +98,7 @@ describe("DatabasePage", () => {
       update: vi.fn(),
     });
     vi.mocked(useIsMobile).mockReturnValue(false);
+    mockCounts();
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockCountsResponse),
@@ -102,18 +112,6 @@ describe("DatabasePage", () => {
     await waitFor(() => {
       expect(screen.getByText("Kinder")).toBeInTheDocument();
     });
-  });
-
-  it("displays loading state initially", () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: "loading",
-      update: vi.fn(),
-    });
-
-    render(<DatabasePage />);
-
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
   it("displays data sections with counts after loading", async () => {
@@ -147,17 +145,10 @@ describe("DatabasePage", () => {
   });
 
   it("displays singular 'Eintrag' for count of 1", async () => {
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          ...mockCountsResponse,
-          data: {
-            ...mockCountsResponse.data,
-            students: 1,
-          },
-        }),
-    } as Response);
+    mockCounts({
+      ...mockCountsResponse.data,
+      students: 1,
+    });
 
     render(<DatabasePage />);
 
@@ -178,26 +169,20 @@ describe("DatabasePage", () => {
   });
 
   it("hides sections when user lacks permissions", async () => {
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          ...mockCountsResponse,
-          data: {
-            ...mockCountsResponse.data,
-            permissions: {
-              canViewStudents: true,
-              canViewTeachers: false,
-              canViewRooms: false,
-              canViewActivities: false,
-              canViewGroups: false,
-              canViewRoles: false,
-              canViewDevices: false,
-              canViewPermissions: false,
-            },
-          },
-        }),
-    } as Response);
+    mockCounts({
+      ...mockCountsResponse.data,
+      permissions: {
+        canViewStudents: true,
+        canViewTeachers: false,
+        canViewRooms: false,
+        canViewActivities: false,
+        canViewGroups: false,
+        canViewRoles: false,
+        canViewDevices: false,
+        canViewPermissions: false,
+        canViewTimetables: false,
+      },
+    });
 
     render(<DatabasePage />);
 
@@ -209,11 +194,7 @@ describe("DatabasePage", () => {
   });
 
   it("handles 401 unauthorized response gracefully", async () => {
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: false,
-      status: 401,
-      json: () => Promise.resolve({ error: "Unauthorized" }),
-    } as Response);
+    mockCounts(null);
 
     render(<DatabasePage />);
 
@@ -224,11 +205,7 @@ describe("DatabasePage", () => {
   });
 
   it("handles 403 forbidden response gracefully", async () => {
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: false,
-      status: 403,
-      json: () => Promise.resolve({ error: "Forbidden" }),
-    } as Response);
+    mockCounts(null);
 
     render(<DatabasePage />);
 
@@ -240,7 +217,21 @@ describe("DatabasePage", () => {
 
   it("handles fetch error gracefully", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(global.fetch).mockRejectedValue(new Error("Network error"));
+    const error = new Error("Network error");
+    vi.mocked(useSWR).mockImplementation(((
+      _key: unknown,
+      _fetcher: unknown,
+      options: unknown,
+    ) => {
+      (options as { onError?: (cause: unknown) => void }).onError?.(error);
+      return {
+        data: undefined,
+        error,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      };
+    }) as unknown as typeof useSWR);
 
     render(<DatabasePage />);
 
@@ -273,14 +264,43 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      const studentsLink = screen.getByRole("link", { name: /Kinder/i });
-      expect(studentsLink).toHaveAttribute("href", "/database/students");
+      // Match on each card's description: the bare section titles are
+      // ambiguous now that the Exporte card mentions "Kinder-" and
+      // "Raumlisten" in its own description.
+      const studentsLink = screen.getByRole("link", {
+        name: /Kinderdaten verwalten/,
+      });
+      expect(studentsLink).toHaveAttribute(
+        "href",
+        "/test-tenant/database/students",
+      );
 
-      const teachersLink = screen.getByRole("link", { name: /Personal/i });
-      expect(teachersLink).toHaveAttribute("href", "/database/personal");
+      const teachersLink = screen.getByRole("link", {
+        name: /Personaldaten und Zuordnungen/,
+      });
+      expect(teachersLink).toHaveAttribute(
+        "href",
+        "/test-tenant/database/personal",
+      );
 
-      const roomsLink = screen.getByRole("link", { name: /Räume/i });
-      expect(roomsLink).toHaveAttribute("href", "/database/rooms");
+      const roomsLink = screen.getByRole("link", {
+        name: /Räume und Ausstattung/,
+      });
+      expect(roomsLink).toHaveAttribute("href", "/test-tenant/database/rooms");
+    });
+  });
+
+  it("keeps the tenant slug on the Exporte link in path routing", async () => {
+    render(<DatabasePage />);
+
+    await waitFor(() => {
+      const exportsLink = screen.getByRole("link", {
+        name: /Geburtstags-, Notfall- und Raumlisten/,
+      });
+      expect(exportsLink).toHaveAttribute(
+        "href",
+        "/test-tenant/database/exports",
+      );
     });
   });
 

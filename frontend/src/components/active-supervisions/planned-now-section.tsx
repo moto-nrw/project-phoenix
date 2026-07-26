@@ -14,6 +14,8 @@ import {
   Users,
 } from "lucide-react";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { isCareDayExpected } from "~/lib/timetable-types";
+import { useShowTimetableCounts } from "~/lib/tenant-context";
 import type {
   PlannedTimetableInstance,
   TimetableRosterRow,
@@ -28,12 +30,45 @@ interface PlannedNowSectionProps {
 
 const SOON_THRESHOLD_MINUTES = 15;
 
+// Both numbers come from the backend, which counts only rows that are still
+// expected AND scheduled today. Deriving them from the roster length would
+// count sick, absent and already-present children as "erwartet" and contradict
+// the Erwartet stat on the very same card (#1747 review).
+function rosterPreviewLabel(
+  rosterLength: number,
+  expectedCount: number,
+  notScheduledCount: number,
+  showTimetableCounts: boolean,
+): string {
+  if (rosterLength === 0) return "keine Liste";
+  if (!showTimetableCounts) return "Liste verfügbar";
+  // Name the children the care plan leaves out (#1747) instead of quietly
+  // showing a smaller number than the assignment list.
+  if (notScheduledCount > 0) {
+    return `${expectedCount} erwartet · ${notScheduledCount} heute nicht eingeplant`;
+  }
+  return `${expectedCount} erwartet`;
+}
+
+// Both non-expected verdicts count here — "not_scheduled" (never booked that
+// weekday) and "cancelled" ("kommt heute nicht"). The backend leaves both out
+// of expected_students_count, so testing one value would show a child as
+// "Erwartet" that the header count does not include (#1747).
+function isNotScheduled(row: TimetableRosterRow): boolean {
+  return (
+    !isCareDayExpected(row.careDayStatus) &&
+    !row.currentlyPresent &&
+    row.status !== "present"
+  );
+}
+
 export function PlannedNowSection({
   plannedNow,
   hasActiveTimetableSession = false,
   isStartingInstance,
   onStart,
 }: PlannedNowSectionProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [sectionExpanded, setSectionExpanded] = useState<boolean | null>(null);
   const sortedPlanned = useMemo(
@@ -127,7 +162,9 @@ export function PlannedNowSection({
             label={`${sortedPlanned.length} geplant`}
             tone="info"
           />
-          <SummaryPill icon={Users} label={`${expectedCount} Kinder`} />
+          {showTimetableCounts && (
+            <SummaryPill icon={Users} label={`${expectedCount} Kinder`} />
+          )}
           {overdueCount > 0 ? (
             <SummaryPill
               icon={CircleAlert}
@@ -203,21 +240,27 @@ export function PlannedNowSection({
                       </button>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <SlotStat
-                        label="Erwartet"
-                        value={instance.expectedStudentsCount}
-                        tone="neutral"
-                      />
-                      <SlotStat
-                        label="Anwesend"
-                        value={instance.presentStudentsCount}
-                        tone={
-                          instance.presentStudentsCount > 0
-                            ? "success"
-                            : "neutral"
-                        }
-                      />
+                    <div
+                      className={`mt-4 grid gap-2 ${showTimetableCounts ? "grid-cols-3" : "grid-cols-1"}`}
+                    >
+                      {showTimetableCounts && (
+                        <>
+                          <SlotStat
+                            label="Erwartet"
+                            value={instance.expectedStudentsCount}
+                            tone="neutral"
+                          />
+                          <SlotStat
+                            label="Anwesend"
+                            value={instance.presentStudentsCount}
+                            tone={
+                              instance.presentStudentsCount > 0
+                                ? "success"
+                                : "neutral"
+                            }
+                          />
+                        </>
+                      )}
                       <SlotStat
                         label="Betreuende"
                         value={instance.assignedStaffIds.length}
@@ -240,9 +283,12 @@ export function PlannedNowSection({
                         />
                         Kinder
                         <span className="text-xs font-normal text-gray-500">
-                          {instance.rosterPreview.length > 0
-                            ? `${instance.rosterPreview.length} erwartet`
-                            : "keine Liste"}
+                          {rosterPreviewLabel(
+                            instance.rosterPreview.length,
+                            instance.expectedStudentsCount,
+                            instance.notScheduledStudentsCount,
+                            showTimetableCounts,
+                          )}
                         </span>
                       </span>
                       <ChevronDown
@@ -262,7 +308,9 @@ export function PlannedNowSection({
                             onClick={() => toggleExpanded(instance.id)}
                             className="text-xs font-medium text-[#4070C8] hover:text-[#305FAE] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
                           >
-                            {hiddenCount} weitere anzeigen
+                            {showTimetableCounts
+                              ? `${hiddenCount} weitere anzeigen`
+                              : "Weitere anzeigen"}
                           </button>
                         ) : null}
                       </div>
@@ -384,11 +432,22 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
     warnings.length > 0
       ? warnings.map((warning) => warning.message).join("\n")
       : null;
+  // Set apart, never hidden: a child who turns up anyway must still be one tap
+  // away from a check-in (#1747).
+  const notScheduled = isNotScheduled(row);
   return (
-    <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
+    <div
+      className={`rounded-lg px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)] ${
+        notScheduled ? "bg-gray-50" : "bg-white"
+      }`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-medium text-gray-900">
+          <p
+            className={`truncate font-medium ${
+              notScheduled ? "text-gray-500" : "text-gray-900"
+            }`}
+          >
             {row.studentName || `Kind ${row.studentId}`}
           </p>
           <p className="mt-0.5 truncate text-xs text-gray-500">
@@ -427,6 +486,12 @@ function rosterDotColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {
     return LOCATION_COLORS.GROUP_ROOM;
   }
+  // The care-day verdict wins over "absent": a child the care plan leaves out
+  // today is reported as absent by the status-day layer, but it is not a real
+  // absence and must match the "nicht eingeplant" count in the header (#1747).
+  if (isNotScheduled(row)) {
+    return LOCATION_COLORS.UNKNOWN;
+  }
   if (row.status === "absent") {
     return LOCATION_COLORS.HOME;
   }
@@ -435,6 +500,11 @@ function rosterDotColor(row: TimetableRosterRow) {
 
 function rosterStatusLabel(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") return "Anwesend";
+  if (isNotScheduled(row)) {
+    return row.careDayStatus === "cancelled"
+      ? "Abgemeldet"
+      : "Nicht eingeplant";
+  }
   if (row.status === "absent") return "Abwesend";
   return "Erwartet";
 }

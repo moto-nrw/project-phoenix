@@ -34,7 +34,7 @@ func TestOrganization_Validate_InvalidSlugFormat(t *testing.T) {
 }
 
 func TestOrganization_Validate_ReservedSlug(t *testing.T) {
-	for _, slug := range []string{"www", "api", "operator", "parents", "grafana", "pyreportal", "help", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
+	for _, slug := range []string{"www", "api", "operator", "parents", "eltern", "grafana", "pyreportal", "help", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
 		t.Run(slug, func(t *testing.T) {
 			o := &Organization{Name: "Test Org", Slug: slug}
 			err := o.Validate()

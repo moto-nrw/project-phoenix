@@ -471,39 +471,6 @@ func TestGuardianProfile_HasEmail(t *testing.T) {
 	}
 }
 
-func TestGuardianProfile_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		profile := &GuardianProfile{
-			FirstName: "John",
-			LastName:  "Doe",
-			Email:     base.StringPtr("john@example.com"),
-		}
-		err := profile.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		profile := &GuardianProfile{
-			FirstName: "John",
-			LastName:  "Doe",
-			Email:     base.StringPtr("john@example.com"),
-		}
-		err := profile.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
-func TestGuardianProfile_TableName(t *testing.T) {
-	profile := &GuardianProfile{}
-	if got := profile.TableName(); got != "users.guardian_profiles" {
-		t.Errorf("TableName() = %v, want users.guardian_profiles", got)
-	}
-}
-
 func TestGuardianProfile_GetID(t *testing.T) {
 	profile := &GuardianProfile{
 		Model:     base.Model{ID: 42},

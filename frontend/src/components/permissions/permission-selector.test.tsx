@@ -2,13 +2,7 @@
  * Tests for PermissionSelector
  * Tests the rendering and functionality of the permission resource/action selector
  */
-import {
-  render,
-  screen,
-  waitFor,
-  fireEvent,
-  act,
-} from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PermissionSelector } from "./permission-selector";
 import type { PermissionSelectorValue } from "./permission-selector";
@@ -59,11 +53,10 @@ describe("PermissionSelector", () => {
     render(<PermissionSelector value={value} onChange={mockOnChange} />);
 
     await waitFor(() => {
-      const resourceSelect =
-        screen.getByLabelText<HTMLSelectElement>(/ressource/i);
-      const actionSelect = screen.getByLabelText<HTMLSelectElement>(/aktion/i);
-      expect(resourceSelect.value).toBe("users");
-      expect(actionSelect.value).toBe("read");
+      const resourceSelect = screen.getByLabelText(/ressource/i);
+      const actionSelect = screen.getByLabelText(/aktion/i);
+      expect(resourceSelect).toHaveTextContent("Benutzer");
+      expect(actionSelect).toHaveTextContent("Lesen");
     });
   });
 
@@ -71,10 +64,8 @@ describe("PermissionSelector", () => {
     render(<PermissionSelector value={undefined} onChange={mockOnChange} />);
 
     const resourceSelect = screen.getByLabelText(/ressource/i);
-
-    await act(async () => {
-      fireEvent.change(resourceSelect, { target: { value: "users" } });
-    });
+    fireEvent.click(resourceSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Benutzer" }));
 
     await waitFor(() => {
       const actionSelect = screen.getByLabelText(/aktion/i);
@@ -95,10 +86,8 @@ describe("PermissionSelector", () => {
     render(<PermissionSelector value={undefined} onChange={mockOnChange} />);
 
     const resourceSelect = screen.getByLabelText(/ressource/i);
-
-    await act(async () => {
-      fireEvent.change(resourceSelect, { target: { value: "users" } });
-    });
+    fireEvent.click(resourceSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Benutzer" }));
 
     // onChange is not called until action is also selected
     expect(mockOnChange).not.toHaveBeenCalled();
@@ -108,15 +97,12 @@ describe("PermissionSelector", () => {
     render(<PermissionSelector value={undefined} onChange={mockOnChange} />);
 
     const resourceSelect = screen.getByLabelText(/ressource/i);
+    fireEvent.click(resourceSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Benutzer" }));
+
     const actionSelect = screen.getByLabelText(/aktion/i);
-
-    await act(async () => {
-      fireEvent.change(resourceSelect, { target: { value: "users" } });
-    });
-
-    await act(async () => {
-      fireEvent.change(actionSelect, { target: { value: "read" } });
-    });
+    fireEvent.click(actionSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Lesen" }));
 
     await waitFor(() => {
       expect(mockOnChange).toHaveBeenCalledWith({
@@ -158,15 +144,18 @@ describe("PermissionSelector", () => {
   it("renders all resource options", async () => {
     render(<PermissionSelector value={undefined} onChange={mockOnChange} />);
 
-    await waitFor(() => {
-      const resourceSelect =
-        screen.getByLabelText<HTMLSelectElement>(/ressource/i);
-      const options = Array.from(resourceSelect.options);
+    const resourceSelect = screen.getByLabelText(/ressource/i);
+    fireEvent.click(resourceSelect);
 
-      expect(options.length).toBeGreaterThan(1);
-      expect(options.some((opt) => opt.value === "users")).toBe(true);
-      expect(options.some((opt) => opt.value === "activities")).toBe(true);
-      expect(options.some((opt) => opt.value === "rooms")).toBe(true);
+    await waitFor(() => {
+      expect(screen.getAllByRole("option").length).toBeGreaterThan(1);
+      expect(
+        screen.getByRole("option", { name: "Benutzer" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Aktivitäten" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Räume" })).toBeInTheDocument();
     });
   });
 
@@ -174,19 +163,21 @@ describe("PermissionSelector", () => {
     render(<PermissionSelector value={undefined} onChange={mockOnChange} />);
 
     const resourceSelect = screen.getByLabelText(/ressource/i);
+    fireEvent.click(resourceSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Benutzer" }));
 
-    await act(async () => {
-      fireEvent.change(resourceSelect, { target: { value: "users" } });
-    });
+    const actionSelect = screen.getByLabelText(/aktion/i);
+    fireEvent.click(actionSelect);
 
     await waitFor(() => {
-      const actionSelect = screen.getByLabelText<HTMLSelectElement>(/aktion/i);
-      const options = Array.from(actionSelect.options);
-
-      expect(options.length).toBeGreaterThan(1);
-      expect(options.some((opt) => opt.value === "create")).toBe(true);
-      expect(options.some((opt) => opt.value === "read")).toBe(true);
-      expect(options.some((opt) => opt.value === "update")).toBe(true);
+      expect(screen.getAllByRole("option").length).toBeGreaterThan(1);
+      expect(
+        screen.getByRole("option", { name: "Erstellen" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Lesen" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Bearbeiten" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -199,15 +190,13 @@ describe("PermissionSelector", () => {
     render(<PermissionSelector value={value} onChange={mockOnChange} />);
 
     const resourceSelect = screen.getByLabelText(/ressource/i);
-
-    await act(async () => {
-      fireEvent.change(resourceSelect, { target: { value: "auth" } });
-    });
+    fireEvent.click(resourceSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Authentifizierung" }));
 
     await waitFor(() => {
-      const actionSelect = screen.getByLabelText<HTMLSelectElement>(/aktion/i);
-      // auth only has "manage" action, "read" should be reset
-      expect(actionSelect.value).toBe("");
+      const actionSelect = screen.getByLabelText(/aktion/i);
+      // auth only has "manage" action, "read" should be reset -> placeholder
+      expect(actionSelect).toHaveTextContent("Aktion auswählen...");
     });
   });
 
@@ -220,15 +209,13 @@ describe("PermissionSelector", () => {
     render(<PermissionSelector value={value} onChange={mockOnChange} />);
 
     const resourceSelect = screen.getByLabelText(/ressource/i);
-
-    await act(async () => {
-      fireEvent.change(resourceSelect, { target: { value: "rooms" } });
-    });
+    fireEvent.click(resourceSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Räume" }));
 
     await waitFor(() => {
-      const actionSelect = screen.getByLabelText<HTMLSelectElement>(/aktion/i);
+      const actionSelect = screen.getByLabelText(/aktion/i);
       // rooms also has "read" action, so it should be maintained
-      expect(actionSelect.value).toBe("read");
+      expect(actionSelect).toHaveTextContent("Lesen");
     });
   });
 
@@ -240,12 +227,13 @@ describe("PermissionSelector", () => {
 
     render(<PermissionSelector value={value} onChange={mockOnChange} />);
 
+    const actionSelect = screen.getByLabelText(/aktion/i);
+    fireEvent.click(actionSelect);
+
     await waitFor(() => {
-      const actionSelect = screen.getByLabelText<HTMLSelectElement>(/aktion/i);
-      const createOption = Array.from(actionSelect.options).find(
-        (opt) => opt.value === "create",
-      );
-      expect(createOption?.textContent).toBe("Erstellen");
+      expect(
+        screen.getByRole("option", { name: "Erstellen" }),
+      ).toBeInTheDocument();
     });
   });
 });

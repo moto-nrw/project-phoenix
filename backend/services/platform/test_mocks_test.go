@@ -112,6 +112,83 @@ func (m *mockAuditLogRepoShared) FindByDateRange(ctx context.Context, start, end
 	return nil, nil
 }
 
+type mockOperatorRefreshTokenRepo struct {
+	createFn                 func(ctx context.Context, token *platform.OperatorRefreshToken) error
+	findByTokenForUpdateFn   func(ctx context.Context, token string) (*platform.OperatorRefreshToken, error)
+	markRotatedFn            func(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
+	deleteExpiredRotatedFn   func(ctx context.Context, familyID string, now time.Time) error
+	deleteFn                 func(ctx context.Context, id any) error
+	deleteByOperatorIDFn     func(ctx context.Context, operatorID int64) (int, error)
+	deleteByFamilyIDFn       func(ctx context.Context, familyID string) error
+	getLatestTokenInFamilyFn func(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error)
+	deleteExpiredFn          func(ctx context.Context, now time.Time) (int, error)
+	created                  []*platform.OperatorRefreshToken
+}
+
+func (m *mockOperatorRefreshTokenRepo) Create(ctx context.Context, token *platform.OperatorRefreshToken) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, token)
+	}
+	m.created = append(m.created, token)
+	return nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) FindByTokenForUpdate(ctx context.Context, token string) (*platform.OperatorRefreshToken, error) {
+	if m.findByTokenForUpdateFn != nil {
+		return m.findByTokenForUpdateFn(ctx, token)
+	}
+	return nil, nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
+	if m.markRotatedFn != nil {
+		return m.markRotatedFn(ctx, id, replacementToken, recoveryProofHash, rotatedAt)
+	}
+	return nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) DeleteExpiredRotated(ctx context.Context, familyID string, now time.Time) error {
+	if m.deleteExpiredRotatedFn != nil {
+		return m.deleteExpiredRotatedFn(ctx, familyID, now)
+	}
+	return nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) Delete(ctx context.Context, id any) error {
+	if m.deleteFn != nil {
+		return m.deleteFn(ctx, id)
+	}
+	return nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) DeleteByOperatorID(ctx context.Context, operatorID int64) (int, error) {
+	if m.deleteByOperatorIDFn != nil {
+		return m.deleteByOperatorIDFn(ctx, operatorID)
+	}
+	return 0, nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) DeleteByFamilyID(ctx context.Context, familyID string) error {
+	if m.deleteByFamilyIDFn != nil {
+		return m.deleteByFamilyIDFn(ctx, familyID)
+	}
+	return nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) GetLatestTokenInFamily(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error) {
+	if m.getLatestTokenInFamilyFn != nil {
+		return m.getLatestTokenInFamilyFn(ctx, familyID)
+	}
+	return nil, nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
+	if m.deleteExpiredFn != nil {
+		return m.deleteExpiredFn(ctx, now)
+	}
+	return 0, nil
+}
+
 // Shared mock for account tenant repository
 type mockAccountTenantRepo struct {
 	createFn                     func(ctx context.Context, mapping *auth.AccountTenant) error
@@ -222,76 +299,6 @@ func (m *mockOrgRepoShared) CountByIDs(ctx context.Context, ids []int64) (int, e
 
 func (m *mockOrgRepoShared) SoftDelete(context.Context, int64) error { return nil }
 func (m *mockOrgRepoShared) Restore(context.Context, int64) error    { return nil }
-
-// Shared mock for school repository (used by announcement targeting validation)
-type mockSchoolRepoShared struct {
-	findByIDFn   func(ctx context.Context, id int64) (*platform.School, error)
-	countByIDsFn func(ctx context.Context, ids []int64) (int, error)
-}
-
-func (m *mockSchoolRepoShared) Create(ctx context.Context, school *platform.School) error {
-	return nil
-}
-
-func (m *mockSchoolRepoShared) FindByID(ctx context.Context, id int64) (*platform.School, error) {
-	if m.findByIDFn != nil {
-		return m.findByIDFn(ctx, id)
-	}
-	return &platform.School{}, nil
-}
-
-func (m *mockSchoolRepoShared) FindBySlug(ctx context.Context, slug string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepoShared) FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepoShared) FindBySubdomain(ctx context.Context, subdomain string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepoShared) List(ctx context.Context) ([]*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepoShared) ListActive(ctx context.Context) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepoShared) ListPublic(ctx context.Context) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepoShared) FindActiveByAccountID(ctx context.Context, accountID int64) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepoShared) Update(ctx context.Context, school *platform.School) error {
-	return nil
-}
-
-func (m *mockSchoolRepoShared) FindByIDForShare(ctx context.Context, id int64) (*platform.School, error) {
-	return m.FindByID(ctx, id)
-}
-
-func (m *mockSchoolRepoShared) FindByIDForUpdate(ctx context.Context, id int64) (*platform.School, error) {
-	return m.FindByID(ctx, id)
-}
-
-func (m *mockSchoolRepoShared) SoftDelete(context.Context, int64) error { return nil }
-func (m *mockSchoolRepoShared) Restore(context.Context, int64) error    { return nil }
-func (m *mockSchoolRepoShared) CountNonDeletedByOrganizationID(context.Context, int64) (int, error) {
-	return 0, nil
-}
-
-func (m *mockSchoolRepoShared) CountByIDs(ctx context.Context, ids []int64) (int, error) {
-	if m.countByIDsFn != nil {
-		return m.countByIDsFn(ctx, ids)
-	}
-	return len(ids), nil
-}
 
 // Shared mock for announcement repository
 type mockAnnouncementRepoShared struct {

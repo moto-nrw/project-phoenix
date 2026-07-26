@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { Laptop } from "lucide-react";
@@ -12,23 +12,20 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { devicesConfig } from "@/lib/database/configs/devices.config";
+import { devicesConfig } from "@/components/database/configs/devices.config";
 import { getDeviceTypeDisplayName, type Device } from "@/lib/iot-helpers";
-import {
-  DeviceCreateModal,
-  DeviceEditModal,
-  DevicesMasterDetail,
-} from "@/components/devices";
+import { DevicesMasterDetail } from "@/components/devices/devices-master-detail";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -58,7 +55,9 @@ function parseDevicesGrouping(value: string | null): DevicesGroupingMode {
 export default function DevicesPage() {
   return (
     <NfcModeGuard>
-      <DevicesPageContent />
+      <Suspense fallback={null}>
+        <DevicesPageContent />
+      </Suspense>
     </NfcModeGuard>
   );
 }
@@ -413,10 +412,12 @@ function DevicesPageContent() {
         />
       ) : null}
 
-      <DeviceCreateModal
+      <DatabaseFormModal<Device>
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
-        onCreate={handleCreateDevice}
+        mode="create"
+        config={devicesConfig}
+        onSubmit={handleCreateDevice}
       />
 
       {selectedDevice && (
@@ -440,12 +441,14 @@ function DevicesPageContent() {
       )}
 
       {selectedDevice && (
-        <DeviceEditModal
+        <DatabaseFormModal<Device>
           isOpen={showEditModal}
           onClose={handleCloseEditModal}
-          device={selectedDevice}
-          onSave={handleUpdateDevice}
-          loading={savingDevice}
+          mode="edit"
+          config={devicesConfig}
+          initialData={selectedDevice}
+          onSubmit={handleUpdateDevice}
+          isLoading={savingDevice}
         />
       )}
     </DatabasePageLayout>

@@ -3,8 +3,10 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -44,6 +46,12 @@ const (
 type StudentRepository struct {
 	*base.Repository[*users.Student]
 	db *bun.DB
+	// companions backs the departure-plan reconciliation in Update: trimming a
+	// plan has to trim the "läuft mit" edges that lose their basis, and that
+	// must happen in the one write path EVERY caller passes through — the
+	// student service's HTTP flow, but also enrollment approval, imports, and
+	// any other direct repository writer (#1694).
+	companions *StudentCompanionRepository
 }
 
 // NewStudentRepository creates a new StudentRepository
@@ -53,6 +61,7 @@ func NewStudentRepository(db *bun.DB) users.StudentRepository {
 	return &StudentRepository{
 		Repository: repo,
 		db:         db,
+		companions: newStudentCompanionRepository(db),
 	}
 }
 
@@ -76,9 +85,7 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("person_id = ?", personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -104,9 +111,7 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`"student".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -128,6 +133,42 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	return result, nil
 }
 
+// FindReadScopeByIDs retrieves a lightweight projection of the given students —
+// only id, group_id, person_id, and school_class — in a single primary-key
+// IN-list query. Unlike FindByIDs it does NOT run hydrateBusDaysIfPresent, so it
+// avoids the extra information_schema column probe and jsonb weekday-hydration
+// round-trip. Callers that only gate read access and display a name (e.g. the
+// reminders header, polled per browser every 60s) get just those small rows and
+// nothing they never read. The returned *Student values have ONLY those four
+// fields populated — do not use them where full student data is expected.
+func (r *StudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.Student), nil
+	}
+
+	var students []*users.Student
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&students).
+		ModelTableExpr(`users.students AS "student"`).
+		Column("id", "group_id", "person_id", "school_class").
+		Where(`"student".id IN (?)`, bun.List(ids))
+
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find read scope by IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]*users.Student, len(students))
+	for _, student := range students {
+		result[student.ID] = student
+	}
+	return result, nil
+}
+
 // FindByGroupID retrieves students by their group ID
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
@@ -136,9 +177,7 @@ func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -168,9 +207,7 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("group_id IN (?)", bun.List(groupIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -194,11 +231,9 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(school_class) = LOWER(?)", schoolClass)
+		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -216,50 +251,25 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	return students, nil
 }
 
-// AssignToGroup assigns a student to a group
-func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("group_id = ?", groupID).
-		Where(`"student".id = ?`, studentID)
+// ListSchoolClasses retrieves all distinct non-empty school_class values.
+func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, error) {
+	var classes []string
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students AS "student"`).
+		ColumnExpr(`DISTINCT TRIM("student".school_class)`).
+		Where(`TRIM("student".school_class) != ''`).
+		OrderExpr(`TRIM("student".school_class) ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "assign to group",
+	if err := query.Scan(ctx, &classes); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list school classes",
 			Err: err,
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "assign to group")
-}
-
-// RemoveFromGroup removes a student from their group
-func (r *StudentRepository) RemoveFromGroup(ctx context.Context, studentID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("group_id = NULL").
-		Where(`"student".id = ?`, studentID)
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "remove from group",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "remove from group")
+	return classes, nil
 }
 
 // Create overrides the base Create method to handle validation
@@ -285,8 +295,18 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return fmt.Errorf("student cannot be nil")
 	}
 
-	// Validate student
-	if err := student.Validate(); err != nil {
+	// Take the subject's row lock BEFORE reading its stored departure plan or its
+	// edges, so both reads see the state this update actually overwrites.
+	// Without it a caller that hydrated the student earlier (FindByID hydrates
+	// the plan, so planTouched is true even for an unrelated write such as
+	// autoClearStudentSickness) re-persists its cached plan: the row UPDATE
+	// blocks on a concurrent companion transaction, commits the pre-change plan
+	// on top of it, while planCompanionReconcile — reading before that
+	// transaction committed — never saw the new edge and so left it in place.
+	// The result is an edge the stored plan forbids. Locking first makes the two
+	// reads agree with the write: the edge is either trimmed along with the plan
+	// or the update is refused by the stranding check.
+	if err := r.lockSubjectForDepartureWrite(ctx, student); err != nil {
 		return err
 	}
 
@@ -295,66 +315,503 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return err
 	}
 
+	// Move the plan fields the caller never touched onto the freshly locked
+	// state, BEFORE anything interprets the difference between them as an
+	// intentional change.
+	rebaseUntouchedDeparturePlan(student, currentDeparture)
+
+	// Align the in-memory departure plan to the plan that will actually be
+	// persisted BEFORE validating, so Validate() checks the effective plan rather
+	// than a transient mix of a stale hydrated allowed_departure_modes set and a
+	// freshly-set legacy departure_days. Without this a legacy client that removes
+	// the accompanied mode via departure_days while clearing the "mit wem" note is
+	// rejected against the stale accompanied mode it never sent (#1694).
+	r.alignDeparturePlanForValidation(student, currentDeparture)
+
+	// Reconcile the "läuft mit" edges with the plan that is about to be
+	// persisted. This is the shared write path every departure-plan writer
+	// passes through — the HTTP student flow trims links itself before calling
+	// Update (making this a no-op there), but enrollment approval, imports and
+	// other direct repository callers replace the plan without knowing links
+	// exist, and would otherwise leave edges the stored plan forbids (the
+	// Kindersuche would keep grouping the child contrary to its Stammdaten).
+	// Stranding a linked child refuses the whole update with
+	// ErrCompanionWouldLoseDeparture, exactly like the service-level check.
+	trim, err := r.planCompanionReconcile(ctx, student)
+	if err != nil {
+		return err
+	}
+
+	// A structured "läuft mit" link satisfies the accompanied-requires-a-note
+	// invariant just like the free-text note does, but it lives in another table
+	// and is not part of the model. Derive it HERE, the one layer every update
+	// passes through, so a caller that knows nothing about companions (status
+	// days, sick/excused auto-clear, care-request approval, imports) can still
+	// save a child whose "mit wem" is answered by a link (#1694). When the
+	// reconcile pass already loaded the edges, its survivor count is
+	// authoritative — an EXISTS probe would still see the edges the trim is
+	// about to drop. Never CLEAR a day the caller set: extendAccompaniedDays
+	// asserts it for an edge that is written later in the same transaction, so
+	// the stored edges legitimately don't show it yet. The cover is per weekday,
+	// because a Monday link is no answer for an accompanied Tuesday.
+	if trim != nil {
+		for day, kept := range trim.keptDays {
+			if kept {
+				student.MarkDepartureCompanionDays(day)
+			}
+		}
+	} else if err := r.applyCompanionLinkDays(ctx, student); err != nil {
+		return err
+	}
+
+	// Validate student
+	if err := student.Validate(); err != nil {
+		return err
+	}
+
 	if err := r.Repository.Update(ctx, student); err != nil {
 		return err
 	}
-	return r.persistDepartureDays(ctx, student, currentDeparture)
+	if err := r.persistDepartureDays(ctx, student, currentDeparture); err != nil {
+		return err
+	}
+	// Drop the trimmed edges only after the plan write succeeded, so a
+	// validation or persistence failure never leaves links deleted for a plan
+	// that was never stored. Callers run inside the request's tenant
+	// transaction, so plan and trim still commit or roll back together.
+	if trim != nil {
+		if err := r.companions.DeleteEdges(ctx, trim.dropIDs); err != nil {
+			return err
+		}
+		// Tell a caller that does not write links itself whether THIS write
+		// touched any — the only honest basis for announcing
+		// student_companions_changed (see users.CompanionChangeRecorder).
+		if len(trim.dropIDs) > 0 {
+			users.RecordCompanionChange(ctx)
+		}
+	}
+	return nil
+}
+
+// departurePlanTouched reports whether this update carries a departure plan at
+// all. Every plan-resolving step keys off it: a caller that loaded no plan
+// leaves all four fields nil and must not have the stored plan rewritten.
+func departurePlanTouched(student *users.Student) bool {
+	return student.AllowedDepartureModes != nil ||
+		student.DepartureDays != nil ||
+		student.BusDays != nil ||
+		student.PickupDays != nil ||
+		student.PickupStatus != nil
+}
+
+// lockSubjectForDepartureWrite takes the subject's row lock when this update
+// will (re)write the departure columns — a plan was supplied, or a companion
+// note was, which persistDepartureDays resolves against the STORED plan and
+// therefore rewrites the same columns.
+//
+// It is the first lock this transaction takes, which is also what
+// lockCompanionFarEnds assumes ("the subject's row is normally already locked
+// by the caller"): every companion writer then walks the far ends in ascending
+// id order from a held subject, and only downward acquisitions go NOWAIT.
+// Callers that already hold the row (the HTTP path's lockStudentForUpdate)
+// re-acquire it for free. A missing row is not an error here — the subsequent
+// UPDATE simply matches nothing, exactly as before.
+func (r *StudentRepository) lockSubjectForDepartureWrite(ctx context.Context, student *users.Student) error {
+	if student.ID <= 0 || (!departurePlanTouched(student) && student.DepartureCompanionNote == nil) {
+		return nil
+	}
+	if _, err := r.FindByIDForUpdate(ctx, student.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	return nil
+}
+
+// rebaseUntouchedDeparturePlan replaces every departure-plan field that still
+// carries exactly what the read hydrated with the state just read under the row
+// lock.
+//
+// Taking the lock makes the reads agree with the write, but only for the STORED
+// side: the in-memory student is whatever the caller loaded, possibly long
+// before a concurrent companion edit committed. A direct caller that never
+// touches the plan (autoClearStudentSickness, status days, imports) still
+// carries all four hydrated fields, so departurePlanTouched is true and
+// resolveAllowedDepartureModes would read the difference to the now-newer
+// stored plan as an intentional change — reverting the committed edit, trimming
+// its fresh edges, or refusing the unrelated update with
+// ErrCompanionWouldLoseDeparture. Rebasing the untouched fields makes such an
+// update a no-op re-persist of the current plan again.
+//
+// Fields the caller genuinely changed differ from the baseline and are left
+// alone, so an intentional plan write still wins over the stored state (last
+// writer wins, as before — this only stops a NON-writer from winning). Without
+// a baseline (the caller built the student itself, or the read predates this
+// snapshot) nothing is rebased and the supplied fields are taken at face value.
+func rebaseUntouchedDeparturePlan(student *users.Student, current *studentDepartureState) {
+	baseline := student.DepartureBaseline
+	if baseline == nil || current == nil {
+		return
+	}
+	if student.AllowedDepartureModes != nil &&
+		allowedDepartureModesEqual(student.AllowedDepartureModes, baseline.AllowedDepartureModes) {
+		student.AllowedDepartureModes = current.AllowedDepartureModes
+	}
+	if student.DepartureDays != nil &&
+		departureDaysEqual(student.DepartureDays, baseline.DepartureDays) {
+		student.DepartureDays = current.DepartureDays
+	}
+	if student.BusDays != nil && busDaysEqual(student.BusDays, baseline.BusDays) {
+		student.BusDays = current.BusDays
+	}
+	if student.PickupDays != nil && pickupDaysEqual(student.PickupDays, baseline.PickupDays) {
+		student.PickupDays = current.PickupDays
+	}
+	// PickupStatus needs no rebase: hydration always leaves PickupDays non-nil,
+	// and resolvedPickupDays only falls back to the legacy status string when
+	// PickupDays is nil.
+}
+
+// companionTrim is the outcome of planCompanionReconcile: the edge rows the new
+// departure plan no longer allows, plus the weekdays on which the child keeps a
+// link (its structured "mit wem" answer, per day).
+type companionTrim struct {
+	dropIDs  []int64
+	keptDays map[string]bool
+}
+
+// planCompanionReconcile determines which "läuft mit" edges lose their basis
+// under the departure plan this update is about to persist, and refuses the
+// update when dropping one would strand the child at the FAR end (accompanied
+// plan on that weekday, no note, no other link on that weekday) — the same
+// rule services/users checkCompanionRemovals enforces for the HTTP path.
+//
+// Returns nil when it did not evaluate the edges (plan untouched, plan allows
+// every weekday, or the table predates this schema); the caller then falls back
+// to the EXISTS-based link flag probe.
+func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student *users.Student) (*companionTrim, error) {
+	if student.ID <= 0 || !departurePlanTouched(student) {
+		return nil, nil
+	}
+
+	// alignDeparturePlanForValidation already rewrote the in-memory plan to the
+	// one persistDepartureDays will store, so this reads the effective plan.
+	accompanied := users.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
+	if len(accompanied) == len(users.PickupDayOrder) {
+		// Every weekday still allows "Anderes Kind" — no edge can lose its
+		// basis, so skip the edge query on this common widening path.
+		return nil, nil
+	}
+
+	// The table landed in 1.15.209 and the migration tests exercise historical
+	// schemas with the current model; an absent table means no links.
+	exists, err := r.hasCompanionTable(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+
+	edges, err := r.companions.ListForStudent(ctx, student.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(edges) == 0 {
+		return &companionTrim{}, nil
+	}
+
+	trim := &companionTrim{keptDays: make(map[string]bool, len(users.PickupDayOrder))}
+	removedDays := make(map[int64][]string, len(edges))
+	removed := make([]int64, 0, len(edges))
+	for _, edge := range edges {
+		far, ok := edge.Other(student.ID)
+		if !ok {
+			continue
+		}
+		day := users.CompanionWeekdayKeys[edge.Weekday]
+		if accompanied[day] {
+			trim.keptDays[day] = true
+			continue
+		}
+		trim.dropIDs = append(trim.dropIDs, edge.ID)
+		if _, seen := removedDays[far]; !seen {
+			removed = append(removed, far)
+		}
+		removedDays[far] = append(removedDays[far], day)
+	}
+	if len(trim.dropIDs) == 0 {
+		return trim, nil
+	}
+	// Serialize against every other writer that could remove one of the far
+	// child's OTHER links before checkCompanionStranding reads them.
+	if err := r.lockCompanionFarEnds(ctx, student.ID, removed); err != nil {
+		return nil, err
+	}
+	if err := r.checkCompanionStranding(ctx, student.ID, removed, removedDays); err != nil {
+		return nil, err
+	}
+	return trim, nil
+}
+
+// lockCompanionFarEnds takes the row lock of every child at the far end of a
+// link this update is about to drop.
+//
+// Without it the stranding check is a read that two transactions can pass on
+// each other's soon-to-be-deleted data: with links A-B and C-B, where B has no
+// note and depends on them, a writer narrowing A's plan and a writer narrowing
+// C's plan each still SEE the other edge, both conclude B stays covered, and
+// both commit — leaving B with an accompanied plan and no "mit wem" detail.
+// api/students takes exactly these locks for the HTTP path (lockCompanionRows),
+// but this repository method is also the write path of callers that never go
+// through it (masterDataReviewService.applyDepartureChange,
+// careScheduleRequestService.applyDepartureModeChanges, imports, enrollment
+// approval), so the invariant has to be re-established here.
+//
+// Order: ascending by id, the order every companion writer uses. The subject's
+// row is normally already locked by the caller, so a far end BELOW it can only
+// be acquired against that order — those are taken with NOWAIT and surface as
+// the retriable users.ErrCompanionLockBusy rather than blocking into a deadlock
+// with a writer coming up from the other side.
+func (r *StudentRepository) lockCompanionFarEnds(ctx context.Context, studentID int64, farEnds []int64) error {
+	ordered := make([]int64, 0, len(farEnds))
+	for _, id := range farEnds {
+		if id > 0 && id != studentID {
+			ordered = append(ordered, id)
+		}
+	}
+	if len(ordered) == 0 {
+		return nil
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
+
+	for _, id := range ordered {
+		var err error
+		if id < studentID {
+			_, err = r.FindByIDForUpdateNoWait(ctx, id)
+		} else {
+			_, err = r.FindByIDForUpdate(ctx, id)
+		}
+		switch {
+		case err == nil:
+		case errors.Is(err, sql.ErrNoRows):
+			// Deleted or another tenant — checkCompanionStranding skips it too.
+		case modelBase.IsLockNotAvailable(err):
+			return users.ErrCompanionLockBusy
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
+// checkCompanionStranding refuses when any removed edge would leave its far
+// child with an accompanied departure plan and no remaining "mit wem" detail
+// FOR THAT WEEKDAY. The cover is per day (Student.Validate): an edge the far
+// child keeps on Monday — with this subject or anyone else — does not answer
+// for an accompanied Tuesday whose edge is being dropped. Mirrors
+// services/users checkCompanionRemovals; both return the shared
+// users.ErrCompanionWouldLoseDeparture sentinel.
+//
+// Inside a coordinated multi-child write (an open users.CompanionStrandingBatch
+// on the context) the verdict is DEFERRED rather than decided here: the far
+// child may be another member of the same batch whose own plan change — the one
+// that makes this removal legitimate — has not been applied yet. The batch's
+// owner decides every deferred verdict against the final state via
+// VerifyCompanionStrandingBatch before it commits.
+func (r *StudentRepository) checkCompanionStranding(ctx context.Context, studentID int64, removed []int64, removedDays map[int64][]string) error {
+	if len(removed) == 0 {
+		return nil
+	}
+	if batch := users.CompanionStrandingBatchFromContext(ctx); batch != nil {
+		for _, id := range removed {
+			batch.Defer(id, removedDays[id])
+		}
+		return nil
+	}
+	return r.checkCompanionStrandingNow(ctx, studentID, removed, removedDays)
+}
+
+// checkCompanionStrandingNow is the verdict itself, evaluated against the state
+// the database has right now. Edges of studentID are ignored as cover because
+// the caller is about to delete them; pass 0 to count every stored edge.
+func (r *StudentRepository) checkCompanionStrandingNow(ctx context.Context, studentID int64, removed []int64, removedDays map[int64][]string) error {
+	covered, err := r.companions.CompanionDaysCoveredExcluding(ctx, removed, studentID)
+	if err != nil {
+		return err
+	}
+	companions, err := r.FindByIDs(ctx, removed)
+	if err != nil {
+		return err
+	}
+	for _, id := range removed {
+		companion := companions[id]
+		if companion == nil {
+			continue // deleted or another tenant — nothing left to strand
+		}
+		if companion.DepartureCompanionNote != nil && strings.TrimSpace(*companion.DepartureCompanionNote) != "" {
+			continue // the free-text note carries the detail for every day
+		}
+		accompanied := users.AccompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)
+		for _, day := range removedDays[id] {
+			if !accompanied[day] {
+				continue // their plan does not claim "Anderes Kind" on this day
+			}
+			if covered[id][day] {
+				continue // another companion walks with them on this day
+			}
+			return users.ErrCompanionWouldLoseDeparture
+		}
+	}
+	return nil
+}
+
+// VerifyCompanionStrandingBatch decides the stranding verdicts the writes of a
+// coordinated multi-child edit deferred into the users.CompanionStrandingBatch
+// carried by ctx (see checkCompanionStranding). Without an open batch — every
+// single-child write — it is a no-op.
+//
+// It re-runs the very same check, but now against the state the whole batch
+// leaves behind: every member's departure plan is written and every edge the
+// batch trims is deleted, so a child whose accompanied day went away in the same
+// edit passes, while a child genuinely left with an accompanied day, no note and
+// no remaining link on that day still fails with
+// users.ErrCompanionWouldLoseDeparture. Nothing is excluded from the coverage
+// read here — unlike the per-write check, which has to ignore edges its own
+// caller is about to delete, this runs after those deletions.
+//
+// The caller runs inside the request's tenant transaction, so a refusal rolls
+// the coordinated edit back as a whole.
+func (r *StudentRepository) VerifyCompanionStrandingBatch(ctx context.Context) error {
+	batch := users.CompanionStrandingBatchFromContext(ctx)
+	if batch == nil {
+		return nil
+	}
+	removed, removedDays := batch.Pending()
+	if len(removed) == 0 {
+		return nil
+	}
+	// studentID 0 excludes nobody: every edge that still exists counts as cover.
+	return r.checkCompanionStrandingNow(ctx, 0, removed, removedDays)
+}
+
+// alignDeparturePlanForValidation rewrites the in-memory departure plan to the
+// plan persistDepartureDays will resolve and store, so Student.Validate() sees a
+// self-consistent plan instead of a stale hydrated allowed-modes set alongside a
+// freshly-set legacy field. The rewrite is idempotent: persistDepartureDays
+// re-resolves from the same inputs and reaches the same plan (the rewritten
+// per-weekday maps shadow any stale legacy pickup_status during that re-resolve).
+// It only runs when the plan was actually touched, so an update that loads no
+// plan stays the no-op persistDepartureDays expects. All four fields are
+// scanonly, so the rewrite never leaks into the base Update's column set (#1694).
+func (r *StudentRepository) alignDeparturePlanForValidation(student *users.Student, current *studentDepartureState) {
+	if !departurePlanTouched(student) {
+		return
+	}
+	allowed := resolveAllowedDepartureModes(student, current)
+	student.AllowedDepartureModes = allowed
+	student.DepartureDays = allowed.DepartureDays()
+	student.BusDays = allowed.BusDays()
+	student.PickupDays = allowed.PickupDays()
 }
 
 // persistDepartureDays writes the unified per-weekday departure mode AND its
 // derived legacy mirrors (bus_days, pickup_days, pickup_status) in a single
 // update, so the repository is the single source of truth (#1610): any caller
-// that mutates the departure plan — via DepartureDays or one of the legacy
-// maps — leaves all columns consistent and free of the bus/pickup contradiction
-// the old two-map model allowed. Callers that touch unrelated student fields
-// without loading the departure plan leave all four nil and this is a no-op,
-// preserving the previous "don't clobber what wasn't provided" behavior.
+// that mutates the departure plan — via allowed modes, DepartureDays, or one of
+// the legacy maps — leaves all columns consistent. Callers that touch unrelated
+// student fields without loading the departure plan leave all four nil and this
+// is a no-op, preserving the previous "don't clobber what wasn't provided"
+// behavior — except that an orphan companion note is still cleared (see below).
 func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *users.Student, current *studentDepartureState) error {
-	if student.DepartureDays == nil &&
-		student.BusDays == nil &&
-		student.PickupDays == nil &&
-		student.PickupStatus == nil {
+	planTouched := departurePlanTouched(student)
+
+	// Resolve the plan that will be in effect after this write: from the request
+	// (merged with the stored state) when a plan field was provided, otherwise the
+	// unchanged stored plan (current) — empty on create, where current is nil.
+	var allowed users.AllowedDepartureModes
+	switch {
+	case planTouched:
+		allowed = resolveAllowedDepartureModes(student, current)
+	case current != nil:
+		allowed = current.AllowedDepartureModes.Normalize()
+	}
+
+	// The companion note is scanonly (see the model), so the generic create/
+	// update column set never references it and this is its single writer.
+	// Resolve the value the column must hold after this write, honoring the
+	// invariant that the free-text "mit wem" note must never outlive the
+	// accompanied mode that justifies it (#1694):
+	//   - resolved plan allows accompanied -> store the provided note (Validate
+	//     guarantees a note is present on every accompanied plan)
+	//   - resolved plan has no accompanied day -> store NULL, regardless of which
+	//     fields (unified or legacy) drove the change, even on a note-only update
+	//     that leaves the plan untouched
+	// Only touch the column when the plan was (re)written or a note value was
+	// supplied in-memory, so an unrelated update leaves it alone.
+	noteTouched := planTouched || student.DepartureCompanionNote != nil
+	var noteToStore *string
+	if allowed.HasMode(users.DepartureAccompanied) {
+		noteToStore = student.DepartureCompanionNote
+	}
+
+	if !noteTouched {
 		return nil
 	}
 
-	departure := resolveDepartureDays(student, current)
-	busDays := departure.BusDays()
-	pickupDays := departure.PickupDays()
-	pickupStatus := departure.LegacyPickupStatus()
-
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		TableExpr(`users.students AS "student"`).
-		Set(`pickup_status = ?`, pickupStatus).
 		Where(`"student".id = ?`, student.ID)
 
-	// departure_days (1.15.120), bus_days (1.15.112) and pickup_days (1.15.116)
-	// each landed in their own migration. Migration tests exercise historical
-	// schemas with the current model, so only set columns that actually exist.
-	hasDeparture, err := r.hasStudentColumn(ctx, "departure_days")
+	departure := allowed.DepartureDays()
+	busDays := allowed.BusDays()
+	pickupDays := allowed.PickupDays()
+	// Derive pickup_status from the FULL non-exclusive set, not from the exclusive
+	// `departure` projection above: the projection ranks bus over accompanied, so a
+	// day allowing both would drop the accompanied signal and bucket the child as a
+	// self-goer. This mirrors the clearNote check above, which already uses the full
+	// set (#1694).
+	pickupStatus := allowed.LegacyPickupStatus()
+
+	// Resolve every optional departure column's existence in one query. Each
+	// landed in its own migration (departure_days 1.15.120, bus_days 1.15.112,
+	// pickup_days 1.15.116, allowed_departure_modes 1.15.130, the scanonly
+	// departure_companion_note 1.15.138 which rollback drops again), and the
+	// migration tests exercise historical schemas with the current model, so only
+	// set columns that actually exist — batched, not one round-trip per column.
+	cols, err := r.hasStudentColumns(ctx, "departure_days", "allowed_departure_modes", "bus_days", "pickup_days", "departure_companion_note")
 	if err != nil {
 		return err
-	}
-	if hasDeparture {
-		query = query.Set(`departure_days = ?`, departure)
-	}
-	hasBus, err := r.hasStudentColumn(ctx, "bus_days")
-	if err != nil {
-		return err
-	}
-	if hasBus {
-		query = query.Set(`bus_days = ?`, busDays)
-	}
-	hasPickup, err := r.hasStudentColumn(ctx, "pickup_days")
-	if err != nil {
-		return err
-	}
-	if hasPickup {
-		query = query.Set(`pickup_days = ?`, pickupDays)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
+	if planTouched {
+		query = query.Set(`pickup_status = ?`, pickupStatus)
+
+		if cols["departure_days"] {
+			query = query.Set(`departure_days = ?`, departure)
+		}
+		if cols["allowed_departure_modes"] {
+			query = query.Set(`allowed_departure_modes = ?`, allowed)
+		}
+		if cols["bus_days"] {
+			query = query.Set(`bus_days = ?`, busDays)
+		}
+		if cols["pickup_days"] {
+			query = query.Set(`pickup_days = ?`, pickupDays)
+		}
 	}
+
+	noteWritten := false
+	if noteTouched && cols["departure_companion_note"] {
+		query = query.Set(`departure_companion_note = ?`, noteToStore)
+		noteWritten = true
+	}
+
+	// A note-only update on a schema that predates the companion-note column has
+	// nothing left to write — bail before issuing a SET-less UPDATE.
+	if !planTouched && !noteWritten {
+		return nil
+	}
+
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -369,33 +826,102 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 		}
 	}
 
-	student.DepartureDays = departure
-	student.BusDays = busDays
-	student.PickupDays = pickupDays
-	student.PickupStatus = &pickupStatus
+	if noteWritten {
+		student.DepartureCompanionNote = noteToStore
+	}
+	if planTouched {
+		student.DepartureDays = departure
+		student.AllowedDepartureModes = allowed
+		student.BusDays = busDays
+		student.PickupDays = pickupDays
+		student.PickupStatus = &pickupStatus
+		// The in-memory plan now equals the stored one, so it is also the new
+		// baseline: reusing the same instance for a second Update must not make
+		// this write's own result look like a pending caller change.
+		student.SnapshotDeparturePlan()
+	}
 	return base.AssertRowsAffected(result, 1, "update student departure days")
 }
 
-// resolveDepartureDays determines the per-weekday departure plan to persist.
-// Freshly built students can provide only DepartureDays. Hydrated updates can
-// carry both the stored unified plan and the stored legacy mirrors, so updates
-// compare against a pre-update snapshot: if only DepartureDays changed, the
-// unified field wins; otherwise legacy map changes remain supported.
-func resolveDepartureDays(student *users.Student, current *studentDepartureState) users.DepartureDays {
-	pickup := student.PickupDays
-	if pickup == nil && student.PickupStatus != nil {
-		pickup = users.PickupDaysFromLegacyStatus(*student.PickupStatus)
+func resolveAllowedDepartureModes(student *users.Student, current *studentDepartureState) users.AllowedDepartureModes {
+	if student.AllowedDepartureModes != nil {
+		if shouldUseAllowedDepartureModes(student, current) {
+			return student.AllowedDepartureModes.Normalize()
+		}
 	}
-	if student.DepartureDays != nil && shouldUseUnifiedDeparture(student, pickup, current) {
-		return student.DepartureDays.Normalize()
+	if current == nil {
+		if student.DepartureDays != nil {
+			return users.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
+		}
+		return users.AllowedDepartureModesFromLegacy(student.BusDays, resolvedPickupDays(student)).Normalize()
 	}
-	return users.DepartureDaysFromLegacy(student.BusDays, pickup)
+
+	pickup := resolvedPickupDays(student)
+	busChanged := student.BusDays != nil && !busDaysEqual(student.BusDays, current.BusDays)
+	pickupChanged := pickup != nil && !pickupDaysEqual(pickup, current.PickupDays)
+	if busChanged || pickupChanged {
+		return mergeLegacyDepartureModes(current.AllowedDepartureModes, student.BusDays, pickup, busChanged, pickupChanged)
+	}
+
+	if student.DepartureDays != nil && !departureDaysEqual(student.DepartureDays, current.DepartureDays) {
+		return users.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
+	}
+	return current.AllowedDepartureModes.Normalize()
+}
+
+func shouldUseAllowedDepartureModes(student *users.Student, current *studentDepartureState) bool {
+	if current == nil {
+		return true
+	}
+	if !allowedDepartureModesEqual(student.AllowedDepartureModes, current.AllowedDepartureModes) {
+		return true
+	}
+	pickup := resolvedPickupDays(student)
+	departureChanged := student.DepartureDays != nil &&
+		!departureDaysEqual(student.DepartureDays, current.DepartureDays)
+	legacyChanged := (student.BusDays != nil && !busDaysEqual(student.BusDays, current.BusDays)) ||
+		(pickup != nil && !pickupDaysEqual(pickup, current.PickupDays))
+	return !departureChanged && !legacyChanged
+}
+
+func resolvedPickupDays(student *users.Student) users.PickupDays {
+	if student.PickupDays != nil {
+		return student.PickupDays
+	}
+	if student.PickupStatus != nil {
+		return users.PickupDaysFromLegacyStatus(*student.PickupStatus)
+	}
+	return nil
+}
+
+func mergeLegacyDepartureModes(current users.AllowedDepartureModes, bus users.BusDays, pickup users.PickupDays, busChanged, pickupChanged bool) users.AllowedDepartureModes {
+	current = current.Normalize()
+	out := users.AllowedDepartureModes{}
+	for _, day := range users.PickupDayOrder {
+		modes := map[users.DepartureMode]bool{}
+		for _, mode := range current[day] {
+			modes[mode] = true
+		}
+		if busChanged {
+			modes[users.DepartureBus] = bus[day]
+		}
+		if pickupChanged {
+			modes[users.DeparturePickup] = pickup[day]
+		}
+		for _, mode := range []users.DepartureMode{users.DepartureAlone, users.DepartureBus, users.DeparturePickup, users.DepartureAccompanied} {
+			if modes[mode] {
+				out[day] = append(out[day], mode)
+			}
+		}
+	}
+	return out.Normalize()
 }
 
 type studentDepartureState struct {
-	BusDays       users.BusDays
-	PickupDays    users.PickupDays
-	DepartureDays users.DepartureDays
+	BusDays               users.BusDays
+	PickupDays            users.PickupDays
+	DepartureDays         users.DepartureDays
+	AllowedDepartureModes users.AllowedDepartureModes
 }
 
 func (r *StudentRepository) findCurrentDepartureState(ctx context.Context, studentID int64) (*studentDepartureState, error) {
@@ -409,22 +935,29 @@ func (r *StudentRepository) findCurrentDepartureState(ctx context.Context, stude
 		return nil, err
 	}
 	return &studentDepartureState{
-		BusDays:       student.BusDays.Normalize(),
-		PickupDays:    student.PickupDays.Normalize(),
-		DepartureDays: student.DepartureDays.Normalize(),
+		BusDays:               student.BusDays.Normalize(),
+		PickupDays:            student.PickupDays.Normalize(),
+		DepartureDays:         student.DepartureDays.Normalize(),
+		AllowedDepartureModes: student.AllowedDepartureModes.Normalize(),
 	}, nil
 }
 
-func shouldUseUnifiedDeparture(student *users.Student, pickup users.PickupDays, current *studentDepartureState) bool {
-	if student.BusDays == nil && pickup == nil {
-		return true
+func allowedDepartureModesEqual(a, b users.AllowedDepartureModes) bool {
+	a = a.Normalize()
+	b = b.Normalize()
+	for _, day := range users.PickupDayOrder {
+		am := a[day]
+		bm := b[day]
+		if len(am) != len(bm) {
+			return false
+		}
+		for i := range am {
+			if am[i] != bm[i] {
+				return false
+			}
+		}
 	}
-	if current == nil {
-		return false
-	}
-	legacyUnchanged := busDaysEqual(student.BusDays, current.BusDays) && pickupDaysEqual(pickup, current.PickupDays)
-	unifiedChanged := !departureDaysEqual(student.DepartureDays, current.DepartureDays)
-	return legacyUnchanged && unifiedChanged
+	return true
 }
 
 func departureDaysEqual(a, b users.DepartureDays) bool {
@@ -508,9 +1041,7 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	// Apply query options with table alias
 	if options != nil {
@@ -554,9 +1085,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
 		GroupExpr(`"student".group_id`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx, &results)
 
@@ -574,31 +1103,6 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 	return counts, nil
 }
 
-// FindWithPerson retrieves a student with their associated person data
-func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*users.Student, error) {
-	student := new(users.Student)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(student).
-		ModelTableExpr(`users.students AS "student"`).
-		Relation("Person").
-		Where(`"student".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with person",
-			Err: err,
-		}
-	}
-
-	return student, nil
-}
-
 // FindByGuardianEmail finds students with a specific guardian email
 func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email string) ([]*users.Student, error) {
 	var students []*users.Student
@@ -607,9 +1111,7 @@ func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email strin
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`LOWER("student".guardian_email) = LOWER(?)`, email)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -631,9 +1133,7 @@ func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone strin
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`"student".guardian_phone = ?`, phone)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -642,73 +1142,6 @@ func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone strin
 			Op:  "find by guardian phone",
 			Err: err,
 		}
-	}
-
-	return students, nil
-}
-
-// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
-func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64) ([]*users.Student, error) {
-	// Define a result struct to handle the complex JOIN and mapping
-	type studentWithPersonAndGroup struct {
-		Student   *users.Student `bun:"student"`
-		Person    *users.Person  `bun:"person"`
-		GroupName string         `bun:"group_name"`
-	}
-
-	var results []*studentWithPersonAndGroup
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
-		ModelTableExpr(`users.students AS "student"`).
-		// Student columns with proper aliasing
-		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
-		ColumnExpr(`"student".tenant_id AS "student__tenant_id"`).
-		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
-		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
-		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
-		ColumnExpr(`"student".group_id AS "student__group_id"`).
-		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
-		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
-		// Person columns with proper aliasing
-		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
-		// Group name for reference
-		ColumnExpr(`"group".name AS "group_name"`).
-		// JOINs to traverse the relationship chain
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
-		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
-		// Filter by teacher ID and ensure student has a group assignment
-		Where(`"gt".teacher_id = ? AND "student".group_id IS NOT NULL`, teacherID).
-		// Use DISTINCT to avoid duplicates if a teacher supervises multiple groups with same student
-		Distinct()
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by teacher ID",
-			Err: err,
-		}
-	}
-
-	// Extract students from results and map the person relationship
-	students := make([]*users.Student, len(results))
-	for i, result := range results {
-		student := result.Student
-		if result.Person != nil && result.Person.ID != 0 {
-			student.Person = result.Person
-		}
-		students[i] = student
-	}
-
-	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
-		return nil, err
 	}
 
 	return students, nil
@@ -735,14 +1168,14 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
+		// departure_companion_note is scanonly and hydrated via
+		// hydrateBusDaysForStudents — never selected here (#1694).
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	return query
 }
@@ -796,20 +1229,28 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 	// there are schema windows where a later column does not exist yet. Detect
 	// each independently and only select present columns — otherwise a missing
 	// column would fail the whole query and drop the bus_days hydration with it.
-	hasPickupDays, err := r.hasStudentColumn(ctx, "pickup_days")
+	// All four are optional columns that landed in their own migrations; resolve
+	// their existence in one query so hydration stays batched (see
+	// hasStudentColumns). departure_companion_note (1.15.138) is scanonly, so the
+	// generic model select never fetches it: hydrate it here, behind the same
+	// column-existence guard, so it survives the schema windows where the column
+	// is absent.
+	cols, err := r.hasStudentColumns(ctx, "pickup_days", "departure_days", "allowed_departure_modes", "departure_companion_note")
 	if err != nil {
 		return err
 	}
-	hasDepartureDays, err := r.hasStudentColumn(ctx, "departure_days")
-	if err != nil {
-		return err
-	}
+	hasPickupDays := cols["pickup_days"]
+	hasDepartureDays := cols["departure_days"]
+	hasAllowedDepartureModes := cols["allowed_departure_modes"]
+	hasCompanionNote := cols["departure_companion_note"]
 
 	type weekdayDaysRow struct {
-		ID            int64               `bun:"id"`
-		BusDays       users.BusDays       `bun:"bus_days"`
-		PickupDays    users.PickupDays    `bun:"pickup_days"`
-		DepartureDays users.DepartureDays `bun:"departure_days"`
+		ID                     int64                       `bun:"id"`
+		BusDays                users.BusDays               `bun:"bus_days"`
+		PickupDays             users.PickupDays            `bun:"pickup_days"`
+		DepartureDays          users.DepartureDays         `bun:"departure_days"`
+		AllowedDepartureModes  users.AllowedDepartureModes `bun:"allowed_departure_modes"`
+		DepartureCompanionNote *string                     `bun:"departure_companion_note"`
 	}
 	var rows []weekdayDaysRow
 	pickupCol := `, NULL::jsonb AS pickup_days`
@@ -820,7 +1261,15 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 	if hasDepartureDays {
 		departureCol = `, "student".departure_days`
 	}
-	sql := `SELECT "student".id, "student".bus_days` + pickupCol + departureCol +
+	allowedCol := `, NULL::jsonb AS allowed_departure_modes`
+	if hasAllowedDepartureModes {
+		allowedCol = `, "student".allowed_departure_modes`
+	}
+	noteCol := `, NULL::text AS departure_companion_note`
+	if hasCompanionNote {
+		noteCol = `, "student".departure_companion_note`
+	}
+	sql := `SELECT "student".id, "student".bus_days` + pickupCol + departureCol + allowedCol + noteCol +
 		` FROM users.students AS "student" WHERE "student".id IN (?)`
 	args := []any{bun.List(ids)}
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -846,6 +1295,19 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		if student == nil {
 			continue
 		}
+		// The companion note is independent of which departure projection wins
+		// below, so set it before the branches (all of which `continue`).
+		if hasCompanionNote {
+			student.DepartureCompanionNote = row.DepartureCompanionNote
+		}
+		if allowed := row.AllowedDepartureModes.Normalize(); hasAllowedDepartureModes && allowed.HasAny() {
+			student.AllowedDepartureModes = allowed
+			student.DepartureDays = allowed.DepartureDays()
+			student.BusDays = allowed.BusDays()
+			student.PickupDays = allowed.PickupDays()
+			student.SnapshotDeparturePlan()
+			continue
+		}
 		// departure_days is authoritative when it carries any non-alone day:
 		// derive the legacy per-day views from it. When it is empty we cannot
 		// tell "genuinely all alone" from "not yet backfilled" (e.g. the
@@ -854,13 +1316,19 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		// truly all-alone child, giving the same result either way.
 		if departure := row.DepartureDays.Normalize(); hasDepartureDays && departure.HasAny() {
 			student.DepartureDays = departure
+			student.AllowedDepartureModes = users.AllowedDepartureModesFromDeparture(departure)
 			student.BusDays = departure.BusDays()
 			student.PickupDays = departure.PickupDays()
+			student.SnapshotDeparturePlan()
 			continue
 		}
 		student.BusDays = row.BusDays.Normalize()
 		student.PickupDays = row.PickupDays.Normalize()
 		student.DepartureDays = users.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
+		student.AllowedDepartureModes = users.AllowedDepartureModesFromLegacy(student.BusDays, student.PickupDays)
+		// The hydrated plan is the baseline Update rebases untouched fields
+		// onto — see rebaseUntouchedDeparturePlan.
+		student.SnapshotDeparturePlan()
 	}
 	return nil
 }
@@ -958,19 +1426,44 @@ func (r *StudentRepository) LockPhotoFeature(ctx context.Context) error {
 // Returns sql.ErrNoRows wrapped in DatabaseError if the row doesn't
 // exist. RLS / TenantWhere scopes visibility to the current tenant.
 func (r *StudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error) {
+	return r.findByIDForUpdate(ctx, id, false)
+}
+
+// FindByIDForUpdateNoWait is FindByIDForUpdate that never blocks: when another
+// transaction already holds the row, PostgreSQL raises 55P03 immediately
+// instead of waiting.
+//
+// It exists for the one situation where waiting is unsafe — taking a lock on an
+// id BELOW an id this transaction already holds. Every companion writer acquires
+// student rows in ascending id order, so a downward acquisition inverts that
+// order and can deadlock against a writer coming the other way. The companion
+// graph is not fully known before the first lock (it is read from the edge
+// table, which a concurrent commit can grow), so downward acquisitions cannot
+// be designed away — they are made non-blocking instead, and the caller turns
+// the refusal into the retriable users.ErrCompanionLockBusy.
+func (r *StudentRepository) FindByIDForUpdateNoWait(ctx context.Context, id int64) (*users.Student, error) {
+	return r.findByIDForUpdate(ctx, id, true)
+}
+
+func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noWait bool) (*users.Student, error) {
+	lockClause := "UPDATE"
+	op := "find_by_id_for_update"
+	if noWait {
+		lockClause = "UPDATE NOWAIT"
+		op = "find_by_id_for_update_nowait"
+	}
+
 	student := new(users.Student)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(student).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where(`"student".id = ?`, id).
-		For("UPDATE")
+		For(lockClause)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find_by_id_for_update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: op, Err: err}
 	}
 	if err := r.hydrateBusDaysIfPresent(ctx, []*users.Student{student}); err != nil {
 		return nil, err
@@ -987,6 +1480,106 @@ func (r *StudentRepository) hydrateBusDaysIfPresent(ctx context.Context, student
 		return nil
 	}
 	return r.hydrateBusDaysForStudents(ctx, students)
+}
+
+// hasStudentColumns resolves the existence of several users.students columns in
+// a SINGLE information_schema query, instead of one round-trip per column.
+// Hydration checks four optional departure columns at once; folding them into
+// one query keeps the per-request query budget batched (api/timetable guards
+// this with a query-count ceiling) rather than N+1.
+func (r *StudentRepository) hasStudentColumns(ctx context.Context, columns ...string) (map[string]bool, error) {
+	present := make(map[string]bool, len(columns))
+	if len(columns) == 0 {
+		return present, nil
+	}
+	var existing []string
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT column_name
+		FROM information_schema.columns
+		WHERE table_schema = 'users'
+		  AND table_name = 'students'
+		  AND column_name IN (?)
+	`, bun.List(columns)).Scan(ctx, &existing)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "check students columns",
+			Err: err,
+		}
+	}
+	for _, col := range existing {
+		present[col] = true
+	}
+	return present, nil
+}
+
+// applyCompanionLinkDays fills the non-persisted Student.DepartureCompanionDays
+// from users.student_companions, so Student.Validate() accepts an accompanied
+// weekday whose "mit wem" is answered by a link on THAT day instead of the
+// free-text note.
+//
+// Only queried when the answer can change the outcome: an update that already
+// carries a note, or whose accompanied days are already covered by what the
+// caller marked, is untouched, so the common path pays nothing.
+func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student *users.Student) error {
+	if student.ID <= 0 || student.DepartureCompanionNote != nil {
+		return nil
+	}
+	uncovered := false
+	for day, accompanied := range users.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays) {
+		if accompanied && !student.DepartureCompanionDays[day] {
+			uncovered = true
+			break
+		}
+	}
+	if !uncovered {
+		return nil
+	}
+
+	// The table landed in 1.15.209 and the migration tests exercise historical
+	// schemas with the current model, so probe it like the optional departure
+	// columns are probed. Absent table means no links, which keeps the note
+	// requirement in force — failing closed.
+	exists, err := r.hasCompanionTable(ctx)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	var weekdays []int
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT DISTINCT weekday
+		FROM users.student_companions
+		WHERE student_low_id = ? OR student_high_id = ?
+	`, student.ID, student.ID).Scan(ctx, &weekdays); err != nil {
+		return &modelBase.DatabaseError{Op: "check student companion links", Err: err}
+	}
+
+	for _, weekday := range weekdays {
+		if day, ok := users.CompanionWeekdayKeys[weekday]; ok {
+			student.MarkDepartureCompanionDays(day)
+		}
+	}
+	return nil
+}
+
+// hasCompanionTable reports whether users.student_companions exists. The table
+// landed in 1.15.209 and the migration tests exercise historical schemas with
+// the current model, so every companion read in this repository is guarded by
+// this probe.
+func (r *StudentRepository) hasCompanionTable(ctx context.Context) (bool, error) {
+	var exists bool
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.tables
+			WHERE table_schema = 'users' AND table_name = 'student_companions'
+		)
+	`).Scan(ctx, &exists); err != nil {
+		return false, &modelBase.DatabaseError{Op: "check student companions table", Err: err}
+	}
+	return exists, nil
 }
 
 func (r *StudentRepository) hasStudentColumn(ctx context.Context, column string) (bool, error) {
@@ -1107,9 +1700,7 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
 		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -1133,9 +1724,7 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 		Set("updated_at = NOW()").
 		Where(`"student".id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -1160,9 +1749,7 @@ func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asO
 		Where(`"student".enrolled_from IS NOT NULL`).
 		Where(`"student".enrolled_from <= ?`, asOf)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -1186,9 +1773,7 @@ func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, as
 		Where(`"student".enrolled_until IS NOT NULL`).
 		Where(`"student".enrolled_until <= ?`, asOf)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{

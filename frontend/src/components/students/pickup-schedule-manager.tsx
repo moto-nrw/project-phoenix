@@ -291,6 +291,7 @@ export default function PickupScheduleManager({
         </div>
         {!readOnly && (
           <button
+            type="button"
             onClick={() => setIsScheduleModalOpen(true)}
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
           >
@@ -303,6 +304,7 @@ export default function PickupScheduleManager({
       <div className="sm:hidden">
         <div className="mb-3 flex items-center justify-between">
           <button
+            type="button"
             onClick={goToPreviousWeek}
             className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             title="Vorherige Woche"
@@ -311,6 +313,7 @@ export default function PickupScheduleManager({
           </button>
           <div className="flex-1" />
           <button
+            type="button"
             onClick={goToNextWeek}
             className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             title="Nächste Woche"
@@ -334,6 +337,7 @@ export default function PickupScheduleManager({
       <div className="hidden sm:block">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={goToPreviousWeek}
             className="flex-shrink-0 rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
             title="Vorherige Woche"
@@ -354,6 +358,7 @@ export default function PickupScheduleManager({
             </div>
           </div>
           <button
+            type="button"
             onClick={goToNextWeek}
             className="flex-shrink-0 rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
             title="Nächste Woche"
@@ -458,6 +463,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
             {/* Edit button */}
             {!readOnly && (
               <button
+                type="button"
                 onClick={() => onEditDay(day)}
                 className="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                 title="Tag bearbeiten"
@@ -574,6 +580,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
       {/* Edit button — always visible */}
       {!readOnly && (
         <button
+          type="button"
           onClick={() => onEditDay(day)}
           className="absolute top-1 right-1 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           title="Tag bearbeiten"

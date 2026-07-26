@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 )
 
 const (
@@ -18,7 +21,8 @@ const (
 	defaultSeedSchoolName       = "Demo School"
 	defaultSeedSchoolSlug       = "demo-school"
 	defaultSeedSchoolSubdomain  = "demo-school"
-	seedTokenHeader             = "X-Phoenix-Seed-Token"
+	seedTokenHeader             = seedtoken.Header
+	defaultSeedParentPassword   = "ParentSeed1234%"
 	seedPasswordAlphabet        = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
 	seedPasswordLength          = 12
 )
@@ -403,7 +407,7 @@ func (s *Seeder) formatError(stage string, err error) error {
 }
 
 // printSuccessSummary prints the final demo-ready status with all created data
-func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedResult) {
+func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedResult, state *SeedState) {
 	fmt.Println()
 	fmt.Println("=== DEMO READY ===")
 	fmt.Println()
@@ -424,6 +428,17 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	}
 	fmt.Println()
 
+	if state != nil && len(state.Parents) > 0 {
+		fmt.Println("PARENT ACCOUNTS:")
+		fmt.Println("  Name                 | Email                         | Password     | Student IDs")
+		fmt.Println("  " + "--------------------" + " | " + "-----------------------------" + " | " + "------------" + " | " + "-----------")
+		for _, parent := range state.Parents {
+			fmt.Printf("  %-20s | %-29s | %-12s | %s\n",
+				parent.Name, parent.Email, parent.Password, formatSeedIDList(parent.StudentIDs))
+		}
+		fmt.Println()
+	}
+
 	// Statistics
 	fmt.Println("CREATED DATA:")
 	fmt.Printf("  Rooms:            %d\n", result.Fixed.RoomCount)
@@ -436,10 +451,76 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Printf("  Pickup schedules: %d\n", result.Fixed.PickupScheduleCount)
 	fmt.Printf("  Activities:       %d\n", result.Fixed.ActivityCount)
 	fmt.Printf("  IoT Devices:      %d\n", result.Fixed.DeviceCount)
+	if state != nil {
+		fmt.Printf("  Parent accounts:  %d\n", len(state.Parents))
+		if state.Enrollment.PhaseID != 0 {
+			fmt.Printf("  Enrollment phase: %d\n", state.Enrollment.PhaseID)
+		}
+		if len(state.Enrollment.Offerings) > 0 {
+			fmt.Printf("  Care offerings:   %d (%s)\n", len(state.Enrollment.Offerings), formatSortedCountMap(state.Enrollment.Offerings))
+		}
+		if len(state.Enrollment.Requests) > 0 {
+			fmt.Printf("  Enroll. requests: %d (%s)\n", len(state.Enrollment.Requests), formatEnrollmentStatusCounts(state.Enrollment.Requests))
+		}
+		if len(state.Enrollment.ParentActions) > 0 {
+			fmt.Printf("  Parent actions:   %d (%s)\n", len(state.Enrollment.ParentActions), formatParentActionCounts(state.Enrollment.ParentActions))
+		}
+	}
 	fmt.Println()
 
 	fmt.Println("OUTPUT FILES:")
 	fmt.Printf("  %s   (seed state with credentials & IDs)\n", DefaultSeedStatePath)
-	fmt.Println("  simulator.yaml  (simulator configuration)")
 	fmt.Println()
+}
+
+func formatSeedIDList(ids []int64) string {
+	if len(ids) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		parts = append(parts, fmt.Sprintf("%d", id))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func formatEnrollmentStatusCounts(requests []SeedEnrollmentRequest) string {
+	return formatSortedCountMap(countBy(requests, func(request SeedEnrollmentRequest) string {
+		if status := strings.TrimSpace(request.Status); status != "" {
+			return status
+		}
+		return "submitted"
+	}))
+}
+
+func formatParentActionCounts(actions []SeedParentPortalAction) string {
+	return formatSortedCountMap(countBy(actions, func(action SeedParentPortalAction) string {
+		if actionType := strings.TrimSpace(action.Type); actionType != "" {
+			return actionType
+		}
+		return "unknown"
+	}))
+}
+
+// formatSortedCountMap renders a string->number map as "key=value" pairs sorted
+// by key, or "-" when empty.
+func formatSortedCountMap[V int | int64](values map[string]V) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	keys := slices.Sorted(maps.Keys(values))
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%d", key, values[key]))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// countBy tallies items by the string key derived from each element.
+func countBy[T any](items []T, key func(T) string) map[string]int {
+	counts := make(map[string]int)
+	for _, item := range items {
+		counts[key(item)]++
+	}
+	return counts
 }

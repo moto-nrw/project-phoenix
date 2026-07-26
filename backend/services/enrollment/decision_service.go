@@ -2,14 +2,19 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -19,6 +24,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	importsvc "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -28,18 +34,26 @@ import (
 // existing account can attach the role for the new tenant directly.
 const guardianRoleName = "guardian"
 
+// openSchoolClassPlaceholder satisfies the required users.students.school_class
+// column when enrollment deliberately did not collect a grade or concrete
+// class. It is application-owned state, not an administrator-assigned class.
+const openSchoolClassPlaceholder = "offen"
+
 // DecisionService sentinel errors. Mapped to HTTP status codes by the
 // admin handlers.
 var (
-	ErrDecisionRequestNotFound = errors.New("enrollment request not found")
-	ErrDecisionChildNotFound   = errors.New("request child not found")
-	ErrDecisionInvalidStatus   = errors.New("invalid decision status")
-	ErrDecisionAlreadyTerminal = errors.New("child is already in a terminal status")
+	ErrDecisionRequestNotFound   = errors.New("enrollment request not found")
+	ErrDecisionChildNotFound     = errors.New("request child not found")
+	ErrDecisionStudentNotFound   = errors.New("student not found")
+	ErrDecisionInvalidStatus     = errors.New("invalid decision status")
+	ErrDecisionAlreadyTerminal   = errors.New("child is already in a terminal status")
+	ErrOfferingAdjustmentInvalid = errors.New("offering adjustment is invalid")
 	// ErrDecisionInvalidData marks an approval that failed because the
 	// parent-supplied request data (e.g. guardian phone) doesn't pass the
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
 	// validate up front, so this is defense-in-depth for legacy rows.
 	ErrDecisionInvalidData = errors.New("enrollment request data is invalid")
+	ErrWaitlistDisabled    = errors.New("waitlist decisions are disabled for this tenant")
 	// ErrExportTooLarge guards the phase export against assembling an
 	// unbounded payload in memory. At OGS scale a phase holds hundreds of
 	// requests (a few MB); this cap only trips on a pathological phase,
@@ -81,11 +95,36 @@ var validDecisionStatuses = map[DecisionStatus]bool{
 
 // DecideInput carries the per-child decision the admin makes.
 type DecideInput struct {
-	RequestID  int64
-	ChildID    int64
-	Status     DecisionStatus
-	Reason     string // optional; surfaced to parent only when phase.show_status_reason_to_parent
-	ReviewedBy int64  // admin's auth account id
+	RequestID                  int64
+	ChildID                    int64
+	Status                     DecisionStatus
+	Reason                     string // optional; surfaced to parent only when phase.show_status_reason_to_parent
+	ReviewedBy                 int64  // admin's auth account id
+	SuppressParentEmail        bool
+	SuppressGuardianInvitation bool
+}
+
+type OfferingAdjustmentSelection struct {
+	OfferingID   int64
+	SelectedDays []string
+}
+
+type UpdateChildOfferingsInput struct {
+	RequestID      int64
+	ChildID        int64
+	Offerings      []OfferingAdjustmentSelection
+	Reason         string
+	ActorAccountID int64
+	ActorRole      string
+}
+
+type SyncApprovedChildDataInput struct {
+	RequestID                int64
+	ChildID                  int64
+	ActorAccountID           int64
+	ReplaceTargetedData      bool
+	PreviousSnapshot         map[string]any
+	PreviousRequestGuardians []*enrollmentModels.RequestGuardian
 }
 
 // DecideOutcome is what the admin handler gets back from Decide. It
@@ -117,9 +156,10 @@ type PendingGuardianInvite struct {
 // per-child counts so the admin can scan the queue without expanding
 // every detail page.
 type RequestSummary struct {
-	Request  *enrollmentModels.Request
-	Phase    *enrollmentModels.Phase
-	Children []*enrollmentModels.RequestChild
+	Request   *enrollmentModels.Request
+	Phase     *enrollmentModels.Phase
+	Children  []*enrollmentModels.RequestChild
+	Guardians []*enrollmentModels.RequestGuardian
 }
 
 // RequestFilters narrows the admin list. Zero-value fields are
@@ -138,8 +178,11 @@ type RequestFilters struct {
 // post-commit.
 type DecisionService interface {
 	List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error)
+	ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
 	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error)
 
 	// ListChildOfferings returns the request_child_offerings rows for
 	// every child under requestID, joined to the offering's name +
@@ -162,6 +205,7 @@ type DecisionService interface {
 	// mirroring the admin list's per-child status dropdown. Empty means
 	// "all". The audit row's counts reflect the filtered (disclosed) set.
 	ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*PhaseExport, error)
+	ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (*StudentEnrollmentExport, error)
 
 	// RecordPhaseExportAudit appends one append-only row to
 	// audit.data_access_log recording that an admin exported the full
@@ -196,10 +240,31 @@ func (e *PhaseExport) Counts() (requests, children int) {
 	return len(e.Rows), children
 }
 
-// ExportRequestRow is one parent submission with its resolved children.
+// StudentEnrollmentExport is the fully-assembled payload for exports from
+// one student's kartei tab. Rows contain only the matching request_child row,
+// even when the original parent submission included siblings.
+type StudentEnrollmentExport struct {
+	StudentID int64
+	Schemas   map[int64]*enrollmentModels.FormSchema
+	Phases    map[int64]*enrollmentModels.Phase
+	Rows      []ExportRequestRow
+}
+
+func (e *StudentEnrollmentExport) Counts() (requests, children int) {
+	for _, row := range e.Rows {
+		children += len(row.Children)
+	}
+	return len(e.Rows), children
+}
+
+// ExportRequestRow is one parent submission with its resolved children
+// and the additional guardians (co-guardians) the parent submitted
+// alongside the primary contact. Guardians is nil when the submission had
+// none.
 type ExportRequestRow struct {
-	Request  *enrollmentModels.Request
-	Children []ExportChildRow
+	Request   *enrollmentModels.Request
+	Children  []ExportChildRow
+	Guardians []*enrollmentModels.RequestGuardian
 }
 
 // ExportChildRow is one child plus its care-offering selections,
@@ -214,11 +279,13 @@ type ExportChildRow struct {
 // — nil when the offering runs in admin-fixed mode, non-nil only when
 // the parent picked specific days.
 type ChildOfferingRow struct {
-	OfferingID     int64
-	OfferingName   string
-	DaysOfWeekMode string
-	SelectedDays   []string
-	AvailableDays  []string
+	OfferingID            int64
+	OfferingName          string
+	DaysOfWeekMode        string
+	SelectedDays          []string
+	ManualSelectedDays    []string
+	AutomaticSelectedDays []string
+	AvailableDays         []string
 }
 
 // DecisionServiceConfig is the dep-injection bundle. The auth-side
@@ -232,18 +299,22 @@ type ChildOfferingRow struct {
 // lookup is required today, so the interface stays minimal.
 type DecisionSettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
+	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository // needed to look up FormField.Target for each submitted answer
 	DataAccessLogRepo        auditModels.DataAccessLogRepository   // append-only GDPR audit row written on phase export
+	OfferingAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
 	SchoolRepo               platformModels.SchoolRepository
 	PersonRepo               users.PersonRepository
+	StaffRepo                users.StaffRepository
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
 	GuardianProfileRepo      users.GuardianProfileRepository
@@ -254,95 +325,49 @@ type DecisionServiceConfig struct {
 	ActivityGroupRepo        activities.GroupRepository
 	ActivityScheduleRepo     activities.ScheduleRepository
 	CalendarPeriodRepo       scheduleModels.CalendarPeriodRepository
+	TimeframeRepo            scheduleModels.TimeframeRepository
+	ActivityExceptionRepo    scheduleModels.ActivityExceptionRepository
 	AccountRepo              authModels.AccountRepository
 	AccountTenantRepo        authModels.AccountTenantRepository
 	AccountRoleRepo          authModels.AccountRoleRepository
 	RoleRepo                 authModels.RoleRepository
-	OutboxEnqueuer           OutboxEnqueuer
-	FrontendURL              string                   // not used by parent-facing emails today; kept for future admin links
-	ParentsURL               string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
-	Settings                 DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
-	Logger                   *slog.Logger
+	OutboxEnqueuer           platformModels.OutboxEnqueuer
+	// Broadcaster announces student_updated + student_companions_changed after
+	// an approved enrollment sync replaced a child's departure plan (the write
+	// that can trim "läuft mit" links). Nil-safe: without it the sync still
+	// works, open student and companion views just stay stale until their next
+	// manual refresh.
+	Broadcaster realtime.Broadcaster
+	FrontendURL string                   // not used by parent-facing emails today; kept for future admin links
+	ParentsURL  string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
+	Settings    DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
+	// LockTemplateRecurrence serializes sourced roster writes with template
+	// split/end/materialization. Production wires the schedule service's
+	// transaction-scoped tenant recurrence gate; tests may leave it nil.
+	LockTemplateRecurrence func(context.Context) error
+	Logger                 *slog.Logger
 }
 
 type decisionService struct {
-	requestRepo              enrollmentModels.RequestRepository
-	requestChildRepo         enrollmentModels.RequestChildRepository
-	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	careOfferingRepo         enrollmentModels.CareOfferingRepository
-	phaseRepo                enrollmentModels.PhaseRepository
-	formSchemaRepo           enrollmentModels.FormSchemaRepository
-	dataAccessLogRepo        auditModels.DataAccessLogRepository
-	schoolRepo               platformModels.SchoolRepository
-	personRepo               users.PersonRepository
-	studentRepo              users.StudentRepository
-	studentGuardianRepo      users.StudentGuardianRepository
-	guardianProfileRepo      users.GuardianProfileRepository
-	guardianPhoneRepo        users.GuardianPhoneNumberRepository
-	pickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository
-	arrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository
-	studentEnrollmentRepo    activities.StudentEnrollmentRepository
-	activityGroupRepo        activities.GroupRepository
-	activityScheduleRepo     activities.ScheduleRepository
-	calendarPeriodRepo       scheduleModels.CalendarPeriodRepository
-	accountRepo              authModels.AccountRepository
-	accountTenantRepo        authModels.AccountTenantRepository
-	accountRoleRepo          authModels.AccountRoleRepository
-	roleRepo                 authModels.RoleRepository
-	outboxEnqueuer           OutboxEnqueuer
-	frontendURL              string
-	parentsURL               string
-	settings                 DecisionSettingsResolver
-	logger                   *slog.Logger
+	DecisionServiceConfig
 }
 
 func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	return &decisionService{
-		requestRepo:              cfg.RequestRepo,
-		requestChildRepo:         cfg.RequestChildRepo,
-		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
-		careOfferingRepo:         cfg.CareOfferingRepo,
-		phaseRepo:                cfg.PhaseRepo,
-		formSchemaRepo:           cfg.FormSchemaRepo,
-		dataAccessLogRepo:        cfg.DataAccessLogRepo,
-		schoolRepo:               cfg.SchoolRepo,
-		personRepo:               cfg.PersonRepo,
-		studentRepo:              cfg.StudentRepo,
-		studentGuardianRepo:      cfg.StudentGuardianRepo,
-		guardianProfileRepo:      cfg.GuardianProfileRepo,
-		guardianPhoneRepo:        cfg.GuardianPhoneRepo,
-		pickupScheduleRepo:       cfg.PickupScheduleRepo,
-		arrivalScheduleRepo:      cfg.ArrivalScheduleRepo,
-		studentEnrollmentRepo:    cfg.StudentEnrollmentRepo,
-		activityGroupRepo:        cfg.ActivityGroupRepo,
-		activityScheduleRepo:     cfg.ActivityScheduleRepo,
-		calendarPeriodRepo:       cfg.CalendarPeriodRepo,
-		accountRepo:              cfg.AccountRepo,
-		accountTenantRepo:        cfg.AccountTenantRepo,
-		accountRoleRepo:          cfg.AccountRoleRepo,
-		roleRepo:                 cfg.RoleRepo,
-		outboxEnqueuer:           cfg.OutboxEnqueuer,
-		frontendURL:              cfg.FrontendURL,
-		parentsURL: func() string {
-			parents := strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
-			if parents != "" {
-				return parents
-			}
-			return strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
-		}(),
-		settings: cfg.Settings,
-		logger:   logger,
+	cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
+	if cfg.ParentsURL == "" {
+		cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 	}
+	return &decisionService{DecisionServiceConfig: cfg}
 }
 
 func (s *decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {
-	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
-		PhaseID:     filters.PhaseID,
-		ChildStatus: filters.ChildStatus,
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
+		PhaseID:          filters.PhaseID,
+		ChildStatus:      filters.ChildStatus,
+		CreatedStudentID: 0,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("decision: list requests: %w", err)
@@ -359,8 +384,46 @@ func (s *decisionService) List(ctx context.Context, filters RequestFilters) ([]*
 	return out, nil
 }
 
+func (s *decisionService) ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error) {
+	if studentID <= 0 {
+		return nil, fmt.Errorf("decision: student_id required")
+	}
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
+		CreatedStudentID: studentID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("decision: list requests by student: %w", err)
+	}
+
+	out := make([]*RequestSummary, 0, len(requests))
+	for _, req := range requests {
+		summary, err := s.assemble(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		filterRequestSummaryChildren(summary, studentID)
+		if len(summary.Children) > 0 {
+			out = append(out, summary)
+		}
+	}
+	return out, nil
+}
+
+func filterRequestSummaryChildren(summary *RequestSummary, studentID int64) {
+	if summary == nil || studentID <= 0 {
+		return
+	}
+	children := summary.Children[:0]
+	for _, child := range summary.Children {
+		if child != nil && child.CreatedStudentID != nil && *child.CreatedStudentID == studentID {
+			children = append(children, child)
+		}
+	}
+	summary.Children = children
+}
+
 func (s *decisionService) Get(ctx context.Context, requestID int64) (*RequestSummary, error) {
-	req, err := s.requestRepo.FindByID(ctx, requestID)
+	req, err := s.RequestRepo.FindByID(ctx, requestID)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
@@ -368,21 +431,28 @@ func (s *decisionService) Get(ctx context.Context, requestID int64) (*RequestSum
 }
 
 func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Request) (*RequestSummary, error) {
-	phase, err := s.phaseRepo.FindByID(ctx, req.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil {
 		// Phase may have been deleted under us - surface as "phase
 		// missing" but don't drop the row from the list.
-		s.logger.Warn("decision: phase lookup failed",
+		s.Logger.Warn("decision: phase lookup failed",
 			slog.Int64("request_id", req.ID),
 			slog.Int64("phase_id", req.PhaseID),
 			slog.String("error", err.Error()))
 		phase = nil
 	}
-	children, err := s.requestChildRepo.ListByRequestID(ctx, req.ID)
+	children, err := s.RequestChildRepo.ListByRequestID(ctx, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for request %d: %w", req.ID, err)
 	}
-	return &RequestSummary{Request: req, Phase: phase, Children: children}, nil
+	var guardians []*enrollmentModels.RequestGuardian
+	if s.RequestGuardianRepo != nil {
+		guardians, err = s.RequestGuardianRepo.ListByRequestID(ctx, req.ID)
+		if err != nil {
+			return nil, fmt.Errorf("decision: list guardians for request %d: %w", req.ID, err)
+		}
+	}
+	return &RequestSummary{Request: req, Phase: phase, Children: children, Guardians: guardians}, nil
 }
 
 // ListChildOfferings returns the offerings each child in this request
@@ -394,24 +464,26 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
 	}
-	children, err := s.requestChildRepo.ListByRequestID(ctx, requestID)
+	children, err := s.RequestChildRepo.ListByRequestID(ctx, requestID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
 	out := make(map[int64][]ChildOfferingRow, len(children))
 	for _, child := range children {
-		links, lerr := s.requestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
+		links, lerr := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
 		if lerr != nil {
 			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
 		}
 		rows := make([]ChildOfferingRow, 0, len(links))
 		for _, link := range links {
 			row := ChildOfferingRow{
-				OfferingID:   link.CareOfferingID,
-				SelectedDays: link.SelectedDays,
+				OfferingID:            link.CareOfferingID,
+				SelectedDays:          link.SelectedDays,
+				ManualSelectedDays:    link.ManualSelectedDays,
+				AutomaticSelectedDays: link.AutomaticSelectedDays,
 			}
-			if s.careOfferingRepo != nil {
-				if off, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
+			if s.CareOfferingRepo != nil {
+				if off, err := s.CareOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
 					row.OfferingName = off.Name
 					row.DaysOfWeekMode = off.DaysOfWeekMode
 					row.AvailableDays = off.AvailableDays
@@ -440,6 +512,18 @@ func (s *decisionService) ExportPhase(ctx context.Context, phaseID, actorAccount
 	return data, nil
 }
 
+func (s *decisionService) ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (*StudentEnrollmentExport, error) {
+	data, err := s.exportStudentData(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	requestCount, childCount := data.Counts()
+	if err := s.recordStudentExportAudit(ctx, actorAccountID, actorRole, data, format, requestCount, childCount); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 // exportData assembles the whole phase in a fixed number of queries:
 //  1. all requests of the phase            (requestRepo.ListAdmin)
 //  2. the phase row                         (phaseRepo.FindByID)
@@ -456,7 +540,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		return nil, fmt.Errorf("decision: export: phase_id required")
 	}
 
-	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: phaseID})
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: phaseID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export list requests: %w", err)
 	}
@@ -468,7 +552,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		return nil, fmt.Errorf("decision: export phase %d has %d requests (max %d): %w",
 			phaseID, len(requests), maxExportRequests, ErrExportTooLarge)
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, phaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
 	if err != nil {
 		// Map a missing/unreachable phase to the not-found sentinel so the
 		// handler can answer 404 rather than 500. Mirrors phaseService.GetByID,
@@ -481,7 +565,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		reqIDs = append(reqIDs, req.ID)
 	}
 
-	children, err := s.requestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	children, err := s.RequestChildRepo.ListByRequestIDs(ctx, reqIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load children: %w", err)
 	}
@@ -490,12 +574,12 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		childIDs = append(childIDs, c.ID)
 	}
 
-	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load offerings: %w", err)
 	}
 
-	offerings, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
+	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, phaseID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load care offerings: %w", err)
 	}
@@ -504,22 +588,23 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		offeringByID[off.ID] = off
 	}
 
-	// Group offering links per child, resolving each to its catalog name/days.
-	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
-	for _, link := range links {
-		row := ChildOfferingRow{OfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
-		if off := offeringByID[link.CareOfferingID]; off != nil {
-			row.OfferingName = off.Name
-			row.DaysOfWeekMode = off.DaysOfWeekMode
-			row.AvailableDays = off.AvailableDays
-		}
-		offeringsByChild[link.RequestChildID] = append(offeringsByChild[link.RequestChildID], row)
-	}
+	// Group offering links per child, resolving each to its catalog
+	// name/days, and children per request.
+	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
+	childrenByRequest := groupChildrenByRequest(children, len(reqIDs))
 
-	// Group children per request.
-	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, len(reqIDs))
-	for _, c := range children {
-		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
+	// Load + group the additional guardians (co-guardians) so the export
+	// carries every submitted contact, matching the admin detail and the
+	// public status page. Defensive against an unwired repo.
+	guardiansByRequest := make(map[int64][]*enrollmentModels.RequestGuardian)
+	if s.RequestGuardianRepo != nil {
+		guardians, gerr := s.RequestGuardianRepo.ListByRequestIDs(ctx, reqIDs)
+		if gerr != nil {
+			return nil, fmt.Errorf("decision: export load co-guardians: %w", gerr)
+		}
+		for _, g := range guardians {
+			guardiansByRequest[g.RequestID] = append(guardiansByRequest[g.RequestID], g)
+		}
 	}
 
 	// Load each distinct pinned schema version once for label resolution.
@@ -531,7 +616,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		if _, ok := schemas[*req.SchemaID]; ok {
 			continue
 		}
-		fs, ferr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
+		fs, ferr := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
 		if ferr != nil {
 			// Fail closed. The renderer only emits custom answers for fields
 			// found in the loaded schemas, so a missing schema would silently
@@ -545,7 +630,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 			// error (a retry succeeds) or data corruption (must be loud) —
 			// never an intentionally-removed schema. Abort before any audit
 			// row is written so no incomplete disclosure is recorded.
-			s.logger.Error("decision: export schema lookup failed, aborting export",
+			s.Logger.Error("decision: export schema lookup failed, aborting export",
 				slog.Int64("schema_id", *req.SchemaID),
 				slog.String("error", ferr.Error()))
 			return nil, fmt.Errorf("decision: export load schema %d: %w", *req.SchemaID, ferr)
@@ -571,10 +656,123 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		if childStatusFilter != "" && len(childRows) == 0 {
 			continue
 		}
-		rows = append(rows, ExportRequestRow{Request: req, Children: childRows})
+		rows = append(rows, ExportRequestRow{Request: req, Children: childRows, Guardians: guardiansByRequest[req.ID]})
 	}
 
 	return &PhaseExport{Phase: phase, Schemas: schemas, Rows: rows}, nil
+}
+
+func (s *decisionService) exportStudentData(ctx context.Context, studentID int64) (*StudentEnrollmentExport, error) {
+	if studentID <= 0 {
+		return nil, fmt.Errorf("decision: export student: student_id required")
+	}
+	if s.StudentRepo == nil {
+		return nil, fmt.Errorf("decision: export student: student repo not configured")
+	}
+	if _, err := s.StudentRepo.FindByID(ctx, studentID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, ErrDecisionStudentNotFound)
+		}
+		return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, err)
+	}
+
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{CreatedStudentID: studentID})
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student list requests: %w", err)
+	}
+	if len(requests) > maxExportRequests {
+		return nil, fmt.Errorf("decision: export student %d has %d requests (max %d): %w",
+			studentID, len(requests), maxExportRequests, ErrExportTooLarge)
+	}
+
+	reqIDs := make([]int64, 0, len(requests))
+	phaseIDs := make(map[int64]struct{}, len(requests))
+	for _, req := range requests {
+		reqIDs = append(reqIDs, req.ID)
+		phaseIDs[req.PhaseID] = struct{}{}
+	}
+
+	children, err := s.RequestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student load children: %w", err)
+	}
+	filteredChildren := make([]*enrollmentModels.RequestChild, 0, len(children))
+	childIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		if child.CreatedStudentID == nil || *child.CreatedStudentID != studentID {
+			continue
+		}
+		filteredChildren = append(filteredChildren, child)
+		childIDs = append(childIDs, child.ID)
+	}
+
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student load offerings: %w", err)
+	}
+
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering)
+	for phaseID := range phaseIDs {
+		offerings, err := s.CareOfferingRepo.ListByPhase(ctx, phaseID)
+		if err != nil {
+			return nil, fmt.Errorf("decision: export student load care offerings: %w", err)
+		}
+		for _, off := range offerings {
+			offeringByID[off.ID] = off
+		}
+	}
+
+	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
+	childrenByRequest := groupChildrenByRequest(filteredChildren, len(reqIDs))
+
+	phases := make(map[int64]*enrollmentModels.Phase, len(phaseIDs))
+	for phaseID := range phaseIDs {
+		phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
+		if err != nil {
+			return nil, fmt.Errorf("decision: export student load phase %d: %w", phaseID, err)
+		}
+		phases[phaseID] = phase
+	}
+
+	schemas := make(map[int64]*enrollmentModels.FormSchema)
+	for _, req := range requests {
+		if req.SchemaID == nil {
+			continue
+		}
+		if _, ok := schemas[*req.SchemaID]; ok {
+			continue
+		}
+		if s.FormSchemaRepo == nil {
+			return nil, fmt.Errorf("decision: export student schema repo not configured")
+		}
+		schema, err := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
+		if err != nil {
+			return nil, fmt.Errorf("decision: export student load schema %d: %w", *req.SchemaID, err)
+		}
+		schemas[*req.SchemaID] = schema
+	}
+
+	rows := make([]ExportRequestRow, 0, len(requests))
+	for _, req := range requests {
+		childRows := make([]ExportChildRow, 0, len(childrenByRequest[req.ID]))
+		for _, child := range childrenByRequest[req.ID] {
+			childRows = append(childRows, ExportChildRow{
+				Child:     child,
+				Offerings: offeringsByChild[child.ID],
+			})
+		}
+		if len(childRows) == 0 {
+			continue
+		}
+		rows = append(rows, ExportRequestRow{Request: req, Children: childRows})
+	}
+
+	return &StudentEnrollmentExport{
+		StudentID: studentID,
+		Schemas:   schemas,
+		Phases:    phases,
+		Rows:      rows,
+	}, nil
 }
 
 // RecordPhaseExportAudit writes the GDPR access-log row for a phase
@@ -582,19 +780,44 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 // file when this errors. The DataAccessLog repo populates tenant_id
 // from the context's tenant transaction, so this must be called inside
 // one.
+
+// groupOfferingsByChild resolves each child->offering link against the
+// offering catalog and groups the rows per request child. Shared by the
+// phase export and the per-student export.
+func groupOfferingsByChild(links []*enrollmentModels.RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering, childCount int) map[int64][]ChildOfferingRow {
+	offeringsByChild := make(map[int64][]ChildOfferingRow, childCount)
+	for _, link := range links {
+		row := ChildOfferingRow{
+			OfferingID:            link.CareOfferingID,
+			SelectedDays:          link.SelectedDays,
+			ManualSelectedDays:    link.ManualSelectedDays,
+			AutomaticSelectedDays: link.AutomaticSelectedDays,
+		}
+		if off := offeringByID[link.CareOfferingID]; off != nil {
+			row.OfferingName = off.Name
+			row.DaysOfWeekMode = off.DaysOfWeekMode
+			row.AvailableDays = off.AvailableDays
+		}
+		offeringsByChild[link.RequestChildID] = append(offeringsByChild[link.RequestChildID], row)
+	}
+	return offeringsByChild
+}
+
+// groupChildrenByRequest groups request children per request id.
+func groupChildrenByRequest(children []*enrollmentModels.RequestChild, requestCount int) map[int64][]*enrollmentModels.RequestChild {
+	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, requestCount)
+	for _, c := range children {
+		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
+	}
+	return childrenByRequest
+}
+
 func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *enrollmentModels.Phase, format, statusFilter string, requestCount, childCount int) error {
-	if s.dataAccessLogRepo == nil {
+	if s.DataAccessLogRepo == nil {
 		return fmt.Errorf("decision: export audit: data access log repo not configured")
 	}
 	if phase == nil {
 		return fmt.Errorf("decision: export audit: phase required")
-	}
-	if actorAccountID <= 0 {
-		return fmt.Errorf("decision: export audit: actor account id required")
-	}
-	// actor_role is NOT NULL; the column never carries an empty string.
-	if strings.TrimSpace(actorRole) == "" {
-		actorRole = "unknown"
 	}
 	// An empty filter means the export covered every child — record it as
 	// "all" so the audit trail is explicit about the disclosed scope.
@@ -603,13 +826,11 @@ func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccou
 		statusFilterLabel = "all"
 	}
 
-	entry := &auditModels.DataAccessLog{
-		ActorAccountID: actorAccountID,
-		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeEnrollmentPhaseExport,
-		RangeStart:     phase.ServiceStartDate.BerlinMidnight(),
-		RangeEnd:       phase.ServiceEndDate.EndOfDay(),
-		AccessedAt:     time.Now(),
+	entry, err := exportAuditEntry("decision: export audit", actorAccountID, actorRole,
+		auditModels.ResourceTypeEnrollmentPhaseExport,
+		phase.ServiceStartDate.BerlinMidnight(), phase.ServiceEndDate.EndOfDay(), time.Now())
+	if err != nil {
+		return err
 	}
 	entry.SetMetadata("phase_id", phase.ID)
 	entry.SetMetadata("format", format)
@@ -617,10 +838,44 @@ func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccou
 	entry.SetMetadata("request_count", requestCount)
 	entry.SetMetadata("child_count", childCount)
 
-	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
-		return fmt.Errorf("decision: export audit write: %w", err)
+	return writeExportAudit(ctx, s.DataAccessLogRepo, entry, "decision: export audit")
+}
+
+func (s *decisionService) recordStudentExportAudit(ctx context.Context, actorAccountID int64, actorRole string, data *StudentEnrollmentExport, format string, requestCount, childCount int) error {
+	if s.DataAccessLogRepo == nil {
+		return fmt.Errorf("decision: student export audit: data access log repo not configured")
 	}
-	return nil
+	if data == nil || data.StudentID <= 0 {
+		return fmt.Errorf("decision: student export audit: student required")
+	}
+	now := time.Now()
+	rangeStart := now
+	rangeEnd := now
+	for _, phase := range data.Phases {
+		if phase == nil {
+			continue
+		}
+		start := phase.ServiceStartDate.BerlinMidnight()
+		end := phase.ServiceEndDate.EndOfDay()
+		if rangeStart.Equal(now) || start.Before(rangeStart) {
+			rangeStart = start
+		}
+		if rangeEnd.Equal(now) || end.After(rangeEnd) {
+			rangeEnd = end
+		}
+	}
+
+	entry, err := exportAuditEntry("decision: student export audit", actorAccountID, actorRole,
+		auditModels.ResourceTypeEnrollmentStudentExport, rangeStart, rangeEnd, now)
+	if err != nil {
+		return err
+	}
+	entry.StudentID = &data.StudentID
+	entry.SetMetadata("format", format)
+	entry.SetMetadata("request_count", requestCount)
+	entry.SetMetadata("child_count", childCount)
+
+	return writeExportAudit(ctx, s.DataAccessLogRepo, entry, "decision: student export audit")
 }
 
 // Decide updates a single child's status. When status==approved the
@@ -645,17 +900,18 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if !validDecisionStatuses[input.Status] {
 		return nil, fmt.Errorf("%w: %s", ErrDecisionInvalidStatus, input.Status)
 	}
-
-	request, err := s.requestRepo.FindByID(ctx, input.RequestID)
+	// Lock the parent before its children. Cleanup, editing, and change-request
+	// paths use the same order; the notification-mode pin updates the parent and
+	// must not introduce a parent/child lock inversion.
+	request, err := s.RequestRepo.FindByIDForUpdate(ctx, input.RequestID)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, request.PhaseID)
-	if err != nil {
-		return nil, fmt.Errorf("decision: load phase: %w", err)
-	}
-
-	children, err := s.requestChildRepo.ListByRequestID(ctx, input.RequestID)
+	// Lock every sibling, in the repository's stable sort_order/id order, before
+	// inspecting or changing any status. Decisions for two children in the same
+	// request must serialize so the second transaction sees the first one's
+	// committed state when deciding whether the digest is complete.
+	children, err := s.RequestChildRepo.ListByRequestIDForUpdate(ctx, input.RequestID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: load children: %w", err)
 	}
@@ -676,11 +932,32 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return &DecideOutcome{Child: target}, nil
 	}
 
-	// Block transitions out of a terminal status. Promotion flows
-	// (waitlisted → approved, etc.) come in slice 2; for slice 1 the
-	// admin can only move out of submitted / under_review / waitlisted.
+	// Block transitions out of a terminal status before resolving settings or
+	// loading phase data. A retry of an invalid transition must keep its stable
+	// conflict contract even during an unrelated settings outage.
 	if target.IsTerminal() {
 		return nil, ErrDecisionAlreadyTerminal
+	}
+
+	if input.Status == DecisionWaitlisted {
+		enabled, resolveErr := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentWaitlistEnabled, true)
+		if resolveErr != nil {
+			return nil, fmt.Errorf("decision: resolve waitlist setting: %w", resolveErr)
+		}
+		if !enabled {
+			return nil, ErrWaitlistDisabled
+		}
+	}
+	autoInviteEnabled := true
+	if input.Status == DecisionApproved {
+		autoInviteEnabled, err = s.resolveDecisionBool(ctx, configModel.KeyEnrollmentAutoInviteGuardianOnApprove, true)
+		if err != nil {
+			return nil, fmt.Errorf("decision: resolve guardian invitation setting: %w", err)
+		}
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
 
 	reason := strings.TrimSpace(input.Reason)
@@ -700,14 +977,34 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		if err != nil {
 			return nil, err
 		}
-		outcome.PendingInvite = invite
+		if autoInviteEnabled && !input.SuppressGuardianInvitation {
+			outcome.PendingInvite = invite
+		}
 	}
 
-	if err := s.requestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
+	if err := s.RequestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
 		return nil, fmt.Errorf("decision: update child status: %w", err)
 	}
+	// Read the DB-authored review generation before constructing either
+	// immediate or digest idempotency keys. Status alone is insufficient: a
+	// supported rejected -> under_review -> rejected cycle is a new decision
+	// even though it ends at the same status vector.
+	children, err = s.RequestChildRepo.ListByRequestID(ctx, input.RequestID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: refresh children after status update: %w", err)
+	}
+	target = nil
+	for _, child := range children {
+		if child.ID == input.ChildID {
+			target = child
+			break
+		}
+	}
+	if target == nil {
+		return nil, ErrDecisionChildNotFound
+	}
 
-	s.logger.Info("enrollment decision applied",
+	s.Logger.Info("enrollment decision applied",
 		slog.Int64("request_id", input.RequestID),
 		slog.Int64("child_id", input.ChildID),
 		slog.String("status", string(input.Status)),
@@ -715,24 +1012,33 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		slog.Bool("created_records", input.Status == DecisionApproved),
 	)
 
-	// Enqueue parent decision email. Best-effort: log on error but
-	// don't roll back the approval. (Outbox writes share the outer tx,
-	// so a hard failure WILL roll back - log+swallow keeps the
-	// behaviour aligned with submit's "delivery is downstream of the
-	// decision".)
-	s.enqueueDecisionEmail(ctx, request, target, phase, input.Status, reasonPtr)
-
-	// Refetch to surface DB-managed fields (reviewed_at, updated_at).
-	refreshed, err := s.findChildByID(ctx, input.RequestID, input.ChildID)
-	if err != nil {
-		// Fall back to the in-memory copy with the new status applied.
-		target.Status = string(input.Status)
-		target.StatusReason = reasonPtr
-		outcome.Child = target
-		return outcome, nil
+	// Enqueue the parent decision email in the same transaction. An enqueue
+	// failure rolls back the decision so a retry can safely enqueue it; the
+	// tenant-scoped idempotency key prevents duplicate rows after retries.
+	if !input.SuppressParentEmail && isParentVisibleDecision(input.Status) {
+		if err := enqueueDecisionNotifications(ctx, decisionNotificationDependencies{
+			requests:   s.RequestRepo,
+			settings:   s.Settings,
+			outbox:     s.OutboxEnqueuer,
+			schools:    s.SchoolRepo,
+			parentsURL: s.ParentsURL,
+		}, request, children, phase, map[int64]struct{}{target.ID: {}}); err != nil {
+			return nil, err
+		}
 	}
-	outcome.Child = refreshed
+	outcome.Child = target
 	return outcome, nil
+}
+
+func isParentVisibleDecision(status DecisionStatus) bool {
+	return status == DecisionApproved || status == DecisionRejected || status == DecisionWaitlisted
+}
+
+func (s *decisionService) resolveDecisionBool(ctx context.Context, key string, registryDefault bool) (bool, error) {
+	if s.Settings == nil {
+		return registryDefault, nil
+	}
+	return s.Settings.ResolveBool(ctx, key)
 }
 
 // applyApproval creates the downstream records that an approval
@@ -751,12 +1057,12 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 // or momentarily-unreadable setting must never block a school from
 // approving a child.
 func (s *decisionService) resolveActivationMode(ctx context.Context) string {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return configModel.EnrollmentActivationModeScheduled
 	}
-	mode, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentDefaultActivationMode)
+	mode, err := s.Settings.ResolveString(ctx, configModel.KeyEnrollmentDefaultActivationMode)
 	if err != nil {
-		s.logger.Warn("decision: resolve activation mode failed, defaulting to scheduled",
+		s.Logger.Warn("decision: resolve activation mode failed, defaulting to scheduled",
 			slog.String("key", configModel.KeyEnrollmentDefaultActivationMode),
 			slog.String("error", err.Error()),
 		)
@@ -797,7 +1103,7 @@ func (s *decisionService) approvalActivationPlan(ctx context.Context, phase *enr
 }
 
 func (s *decisionService) stampActivationPlan(ctx context.Context, requestChildID int64, plan approvalActivationPlan) error {
-	if err := s.requestChildRepo.UpdateActivationPlan(ctx, requestChildID, plan.Mode, plan.ActivateOn); err != nil {
+	if err := s.RequestChildRepo.UpdateActivationPlan(ctx, requestChildID, plan.Mode, plan.ActivateOn); err != nil {
 		return fmt.Errorf("decision: stamp activation plan: %w", err)
 	}
 	return nil
@@ -810,8 +1116,8 @@ func (s *decisionService) applyApproval(
 	phase *enrollmentModels.Phase,
 	reviewedBy int64,
 ) (*PendingGuardianInvite, error) {
-	if s.personRepo == nil || s.studentRepo == nil || s.guardianProfileRepo == nil ||
-		s.studentGuardianRepo == nil {
+	if s.PersonRepo == nil || s.StudentRepo == nil || s.GuardianProfileRepo == nil ||
+		s.StudentGuardianRepo == nil {
 		return nil, fmt.Errorf("decision: approval requires user repos (person/student/guardian)")
 	}
 
@@ -861,7 +1167,7 @@ func (s *decisionService) applyApproval(
 			return nil, fmt.Errorf("decision: attach existing account: %w", err)
 		}
 		if linked {
-			s.logger.Info("decision: linked approval to existing global account",
+			s.Logger.Info("decision: linked approval to existing global account",
 				slog.Int64("guardian_profile_id", guardian.ID),
 				slog.Int64("tenant_id", tenant.FromContext(ctx)),
 				slog.Bool("profile_was_new", profileWasNew),
@@ -881,7 +1187,7 @@ func (s *decisionService) applyApproval(
 	if err := person.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate person: %w: %w", ErrDecisionInvalidData, err)
 	}
-	if err := s.personRepo.Create(ctx, person); err != nil {
+	if err := s.PersonRepo.Create(ctx, person); err != nil {
 		return nil, fmt.Errorf("decision: create person: %w", err)
 	}
 
@@ -898,7 +1204,7 @@ func (s *decisionService) applyApproval(
 	// is the official, consistent start date (not the arbitrary approval
 	// day) and is no longer read once a student is active; only
 	// enrolled_until drives later deactivation.
-	schoolClass := s.gradeToClass(child.TargetGradeLevel)
+	schoolClass := s.resolveSchoolClass(child)
 	enrolledFrom := phase.ServiceStartDate
 	enrolledUntil := phase.ServiceEndDate
 	guardianEmail := request.GuardianEmail
@@ -917,7 +1223,7 @@ func (s *decisionService) applyApproval(
 	if err := student.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate student: %w: %w", ErrDecisionInvalidData, err)
 	}
-	if err := s.studentRepo.Create(ctx, student); err != nil {
+	if err := s.StudentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("decision: create student: %w", err)
 	}
 
@@ -930,11 +1236,21 @@ func (s *decisionService) applyApproval(
 		IsEmergencyContact: true,
 		CanPickup:          true,
 	}
+	authorize.ApplyStudentGuardianRole(rel, authorize.GuardianRolePrimaryGuardian)
 	if err := rel.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate student_guardian: %w", err)
 	}
-	if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+	if err := s.StudentGuardianRepo.Create(ctx, rel); err != nil {
 		return nil, fmt.Errorf("decision: create student_guardian: %w", err)
+	}
+
+	// 4a. Link any additional guardians (co-guardians the parent added
+	// beyond the primary) to the same student. Mapped identically to the
+	// primary except IsPrimary=false; contact-only, so no account
+	// attach/invitation. Resolved once per request and reused across the
+	// request's children.
+	if err := s.linkAdditionalGuardians(ctx, request, student.ID); err != nil {
+		return nil, fmt.Errorf("decision: link additional guardians: %w", err)
 	}
 
 	// 4b. Dispatch every targeted form field onto the right downstream
@@ -946,20 +1262,33 @@ func (s *decisionService) applyApproval(
 	// the approval — the targeted-field path is best-effort, the same
 	// philosophy the invitation-email enqueue uses elsewhere in this
 	// service.
-	if err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy); err != nil {
-		s.logger.Warn("decision: targeted-field dispatch had errors",
+	// The plan-synced flag is deliberately dropped here: this student row was
+	// created moments ago in this transaction, so no "läuft mit" link can
+	// exist yet and a companion broadcast would only wake every open editor
+	// once per mass approval for a change that cannot have touched a link.
+	if _, err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{}); err != nil {
+		s.Logger.Warn("decision: targeted-field dispatch had errors",
 			slog.Int64("request_id", request.ID),
 			slog.Int64("child_id", child.ID),
 			slog.String("error", err.Error()),
 		)
+	}
+	if err := s.linkAdditionalGuardians(ctx, request, student.ID); err != nil {
+		return nil, fmt.Errorf("decision: relink additional guardians after targeted fields: %w", err)
 	}
 
 	// 5. Materialize per-care-offering enrollments. Every offering the
 	// parent picked that is bound to an activity_group becomes a row
 	// in activities.student_enrollments. Offerings without an activity
 	// group (pure schedule-only offerings) are skipped.
-	if err := s.materializeEnrollments(ctx, child.ID, student.ID, phase); err != nil {
-		return nil, err
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return nil, fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if careOfferingsEnabled {
+		if err := s.materializeEnrollments(ctx, child.ID, student.ID, phase); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
@@ -979,7 +1308,7 @@ func (s *decisionService) applyApproval(
 	// answer: "when they already have an account we do not need to
 	// create a new one").
 	if !guardian.HasAccount && guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
-		s.logger.Debug("decision: scheduling guardian invitation",
+		s.Logger.Debug("decision: scheduling guardian invitation",
 			slog.Int64("guardian_profile_id", guardian.ID),
 			slog.Bool("profile_was_new", profileWasNew),
 		)
@@ -1006,9 +1335,9 @@ func (s *decisionService) applyApprovalRollover(
 	child *enrollmentModels.RequestChild,
 	phase *enrollmentModels.Phase,
 ) (*PendingGuardianInvite, error) {
-	source, err := s.requestChildRepo.FindByID(ctx, *child.RolloverSourceChildID)
+	source, err := s.RequestChildRepo.FindByID(ctx, *child.RolloverSourceChildID)
 	if err != nil || source == nil || source.CreatedStudentID == nil {
-		s.logger.Warn("decision: rollover source has no created_student, falling back to fresh approval",
+		s.Logger.Warn("decision: rollover source has no created_student, falling back to fresh approval",
 			slog.Int64("request_child_id", child.ID),
 			slog.Any("source_id", child.RolloverSourceChildID),
 		)
@@ -1026,7 +1355,7 @@ func (s *decisionService) applyApprovalRollover(
 	}
 
 	studentID := *source.CreatedStudentID
-	existing, err := s.studentRepo.FindByID(ctx, studentID)
+	existing, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: rollover load existing student %d: %w", studentID, err)
 	}
@@ -1037,7 +1366,7 @@ func (s *decisionService) applyApprovalRollover(
 	// stay active even for a future rollover phase, so current attendance
 	// workflows are not interrupted. Inactive/pending children follow the
 	// approval-time activation plan.
-	existing.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
+	existing.SchoolClass = s.resolveRolloverSchoolClass(child, existing.SchoolClass)
 	enrolledFrom := phase.ServiceStartDate
 	enrolledUntil := phase.ServiceEndDate
 	existing.EnrolledFrom = &enrolledFrom
@@ -1045,13 +1374,19 @@ func (s *decisionService) applyApprovalRollover(
 	if existing.Status != users.StudentStatusActive {
 		existing.Status = activationPlan.StudentStatus
 	}
-	if err := s.studentRepo.Update(ctx, existing); err != nil {
+	if err := s.StudentRepo.Update(ctx, existing); err != nil {
 		return nil, fmt.Errorf("decision: rollover update student: %w", err)
 	}
 
 	// Materialize the new year's care offerings under this student.
-	if err := s.materializeEnrollments(ctx, child.ID, studentID, phase); err != nil {
-		return nil, err
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return nil, fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if careOfferingsEnabled {
+		if err := s.materializeEnrollments(ctx, child.ID, studentID, phase); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
@@ -1064,7 +1399,7 @@ func (s *decisionService) applyApprovalRollover(
 		return nil, fmt.Errorf("decision: rollover link student: %w", err)
 	}
 
-	s.logger.Info("decision: rollover approval — updated existing student",
+	s.Logger.Info("decision: rollover approval — updated existing student",
 		slog.Int64("request_child_id", child.ID),
 		slog.Int64("student_id", studentID),
 	)
@@ -1088,8 +1423,11 @@ func (s *decisionService) resolveGuardianProfile(
 	email := strings.TrimSpace(strings.ToLower(request.GuardianEmail))
 
 	if email != "" {
-		existing, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+		existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
 		if err == nil && existing != nil {
+			if err := s.applyStandaloneGuardianNameCorrection(ctx, existing, request); err != nil {
+				return nil, false, err
+			}
 			return existing, false, nil
 		}
 		// errors.Is(sql.ErrNoRows) and "not found" both flow through;
@@ -1113,10 +1451,404 @@ func (s *decisionService) resolveGuardianProfile(
 	if err := profile.Validate(); err != nil {
 		return nil, false, fmt.Errorf("decision: validate guardian profile: %w", err)
 	}
-	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+	if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
 		return nil, false, fmt.Errorf("decision: create guardian profile: %w", err)
 	}
 	return profile, true, nil
+}
+
+func (s *decisionService) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *users.GuardianProfile, request *enrollmentModels.Request) error {
+	if request == nil {
+		return nil
+	}
+	return s.applyStandaloneGuardianProfileNameCorrection(ctx, profile, request.GuardianFirstName, request.GuardianLastName)
+}
+
+func (s *decisionService) applyStandaloneGuardianProfileNameCorrection(ctx context.Context, profile *users.GuardianProfile, firstName, lastName string) error {
+	if profile == nil || profile.AccountID != nil || profile.HasAccount {
+		return nil
+	}
+	first := strings.TrimSpace(firstName)
+	last := strings.TrimSpace(lastName)
+	if profile.FirstName == first && profile.LastName == last {
+		return nil
+	}
+	profile.FirstName = first
+	profile.LastName = last
+	if err := profile.Validate(); err != nil {
+		return fmt.Errorf("decision: validate guardian profile name correction: %w", err)
+	}
+	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
+		return fmt.Errorf("decision: update guardian profile name correction: %w", err)
+	}
+	return nil
+}
+
+// linkAdditionalGuardians materializes the co-guardians stored on the
+// request (enrollment.request_guardians) as additional students_guardians
+// links for the just-created student. Co-guardians are mapped identically
+// to the primary guardian except IsPrimary=false; they are contact-only,
+// so there is deliberately NO account attach and NO invitation here.
+//
+// Each co-guardian resolves to a users.guardian_profiles row exactly once
+// per request: the first child approval stamps guardian_profile_id back on
+// the request_guardians row and later child approvals reuse it. Children
+// are approved one at a time, and an email-less co-guardian cannot be
+// deduped by email — the stamp is what prevents duplicate profiles.
+func (s *decisionService) linkAdditionalGuardians(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	studentID int64,
+) error {
+	if s.RequestGuardianRepo == nil {
+		return nil
+	}
+	extras, err := s.RequestGuardianRepo.ListByRequestID(ctx, request.ID)
+	if err != nil {
+		return fmt.Errorf("list additional guardians: %w", err)
+	}
+	for _, extra := range extras {
+		profileID, err := s.resolveAdditionalGuardianProfile(ctx, extra)
+		if err != nil {
+			return err
+		}
+		rel := &users.StudentGuardian{
+			StudentID:          studentID,
+			GuardianProfileID:  profileID,
+			RelationshipType:   "guardian",
+			IsPrimary:          false,
+			IsEmergencyContact: true,
+			CanPickup:          true,
+		}
+		authorize.ApplyStudentGuardianRole(rel, authorize.GuardianRoleEmergency)
+		if err := rel.Validate(); err != nil {
+			return fmt.Errorf("validate co-guardian student_guardian: %w", err)
+		}
+		if err := s.upsertContactStudentGuardianLink(ctx, rel); err != nil {
+			return fmt.Errorf("link co-guardian student_guardian: %w", err)
+		}
+		// Persist the co-guardian's phone number, mirroring the primary
+		// guardian. A co-guardian can be a phone-only contact (no email),
+		// so this is the ONLY reachable detail downstream contact views
+		// have — dropping it would leave an approved emergency contact /
+		// pickup-authorized person unreachable. Non-fatal: a phone write
+		// failure must not roll back an otherwise-valid approval, same as
+		// the primary path.
+		if extra.Phone != nil {
+			if err := s.createGuardianPhoneNumber(ctx, profileID, *extra.Phone); err != nil {
+				s.Logger.Warn("decision: persist co-guardian phone failed",
+					slog.Int64("guardian_profile_id", profileID),
+					slog.String("error", err.Error()))
+			}
+		}
+	}
+	return nil
+}
+
+func (s *decisionService) reconcilePrimaryGuardianLink(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	studentID int64,
+) (*users.GuardianProfile, error) {
+	guardian, _, err := s.resolveGuardianProfile(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if s.StudentGuardianRepo == nil {
+		return guardian, nil
+	}
+	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list approved child guardians: %w", err)
+	}
+	var primaryLink *users.StudentGuardian
+	var currentLink *users.StudentGuardian
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		if link.IsPrimary {
+			primaryLink = link
+		}
+		if link.GuardianProfileID == guardian.ID {
+			currentLink = link
+		}
+	}
+
+	if currentLink != nil {
+		currentLink.RelationshipType = "guardian"
+		currentLink.IsPrimary = true
+		currentLink.IsEmergencyContact = true
+		currentLink.CanPickup = true
+		authorize.ApplyStudentGuardianRole(currentLink, authorize.GuardianRolePrimaryGuardian)
+		if err := currentLink.Validate(); err != nil {
+			return nil, fmt.Errorf("decision: validate current primary guardian link: %w", err)
+		}
+		if err := s.StudentGuardianRepo.Update(ctx, currentLink); err != nil {
+			return nil, fmt.Errorf("decision: update current primary guardian link: %w", err)
+		}
+		if primaryLink != nil && primaryLink.ID != currentLink.ID {
+			if err := s.StudentGuardianRepo.Delete(ctx, primaryLink.ID); err != nil {
+				return nil, fmt.Errorf("decision: remove stale primary guardian link: %w", err)
+			}
+		}
+		return guardian, nil
+	}
+
+	if primaryLink != nil {
+		primaryLink.GuardianProfileID = guardian.ID
+		primaryLink.RelationshipType = "guardian"
+		primaryLink.IsPrimary = true
+		primaryLink.IsEmergencyContact = true
+		primaryLink.CanPickup = true
+		authorize.ApplyStudentGuardianRole(primaryLink, authorize.GuardianRolePrimaryGuardian)
+		if err := primaryLink.Validate(); err != nil {
+			return nil, fmt.Errorf("decision: validate primary guardian link: %w", err)
+		}
+		if err := s.StudentGuardianRepo.Update(ctx, primaryLink); err != nil {
+			return nil, fmt.Errorf("decision: update primary guardian link: %w", err)
+		}
+		return guardian, nil
+	}
+
+	rel := &users.StudentGuardian{
+		StudentID:          studentID,
+		GuardianProfileID:  guardian.ID,
+		RelationshipType:   "guardian",
+		IsPrimary:          true,
+		IsEmergencyContact: true,
+		CanPickup:          true,
+	}
+	authorize.ApplyStudentGuardianRole(rel, authorize.GuardianRolePrimaryGuardian)
+	if err := rel.Validate(); err != nil {
+		return nil, fmt.Errorf("decision: validate missing primary guardian link: %w", err)
+	}
+	if err := s.StudentGuardianRepo.Create(ctx, rel); err != nil {
+		return nil, fmt.Errorf("decision: create missing primary guardian link: %w", err)
+	}
+	return guardian, nil
+}
+
+func (s *decisionService) reconcileApprovedChildGuardians(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	studentID int64,
+	previousGuardians []*enrollmentModels.RequestGuardian,
+) (map[int64]bool, error) {
+	currentProfileIDs := map[int64]bool{}
+	if s.RequestGuardianRepo == nil || s.StudentGuardianRepo == nil {
+		return currentProfileIDs, nil
+	}
+	if err := s.linkAdditionalGuardians(ctx, request, studentID); err != nil {
+		return currentProfileIDs, fmt.Errorf("decision: relink additional guardians: %w", err)
+	}
+	current, err := s.RequestGuardianRepo.ListByRequestID(ctx, request.ID)
+	if err != nil {
+		return currentProfileIDs, fmt.Errorf("decision: list current additional guardians: %w", err)
+	}
+	for _, row := range current {
+		if row == nil {
+			continue
+		}
+		profileID, err := s.resolveAdditionalGuardianProfile(ctx, row)
+		if err != nil {
+			return currentProfileIDs, err
+		}
+		if profileID > 0 {
+			currentProfileIDs[profileID] = true
+		}
+	}
+	previousProfileIDs := map[int64]bool{}
+	for _, row := range previousGuardians {
+		if row != nil && row.GuardianProfileID != nil && *row.GuardianProfileID > 0 {
+			previousProfileIDs[*row.GuardianProfileID] = true
+		}
+	}
+	if err := s.deleteRemovedStudentGuardianLinks(ctx, studentID, previousProfileIDs, currentProfileIDs); err != nil {
+		return currentProfileIDs, fmt.Errorf("decision: unlink removed additional guardians: %w", err)
+	}
+	return currentProfileIDs, nil
+}
+
+func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context, studentID int64, previous, keep map[int64]bool) error {
+	if len(previous) == 0 || s.StudentGuardianRepo == nil {
+		return nil
+	}
+	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	for _, link := range links {
+		if link == nil || link.IsPrimary || authorize.IsFullGuardianRole(link.GuardianRole) {
+			continue
+		}
+		if previous[link.GuardianProfileID] && !keep[link.GuardianProfileID] {
+			if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func mergeGuardianProfileKeepSets(sets ...map[int64]bool) map[int64]bool {
+	out := map[int64]bool{}
+	for _, set := range sets {
+		for id := range set {
+			if id > 0 {
+				out[id] = true
+			}
+		}
+	}
+	return out
+}
+
+func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
+	ctx context.Context,
+	snapshot map[string]any,
+	child *enrollmentModels.RequestChild,
+	studentID int64,
+	fieldKey string,
+) (map[int64]bool, error) {
+	out := map[int64]bool{}
+	if snapshot == nil || child == nil || s.GuardianProfileRepo == nil {
+		return out, nil
+	}
+	childRow := snapshotChildByID(snapshot, child.ID)
+	if childRow == nil {
+		return out, nil
+	}
+	custom := mapFromAny(childRow["custom_data"])
+	raw := custom[fieldKey]
+	if raw == nil {
+		return out, nil
+	}
+	var entries []enrollmentModels.ContactEntry
+	if err := decodeStructured(raw, &entries); err != nil {
+		return out, nil
+	}
+	for _, entry := range entries {
+		email := strings.TrimSpace(strings.ToLower(entry.Email))
+		if email == "" {
+			profiles, err := s.phoneOnlyContactProfilesForStudent(ctx, studentID, entry)
+			if err != nil {
+				return out, err
+			}
+			for _, profile := range profiles {
+				if profile != nil && profile.ID > 0 {
+					out[profile.ID] = true
+				}
+			}
+			continue
+		}
+		profile, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
+		if err == nil && profile != nil && profile.ID > 0 {
+			out[profile.ID] = true
+			continue
+		}
+		if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
+// createGuardianPhoneNumber inserts phone as the guardian's primary mobile
+// number on users.guardian_phone_numbers. A blank phone or an unwired repo
+// is a no-op. The helper is idempotent because approval can relink the same
+// guardian more than once while syncing targeted contact fields.
+func (s *decisionService) createGuardianPhoneNumber(ctx context.Context, profileID int64, phone string) error {
+	phone = strings.TrimSpace(phone)
+	if phone == "" || s.GuardianPhoneRepo == nil {
+		return nil
+	}
+	existing, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profileID)
+	if err != nil {
+		return fmt.Errorf("find existing guardian phone numbers: %w", err)
+	}
+	for _, current := range existing {
+		if current != nil && strings.TrimSpace(current.PhoneNumber) == phone {
+			return nil
+		}
+	}
+	row := &users.GuardianPhoneNumber{
+		GuardianProfileID: profileID,
+		PhoneNumber:       phone,
+		PhoneType:         users.PhoneTypeMobile,
+		IsPrimary:         true,
+	}
+	if err := s.GuardianPhoneRepo.Create(ctx, row); err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// resolveAdditionalGuardianProfile returns the guardian_profiles id for a
+// co-guardian, creating the profile on first use and stamping the id back
+// on the request_guardians row so the request's other children reuse it.
+// A stamped id always wins (idempotent across the request's children).
+// Otherwise an existing profile is preferred by email when the co-guardian
+// gave one; absent that, a fresh contact-only profile is created.
+func (s *decisionService) resolveAdditionalGuardianProfile(
+	ctx context.Context,
+	extra *enrollmentModels.RequestGuardian,
+) (int64, error) {
+	if extra.GuardianProfileID != nil && *extra.GuardianProfileID > 0 {
+		return *extra.GuardianProfileID, nil
+	}
+
+	email := ""
+	if extra.Email != nil {
+		email = strings.TrimSpace(strings.ToLower(*extra.Email))
+	}
+
+	var profileID int64
+	if email != "" {
+		if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
+			if err := s.applyStandaloneGuardianProfileNameCorrection(ctx, existing, extra.FirstName, extra.LastName); err != nil {
+				return 0, err
+			}
+			profileID = existing.ID
+		}
+	}
+	if profileID == 0 {
+		contactMethod := "email"
+		if email == "" {
+			contactMethod = "phone"
+		}
+		profile := &users.GuardianProfile{
+			FirstName:              strings.TrimSpace(extra.FirstName),
+			LastName:               strings.TrimSpace(extra.LastName),
+			PreferredContactMethod: contactMethod,
+			LanguagePreference:     "de",
+		}
+		if email != "" {
+			e := email
+			profile.Email = &e
+		}
+		if err := profile.Validate(); err != nil {
+			return 0, fmt.Errorf("validate co-guardian profile: %w", err)
+		}
+		if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
+			return 0, fmt.Errorf("create co-guardian profile: %w", err)
+		}
+		profileID = profile.ID
+	}
+
+	// Stamp the resolved profile back so the request's other children
+	// reuse it. Non-fatal on failure: the link is created regardless;
+	// worst case a later child creates a duplicate email-less profile.
+	if err := s.RequestGuardianRepo.StampResolvedProfile(ctx, extra.ID, profileID); err != nil {
+		s.Logger.Warn("decision: stamp co-guardian profile failed",
+			slog.Int64("request_guardian_id", extra.ID),
+			slog.Int64("guardian_profile_id", profileID),
+			slog.String("error", err.Error()),
+		)
+	}
+	return profileID, nil
 }
 
 // gradeToClass renders the optional grade level into the student's
@@ -1125,9 +1857,99 @@ func (s *decisionService) resolveGuardianProfile(
 // rename via the student profile UI later.
 func (s *decisionService) gradeToClass(grade *int16) string {
 	if grade == nil || *grade == 0 {
-		return ""
+		// users.students.school_class is required even when the enrollment
+		// tenant deliberately does not collect a grade. Persist a neutral,
+		// non-grade placeholder while request_children keeps the grade NULL.
+		return openSchoolClassPlaceholder
 	}
 	return strconv.Itoa(int(*grade))
+}
+
+// isBareGradePlaceholderClass reports whether a student's school_class is an
+// un-customized grade placeholder — empty or all digits ("", "1", "2"), as
+// produced by gradeToClass — rather than a concrete class an admin assigned
+// ("2a"). Bare placeholders may be safely re-derived from a changed grade;
+// concrete classes must be preserved. Issue #1833.
+func isBareGradePlaceholderClass(class string) bool {
+	class = strings.TrimSpace(class)
+	if strings.EqualFold(class, openSchoolClassPlaceholder) {
+		return true
+	}
+	for _, r := range class {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// concreteSchoolClass returns the trimmed concrete class the parent
+// chose at enrollment (e.g. "2a"), or "" when none was collected
+// ("Klasse offen"). Issue #1833.
+func (s *decisionService) concreteSchoolClass(child *enrollmentModels.RequestChild) string {
+	if child.TargetSchoolClass == nil {
+		return ""
+	}
+	return strings.TrimSpace(*child.TargetSchoolClass)
+}
+
+// resolveSchoolClass is what a freshly-created student's school_class
+// should be: the concrete class when the parent picked one, otherwise
+// the bare grade number as a placeholder the admin renames later. Used
+// only for brand-new student rows — never to overwrite an existing
+// student, where clobbering a concrete "2a" with a bare grade number
+// would lose information (see the rollover/adjustment paths). Issue #1833.
+func (s *decisionService) resolveSchoolClass(child *enrollmentModels.RequestChild) string {
+	if concrete := s.concreteSchoolClass(child); concrete != "" {
+		return concrete
+	}
+	return s.gradeToClass(child.TargetGradeLevel)
+}
+
+// resolveRolloverSchoolClass decides what an EXISTING student's
+// school_class becomes when a rollover approval updates the row in place.
+// Pure (no DB) so it is unit-testable. Issue #1833.
+//
+// Rules, in order:
+//   - rollover carries a concrete class (e.g. "3a") -> use it.
+//   - no concrete class and no target grade -> keep the existing class. The
+//     tenant deliberately did not collect a grade, so there is no replacement
+//     class information to apply.
+//   - no concrete class, but the current class is still an un-customized
+//     bare grade placeholder (empty or all digits, e.g. "1") -> re-derive
+//     the new grade number so grade bumps still track ("1" -> "2"). Also
+//     covers legacy/admin-reviewed rows whose source grade is nil.
+//   - no concrete class and the current class is a customised concrete
+//     class whose grade still matches the rollover's target grade ("3b"
+//     rolling into grade 3, or any half-year rollover that keeps the
+//     grade) -> keep it. The letter is still valid for the new grade.
+//   - no concrete class and the current class is a concrete class from a
+//     DIFFERENT grade than the rollover target ("2a" while the grade
+//     bumps to 3) -> the letter is stale for the new grade, so fall back
+//     to the bare grade placeholder ("3"). Keeping "2a" would strand a
+//     grade-3 student in a grade-2 class on every class-based view
+//     (rosters, filters) until someone noticed and fixed it by hand; the
+//     admin instead reassigns the concrete class in the new grade
+//     ("manuell zuordnen"). Classes with no numeric prefix ("Bienen")
+//     carry no derivable grade and are left untouched.
+//
+// Mirrors the bare-placeholder check in SyncApprovedChildData (#1833).
+func (s *decisionService) resolveRolloverSchoolClass(child *enrollmentModels.RequestChild, existingClass string) string {
+	if concrete := s.concreteSchoolClass(child); concrete != "" {
+		return concrete
+	}
+	if child.TargetGradeLevel == nil || *child.TargetGradeLevel == 0 {
+		return existingClass
+	}
+	if isBareGradePlaceholderClass(existingClass) {
+		return s.gradeToClass(child.TargetGradeLevel)
+	}
+	if newGradeClass := s.gradeToClass(child.TargetGradeLevel); newGradeClass != "" {
+		if prefix := schoolclass.GradePrefix(existingClass); prefix != "" && prefix != newGradeClass {
+			return newGradeClass
+		}
+	}
+	return existingClass
 }
 
 // materializeEnrollments writes one activities.student_enrollments row
@@ -1139,117 +1961,245 @@ func (s *decisionService) materializeEnrollments(
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
 ) error {
-	if s.requestChildOfferingRepo == nil || s.careOfferingRepo == nil ||
-		s.studentEnrollmentRepo == nil || s.activityGroupRepo == nil {
+	if !s.hasEnrollmentMaterializationDependencies() {
 		// Wired without the offering repos: skip silently. Approvals
 		// will still create the student record; the admin can attach
 		// activity groups later via the activity admin UI.
-		s.logger.Warn("decision: enrollment repos missing; skipping activity materialization",
+		s.Logger.Warn("decision: enrollment repos missing; skipping activity materialization",
 			slog.Int64("request_child_id", requestChildID),
 			slog.Int64("student_id", studentID))
 		return nil
 	}
-
-	links, err := s.requestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return err
+	}
+	drafts, err := s.careEnrollmentDraftsForChild(ctx, requestChildID, phase)
 	if err != nil {
-		return fmt.Errorf("decision: list child offerings: %w", err)
+		return err
 	}
+	return s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts)
+}
 
-	validFrom := phase.ServiceStartDate
-	validUntil := phase.ServiceEndDate
-	type enrollmentDraft struct {
-		activityGroupID  int64
-		calendarPeriodID *int64
-		selectedWeekday  map[int]bool
-		allWeekdays      bool
+func (s *decisionService) hasEnrollmentMaterializationDependencies() bool {
+	return s.RequestChildOfferingRepo != nil &&
+		s.CareOfferingRepo != nil &&
+		s.StudentEnrollmentRepo != nil &&
+		s.ActivityGroupRepo != nil &&
+		s.ActivityScheduleRepo != nil &&
+		s.CalendarPeriodRepo != nil &&
+		s.TimeframeRepo != nil &&
+		s.ActivityExceptionRepo != nil
+}
+
+func (s *decisionService) careEnrollmentDraftsForChild(
+	ctx context.Context,
+	requestChildID int64,
+	phase *enrollmentModels.Phase,
+) (map[int64]*careEnrollmentDraft, error) {
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list child offerings: %w", err)
 	}
-	drafts := make(map[int64]*enrollmentDraft)
+	if len(links) == 0 {
+		return map[int64]*careEnrollmentDraft{}, nil
+	}
+	offeringIDs := uniqueCareOfferingIDs(links)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list linked care offerings: %w", err)
+	}
+	drafts, err := s.buildCareEnrollmentDrafts(ctx, requestChildID, links, offerings, phase)
+	if err != nil {
+		return nil, err
+	}
+	return drafts, nil
+}
 
+func (s *decisionService) persistCareEnrollmentDrafts(
+	ctx context.Context,
+	requestChildID, studentID int64,
+	phase *enrollmentModels.Phase,
+	drafts map[int64]*careEnrollmentDraft,
+) error {
+	groupIDs := make([]int64, 0, len(drafts))
+	for groupID := range drafts {
+		groupIDs = append(groupIDs, groupID)
+	}
+	slices.Sort(groupIDs)
+	for _, groupID := range groupIDs {
+		row := studentEnrollmentFromCareDraft(requestChildID, studentID, phase, drafts[groupID])
+		if err := row.Validate(); err != nil {
+			return fmt.Errorf("decision: validate enrollment: %w", err)
+		}
+		if err := s.StudentEnrollmentRepo.Create(ctx, row); err != nil {
+			return fmt.Errorf("decision: create enrollment: %w", err)
+		}
+	}
+	return nil
+}
+
+func studentEnrollmentFromCareDraft(
+	requestChildID, studentID int64,
+	phase *enrollmentModels.Phase,
+	draft *careEnrollmentDraft,
+) *activities.StudentEnrollment {
+	validUntil := phase.ServiceEndDate.AddDays(1)
+	row := &activities.StudentEnrollment{
+		StudentID:                studentID,
+		ActivityGroupID:          draft.activityGroupID,
+		ValidFrom:                phase.ServiceStartDate,
+		ValidUntil:               &validUntil,
+		CalendarPeriodID:         draft.calendarPeriodID,
+		EnrollmentRequestChildID: &requestChildID,
+	}
+	if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
+		row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
+	}
+	return row
+}
+
+func (s *decisionService) lockTemplateRecurrence(ctx context.Context) error {
+	if s.LockTemplateRecurrence == nil {
+		return nil
+	}
+	if err := s.LockTemplateRecurrence(ctx); err != nil {
+		return fmt.Errorf("decision: lock template recurrence: %w", err)
+	}
+	return nil
+}
+
+type careEnrollmentDraft struct {
+	activityGroupID  int64
+	calendarPeriodID *int64
+	selectedWeekday  map[int]bool
+	allWeekdays      bool
+}
+
+func uniqueCareOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
+	ids := make([]int64, 0, len(links))
+	seen := make(map[int64]bool, len(links))
 	for _, link := range links {
-		offering, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID)
-		if err != nil || offering == nil {
-			s.logger.Warn("decision: care offering missing for child link",
+		if link.CareOfferingID <= 0 || seen[link.CareOfferingID] {
+			continue
+		}
+		seen[link.CareOfferingID] = true
+		ids = append(ids, link.CareOfferingID)
+	}
+	return ids
+}
+
+func (s *decisionService) buildCareEnrollmentDrafts(
+	ctx context.Context,
+	requestChildID int64,
+	links []*enrollmentModels.RequestChildOffering,
+	offerings []*enrollmentModels.CareOffering,
+	phase *enrollmentModels.Phase,
+) (map[int64]*careEnrollmentDraft, error) {
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		offeringByID[offering.ID] = offering
+	}
+	drafts := make(map[int64]*careEnrollmentDraft)
+	for _, link := range links {
+		offering := offeringByID[link.CareOfferingID]
+		if offering == nil {
+			s.Logger.Warn("decision: care offering missing for child link",
 				slog.Int64("request_child_id", requestChildID),
 				slog.Int64("care_offering_id", link.CareOfferingID))
 			continue
 		}
-		if offering.ActivityGroupID == nil || *offering.ActivityGroupID == 0 {
-			// Schedule-only offering - no activity group, nothing to enroll into.
-			continue
-		}
-		group, period, err := resolveCareOfferingLinkedGroupPeriod(ctx, careOfferingTemplateDeps{
-			activityGroupRepo:    s.activityGroupRepo,
-			activityScheduleRepo: s.activityScheduleRepo,
-			calendarPeriodRepo:   s.calendarPeriodRepo,
-		}, *offering.ActivityGroupID)
-		if err != nil {
-			return fmt.Errorf("decision: validate linked activity group for care offering %d: %w", link.CareOfferingID, err)
-		}
-		if group.IsTemplate && len(offering.AvailableDays) == 0 && len(link.SelectedDays) == 0 {
-			return fmt.Errorf("decision: care offering %d links to a timetable template but has no selected or available days", link.CareOfferingID)
-		}
-		if period != nil {
-			if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
-				return fmt.Errorf("decision: validate linked timetable template period for care offering %d: %w", link.CareOfferingID, err)
-			}
-		}
-		var periodID *int64
-		if period != nil {
-			periodID = &period.ID
-		}
-		if draft := drafts[*offering.ActivityGroupID]; draft != nil && !sameOptionalInt64(draft.calendarPeriodID, periodID) {
-			return fmt.Errorf("decision: care offering %d resolves to conflicting calendar_period_id", link.CareOfferingID)
-		}
-		draft := drafts[*offering.ActivityGroupID]
-		if draft == nil {
-			draft = &enrollmentDraft{
-				activityGroupID:  *offering.ActivityGroupID,
-				calendarPeriodID: periodID,
-				selectedWeekday:  make(map[int]bool),
-			}
-			drafts[*offering.ActivityGroupID] = draft
-		}
-		if !group.IsTemplate {
-			draft.allWeekdays = true
-			continue
-		}
-		days, err := effectiveOfferingDaysForEnrollment(offering, link)
-		if err != nil {
-			return fmt.Errorf("decision: resolve selected days for care offering %d: %w", link.CareOfferingID, err)
-		}
-		if len(days) == 0 {
-			draft.allWeekdays = true
-			continue
-		}
-		if draft.allWeekdays {
-			continue
-		}
-		for _, day := range days {
-			weekday, ok := enrollmentDayToISOWeekday(day)
-			if !ok {
-				return fmt.Errorf("decision: invalid selected day %q for care offering %d", day, link.CareOfferingID)
-			}
-			draft.selectedWeekday[weekday] = true
+		if err := s.addCareOfferingDrafts(ctx, drafts, offering, link, phase); err != nil {
+			return nil, err
 		}
 	}
+	return drafts, nil
+}
 
-	for _, draft := range drafts {
-		row := &activities.StudentEnrollment{
-			StudentID:        studentID,
-			ActivityGroupID:  draft.activityGroupID,
-			ValidFrom:        validFrom,
-			ValidUntil:       &validUntil,
-			CalendarPeriodID: draft.calendarPeriodID,
+func (s *decisionService) addCareOfferingDrafts(
+	ctx context.Context,
+	drafts map[int64]*careEnrollmentDraft,
+	offering *enrollmentModels.CareOffering,
+	link *enrollmentModels.RequestChildOffering,
+	phase *enrollmentModels.Phase,
+) error {
+	if offering.ActivityGroupID == nil || *offering.ActivityGroupID == 0 {
+		return nil
+	}
+	segments, err := resolveCareOfferingLinkedGroupsForPhase(ctx, careOfferingTemplateDeps{
+		activityGroupRepo:    s.ActivityGroupRepo,
+		activityScheduleRepo: s.ActivityScheduleRepo,
+		calendarPeriodRepo:   s.CalendarPeriodRepo,
+	}, *offering.ActivityGroupID, phase)
+	if err != nil {
+		return fmt.Errorf("decision: validate linked activity group for care offering %d: %w", link.CareOfferingID, err)
+	}
+	isTemplate := len(segments) > 0 && segments[0].group.IsTemplate
+	if isTemplate && len(offering.AvailableDays) == 0 && len(link.SelectedDays) == 0 {
+		return fmt.Errorf("decision: care offering %d links to a timetable template but has no selected or available days", link.CareOfferingID)
+	}
+	days, err := effectiveOfferingDaysForEnrollment(offering, link)
+	if err != nil {
+		return fmt.Errorf("decision: resolve selected days for care offering %d: %w", link.CareOfferingID, err)
+	}
+	if err := validateCareOfferingTemplateSegments(segments, phase, days, true); err != nil {
+		return fmt.Errorf("decision: care offering %d is not materializable: %w", link.CareOfferingID, err)
+	}
+	if err := validateCareOfferingMaterializability(
+		ctx,
+		careOfferingMaterializationDeps{
+			timeframeRepo:         s.TimeframeRepo,
+			activityExceptionRepo: s.ActivityExceptionRepo,
+		},
+		segments,
+		phase,
+		days,
+		careOfferingMaterializationChange{},
+	); err != nil {
+		return fmt.Errorf("decision: care offering %d is not materializable: %w", link.CareOfferingID, err)
+	}
+	for _, segment := range segments {
+		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
+			return err
 		}
-		if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
-			row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
+	}
+	return nil
+}
+
+func mergeCareEnrollmentDraft(
+	drafts map[int64]*careEnrollmentDraft,
+	segment linkedCareOfferingGroup,
+	days []string,
+	offeringID int64,
+) error {
+	var periodID *int64
+	if segment.period != nil {
+		periodID = &segment.period.ID
+	}
+	draft := drafts[segment.group.ID]
+	if draft != nil && !sameOptionalInt64(draft.calendarPeriodID, periodID) {
+		return fmt.Errorf("decision: care offering %d resolves to conflicting calendar_period_id", offeringID)
+	}
+	if draft == nil {
+		draft = &careEnrollmentDraft{
+			activityGroupID:  segment.group.ID,
+			calendarPeriodID: periodID,
+			selectedWeekday:  make(map[int]bool),
 		}
-		if err := row.Validate(); err != nil {
-			return fmt.Errorf("decision: validate enrollment: %w", err)
+		drafts[segment.group.ID] = draft
+	}
+	if !segment.group.IsTemplate || len(days) == 0 {
+		draft.allWeekdays = true
+		return nil
+	}
+	if draft.allWeekdays {
+		return nil
+	}
+	for _, day := range days {
+		weekday, ok := enrollmentDayToISOWeekday(day)
+		if !ok {
+			return fmt.Errorf("decision: invalid selected day %q for care offering %d", day, offeringID)
 		}
-		if err := s.studentEnrollmentRepo.Create(ctx, row); err != nil {
-			return fmt.Errorf("decision: create enrollment: %w", err)
-		}
+		draft.selectedWeekday[weekday] = true
 	}
 	return nil
 }
@@ -1312,87 +2262,7 @@ func sortedWeekdaySet(days map[int]bool) []int {
 // linkCreatedStudent stamps request_children.created_student_id so the
 // admin UI can link from a historical request back to the new student.
 func (s *decisionService) linkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error {
-	return s.requestChildRepo.LinkCreatedStudent(ctx, requestChildID, studentID)
-}
-
-// enqueueDecisionEmail enqueues a parent decision email matching the
-// new status. Only approved/waitlisted/rejected get emails; transitions
-// to under_review are admin-internal.
-func (s *decisionService) enqueueDecisionEmail(
-	ctx context.Context,
-	request *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
-	phase *enrollmentModels.Phase,
-	status DecisionStatus,
-	reason *string,
-) {
-	if s.outboxEnqueuer == nil {
-		return
-	}
-
-	var kind string
-	switch status {
-	case DecisionApproved:
-		kind = platformModels.EmailKindEnrollmentApproved
-	case DecisionWaitlisted:
-		kind = platformModels.EmailKindEnrollmentWaitlisted
-	case DecisionRejected:
-		kind = platformModels.EmailKindEnrollmentRejected
-	default:
-		// under_review (and any future intermediate status) is
-		// admin-internal - parent stays on the existing status email.
-		return
-	}
-
-	schoolName, logoURL := emailBrandForSchool(ctx, s.schoolRepo, request.TenantID, s.parentsURL)
-	footerLogoURL := motoLogoURL(s.parentsURL)
-	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.parentsURL, request.StatusToken)
-	phaseName := ""
-	if phase != nil {
-		phaseName = phase.Name
-	}
-
-	payload := map[string]any{
-		EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
-		EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
-		EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
-		EnrollmentPayloadSchoolName:        schoolName,
-		EnrollmentPayloadStatusURL:         statusURL,
-		EnrollmentPayloadLogoURL:           logoURL,
-		EnrollmentPayloadMotoLogoURL:       footerLogoURL,
-		EnrollmentPayloadChildNames:        []string{child.FirstName + " " + child.LastName},
-		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
-		"phase_name":                       phaseName,
-	}
-	if phase != nil && phase.ShowStatusReasonToParent && reason != nil && *reason != "" {
-		payload["status_reason"] = *reason
-	}
-
-	if err := s.outboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
-		Kind:              kind,
-		Payload:           payload,
-		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
-		RelatedEntityID:   request.ID,
-	}); err != nil {
-		s.logger.Error("decision: enqueue parent decision email failed",
-			slog.Int64("request_id", request.ID),
-			slog.Int64("child_id", child.ID),
-			slog.String("kind", kind),
-			slog.String("error", err.Error()))
-	}
-}
-
-func (s *decisionService) findChildByID(ctx context.Context, requestID, childID int64) (*enrollmentModels.RequestChild, error) {
-	children, err := s.requestChildRepo.ListByRequestID(ctx, requestID)
-	if err != nil {
-		return nil, err
-	}
-	for _, c := range children {
-		if c.ID == childID {
-			return c, nil
-		}
-	}
-	return nil, ErrDecisionChildNotFound
+	return s.RequestChildRepo.LinkCreatedStudent(ctx, requestChildID, studentID)
 }
 
 // attachExistingAccountIfPresent looks up the parent email in the
@@ -1414,8 +2284,8 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	ctx context.Context,
 	guardian *users.GuardianProfile,
 ) (bool, error) {
-	if s.accountRepo == nil || s.accountTenantRepo == nil ||
-		s.accountRoleRepo == nil || s.roleRepo == nil {
+	if s.AccountRepo == nil || s.AccountTenantRepo == nil ||
+		s.AccountRoleRepo == nil || s.RoleRepo == nil {
 		// Auth repos not wired - fall back to the original invitation
 		// flow. Test factories that don't bring up the auth side will
 		// hit this path.
@@ -1426,7 +2296,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	}
 
 	email := strings.TrimSpace(strings.ToLower(*guardian.Email))
-	account, err := s.accountRepo.FindByEmail(ctx, email)
+	account, err := s.AccountRepo.FindByEmail(ctx, email)
 	if err != nil {
 		// Not-found is the common case (parent has no portal account
 		// yet) - treat it as "nothing to attach", let the invitation
@@ -1434,7 +2304,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 		// detection here; instead we rely on the FindByEmail wrapper
 		// returning a typed DatabaseError on real failures. Logging
 		// at debug level covers both branches.
-		s.logger.Debug("decision: account lookup result",
+		s.Logger.Debug("decision: account lookup result",
 			slog.String("email", email),
 			slog.String("error", err.Error()),
 		)
@@ -1444,9 +2314,23 @@ func (s *decisionService) attachExistingAccountIfPresent(
 		return false, nil
 	}
 
+	return s.attachAccountToGuardian(ctx, guardian, account, "attach")
+}
+
+// attachAccountToGuardian runs the shared attach tail for both account
+// resolution paths: account_tenants mapping (idempotent create), guardian
+// role for this tenant, and LinkAccount on the per-tenant profile.
+// errPrefix keeps the historical per-path error wording ("attach" /
+// "attach by id").
+func (s *decisionService) attachAccountToGuardian(
+	ctx context.Context,
+	guardian *users.GuardianProfile,
+	account *authModels.Account,
+	errPrefix string,
+) (bool, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID == 0 {
-		return false, fmt.Errorf("attach: tenant not in context")
+		return false, fmt.Errorf("%s: tenant not in context", errPrefix)
 	}
 
 	// 1. account_tenants mapping. Create is idempotent (ON CONFLICT
@@ -1458,8 +2342,8 @@ func (s *decisionService) attachExistingAccountIfPresent(
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
-		return false, fmt.Errorf("attach: account_tenants: %w", err)
+	if err := s.AccountTenantRepo.Create(ctx, mapping); err != nil {
+		return false, fmt.Errorf("%s: account_tenants: %w", errPrefix, err)
 	}
 
 	// 2. Guardian role for this tenant. AccountRoleRepo.Create has no
@@ -1472,8 +2356,8 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	// 3. Link the per-tenant guardian profile row to the global
 	// account. LinkAccount also flips has_account=true so future
 	// approvals for the same profile see the linked state.
-	if err := s.guardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
-		return false, fmt.Errorf("attach: link profile: %w", err)
+	if err := s.GuardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
+		return false, fmt.Errorf("%s: link profile: %w", errPrefix, err)
 	}
 	guardian.AccountID = &account.ID
 	guardian.HasAccount = true
@@ -1497,15 +2381,15 @@ func (s *decisionService) attachExistingAccountByID(
 	guardian *users.GuardianProfile,
 	accountID int64,
 ) (bool, error) {
-	if s.accountRepo == nil || s.accountTenantRepo == nil ||
-		s.accountRoleRepo == nil || s.roleRepo == nil {
+	if s.AccountRepo == nil || s.AccountTenantRepo == nil ||
+		s.AccountRoleRepo == nil || s.RoleRepo == nil {
 		return false, nil
 	}
-	account, err := s.accountRepo.FindByID(ctx, accountID)
+	account, err := s.AccountRepo.FindByID(ctx, accountID)
 	if err != nil || account == nil {
 		// Account was deleted between submission and decision - fall
 		// back to email lookup so the approval still goes through.
-		s.logger.Warn("decision: request guardian_account_id no longer resolvable, falling back to email",
+		s.Logger.Warn("decision: request guardian_account_id no longer resolvable, falling back to email",
 			slog.Int64("guardian_account_id", accountID),
 		)
 		if guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
@@ -1514,30 +2398,7 @@ func (s *decisionService) attachExistingAccountByID(
 		return false, nil
 	}
 
-	tenantID := tenant.FromContext(ctx)
-	if tenantID == 0 {
-		return false, fmt.Errorf("attach by id: tenant not in context")
-	}
-
-	now := time.Now()
-	mapping := &authModels.AccountTenant{
-		AccountID:   account.ID,
-		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
-		ActivatedAt: &now,
-	}
-	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
-		return false, fmt.Errorf("attach by id: account_tenants: %w", err)
-	}
-	if err := s.ensureGuardianRoleForTenant(ctx, account.ID); err != nil {
-		return false, err
-	}
-	if err := s.guardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
-		return false, fmt.Errorf("attach by id: link profile: %w", err)
-	}
-	guardian.AccountID = &account.ID
-	guardian.HasAccount = true
-	return true, nil
+	return s.attachAccountToGuardian(ctx, guardian, account, "attach by id")
 }
 
 // ensureGuardianRoleForTenant assigns the guardian base role for the
@@ -1546,7 +2407,7 @@ func (s *decisionService) attachExistingAccountByID(
 // gets the same role footprint as one who came in via the invite
 // accept flow.
 func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accountID int64) error {
-	role, err := s.roleRepo.FindByName(ctx, guardianRoleName)
+	role, err := s.RoleRepo.FindByName(ctx, guardianRoleName)
 	if err != nil {
 		return fmt.Errorf("attach: guardian role lookup: %w", err)
 	}
@@ -1554,7 +2415,7 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 		return fmt.Errorf("attach: guardian role not found")
 	}
 
-	existing, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
+	existing, err := s.AccountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
 	if err == nil && existing != nil {
 		// Already assigned for this tenant (FindByAccountAndRole
 		// honours tenant scope) - nothing to do.
@@ -1565,7 +2426,7 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 		AccountID: accountID,
 		RoleID:    role.ID,
 	}
-	if err := s.accountRoleRepo.Create(ctx, assignment); err != nil {
+	if err := s.AccountRoleRepo.Create(ctx, assignment); err != nil {
 		return fmt.Errorf("attach: create account_role: %w", err)
 	}
 	return nil
@@ -1578,7 +2439,25 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 //
 // Best-effort overall: per-field errors are collected and returned in
 // one combined error string but never abort the approval. The student
-// + per-child records have already been written by the caller.
+// + per-child records have already been written by the caller. The one
+// exception to the opaque combined string are the companion sentinels a
+// departure-plan student write can raise (users.ErrCompanionWouldLoseDeparture,
+// users.ErrCompanionLockBusy): they stay reachable via errors.Is so the
+// enrollment handlers can answer with the actionable 4xx the student PUT
+// gives instead of a blind 500.
+//
+// The returned bool reports whether the student write actually TRIMMED a
+// "läuft mit" link — read from the write itself via
+// users.CompanionChangeRecorder, not from the fact that the payload carried a
+// departure plan. It is the caller's signal for the student_companions_changed
+// broadcast, and a false positive there costs somebody an in-progress
+// companion edit.
+type targetedFieldSyncOptions struct {
+	Replace                bool
+	PreviousSnapshot       map[string]any
+	KeepGuardianProfileIDs map[int64]bool
+}
+
 func (s *decisionService) applyTargetedFields(
 	ctx context.Context,
 	request *enrollmentModels.Request,
@@ -1586,13 +2465,14 @@ func (s *decisionService) applyTargetedFields(
 	student *users.Student,
 	guardian *users.GuardianProfile,
 	reviewedBy int64,
-) error {
-	if s.formSchemaRepo == nil || request.SchemaID == nil {
-		return nil
+	options targetedFieldSyncOptions,
+) (bool, error) {
+	if s.FormSchemaRepo == nil || request.SchemaID == nil {
+		return false, nil
 	}
-	schema, err := s.formSchemaRepo.FindByID(ctx, *request.SchemaID)
+	schema, err := s.FormSchemaRepo.FindByID(ctx, *request.SchemaID)
 	if err != nil || schema == nil {
-		return nil
+		return false, nil
 	}
 
 	var errs []string
@@ -1601,14 +2481,35 @@ func (s *decisionService) applyTargetedFields(
 	// loop; the legacy Buskind/Abholregelung targets mutate their own map
 	// directly, so a form carrying both still combines correctly (#1610).
 	var explicitDeparture *users.DepartureDays
+	var explicitAllowedDeparture *users.AllowedDepartureModes
 
+	fieldRaws := make([]any, len(schema.Fields))
+	targetHasMeaningfulValue := make(map[string]bool, len(schema.Fields))
 	for i := range schema.Fields {
 		field := schema.Fields[i]
 		if field.Target == "" {
 			continue
 		}
 		raw := s.readFieldValue(request, child, &field)
-		if raw == nil {
+		fieldRaws[i] = raw
+		if targetedFieldHasMeaningfulValue(field.Target, raw) {
+			targetHasMeaningfulValue[field.Target] = true
+		}
+	}
+
+	pickupScheduleDeleted := false
+	arrivalScheduleDeleted := false
+
+	for i := range schema.Fields {
+		field := schema.Fields[i]
+		if field.Target == "" {
+			continue
+		}
+		raw := fieldRaws[i]
+		if raw == nil && !options.Replace {
+			continue
+		}
+		if options.Replace && !targetedFieldHasMeaningfulValue(field.Target, raw) && targetHasMeaningfulValue[field.Target] {
 			continue
 		}
 
@@ -1617,44 +2518,127 @@ func (s *decisionService) applyTargetedFields(
 			if str := stringValue(raw); str != "" {
 				student.HealthInfo = &str
 				studentDirty = true
+			} else if options.Replace {
+				student.HealthInfo = nil
+				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentExtraInfo:
 			if str := stringValue(raw); str != "" {
 				student.ExtraInfo = &str
 				studentDirty = true
+			} else if options.Replace {
+				student.ExtraInfo = nil
+				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentDeparture:
-			if days, err := decodeDepartureDays(raw); err != nil {
+			if raw == nil {
+				student.AllowedDepartureModes = users.AllowedDepartureModes{}
+				student.DepartureDays = users.DepartureDays{}
+				student.BusDays = users.BusDays{}
+				student.PickupDays = users.PickupDays{}
+				student.DepartureCompanionNote = nil
+				studentDirty = true
+			} else if days, err := decodeDepartureDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
+				// Union with any earlier same-target field rather than overwriting:
+				// last-field-wins would let a later bus/pickup field silently drop an
+				// accompanied day an earlier field carried, which validation and
+				// sanitization (which use any-field semantics) already accepted (#1694).
+				if explicitDeparture != nil {
+					days = explicitDeparture.Merge(days)
+				}
 				explicitDeparture = &days
 				studentDirty = true
 			}
+		case enrollmentModels.TargetStudentAllowedDepartureModes:
+			if raw == nil {
+				student.AllowedDepartureModes = users.AllowedDepartureModes{}
+				student.DepartureDays = users.DepartureDays{}
+				student.BusDays = users.BusDays{}
+				student.PickupDays = users.PickupDays{}
+				student.DepartureCompanionNote = nil
+				studentDirty = true
+			} else if modes, err := decodeAllowedDepartureModes(raw); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				if explicitAllowedDeparture != nil {
+					modes = explicitAllowedDeparture.Merge(modes)
+				}
+				explicitAllowedDeparture = &modes
+				studentDirty = true
+			}
 		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
-			if days, err := decodeBusDays(raw); err != nil {
+			if raw == nil {
+				student.BusDays = users.BusDays{}
+				studentDirty = true
+			} else if days, err := decodeBusDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				student.BusDays = days
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentPickupStatus:
-			if days, err := decodePickupDays(raw); err != nil {
+			if raw == nil {
+				student.PickupDays = users.PickupDays{}
+				studentDirty = true
+			} else if days, err := decodePickupDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				student.PickupDays = days
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
+			if options.Replace && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
+				pickupScheduleDeleted = true
+				if err := s.PickupScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
+					continue
+				}
+			}
+			if raw == nil {
+				continue
+			}
 			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, true); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			}
 		case enrollmentModels.TargetScheduleArrival:
+			if options.Replace && s.ArrivalScheduleRepo != nil && !arrivalScheduleDeleted {
+				arrivalScheduleDeleted = true
+				if err := s.ArrivalScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
+					continue
+				}
+			}
+			if raw == nil {
+				continue
+			}
 			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, false); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			}
 		case enrollmentModels.TargetStudentContacts:
-			if err := s.dispatchContactList(ctx, raw, student.ID); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			oldContactIDs := map[int64]bool{}
+			if options.Replace {
+				var err error
+				oldContactIDs, err = s.contactProfileIDsFromPreviousSnapshot(ctx, options.PreviousSnapshot, child, student.ID, field.Key)
+				if err != nil {
+					errs = append(errs, fmt.Sprintf("%s: resolve previous contacts: %v", field.Target, err))
+					continue
+				}
+			}
+			newContactIDs := map[int64]bool{}
+			if raw != nil {
+				ids, err := s.dispatchContactList(ctx, raw, student.ID)
+				if err != nil {
+					errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+					continue
+				}
+				newContactIDs = ids
+			}
+			if options.Replace {
+				if err := s.deleteRemovedStudentGuardianLinks(ctx, student.ID, oldContactIDs, mergeGuardianProfileKeepSets(newContactIDs, options.KeepGuardianProfileIDs)); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: remove stale links: %v", field.Target, err))
+				}
 			}
 		}
 	}
@@ -1694,45 +2678,138 @@ func (s *decisionService) applyTargetedFields(
 			student.EmailContactAcceptedAt = &now
 			studentDirty = true
 		}
-	}
-	if request.GuardianPhone != nil && s.guardianPhoneRepo != nil {
-		phone := strings.TrimSpace(*request.GuardianPhone)
-		if phone != "" {
-			row := &users.GuardianPhoneNumber{
-				GuardianProfileID: guardian.ID,
-				PhoneNumber:       phone,
-				PhoneType:         users.PhoneType("mobile"),
-				IsPrimary:         true,
+		if options.Replace {
+			if photo, _ := request.ConsentFlags[enrollmentModels.ConsentKeyPhoto].(bool); !photo {
+				student.PhotoConsentGivenAt = nil
+				student.PhotoConsentGivenBy = nil
+				studentDirty = true
 			}
-			if err := s.guardianPhoneRepo.Create(ctx, row); err != nil {
-				// Unique-violation = guardian already had this number
-				// on file from a previous enrollment — benign.
-				if !strings.Contains(err.Error(), "unique") && !strings.Contains(err.Error(), "duplicate") {
-					errs = append(errs, fmt.Sprintf("auto guardian_phone: %v", err))
-				}
+			if agb, _ := request.ConsentFlags[enrollmentModels.ConsentKeyAGB].(bool); !agb {
+				student.AGBAcceptedAt = nil
+				studentDirty = true
+			}
+			if dp, _ := request.ConsentFlags[enrollmentModels.ConsentKeyDataProcessing].(bool); !dp {
+				student.DataProcessingAcceptedAt = nil
+				studentDirty = true
+			}
+			if email, _ := request.ConsentFlags[enrollmentModels.ConsentKeyEmailContact].(bool); !email {
+				student.EmailContactAcceptedAt = nil
+				studentDirty = true
 			}
 		}
+	}
+	if request.GuardianPhone != nil {
+		if err := s.createGuardianPhoneNumber(ctx, guardian.ID, *request.GuardianPhone); err != nil {
+			errs = append(errs, fmt.Sprintf("auto guardian_phone: %v", err))
+		}
+	}
+
+	if explicitAllowedDeparture != nil {
+		student.AllowedDepartureModes = explicitAllowedDeparture.Normalize()
+		student.DepartureDays = student.AllowedDepartureModes.DepartureDays()
+		student.BusDays = student.AllowedDepartureModes.BusDays()
+		student.PickupDays = student.AllowedDepartureModes.PickupDays()
 	}
 
 	// A unified departure field wins by replacing both legacy maps; otherwise
 	// the legacy bus/pickup targets already set their map (each preserving the
 	// other). The student repository folds bus_days + pickup_days into
 	// departure_days, the single source of truth, on Update (#1610).
-	if explicitDeparture != nil {
+	if explicitAllowedDeparture == nil && explicitDeparture != nil {
+		student.AllowedDepartureModes = users.AllowedDepartureModesFromDeparture(*explicitDeparture)
 		student.BusDays = explicitDeparture.BusDays()
 		student.PickupDays = explicitDeparture.PickupDays()
 	}
 
-	if studentDirty {
-		if err := s.studentRepo.Update(ctx, student); err != nil {
-			errs = append(errs, fmt.Sprintf("update student: %v", err))
+	// Coupled "mit wem" note (#1694): the enrollment form carries it on a
+	// reserved per-child custom-data key alongside allowed_departure_modes
+	// (not a separate admin-added field). Apply it ONLY when the child's final
+	// departure plan actually allows the accompanied mode, so a note from a
+	// client that toggled accompanied off — or a crafted submit — never lands on
+	// a child with no "Mit anderem Kind" day. Capped server-side (the column is
+	// unbounded TEXT).
+	if child != nil && child.CustomData != nil &&
+		student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) {
+		if note := strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote])); note != "" {
+			note = strutil.TruncateRunes(note, users.MaxDepartureCompanionNoteLen, "")
+			student.DepartureCompanionNote = &note
+			studentDirty = true
 		}
 	}
 
-	if len(errs) > 0 {
-		return errors.New(strings.Join(errs, "; "))
+	departurePlanSynced := false
+	// The companion refusals are kept as a WRAPPED error, not flattened into
+	// the string list: StudentRepository.Update reconciles the "läuft mit"
+	// edges for every caller, and these two sentinels are expected,
+	// user-actionable refusals (fix the other child's Heimweg first / retry
+	// after the concurrent edit). Reducing them to text — as every other
+	// best-effort field error is — would turn a legitimate enrollment change
+	// into an opaque 500 at the handler (#1694).
+	var companionRefusal error
+	if studentDirty {
+		// Carrying a departure plan is a NECESSARY, not a sufficient, condition
+		// for a companion change: writing the same modes back trims no edge, and
+		// announcing student_companions_changed for such a write makes every open
+		// companion editor in the school discard or block its draft for nothing.
+		// Only the write path knows the difference, so read it from there
+		// (users.CompanionChangeRecorder) instead of inferring it from the payload.
+		updateCtx, companionChanges := users.ContextWithCompanionChangeRecorder(ctx)
+		if err := s.StudentRepo.Update(updateCtx, student); err != nil {
+			if errors.Is(err, users.ErrCompanionWouldLoseDeparture) || errors.Is(err, users.ErrCompanionLockBusy) {
+				companionRefusal = fmt.Errorf("update student: %w", err)
+			} else {
+				errs = append(errs, fmt.Sprintf("update student: %v", err))
+			}
+		} else {
+			departurePlanSynced = companionChanges.Changed()
+		}
 	}
-	return nil
+
+	if companionRefusal != nil {
+		if len(errs) > 0 {
+			return departurePlanSynced, fmt.Errorf("%s; %w", strings.Join(errs, "; "), companionRefusal)
+		}
+		return departurePlanSynced, companionRefusal
+	}
+	if len(errs) > 0 {
+		return departurePlanSynced, errors.New(strings.Join(errs, "; "))
+	}
+	return departurePlanSynced, nil
+}
+
+func targetedFieldHasMeaningfulValue(target string, raw any) bool {
+	if raw == nil {
+		return false
+	}
+	switch target {
+	case enrollmentModels.TargetStudentHealthInfo, enrollmentModels.TargetStudentExtraInfo:
+		return strings.TrimSpace(stringValue(raw)) != ""
+	default:
+		return structuredTargetValueHasEntries(raw)
+	}
+}
+
+func structuredTargetValueHasEntries(raw any) bool {
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value) != ""
+	case []any:
+		return len(value) > 0
+	case []map[string]any:
+		return len(value) > 0
+	case []string:
+		return len(value) > 0
+	case map[string]any:
+		return len(value) > 0
+	case map[string]string:
+		return len(value) > 0
+	case map[string][]string:
+		return len(value) > 0
+	case map[string][]any:
+		return len(value) > 0
+	default:
+		return true
+	}
 }
 
 // decodeDepartureDays decodes a FormFieldWeekdayMode submission (mon..fri →
@@ -1752,6 +2829,34 @@ func decodeDepartureDays(raw any) (users.DepartureDays, error) {
 			out[day] = users.DepartureBus
 		case enrollmentModels.WeekdayModePickup:
 			out[day] = users.DeparturePickup
+		case enrollmentModels.WeekdayModeAccompanied:
+			out[day] = users.DepartureAccompanied
+		}
+	}
+	return out.Normalize(), nil
+}
+
+func decodeAllowedDepartureModes(raw any) (users.AllowedDepartureModes, error) {
+	var modes enrollmentModels.WeekdayMultiMode
+	if err := decodeStructured(raw, &modes); err != nil {
+		return nil, fmt.Errorf("decode weekday_multi_mode: %w", err)
+	}
+	if err := modes.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.AllowedDepartureModes{}
+	for day, rawModes := range modes {
+		for _, mode := range rawModes {
+			switch mode {
+			case enrollmentModels.WeekdayModeAlone:
+				out[day] = append(out[day], users.DepartureAlone)
+			case enrollmentModels.WeekdayModeBus:
+				out[day] = append(out[day], users.DepartureBus)
+			case enrollmentModels.WeekdayModePickup:
+				out[day] = append(out[day], users.DeparturePickup)
+			case enrollmentModels.WeekdayModeAccompanied:
+				out[day] = append(out[day], users.DepartureAccompanied)
+			}
 		}
 	}
 	return out.Normalize(), nil
@@ -1761,6 +2866,14 @@ func decodeBusDays(raw any) (users.BusDays, error) {
 	if enabled, ok := raw.(bool); ok {
 		return users.BusDaysFromLegacyFlag(enabled), nil
 	}
+	return decodeWeekdayBooleanDays[users.BusDays](raw, users.BusDayOrder)
+}
+
+// decodeWeekdayBooleanDays decodes a weekday_boolean map and projects it
+// onto the given day order. Shared core of the bus and pickup decoders;
+// their divergent legacy branches (bool flag vs pickup answer string)
+// stay with each decoder.
+func decodeWeekdayBooleanDays[M ~map[string]bool](raw any, order []string) (M, error) {
 	var days enrollmentModels.WeekdayBoolean
 	if err := decodeStructured(raw, &days); err != nil {
 		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
@@ -1768,8 +2881,8 @@ func decodeBusDays(raw any) (users.BusDays, error) {
 	if err := days.Validate(); err != nil {
 		return nil, err
 	}
-	out := users.BusDays{}
-	for _, day := range users.BusDayOrder {
+	out := M{}
+	for _, day := range order {
 		if days[day] {
 			out[day] = true
 		}
@@ -1785,20 +2898,7 @@ func decodePickupDays(raw any) (users.PickupDays, error) {
 	if str, ok := raw.(string); ok {
 		return pickupDaysFromLegacyPickupAnswer(str), nil
 	}
-	var days enrollmentModels.WeekdayBoolean
-	if err := decodeStructured(raw, &days); err != nil {
-		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
-	}
-	if err := days.Validate(); err != nil {
-		return nil, err
-	}
-	out := users.PickupDays{}
-	for _, day := range users.PickupDayOrder {
-		if days[day] {
-			out[day] = true
-		}
-	}
-	return out, nil
+	return decodeWeekdayBooleanDays[users.PickupDays](raw, users.PickupDayOrder)
 }
 
 // pickupDaysFromLegacyPickupAnswer maps a pending pre-migration submission's
@@ -1856,11 +2956,38 @@ func decodeStructured(raw any, out any) error {
 	return json.Unmarshal(bs, out)
 }
 
+func (s *decisionService) resolveReviewerStaffID(ctx context.Context, reviewerAccountID int64) (int64, error) {
+	if reviewerAccountID <= 0 {
+		return 0, fmt.Errorf("reviewer account id is required")
+	}
+	if s.PersonRepo == nil || s.StaffRepo == nil {
+		return 0, fmt.Errorf("reviewer staff lookup is unavailable")
+	}
+	person, err := s.PersonRepo.FindByAccountID(ctx, reviewerAccountID)
+	if err != nil {
+		return 0, fmt.Errorf("find reviewer person: %w", err)
+	}
+	if person == nil {
+		return 0, fmt.Errorf("reviewer account %d has no linked person", reviewerAccountID)
+	}
+	staff, err := s.StaffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("reviewer account %d has no linked staff", reviewerAccountID)
+		}
+		return 0, fmt.Errorf("find reviewer staff: %w", err)
+	}
+	if staff == nil {
+		return 0, fmt.Errorf("reviewer account %d has no linked staff", reviewerAccountID)
+	}
+	return staff.ID, nil
+}
+
 // dispatchWeekdaySchedule inserts one pickup or arrival schedule row
 // per non-empty weekday entry. isPickup=true targets pickup_schedules,
 // false targets arrival_schedules.
 func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, studentID int64, reviewedBy int64, isPickup bool) error {
-	if (isPickup && s.pickupScheduleRepo == nil) || (!isPickup && s.arrivalScheduleRepo == nil) {
+	if (isPickup && s.PickupScheduleRepo == nil) || (!isPickup && s.ArrivalScheduleRepo == nil) {
 		return nil
 	}
 	var sched enrollmentModels.WeekdaySchedule
@@ -1870,16 +2997,16 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 	if err := sched.Validate(); err != nil {
 		return err
 	}
+	createdBy, err := s.resolveReviewerStaffID(ctx, reviewedBy)
+	if err != nil {
+		return err
+	}
 	weekdayInt := map[string]int{
 		"mon": scheduleModels.WeekdayMonday,
 		"tue": scheduleModels.WeekdayTuesday,
 		"wed": scheduleModels.WeekdayWednesday,
 		"thu": scheduleModels.WeekdayThursday,
 		"fri": scheduleModels.WeekdayFriday,
-	}
-	createdBy := reviewedBy
-	if createdBy <= 0 {
-		createdBy = 1 // fallback for legacy tests with no actor
 	}
 	for day, hhmm := range sched {
 		hhmm = strings.TrimSpace(hhmm)
@@ -1898,7 +3025,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 				PickupTime: t,
 				CreatedBy:  createdBy,
 			}
-			if err := s.pickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
+			if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
 				return fmt.Errorf("upsert pickup %s: %w", day, err)
 			}
 		} else {
@@ -1908,7 +3035,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 				ExpectedArrival: t,
 				CreatedBy:       createdBy,
 			}
-			if err := s.arrivalScheduleRepo.Create(ctx, row); err != nil {
+			if err := s.ArrivalScheduleRepo.Create(ctx, row); err != nil {
 				return fmt.Errorf("create arrival %s: %w", day, err)
 			}
 		}
@@ -1921,25 +3048,181 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 // links it to the student via users.students_guardians, and inserts
 // any submitted phone numbers. Mirrors the dedup-by-email behaviour
 // of the CSV importer at services/import/student_import_config.go.
-func (s *decisionService) dispatchContactList(ctx context.Context, raw any, studentID int64) error {
-	if s.guardianProfileRepo == nil || s.studentGuardianRepo == nil {
+func contactGuardianRole(isEmergencyContact, canPickup bool) string {
+	if canPickup {
+		return authorize.GuardianRolePickupOnly
+	}
+	if isEmergencyContact {
+		return authorize.GuardianRoleEmergency
+	}
+	return authorize.GuardianRoleCustom
+}
+
+func contactIdentityName(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func contactIdentityPhones(entry enrollmentModels.ContactEntry) map[string]bool {
+	phones := map[string]bool{}
+	for _, phone := range entry.PhoneNumbers {
+		number := strings.TrimSpace(phone.PhoneNumber)
+		if number != "" {
+			phones[number] = true
+		}
+	}
+	return phones
+}
+
+func (s *decisionService) phoneOnlyContactProfilesForStudent(
+	ctx context.Context,
+	studentID int64,
+	entry enrollmentModels.ContactEntry,
+) ([]*users.GuardianProfile, error) {
+	if studentID <= 0 ||
+		s.StudentGuardianRepo == nil ||
+		s.GuardianProfileRepo == nil ||
+		s.GuardianPhoneRepo == nil {
+		return nil, nil
+	}
+	firstName := contactIdentityName(entry.FirstName)
+	lastName := contactIdentityName(entry.LastName)
+	phones := contactIdentityPhones(entry)
+	if firstName == "" || lastName == "" || len(phones) == 0 {
+		return nil, nil
+	}
+
+	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	profileIDs := make([]int64, 0, len(links))
+	seenProfileIDs := map[int64]bool{}
+	for _, link := range links {
+		if link == nil ||
+			link.IsPrimary ||
+			authorize.IsFullGuardianRole(link.GuardianRole) ||
+			link.GuardianProfileID <= 0 ||
+			seenProfileIDs[link.GuardianProfileID] {
+			continue
+		}
+		seenProfileIDs[link.GuardianProfileID] = true
+		profileIDs = append(profileIDs, link.GuardianProfileID)
+	}
+	if len(profileIDs) == 0 {
+		return nil, nil
+	}
+
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+	phonesByProfile, err := s.GuardianPhoneRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	matches := make([]*users.GuardianProfile, 0, 1)
+	for _, profileID := range profileIDs {
+		profile := profiles[profileID]
+		if profile == nil ||
+			contactIdentityName(profile.FirstName) != firstName ||
+			contactIdentityName(profile.LastName) != lastName {
+			continue
+		}
+		for _, phone := range phonesByProfile[profileID] {
+			if phone != nil && phones[strings.TrimSpace(phone.PhoneNumber)] {
+				matches = append(matches, profile)
+				break
+			}
+		}
+	}
+	return matches, nil
+}
+
+func (s *decisionService) upsertContactStudentGuardianLink(ctx context.Context, rel *users.StudentGuardian) error {
+	if rel == nil {
+		return errors.New("contact student guardian link cannot be nil")
+	}
+	if err := rel.Validate(); err != nil {
+		return err
+	}
+
+	existing, err := s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, rel.StudentID, rel.GuardianProfileID)
+	if err != nil {
+		if !errors.Is(err, users.ErrStudentGuardianNotFound) {
+			return err
+		}
+		inserted, linkErr := s.StudentGuardianRepo.LinkIfNotExists(ctx, rel)
+		if linkErr != nil || inserted {
+			return linkErr
+		}
+		existing, err = s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, rel.StudentID, rel.GuardianProfileID)
+		if err != nil {
+			return err
+		}
+	}
+	if existing.IsPrimary || authorize.IsFullGuardianRole(existing.GuardianRole) {
 		return nil
+	}
+
+	existing.RelationshipType = rel.RelationshipType
+	existing.IsEmergencyContact = rel.IsEmergencyContact
+	existing.CanPickup = rel.CanPickup
+	existing.EmergencyPriority = rel.EmergencyPriority
+	existing.GuardianRole = rel.GuardianRole
+	existing.Permissions = rel.Permissions
+	updated, err := s.StudentGuardianRepo.UpdateColumns(
+		ctx,
+		existing,
+		"relationship_type",
+		"is_emergency_contact",
+		"can_pickup",
+		"emergency_priority",
+		"guardian_role",
+		"permissions",
+	)
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return users.ErrStudentGuardianNotFound
+	}
+	return nil
+}
+
+func (s *decisionService) dispatchContactList(ctx context.Context, raw any, studentID int64) (map[int64]bool, error) {
+	linkedProfileIDs := map[int64]bool{}
+	if s.GuardianProfileRepo == nil || s.StudentGuardianRepo == nil {
+		return linkedProfileIDs, nil
 	}
 	var entries []enrollmentModels.ContactEntry
 	if err := decodeStructured(raw, &entries); err != nil {
-		return fmt.Errorf("decode contact_list: %w", err)
+		return linkedProfileIDs, fmt.Errorf("decode contact_list: %w", err)
 	}
 	for i := range entries {
 		c := entries[i]
 		if err := c.Validate(); err != nil {
-			return err
+			return linkedProfileIDs, err
 		}
 
 		var profile *users.GuardianProfile
 		emailLC := strings.ToLower(strings.TrimSpace(c.Email))
 		if emailLC != "" {
-			existing, _ := s.guardianProfileRepo.FindByEmail(ctx, emailLC)
-			profile = existing
+			existing, err := s.GuardianProfileRepo.FindByEmail(ctx, emailLC)
+			if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) {
+				return linkedProfileIDs, fmt.Errorf("find contact profile by email: %w", err)
+			}
+			if err == nil {
+				profile = existing
+			}
+		} else {
+			matches, err := s.phoneOnlyContactProfilesForStudent(ctx, studentID, c)
+			if err != nil {
+				return linkedProfileIDs, fmt.Errorf("resolve phone-only contact profile: %w", err)
+			}
+			if len(matches) > 0 {
+				profile = matches[0]
+			}
 		}
 		if profile == nil {
 			profile = &users.GuardianProfile{
@@ -1951,13 +3234,14 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 			if emailLC != "" {
 				profile.Email = &emailLC
 			}
-			if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
-				return fmt.Errorf("create contact profile %s %s: %w", c.FirstName, c.LastName, err)
+			if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
+				return linkedProfileIDs, fmt.Errorf("create contact profile %s %s: %w", c.FirstName, c.LastName, err)
 			}
 		}
+		linkedProfileIDs[profile.ID] = true
 
 		// Phone numbers — append, dedup by unique index.
-		if s.guardianPhoneRepo != nil {
+		if s.GuardianPhoneRepo != nil {
 			for j := range c.PhoneNumbers {
 				p := c.PhoneNumbers[j]
 				label := p.Label
@@ -1970,9 +3254,9 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 				if label != "" {
 					phone.Label = &label
 				}
-				if err := s.guardianPhoneRepo.Create(ctx, phone); err != nil {
+				if err := s.GuardianPhoneRepo.Create(ctx, phone); err != nil {
 					if !strings.Contains(err.Error(), "unique") && !strings.Contains(err.Error(), "duplicate") {
-						return fmt.Errorf("create contact phone: %w", err)
+						return linkedProfileIDs, fmt.Errorf("create contact phone: %w", err)
 					}
 				}
 			}
@@ -1989,12 +3273,13 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 			IsEmergencyContact: c.IsEmergencyContact,
 			CanPickup:          c.CanPickup,
 		}
+		authorize.ApplyStudentGuardianRole(rel, contactGuardianRole(c.IsEmergencyContact, c.CanPickup))
 		if c.EmergencyPriority > 0 {
 			rel.EmergencyPriority = c.EmergencyPriority
 		}
-		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
-			return fmt.Errorf("link contact to student: %w", err)
+		if err := s.upsertContactStudentGuardianLink(ctx, rel); err != nil {
+			return linkedProfileIDs, fmt.Errorf("link contact to student: %w", err)
 		}
 	}
-	return nil
+	return linkedProfileIDs, nil
 }

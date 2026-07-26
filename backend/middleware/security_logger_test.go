@@ -28,7 +28,7 @@ func TestSecurityLogger_LogEvent(t *testing.T) {
 
 	// Should not panic
 	assert.NotPanics(t, func() {
-		sl.LogEvent(EventAuthFailure, req, map[string]interface{}{
+		sl.LogEvent("AUTH_FAILURE", req, map[string]interface{}{
 			"user_id": 123,
 			"reason":  "invalid password",
 		})
@@ -41,7 +41,7 @@ func TestSecurityLogger_LogEvent_EmptyDetails(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/login", nil)
 
 	assert.NotPanics(t, func() {
-		sl.LogEvent(EventAuthFailure, req, nil)
+		sl.LogEvent("AUTH_FAILURE", req, nil)
 	})
 }
 
@@ -50,11 +50,11 @@ func TestSecurityLogger_LogEvent_AllEventTypes(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	events := []string{
-		EventAuthFailure,
+		"AUTH_FAILURE",
 		EventRateLimitExceed,
-		EventSuspiciousAccess,
-		EventAccountLocked,
-		EventInvalidToken,
+		"SUSPICIOUS_ACCESS",
+		"ACCOUNT_LOCKED",
+		"INVALID_TOKEN",
 	}
 
 	for _, eventType := range events {
@@ -191,16 +191,4 @@ func TestResponseWriter_Flush(t *testing.T) {
 	assert.True(t, ok, "responseWriter should implement http.Flusher when underlying writer does")
 	assert.NotPanics(t, func() { flusher.Flush() })
 	assert.True(t, rr.Flushed)
-}
-
-// =============================================================================
-// Event Constants Tests
-// =============================================================================
-
-func TestEventConstants(t *testing.T) {
-	assert.Equal(t, "AUTH_FAILURE", EventAuthFailure)
-	assert.Equal(t, "RATE_LIMIT_EXCEEDED", EventRateLimitExceed)
-	assert.Equal(t, "SUSPICIOUS_ACCESS", EventSuspiciousAccess)
-	assert.Equal(t, "ACCOUNT_LOCKED", EventAccountLocked)
-	assert.Equal(t, "INVALID_TOKEN", EventInvalidToken)
 }

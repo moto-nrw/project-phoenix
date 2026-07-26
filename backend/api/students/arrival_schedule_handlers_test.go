@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -39,11 +38,9 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "ArrivalGet", "Test", "AG1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.GetStudentArrivalSchedulesHandler(), "id")
-
 	t.Run("success_returns_empty_schedules", func(t *testing.T) {
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "schedules")
@@ -101,8 +98,8 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", studentWithData.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", studentWithData.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "07:45", "Should contain arrival time")
@@ -114,8 +111,8 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		req := testutil.NewRequest("GET", "/999999", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", "/999999/arrival-schedules", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -124,9 +121,9 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		assert.Equal(t, http.StatusForbidden, rr.Code, "Non-supervisor should be forbidden. Body: %s", rr.Body.String())
 	})
@@ -138,8 +135,6 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 
 func TestUpdateStudentArrivalSchedules(t *testing.T) {
 	tc := setupTestContext(t)
-
-	router := setupRouterWithMethods(tc.resource.UpdateStudentArrivalSchedulesHandler(), "id", []string{"PUT"})
 
 	t.Run("success_updates_schedules", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalSuccess", "Test", "AST1")
@@ -154,8 +149,8 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 				{"weekday": 3, "expected_arrival": "08:00"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "07:45", "Should contain first arrival time")
@@ -192,8 +187,8 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 		body := map[string]any{
 			"schedules": []map[string]any{},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
@@ -214,8 +209,8 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 				{"weekday": 7, "expected_arrival": "08:00"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -229,8 +224,8 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 				{"weekday": 1, "expected_arrival": "invalid"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -244,8 +239,8 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 				{"weekday": 1},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -260,9 +255,9 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 				{"weekday": 1, "expected_arrival": "08:00"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -274,8 +269,6 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 
 func TestCreateStudentArrivalException(t *testing.T) {
 	tc := setupTestContext(t)
-
-	router := setupRouterWithMethods(tc.resource.CreateStudentArrivalExceptionHandler(), "id", []string{"POST"})
 
 	t.Run("success_creates_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcCreate", "Test", "AEC1")
@@ -289,13 +282,43 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			"expected_arrival": "09:00",
 			"reason":           "Doctor appointment",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain exception date")
 		assert.Contains(t, rr.Body.String(), "09:00", "Should contain arrival time")
 		assert.Contains(t, rr.Body.String(), "Doctor appointment", "Should contain reason")
+
+		// Cleanup
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalException)(nil)).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Where("student_id = ?", student.ID).
+			Exec(context.Background())
+	})
+
+	t.Run("create_response_includes_staff_source_without_refetch", func(t *testing.T) {
+		// Locks the response contract: the immediate 201 body must report
+		// source:staff, so a client never sees source:"" before a refetch. The
+		// handler stamps the source explicitly (and bun also backfills the
+		// column default via RETURNING) — this guards both against regressing.
+		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcSrc", "Test", "AESRC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Source", "ArrExcTeacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"exception_date":   "2026-03-17",
+			"expected_arrival": "08:15",
+			"reason":           "Source check",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"source":"staff"`,
+			"Immediate create response must carry source:staff, not the unset default. Body: %s", rr.Body.String())
 
 		// Cleanup
 		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalException)(nil)).
@@ -315,8 +338,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			"exception_date": "2026-03-16",
 			"reason":         "Student is sick",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-16", "Should contain exception date")
@@ -329,6 +352,121 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			Exec(context.Background())
 	})
 
+	t.Run("create_over_guardian_row_reclaims_for_staff", func(t *testing.T) {
+		// Same race as the pickup case: a guardian set the day from the portal,
+		// then staff create over a stale view. The create must fold into a staff
+		// override (reclaim) instead of colliding with the unique index.
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianArrivalExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 17)
+		originalReason := "Parent arrival reason"
+		guardian := &scheduleModel.StudentArrivalException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		guardian.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(guardian).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		body := map[string]any{
+			"exception_date":   "2026-04-17",
+			"expected_arrival": "09:45",
+			"reason":           "Staff created over parent",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", chain.StudentID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created (not a 500 on the unique index). Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), scheduleModel.ExceptionSourceStaff)
+		assert.Contains(t, rr.Body.String(), "09:45")
+
+		var rowCount int
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("COUNT(*)").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &rowCount))
+		assert.Equal(t, 1, rowCount, "create-over-existing must not insert a duplicate row")
+
+		var source string
+		var createdByGuardian *int64
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by_guardian").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &source, &createdByGuardian))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		assert.Nil(t, createdByGuardian)
+	})
+
+	t.Run("create_over_staff_row_conflicts", func(t *testing.T) {
+		// A different staff member set the arrival after this client loaded its
+		// (empty) view. A STAFF-authored row must NOT be silently overwritten —
+		// refuse with a 409 so the client reloads and edits through the update path.
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "StaffArrivalExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 18)
+		originalReason := "Other staff arrival reason"
+		originalTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
+		staffRow := &scheduleModel.StudentArrivalException{
+			StudentID:       chain.StudentID,
+			ExceptionDate:   exceptionDate,
+			ExpectedArrival: &originalTime,
+			Reason:          &originalReason,
+			Source:          scheduleModel.ExceptionSourceStaff,
+			CreatedBy:       teacher.StaffID,
+		}
+		staffRow.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(staffRow).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		body := map[string]any{
+			"exception_date":   "2026-04-18",
+			"expected_arrival": "09:45",
+			"reason":           "Staff created over staff",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", chain.StudentID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusConflict, rr.Code, "staff-on-staff create must be a 409, not a silent overwrite. Body: %s", rr.Body.String())
+
+		var source string
+		var createdBy int64
+		var arrival *time.Time
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by").
+			ColumnExpr("expected_arrival").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &source, &createdBy, &arrival))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		assert.Equal(t, teacher.StaffID, createdBy, "existing staff row must keep its author")
+		require.NotNil(t, arrival)
+		assert.Equal(t, "08:00", arrival.Format("15:04"), "existing staff time must be unchanged")
+	})
+
 	t.Run("bad_request_missing_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcNoDate", "Test", "AEND1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
@@ -337,8 +475,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			"expected_arrival": "09:00",
 			"reason":           "Test reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -352,8 +490,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			"expected_arrival": "09:00",
 			"reason":           "Test reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -367,8 +505,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			"expected_arrival": "invalid",
 			"reason":           "Test reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -386,8 +524,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			"expected_arrival": "09:00",
 			"reason":           string(longReason),
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -402,9 +540,9 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			"expected_arrival": "09:00",
 			"reason":           "Test reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -447,34 +585,83 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		router := setupArrivalExceptionRouter(tc.resource.UpdateStudentArrivalExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date":   "2026-04-15",
 			"expected_arrival": "09:30",
 			"reason":           "Updated reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student.ID, exception.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-exceptions/%d", student.ID, exception.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "09:30", "Should contain updated arrival time")
 		assert.Contains(t, rr.Body.String(), "Updated reason", "Should contain updated reason")
 	})
 
+	t.Run("success_reclaims_guardian_exception_for_staff", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianArrivalExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 16)
+		originalReason := "Parent arrival reason"
+		exception := &scheduleModel.StudentArrivalException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		exception.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		body := map[string]any{
+			"exception_date":   "2026-04-16",
+			"expected_arrival": "09:45",
+			"reason":           "Staff adjusted arrival",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-exceptions/%d", chain.StudentID, exception.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), scheduleModel.ExceptionSourceStaff)
+		assert.Contains(t, rr.Body.String(), "09:45")
+
+		// A staff edit reclaims the parent-authored day: source flips to staff,
+		// the editing staff becomes the author, and the guardian link is dropped.
+		var source string
+		var createdBy *int64
+		var createdByGuardian *int64
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by").
+			ColumnExpr("created_by_guardian").
+			Where("id = ?", exception.ID).
+			Scan(context.Background(), &source, &createdBy, &createdByGuardian))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		require.NotNil(t, createdBy)
+		assert.Positive(t, *createdBy)
+		assert.Nil(t, createdByGuardian)
+	})
+
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdateInvalid", "Test", "AEUI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-
-		router := setupArrivalExceptionRouter(tc.resource.UpdateStudentArrivalExceptionHandler(), "PUT")
 
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
 			"expected_arrival": "09:00",
 			"reason":           "Updated reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/abc", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-exceptions/abc", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -483,15 +670,13 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdateNF", "Test", "AEUNF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupArrivalExceptionRouter(tc.resource.UpdateStudentArrivalExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
 			"expected_arrival": "09:00",
 			"reason":           "Updated reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/999999", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-exceptions/999999", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -501,16 +686,14 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrUpdateExcStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		router := setupArrivalExceptionRouter(tc.resource.UpdateStudentArrivalExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
 			"expected_arrival": "09:00",
 			"reason":           "Updated reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/1", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-exceptions/1", student.ID), body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -542,23 +725,59 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		router := setupArrivalExceptionRouter(tc.resource.DeleteStudentArrivalExceptionHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student.ID, exception.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/%d", student.ID, exception.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "deleted successfully")
+	})
+
+	t.Run("success_deletes_guardian_exception", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianArrivalExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 6, 16)
+		arrivalTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 08:15")
+		require.NoError(t, err)
+		originalReason := "Parent arrival delete reason"
+		exception := &scheduleModel.StudentArrivalException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			ExpectedArrival:   &arrivalTime,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		exception.SetTenantID(chain.TenantID)
+		_, err = tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/%d", chain.StudentID, exception.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		var remaining int
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("COUNT(*)").
+			Where("id = ?", exception.ID).
+			Scan(context.Background(), &remaining))
+		assert.Zero(t, remaining)
 	})
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDeleteInvalid", "Test", "AEDI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupArrivalExceptionRouter(tc.resource.DeleteStudentArrivalExceptionHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/invalid", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/invalid", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -567,10 +786,8 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDeleteNF", "Test", "AEDNF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupArrivalExceptionRouter(tc.resource.DeleteStudentArrivalExceptionHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/999999", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/999999", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -580,11 +797,9 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrDeleteExcStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		router := setupArrivalExceptionRouter(tc.resource.DeleteStudentArrivalExceptionHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/1", student.ID), nil)
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/1", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -597,8 +812,6 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 func TestCreateStudentArrivalNote(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouterWithMethods(tc.resource.CreateStudentArrivalNoteHandler(), "id", []string{"POST"})
-
 	t.Run("success_creates_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteCreate", "Test", "ANC1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
@@ -610,8 +823,8 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 			"note_date": "2026-03-15",
 			"content":   "Arrives with school bus today",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain note date")
@@ -631,8 +844,8 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 		body := map[string]any{
 			"content": "Test content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "note_date is required")
@@ -646,8 +859,8 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 			"note_date": "15-03-2026",
 			"content":   "Test content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "invalid note_date format")
@@ -661,8 +874,8 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 			"note_date": "2026-03-15",
 			"content":   "",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "content is required")
@@ -680,8 +893,8 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 			"note_date": "2026-03-15",
 			"content":   string(longContent),
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "content cannot exceed 500 characters")
@@ -696,9 +909,9 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 			"note_date": "2026-03-15",
 			"content":   "Test note",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -738,14 +951,12 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		router := setupArrivalNoteRouter(tc.resource.UpdateStudentArrivalNoteHandler(), "PUT")
-
 		body := map[string]any{
 			"note_date": "2026-04-15",
 			"content":   "Updated content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student.ID, note.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-notes/%d", student.ID, note.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "Updated content", "Should contain updated content")
@@ -755,14 +966,12 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteUpdateInvalid", "Test", "ANUI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupArrivalNoteRouter(tc.resource.UpdateStudentArrivalNoteHandler(), "PUT")
-
 		body := map[string]any{
 			"note_date": "2026-02-15",
 			"content":   "Updated content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/abc", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-notes/abc", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -771,14 +980,12 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteUpdateNF", "Test", "ANUNF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupArrivalNoteRouter(tc.resource.UpdateStudentArrivalNoteHandler(), "PUT")
-
 		body := map[string]any{
 			"note_date": "2026-02-15",
 			"content":   "Updated content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/999999", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-notes/999999", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -809,10 +1016,8 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		router := setupArrivalNoteRouter(tc.resource.DeleteStudentArrivalNoteHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student.ID, note.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-notes/%d", student.ID, note.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "deleted successfully")
@@ -822,10 +1027,8 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteDeleteInvalid", "Test", "ANDI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupArrivalNoteRouter(tc.resource.DeleteStudentArrivalNoteHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/invalid", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-notes/invalid", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -834,10 +1037,8 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteDeleteNF", "Test", "ANDNF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupArrivalNoteRouter(tc.resource.DeleteStudentArrivalNoteHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/999999", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-notes/999999", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -850,10 +1051,6 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 func TestBulkUpsertArrivalSchedules(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Post("/", tc.resource.BulkUpsertArrivalSchedulesHandler())
-
 	t.Run("bad_request_missing_school_class", func(t *testing.T) {
 		body := map[string]any{
 			"school_class": "",
@@ -861,8 +1058,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 				{"weekday": 1, "expected_arrival": "08:00"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -872,8 +1069,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 			"school_class": "1a",
 			"schedules":    []map[string]any{},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -885,8 +1082,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 				{"weekday": 7, "expected_arrival": "08:00"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -905,8 +1102,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 				{"weekday": 3, "expected_arrival": "08:15"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
@@ -925,16 +1122,12 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 func TestGetBulkArrivalTimes(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Post("/", tc.resource.GetBulkArrivalTimesHandler())
-
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
 		body := map[string]any{
 			"student_ids": []int64{},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -947,8 +1140,8 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 		body := map[string]any{
 			"student_ids": ids,
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -958,8 +1151,8 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 			"student_ids": []int64{1, 2, 3},
 			"date":        "27-01-2026",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -972,8 +1165,8 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 		body := map[string]any{
 			"student_ids": []int64{student1.ID, student2.ID},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -986,47 +1179,80 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 			"student_ids": []int64{student.ID},
 			"date":        "2026-01-27",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 }
 
-// =============================================================================
-// Arrival-specific Helper Functions
-// =============================================================================
+// TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged pins that every staff
+// arrival write reaches the staff SSE bus at all — the broadcasts now run from
+// tenant.RegisterAfterCommit hooks, and a hook that is never registered or never
+// drained produces no event here, so this fails loudly if the wiring is dropped.
+//
+// Scope, stated plainly: it does NOT prove the broadcast happens AFTER the
+// commit — an inline call would satisfy it too. Ordering itself is covered by
+// the tenant package (aftercommit_test.go / rollback_middleware_test.go); the
+// contract for callers is documented on broadcastArrivalScheduleChanged.
+//
+// The note paths are covered explicitly: they carried no after-commit hook at
+// all before, so they are the easiest place for the wiring to be dropped again.
+func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
+	tc := setupTestContext(t)
 
-// setupArrivalExceptionRouter creates a router for arrival exception endpoints with nested URL params
-func setupArrivalExceptionRouter(handler http.HandlerFunc, method string) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	switch method {
-	case "GET":
-		router.Get("/{id}/{exceptionId}", handler)
-	case "POST":
-		router.Post("/{id}/{exceptionId}", handler)
-	case "PUT":
-		router.Put("/{id}/{exceptionId}", handler)
-	case "DELETE":
-		router.Delete("/{id}/{exceptionId}", handler)
-	}
-	return router
-}
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ArrCast", "Teacher")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	claims := testutil.AdminTestClaims(int(account.ID))
 
-// setupArrivalNoteRouter creates a router for arrival note endpoints with nested URL params
-func setupArrivalNoteRouter(handler http.HandlerFunc, method string) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	switch method {
-	case "GET":
-		router.Get("/{id}/{noteId}", handler)
-	case "POST":
-		router.Post("/{id}/{noteId}", handler)
-	case "PUT":
-		router.Put("/{id}/{noteId}", handler)
-	case "DELETE":
-		router.Delete("/{id}/{noteId}", handler)
+	sawArrivalBroadcast := func() bool {
+		for _, c := range tc.broadcaster.CallsByMethod("all") {
+			if c.Event.Type == realtime.EventArrivalScheduleChanged {
+				return true
+			}
+		}
+		return false
 	}
-	return router
+
+	t.Run("weekly_schedule_update", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Weekly", "AC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalSchedule)(nil)).
+				ModelTableExpr("schedule.student_arrival_schedules").
+				Where("student_id = ?", student.ID).
+				Exec(context.Background())
+		}()
+
+		tc.broadcaster.Reset()
+		body := map[string]any{
+			"schedules": []map[string]any{{"weekday": 1, "expected_arrival": "07:45"}},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
+		rr := authExec(t, tc, req, claims, []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		assert.True(t, sawArrivalBroadcast(),
+			"an arrival schedule update must broadcast arrival_schedule_changed after commit")
+	})
+
+	t.Run("day_note_create", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Note", "AC2")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalNote)(nil)).
+				ModelTableExpr("schedule.student_arrival_notes").
+				Where("student_id = ?", student.ID).
+				Exec(context.Background())
+		}()
+
+		tc.broadcaster.Reset()
+		body := map[string]any{"note_date": "2026-03-15", "content": "Kommt mit dem Bus"}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
+		rr := authExec(t, tc, req, claims, []string{"admin:*"})
+		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+
+		assert.True(t, sawArrivalBroadcast(),
+			"an arrival day note must broadcast arrival_schedule_changed after commit")
+	})
 }

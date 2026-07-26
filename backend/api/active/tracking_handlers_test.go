@@ -17,75 +17,53 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- Mock SettingsService ---
 
-type trackingMockSettingsService struct {
-	resolveBoolFunc   func(ctx context.Context, key string) (bool, error)
-	resolveStringFunc func(ctx context.Context, key string) (string, error)
-}
-
-func (m *trackingMockSettingsService) GetSchema(ctx context.Context, perms []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *trackingMockSettingsService) GetSchemaForOperator(ctx context.Context, perms []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *trackingMockSettingsService) Resolve(ctx context.Context, key string) (any, error) {
-	return nil, nil
-}
-func (m *trackingMockSettingsService) ResolveString(ctx context.Context, key string) (string, error) {
-	if m.resolveStringFunc != nil {
-		return m.resolveStringFunc(ctx, key)
+// newTrackingMockSettingsService builds a configtest.Mock wired the same way
+// as the previous hand-rolled stub: ResolveBool/ResolveString delegate to the
+// given funcs (nil → zero value), and the ForTenant variants delegate to the
+// same funcs.
+func newTrackingMockSettingsService(resolveBoolFunc func(ctx context.Context, key string) (bool, error), resolveStringFunc func(ctx context.Context, key string) (string, error)) *configtest.Mock {
+	resolveBool := func(ctx context.Context, key string) (bool, error) {
+		if resolveBoolFunc != nil {
+			return resolveBoolFunc(ctx, key)
+		}
+		return false, nil
 	}
-	return "", nil
-}
-func (m *trackingMockSettingsService) ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error) {
-	return "", nil
-}
-func (m *trackingMockSettingsService) ResolveBool(ctx context.Context, key string) (bool, error) {
-	if m.resolveBoolFunc != nil {
-		return m.resolveBoolFunc(ctx, key)
+	resolveString := func(ctx context.Context, key string) (string, error) {
+		if resolveStringFunc != nil {
+			return resolveStringFunc(ctx, key)
+		}
+		return "", nil
 	}
-	return false, nil
-}
-func (m *trackingMockSettingsService) ResolveBoolForTenant(ctx context.Context, _ int64, key string) (bool, error) {
-	return m.ResolveBool(ctx, key)
-}
-func (m *trackingMockSettingsService) ResolveInt(ctx context.Context, key string) (int, error) {
-	return 0, nil
-}
-func (m *trackingMockSettingsService) ResolveIntForTenant(ctx context.Context, _ int64, key string) (int, error) {
-	return m.ResolveInt(ctx, key)
-}
-func (m *trackingMockSettingsService) HasTenantOverride(ctx context.Context, key string) (bool, error) {
-	return false, nil
-}
-func (m *trackingMockSettingsService) SetValue(ctx context.Context, key string, value any, changedBy *int64, perms []string) error {
-	return nil
-}
-func (m *trackingMockSettingsService) ResetValue(ctx context.Context, key string, changedBy *int64, perms []string) error {
-	return nil
-}
-func (m *trackingMockSettingsService) GetLoginImageURL(ctx context.Context, tenantID int64) (string, error) {
-	return "", nil
-}
-func (m *trackingMockSettingsService) SetLoginImageURL(ctx context.Context, tenantID int64, imageURL string) (string, error) {
-	return "", nil
-}
-func (m *trackingMockSettingsService) ClearLoginImageURL(ctx context.Context, tenantID int64) (string, error) {
-	return "", nil
+	return &configtest.Mock{
+		ResolveBoolFn:   resolveBool,
+		ResolveStringFn: resolveString,
+		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
+			return resolveBool(ctx, key)
+		},
+	}
 }
 
 // --- Mock ActiveService (stub all methods, only GetTrackingIndicators functional) ---
 
 type trackingMockActiveService struct {
-	getTrackingIndicatorsFunc              func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
-	assignTransitStudentsToActiveGroupFunc func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error)
+	getTrackingIndicatorsFunc               func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
+	assignTransitStudentsToActiveGroupFunc  func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error)
+	moveStudentsToActiveGroupFunc           func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error)
+	moveStudentsToActiveGroupAuthorizedFunc func(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
+	moveStudentsToTransitFunc               func(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error)
+	moveStudentsToTransitAuthorizedFunc     func(ctx context.Context, studentIDs []int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
+	getActiveGroupFunc                      func(ctx context.Context, id int64) (*activeModel.Group, error)
+	getStudentCurrentVisitFunc              func(ctx context.Context, studentID int64) (*activeModel.Visit, error)
+	getStudentsAttendanceStatusesFunc       func(ctx context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error)
+	getStaffActiveSupervisionsFunc          func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
+	checkTeacherStudentAccessFunc           func(ctx context.Context, teacherID, studentID int64) (bool, error)
 }
 
 // The only method used by the tracking handler:
@@ -101,6 +79,10 @@ func (m *trackingMockActiveService) HasOpenAttendanceOn(_ context.Context, _ tim
 	return false, nil
 }
 
+func (m *trackingMockActiveService) ConfirmDailyCheckout(_ context.Context, _, _ int64, _ string) (*activeSvc.DailyCheckoutResult, error) {
+	return nil, nil
+}
+
 func (m *trackingMockActiveService) GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
 	if m.getTrackingIndicatorsFunc != nil {
 		return m.getTrackingIndicatorsFunc(ctx, studentIDs, labels)
@@ -113,10 +95,10 @@ func (m *trackingMockActiveService) GetPresenceMode(_ context.Context) string {
 }
 
 // Stub out the rest of the Service interface:
-func (m *trackingMockActiveService) GetAllActiveSupervisions(_ context.Context) ([]*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
 func (m *trackingMockActiveService) GetActiveGroup(ctx context.Context, id int64) (*activeModel.Group, error) {
+	if m.getActiveGroupFunc != nil {
+		return m.getActiveGroupFunc(ctx, id)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) CreateActiveGroup(ctx context.Context, group *activeModel.Group) error {
@@ -138,9 +120,6 @@ func (m *trackingMockActiveService) FindDeviceActiveGroupInRoom(ctx context.Cont
 	return nil, nil
 }
 func (m *trackingMockActiveService) FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*activeModel.Group, error) {
-	return nil, nil
-}
-func (m *trackingMockActiveService) FindActiveGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*activeModel.Group, error) {
 	return nil, nil
 }
 func (m *trackingMockActiveService) EndActiveGroupSession(ctx context.Context, id int64) error {
@@ -171,11 +150,11 @@ func (m *trackingMockActiveService) FindVisitsByStudentID(ctx context.Context, s
 func (m *trackingMockActiveService) FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
 	return nil, nil
 }
-func (m *trackingMockActiveService) FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*activeModel.Visit, error) {
-	return nil, nil
-}
 func (m *trackingMockActiveService) EndVisit(ctx context.Context, id int64) error { return nil }
 func (m *trackingMockActiveService) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*activeModel.Visit, error) {
+	if m.getStudentCurrentVisitFunc != nil {
+		return m.getStudentCurrentVisitFunc(ctx, studentID)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*activeModel.Visit, error) {
@@ -196,9 +175,30 @@ func (m *trackingMockActiveService) ListStudentsPresentInRoom(ctx context.Contex
 func (m *trackingMockActiveService) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
 	return nil, nil
 }
+func (m *trackingMockActiveService) ListStudentsPresentToday(ctx context.Context) ([]int64, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error) {
 	if m.assignTransitStudentsToActiveGroupFunc != nil {
 		return m.assignTransitStudentsToActiveGroupFunc(ctx, studentIDs, activeGroupID)
+	}
+	return nil, nil
+}
+func (m *trackingMockActiveService) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	if m.moveStudentsToActiveGroupAuthorizedFunc != nil {
+		return m.moveStudentsToActiveGroupAuthorizedFunc(ctx, studentIDs, activeGroupID, auth)
+	}
+	if m.moveStudentsToActiveGroupFunc != nil {
+		return m.moveStudentsToActiveGroupFunc(ctx, studentIDs, activeGroupID)
+	}
+	return nil, nil
+}
+func (m *trackingMockActiveService) MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	if m.moveStudentsToTransitAuthorizedFunc != nil {
+		return m.moveStudentsToTransitAuthorizedFunc(ctx, studentIDs, auth)
+	}
+	if m.moveStudentsToTransitFunc != nil {
+		return m.moveStudentsToTransitFunc(ctx, studentIDs)
 	}
 	return nil, nil
 }
@@ -228,6 +228,9 @@ func (m *trackingMockActiveService) FindSupervisorsByActiveGroupIDs(ctx context.
 }
 func (m *trackingMockActiveService) EndSupervision(ctx context.Context, id int64) error { return nil }
 func (m *trackingMockActiveService) GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
+	if m.getStaffActiveSupervisionsFunc != nil {
+		return m.getStaffActiveSupervisionsFunc(ctx, staffID)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetCombinedGroup(ctx context.Context, id int64) (*activeModel.CombinedGroup, error) {
@@ -272,9 +275,6 @@ func (m *trackingMockActiveService) GetGroupMappingsByActiveGroupID(ctx context.
 func (m *trackingMockActiveService) GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*activeModel.GroupMapping, error) {
 	return nil, nil
 }
-func (m *trackingMockActiveService) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*activeModel.Group, error) {
-	return nil, nil
-}
 func (m *trackingMockActiveService) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*activeModel.Group, error) {
 	return nil, nil
 }
@@ -283,9 +283,6 @@ func (m *trackingMockActiveService) CheckActivityConflict(ctx context.Context, a
 }
 func (m *trackingMockActiveService) EndActivitySession(ctx context.Context, activeGroupID int64) error {
 	return nil
-}
-func (m *trackingMockActiveService) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*activeModel.Group, error) {
-	return nil, nil
 }
 func (m *trackingMockActiveService) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*activeModel.Group, error) {
 	return nil, nil
@@ -324,6 +321,9 @@ func (m *trackingMockActiveService) GetStudentAttendanceStatus(ctx context.Conte
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error) {
+	if m.getStudentsAttendanceStatusesFunc != nil {
+		return m.getStudentsAttendanceStatusesFunc(ctx, studentIDs)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
@@ -335,7 +335,13 @@ func (m *trackingMockActiveService) CheckInStudent(ctx context.Context, studentI
 func (m *trackingMockActiveService) CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *trackingMockActiveService) CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
+	if m.checkTeacherStudentAccessFunc != nil {
+		return m.checkTeacherStudentAccessFunc(ctx, teacherID, studentID)
+	}
 	return false, nil
 }
 func (m *trackingMockActiveService) BroadcastDailyCheckout(ctx context.Context, studentID int64) {}
@@ -412,11 +418,9 @@ func TestGetTrackingIndicators_NegativeStudentID(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_SettingsError(t *testing.T) {
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
-			return false, errors.New("settings service error")
-		},
-	}
+	settings := newTrackingMockSettingsService(func(ctx context.Context, key string) (bool, error) {
+		return false, errors.New("settings service error")
+	}, nil)
 
 	rs := &Resource{SettingsService: settings}
 
@@ -435,11 +439,9 @@ func TestGetTrackingIndicators_SettingsError(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_Disabled(t *testing.T) {
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
-			return false, nil
-		},
-	}
+	settings := newTrackingMockSettingsService(func(ctx context.Context, key string) (bool, error) {
+		return false, nil
+	}, nil)
 
 	rs := &Resource{SettingsService: settings}
 
@@ -457,14 +459,14 @@ func TestGetTrackingIndicators_Disabled(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_NoLabelsConfigured(t *testing.T) {
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
+	settings := newTrackingMockSettingsService(
+		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
 		},
-		resolveStringFunc: func(ctx context.Context, key string) (string, error) {
+		func(ctx context.Context, key string) (string, error) {
 			return "", nil
 		},
-	}
+	)
 
 	rs := &Resource{SettingsService: settings}
 
@@ -482,14 +484,14 @@ func TestGetTrackingIndicators_NoLabelsConfigured(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_LabelResolutionError(t *testing.T) {
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
+	settings := newTrackingMockSettingsService(
+		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
 		},
-		resolveStringFunc: func(ctx context.Context, key string) (string, error) {
+		func(ctx context.Context, key string) (string, error) {
 			return "", errors.New("label read error")
 		},
-	}
+	)
 
 	rs := &Resource{SettingsService: settings}
 
@@ -513,14 +515,14 @@ func TestGetTrackingIndicators_Success(t *testing.T) {
 		config.KeyTrackingIndicator3: "",
 	}
 
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
+	settings := newTrackingMockSettingsService(
+		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
 		},
-		resolveStringFunc: func(ctx context.Context, key string) (string, error) {
+		func(ctx context.Context, key string) (string, error) {
 			return labelValues[key], nil
 		},
-	}
+	)
 
 	mockSvc := &trackingMockActiveService{
 		getTrackingIndicatorsFunc: func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
@@ -554,14 +556,14 @@ func TestGetTrackingIndicators_Success(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_ServiceError(t *testing.T) {
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
+	settings := newTrackingMockSettingsService(
+		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
 		},
-		resolveStringFunc: func(ctx context.Context, key string) (string, error) {
+		func(ctx context.Context, key string) (string, error) {
 			return "Mensa", nil
 		},
-	}
+	)
 
 	mockSvc := &trackingMockActiveService{
 		getTrackingIndicatorsFunc: func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
@@ -583,14 +585,14 @@ func TestGetTrackingIndicators_ServiceError(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_WhitespaceOnlyLabels(t *testing.T) {
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
+	settings := newTrackingMockSettingsService(
+		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
 		},
-		resolveStringFunc: func(ctx context.Context, key string) (string, error) {
+		func(ctx context.Context, key string) (string, error) {
 			return "   ", nil
 		},
-	}
+	)
 
 	rs := &Resource{SettingsService: settings}
 
@@ -614,14 +616,14 @@ func TestGetTrackingIndicators_PartialLabelsConfigured(t *testing.T) {
 		config.KeyTrackingIndicator3: "Sport",
 	}
 
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
+	settings := newTrackingMockSettingsService(
+		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
 		},
-		resolveStringFunc: func(ctx context.Context, key string) (string, error) {
+		func(ctx context.Context, key string) (string, error) {
 			return labelValues[key], nil
 		},
-	}
+	)
 
 	mockSvc := &trackingMockActiveService{
 		getTrackingIndicatorsFunc: func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {

@@ -199,7 +199,7 @@ func getStudentImportHeaders() []string {
 		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
 		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
 		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
-		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Gehweise.Mo", "Gehweise.Di", "Gehweise.Mi", "Gehweise.Do", "Gehweise.Fr", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
+		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Gehweise.Mo", "Gehweise.Di", "Gehweise.Mi", "Gehweise.Do", "Gehweise.Fr", "Begleitung (optional)", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
 		"Ankunft.Mo (optional)", "Ankunft.Mo.Notizen (optional)", "Ankunft.Di (optional)", "Ankunft.Di.Notizen (optional)", "Ankunft.Mi (optional)", "Ankunft.Mi.Notizen (optional)", "Ankunft.Do (optional)", "Ankunft.Do.Notizen (optional)", "Ankunft.Fr (optional)", "Ankunft.Fr.Notizen (optional)",
 		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
 	}
@@ -217,8 +217,8 @@ func getStudentImportExamples() [][]any {
 			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
 			// Guardian 2: address, notes, language
 			testAddressMusterstr, "Köln", "50667", "", "de",
-			// Additional info (per-day Gehweise: Bus Mo/Mi/Fr, abholung Di, alleine Do)
-			"", "Sehr ruhiges Kind", "", "Ja", 30, "bus", "abholung", "bus", "alleine", "bus", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
+			// Additional info (per-day Gehweise: Bus Mo/Mi/Fr, abholung Di, alleine Do; keine Begleitung)
+			"", "Sehr ruhiges Kind", "", "Ja", 30, "bus", "abholung", "bus", "alleine", "bus", "", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
 			// Arrival schedule (Mon-Fri)
 			"08:00", "", "08:00", "", "08:00", "", "08:00", "", "08:30", "Frühbetreuung",
 			// Pickup schedule (Mon-Fri)
@@ -232,8 +232,8 @@ func getStudentImportExamples() [][]any {
 			"", "", "", "", "", "", "", "", "", "", "", "", "",
 			// Guardian 2: empty profile fields
 			"", "", "", "", "",
-			// Additional info (per-day Gehweise: rides the bus every weekday)
-			"Allergie: Nüsse", "", "Kann gut malen", "Ja", 15, "bus", "bus", "bus", "bus", "bus", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
+			// Additional info (per-day Gehweise: Mo "mit anderem Kind" + Begleitung, Di–Fr Bus)
+			"Allergie: Nüsse", "", "Kann gut malen", "Ja", 15, "mit anderem Kind", "bus", "bus", "bus", "bus", "Geschwisterkind Lena", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
 			// Arrival schedule (partial)
 			"07:45", "", "07:45", "", "07:45", "", "", "", "", "",
 			// Pickup schedule (partial)
@@ -281,12 +281,14 @@ func writeHinweiseSheet(f *excelize.File) {
 		return
 	}
 
-	// Section headers (row index → label) — rendered as merged, bold section dividers
+	// Section headers (row index → label) — rendered as merged, bold section dividers.
+	// Indices below "Kinder-Zusatzinfos" account for the extra "Begleitung" doc
+	// row added after Gehweise.Mo (#1694), which shifts every later row down by one.
 	sectionRows := map[int]string{
 		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
 		23: "Kinder-Zusatzinfos",
-		37: "Abholzeiten (Montag bis Freitag)",
-		41: "Allgemeine Hinweise",
+		38: "Abholzeiten (Montag bis Freitag)",
+		42: "Allgemeine Hinweise",
 	}
 
 	dataRows := [][]string{
@@ -321,7 +323,8 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
 		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
-		{"Gehweise.Mo", "Nein", "alleine, bus oder abholung", "Wie das Kind am Montag nach Hause geht. Di, Mi, Do, Fr analog: Gehweise.Di … Gehweise.Fr. Leer = geht alleine. (Ältere Dateien mit 'Abholstatus' und 'Bus.Mo'–'Bus.Fr' bzw. einer einzelnen Spalte 'Bus' werden weiterhin akzeptiert.)"},
+		{"Gehweise.Mo", "Nein", "alleine, bus, abholung oder mit anderem Kind", "Wie das Kind am Montag nach Hause geht. Di, Mi, Do, Fr analog: Gehweise.Di … Gehweise.Fr. Leer = geht alleine. (Ältere Dateien mit 'Abholstatus' und 'Bus.Mo'–'Bus.Fr' bzw. einer einzelnen Spalte 'Bus' werden weiterhin akzeptiert.)"},
+		{"Begleitung", "Nein", "Text", "Mit wem das Kind geht, wenn ein Tag auf 'mit anderem Kind' steht (z.B. Geschwisterkind, Freund). Ohne einen solchen Tag wird der Eintrag ignoriert."},
 		{"Einschreibung von", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Beginn der Betreuung. Zukünftiges Datum: Kind wird erst dann aktiv."},
 		{"Einschreibung bis", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Ende der Betreuung; darf nicht vor 'Einschreibung von' liegen"},
 		{"AGB akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der AGB-Einwilligung. Leer = keine Einwilligung erfasst. Kein Zukunftsdatum."},
@@ -555,16 +558,3 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
 	rs.studentImportService.RecordAudit("student", filename, result, userID, dryRun, tenantID)
 }
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// DownloadTemplateHandler returns the downloadStudentTemplate handler
-func (rs *Resource) DownloadTemplateHandler() http.HandlerFunc { return rs.downloadStudentTemplate }
-
-// PreviewImportHandler returns the previewStudentImport handler
-func (rs *Resource) PreviewImportHandler() http.HandlerFunc { return rs.previewStudentImport }
-
-// ImportStudentsHandler returns the importStudents handler
-func (rs *Resource) ImportStudentsHandler() http.HandlerFunc { return rs.importStudents }

@@ -136,31 +136,6 @@ func TestGroupTeacher_SetTeacher(t *testing.T) {
 	})
 }
 
-func TestGroupTeacher_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		gt := &GroupTeacher{GroupID: 1, TeacherID: 1}
-		err := gt.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		gt := &GroupTeacher{GroupID: 1, TeacherID: 1}
-		err := gt.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
-func TestGroupTeacher_TableName(t *testing.T) {
-	gt := &GroupTeacher{}
-	if got := gt.TableName(); got != "education.group_teacher" {
-		t.Errorf("TableName() = %v, want education.group_teacher", got)
-	}
-}
-
 func TestGroupTeacher_GetID(t *testing.T) {
 	gt := &GroupTeacher{
 		Model:     base.Model{ID: 42},

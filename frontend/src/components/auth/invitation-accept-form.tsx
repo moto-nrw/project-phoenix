@@ -125,12 +125,12 @@ export function InvitationAcceptForm({
       });
       // Build redirect URL before signOut (need window.location)
       let redirectUrl: string | null = null;
-      if (result.tenantSlug && globalThis.window !== undefined) {
+      if (result.tenantSubdomain && globalThis.window !== undefined) {
         const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
         if (tenantDomain) {
           const { protocol, port: locationPort } = globalThis.window.location;
           const port = locationPort ? `:${locationPort}` : "";
-          redirectUrl = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
+          redirectUrl = `${protocol}//${result.tenantSubdomain}.${tenantDomain}${port}/`;
         }
       }
 
@@ -314,6 +314,7 @@ export function InvitationAcceptForm({
           </span>
           <p className="mt-0.5 text-sm font-semibold text-gray-900">
             {new Date(invitation.expiresAt).toLocaleDateString("de-DE", {
+              timeZone: "Europe/Berlin",
               day: "2-digit",
               month: "2-digit",
               year: "numeric",

@@ -1,18 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
-import { getRoleDisplayName } from "@/lib/auth-helpers";
+import { toAssignableRoleOptions, type RoleOption } from "@/lib/auth-helpers";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 
 const logger = createLogger({ component: "TeacherForm" });
 const EMPTY_RFID_CARDS: ReadonlyArray<{ id: string; label: string }> = [];
 const EMPTY_POSITIONS: readonly string[] = [];
-
-interface RoleOption {
-  id: number;
-  name: string;
-}
 
 interface TeacherFormProps {
   readonly initialData: Partial<Teacher>;
@@ -79,23 +75,7 @@ export function TeacherForm({
         const roleList = await authService.getRoles();
         if (cancelled) return;
 
-        // Legacy teacher + guardian roles are no longer assignable via staff creation.
-        const options = roleList
-          .filter((role) => {
-            const normalizedName = role.name.toLowerCase();
-            return (
-              normalizedName !== "guardian" && normalizedName !== "teacher"
-            );
-          })
-          .map<RoleOption>((role) => ({
-            id: Number(role.id),
-            name: role.name
-              ? getRoleDisplayName(role.name)
-              : `Rolle ${role.id}`,
-          }))
-          .filter((role) => !Number.isNaN(role.id));
-
-        setRoles(options);
+        setRoles(toAssignableRoleOptions(roleList));
       } catch (err) {
         logger.error("failed to load roles", {
           error: err instanceof Error ? err.message : String(err),
@@ -377,51 +357,29 @@ export function TeacherForm({
             {!initialData.id && (
               <div>
                 <label
+                  id="role-select-label"
                   htmlFor="role-select"
                   className="mb-1 block text-xs font-medium text-gray-700"
                 >
                   System-Rolle <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <select
-                    id="role-select"
-                    value={roleId ?? ""}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setRoleId(e.target.value === "" ? undefined : value);
-                    }}
-                    className={`w-full appearance-none rounded-lg border ${
-                      errors.roleId
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
-                    } px-3 py-2 pr-10 text-sm transition-colors`}
-                    disabled={isLoading || isLoadingRoles}
-                  >
-                    <option value="" disabled>
-                      {isLoadingRoles ? "Lade Rollen..." : "Rolle auswählen..."}
-                    </option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                    <svg
-                      className="h-4 w-4 text-gray-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  id="role-select"
+                  ariaLabelledBy="role-select-label"
+                  value={roleId === undefined ? "" : String(roleId)}
+                  onChange={(next) =>
+                    setRoleId(next === "" ? undefined : Number(next))
+                  }
+                  options={roles.map((role) => ({
+                    value: String(role.id),
+                    label: role.name,
+                  }))}
+                  placeholder={
+                    isLoadingRoles ? "Lade Rollen..." : "Rolle auswählen..."
+                  }
+                  disabled={isLoading || isLoadingRoles}
+                  invalid={Boolean(errors.roleId)}
+                />
                 {errors.roleId && (
                   <p className="mt-1 text-xs text-red-600">{errors.roleId}</p>
                 )}
@@ -437,25 +395,23 @@ export function TeacherForm({
             {showRFID && (
               <div>
                 <label
+                  id="tagId-label"
                   htmlFor="tagId"
                   className="mb-1 block text-sm font-medium text-gray-500"
                 >
                   RFID-Karte (Funktion nicht verfügbar)
                 </label>
-                <div className="relative">
-                  <select
-                    id="tagId"
-                    value=""
-                    onChange={(e) => setTagId(e.target.value)}
-                    className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-gray-500"
-                    disabled={true}
-                  >
-                    <option value="">RFID-Funktion deaktiviert</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
-                  </p>
-                </div>
+                <CustomSelect
+                  id="tagId"
+                  ariaLabelledBy="tagId-label"
+                  value=""
+                  onChange={(next) => setTagId(next)}
+                  options={[{ value: "", label: "RFID-Funktion deaktiviert" }]}
+                  disabled={true}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
+                </p>
               </div>
             )}
 

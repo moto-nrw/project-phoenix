@@ -7,33 +7,12 @@
 // activities.groups + activities.schedules into one transaction and can
 // optionally materialize the visible week.
 //
-// The Go backend returns { status, data, message }. We unwrap the Go
+// The Go backend returns { status, data, message }. The proxies unwrap the Go
 // envelope here so route-wrapper's wrapInApiResponse doesn't double-wrap
 // the payload — clients (timetable-api.ts unwrap) expect a single
 // envelope and read envelope.data as the real result.
-import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
-import {
-  createGetHandler,
-  createPostHandler,
-} from "~/lib/route-wrapper.server";
+import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
 
-export const GET = createGetHandler(
-  async (request: NextRequest, token: string) => {
-    const search = request.nextUrl.searchParams.toString();
-    const path = `/api/timetable/templates${search ? `?${search}` : ""}`;
-    const response = await apiGet<{ data: unknown }>(path, token);
-    return response.data;
-  },
-);
+export const GET = proxyGet("/api/timetable/templates");
 
-export const POST = createPostHandler(
-  async (_request: NextRequest, body: unknown, token: string) => {
-    const response = await apiPost<{ data: unknown }>(
-      "/api/timetable/templates",
-      token,
-      body ?? {},
-    );
-    return response.data;
-  },
-);
+export const POST = proxyPost("/api/timetable/templates");

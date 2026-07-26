@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -61,11 +62,7 @@ type StaffImportDeps struct {
 // Teacher records are created when the invitee accepts the invitation and sets
 // their own password.
 type StaffImportConfig struct {
-	invitationService authsvc.InvitationService
-	accountRepo       authModels.AccountRepository
-	accountTenantRepo authModels.AccountTenantRepository
-	roleRepo          authModels.RoleRepository
-	schoolRepo        platformModels.SchoolRepository
+	StaffImportDeps
 
 	// roleDisplayNames is the pool of role display names used for fuzzy
 	// suggestions when a row's role cannot be resolved. Loaded in
@@ -78,19 +75,13 @@ type StaffImportConfig struct {
 
 // NewStaffImportConfig creates a new staff import configuration.
 func NewStaffImportConfig(deps StaffImportDeps) *StaffImportConfig {
-	return &StaffImportConfig{
-		invitationService: deps.InvitationService,
-		accountRepo:       deps.AccountRepo,
-		accountTenantRepo: deps.AccountTenantRepo,
-		roleRepo:          deps.RoleRepo,
-		schoolRepo:        deps.SchoolRepo,
-	}
+	return &StaffImportConfig{StaffImportDeps: deps}
 }
 
 // PreloadReferenceData loads the tenant's role names (for fuzzy suggestions on
 // unresolved roles) and the school display name (for the invitation email).
 func (c *StaffImportConfig) PreloadReferenceData(ctx context.Context) error {
-	roles, err := c.roleRepo.List(ctx, map[string]interface{}{})
+	roles, err := c.RoleRepo.List(ctx, map[string]interface{}{})
 	if err != nil {
 		return fmt.Errorf("preload roles: %w", err)
 	}
@@ -101,8 +92,8 @@ func (c *StaffImportConfig) PreloadReferenceData(ctx context.Context) error {
 
 	// School name is best-effort: a missing name only degrades the email text,
 	// it must not abort the import.
-	if c.schoolRepo != nil {
-		if school, err := c.schoolRepo.FindByID(ctx, tenant.FromContext(ctx)); err == nil && school != nil {
+	if c.SchoolRepo != nil {
+		if school, err := c.SchoolRepo.FindByID(ctx, tenant.FromContext(ctx)); err == nil && school != nil {
 			c.schoolName = school.Name
 		}
 	}
@@ -197,7 +188,7 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 		lookup = raw
 	}
 
-	role, err := c.roleRepo.FindByName(ctx, lookup)
+	role, err := c.RoleRepo.FindByName(ctx, lookup)
 	if err == nil && role != nil {
 		row.RoleID = role.ID
 		return nil
@@ -242,7 +233,7 @@ func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.S
 		return nil, nil
 	}
 
-	account, err := c.accountRepo.FindByEmail(ctx, email)
+	account, err := c.AccountRepo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // No existing account for this email.
@@ -250,7 +241,7 @@ func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.S
 		return nil, err
 	}
 
-	exists, err := c.accountTenantRepo.ExistsByAccountAndTenant(ctx, account.ID, tenant.FromContext(ctx))
+	exists, err := c.AccountTenantRepo.ExistsByAccountAndTenant(ctx, account.ID, tenant.FromContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -274,14 +265,14 @@ func (c *StaffImportConfig) Create(ctx context.Context, row importModels.StaffIm
 		Email:      email,
 		RoleID:     row.RoleID,
 		TenantID:   tenant.FromContext(ctx),
-		FirstName:  stringPtr(row.FirstName),
-		LastName:   stringPtr(row.LastName),
-		Position:   stringPtr(row.Position),
+		FirstName:  strutil.TrimToNil(row.FirstName),
+		LastName:   strutil.TrimToNil(row.LastName),
+		Position:   strutil.TrimToNil(row.Position),
 		CreatedBy:  ImporterIDFromContext(ctx),
 		SchoolName: c.schoolName,
 	}
 
-	invitation, err := c.invitationService.CreateInvitation(ctx, req)
+	invitation, err := c.InvitationService.CreateInvitation(ctx, req)
 	if err != nil {
 		return 0, err
 	}

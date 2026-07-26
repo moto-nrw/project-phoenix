@@ -293,6 +293,7 @@ function ToastRow({
             {item.message}
           </p>
           <button
+            type="button"
             aria-label="Schließen"
             onClick={() => onClose(item.id)}
             className={`flex-shrink-0 ${desktopStyles.text} transition-opacity hover:opacity-70`}

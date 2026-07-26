@@ -199,69 +199,6 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 // GetPrimary Tests
 // ============================================================================
 
-func TestGuardianPhoneNumberRepository_GetPrimary(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("gets primary phone number", func(t *testing.T) {
-		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-primary")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
-
-		// Create primary phone
-		primaryPhone := &users.GuardianPhoneNumber{
-			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 111222",
-			PhoneType:         users.PhoneTypeMobile,
-			IsPrimary:         true,
-			Priority:          1,
-		}
-		err := repo.Create(ctx, primaryPhone)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", primaryPhone.ID)
-
-		// Create non-primary phone
-		secondaryPhone := &users.GuardianPhoneNumber{
-			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 333444",
-			PhoneType:         users.PhoneTypeHome,
-			IsPrimary:         false,
-			Priority:          2,
-		}
-		err = repo.Create(ctx, secondaryPhone)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", secondaryPhone.ID)
-
-		primary, err := repo.GetPrimary(ctx, guardian.ID)
-		require.NoError(t, err)
-		assert.Equal(t, primaryPhone.ID, primary.ID)
-		assert.True(t, primary.IsPrimary)
-	})
-
-	t.Run("returns error when no primary exists", func(t *testing.T) {
-		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-primary")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
-
-		// Create non-primary phone only
-		phone := &users.GuardianPhoneNumber{
-			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 555666",
-			PhoneType:         users.PhoneTypeMobile,
-			IsPrimary:         false,
-			Priority:          1,
-		}
-		err := repo.Create(ctx, phone)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
-
-		_, err = repo.GetPrimary(ctx, guardian.ID)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
-	})
-}
-
 // ============================================================================
 // Update Tests
 // ============================================================================
@@ -443,7 +380,6 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
 		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
-		// Create primary phone
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 444111",
@@ -458,10 +394,12 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 		err = repo.UnsetAllPrimary(ctx, guardian.ID)
 		require.NoError(t, err)
 
-		// Verify no primary exists
-		_, err = repo.GetPrimary(ctx, guardian.ID)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
+		// Verify no phone is primary anymore
+		phones, err := repo.FindByGuardianID(ctx, guardian.ID)
+		require.NoError(t, err)
+		for _, p := range phones {
+			assert.False(t, p.IsPrimary, "phone %d should no longer be primary", p.ID)
+		}
 	})
 
 	t.Run("succeeds even with no phones", func(t *testing.T) {

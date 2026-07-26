@@ -176,34 +176,6 @@ func TestToken_FamilyTracking(t *testing.T) {
 	})
 }
 
-func TestToken_TableName(t *testing.T) {
-	token := &Token{}
-	if got := token.TableName(); got != "auth.tokens" {
-		t.Errorf("TableName() = %v, want auth.tokens", got)
-	}
-}
-
-func TestToken_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		token := &Token{AccountID: 1, Token: "test", Expiry: time.Now().Add(time.Hour)}
-		err := token.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		token := &Token{AccountID: 1, Token: "test", Expiry: time.Now().Add(time.Hour)}
-		err := token.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestToken_GetID(t *testing.T) {
 	token := &Token{
 		Model:     base.Model{ID: 42},

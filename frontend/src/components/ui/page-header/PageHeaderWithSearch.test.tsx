@@ -42,7 +42,11 @@ vi.mock("./FilterButton", () => ({
     onClick: () => void;
     testId?: string;
   }) => (
-    <button data-testid={testId ?? "mobile-filter-button"} onClick={onClick}>
+    <button
+      type="button"
+      data-testid={testId ?? "mobile-filter-button"}
+      onClick={onClick}
+    >
       Filter
     </button>
   ),
@@ -225,7 +229,11 @@ describe("PageHeaderWithSearch", () => {
   });
 
   it("renders action button when provided", () => {
-    const actionButton = <button data-testid="custom-action">Add New</button>;
+    const actionButton = (
+      <button type="button" data-testid="custom-action">
+        Add New
+      </button>
+    );
     const propsWithAction: PageHeaderWithSearchProps = {
       ...baseProps,
       actionButton,
@@ -236,7 +244,11 @@ describe("PageHeaderWithSearch", () => {
   });
 
   it("renders mobile action button when provided", () => {
-    const mobileActionButton = <button data-testid="mobile-action">Add</button>;
+    const mobileActionButton = (
+      <button type="button" data-testid="mobile-action">
+        Add
+      </button>
+    );
     const propsWithMobileAction: PageHeaderWithSearchProps = {
       ...baseProps,
       mobileActionButton,

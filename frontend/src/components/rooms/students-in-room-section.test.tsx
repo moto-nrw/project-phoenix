@@ -1,6 +1,10 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentsInRoomSection } from "./students-in-room-section";
+import {
+  useAttendanceWebEnabled,
+  useOpenCareGroupMode,
+} from "~/lib/tenant-context";
 
 // ----------------------------------------------------------------------------
 // Mocks
@@ -13,8 +17,11 @@ const {
   mockUseTenantMutateMatching,
   mockGetStudentCurrentVisit,
   mockUpdateVisit,
+  mockMoveStudentsToActiveGroup,
   mockGetActiveGroups,
+  mockGetStaffActiveSupervisions,
   mockToastSuccess,
+  mockUseSession,
 } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockUseSearchParams: vi.fn(() => ({
@@ -25,8 +32,11 @@ const {
   mockUseTenantMutateMatching: vi.fn(),
   mockGetStudentCurrentVisit: vi.fn(),
   mockUpdateVisit: vi.fn(),
+  mockMoveStudentsToActiveGroup: vi.fn(),
   mockGetActiveGroups: vi.fn(),
+  mockGetStaffActiveSupervisions: vi.fn(),
   mockToastSuccess: vi.fn(),
+  mockUseSession: vi.fn(),
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -37,20 +47,32 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockUseSearchParams(),
 }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => mockUseSession(),
+}));
+
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
   useTenantMutateMatching: (...args: unknown[]) =>
     mockUseTenantMutateMatching(...args),
 }));
 
-vi.mock("~/lib/active-service", () => ({
-  activeService: {
-    getActiveGroups: (...args: unknown[]) => mockGetActiveGroups(...args),
-    getStudentCurrentVisit: (...args: unknown[]) =>
-      mockGetStudentCurrentVisit(...args),
-    updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
-  },
-}));
+vi.mock("~/lib/active-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/active-service")>();
+  return {
+    ...actual,
+    activeService: {
+      getActiveGroups: (...args: unknown[]) => mockGetActiveGroups(...args),
+      getStudentCurrentVisit: (...args: unknown[]) =>
+        mockGetStudentCurrentVisit(...args),
+      updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
+      moveStudentsToActiveGroup: (...args: unknown[]) =>
+        mockMoveStudentsToActiveGroup(...args),
+      getStaffActiveSupervisions: (...args: unknown[]) =>
+        mockGetStaffActiveSupervisions(...args),
+    },
+  };
+});
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
@@ -80,7 +102,7 @@ vi.mock("~/components/ui/button", () => ({
     variant?: string;
     size?: string;
   }) => (
-    <button onClick={onClick} {...rest}>
+    <button type="button" onClick={onClick} {...rest}>
       {children}
     </button>
   ),
@@ -147,6 +169,16 @@ interface MockRoom {
   name: string;
 }
 
+interface MockSupervisor {
+  id: string;
+  staffId: string;
+  activeGroupId: string;
+  startTime: Date;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
   id: "1",
   first_name: "Anna",
@@ -155,6 +187,19 @@ const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
   group_name: "Bären",
   ...overrides,
 });
+
+const makeSupervisions = (
+  activeGroups: readonly MockActiveGroup[],
+): MockSupervisor[] =>
+  activeGroups.map((group, index) => ({
+    id: String(index + 1),
+    staffId: "20",
+    activeGroupId: group.id,
+    startTime: new Date("2026-05-14T08:00:00.000Z"),
+    isActive: true,
+    createdAt: new Date("2026-05-14T08:00:00.000Z"),
+    updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+  }));
 
 let roomStudentsState: {
   data?: {
@@ -166,13 +211,19 @@ let roomStudentsState: {
 };
 let activeGroupsState: { data: MockActiveGroup[] };
 let roomsState: { data: MockRoom[] };
+let currentStaffState: { data?: { id: string }; error?: unknown };
+let activeSupervisionsState: { data: MockSupervisor[]; error?: unknown };
 
 const setSWR = (state: typeof roomStudentsState) => {
   roomStudentsState = state;
 };
 
 const setBulkData = ({
+  // "842" is the active group running in the source room ("42"): the
+  // bulk-move UI only renders when the current staff member supervises
+  // the source room's active group(s) too (backend 403s otherwise).
   activeGroups = [
+    { id: "842", roomId: "42", isActive: true },
     { id: "900", roomId: "9000", isActive: true },
     { id: "901", roomId: "9001", isActive: true },
   ],
@@ -180,22 +231,45 @@ const setBulkData = ({
     { id: "9000", name: "Raum 6" },
     { id: "9001", name: "Atelier" },
   ],
+  currentStaff = { id: "20" },
+  activeSupervisions = makeSupervisions(activeGroups),
 }: {
   activeGroups?: MockActiveGroup[];
   rooms?: MockRoom[];
+  currentStaff?: { id: string } | undefined;
+  activeSupervisions?: MockSupervisor[];
 } = {}) => {
   activeGroupsState = { data: activeGroups };
   roomsState = { data: rooms };
+  currentStaffState = { data: currentStaff };
+  activeSupervisionsState = { data: activeSupervisions };
 };
 
 beforeEach(() => {
+  vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+  vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
   mockPush.mockReset();
   mockUseSWRAuth.mockReset();
   mockUseTenantMutateMatching.mockReset();
   mockGetStudentCurrentVisit.mockReset();
   mockUpdateVisit.mockReset();
+  mockMoveStudentsToActiveGroup.mockReset();
   mockGetActiveGroups.mockReset();
+  mockGetStaffActiveSupervisions.mockReset();
   mockToastSuccess.mockReset();
+  mockUseSession.mockReset();
+  mockUseSession.mockReturnValue({
+    data: {
+      user: {
+        token: "staff-token",
+        roles: ["user"],
+        permissions: ["visits:update"],
+        isAdmin: false,
+      },
+    },
+    status: "authenticated",
+    update: vi.fn(),
+  });
   mockUseSearchParams.mockReset();
   mockUseSearchParams.mockReturnValue({
     get: vi.fn(() => null),
@@ -204,7 +278,10 @@ beforeEach(() => {
   mockUseTenantMutateMatching.mockReturnValue(vi.fn());
   setSWR({ data: { students: [] } });
   setBulkData();
-  mockUseSWRAuth.mockImplementation((key: string) => {
+  mockUseSWRAuth.mockImplementation((key: string | null) => {
+    if (key === null) {
+      return { data: undefined, error: null, isLoading: false };
+    }
     if (key.startsWith("room-students-")) {
       return {
         data: roomStudentsState.data,
@@ -216,6 +293,20 @@ beforeEach(() => {
       return {
         data: activeGroupsState.data,
         error: null,
+        isLoading: false,
+      };
+    }
+    if (key === "room-bulk-current-staff") {
+      return {
+        data: currentStaffState.data,
+        error: currentStaffState.error ?? null,
+        isLoading: false,
+      };
+    }
+    if (key === "room-bulk-active-supervisions-20") {
+      return {
+        data: activeSupervisionsState.data,
+        error: activeSupervisionsState.error ?? null,
         isLoading: false,
       };
     }
@@ -430,6 +521,17 @@ describe("StudentsInRoomSection", () => {
   });
 
   describe("bulk room move", () => {
+    it("renders the roster read-only when web attendance is disabled", () => {
+      vi.mocked(useAttendanceWebEnabled).mockReturnValue(false);
+      setSWR({ data: { students: [makeStudent()] } });
+      setBulkData();
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kinder auswählen")).not.toBeInTheDocument();
+      expect(screen.getByTestId("compact-student-card-1")).toBeInTheDocument();
+    });
     it("selects multiple children and moves their current visits to the selected room", async () => {
       const refreshCaches = vi.fn().mockResolvedValue(undefined);
       mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
@@ -441,18 +543,13 @@ describe("StudentsInRoomSection", () => {
           ],
         },
       });
-      mockGetStudentCurrentVisit.mockImplementation((studentId: string) =>
-        Promise.resolve({
-          id: `visit-${studentId}`,
-          studentId,
-          activeGroupId: "current-group",
-          checkInTime: new Date("2026-05-14T08:00:00.000Z"),
-          isActive: true,
-          createdAt: new Date("2026-05-14T08:00:00.000Z"),
-          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
-        }),
-      );
-      mockUpdateVisit.mockResolvedValue({});
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: [7, 8],
+        unchanged: [],
+        skipped: [],
+        active_group_id: 900,
+        room_id: 9000,
+      });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
@@ -465,24 +562,18 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
       );
-      fireEvent.change(screen.getByLabelText("Zielraum"), {
-        target: { value: "900" },
-      });
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
       await waitFor(() => {
-        expect(mockUpdateVisit).toHaveBeenCalledTimes(2);
+        expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+          ["7", "8"],
+          "900",
+        );
       });
-      expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("7");
-      expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("8");
-      expect(mockUpdateVisit).toHaveBeenCalledWith(
-        "visit-7",
-        expect.objectContaining({ activeGroupId: "900", studentId: "7" }),
-      );
-      expect(mockUpdateVisit).toHaveBeenCalledWith(
-        "visit-8",
-        expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
-      );
+      expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
+      expect(mockUpdateVisit).not.toHaveBeenCalled();
       expect(refreshCaches).toHaveBeenCalledTimes(1);
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "2 Kinder nach Raum 6 bewegt.",
@@ -500,6 +591,7 @@ describe("StudentsInRoomSection", () => {
 
       expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
       expect(mockUpdateVisit).not.toHaveBeenCalled();
+      expect(mockMoveStudentsToActiveGroup).not.toHaveBeenCalled();
       expect(
         screen.getByRole("button", { name: "In Raum setzen" }),
       ).toBeDisabled();
@@ -509,14 +601,12 @@ describe("StudentsInRoomSection", () => {
       const refreshCaches = vi.fn().mockResolvedValue(undefined);
       mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
-      mockGetStudentCurrentVisit.mockResolvedValue({
-        id: "visit-7",
-        studentId: "7",
-        activeGroupId: "900",
-        checkInTime: new Date("2026-05-14T08:00:00.000Z"),
-        isActive: true,
-        createdAt: new Date("2026-05-14T08:00:00.000Z"),
-        updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: [],
+        unchanged: [7],
+        skipped: [],
+        active_group_id: 900,
+        room_id: 9000,
       });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
@@ -524,14 +614,17 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
       );
-      fireEvent.change(screen.getByLabelText("Zielraum"), {
-        target: { value: "900" },
-      });
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
       await waitFor(() => {
-        expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("7");
+        expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+          ["7"],
+          "900",
+        );
       });
+      expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
       expect(mockUpdateVisit).not.toHaveBeenCalled();
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "1 Kind nach Raum 6 bewegt.",
@@ -550,21 +643,13 @@ describe("StudentsInRoomSection", () => {
           ],
         },
       });
-      mockGetStudentCurrentVisit.mockImplementation((studentId: string) => {
-        if (studentId === "7") {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve({
-          id: "visit-8",
-          studentId: "8",
-          activeGroupId: "current-group",
-          checkInTime: new Date("2026-05-14T08:00:00.000Z"),
-          isActive: true,
-          createdAt: new Date("2026-05-14T08:00:00.000Z"),
-          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
-        });
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: [8],
+        unchanged: [],
+        skipped: [{ student_id: 7, reason: "not_present" }],
+        active_group_id: 900,
+        room_id: 9000,
       });
-      mockUpdateVisit.mockResolvedValue({});
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
@@ -574,9 +659,8 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
       );
-      fireEvent.change(screen.getByLabelText("Zielraum"), {
-        target: { value: "900" },
-      });
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
       await waitFor(() => {
@@ -584,11 +668,12 @@ describe("StudentsInRoomSection", () => {
           "1 von 2 Kindern konnten nicht bewegt werden.",
         );
       });
-      expect(mockUpdateVisit).toHaveBeenCalledTimes(1);
-      expect(mockUpdateVisit).toHaveBeenCalledWith(
-        "visit-8",
-        expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
+      expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+        ["7", "8"],
+        "900",
       );
+      expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
+      expect(mockUpdateVisit).not.toHaveBeenCalled();
       expect(mockToastSuccess).not.toHaveBeenCalled();
       expect(refreshCaches).toHaveBeenCalledTimes(1);
     });
@@ -642,9 +727,90 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(screen.queryByRole("option", { name: "OGS-Raum 1" })).toBeNull();
       expect(
         screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
+    it("filters target rooms to the current staff member's active supervisions", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "source", roomId: "42", isActive: true },
+          { id: "unsupervised", roomId: "9000", isActive: true },
+          { id: "supervised", roomId: "9001", isActive: true },
+        ],
+        rooms: [
+          { id: "9000", name: "Aula" },
+          { id: "9001", name: "Raum 6" },
+        ],
+        activeSupervisions: [
+          {
+            id: "1",
+            staffId: "20",
+            activeGroupId: "source",
+            startTime: new Date("2026-05-14T08:00:00.000Z"),
+            isActive: true,
+            createdAt: new Date("2026-05-14T08:00:00.000Z"),
+            updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+          },
+          {
+            id: "2",
+            staffId: "20",
+            activeGroupId: "supervised",
+            startTime: new Date("2026-05-14T08:00:00.000Z"),
+            isActive: true,
+            createdAt: new Date("2026-05-14T08:00:00.000Z"),
+            updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+          },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      expect(screen.queryByRole("option", { name: "Aula" })).toBeNull();
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps all active target rooms visible for admins", () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            token: "admin-token",
+            roles: ["admin"],
+            permissions: ["admin:*"],
+            isAdmin: true,
+          },
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "900", roomId: "9000", isActive: true },
+          { id: "901", roomId: "9001", isActive: true },
+        ],
+        rooms: [
+          { id: "9000", name: "Raum 6" },
+          { id: "9001", name: "Atelier" },
+        ],
+        activeSupervisions: [],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Atelier" }),
       ).toBeInTheDocument();
     });
 
@@ -652,6 +818,7 @@ describe("StudentsInRoomSection", () => {
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
       setBulkData({
         activeGroups: [
+          { id: "source", roomId: "42", isActive: true },
           { id: "first", roomId: "9000", isActive: true },
           { id: "second", roomId: "9000", isActive: true },
           { id: "single", roomId: "9001", isActive: true },
@@ -664,11 +831,94 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(
         screen.queryByRole("option", { name: "Raum mit Konflikt" }),
       ).toBeNull();
       expect(
         screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the bulk-move UI when the source room's active group is not supervised", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "source", roomId: "42", isActive: true },
+          { id: "target", roomId: "9000", isActive: true },
+        ],
+        rooms: [{ id: "9000", name: "Raum 6" }],
+        activeSupervisions: [
+          {
+            id: "1",
+            staffId: "20",
+            activeGroupId: "target",
+            startTime: new Date("2026-05-14T08:00:00.000Z"),
+            isActive: true,
+            createdAt: new Date("2026-05-14T08:00:00.000Z"),
+            updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+          },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      // Backend rejects moves out of unsupervised source groups with 403,
+      // so neither the toolbar nor the per-row checkboxes may render.
+      expect(
+        screen.queryByRole("button", { name: "In Raum setzen" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      ).toBeNull();
+      // The student list itself stays visible.
+      expect(screen.getByText("Anna Müller")).toBeInTheDocument();
+    });
+
+    it("hides the bulk-move UI when the source room has no active group", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [{ id: "target", roomId: "9000", isActive: true }],
+        rooms: [{ id: "9000", name: "Raum 6" }],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(
+        screen.queryByRole("button", { name: "In Raum setzen" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      ).toBeNull();
+    });
+
+    it("keeps the bulk-move UI for admins without source supervision", () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            token: "admin-token",
+            roles: ["admin"],
+            permissions: ["admin:*"],
+            isAdmin: true,
+          },
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [{ id: "target", roomId: "9000", isActive: true }],
+        rooms: [{ id: "9000", name: "Raum 6" }],
+        activeSupervisions: [],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(
+        screen.getByRole("button", { name: "In Raum setzen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
       ).toBeInTheDocument();
     });
   });

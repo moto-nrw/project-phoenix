@@ -7,42 +7,65 @@
  * /api/timetable/instances endpoint.
  */
 
-import { toISODate } from "./date-helpers";
+import { parseISODate, toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
   BackendConflictCheckResult,
+  BackendShiftCoverageCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
-  BackendExceptionConflictsResponse,
+  BackendEndTemplateResult,
   BackendEnrichedInstance,
+  BackendGapInstance,
   BackendGapsResponse,
+  BackendMoveStaffResponse,
+  BackendStaffPoolResponse,
+  MoveStaffResponse,
+  StaffPoolResponse,
+  BackendDeviationHistoryResponse,
+  BackendApplyDeviationsResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
+  BackendEditedInWindowResult,
+  EditedInWindowResult,
   BackendSplitTemplateResult,
   BackendTemplatesResponse,
   BackendStartInstanceResult,
-  BackendSubstituteResponse,
   BackendWeeklyInstancesResponse,
   AttendanceResponse,
   ConflictCheckResult,
   CreateTemplateResult,
+  EndTemplateResult,
   EnrichedInstance,
-  ExceptionConflictsResponse,
+  GapInstance,
   GapsResponse,
+  DeviationHistoryEvent,
+  DeviationHistoryResponse,
+  ApplyDeviationsResponse,
   InstanceStaffSummary,
   InstanceStudentSummary,
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
+  ShiftCoverageCheckResult,
   SplitTemplateResult,
   StartInstanceResult,
-  SubstituteResponse,
   TemplatesResponse,
   TimetableTemplate,
   WeeklyInstancesResponse,
 } from "./timetable-types";
+
+/**
+ * SWR-Key-Präfixe der Vertretungs-Ansicht. Producer (vertretung-view) und
+ * Invalidatoren (Krankmeldungs-Kaskade #1843 in dienstplan-view und
+ * abwesenheiten-tab) MÜSSEN dieselben Konstanten verwenden:
+ * useTenantMutateMatching ist ein stiller No-op, wenn kein Key matcht — ein
+ * umbenannter String-Literal fällt in keinem Test auf.
+ */
+export const VERTRETUNG_WEEK_KEY_PREFIX = "vertretung-week-";
+export const VERTRETUNG_GAPS_KEY_PREFIX = "vertretung-gaps-";
 
 /**
  * Brand-colour key per activity type. Mirrors the timetable RFC §5.5
@@ -160,6 +183,38 @@ export function chunkDateRange(
   return chunks;
 }
 
+/**
+ * Returns every concrete calendar date in an inclusive range whose ISO
+ * weekday is selected (Monday=1 … Sunday=7). This only expands weekdays;
+ * A/B-week eligibility stays in the backend's existing materialization
+ * predicate so the frontend never becomes a second recurrence engine.
+ */
+export function weekdayDatesInRange(
+  fromISO: string,
+  toISO: string,
+  weekdays: number[],
+): string[] {
+  const start = new Date(`${fromISO}T00:00:00`);
+  const end = new Date(`${toISO}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+  if (end < start) return [];
+
+  const selected = new Set(
+    weekdays.filter((weekday) => weekday >= 1 && weekday <= 7),
+  );
+  if (selected.size === 0) return [];
+
+  const dates: string[] = [];
+  for (let date = new Date(start); date <= end;) {
+    const weekday = date.getDay() === 0 ? 7 : date.getDay();
+    if (selected.has(weekday)) dates.push(toISODate(date));
+    const next = new Date(date);
+    next.setDate(next.getDate() + 1);
+    date = next;
+  }
+  return dates;
+}
+
 export { toISODate };
 
 /**
@@ -195,6 +250,11 @@ const GERMAN_WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 export function getGermanWeekdayLong(d: Date): string {
   return GERMAN_WEEKDAY_LONG[d.getDay()] ?? "";
+}
+
+/** Converts a German weekday name to its recurring adverb ("Montag" → "montags"). */
+export function getGermanWeekdayAdverb(weekday: string): string {
+  return weekday ? `${weekday.toLowerCase()}s` : "";
 }
 
 export function getGermanWeekdayShort(d: Date): string {
@@ -239,6 +299,48 @@ export function getWeekdays(from: Date): Date[] {
     days.push(d);
   }
   return days;
+}
+
+/**
+ * Snappt ein Wochenend-Datum auf den folgenden Montag; Mo–Fr unverändert.
+ * OGS-Betrieb ist Mo–Fr — die Vertretung zeigt nie einen Wochenendtag an.
+ */
+export function nextWorkdayISO(iso: string): string {
+  const d = parseISODate(iso);
+  const day = d.getDay(); // 0 = So, 6 = Sa
+  if (day === 6) d.setDate(d.getDate() + 2);
+  else if (day === 0) d.setDate(d.getDate() + 1);
+  return toISODate(d);
+}
+
+/**
+ * Snappt ein Wochenend-Sprungziel innerhalb eines Planungszeitraums auf den
+ * nächsten Schultag: Sa/So heben auf den folgenden Montag, sofern der noch im
+ * Zeitraum liegt, sonst zurück auf den vorangehenden Freitag, sofern der im
+ * Zeitraum liegt. Mo–Fr (oder ein Zeitraum, der nur das Wochenende umfasst)
+ * bleibt unverändert. Verhindert, dass der Zeitraumsprung bei einem
+ * Samstag-Start eine Woche fast vollständig VOR dem Zeitraum anzeigt.
+ */
+export function firstSchoolDayInPeriod(
+  periodStartISO: string,
+  periodEndISO: string,
+  targetISO: string,
+): string {
+  const target = parseISODate(targetISO);
+  const day = target.getDay(); // 0 = So, 6 = Sa
+  if (day !== 6 && day !== 0) return targetISO;
+
+  const nextMonday = new Date(target);
+  nextMonday.setDate(target.getDate() + (day === 6 ? 2 : 1));
+  const nextMondayISO = toISODate(nextMonday);
+  if (nextMondayISO <= periodEndISO) return nextMondayISO;
+
+  const previousFriday = new Date(target);
+  previousFriday.setDate(target.getDate() - (day === 6 ? 1 : 2));
+  const previousFridayISO = toISODate(previousFriday);
+  if (previousFridayISO >= periodStartISO) return previousFridayISO;
+
+  return targetISO;
 }
 
 export function getMonthRange(ref: Date): { from: Date; to: Date } {
@@ -318,6 +420,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     isPrimary: s.is_primary,
     isAbsent: s.is_absent,
     isSubstitute: s.is_substitute,
+    absenceReason: s.absence_reason ?? undefined,
   }));
   const students: InstanceStudentSummary[] = (raw.students ?? []).map((s) => ({
     studentId: String(s.student_id),
@@ -325,6 +428,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     substatus: s.substatus,
     note: s.note,
     checkedInAt: s.checked_in_at,
+    careDayStatus: s.care_day_status ?? "unknown",
   }));
   const studentIds =
     students.length > 0
@@ -339,6 +443,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     title: raw.title,
     description: raw.description,
     notes: raw.notes,
+    seriesNotes: raw.series_notes,
     status: raw.status,
     isSpontaneous: raw.is_spontaneous,
     isLive: raw.is_live,
@@ -346,6 +451,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
       raw.activity_group_id !== undefined && raw.activity_group_id !== null
         ? String(raw.activity_group_id)
         : undefined,
+    listKind: raw.list_kind,
     activityType: raw.activity_type,
     roomId: String(raw.room_id),
     roomName: raw.room_name,
@@ -354,8 +460,15 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     students,
     staffCount: raw.staff_count,
     absentStaffCount: raw.absent_staff_count,
+    understaffedAck: raw.understaffed_ack ?? false,
+    understaffedNote: raw.understaffed_note ?? undefined,
+    cancelReason: raw.cancel_reason ?? undefined,
     expectedStudentsCount: raw.expected_students_count,
+    notScheduledStudentsCount: raw.not_scheduled_students_count ?? 0,
     presentStudentsCount: raw.present_students_count,
+    requiredStaffCount: raw.required_staff_count,
+    assignedStaffCount: raw.assigned_staff_count,
+    requiredStaffOverride: raw.required_staff_override ?? undefined,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
       kind: warning.kind,
       resourceId: String(warning.resource_id),
@@ -413,44 +526,107 @@ export function mapReplanWeekResult(
   };
 }
 
-export function mapGaps(raw: BackendGapsResponse): GapsResponse {
+export function mapEditedInWindowResult(
+  raw: BackendEditedInWindowResult,
+): EditedInWindowResult {
   return {
-    from: raw.from,
-    to: raw.to,
-    gaps: (raw.gaps ?? []).map((gap) => ({
-      instanceId: String(gap.instance_id),
-      date: gap.date,
-      title: gap.title,
-      startTime: gap.start_time,
-      endTime: gap.end_time,
-      roomId: String(gap.room_id),
-      status: gap.status,
-      assignedStaffCount: gap.assigned_staff_count,
-      absentStaffCount: gap.absent_staff_count,
+    count: raw.count,
+    occurrences: (raw.occurrences ?? []).map((o) => ({
+      instanceId: String(o.instance_id),
+      date: o.date,
+      startTime: o.start_time,
+      title: o.title,
+      changes:
+        o.changes as EditedInWindowResult["occurrences"][number]["changes"],
     })),
   };
 }
 
-export function mapExceptionConflicts(
-  raw: BackendExceptionConflictsResponse,
-): ExceptionConflictsResponse {
+function mapGapInstance(gap: BackendGapInstance): GapInstance {
+  return {
+    instanceId: String(gap.instance_id),
+    date: gap.date,
+    title: gap.title,
+    startTime: gap.start_time,
+    endTime: gap.end_time,
+    roomId: String(gap.room_id),
+    status: gap.status,
+    assignedStaffCount: gap.assigned_staff_count,
+    absentStaffCount: gap.absent_staff_count,
+    presentStaffCount: gap.present_staff_count,
+    plannedStaffCount: gap.planned_staff_count,
+    understaffedNote: gap.understaffed_note ?? undefined,
+  };
+}
+
+/** Deutsche Labels für die Ereignistypen des Änderungsprotokolls (#1886). */
+const DEVIATION_EVENT_LABELS: Record<string, string> = {
+  absence: "Abwesenheit eingetragen",
+  return_to_presence: "Rückkehr eingetragen",
+  substitution: "Vertretung zugewiesen",
+  substitute_removed: "Vertretung entfernt",
+  cancellation: "Block abgesagt",
+  understaffed_ack: "Lücke bewusst offen gelassen",
+  understaffed_unack: "Lücke wieder als offen markiert",
+  deviation_dropped_by_replan: "Abweichung durch Neuplanung entfernt",
+  deviation_dropped_by_edit: "Abweichung durch Bearbeitung entfernt",
+  sick_reported: "Krankmeldung",
+  sick_cleared: "Krankmeldung zurückgenommen",
+  staff_moved: "Person verschoben",
+  shift_moved: "Schicht verschoben",
+};
+
+export function deviationEventLabel(eventType: string): string {
+  return DEVIATION_EVENT_LABELS[eventType] ?? eventType;
+}
+
+export function mapDeviationHistory(
+  raw: BackendDeviationHistoryResponse,
+): DeviationHistoryResponse {
+  const events: DeviationHistoryEvent[] = (raw.events ?? []).map((ev) => ({
+    id: String(ev.id),
+    activityGroupId:
+      ev.activity_group_id != null ? String(ev.activity_group_id) : undefined,
+    occurrenceDate: ev.occurrence_date,
+    startTime: ev.start_time,
+    instanceId: ev.instance_id != null ? String(ev.instance_id) : undefined,
+    eventType: ev.event_type,
+    subjectStaffId:
+      ev.subject_staff_id != null ? String(ev.subject_staff_id) : undefined,
+    subjectStaffName: ev.subject_staff_name ?? undefined,
+    relatedStaffId:
+      ev.related_staff_id != null ? String(ev.related_staff_id) : undefined,
+    relatedStaffName: ev.related_staff_name ?? undefined,
+    actorAccountId:
+      ev.actor_account_id != null ? String(ev.actor_account_id) : undefined,
+    actorName: ev.actor_name ?? undefined,
+    oldValue: ev.old_value ?? undefined,
+    newValue: ev.new_value ?? undefined,
+    reason: ev.reason ?? undefined,
+    occurredAt: ev.occurred_at,
+  }));
+  return { events };
+}
+
+export function mapGaps(raw: BackendGapsResponse): GapsResponse {
   return {
     from: raw.from,
     to: raw.to,
-    conflicts: (raw.conflicts ?? []).map((conflict) => ({
-      kind: conflict.kind,
-      date: conflict.date,
-      activityGroupId: String(conflict.activity_group_id),
-      instanceId: String(conflict.instance_id),
-      activityTitle: conflict.activity_title,
-      studentId: String(conflict.student_id),
-      expectedArrival: conflict.expected_arrival,
-      arrivalSource: conflict.arrival_source,
-      cancellationReason: conflict.cancellation_reason,
-      originalStartTime: conflict.original_start_time,
-      modifiedStartTime: conflict.modified_start_time,
-    })),
+    gaps: (raw.gaps ?? []).map(mapGapInstance),
+    acknowledged: (raw.acknowledged ?? []).map(mapGapInstance),
   };
+}
+
+/**
+ * Anzeigename einer Personalzeile mit einheitlichem Fallback, wenn die Person
+ * nicht (mehr) in der Namensauflösung steht — Liste und Editor des
+ * Vertretungsbereichs zeigen denselben Text für denselben Fehlfall.
+ */
+export function staffLabel(
+  staffNames: Map<string, string>,
+  staffId: string,
+): string {
+  return staffNames.get(staffId) ?? `Personal #${staffId}`;
 }
 
 export function mapAttendance(
@@ -467,13 +643,13 @@ export function mapAttendance(
   };
 }
 
-export function mapSubstitute(
-  raw: BackendSubstituteResponse,
-): SubstituteResponse {
+export function mapApplyDeviations(
+  raw: BackendApplyDeviationsResponse,
+): ApplyDeviationsResponse {
   return {
-    absentStaffId: String(raw.absent_staff_id),
-    substituteStaffId: String(raw.substitute_staff_id),
-    date: raw.date,
+    instanceId: String(raw.instance_id),
+    cancelled: raw.cancelled,
+    understaffedAck: raw.understaffed_ack,
     affectedInstances: (raw.affected_instances ?? []).map((item) => ({
       instanceId: String(item.instance_id),
       title: item.title,
@@ -542,6 +718,16 @@ export function mapSplitTemplateResult(
   };
 }
 
+export function mapEndTemplateResult(
+  raw: BackendEndTemplateResult,
+): EndTemplateResult {
+  return {
+    templateId: String(raw.template_id),
+    effectiveDate: raw.effective_date,
+    deletedInstances: raw.deleted_instances,
+  };
+}
+
 export function mapConflictCheckResult(
   raw: BackendConflictCheckResult,
 ): ConflictCheckResult {
@@ -559,12 +745,89 @@ export function mapConflictCheckResult(
   };
 }
 
+export function mapShiftCoverageCheckResult(
+  raw: BackendShiftCoverageCheckResult,
+): ShiftCoverageCheckResult {
+  return {
+    coverageWarnings: (raw.coverage_warnings ?? []).map((warning) => ({
+      staffId: String(warning.staff_id),
+      staffName: warning.staff_name,
+      date: warning.date,
+      startTime: warning.start_time,
+      endTime: warning.end_time,
+      uncoveredStartTime: warning.uncovered_start_time,
+      uncoveredEndTime: warning.uncovered_end_time,
+      message: warning.message,
+    })),
+    coverageWarningCount:
+      raw.coverage_warning_count ?? raw.coverage_warnings?.length ?? 0,
+  };
+}
+
+/** #1884 Personalpool: Backend-Snake-Case auf das Frontend-Modell abbilden. */
+export function mapStaffPool(raw: BackendStaffPoolResponse): StaffPoolResponse {
+  return {
+    instanceId: String(raw.instance_id),
+    title: raw.title,
+    date: raw.date,
+    startTime: raw.start_time,
+    endTime: raw.end_time,
+    dienstplanInUse: raw.dienstplan_in_use,
+    entries: (raw.entries ?? []).map((entry) => ({
+      staffId: String(entry.staff_id),
+      displayName: entry.display_name,
+      category: entry.category,
+      onShift: entry.on_shift,
+      coversWindow: entry.covers_window,
+      shiftWindows: entry.shift_windows ?? [],
+      absenceReason: entry.absence_reason ?? undefined,
+      assignments: (entry.assignments ?? []).map((assignment) => ({
+        instanceId: String(assignment.instance_id),
+        title: assignment.title,
+        startTime: assignment.start_time,
+        endTime: assignment.end_time,
+        isSubstitute: assignment.is_substitute,
+      })),
+    })),
+  };
+}
+
+/** #1884: Antwort des atomaren Personal-Moves abbilden. */
+export function mapMoveStaff(raw: BackendMoveStaffResponse): MoveStaffResponse {
+  return {
+    targetInstanceId: String(raw.target_instance_id),
+    sourceInstanceId:
+      raw.source_instance_id != null
+        ? String(raw.source_instance_id)
+        : undefined,
+    action: raw.action,
+    timeConflicts: (raw.time_conflicts ?? []).map((conflict) => ({
+      instanceId: String(conflict.instance_id),
+      title: conflict.title,
+      date: conflict.date,
+      startTime: conflict.start_time,
+      endTime: conflict.end_time,
+    })),
+    coverageWarnings: (raw.coverage_warnings ?? []).map((warning) => ({
+      staffId: String(warning.staff_id),
+      staffName: warning.staff_name,
+      date: warning.date,
+      startTime: warning.start_time,
+      endTime: warning.end_time,
+      uncoveredStartTime: warning.uncovered_start_time,
+      uncoveredEndTime: warning.uncovered_end_time,
+      message: warning.message,
+    })),
+  };
+}
+
 export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
   return {
     templates: (raw.templates ?? []).map((template) => ({
       id: String(template.id),
       name: template.name,
       type: template.type,
+      listKind: template.list_kind,
       categoryId: String(template.category_id),
       categoryName: template.category_name,
       roomId:
@@ -580,8 +843,22 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       educationGroupName: template.education_group_name,
       isOpen: template.is_open,
       maxParticipants: template.max_participants,
+      notes: template.notes,
+      shiftTypeName: template.shift_type_name,
+      shiftTypeColor: template.shift_type_color,
+      calendarPeriodId:
+        template.calendar_period_id !== undefined &&
+        template.calendar_period_id !== null
+          ? String(template.calendar_period_id)
+          : undefined,
+      targetGroupType: template.target_group_type,
+      targetGradeLevel: template.target_grade_level,
+      targetSchoolClass: template.target_school_class,
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
+      requiredStaffCount: template.required_staff_count,
+      assignedStaffCount: template.assigned_staff_count,
+      requiredStaffOverride: template.required_staff_override ?? undefined,
       studentIds: (template.student_ids ?? []).map(String),
       staffIds: (template.staff_ids ?? []).map(String),
       primaryStaffId:
@@ -600,9 +877,21 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           schedule.calendar_period_id !== null
             ? String(schedule.calendar_period_id)
             : undefined,
+        validUntil: schedule.valid_until,
       })),
     })),
   };
+}
+
+/**
+ * Resolves the calendar-period pin that governs a template's first schedule.
+ * A schedule pin is more specific than the template-level fallback, matching
+ * the backend materialization rule in schedulePinnedPeriodID.
+ */
+export function resolveTemplateCalendarPeriodId(
+  template: TimetableTemplate,
+): string | undefined {
+  return template.schedules[0]?.calendarPeriodId ?? template.calendarPeriodId;
 }
 
 /**
@@ -767,45 +1056,37 @@ export function assignBlockLanes(
 }
 
 /**
- * KPI + onboarding helpers for the planner overview zone.
- *
- * These are intentionally pure and instance/template-driven so the
- * "Geplant" / "Ohne Personal" headline cards work in every view
- * (week/month/year/series) without hitting the 14-day-capped, week-only
- * /api/timetable/gaps endpoint.
+ * Betreuungsplan-Tageskopfzeile (docs/06-betreuungsplan.md Abschnitt 3.1):
+ * eingeplante Personenzahl eines Tages als Vereinigung der zugeordneten,
+ * nicht abwesenden Personen über alle Blöcke des Tages — eine Person zählt
+ * unabhängig von der Anzahl ihrer Blöcke einmal, abgesagte Instanzen zählen
+ * nicht. Erwartet bereits auf einen Kalendertag gefilterte Instanzen (z. B.
+ * ein Eintrag von `groupInstancesByDate`).
  */
-
-/** Count non-cancelled instances in the given list. */
-export function countPlanned(instances: EnrichedInstance[]): number {
-  return instances.filter((inst) => inst.status !== "cancelled").length;
+export function countPlannedStaff(instances: EnrichedInstance[]): number {
+  const staffIds = new Set<string>();
+  for (const instance of instances) {
+    if (instance.status === "cancelled") continue;
+    for (const member of instance.staff) {
+      if (!member.isAbsent) {
+        staffIds.add(member.staffId);
+      }
+    }
+  }
+  return staffIds.size;
 }
 
 /**
- * Count instances with no effective staff (none assigned, or every assigned
- * person marked absent), excluding cancelled ones. A client-side
- * approximation of a Personal-Lücke that works across any date range — the
- * backend /api/timetable/gaps endpoint is capped at 14 days and week-only.
+ * Whether any active care offering points at a Betreuungsplan-Regeltermin.
+ * "unknown" means the linkage could not be read (no enrollment permission).
  */
-export function countStaffGaps(instances: EnrichedInstance[]): number {
-  return instances.filter(
-    (inst) =>
-      inst.status !== "cancelled" &&
-      inst.staffCount - inst.absentStaffCount <= 0,
-  ).length;
-}
-
-/** Count recurring series (Regeltermine) without any assigned staff. */
-export function countTemplateStaffGaps(templates: TimetableTemplate[]): number {
-  return templates.filter((tpl) => tpl.staffIds.length === 0).length;
-}
-
-export type TimetableEnrollmentStatus = "active" | "none" | "unknown";
+export type TimetableCareOfferingLinkStatus = "linked" | "unlinked" | "unknown";
 
 export interface TimetableSetupState {
   periodDone: boolean;
   enrollmentDone: boolean;
   planDone: boolean;
-  /** false when the enrollment status is unknown (no read access) */
+  /** false when the care-offering linkage is unknown (no read access) */
   enrollmentApplicable: boolean;
   completedSteps: number;
   totalSteps: number;
@@ -817,18 +1098,20 @@ export interface TimetableSetupState {
 /**
  * Status of the three onboarding steps shown in the planner setup guide
  * (Planungszeitraum / Anmeldung verknüpfen / Erste Woche planen). The
- * enrollment step is optional and is dropped from the progress count when
- * its status is unknown (the admin cannot read enrollment phases).
+ * enrollment step counts as done only when a care offering actually links to
+ * a Regeltermin — an active enrollment phase alone proves no linkage. It is
+ * optional and is dropped from the progress count when the linkage is unknown
+ * (the admin cannot read enrollment data).
  */
 export function computeTimetableSetup(input: {
   hasActivePeriod: boolean;
-  enrollment: TimetableEnrollmentStatus;
+  careOfferingLink: TimetableCareOfferingLinkStatus;
   hasPlan: boolean;
 }): TimetableSetupState {
   const periodDone = input.hasActivePeriod;
   const planDone = input.hasPlan;
-  const enrollmentApplicable = input.enrollment !== "unknown";
-  const enrollmentDone = input.enrollment === "active";
+  const enrollmentApplicable = input.careOfferingLink !== "unknown";
+  const enrollmentDone = input.careOfferingLink === "linked";
 
   const totalSteps = enrollmentApplicable ? 3 : 2;
   const completedSteps =
@@ -848,3 +1131,25 @@ export function computeTimetableSetup(input: {
     setupComplete: periodDone && planDone,
   };
 }
+
+/**
+ * Ansichts-Typ und Dichte-Konstanten des Betreuungsplans. Wohnten früher in
+ * `components/timetable/timetable-toolbar.tsx`; die Toolbar wurde mit dem
+ * Chrome-Abbau (Planung-Redesign Inkrement 4, Chunk 8) entfernt, deshalb
+ * leben die noch gebrauchten Typen/Konstanten hier im Helper-Modul.
+ */
+export type TimetableView = "week" | "month" | "series";
+
+/**
+ * Drei diskrete Zoomstufen des Wochenrasters. Die Pixel-pro-Stunde-Werte
+ * werden daraus abgeleitet — nie rohe Pixel in der UI zeigen (semantische
+ * Labels nach Apple/Google/Outlook-Konvention: Zoom nach Absicht, nicht
+ * Betrag).
+ */
+export type WeekDensity = "compact" | "normal" | "comfortable";
+
+export const DENSITY_TO_HOUR_HEIGHT_PX: Record<WeekDensity, number> = {
+  compact: 60,
+  normal: 90,
+  comfortable: 120,
+};

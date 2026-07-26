@@ -42,15 +42,6 @@ func (s *Service) GetRoleByID(ctx context.Context, id int) (*auth.Role, error) {
 	return role, nil
 }
 
-// GetRoleByName retrieves a role by its name
-func (s *Service) GetRoleByName(ctx context.Context, name string) (*auth.Role, error) {
-	role, err := s.repos.Role.FindByName(ctx, name)
-	if err != nil {
-		return nil, &AuthError{Op: "get role by name", Err: err}
-	}
-	return role, nil
-}
-
 // UpdateRole updates an existing role. System roles cannot be modified.
 func (s *Service) UpdateRole(ctx context.Context, role *auth.Role) error {
 	// Always verify against the DB record — never trust the caller's IsSystem value

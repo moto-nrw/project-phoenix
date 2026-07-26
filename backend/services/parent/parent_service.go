@@ -9,25 +9,31 @@ package parent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// ParentNoteDisplayLimit is how many of the newest parent notes the
-// portal and the staff view surface by default.
-const ParentNoteDisplayLimit = 3
 
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
@@ -53,42 +59,265 @@ type Service interface {
 
 	UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*Profile, error)
 
-	// SubmitSickNote reports the parent's child sick for one or more
-	// dates. Authorization: the account must be a guardian of the
-	// student. The write mirrors the staff sick-note path — it clears any
-	// opposing "excused" days, upserts a sick status-day per date with
-	// source=parent, and flips the live sick flag when today is included.
-	// Gated by operations.parent_sick_note_enabled for the child's tenant.
-	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason string) ([]*activeModels.StudentStatusDay, error)
+	// SubmitSickNote reports the parent's child sick or excused for one or more
+	// dates. Authorization: the account must be a guardian of the student. The
+	// status must be StudentStatusDaySick or StudentStatusDayExcused. Gated by
+	// operations.parent_sick_note_enabled for the child's tenant.
+	//
+	// A "sick" report (and, by default, an "excused" report) is written straight
+	// to the status days — it clears any opposing status days for the date,
+	// upserts a status-day per date with source=parent, and (for sick) flips the
+	// live sick flag when today is included; excused sets no live flag (#1735).
+	// A note is mandatory for excused, optional for sick.
+	//
+	// When the school turned operations.parent_excused_requires_approval on, an
+	// "excused" report instead becomes a PENDING request (#1845): no status day
+	// is written until staff approve it, so the result carries PendingRequest
+	// and an empty StatusDays. Sick reports are always direct.
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) (*SickNoteResult, error)
 
-	// ListSickDays returns the child's currently-active sick days in the
-	// given date range (excused days are filtered out — parents only
-	// manage sick notes). Authorization only; not gated by the setting so
-	// previously-reported days stay visible if a school later disables the
-	// feature.
+	// ListExcusedRequests returns the child's pending excused-absence approval
+	// requests plus any decided in the recent window (so a parent sees a
+	// declined request), newest-first. Empty when the approval gate is off.
+	// Authorization only.
+	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
+
+	// WithdrawExcusedRequest withdraws the caller's own pending excused-absence
+	// request. Authorization: the account must be the submitting guardian.
+	WithdrawExcusedRequest(ctx context.Context, accountID, studentID, requestID int64) (*activeModels.ExcusedAbsenceRequest, error)
+
+	// ListSickDays returns the child's currently-active parent-facing
+	// absences (sick and excused) in the given date range; class-trip days
+	// stay excluded as a staff-only status. Authorization only; not gated by
+	// the setting so previously-reported days stay visible if a school later
+	// disables the feature.
 	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error)
-
-	// AddParentNote appends a free-text note the parent left for the
-	// team and returns the newest ParentNoteDisplayLimit notes. Gated by
-	// operations.parent_notes_enabled for the child's tenant.
-	AddParentNote(ctx context.Context, accountID, studentID int64, body string) ([]*usersModels.StudentParentNote, error)
-
-	// ListParentNotes returns the newest notes for the child (limit <= 0
-	// uses ParentNoteDisplayLimit). Authorization only — reads are not
-	// gated by the setting so previously-left notes stay visible.
-	ListParentNotes(ctx context.Context, accountID, studentID int64, limit int) ([]*usersModels.StudentParentNote, error)
 
 	// ChildFeatures resolves which parent-portal write features are enabled
 	// for the child's tenant, so the UI can hide/disable actions the backend
 	// would reject with 403. Authorization only.
 	ChildFeatures(ctx context.Context, accountID, studentID int64) (ChildFeatureFlags, error)
+
+	// MealPlanWeek returns the Monday-Friday meal plan entries for the school
+	// of the given child, for the week containing weekStart. Authorization
+	// (parent_portal.access) plus the operations.meal_plan_enabled toggle for
+	// the child's tenant: when the feature is off it returns
+	// ErrMealPlanDisabled so the portal can hide the section.
+	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]*mealplanModels.MealPlanEntry, error)
+
+	// SubmitCareException sets a guardian-authored, date-specific pickup and/or
+	// arrival time for one day. At least one of pickupTime/arrivalTime must be
+	// non-nil. The change takes effect immediately and broadcasts a student
+	// update so supervisor views refetch. Gated by
+	// operations.parent_pickup_change_enabled. A staff-authored exception for
+	// the same date is never overwritten — it yields ErrCareExceptionConflict.
+	SubmitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, arrivalTime *time.Time) (*CareException, error)
+
+	// ListCareExceptions returns the merged pickup/arrival exceptions for the
+	// child in [from, to], including staff-authored ones (flagged via Source)
+	// so the portal can show what is already set. Authorization only.
+	ListCareExceptions(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*CareException, error)
+
+	// DeleteCareException removes the guardian-authored pickup and arrival
+	// exceptions for the given date, reverting the day to the standard weekly
+	// plan. Staff-authored exceptions are left untouched. Authorization only.
+	DeleteCareException(ctx context.Context, accountID, studentID int64, date timezone.Date) error
+
+	// ListRelatedAccounts returns every guardian linked to the child with
+	// portal-access status. Authorization only.
+	ListRelatedAccounts(ctx context.Context, accountID, studentID int64) ([]*RelatedAccount, error)
+
+	// InviteRelatedAccount invites a further guardian to the child by email.
+	// Gated by guardians.parent_invite_mode; staff_approval queues the request.
+	InviteRelatedAccount(ctx context.Context, accountID, studentID int64, email, firstName, lastName string) (*InviteRelatedAccountResult, error)
+
+	// RemoveRelatedAccount removes another account's access to the child.
+	// Gated by guardians.parent_can_remove; the primary guardian is protected.
+	RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error
+
+	// GetChildMasterData returns the structured Stammdaten view for the child:
+	// the child's person + student fields and the calling guardian's own
+	// contact data, plus any pending Track B change requests. Authorization
+	// only (GuardianPermissionPortalAccess).
+	GetChildMasterData(ctx context.Context, accountID, studentID int64) (*ChildMasterData, error)
+
+	// UpdateMasterDataField applies a Track A direct edit to a single field and
+	// returns the refreshed Stammdaten view. The edit is written to the live
+	// record immediately and recorded as an auto_applied audit row. Gated by
+	// operations.parent_master_data_edit_enabled and
+	// GuardianPermissionMasterDataEdit.
+	UpdateMasterDataField(ctx context.Context, accountID, studentID int64, target, fieldKey string, value json.RawMessage) (*ChildMasterData, error)
+
+	// SubmitMasterDataChangeRequest records pending Track B change requests
+	// (name, birthday, permanent Gehzeit) for staff approval. Unchanged or
+	// already-pending fields are skipped/rejected. Gated by
+	// operations.parent_master_data_request_enabled and
+	// GuardianPermissionMasterDataRequest.
+	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange) ([]*usersModels.StudentDataChangeRequest, error)
+
+	// ListMyMasterDataRequests returns the child's change requests (any status),
+	// newest-first. Authorization only.
+	ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error)
+
+	// ListChildGuardians returns every guardian linked to the child with
+	// contact + pickup detail and the caller's per-guardian edit capabilities.
+	// Authorization only (parent_portal.access).
+	ListChildGuardians(ctx context.Context, accountID, studentID int64) ([]*ChildGuardian, error)
+
+	// UpdateGuardianContact edits a contact-only guardian's contact data (or the
+	// caller's own profile): name, email, address, phone list. Requires
+	// parent_portal.guardian.edit. A guardian with their own portal account is
+	// rejected unless it is the caller.
+	UpdateGuardianContact(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianContactInput) (*ChildGuardian, error)
+
+	// UpdateGuardianRelationship edits the per-child pickup/relationship fields.
+	// PickupNotes requires parent_portal.guardian.edit; the
+	// can_pickup / is_emergency_contact flags additionally require
+	// parent_portal.pickup.manage.
+	UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error)
+
+	// ListMessageThreads returns every conversation the guardian owns across
+	// all their children's schools (newest activity first), with the unread
+	// staff-message count. Cross-tenant.
+	ListMessageThreads(ctx context.Context, accountID int64) ([]*usersModels.InboxThread, error)
+
+	// ListChildThreads returns the guardian's conversation(s) about ONE owned
+	// child (at most one per the chat model), newest activity first, with the
+	// unread staff-message count. Does NOT mark the thread read. Authorization
+	// resolves ownership + tenant first.
+	ListChildThreads(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error)
+
+	// UnreadMessageCount returns the guardian's total count of conversations
+	// with unread staff-side activity across all their children's schools — the
+	// parent-portal sidebar badge. Cross-tenant; a light COUNT, not a projection.
+	UnreadMessageCount(ctx context.Context, accountID int64) (int, error)
+
+	// GetChildConversation returns the guardian's conversation about one owned
+	// child (oldest-first) and marks it read. Returns an empty view (ThreadID
+	// 0) when no conversation exists yet. Authorization only.
+	GetChildConversation(ctx context.Context, accountID, studentID int64) (*MessageThreadView, error)
+
+	// PostChildMessage appends a guardian message to the child's conversation,
+	// creating it on the first message, and notifies the OGS. Gated by
+	// operations.parent_notes_enabled.
+	PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error)
+
+	// GetChildCareSchedule returns the child's permanent weekly care plan
+	// (arrival/pickup times + departure modes per weekday) with any pending
+	// change request — the Stammdaten read view. Authorization only.
+	GetChildCareSchedule(ctx context.Context, accountID, studentID int64) (*ChildCareSchedule, error)
+
+	// CreateCareScheduleRequest stores a pending care-schedule change request
+	// for staff review on the Änderungsanfragen page. Requires
+	// parent_portal.request.submit; gated by operations.parent_notes_enabled.
+	CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error)
+
+	// WithdrawCareScheduleRequest flips the caller's own pending request to
+	// withdrawn. Requires parent_portal.request.submit; stays available after
+	// messaging is disabled so outstanding requests can be wound down.
+	WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error)
+
+	// ListAnnouncements returns the guardian's parent-news feed across all their
+	// (news-enabled) children's schools, newest-published first, each with the
+	// guardian's read/ack state. Cross-tenant; broadcast (#1669).
+	ListAnnouncements(ctx context.Context, accountID int64) ([]*usersModels.AnnouncementFeedItem, error)
+
+	// UnreadAnnouncementCount returns how many feed announcements the guardian
+	// has not read — the parent-portal Neuigkeiten badge. Cross-tenant.
+	UnreadAnnouncementCount(ctx context.Context, accountID int64) (int, error)
+
+	// MarkAnnouncementRead records that the guardian opened an announcement.
+	// Refuses one that is not live or outside the guardian's audience, and
+	// rejects a stale request whose expectedPublishedAt no longer matches the
+	// live announcement (ErrAnnouncementStale) so a corrected announcement is
+	// not marked read against the retracted wording.
+	MarkAnnouncementRead(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error
+
+	// AcknowledgeAnnouncement records an explicit "gelesen und bestätigt"; valid
+	// only for an announcement that requires acknowledgement. Same audience and
+	// stale-version guards as MarkAnnouncementRead.
+	AcknowledgeAnnouncement(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
 // toggles for a single child.
 type ChildFeatureFlags struct {
 	SickNoteEnabled bool
-	NotesEnabled    bool
+	// ExcusedRequiresApproval is true when an "excused" report must be confirmed
+	// by the office before it takes effect (operations.parent_excused_requires_approval,
+	// #1845). The parent UI uses it to explain that the absence will be pending
+	// and to keep the mandatory-note requirement visible. Only meaningful while
+	// SickNoteEnabled is true.
+	ExcusedRequiresApproval bool
+	NotesEnabled            bool
+	// RequestSubmitEnabled is true when messaging is on AND the guardian holds
+	// parent_portal.request.submit for this child — gates the change-request
+	// quick actions (care schedule / master data) in the parent UI.
+	RequestSubmitEnabled bool
+	PickupChangeEnabled  bool
+	// RelatedAccountsInviteEnabled is true when parents may invite further
+	// guardians (guardians.parent_invite_mode != disabled).
+	RelatedAccountsInviteEnabled bool
+	// RelatedAccountsRemoveEnabled is true when parents may remove another
+	// account's access (guardians.parent_can_remove).
+	RelatedAccountsRemoveEnabled bool
+	// MasterDataEditEnabled is true when parents may directly edit the
+	// non-guardian Track A Stammdaten fields (setting AND the relationship
+	// permission).
+	MasterDataEditEnabled bool
+	// MasterDataContactEditEnabled is true when parents may directly edit their
+	// guardian profile/phone contact fields. These writes require both the
+	// master-data edit setting and guardian-management setting.
+	MasterDataContactEditEnabled bool
+	// MasterDataRequestEnabled is true when parents may submit Track B
+	// change requests for approval (setting AND the relationship permission).
+	MasterDataRequestEnabled bool
+	// MealPlanEnabled is true when the school maintains a meal plan
+	// (operations.meal_plan_enabled), so the portal can show the read-only
+	// Essensplan section for this child's school.
+	MealPlanEnabled bool
+	// HasOpenChangeRequest is STATE, not a capability: true when the child has at
+	// least one pending change request (master data OR care schedule) awaiting an
+	// OGS decision. It rides along on the features fetch (the one call the child
+	// overview already makes) so the overview can badge the Stammdaten entry
+	// without pulling the full master-data + care-schedule payloads. The details
+	// still live on the Stammdaten page. Defaults false, so a fetch failure never
+	// shows a phantom badge.
+	HasOpenChangeRequest bool
+	// NewsEnabled is true when the school broadcasts parent announcements
+	// (operations.parent_news_enabled), so the portal can advertise the
+	// Neuigkeiten feed for this child's school. When every linked school has
+	// it off, the feed/unread endpoints return nothing and the nav/panel
+	// entries must stay hidden rather than dead-end on an empty page.
+	NewsEnabled bool
+}
+
+// CareException is the parent-facing projection of a single day's pickup and/or
+// arrival override. PickupTime/ArrivalTime carry the wall-clock instant anchored
+// to the reference date (TIME column); a nil field means that leg has no
+// override for the day. Source is "guardian" for parent-authored entries and
+// "staff" for ones the team set.
+type CareException struct {
+	Date        timezone.Date
+	PickupTime  *time.Time
+	ArrivalTime *time.Time
+	Source      string
+	UpdatedAt   time.Time
+	// PickupAbsent is true when a pickup-exception row exists for the day but
+	// carries no time (StudentPickupException.IsAbsent) — staff's "not coming
+	// today" marker. It is distinct from a nil PickupTime meaning "this day has
+	// no pickup override at all": the former must resolve to an absence, the
+	// latter falls back to the base plan. Such a row creates no status day, so
+	// the care-schedule today_absent signal misses it (#1725 review).
+	PickupAbsent bool
+	// ArrivalAbsent is the arrival-leg counterpart: true when an arrival-exception
+	// row exists for the day with no expected arrival (StudentArrivalException.
+	// IsAbsent) — the child is not coming. Like PickupAbsent it creates no status
+	// day, so today_absent misses it; either leg being absent must resolve the
+	// tile to an absence rather than falling back to the base-plan pickup, so a
+	// guardian is never told to expect a pickup for a child who is not coming
+	// (#1725 review).
+	ArrivalAbsent bool
 }
 
 // Profile carries the parent's explicit parents-portal locale choice.
@@ -107,64 +336,82 @@ type ServiceConfig struct {
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
-	// Per-child write features (sick notes + parent notes).
-	StatusDayRepo activeModels.StudentStatusDayRepository
-	StudentRepo   usersModels.StudentRepository
-	NoteRepo      usersModels.StudentParentNoteRepository
-	Settings      configService.SettingsService
-	Broadcaster   realtime.Broadcaster
+	// Per-child write features (sick notes + care exceptions).
+	StatusDayRepo        activeModels.StudentStatusDayRepository
+	StudentRepo          usersModels.StudentRepository
+	PickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
+	ArrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
+	Settings             configService.SettingsService
+	Broadcaster          realtime.Broadcaster
+
+	// Weekly care plan read view + change requests (#1803).
+	ArrivalSchedules scheduleSvc.ArrivalScheduleService
+	PickupSchedules  scheduleSvc.PickupScheduleService
+	CareRequests     scheduleSvc.CareScheduleRequestService
+	// ExcusedRequests backs the optional office-approval gate for parent
+	// excused absences (#1845). When the school setting is on, an excused
+	// submission becomes a pending request here instead of a direct status day.
+	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
+
+	// Emitter posts notification pills into the child's parent-OGS thread for
+	// self-service actions (sick note, one-day pickup change) and master-data
+	// request submissions. Best-effort, after-commit only.
+	Emitter *parentmessaging.Emitter
+
+	// Meal plan (Essensplan) read access for the child's school.
+	MealPlanRepo mealplanModels.MealPlanEntryRepository
+
+	// Parent-OGS messaging.
+	MessageThreadRepo usersModels.ParentMessageThreadRepository
+	MessageRepo       usersModels.ParentMessageRepository
+	MessageReadRepo   usersModels.ParentMessageReadRepository
+
+	// Parent announcements (broadcast news feed).
+	AnnouncementRepo usersModels.ParentAnnouncementRepository
+
+	// Related-accounts management (invite/remove further guardians from the
+	// parents portal). The invitation service runs the shared resolve logic.
+	GuardianInvites     authService.GuardianInvitationService
+	GuardianInviteRepo  authModels.GuardianInvitationRepository
+	StudentGuardianRepo usersModels.StudentGuardianRepository
+
+	// Stammdaten view + change flow (Track A direct edit, Track B requests).
+	PersonRepo        usersModels.PersonRepository
+	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
+
+	// Guardian contact + pickup editing (#1667). The phone repo backs both the
+	// caller's primary-phone master-data edit and the wholesale phone-list replace
+	// on a contact edit; the audit repo records every contact-field and
+	// pickup/emergency flag change (append-only).
+	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
+	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
 
 	DB     *bun.DB
 	Logger *slog.Logger
 }
 
 type service struct {
-	childRepo             parentModels.ChildRepository
-	enrollablePhaseRepo   parentModels.EnrollablePhaseRepository
-	enrollmentRequestRepo parentModels.EnrollmentRequestRepository
-	guardianProfileRepo   usersModels.GuardianProfileRepository
-
-	statusDayRepo activeModels.StudentStatusDayRepository
-	studentRepo   usersModels.StudentRepository
-	noteRepo      usersModels.StudentParentNoteRepository
-	settings      configService.SettingsService
-	broadcaster   realtime.Broadcaster
-
-	db     *bun.DB
-	logger *slog.Logger
+	ServiceConfig
 }
 
 // NewService wires a parent-portal service.
 func NewService(cfg ServiceConfig) Service {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	return &service{
-		childRepo:             cfg.ChildRepo,
-		enrollablePhaseRepo:   cfg.EnrollablePhaseRepo,
-		enrollmentRequestRepo: cfg.EnrollmentRequestRepo,
-		guardianProfileRepo:   cfg.GuardianProfileRepo,
-		statusDayRepo:         cfg.StatusDayRepo,
-		studentRepo:           cfg.StudentRepo,
-		noteRepo:              cfg.NoteRepo,
-		settings:              cfg.Settings,
-		broadcaster:           cfg.Broadcaster,
-		db:                    cfg.DB,
-		logger:                logger,
-	}
+	return &service{ServiceConfig: cfg}
 }
 
 func (s *service) GetProfile(ctx context.Context, accountID int64) (*Profile, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	if s.guardianProfileRepo == nil {
+	if s.GuardianProfileRepo == nil {
 		return nil, fmt.Errorf("parent: guardian profile repo not wired")
 	}
 	profile := &Profile{Locale: localization.DefaultLocale(), Explicit: false}
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		row, err := s.guardianProfileRepo.FindByAccountID(adminCtx, accountID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		row, err := s.GuardianProfileRepo.FindByAccountID(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -188,7 +435,7 @@ func (s *service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		// to the anonymous locale rather than failing a read just to render a
 		// language. Any other error is a real fault and must surface unmasked.
 		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
-			s.logger.Warn("parent: guardian profile missing for authenticated account",
+			s.Logger.Warn("parent: guardian profile missing for authenticated account",
 				slog.Int64("account_id", accountID),
 			)
 			return &Profile{Locale: localization.DefaultLocale(), Explicit: false}, nil
@@ -202,7 +449,7 @@ func (s *service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	if s.guardianProfileRepo == nil {
+	if s.GuardianProfileRepo == nil {
 		return nil, fmt.Errorf("parent: guardian profile repo not wired")
 	}
 	// Reject unknown locales rather than letting NormalizeLocale silently coerce
@@ -213,8 +460,8 @@ func (s *service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 		return nil, fmt.Errorf("parent: unsupported locale %q", locale)
 	}
 	normalized := localization.NormalizeLocale(locale)
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return s.guardianProfileRepo.UpdatePortalLocaleByAccountID(adminCtx, accountID, normalized)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		return s.GuardianProfileRepo.UpdatePortalLocaleByAccountID(adminCtx, accountID, normalized)
 	})
 	if err != nil {
 		// Same invariant as GetProfile: an authenticated parent always has a
@@ -224,7 +471,7 @@ func (s *service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 		// a generic 500. Never swallow it into a fake success — a "saved"
 		// preference that never hit the DB must not masquerade as persisted.
 		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
-			s.logger.Warn("parent: cannot persist portal locale, no guardian profile for account",
+			s.Logger.Warn("parent: cannot persist portal locale, no guardian profile for account",
 				slog.Int64("account_id", accountID),
 			)
 		}
@@ -245,8 +492,8 @@ func (s *service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 	// account_tenants WHERE clause in the query keeps the result set
 	// scoped to the caller's own membership.
 	var children []*parentModels.ChildSummary
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		list, listErr := s.childRepo.ListByAccount(adminCtx, accountID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		list, listErr := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
 		}
@@ -257,7 +504,7 @@ func (s *service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 		return nil, fmt.Errorf("parent: list children: %w", err)
 	}
 
-	s.logger.Debug("parent: listed children",
+	s.Logger.Debug("parent: listed children",
 		slog.Int64("account_id", accountID),
 		slog.Int("count", len(children)),
 	)
@@ -274,8 +521,8 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 	}
 
 	var phases []*parentModels.EnrollablePhase
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		list, listErr := s.enrollablePhaseRepo.ListEnrollable(adminCtx, accountID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		list, listErr := s.EnrollablePhaseRepo.ListEnrollable(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
 		}
@@ -286,7 +533,7 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 		return nil, fmt.Errorf("parent: list enrollable: %w", err)
 	}
 
-	s.logger.Debug("parent: listed enrollable phases",
+	s.Logger.Debug("parent: listed enrollable phases",
 		slog.Int64("account_id", accountID),
 		slog.Int("count", len(phases)),
 	)
@@ -300,13 +547,13 @@ func (s *service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	if s.enrollmentRequestRepo == nil {
+	if s.EnrollmentRequestRepo == nil {
 		return nil, fmt.Errorf("parent: enrollment request repo not wired")
 	}
 
 	var requests []*parentModels.EnrollmentRequestSummary
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		list, listErr := s.enrollmentRequestRepo.ListByAccount(adminCtx, accountID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		list, listErr := s.EnrollmentRequestRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
 		}
@@ -330,7 +577,7 @@ func (s *service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 		}
 	}
 
-	s.logger.Debug("parent: listed enrollment requests",
+	s.Logger.Debug("parent: listed enrollment requests",
 		slog.Int64("account_id", accountID),
 		slog.Int("count", len(requests)),
 	)

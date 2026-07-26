@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -31,11 +32,6 @@ func init() {
 	viper.Set("auth_jwt_secret", "test-jwt-secret-for-unit-tests-minimum-32-chars")
 	viper.Set("auth_jwt_expiry", "15m")         // Access token expiry
 	viper.Set("auth_jwt_refresh_expiry", "24h") // Refresh token expiry
-}
-
-// strPtr returns a pointer to the given string (helper for optional fields)
-func strPtr(s string) *string {
-	return &s
 }
 
 // testPassword is a valid password for integration tests that meets strength requirements.
@@ -254,56 +250,58 @@ func TestAuthService_Login(t *testing.T) {
 	})
 }
 
-// =============================================================================
-// ValidateToken Tests
-// =============================================================================
-
-func TestAuthService_ValidateToken(t *testing.T) {
+func TestAuthService_Login_ConcurrentIssuanceKeepsFiveActiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	service := setupAuthService(t, db)
 	ctx := testpkg.TenantContext(1)
+	service := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("concurrent-session-cap")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-	t.Run("validates token successfully", func(t *testing.T) {
-		// ARRANGE
-		email, username := uniqueTestCredentials("validate")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	for range 5 {
+		_, _, err = service.Login(ctx, email, testPassword)
 		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}
 
-		accessToken, _, err := service.Login(ctx, email, testPassword)
-		require.NoError(t, err)
+	const concurrency = 8
+	issuers := make([]auth.AuthService, concurrency)
+	for i := range issuers {
+		issuers[i] = setupAuthService(t, db)
+	}
 
-		// ACT
-		validatedAccount, claims, err := service.ValidateToken(ctx, accessToken)
+	var barrier sync.WaitGroup
+	barrier.Add(concurrency)
+	results := make(chan error, concurrency)
+	for _, issuer := range issuers {
+		go func() {
+			barrier.Done()
+			barrier.Wait()
+			_, _, loginErr := issuer.Login(ctx, email, testPassword)
+			results <- loginErr
+		}()
+	}
 
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, validatedAccount)
-		assert.NotNil(t, claims)
-		assert.Equal(t, account.ID, validatedAccount.ID)
-	})
+	for range concurrency {
+		require.NoError(t, <-results)
+	}
 
-	t.Run("returns error for invalid token", func(t *testing.T) {
-		// ACT
-		account, _, err := service.ValidateToken(ctx, "invalid.token.here")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account)
-	})
-
-	t.Run("returns error for empty token", func(t *testing.T) {
-		// ACT
-		account, _, err := service.ValidateToken(ctx, "")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account)
-	})
+	activeCount, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > ?", time.Now()).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 5, activeCount, "concurrent issuers must not bypass the session cap")
 }
+
+// =============================================================================
+// ValidateToken Tests
+// =============================================================================
 
 // =============================================================================
 // RefreshToken Tests
@@ -426,6 +424,171 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 	assert.Equal(t, concurrency, successes, "all concurrent refresh calls should succeed")
 }
 
+// TestAuthService_RefreshToken_InterruptedRotationRecovery reproduces the
+// tablet/deploy failure from #1938: the backend commits a rotation, but the
+// browser retries with the predecessor because the response/cookie was lost.
+// Recovery must work from persisted lineage, not process-local singleflight.
+func TestAuthService_RefreshToken_InterruptedRotationRecovery(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	serviceBeforeRestart := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("rotation-recovery")
+	account, err := serviceBeforeRestart.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := serviceBeforeRestart.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
+	_, firstSuccessorJWT, err := serviceBeforeRestart.RefreshToken(recoveryCtx, predecessorJWT)
+	require.NoError(t, err)
+
+	// A new service instance has empty in-memory singleflight/cache state and
+	// models a frontend/backend process replacement during deployment.
+	serviceAfterRestart := setupAuthService(t, db)
+	accessToken, recoveredRefreshJWT, err := serviceAfterRestart.RefreshToken(recoveryCtx, predecessorJWT)
+	require.NoError(t, err)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, firstSuccessorJWT)
+	assert.NotEmpty(t, recoveredRefreshJWT)
+
+	var generations []int
+	err = db.NewSelect().
+		TableExpr("auth.tokens").
+		Column("generation").
+		Where("account_id = ?", account.ID).
+		OrderExpr("generation ASC").
+		Scan(ctx, &generations)
+	require.NoError(t, err)
+	assert.Equal(t, []int{0, 1}, generations,
+		"recovery must reuse the committed successor instead of rotating again")
+}
+
+func TestAuthService_RefreshToken_InterruptedRotationRecoveryAcrossMultipleHandoffs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("rotation-multi-hop-recovery")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	firstProofCtx := rotation.WithRecoveryProof(ctx, "first-recovery-secret")
+	_, firstSuccessorJWT, err := service.RefreshToken(firstProofCtx, predecessorJWT)
+	require.NoError(t, err)
+	secondProofCtx := rotation.WithRecoveryProof(ctx, "second-recovery-secret")
+	_, secondSuccessorJWT, err := service.RefreshToken(secondProofCtx, firstSuccessorJWT)
+	require.NoError(t, err)
+
+	accessToken, recoveredRefreshJWT, err := setupAuthService(t, db).RefreshToken(firstProofCtx, predecessorJWT)
+	require.NoError(t, err)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, secondSuccessorJWT)
+	assert.NotEmpty(t, recoveredRefreshJWT)
+
+	var generations []int
+	err = db.NewSelect().
+		TableExpr("auth.tokens").
+		Column("generation").
+		Where("account_id = ?", account.ID).
+		OrderExpr("generation ASC").
+		Scan(ctx, &generations)
+	require.NoError(t, err)
+	assert.Equal(t, []int{0, 1, 2}, generations,
+		"a delayed predecessor must follow the persisted lineage without revoking or rotating it")
+
+	currentCount, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("generation = 2").
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, currentCount)
+}
+
+func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+	email, username := uniqueTestCredentials("rotation-replay")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
+	_, successorJWT, err := service.RefreshToken(recoveryCtx, predecessorJWT)
+	require.NoError(t, err)
+
+	_, err = db.NewUpdate().
+		Table("auth.tokens").
+		Set("rotated_at = ?", time.Now().Add(-rotation.RecoveryGrace-time.Minute)).
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NOT NULL").
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Rotate the successor after the predecessor leaves the recovery window.
+	// Cleanup must retain the predecessor until its JWT expiry so a later replay
+	// can still revoke the whole family.
+	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "successor-recovery-secret"), successorJWT)
+	require.NoError(t, err)
+
+	_, _, err = setupAuthService(t, db).RefreshToken(recoveryCtx, predecessorJWT)
+	require.Error(t, err)
+	var authErr *auth.AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, auth.ErrInvalidToken)
+
+	count, countErr := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Count(ctx)
+	require.NoError(t, countErr)
+	assert.Zero(t, count, "replay rejection must commit token-family deletion")
+}
+
+func TestAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+	email, username := uniqueTestCredentials("rotation-wrong-proof")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "independent-recovery-secret"), predecessorJWT)
+	require.NoError(t, err)
+
+	_, _, err = setupAuthService(t, db).RefreshToken(rotation.WithRecoveryProof(ctx, "attacker-does-not-have-the-recovery-secret"), predecessorJWT)
+	require.Error(t, err)
+	var authErr *auth.AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, auth.ErrInvalidToken)
+
+	count, countErr := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+	require.NoError(t, countErr)
+	assert.Zero(t, count, "failed possession proof must commit token-family revocation")
+}
+
 // =============================================================================
 // Logout Tests
 // =============================================================================
@@ -449,7 +612,7 @@ func TestAuthService_Logout(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.Logout(ctx, refreshToken)
+		err = service.LogoutWithAudit(ctx, refreshToken, "", "")
 
 		// ASSERT
 		require.NoError(t, err)
@@ -461,7 +624,7 @@ func TestAuthService_Logout(t *testing.T) {
 
 	t.Run("logout with invalid token returns error", func(t *testing.T) {
 		// ACT
-		err := service.Logout(ctx, "invalid.refresh.token")
+		err := service.LogoutWithAudit(ctx, "invalid.refresh.token", "", "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -570,39 +733,6 @@ func TestAuthService_GetAccountByID(t *testing.T) {
 // =============================================================================
 // GetAccountByEmail Tests
 // =============================================================================
-
-func TestAuthService_GetAccountByEmail(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns account when found", func(t *testing.T) {
-		// ARRANGE
-		email, username := uniqueTestCredentials("getbyemail")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
-		// ACT
-		result, err := service.GetAccountByEmail(ctx, email)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, account.ID, result.ID)
-	})
-
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetAccountByEmail(ctx, "nonexistent@test.local")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
 
 // =============================================================================
 // Account Activation/Deactivation Tests
@@ -848,7 +978,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 		name := fmt.Sprintf("test-role-%d", time.Now().UnixNano())
 
 		// ACT
-		role, err := service.CreateRole(ctx, name, "Test role description", strPtr("user"))
+		role, err := service.CreateRole(ctx, name, "Test role description", testpkg.StrPtr("user"))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -859,7 +989,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 
 	t.Run("returns error for empty name", func(t *testing.T) {
 		// ACT
-		role, err := service.CreateRole(ctx, "", "description", strPtr("user"))
+		role, err := service.CreateRole(ctx, "", "description", testpkg.StrPtr("user"))
 
 		// ASSERT
 		require.Error(t, err)
@@ -877,7 +1007,7 @@ func TestAuthService_GetRoleByID(t *testing.T) {
 	t.Run("returns role when found", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("get-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "description", strPtr("user"))
+		role, err := service.CreateRole(ctx, name, "description", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -899,38 +1029,6 @@ func TestAuthService_GetRoleByID(t *testing.T) {
 	})
 }
 
-func TestAuthService_GetRoleByName(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns role when found", func(t *testing.T) {
-		// ARRANGE
-		name := fmt.Sprintf("find-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "description", strPtr("user"))
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetRoleByName(ctx, name)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, role.ID, result.ID)
-	})
-
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetRoleByName(ctx, "nonexistent-role")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
 func TestAuthService_UpdateRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -941,7 +1039,7 @@ func TestAuthService_UpdateRole(t *testing.T) {
 	t.Run("updates role successfully", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("update-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "original description", strPtr("user"))
+		role, err := service.CreateRole(ctx, name, "original description", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		role.Description = "updated description"
@@ -969,7 +1067,7 @@ func TestAuthService_DeleteRole(t *testing.T) {
 	t.Run("deletes role successfully", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("delete-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "to delete", strPtr("user"))
+		role, err := service.CreateRole(ctx, name, "to delete", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -994,7 +1092,7 @@ func TestAuthService_ListRoles(t *testing.T) {
 	t.Run("returns roles", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("list-role-%d", time.Now().UnixNano())
-		_, err := service.CreateRole(ctx, name, "for listing", strPtr("user"))
+		_, err := service.CreateRole(ctx, name, "for listing", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -1021,7 +1119,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		roleName := fmt.Sprintf("assign-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "for assignment", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "for assignment", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -1052,7 +1150,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.tokens", token.ID) })
 
 		roleName := fmt.Sprintf("assign-role-tx-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -1088,7 +1186,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		require.NoError(t, err)
 
 		roleName := fmt.Sprintf("assign-role-refresh-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -1117,7 +1215,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "for removal", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "for removal", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
@@ -1145,7 +1243,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		roleName := fmt.Sprintf("remove-role-refresh-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -1571,7 +1669,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("roleperm-%s", uniqueID)
@@ -1598,7 +1696,7 @@ func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-remove-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("rolerem-%s", uniqueID)
@@ -1628,7 +1726,7 @@ func TestAuthService_GetRolePermissions(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-get-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("roleget-%s", uniqueID)
@@ -1863,8 +1961,8 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 			Email:     inviteeEmail,
 			RoleID:    role.ID,
 			CreatedBy: creator.ID,
-			FirstName: strPtr("Test"),
-			LastName:  strPtr("User"),
+			FirstName: testpkg.StrPtr("Test"),
+			LastName:  testpkg.StrPtr("User"),
 		})
 
 		// Cleanup must be registered before assertions to ensure it runs even if assertions fail
@@ -2723,8 +2821,8 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 		Email:     email,
 		RoleID:    role.ID,
 		CreatedBy: 1,
-		FirstName: strPtr("Test"),
-		LastName:  strPtr("User"),
+		FirstName: testpkg.StrPtr("Test"),
+		LastName:  testpkg.StrPtr("User"),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, invitation)

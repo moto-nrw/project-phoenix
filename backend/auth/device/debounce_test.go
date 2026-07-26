@@ -104,7 +104,7 @@ func TestPersistLastSeen_ErrorPreservesQueuedObservation(t *testing.T) {
 
 	mockService := newMockIoTService()
 	mockService.updateError = errors.New("db connection failed")
-	observedAt := time.Now().Add(-2 * time.Minute)
+	observedAt := time.Now()
 	state := &lastSeenDebounceState{
 		latestSeen: observedAt.Add(30 * time.Second),
 	}

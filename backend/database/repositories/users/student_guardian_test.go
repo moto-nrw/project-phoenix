@@ -1,9 +1,12 @@
 package users_test
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -137,144 +140,13 @@ func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T)
 // FindPrimaryByStudentID Tests
 // ============================================================================
 
-func TestStudentGuardianRepository_FindPrimaryByStudentID_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Primary", "Student", "3a")
-	primaryGuardian := testpkg.CreateTestGuardianProfile(t, db, "primary-guardian")
-	secondaryGuardian := testpkg.CreateTestGuardianProfile(t, db, "secondary-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, primaryGuardian.ID, secondaryGuardian.ID)
-
-	// Create relationships - one primary, one not
-	sgPrimary := createTestStudentGuardian(t, db, student.ID, primaryGuardian.ID, "parent", true)
-	sgSecondary := createTestStudentGuardian(t, db, student.ID, secondaryGuardian.ID, "parent", false)
-	defer cleanupStudentGuardians(t, db, sgPrimary.ID, sgSecondary.ID)
-
-	// ACT
-	result, err := repo.FindPrimaryByStudentID(ctx, student.ID)
-
-	// ASSERT
-	require.NoError(t, err)
-	assert.True(t, result.IsPrimary)
-	assert.Equal(t, primaryGuardian.ID, result.GuardianProfileID)
-}
-
-func TestStudentGuardianRepository_FindPrimaryByStudentID_NoPrimary(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create student with no guardians
-	student := testpkg.CreateTestStudent(t, db, "NoPrimary", "Student", "3b")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-	// ACT
-	_, err := repo.FindPrimaryByStudentID(ctx, student.ID)
-
-	// ASSERT
-	require.Error(t, err) // No primary found
-}
-
 // ============================================================================
 // FindEmergencyContactsByStudentID Tests
 // ============================================================================
 
-func TestStudentGuardianRepository_FindEmergencyContactsByStudentID_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Emergency", "Student", "4a")
-	emergencyGuardian := testpkg.CreateTestGuardianProfile(t, db, "emergency-contact")
-	regularGuardian := testpkg.CreateTestGuardianProfile(t, db, "regular-contact")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, emergencyGuardian.ID, regularGuardian.ID)
-
-	// Create emergency contact
-	sgEmergency := &users.StudentGuardian{
-		StudentID:          student.ID,
-		GuardianProfileID:  emergencyGuardian.ID,
-		RelationshipType:   "parent",
-		IsPrimary:          true,
-		IsEmergencyContact: true,
-		CanPickup:          true,
-		Permissions:        map[string]interface{}{},
-	}
-	sgEmergency.SetTenantID(1)
-	_, err := db.NewInsert().Model(sgEmergency).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(t, err)
-
-	// Create regular contact
-	sgRegular := createTestStudentGuardian(t, db, student.ID, regularGuardian.ID, "parent", false)
-	defer cleanupStudentGuardians(t, db, sgEmergency.ID, sgRegular.ID)
-
-	// ACT
-	results, err := repo.FindEmergencyContactsByStudentID(ctx, student.ID)
-
-	// ASSERT
-	require.NoError(t, err)
-	assert.NotEmpty(t, results)
-
-	for _, sg := range results {
-		assert.True(t, sg.IsEmergencyContact)
-	}
-}
-
 // ============================================================================
 // FindPickupAuthoritiesByStudentID Tests
 // ============================================================================
-
-func TestStudentGuardianRepository_FindPickupAuthoritiesByStudentID_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "5a")
-	pickupGuardian := testpkg.CreateTestGuardianProfile(t, db, "pickup-guardian")
-	noPickupGuardian := testpkg.CreateTestGuardianProfile(t, db, "no-pickup-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, pickupGuardian.ID, noPickupGuardian.ID)
-
-	// Create guardian who can pickup
-	sgPickup := createTestStudentGuardian(t, db, student.ID, pickupGuardian.ID, "parent", true)
-
-	// Create guardian who cannot pickup
-	sgNoPickup := &users.StudentGuardian{
-		StudentID:          student.ID,
-		GuardianProfileID:  noPickupGuardian.ID,
-		RelationshipType:   "guardian",
-		IsPrimary:          false,
-		IsEmergencyContact: false,
-		CanPickup:          false,
-		Permissions:        map[string]interface{}{},
-	}
-	sgNoPickup.SetTenantID(1)
-	_, err := db.NewInsert().Model(sgNoPickup).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(t, err)
-	defer cleanupStudentGuardians(t, db, sgPickup.ID, sgNoPickup.ID)
-
-	// ACT
-	results, err := repo.FindPickupAuthoritiesByStudentID(ctx, student.ID)
-
-	// ASSERT
-	require.NoError(t, err)
-	assert.NotEmpty(t, results)
-
-	for _, sg := range results {
-		assert.True(t, sg.CanPickup)
-	}
-}
 
 // ============================================================================
 // SetPrimary Tests
@@ -321,144 +193,13 @@ func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 // SetEmergencyContact Tests
 // ============================================================================
 
-func TestStudentGuardianRepository_SetEmergencyContact_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "SetEmergency", "Student", "7a")
-	guardian := testpkg.CreateTestGuardianProfile(t, db, "set-emergency-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
-
-	// Create relationship
-	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "parent", false)
-	defer cleanupStudentGuardians(t, db, sg.ID)
-
-	// ACT
-	err := repo.SetEmergencyContact(ctx, sg.ID, true)
-
-	// ASSERT
-	require.NoError(t, err)
-
-	// Verify it was updated
-	results, err := repo.FindEmergencyContactsByStudentID(ctx, student.ID)
-	require.NoError(t, err)
-
-	var found bool
-	for _, r := range results {
-		if r.ID == sg.ID {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found)
-}
-
 // ============================================================================
 // SetCanPickup Tests
 // ============================================================================
 
-func TestStudentGuardianRepository_SetCanPickup_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "SetPickup", "Student", "8a")
-	guardian := testpkg.CreateTestGuardianProfile(t, db, "set-pickup-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
-
-	// Create relationship with CanPickup = true initially
-	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "parent", false)
-	defer cleanupStudentGuardians(t, db, sg.ID)
-
-	// ACT - Set to false
-	err := repo.SetCanPickup(ctx, sg.ID, false)
-
-	// ASSERT
-	require.NoError(t, err)
-
-	// Verify it was updated (should NOT be in pickup authorities now)
-	results, err := repo.FindPickupAuthoritiesByStudentID(ctx, student.ID)
-	require.NoError(t, err)
-
-	for _, r := range results {
-		assert.NotEqual(t, sg.ID, r.ID) // Should not find our record
-	}
-}
-
 // ============================================================================
 // UpdatePermissions Tests
 // ============================================================================
-
-func TestStudentGuardianRepository_UpdatePermissions_ValidJSON(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Permissions", "Student", "9a")
-	guardian := testpkg.CreateTestGuardianProfile(t, db, "permissions-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
-
-	// Create relationship
-	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "parent", true)
-	defer cleanupStudentGuardians(t, db, sg.ID)
-
-	// ACT
-	permissions := `{"view_grades": true, "view_attendance": true, "communicate_teacher": false}`
-	err := repo.UpdatePermissions(ctx, sg.ID, permissions)
-
-	// ASSERT
-	require.NoError(t, err)
-
-	// Verify permissions were updated
-	results, err := repo.FindByStudentID(ctx, student.ID)
-	require.NoError(t, err)
-
-	var found bool
-	for _, r := range results {
-		if r.ID == sg.ID {
-			found = true
-			// Check permissions map
-			assert.NotNil(t, r.Permissions)
-			break
-		}
-	}
-	assert.True(t, found)
-}
-
-func TestStudentGuardianRepository_UpdatePermissions_InvalidJSON(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "InvalidJSON", "Student", "9b")
-	guardian := testpkg.CreateTestGuardianProfile(t, db, "invalid-json-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
-
-	// Create relationship
-	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "parent", true)
-	defer cleanupStudentGuardians(t, db, sg.ID)
-
-	// ACT
-	invalidJSON := `{not valid json}`
-	err := repo.UpdatePermissions(ctx, sg.ID, invalidJSON)
-
-	// ASSERT
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid")
-}
 
 // ============================================================================
 // Create Tests
@@ -537,36 +278,6 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 // FindByRelationshipType Tests
 // ============================================================================
 
-func TestStudentGuardianRepository_FindByRelationshipType_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
-
-	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "RelType", "Student", "12a")
-	parentGuardian := testpkg.CreateTestGuardianProfile(t, db, "parent-type")
-	relativeGuardian := testpkg.CreateTestGuardianProfile(t, db, "relative-type")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, parentGuardian.ID, relativeGuardian.ID)
-
-	// Create relationships with different types
-	sgParent := createTestStudentGuardian(t, db, student.ID, parentGuardian.ID, "parent", true)
-	sgRelative := createTestStudentGuardian(t, db, student.ID, relativeGuardian.ID, "relative", false)
-	defer cleanupStudentGuardians(t, db, sgParent.ID, sgRelative.ID)
-
-	// ACT
-	results, err := repo.FindByRelationshipType(ctx, student.ID, "parent")
-
-	// ASSERT
-	require.NoError(t, err)
-	assert.NotEmpty(t, results)
-
-	for _, sg := range results {
-		assert.Equal(t, "parent", sg.RelationshipType)
-	}
-}
-
 // ============================================================================
 // List Tests
 // ============================================================================
@@ -641,6 +352,8 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		defer cleanupStudentGuardians(t, db, rel.ID)
 		require.NoError(t, err)
 		assert.True(t, inserted, "a brand-new link must report inserted=true")
+		assert.Equal(t, authorize.GuardianRoleLegalGuardian, rel.GuardianRole)
+		assert.True(t, authorize.StudentGuardianHasPermission(rel, authorize.GuardianPermissionPortalAccess))
 	})
 
 	t.Run("treats a duplicate link as a no-op reporting not-inserted", func(t *testing.T) {
@@ -702,6 +415,28 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, inserted)
 		assert.Equal(t, int64(1), rel.GetTenantID(), "tenant_id must be auto-set from context")
+		assert.Equal(t, authorize.GuardianRoleLegalGuardian, rel.GuardianRole)
+		assert.True(t, authorize.StudentGuardianHasPermission(rel, authorize.GuardianPermissionPortalAccess))
+	})
+
+	t.Run("defaults pickup-style links without portal access", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "1d")
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkpickup")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
+
+		rel := &users.StudentGuardian{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "other",
+			CanPickup:         true,
+			EmergencyPriority: 1,
+		}
+		inserted, err := repo.LinkIfNotExists(ctx, rel)
+		defer cleanupStudentGuardians(t, db, rel.ID)
+		require.NoError(t, err)
+		require.True(t, inserted)
+		assert.Equal(t, authorize.GuardianRolePickupOnly, rel.GuardianRole)
+		assert.False(t, authorize.StudentGuardianHasPermission(rel, authorize.GuardianPermissionPortalAccess))
 	})
 }
 
@@ -719,4 +454,96 @@ func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *
 	rows, err := repo.ListLinkedChildrenForGuardians(ctx, []int64{})
 	require.NoError(t, err)
 	assert.Empty(t, rows, "an empty guardian-id slice must return no rows")
+}
+
+// TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate covers the
+// FOR UPDATE row lock the parent guardian write paths rely on (PR #1743 review,
+// finding 3). UpdateGuardianContact and UpdateGuardianRelationship read the
+// relationship row, decide authorization from its role/account, then write — a
+// TOCTOU window a concurrent staff edit of the SAME students_guardians row could
+// otherwise slip through (promote/demote/remove the link between the check and
+// the write). FindByStudentAndGuardianForUpdate closes it: the FOR UPDATE lock
+// makes a staff UPDATE/DELETE of that row block until the parent tx commits, so
+// the authorization decision is made on a row that cannot change underneath it.
+// Drop the For("UPDATE") clause and the blocking subtest fails.
+func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentGuardian
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Lock", "Relationship", "1a")
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "lock-relationship-guardian")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
+	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "relative", false)
+	defer cleanupStudentGuardians(t, db, sg.ID)
+
+	t.Run("returns the relationship row", func(t *testing.T) {
+		got, err := repo.FindByStudentAndGuardianForUpdate(ctx, student.ID, guardian.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, sg.ID, got.ID)
+	})
+
+	t.Run("returns ErrStudentGuardianNotFound for an unlinked pair", func(t *testing.T) {
+		_, err := repo.FindByStudentAndGuardianForUpdate(ctx, student.ID, int64(999_999_999))
+		require.ErrorIs(t, err, users.ErrStudentGuardianNotFound)
+	})
+
+	t.Run("FOR UPDATE blocks a concurrent staff write of the same row", func(t *testing.T) {
+		// Parent side: hold the FOR UPDATE lock from a real tx, uncommitted, so a
+		// second tx can observe it.
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+		holdCtx := modelBase.ContextWithTx(ctx, &tx)
+
+		locked, err := repo.FindByStudentAndGuardianForUpdate(holdCtx, student.ID, guardian.ID)
+		require.NoError(t, err)
+		require.Equal(t, sg.ID, locked.ID)
+
+		// Staff side (the path that does NOT take the guardian-profile lock): a
+		// plain UPDATE of the relationship row on a separate connection. With a
+		// short lock_timeout it must FAIL while the parent holds FOR UPDATE —
+		// deterministic proof of serialization, no goroutine timing. A try-style
+		// timeout (not an indefinite block) keeps the test from deadlocking if the
+		// lock is ever lost.
+		staffTx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = staffTx.Rollback() }()
+		_, err = staffTx.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "200ms")
+		require.NoError(t, err)
+		_, err = staffTx.NewUpdate().
+			TableExpr("users.students_guardians").
+			Set("guardian_role = ?", authorize.GuardianRoleSocialWorker).
+			Where("id = ?", sg.ID).
+			Exec(ctx)
+		require.Error(t, err, "a concurrent staff UPDATE must block on the parent FOR UPDATE lock")
+		assert.True(t, isLockTimeoutError(err), "expected lock_timeout, got: %v", err)
+		_ = staffTx.Rollback()
+
+		// Release the parent lock; the staff UPDATE must now succeed.
+		require.NoError(t, tx.Rollback())
+		_, err = db.NewUpdate().
+			TableExpr("users.students_guardians").
+			Set("guardian_role = ?", authorize.GuardianRoleSocialWorker).
+			Where("id = ?", sg.ID).
+			Exec(ctx)
+		require.NoError(t, err, "staff UPDATE must succeed once the FOR UPDATE holder releases")
+	})
+}
+
+// isLockTimeoutError reports whether PostgreSQL refused a lock request because
+// the transaction-local lock_timeout elapsed (SQLSTATE 55P03). Used by the
+// FOR UPDATE serialization test to detect a held lock deterministically instead
+// of through goroutine timing.
+func isLockTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "lock timeout") ||
+		strings.Contains(msg, "lock_not_available") ||
+		strings.Contains(msg, "55P03")
 }

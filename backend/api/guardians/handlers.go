@@ -9,15 +9,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -107,6 +110,7 @@ type GuardianUpdateRequest struct {
 type StudentGuardianLinkRequest struct {
 	GuardianProfileID  int64   `json:"guardian_profile_id"`
 	RelationshipType   string  `json:"relationship_type"`
+	GuardianRole       string  `json:"guardian_role,omitempty"`
 	IsPrimary          bool    `json:"is_primary"`
 	IsEmergencyContact bool    `json:"is_emergency_contact"`
 	CanPickup          bool    `json:"can_pickup"`
@@ -117,6 +121,7 @@ type StudentGuardianLinkRequest struct {
 // StudentGuardianUpdateRequest represents a request to update a student-guardian relationship
 type StudentGuardianUpdateRequest struct {
 	RelationshipType   *string `json:"relationship_type,omitempty"`
+	GuardianRole       *string `json:"guardian_role,omitempty"`
 	IsPrimary          *bool   `json:"is_primary,omitempty"`
 	IsEmergencyContact *bool   `json:"is_emergency_contact,omitempty"`
 	CanPickup          *bool   `json:"can_pickup,omitempty"`
@@ -177,12 +182,6 @@ func (req *PhoneNumberUpdateRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// GuardianWithStudentsResponse represents a guardian with their students
-type GuardianWithStudentsResponse struct {
-	Guardian *GuardianResponse          `json:"guardian"`
-	Students []*StudentWithRelationship `json:"students"`
-}
-
 // StudentWithRelationship represents a student with guardian relationship details
 type StudentWithRelationship struct {
 	StudentID          int64   `json:"student_id"`
@@ -191,6 +190,7 @@ type StudentWithRelationship struct {
 	SchoolClass        string  `json:"school_class"`
 	RelationshipID     int64   `json:"relationship_id"`
 	RelationshipType   string  `json:"relationship_type"`
+	GuardianRole       string  `json:"guardian_role"`
 	IsPrimary          bool    `json:"is_primary"`
 	IsEmergencyContact bool    `json:"is_emergency_contact"`
 	CanPickup          bool    `json:"can_pickup"`
@@ -203,11 +203,28 @@ type GuardianWithRelationship struct {
 	Guardian           *GuardianResponse `json:"guardian"`
 	RelationshipID     int64             `json:"relationship_id"`
 	RelationshipType   string            `json:"relationship_type"`
+	GuardianRole       string            `json:"guardian_role"`
 	IsPrimary          bool              `json:"is_primary"`
 	IsEmergencyContact bool              `json:"is_emergency_contact"`
 	CanPickup          bool              `json:"can_pickup"`
 	PickupNotes        *string           `json:"pickup_notes,omitempty"`
 	EmergencyPriority  int               `json:"emergency_priority"`
+	// AccountStatus is the portal-access state of this guardian for the staff
+	// "Erziehungsberechtigte" tab: "active" (has login), "pending" (invited,
+	// not yet accepted), or "none" (info on file, no account, can be invited).
+	AccountStatus string `json:"account_status"`
+}
+
+// guardianAccountStatus derives the staff-facing account-status string.
+func guardianAccountStatus(hasAccount, invitationPending bool) string {
+	switch {
+	case hasAccount:
+		return "active"
+	case invitationPending:
+		return "pending"
+	default:
+		return "none"
+	}
 }
 
 // Bind validates the guardian create request
@@ -273,6 +290,7 @@ type GuardianWithRelationshipInput struct {
 
 	// Relationship to the student
 	RelationshipType   string `json:"relationship_type"`
+	GuardianRole       string `json:"guardian_role,omitempty"`
 	IsPrimary          bool   `json:"is_primary,omitempty"`
 	IsEmergencyContact bool   `json:"is_emergency_contact,omitempty"`
 	CanPickup          bool   `json:"can_pickup,omitempty"`
@@ -340,7 +358,7 @@ func (rs *Resource) canModifyStudent(ctx context.Context, studentID int64) (bool
 	userPermissions := jwt.PermissionsFromCtx(ctx)
 
 	// Admin users have full access
-	if common.HasAdminPermissions(userPermissions) {
+	if authorize.HasAdminWildcard(userPermissions) {
 		return true, nil
 	}
 
@@ -382,7 +400,7 @@ func (rs *Resource) canModifyGuardian(ctx context.Context, guardianID int64) (bo
 	userPermissions := jwt.PermissionsFromCtx(ctx)
 
 	// Admin users have full access
-	if common.HasAdminPermissions(userPermissions) {
+	if authorize.HasAdminWildcard(userPermissions) {
 		return true, nil
 	}
 
@@ -545,7 +563,7 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 
 	// Admin users can create guardians without additional checks
-	isAdmin := common.HasAdminPermissions(userPermissions)
+	isAdmin := authorize.HasAdminWildcard(userPermissions)
 
 	// Non-admin users must be staff members with supervised groups
 	if !isAdmin {
@@ -771,7 +789,7 @@ func (rs *Resource) guardianDeletePreview(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if !common.HasAdminPermissions(jwt.PermissionsFromCtx(r.Context())) {
+	if !authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context())) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("only administrators can preview a full guardian delete")))
 		return
 	}
@@ -842,31 +860,12 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// affected children — the single-student unlink lives at
 	// DELETE /students/{id}/guardians/{gid}.
 	force := r.URL.Query().Get("force") == "true"
-	isAdmin := common.HasAdminPermissions(jwt.PermissionsFromCtx(r.Context()))
+	isAdmin := authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
 
-	impact, err := rs.GuardianService.GetGuardianDeleteImpact(r.Context(), id)
+	hasLinks, err := rs.GuardianService.EvaluateGuardianDelete(r.Context(), id, force, isAdmin)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderGuardianDeleteError(w, r, err, isAdmin)
 		return
-	}
-	linkedNames := impact.StudentNames
-
-	if len(linkedNames) > 0 {
-		if !force {
-			message := "Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"
-			if isAdmin {
-				message = guardianFullDeleteWarning(linkedNames)
-			}
-			common.RenderError(w, r, common.ErrorConflictMessage(message))
-			return
-		}
-		// A full delete reaches across every linked student — including siblings
-		// in groups the caller may not supervise. Restrict that blast radius to
-		// admins; group supervisors must use the per-student unlink instead.
-		if !isAdmin {
-			common.RenderError(w, r, common.ErrorForbidden(errors.New("only administrators can fully delete a guardian linked to students")))
-			return
-		}
 	}
 
 	expectedLinkIDs, err := parseExpectedGuardianLinkIDs(r)
@@ -880,33 +879,49 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// tenant transaction so a failure leaves guardian and links intact.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if len(linkedNames) > 0 {
+		if hasLinks {
 			return rs.GuardianService.DeleteGuardianWithLinks(ctx, id, expectedLinkIDs)
 		}
 		return rs.GuardianService.DeleteGuardian(ctx, id)
 	}); err != nil {
-		if errors.Is(err, guardianSvc.ErrGuardianDeletePreviewChanged) {
-			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictMessage(err.Error()))
-			return
-		}
-		// Safety net: a link added between the check above and the delete trips
-		// the RESTRICT FK — surface it as the same 409 rather than a 500.
-		if common.IsConstraintViolation(err) {
-			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"))
-			return
-		}
-		// Check for "not found" errors and return 404
-		if strings.Contains(err.Error(), "not found") {
-			common.RenderError(w, r, common.ErrorNotFound(err))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
+		rs.renderGuardianDeleteError(w, r, err, isAdmin)
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Guardian deleted successfully")
+}
+
+// renderGuardianDeleteError maps the errors from EvaluateGuardianDelete and the
+// delete transaction onto their HTTP responses, preserving the two distinct
+// German conflict messages (the admin warning lists the affected children; the
+// non-admin one does not).
+func (rs *Resource) renderGuardianDeleteError(w http.ResponseWriter, r *http.Request, err error, isAdmin bool) {
+	var stillLinked *guardianSvc.GuardianStillLinkedError
+	switch {
+	case errors.As(err, &stillLinked):
+		message := "Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"
+		if isAdmin {
+			message = guardianFullDeleteWarning(stillLinked.StudentNames)
+		}
+		common.RenderError(w, r, common.ErrorConflictMessage(message))
+	case errors.Is(err, guardianSvc.ErrGuardianForceDeleteRequiresAdmin):
+		// A full delete reaches across every linked student — including siblings
+		// in groups the caller may not supervise. Restrict that blast radius to
+		// admins; group supervisors must use the per-student unlink instead.
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, guardianSvc.ErrGuardianDeletePreviewChanged):
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.ErrorConflictMessage(err.Error()))
+	case common.IsConstraintViolation(err):
+		// Safety net: a link added between the check above and the delete trips
+		// the RESTRICT FK — surface it as the same 409 rather than a 500.
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"))
+	case strings.Contains(err.Error(), "not found"):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
 }
 
 // listGuardiansWithoutAccount handles listing guardians who don't have accounts
@@ -968,7 +983,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		invitation, txErr = rs.GuardianService.SendInvitation(ctx, invitationReq)
+		invitation, txErr = rs.GuardianService.SendInvitation(ctx, invitationReq) //nolint:staticcheck // deprecated twin stays until audit A-13 deletes the whole flow
 		return txErr
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -982,8 +997,15 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 		"expires_at":          invitation.ExpiresAt,
 		"email_sent":          invitation.EmailSentAt != nil,
 	}
+	if shouldExposeSeedInvitationToken(r) {
+		response["token"] = invitation.Token
+	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Invitation sent successfully")
+}
+
+func shouldExposeSeedInvitationToken(r *http.Request) bool {
+	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
 }
 
 // listPendingInvitations handles listing all pending guardian invitations
@@ -1034,11 +1056,13 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 			Guardian:           newGuardianResponse(gwr.Profile),
 			RelationshipID:     gwr.Relationship.ID,
 			RelationshipType:   gwr.Relationship.RelationshipType,
+			GuardianRole:       gwr.Relationship.GuardianRole,
 			IsPrimary:          gwr.Relationship.IsPrimary,
 			IsEmergencyContact: gwr.Relationship.IsEmergencyContact,
 			CanPickup:          gwr.Relationship.CanPickup,
 			PickupNotes:        gwr.Relationship.PickupNotes,
 			EmergencyPriority:  gwr.Relationship.EmergencyPriority,
+			AccountStatus:      guardianAccountStatus(gwr.Profile.HasAccount, gwr.InvitationPending),
 		})
 	}
 
@@ -1080,6 +1104,7 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 			SchoolClass:        swr.Student.SchoolClass,
 			RelationshipID:     swr.Relationship.ID,
 			RelationshipType:   swr.Relationship.RelationshipType,
+			GuardianRole:       swr.Relationship.GuardianRole,
 			IsPrimary:          swr.Relationship.IsPrimary,
 			IsEmergencyContact: swr.Relationship.IsEmergencyContact,
 			CanPickup:          swr.Relationship.CanPickup,
@@ -1119,6 +1144,7 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 		StudentID:          studentID,
 		GuardianProfileID:  req.GuardianProfileID,
 		RelationshipType:   req.RelationshipType,
+		GuardianRole:       req.GuardianRole,
 		IsPrimary:          req.IsPrimary,
 		IsEmergencyContact: req.IsEmergencyContact,
 		CanPickup:          req.CanPickup,
@@ -1141,19 +1167,10 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusCreated, relationship, "Guardian linked to student successfully")
 }
 
-// trimToNil returns a pointer to the trimmed string, or nil when empty, so
-// optional JSON fields map cleanly onto nullable model columns.
-func trimToNil(s string) *string {
-	trimmed := strings.TrimSpace(s)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
-// toNewStudentGuardians maps the request DTOs onto the service input used by
-// GuardianService.AddGuardiansToStudent.
-func toNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc.NewStudentGuardian {
+// ToNewStudentGuardians maps the request DTOs onto the service input used by
+// GuardianService.AddGuardiansToStudent. Shared with api/students, whose
+// student-create flow accepts the same guardian rows.
+func ToNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc.NewStudentGuardian {
 	out := make([]guardianSvc.NewStudentGuardian, 0, len(inputs))
 	for i := range inputs {
 		in := inputs[i]
@@ -1161,20 +1178,21 @@ func toNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc
 			Profile: guardianSvc.GuardianCreateRequest{
 				FirstName:              strings.TrimSpace(in.FirstName),
 				LastName:               strings.TrimSpace(in.LastName),
-				Email:                  trimToNil(in.Email),
-				AddressStreet:          trimToNil(in.AddressStreet),
-				AddressCity:            trimToNil(in.AddressCity),
-				AddressPostalCode:      trimToNil(in.AddressPostalCode),
+				Email:                  strutil.TrimToNil(in.Email),
+				AddressStreet:          strutil.TrimToNil(in.AddressStreet),
+				AddressCity:            strutil.TrimToNil(in.AddressCity),
+				AddressPostalCode:      strutil.TrimToNil(in.AddressPostalCode),
 				PreferredContactMethod: in.PreferredContactMethod,
 				LanguagePreference:     in.LanguagePreference,
-				Notes:                  trimToNil(in.Notes),
+				Notes:                  strutil.TrimToNil(in.Notes),
 			},
 			Relationship: guardianSvc.StudentGuardianRelationship{
 				RelationshipType:   in.RelationshipType,
+				GuardianRole:       in.GuardianRole,
 				IsPrimary:          in.IsPrimary,
 				IsEmergencyContact: in.IsEmergencyContact,
 				CanPickup:          in.CanPickup,
-				PickupNotes:        trimToNil(in.PickupNotes),
+				PickupNotes:        strutil.TrimToNil(in.PickupNotes),
 				EmergencyPriority:  in.EmergencyPriority,
 			},
 			PhoneNumbers:      toPhoneCreateRequests(in.PhoneNumbers),
@@ -1195,7 +1213,7 @@ func toPhoneCreateRequests(phones []GuardianPhoneInput) []guardianSvc.PhoneNumbe
 		out = append(out, guardianSvc.PhoneNumberCreateRequest{
 			PhoneNumber: strings.TrimSpace(p.PhoneNumber),
 			PhoneType:   p.PhoneType,
-			Label:       trimToNil(p.Label),
+			Label:       strutil.TrimToNil(p.Label),
 			IsPrimary:   p.IsPrimary,
 		})
 	}
@@ -1235,7 +1253,7 @@ func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	guardians := toNewStudentGuardians(req.Guardians)
+	guardians := ToNewStudentGuardians(req.Guardians)
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
@@ -1289,6 +1307,7 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 	// Convert to service request
 	updateReq := guardianSvc.StudentGuardianUpdateRequest{
 		RelationshipType:   req.RelationshipType,
+		GuardianRole:       req.GuardianRole,
 		IsPrimary:          req.IsPrimary,
 		IsEmergencyContact: req.IsEmergencyContact,
 		CanPickup:          req.CanPickup,
@@ -1341,173 +1360,6 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Guardian removed from student successfully")
-}
-
-// PUBLIC INVITATION ENDPOINTS (No authentication required)
-
-// GuardianInvitationAcceptRequest represents a request to accept a guardian invitation
-type GuardianInvitationAcceptRequest struct {
-	Password        string `json:"password"`
-	ConfirmPassword string `json:"confirm_password"`
-}
-
-// Bind validates the invitation accept request
-func (req *GuardianInvitationAcceptRequest) Bind(_ *http.Request) error {
-	if req.Password == "" {
-		return errors.New("password is required")
-	}
-	if req.ConfirmPassword == "" {
-		return errors.New("confirm_password is required")
-	}
-	if req.Password != req.ConfirmPassword {
-		return errors.New("passwords do not match")
-	}
-	return nil
-}
-
-// validateGuardianInvitation handles validating a guardian invitation token (PUBLIC)
-func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Request) {
-	// Get token from URL
-	token := chi.URLParam(r, "token")
-	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required")))
-		return
-	}
-
-	// Validate invitation
-	result, err := rs.GuardianService.ValidateInvitation(r.Context(), token)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("invitation not found or expired")))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, result, "Invitation is valid")
-}
-
-// acceptGuardianInvitation handles accepting a guardian invitation and creating an account (PUBLIC)
-func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Request) {
-	// Get token from URL
-	token := chi.URLParam(r, "token")
-	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required")))
-		return
-	}
-
-	// Parse request
-	req := &GuardianInvitationAcceptRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	// Convert to service request
-	acceptReq := guardianSvc.GuardianInvitationAcceptRequest{
-		Token:           token,
-		Password:        req.Password,
-		ConfirmPassword: req.ConfirmPassword,
-	}
-
-	// Accept invitation
-	account, err := rs.GuardianService.AcceptInvitation(r.Context(), acceptReq)
-	if err != nil {
-		// Log the full error for debugging
-		slog.Default().Error("failed to accept invitation", slog.String("error", err.Error()))
-
-		// Return appropriate error (use Contains for wrapped errors)
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "has expired") {
-			common.RenderError(w, r, common.ErrorNotFound(err))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
-		return
-	}
-
-	// Return account details (without password hash)
-	response := map[string]interface{}{
-		"id":       account.ID,
-		"email":    account.Email,
-		"username": account.Username,
-		"message":  "Account created successfully. You can now log in to the parent portal.",
-	}
-
-	common.Respond(w, r, http.StatusCreated, response, "Invitation accepted and account created successfully")
-}
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// ListGuardiansHandler returns the list guardians handler
-func (rs *Resource) ListGuardiansHandler() http.HandlerFunc { return rs.listGuardians }
-
-// SearchGuardiansForPickerHandler returns the guardian picker search handler.
-func (rs *Resource) SearchGuardiansForPickerHandler() http.HandlerFunc {
-	return rs.searchGuardiansForPicker
-}
-
-// GetGuardianHandler returns the get guardian handler
-func (rs *Resource) GetGuardianHandler() http.HandlerFunc { return rs.getGuardian }
-
-// CreateGuardianHandler returns the create guardian handler
-func (rs *Resource) CreateGuardianHandler() http.HandlerFunc { return rs.createGuardian }
-
-// UpdateGuardianHandler returns the update guardian handler
-func (rs *Resource) UpdateGuardianHandler() http.HandlerFunc { return rs.updateGuardian }
-
-// DeleteGuardianHandler returns the delete guardian handler
-func (rs *Resource) DeleteGuardianHandler() http.HandlerFunc { return rs.deleteGuardian }
-
-// GuardianDeletePreviewHandler returns the guardian delete-preview handler.
-func (rs *Resource) GuardianDeletePreviewHandler() http.HandlerFunc {
-	return rs.guardianDeletePreview
-}
-
-// ListGuardiansWithoutAccountHandler returns the list guardians without account handler
-func (rs *Resource) ListGuardiansWithoutAccountHandler() http.HandlerFunc {
-	return rs.listGuardiansWithoutAccount
-}
-
-// ListInvitableGuardiansHandler returns the list invitable guardians handler
-func (rs *Resource) ListInvitableGuardiansHandler() http.HandlerFunc {
-	return rs.listInvitableGuardians
-}
-
-// SendInvitationHandler returns the send invitation handler
-func (rs *Resource) SendInvitationHandler() http.HandlerFunc { return rs.sendInvitation }
-
-// ListPendingInvitationsHandler returns the list pending invitations handler
-func (rs *Resource) ListPendingInvitationsHandler() http.HandlerFunc {
-	return rs.listPendingInvitations
-}
-
-// GetStudentGuardiansHandler returns the get student guardians handler
-func (rs *Resource) GetStudentGuardiansHandler() http.HandlerFunc { return rs.getStudentGuardians }
-
-// GetGuardianStudentsHandler returns the get guardian students handler
-func (rs *Resource) GetGuardianStudentsHandler() http.HandlerFunc { return rs.getGuardianStudents }
-
-// LinkGuardianToStudentHandler returns the link guardian to student handler
-func (rs *Resource) LinkGuardianToStudentHandler() http.HandlerFunc { return rs.linkGuardianToStudent }
-
-// UpdateStudentGuardianRelationshipHandler returns the update relationship handler
-func (rs *Resource) UpdateStudentGuardianRelationshipHandler() http.HandlerFunc {
-	return rs.updateStudentGuardianRelationship
-}
-
-// RemoveGuardianFromStudentHandler returns the remove guardian from student handler
-func (rs *Resource) RemoveGuardianFromStudentHandler() http.HandlerFunc {
-	return rs.removeGuardianFromStudent
-}
-
-// ValidateGuardianInvitationHandler returns the validate invitation handler
-func (rs *Resource) ValidateGuardianInvitationHandler() http.HandlerFunc {
-	return rs.validateGuardianInvitation
-}
-
-// AcceptGuardianInvitationHandler returns the accept invitation handler
-func (rs *Resource) AcceptGuardianInvitationHandler() http.HandlerFunc {
-	return rs.acceptGuardianInvitation
 }
 
 // =============================================================================
@@ -1695,20 +1547,3 @@ func (rs *Resource) setPrimaryPhone(w http.ResponseWriter, r *http.Request) {
 
 	common.Respond(w, r, http.StatusOK, newPhoneNumberResponse(updatedPhone), "Phone number set as primary successfully")
 }
-
-// ListGuardianPhoneNumbersHandler returns the list phone numbers handler
-func (rs *Resource) ListGuardianPhoneNumbersHandler() http.HandlerFunc {
-	return rs.listGuardianPhoneNumbers
-}
-
-// AddPhoneNumberHandler returns the add phone number handler
-func (rs *Resource) AddPhoneNumberHandler() http.HandlerFunc { return rs.addPhoneNumber }
-
-// UpdatePhoneNumberHandler returns the update phone number handler
-func (rs *Resource) UpdatePhoneNumberHandler() http.HandlerFunc { return rs.updatePhoneNumber }
-
-// DeletePhoneNumberHandler returns the delete phone number handler
-func (rs *Resource) DeletePhoneNumberHandler() http.HandlerFunc { return rs.deletePhoneNumber }
-
-// SetPrimaryPhoneHandler returns the set primary phone handler
-func (rs *Resource) SetPrimaryPhoneHandler() http.HandlerFunc { return rs.setPrimaryPhone }

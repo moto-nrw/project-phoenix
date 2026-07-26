@@ -100,11 +100,6 @@ func TestWorkSession_IsActive(t *testing.T) {
 	})
 }
 
-func TestWorkSession_TableName(t *testing.T) {
-	ws := &WorkSession{}
-	assert.Equal(t, "active.work_sessions", ws.TableName())
-}
-
 func TestWorkSession_Getters(t *testing.T) {
 	now := time.Now()
 	ws := &WorkSession{}
@@ -115,29 +110,4 @@ func TestWorkSession_Getters(t *testing.T) {
 	assert.Equal(t, int64(42), ws.GetID())
 	assert.Equal(t, now, ws.GetCreatedAt())
 	assert.Equal(t, now, ws.GetUpdatedAt())
-}
-
-func TestWorkSession_BeforeAppendModel(t *testing.T) {
-	ws := &WorkSession{}
-
-	t.Run("handles SelectQuery", func(t *testing.T) {
-		// BeforeAppendModel should not error on any query type
-		err := ws.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles UpdateQuery", func(t *testing.T) {
-		err := ws.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles DeleteQuery", func(t *testing.T) {
-		err := ws.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles InsertQuery", func(t *testing.T) {
-		err := ws.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
 }

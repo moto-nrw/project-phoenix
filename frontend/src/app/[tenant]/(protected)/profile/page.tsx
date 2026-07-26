@@ -14,9 +14,10 @@ import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { PasswordChangeModal } from "~/components/ui";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PasswordChangeModal } from "~/components/ui/password-change-modal";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
+import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
@@ -129,7 +130,7 @@ function ProfileContent() {
         {/* Avatar Section */}
         <div className="flex flex-col items-center pt-4">
           <div className="group relative">
-            <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-xl">
+            <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-[#ECF8DF] text-[#5A8E1F]">
               {profile?.avatar ? (
                 <Image
                   src={profile.avatar}
@@ -270,6 +271,7 @@ function ProfileContent() {
 
         {/* Trusted Devices Section — personal device management.
             Mirrors the Operator profile page (app/operator/settings/page.tsx). */}
+        <PasskeySettingsSection />
         <TrustedDevicesSection />
       </div>
 

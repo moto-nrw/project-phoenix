@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { parentPath } from "~/lib/parent-url";
@@ -9,6 +8,7 @@ import { ParentShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { AppShell } from "~/components/dashboard/app-shell";
 import { Loading } from "~/components/ui/loading";
+import { ParentRealtimeBridge } from "~/components/parent/parent-realtime-bridge";
 
 function FullPageLoading() {
   // Always rendered under the parents-portal NextIntlClientProvider, so the
@@ -34,6 +34,8 @@ function FullPageLoading() {
 const PARENT_PUBLIC_PAGES = [
   "/parents/login",
   "/login",
+  "/parents/reset-password",
+  "/reset-password",
   "/parents/email-confirm",
   "/email-confirm",
   "/parents/accept-guardian-invite",
@@ -51,44 +53,24 @@ export function ParentAuthGuard({
   readonly children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const isPublicPage = PARENT_PUBLIC_PAGES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
   const { data: session, status } = useSession();
-
-  // Redirect non-parent authenticated users away. A misconfigured
-  // session (someone managed to log in but with the wrong scope) gets
-  // bounced to root, which the proxy will redirect to login.
-  useEffect(() => {
-    if (
-      !isPublicPage &&
-      status === "authenticated" &&
-      session?.user?.scope !== "parent"
-    ) {
-      router.push("/");
-    }
-  }, [isPublicPage, status, session, router]);
-
-  // Redirect unauthenticated users to login.
-  useEffect(() => {
-    if (!isPublicPage && status === "unauthenticated") {
-      router.push(parentPath("/parents/login"));
-    }
-  }, [isPublicPage, status, router]);
 
   // Login page: render without auth guards.
   if (isPublicPage) {
     return <>{children}</>;
   }
 
-  // Loading, unauthenticated, or wrong scope — show loading spinner
-  // until the redirect kicks in.
-  if (
-    status === "loading" ||
-    status === "unauthenticated" ||
-    session?.user?.scope !== "parent"
-  ) {
+  if (status === "authenticated" && session?.user?.scope !== "parent") {
+    redirect("/");
+  }
+  if (status === "unauthenticated") {
+    redirect(parentPath("/parents/login"));
+  }
+
+  if (status === "loading") {
     return <FullPageLoading />;
   }
 
@@ -97,6 +79,7 @@ export function ParentAuthGuard({
   return (
     <ParentShellProvider>
       <BreadcrumbProvider>
+        <ParentRealtimeBridge />
         <AppShell>{children}</AppShell>
       </BreadcrumbProvider>
     </ParentShellProvider>

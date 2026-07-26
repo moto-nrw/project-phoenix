@@ -82,10 +82,10 @@ func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 		},
 	}
 
-	required, err := svc.resolveRequiredConsents(context.Background(), schema)
+	blocks, err := svc.resolveSubmissionLegalBlocks(context.Background(), schema)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing, "custom_pool"}, required)
+	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing, "custom_pool"}, requiredConsentKeys(blocks))
 }
 
 func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing.T) {
@@ -104,6 +104,58 @@ func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing
 
 	require.Len(t, blocks, 1)
 	assert.Equal(t, enrollmentModels.ConsentKeyAGB, blocks[0].Key)
+}
+
+func TestBuildLegalBlocks_DefaultAGBSourceUsesTextWhenDocumentExists(t *testing.T) {
+	texts := LegalTexts{
+		AGB:            "AGB Text",
+		AGBDocumentURL: "/uploads/enrollment-legal-documents/tenant-1.pdf",
+		TermsEnabled:   true,
+	}
+
+	blocks := buildLegalBlocks(texts)
+
+	require.Len(t, blocks, 1)
+	assert.Equal(t, "AGB Text", blocks[0].Text)
+}
+
+func TestBuildLegalBlocks_PDFAGBSourceUsesDocumentLinkOnly(t *testing.T) {
+	texts := LegalTexts{
+		AGB:            "AGB Text",
+		AGBDocumentURL: "/uploads/enrollment-legal-documents/tenant-1.pdf",
+		AGBDisplayMode: configModel.EnrollmentLegalAGBDisplayModePDF,
+		TermsEnabled:   true,
+	}
+
+	blocks := buildLegalBlocks(texts)
+
+	require.Len(t, blocks, 1)
+	assert.NotContains(t, blocks[0].Text, "AGB Text")
+	assert.Contains(t, blocks[0].Text, "AGB-Dokument öffnen")
+	assert.Contains(t, blocks[0].Text, "/api/public/enrollment-legal-documents/tenant-1.pdf")
+}
+
+func TestBuildTemplateLegalBlocks_PDFAGBSourceUsesDocumentURL(t *testing.T) {
+	blocks := buildTemplateLegalBlocks([]enrollmentModels.FormLegalBlock{
+		{
+			Key:         enrollmentModels.ConsentKeyAGB,
+			Kind:        enrollmentModels.LegalBlockKindTerms,
+			Title:       "AGB",
+			Label:       "AGB akzeptieren",
+			Text:        "Textquelle bleibt gespeichert",
+			Required:    true,
+			Enabled:     true,
+			SortOrder:   10,
+			Source:      enrollmentModels.LegalBlockSourceStandard,
+			DisplayMode: enrollmentModels.LegalBlockDisplayModePDF,
+			DocumentURL: "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+		},
+	})
+
+	require.Len(t, blocks, 1)
+	assert.NotContains(t, blocks[0].Text, "Textquelle bleibt gespeichert")
+	assert.Contains(t, blocks[0].Text, "AGB-Dokument öffnen")
+	assert.Contains(t, blocks[0].Text, "/api/public/enrollment-form-legal-documents/1_terms.pdf")
 }
 
 func TestBuildLegalBlocks_ShowsAllEnabledContentfulStandardBlocks(t *testing.T) {
@@ -158,14 +210,14 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 	// A template whose blocks are ALL disabled must behave like a template
 	// without blocks: the tenant-wide settings contract stays in force, so
 	// the DSGVO acknowledgment cannot be erased by an empty snapshot.
-	svc := &requestService{settings: &legalSettingsStub{
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: &legalSettingsStub{
 		values: map[string]string{
 			configModel.KeyEnrollmentLegalDSGVOText: "DSGVO Text",
 		},
 		bools: map[string]bool{
 			configModel.KeyEnrollmentLegalDSGVOEnabled: true,
 		},
-	}}
+	}}}
 	schema := &enrollmentModels.FormSchema{
 		LegalBlocks: []enrollmentModels.FormLegalBlock{
 			{
@@ -178,10 +230,10 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 		},
 	}
 
-	required, err := svc.resolveRequiredConsents(context.Background(), schema)
+	blocks, err := svc.resolveSubmissionLegalBlocks(context.Background(), schema)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing}, required)
+	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing}, requiredConsentKeys(blocks))
 }
 
 func TestBuildTemplateLegalBlocks_SortsBySortOrder(t *testing.T) {

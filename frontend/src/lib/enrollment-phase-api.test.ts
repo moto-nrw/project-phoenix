@@ -9,6 +9,8 @@ import {
   createRollover,
   listRolloverReview,
   decideRolloverReview,
+  phaseToInput,
+  setPhaseCalendarPeriod,
   type Phase,
   type PhaseDeleteImpact,
   type PhaseInput,
@@ -80,6 +82,12 @@ describe("listPhases", () => {
     expect(out[0]!.id).toBe("1");
   });
 
+  it("accepts a bare array response", async () => {
+    mockFetch(async () => jsonResponse([mkPhase("1", "X")]));
+    const out = await listPhases();
+    expect(out.map((phase) => phase.id)).toEqual(["1"]);
+  });
+
   it("returns [] when the backend returns non-array data", async () => {
     mockFetch(async () => jsonResponse({ data: null }));
     expect(await listPhases()).toEqual([]);
@@ -103,6 +111,128 @@ describe("listPhases", () => {
     await expect(listPhases()).rejects.toThrow(
       /Phasen konnten nicht geladen werden/,
     );
+  });
+});
+
+// --- phase calendar period helpers ------------------------------------
+
+describe("phase calendar period helpers", () => {
+  it("maps a phase to the full update input and preserves explicit values", () => {
+    const phase: Phase = {
+      ...mkPhase("1234", "Sommerferien"),
+      kind: "holiday",
+      enrollment_open_at: "2026-03-01T08:00:00Z",
+      enrollment_close_at: "2026-03-15T18:00:00Z",
+      form_schema_id: "44",
+      calendar_period_id: "55",
+      show_status_reason_to_parent: true,
+      care_overflow_mode: "reject",
+      care_offering_selection_mode: "exactly_one",
+      is_active: false,
+    };
+
+    expect(phaseToInput(phase)).toEqual({
+      name: "Sommerferien",
+      kind: "holiday",
+      service_start_date: "2026-09-01",
+      service_end_date: "2027-07-31",
+      enrollment_open_at: "2026-03-01T08:00:00Z",
+      enrollment_close_at: "2026-03-15T18:00:00Z",
+      form_schema_id: "44",
+      calendar_period_id: "55",
+      show_status_reason_to_parent: true,
+      care_overflow_mode: "reject",
+      care_offering_selection_mode: "exactly_one",
+      is_active: false,
+      available_school_classes: [],
+      require_school_class: false,
+    });
+  });
+
+  it("normalizes omitted nullable phase fields before a full update", () => {
+    const phase = {
+      ...mkPhase("1234", "Schuljahr"),
+      enrollment_open_at: undefined,
+      enrollment_close_at: undefined,
+      form_schema_id: undefined,
+      calendar_period_id: undefined,
+      care_offering_selection_mode: undefined,
+    } as unknown as Phase;
+
+    expect(phaseToInput(phase)).toMatchObject({
+      enrollment_open_at: null,
+      enrollment_close_at: null,
+      form_schema_id: null,
+      calendar_period_id: null,
+      care_offering_selection_mode: "optional",
+    });
+  });
+
+  it("links a phase via refetch-then-PUT, writing from the fresh server state", async () => {
+    // The caller holds a stale snapshot; the server has a newer name. The
+    // PUT body must come from the refetched state, not the stale argument.
+    const stale = mkPhase("phase/1", "Alter Name");
+    const fresh = mkPhase("phase/1", "Neuer Name");
+    const calls: { url: string; method: string; body?: PhaseInput }[] = [];
+    mockFetch(async (input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+      calls.push({
+        url,
+        method,
+        body: init?.body
+          ? (JSON.parse(init.body as string) as PhaseInput)
+          : undefined,
+      });
+      if (method === "GET") return jsonResponse({ data: fresh });
+      return jsonResponse({
+        data: { ...fresh, calendar_period_id: "period/2" },
+      });
+    });
+
+    const out = await setPhaseCalendarPeriod(stale, "period/2");
+
+    expect(calls.map((c) => c.method)).toEqual(["GET", "PUT"]);
+    expect(calls[0]!.url).toContain("/phase%2F1");
+    expect(calls[1]!.url).toContain("/phase%2F1");
+    expect(calls[1]!.body).toEqual({
+      ...phaseToInput(fresh),
+      calendar_period_id: "period/2",
+    });
+    expect(out.calendar_period_id).toBe("period/2");
+  });
+
+  it("unlinks a phase calendar period with null", async () => {
+    const phase = {
+      ...mkPhase("phase-1", "Schuljahr"),
+      calendar_period_id: "7",
+    };
+    let seenBody: PhaseInput | undefined;
+    mockFetch(async (_, init) => {
+      if (!init?.method || init.method === "GET") {
+        return jsonResponse({ data: phase });
+      }
+      seenBody = JSON.parse((init?.body as string) ?? "{}") as PhaseInput;
+      return jsonResponse({ data: { ...phase, calendar_period_id: null } });
+    });
+
+    const out = await setPhaseCalendarPeriod(phase, null);
+
+    expect(seenBody?.calendar_period_id).toBeNull();
+    expect(out.calendar_period_id).toBeNull();
+  });
+
+  it("does not PUT when the refetch fails", async () => {
+    const methods: string[] = [];
+    mockFetch(async (_, init) => {
+      methods.push(init?.method ?? "GET");
+      return jsonResponse({ error: "boom" }, { status: 500 });
+    });
+
+    await expect(
+      setPhaseCalendarPeriod(mkPhase("1", "X"), "2"),
+    ).rejects.toThrow();
+    expect(methods).toEqual(["GET"]);
   });
 });
 

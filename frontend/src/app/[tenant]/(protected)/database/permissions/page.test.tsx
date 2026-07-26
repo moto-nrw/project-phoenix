@@ -45,7 +45,7 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -72,7 +72,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     onClearAllFilters,
@@ -88,7 +88,11 @@ vi.mock("~/components/ui/page-header", () => ({
         value={search.value}
         onChange={(event) => search.onChange(event.target.value)}
       />
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -100,23 +104,26 @@ vi.mock("~/components/ui/page-header", () => ({
 // assert the rethrown message bubbles up to the form layer.
 const lastModalError = { message: "" };
 
-vi.mock("@/components/permissions", () => ({
-  PermissionCreateModal: ({
+vi.mock("~/components/ui/database/database-form-modal", () => ({
+  // The page renders the create modal via DatabaseFormModal directly; the
+  // edit modal keeps its PermissionEditModal wrapper (mocked below).
+  DatabaseFormModal: ({
     isOpen,
     onClose,
-    onCreate,
+    onSubmit,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: { resource: string; action: string }) => Promise<void>;
+    onSubmit: (data: { resource: string; action: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="permission-create-modal">
         <button
+          type="button"
           data-testid="submit-create"
           onClick={() => {
             lastModalError.message = "";
-            onCreate({ resource: "students", action: "delete" }).catch(
+            onSubmit({ resource: "students", action: "delete" }).catch(
               (err: unknown) => {
                 lastModalError.message =
                   err instanceof Error ? err.message : String(err);
@@ -126,11 +133,18 @@ vi.mock("@/components/permissions", () => ({
         >
           Submit
         </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="close-create-modal"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>
     ) : null,
+}));
+
+vi.mock("@/components/permissions/permission-edit-modal", () => ({
   PermissionEditModal: ({
     isOpen,
     onClose,
@@ -143,6 +157,7 @@ vi.mock("@/components/permissions", () => ({
     isOpen ? (
       <div data-testid="permission-edit-modal">
         <button
+          type="button"
           data-testid="submit-edit"
           onClick={() => {
             lastModalError.message = "";
@@ -154,11 +169,14 @@ vi.mock("@/components/permissions", () => ({
         >
           Save
         </button>
-        <button data-testid="close-edit-modal" onClick={onClose}>
+        <button type="button" data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
       </div>
     ) : null,
+}));
+
+vi.mock("@/components/permissions/permissions-master-detail", () => ({
   PermissionsMasterDetail: ({
     permissions,
     selectedId,
@@ -177,6 +195,7 @@ vi.mock("@/components/permissions", () => ({
     <div data-testid="permissions-master-detail">
       {permissions.map((permission) => (
         <button
+          type="button"
           key={permission.id}
           data-testid={`permission-row-${permission.id}`}
           onClick={() => onSelect(permission.id)}
@@ -190,13 +209,25 @@ vi.mock("@/components/permissions", () => ({
           <span data-testid="detail-permission-name">
             {selectedPermission?.resource}:{selectedPermission?.action}
           </span>
-          <button data-testid="trigger-edit" onClick={onEditClick}>
+          <button
+            type="button"
+            data-testid="trigger-edit"
+            onClick={onEditClick}
+          >
             Edit
           </button>
-          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+          <button
+            type="button"
+            data-testid="trigger-delete"
+            onClick={onDeleteClick}
+          >
             Delete
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            data-testid="trigger-deselect"
+            onClick={() => onSelect(null)}
+          >
             Close
           </button>
         </div>
@@ -217,10 +248,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>

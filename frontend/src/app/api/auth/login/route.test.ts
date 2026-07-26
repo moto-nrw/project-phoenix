@@ -88,8 +88,6 @@ describe("POST /api/auth/login", () => {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": "unknown",
-        "X-Forwarded-For": "unknown",
-        "X-Real-IP": "unknown",
       },
       body: JSON.stringify(loginPayload),
     });

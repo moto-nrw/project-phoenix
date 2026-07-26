@@ -1,6 +1,4 @@
-import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
 
 /**
  * Request body for starting a break
@@ -13,18 +11,6 @@ interface StartBreakRequest {
  * POST /api/time-tracking/break/start
  * Start a new break for the current session
  */
-export const POST = createPostHandler<unknown, StartBreakRequest>(
-  async (
-    _request: NextRequest,
-    body: StartBreakRequest,
-    token: string,
-    _params: Record<string, unknown>,
-  ) => {
-    const response = await apiPost<{ data: unknown }, StartBreakRequest>(
-      "/api/time-tracking/break/start",
-      token,
-      body,
-    );
-    return response.data;
-  },
+export const POST = proxyPost<unknown, StartBreakRequest>(
+  "/api/time-tracking/break/start",
 );

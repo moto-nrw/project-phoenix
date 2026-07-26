@@ -16,6 +16,8 @@ const logger = createLogger({ component: "StudentData" });
  */
 export interface ExtendedStudent extends Student {
   bus: boolean;
+  /** Confirmation to widen a linked child's own departure plan on save. */
+  extend_companion_plans?: boolean;
   current_room?: string;
   location_since?: string;
   birthday?: string;
@@ -23,6 +25,9 @@ export interface ExtendedStudent extends Student {
   extra_info?: string;
   supervisor_notes?: string;
   health_info?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   pickup_status?: string;
   sick?: boolean;
   sick_since?: string;
@@ -36,7 +41,20 @@ interface StudentDataState {
   student: ExtendedStudent | null;
   loading: boolean;
   error: string | null;
+  /**
+   * READ access to this child's data — the backend's `has_full_access`, which
+   * resolves to `authorize.CanReadStudent` and honours `gdpr.student_data_scope`
+   * (`all_staff` → true for every staff member; `group_supervisors_only` → only
+   * the child's supervisors and admins).
+   *
+   * The name is historical and reads stricter than it is: this is the SCOPE-AWARE
+   * read flag, and `hasWriteAccess` below is the strict supervisor/admin one
+   * (`checkStudentFullAccess`, which deliberately ignores the scope setting).
+   * Gate read-only surfaces on THIS flag — every backend read path for a child
+   * uses the same predicate, so they cannot disagree.
+   */
   hasFullAccess: boolean;
+  /** Supervisor/admin only, scope setting deliberately not applied. */
   hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
@@ -87,6 +105,15 @@ function mapStudentResponse(
       ? (mappedStudent.location_since ?? undefined)
       : undefined,
     extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
+    address_street: hasAccess
+      ? (mappedStudent.address_street ?? undefined)
+      : undefined,
+    address_city: hasAccess
+      ? (mappedStudent.address_city ?? undefined)
+      : undefined,
+    address_postal_code: hasAccess
+      ? (mappedStudent.address_postal_code ?? undefined)
+      : undefined,
     supervisor_notes: hasAccess
       ? (mappedStudent.supervisor_notes ?? undefined)
       : undefined,

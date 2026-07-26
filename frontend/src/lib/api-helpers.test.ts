@@ -259,6 +259,34 @@ describe("handleApiError", () => {
     });
   });
 
+  // The companion-plan 409 of the student PUT carries its confirmable
+  // conflicts as a TOP-LEVEL `conflicts` array, not under `details`. The
+  // browser's CompanionPlanConflictError parses exactly that field to build
+  // the confirmation it re-sends — dropping it here leaves the confirmation
+  // empty and "Ergänzen und speichern" loops on the same 409 forever.
+  it("forwards the top-level conflicts array of a companion-plan 409", async () => {
+    const backendJson = JSON.stringify({
+      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
+      message:
+        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    });
+    const error = new Error(`API error (409): ${backendJson}`);
+
+    const response = handleApiError(error);
+    const body = (await response.json()) as {
+      error: string;
+      conflicts?: unknown[];
+    };
+
+    expect(response.status).toBe(409);
+    expect(body.conflicts).toEqual([
+      { student_id: 42, weekdays: ["mon", "tue"] },
+    ]);
+    expect(body.error).toBe(
+      "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    );
+  });
+
   it("omits details field when backend JSON has no details", async () => {
     const backendJson = JSON.stringify({
       status: "error",
@@ -858,7 +886,7 @@ describe("apiGet (server-side)", () => {
     });
   });
 
-  it("forwards incoming client IP and user agent headers to the backend", async () => {
+  it("forwards the canonical client IP and user agent headers to the backend", async () => {
     mockNextHeaders.mockResolvedValueOnce(
       new Headers({
         "x-forwarded-for": "203.0.113.10, 172.20.0.4",
@@ -880,8 +908,7 @@ describe("apiGet (server-side)", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer token",
           "Content-Type": "application/json",
-          "X-Forwarded-For": "203.0.113.10",
-          "X-Real-IP": "203.0.113.10",
+          "X-Forwarded-For": "172.20.0.4",
           "User-Agent": "Mozilla/5.0 Test Browser",
         }) as HeadersInit,
       }),
@@ -909,7 +936,6 @@ describe("apiGet (server-side)", () => {
           Authorization: "Bearer token",
           "Content-Type": "application/json",
           "X-Forwarded-For": "198.51.100.25",
-          "X-Real-IP": "198.51.100.25",
         },
       }),
     );

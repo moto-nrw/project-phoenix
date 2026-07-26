@@ -1,0 +1,22 @@
+{{define "enrollment-change-request-rejected.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "school-brand" .}}
+    <h1>Änderungsanfrage abgelehnt</h1>
+
+    <p>Sehr geehrte/r {{.GuardianFirstName}} {{.GuardianLastName}},</p>
+
+    <p>Ihre Änderungsanfrage wurde geprüft und nicht übernommen. Den aktuellen Stand der Anmeldung sehen Sie weiterhin über den Status-Link.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.StatusURL}}">Anmeldungsstatus ansehen</a>
+    </div>
+
+    <div class="link-box">
+        <a href="{{.StatusURL}}">{{.StatusURL}}</a>
+    </div>
+</div>
+
+{{template "footer" .}}
+{{end}}

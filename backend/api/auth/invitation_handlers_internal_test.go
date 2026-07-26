@@ -16,43 +16,10 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-type mockInvitationService struct {
-	createFn   func(context.Context, authService.InvitationRequest) (*authModels.InvitationToken, error)
-	validateFn func(context.Context, string) (*authService.InvitationValidationResult, error)
-	acceptFn   func(context.Context, string, authService.UserRegistrationData) (*authModels.Account, error)
-	listFn     func(context.Context) ([]*authModels.InvitationToken, error)
-}
-
-func (m *mockInvitationService) GetTenantSlugForToken(_ context.Context, _ string) string {
-	return ""
-}
-
-func (m *mockInvitationService) CreateInvitation(ctx context.Context, req authService.InvitationRequest) (*authModels.InvitationToken, error) {
-	return m.createFn(ctx, req)
-}
-func (m *mockInvitationService) ValidateInvitation(ctx context.Context, token string) (*authService.InvitationValidationResult, error) {
-	return m.validateFn(ctx, token)
-}
-func (m *mockInvitationService) AcceptInvitation(ctx context.Context, token string, userData authService.UserRegistrationData) (*authModels.Account, error) {
-	return m.acceptFn(ctx, token, userData)
-}
-func (m *mockInvitationService) ResendInvitation(context.Context, int64, int64) error { return nil }
-func (m *mockInvitationService) ListPendingInvitations(ctx context.Context) ([]*authModels.InvitationToken, error) {
-	return m.listFn(ctx)
-}
-func (m *mockInvitationService) RevokeInvitation(context.Context, int64, int64) error { return nil }
-func (m *mockInvitationService) InvalidatePendingInvitationsByTenantID(context.Context, int64) (int, error) {
-	return 0, nil
-}
-func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int, error) {
-	return 0, nil
-}
-func (m *mockInvitationService) WithTx(_ bun.Tx) interface{} { return m }
 
 func decodeJSONBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
 	t.Helper()
@@ -70,8 +37,8 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 	tokenErr := "smtp failed"
 	now := time.Now().UTC()
 
-	service := &mockInvitationService{
-		createFn: func(_ context.Context, req authService.InvitationRequest) (*authModels.InvitationToken, error) {
+	service := &authtest.InvitationServiceMock{
+		CreateInvitationFn: func(_ context.Context, req authService.InvitationRequest) (*authModels.InvitationToken, error) {
 			assert.Equal(t, "invitee@example.com", req.Email)
 			assert.Equal(t, int64(7), req.RoleID)
 			assert.Equal(t, int64(44), req.CreatedBy)
@@ -91,7 +58,7 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 				EmailRetryCount: 2,
 			}, nil
 		},
-		listFn: func(context.Context) ([]*authModels.InvitationToken, error) {
+		ListPendingInvitationsFn: func(context.Context) ([]*authModels.InvitationToken, error) {
 			return []*authModels.InvitationToken{{
 				Model:           modelBase.Model{ID: 2},
 				Email:           "pending@example.com",
@@ -132,8 +99,8 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 }
 
 func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *testing.T) {
-	service := &mockInvitationService{
-		createFn: func(context.Context, authService.InvitationRequest) (*authModels.InvitationToken, error) {
+	service := &authtest.InvitationServiceMock{
+		CreateInvitationFn: func(context.Context, authService.InvitationRequest) (*authModels.InvitationToken, error) {
 			return nil, &authService.AuthError{Op: "create invitation", Err: authService.ErrAccountAlreadyHasTenantAccess}
 		},
 	}
@@ -153,12 +120,12 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 }
 
 func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
-	service := &mockInvitationService{
-		validateFn: func(_ context.Context, token string) (*authService.InvitationValidationResult, error) {
+	service := &authtest.InvitationServiceMock{
+		ValidateInvitationFn: func(_ context.Context, token string) (*authService.InvitationValidationResult, error) {
 			assert.Equal(t, "abc123", token)
 			return &authService.InvitationValidationResult{Email: "invitee@example.com", RoleName: "admin", ExpiresAt: time.Now().Add(time.Hour)}, nil
 		},
-		acceptFn: func(_ context.Context, token string, userData authService.UserRegistrationData) (*authModels.Account, error) {
+		AcceptInvitationFn: func(_ context.Context, token string, userData authService.UserRegistrationData) (*authModels.Account, error) {
 			assert.Equal(t, "abc123", token)
 			assert.Equal(t, "Grace", userData.FirstName)
 			return &authModels.Account{Model: modelBase.Model{ID: 77}, Email: "invitee@example.com"}, nil
@@ -183,13 +150,13 @@ func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
 	resource.acceptInvitation(acceptRR, acceptReq)
 	assert.Equal(t, http.StatusCreated, acceptRR.Code)
 
-	// Verify response includes account_id and email but no tenant_slug (no SchoolRepo)
+	// Verify response includes account_id and email but no tenant_subdomain (no SchoolRepo)
 	var acceptResp AcceptInvitationResponse
 	err := json.Unmarshal([]byte(extractDataJSON(t, acceptRR.Body.Bytes())), &acceptResp)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(77), acceptResp.AccountID)
 	assert.Equal(t, "invitee@example.com", acceptResp.Email)
-	assert.Empty(t, acceptResp.TenantSlug, "tenant_slug should be empty when SchoolRepo is nil")
+	assert.Empty(t, acceptResp.TenantSubdomain, "tenant_subdomain should be empty when SchoolRepo is nil")
 }
 
 // extractDataJSON extracts the "data" field from the standard API response envelope.
@@ -221,11 +188,11 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 	resource.validateInvitation(rr, req)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
-	errService := &mockInvitationService{
-		validateFn: func(context.Context, string) (*authService.InvitationValidationResult, error) {
+	errService := &authtest.InvitationServiceMock{
+		ValidateInvitationFn: func(context.Context, string) (*authService.InvitationValidationResult, error) {
 			return nil, errors.New("db fail")
 		},
-		acceptFn: func(context.Context, string, authService.UserRegistrationData) (*authModels.Account, error) {
+		AcceptInvitationFn: func(context.Context, string, authService.UserRegistrationData) (*authModels.Account, error) {
 			return nil, authService.ErrPasswordMismatch
 		},
 	}

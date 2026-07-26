@@ -2,11 +2,13 @@ package schedule_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -553,6 +555,67 @@ func TestScheduleService_DeleteTimeframe(t *testing.T) {
 		_, err = service.GetTimeframe(ctx, tfID)
 		require.Error(t, err)
 	})
+}
+
+func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	start := time.Now().Add(time.Hour)
+	end := start.Add(time.Hour)
+	timeframe := createTestTimeframe(t, db, start, &end, true)
+	defer cleanupScheduleFixtures(t, db, nil, []int64{timeframe.ID}, nil)
+
+	lockCalls := 0
+	validationCalls := 0
+	service := scheduleSvc.NewServiceWithConfig(scheduleSvc.ServiceConfig{
+		DateframeRepo:      repos.Dateframe,
+		TimeframeRepo:      repos.Timeframe,
+		RecurrenceRuleRepo: repos.RecurrenceRule,
+		LockTemplateRecurrence: func(context.Context) error {
+			lockCalls++
+			return nil
+		},
+		ValidateCareOfferingTimeframeChange: func(
+			_ context.Context,
+			gotID int64,
+			replacement *schedule.Timeframe,
+		) error {
+			validationCalls++
+			assert.Equal(t, timeframe.ID, gotID)
+			if validationCalls == 1 {
+				assert.NotNil(t, replacement, "update must simulate its replacement row")
+			} else {
+				assert.Nil(t, replacement, "delete must simulate the missing row")
+			}
+			return fmt.Errorf("%w: no complete timeframe", enrollmentModels.ErrCareOfferingInvalid)
+		},
+	})
+
+	openEnded := *timeframe
+	openEnded.EndTime = nil
+	err := service.UpdateTimeframe(ctx, &openEnded)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimeframeRequiredByCareOffering)
+	stored, findErr := repos.Timeframe.FindByID(ctx, timeframe.ID)
+	require.NoError(t, findErr)
+	require.NotNil(t, stored.EndTime, "rejected update must leave the timeframe unchanged")
+
+	err = service.DeleteTimeframe(ctx, timeframe.ID)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimeframeRequiredByCareOffering)
+	_, findErr = repos.Timeframe.FindByID(ctx, timeframe.ID)
+	require.NoError(t, findErr, "rejected delete must leave the timeframe intact")
+	assert.Equal(t, 2, lockCalls)
+	assert.Equal(t, 2, validationCalls)
+
+	missingLockService := scheduleSvc.NewServiceWithConfig(scheduleSvc.ServiceConfig{
+		DateframeRepo:                       repos.Dateframe,
+		TimeframeRepo:                       repos.Timeframe,
+		RecurrenceRuleRepo:                  repos.RecurrenceRule,
+		ValidateCareOfferingTimeframeChange: func(context.Context, int64, *schedule.Timeframe) error { return nil },
+	})
+	err = missingLockService.DeleteTimeframe(ctx, timeframe.ID)
+	require.ErrorContains(t, err, "recurrence lock is not configured")
 }
 
 func TestScheduleService_ListTimeframes(t *testing.T) {

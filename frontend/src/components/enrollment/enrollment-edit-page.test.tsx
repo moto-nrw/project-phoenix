@@ -1,0 +1,152 @@
+import { Suspense } from "react";
+import { act, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+
+const { mockFetchEnrollmentEditBootstrap, mockUpdateEnrollmentRequest } =
+  vi.hoisted(() => ({
+    mockFetchEnrollmentEditBootstrap: vi.fn(),
+    mockUpdateEnrollmentRequest: vi.fn(),
+  }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/parents/enroll/status/tok/edit",
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock("next-intl", () => {
+  const messages: Record<string, string> = {
+    editFull: "Edit enrollment",
+    editLoading: "Loading enrollment…",
+    editLoadError: "Enrollment cannot be edited",
+    editSaveError: "Changes could not be saved",
+    editSubmit: "Save changes",
+    backToStatus: "Back to status",
+  };
+  const t = (key: string) => messages[key] ?? key;
+  return {
+    useTranslations: () => t,
+  };
+});
+
+vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    fetchEnrollmentEditBootstrap: mockFetchEnrollmentEditBootstrap,
+    updateEnrollmentRequest: mockUpdateEnrollmentRequest,
+  };
+});
+
+vi.mock("~/lib/tenant-context", () => ({
+  TenantProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+vi.mock("~/components/enrollment/enrollment-form", () => ({
+  EnrollmentForm: ({
+    submitLabel,
+    gradeLevelMax,
+  }: {
+    submitLabel: string;
+    gradeLevelMax: number;
+  }) => (
+    <button type="button" data-grade-level-max={gradeLevelMax}>
+      {submitLabel}
+    </button>
+  ),
+}));
+
+import { EnrollmentEditPage } from "./enrollment-edit-page";
+
+const bootstrap = {
+  phase: {
+    id: "5",
+    name: "2026",
+    kind: "school_year",
+    service_start_date: "2026-08-01",
+    service_end_date: "2027-07-31",
+    show_status_reason_to_parent: true,
+    care_offering_selection_mode: "optional",
+  },
+  schema: null,
+  offerings: [],
+  care_offering_selection_mode: "optional",
+  care_required: false,
+  grade_level_max: 13,
+  legal_texts: { blocks: [] },
+  draft: {
+    request_id: "99",
+    status_token: "tok",
+    tenant_id: "1",
+    tenant_subdomain: "demo",
+    phase_id: "5",
+    guardian_first_name: "Mara",
+    guardian_last_name: "Muster",
+    guardian_email: "mara@example.test",
+    consent_flags: {},
+    custom_data: {},
+    children: [],
+  },
+};
+
+describe("EnrollmentEditPage", () => {
+  beforeEach(() => {
+    mockFetchEnrollmentEditBootstrap.mockReset();
+    mockUpdateEnrollmentRequest.mockReset();
+  });
+
+  it("uses localized chrome and API fallbacks", async () => {
+    let resolveBootstrap: (value: typeof bootstrap) => void = () => {};
+    mockFetchEnrollmentEditBootstrap.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveBootstrap = resolve;
+      }),
+    );
+
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <EnrollmentEditPage params={Promise.resolve({ token: "tok" })} />
+        </Suspense>,
+      );
+    });
+
+    expect(await screen.findByText("Loading enrollment…")).toBeInTheDocument();
+    await act(async () => {
+      resolveBootstrap(bootstrap);
+    });
+    expect(await screen.findByRole("heading")).toHaveTextContent(
+      "Edit enrollment",
+    );
+    expect(screen.getByText("Back to status")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save changes" }),
+    ).toHaveAttribute("data-grade-level-max", "13");
+    expect(mockFetchEnrollmentEditBootstrap).toHaveBeenCalledWith(
+      "tok",
+      "Enrollment cannot be edited",
+    );
+  });
+
+  it("withholds the form when the bootstrap omits a supported grade cap", async () => {
+    mockFetchEnrollmentEditBootstrap.mockResolvedValueOnce({
+      ...bootstrap,
+      grade_level_max: 0,
+    });
+
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <EnrollmentEditPage params={Promise.resolve({ token: "tok" })} />
+        </Suspense>,
+      );
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enrollment cannot be edited",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Save changes" }),
+    ).not.toBeInTheDocument();
+  });
+});

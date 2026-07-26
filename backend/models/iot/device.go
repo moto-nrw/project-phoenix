@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // DeviceStatus represents the status of an IoT device
@@ -26,9 +24,6 @@ const (
 	WebManualDeviceID = "WEB-MANUAL-001"
 )
 
-// tableIoTDevices is the schema-qualified table name for IoT devices
-const tableIoTDevices = "iot.devices"
-
 // Device represents an IoT device in the system
 type Device struct {
 	base.Model `bun:"schema:iot,table:devices"`
@@ -43,25 +38,9 @@ type Device struct {
 	RoomID         *int64       `bun:"room_id" json:"room_id,omitempty"`
 
 	// Relations
-	RegisteredBy *users.Person `bun:"-" json:"registered_by,omitempty"`
 
 	// Transient fields populated by JOINs (ignored by INSERT/UPDATE)
 	RoomName *string `bun:"room_name,scanonly" json:"room_name,omitempty"`
-}
-
-func (d *Device) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableIoTDevices)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableIoTDevices)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (d *Device) TableName() string {
-	return tableIoTDevices
 }
 
 // Validate ensures device data is valid
@@ -127,21 +106,6 @@ func (d *Device) GetLastSeenDuration() *time.Duration {
 
 	duration := time.Since(*d.LastSeen)
 	return &duration
-}
-
-// GetID returns the entity's ID
-func (m *Device) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Device) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Device) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }
 
 // HasAPIKey returns true if the device has an API key set

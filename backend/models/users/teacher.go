@@ -6,10 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const teacherTableName = "users.teachers"
 
 // Teacher represents a pedagogical specialist in the system
 type Teacher struct {
@@ -24,21 +21,6 @@ type Teacher struct {
 	// Relations not stored in the database
 	Staff *Staff `bun:"-" json:"staff,omitempty"`
 	// Groups will be managed through the education.GroupTeacher model
-}
-
-func (t *Teacher) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(teacherTableName)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(teacherTableName)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (t *Teacher) TableName() string {
-	return teacherTableName
 }
 
 // Validate ensures teacher data is valid
@@ -85,19 +67,4 @@ func (t *Teacher) GetTitle() string {
 // HasQualifications checks if the teacher has specified qualifications
 func (t *Teacher) HasQualifications() bool {
 	return t.Qualifications != ""
-}
-
-// GetID returns the entity's ID
-func (m *Teacher) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Teacher) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Teacher) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

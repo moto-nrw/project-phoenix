@@ -2,52 +2,24 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/moto-nrw/project-phoenix/simulate"
-	iotSimulator "github.com/moto-nrw/project-phoenix/simulator/iot"
 	"github.com/spf13/cobra"
 )
 
-const (
-	defaultSimulatorConfig = "simulator/iot/simulator.yaml"
-	envSimulatorConfig     = "SIMULATOR_CONFIG"
-)
-
-// simulateCmd runs the IoT simulator state discovery loop.
+// simulateCmd groups the simulation subcommands (full-day, status, live).
 var simulateCmd = &cobra.Command{
 	Use:   "simulate",
-	Short: "Run the IoT simulator and simulation commands",
-	Long: `Starts the IoT simulator discovery loop. The simulator authenticates every configured device,
-collects session/room/student/activity information, and keeps that snapshot fresh on the configured interval.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-
-		configPath := resolveSimulatorConfigPath()
-		cfg, err := iotSimulator.LoadConfig(configPath)
-		if err != nil {
-			log.Fatalf("Failed to load simulator config: %v", err)
-		}
-
-		if err := assertNonProductionURL(cfg.BaseURL); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := iotSimulator.Run(ctx, cfg); err != nil {
-			if errors.Is(err, iotSimulator.ErrPartialAuthentication) {
-				log.Fatalf("Simulator completed with authentication errors: %v", err)
-			}
-			log.Fatalf("Simulator failed: %v", err)
-		}
-	},
+	Short: "Run simulation commands against a seeded local stack",
+	Long: `Groups the simulation subcommands. All of them read .seed-state.json (written by the seed command)
+and drive the API of a seeded local stack: full-day runs a one-shot day, status prints the current
+state, and live generates continuous random events.`,
 }
 
 var simulateFullDayCmd = &cobra.Command{
@@ -115,7 +87,7 @@ var simulateStatusCmd = &cobra.Command{
 var simulateLiveCmd = &cobra.Command{
 	Use:   "live",
 	Short: "Run continuous live simulation",
-	Long:  `Continuously generates random events (room moves, unterwegs, sick toggles) at a configurable interval. Requires simulate full-day to have run first. Ctrl+C to stop.`,
+	Long:  `Continuously generates random events (room moves, unterwegs, sick toggles, Schulhof rotations, attendance toggles, supervisor swaps) at a configurable interval. Requires simulate full-day to have run first. Ctrl+C to stop.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -163,14 +135,4 @@ func init() {
 	simulateLiveCmd.Flags().String("state", seedapi.DefaultSeedStatePath, "Path to .seed-state.json")
 	simulateLiveCmd.Flags().Duration("interval", 10*time.Second, "Time between actions")
 	simulateLiveCmd.Flags().Bool("verbose", false, "Verbose output")
-}
-
-func resolveSimulatorConfigPath() string {
-	// Priority order: environment variable -> default path
-	if envPath := os.Getenv(envSimulatorConfig); envPath != "" {
-		return envPath
-	}
-
-	// Use default relative to current working directory
-	return filepath.Clean(defaultSimulatorConfig)
 }

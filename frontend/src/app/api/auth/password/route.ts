@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { apiPost } from "~/lib/api-helpers.server";
 import { isAxiosError } from "axios";
 import { createLogger } from "~/lib/logger";
@@ -47,7 +48,7 @@ function parseAxiosError(
   return { error: message, status: error.response.status ?? 400 };
 }
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   try {
     const session = await auth();
 
@@ -112,3 +113,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

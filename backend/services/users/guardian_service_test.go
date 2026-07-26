@@ -5,12 +5,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -21,16 +24,21 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Test password constants - these are intentionally simple test values
-// that meet password requirements but are clearly not production credentials.
-const (
-	testValidPassword    = "Testpass1!" // #nosec G101 -- test credential
-	testMismatchPassword = "Mismatch2!" // #nosec G101 -- test credential
-	testWeakPassword     = "weak"       // Intentionally weak for testing validation
-)
+// isProfileLockTimeout reports whether err carries a PostgreSQL lock_timeout
+// (55P03), used by the guardian-profile serialization test to prove a writer
+// blocked on a held FOR UPDATE lock rather than racing through it.
+func isProfileLockTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "lock timeout") ||
+		strings.Contains(msg, "lock_not_available") ||
+		strings.Contains(msg, "55P03")
+}
 
 // setupGuardianService creates a GuardianService with real database connection
-func setupGuardianService(t *testing.T, db *bun.DB) users.GuardianService {
+func setupGuardianService(t *testing.T, db *bun.DB) *users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
@@ -201,44 +209,6 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 }
 
 // =============================================================================
-// GetGuardianByEmail Tests
-// =============================================================================
-
-func TestGuardianService_GetGuardianByEmail(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns guardian when found by email", func(t *testing.T) {
-		// ARRANGE
-		profile := testpkg.CreateTestGuardianProfile(t, db, "find-by-email")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-		// ACT
-		result, err := service.GetGuardianByEmail(ctx, *profile.Email)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, profile.ID, result.ID)
-	})
-
-	t.Run("returns nil when email not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetGuardianByEmail(ctx, "nonexistent@test.local")
-
-		// ASSERT
-		if err != nil {
-			assert.Nil(t, result)
-		} else {
-			assert.Nil(t, result)
-		}
-	})
-}
-
-// =============================================================================
 // UpdateGuardian Tests
 // =============================================================================
 
@@ -393,7 +363,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 }
 
 // =============================================================================
-// DeleteGuardianWithLinks + GetLinkedStudentNames Tests (#819)
+// DeleteGuardianWithLinks + GetGuardianDeleteImpact Tests (#819)
 // =============================================================================
 
 func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
@@ -418,12 +388,10 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// GetLinkedStudentNames reports both children before deletion.
-	names, err := service.GetLinkedStudentNames(ctx, guardian.ID)
-	require.NoError(t, err)
-	assert.Len(t, names, 2, "both linked children must be reported for the 409 warning")
+	// The delete preview reports both children before deletion.
 	impact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
 	require.NoError(t, err)
+	assert.Len(t, impact.StudentNames, 2, "both linked children must be reported for the 409 warning")
 	require.Len(t, impact.LinkIDs, 2, "both link IDs must be returned as the delete concurrency token")
 
 	// ACT — the deliberate full delete removes links first, then the guardian.
@@ -439,9 +407,9 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	require.NoError(t, err)
 	gone, _ := service.GetGuardianByID(ctx, guardian.ID)
 	assert.Nil(t, gone, "guardian must be deleted by the force path")
-	remaining, err := service.GetLinkedStudentNames(ctx, guardian.ID)
+	remainingImpact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
 	require.NoError(t, err)
-	assert.Empty(t, remaining, "all student links must be removed")
+	assert.Empty(t, remainingImpact.StudentNames, "all student links must be removed")
 }
 
 func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testing.T) {
@@ -471,9 +439,9 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	survivor, err := service.GetGuardianByID(ctx, guardian.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor, "guardian must survive when preview token is stale")
-	remaining, err := service.GetLinkedStudentNames(ctx, guardian.ID)
+	remainingImpact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
 	require.NoError(t, err)
-	assert.Len(t, remaining, 1, "link must survive when preview token is stale")
+	assert.Len(t, remainingImpact.StudentNames, 1, "link must survive when preview token is stale")
 }
 
 // =============================================================================
@@ -646,6 +614,49 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "student")
 	})
+
+	t.Run("applies explicit pickup-only role without portal permissions", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-pickup-only")
+		student := testpkg.CreateTestStudent(t, db, "PickupOnly", "Student", "4a")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		result, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "relative",
+			GuardianRole:      authorize.GuardianRolePickupOnly,
+			CanPickup:         true,
+			EmergencyPriority: 1,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, authorize.GuardianRolePickupOnly, result.GuardianRole)
+		assert.True(t, result.CanPickup)
+		assert.False(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionPortalAccess))
+		assert.False(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionSickNoteSubmit))
+	})
+
+	t.Run("defaults primary relationship to full portal permissions", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-primary-role")
+		student := testpkg.CreateTestStudent(t, db, "PrimaryRole", "Student", "4a")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		result, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			IsPrimary:         true,
+			EmergencyPriority: 1,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, authorize.GuardianRolePrimaryGuardian, result.GuardianRole)
+		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionPortalAccess))
+		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionSickNoteSubmit))
+		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionNotesWrite))
+	})
 }
 
 // =============================================================================
@@ -682,6 +693,45 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, guardian.ID, result[0].Profile.ID)
+		// No account and no invitation → not pending.
+		assert.False(t, result[0].InvitationPending,
+			"guardian without account or invitation must not be pending")
+	})
+
+	t.Run("marks guardian with an open invitation as pending", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "pending-invite")
+		student := testpkg.CreateTestStudent(t, db, "PendingInvite", "Student", "2c")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+		})
+		require.NoError(t, err)
+
+		// An open invitation: not accepted, not expired, not rejected.
+		inviter := testpkg.CreateTestAccount(t, db, "pending-inviter")
+		repoFactory := repositories.NewFactory(db)
+		invitation := &authModels.GuardianInvitation{
+			Token:             fmt.Sprintf("pending-token-%d", time.Now().UnixNano()),
+			GuardianProfileID: guardian.ID,
+			CreatedBy:         inviter.ID,
+			ExpiresAt:         time.Now().Add(48 * time.Hour),
+			ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		}
+		invitation.SetTenantID(1)
+		require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, invitation))
+
+		// ACT
+		result, err := service.GetStudentGuardians(ctx, student.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.True(t, result[0].InvitationPending,
+			"guardian with an open invitation must be marked pending")
 	})
 
 	t.Run("returns empty list when no guardians", func(t *testing.T) {
@@ -822,9 +872,17 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		// Update
 		newType := "guardian"
 		isPrimary := true
+		isEmergencyContact := true
+		canPickup := true
+		pickupNotes := "Nur mit Ausweis"
+		emergencyPriority := 2
 		updateReq := users.StudentGuardianUpdateRequest{
-			RelationshipType: &newType,
-			IsPrimary:        &isPrimary,
+			RelationshipType:   &newType,
+			IsPrimary:          &isPrimary,
+			IsEmergencyContact: &isEmergencyContact,
+			CanPickup:          &canPickup,
+			PickupNotes:        &pickupNotes,
+			EmergencyPriority:  &emergencyPriority,
 		}
 
 		// ACT
@@ -838,6 +896,382 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "guardian", updated.RelationshipType)
 		assert.True(t, updated.IsPrimary)
+		assert.True(t, updated.IsEmergencyContact)
+		assert.True(t, updated.CanPickup)
+		require.NotNil(t, updated.PickupNotes)
+		assert.Equal(t, pickupNotes, *updated.PickupNotes)
+		assert.Equal(t, emergencyPriority, updated.EmergencyPriority)
+	})
+
+	t.Run("updates role and derived permissions", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-role")
+		student := testpkg.CreateTestStudent(t, db, "RelUpdateRole", "Student", "5b")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		created, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			GuardianRole:      authorize.GuardianRoleLegalGuardian,
+			EmergencyPriority: 1,
+		})
+		require.NoError(t, err)
+		require.True(t, authorize.StudentGuardianHasPermission(created, authorize.GuardianPermissionPortalAccess))
+
+		role := authorize.GuardianRoleEmergency
+		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, users.StudentGuardianUpdateRequest{
+			GuardianRole: &role,
+		})
+		require.NoError(t, err)
+
+		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		require.NoError(t, err)
+		assert.Equal(t, authorize.GuardianRoleEmergency, updated.GuardianRole)
+		assert.False(t, authorize.StudentGuardianHasPermission(updated, authorize.GuardianPermissionPortalAccess))
+		assert.False(t, authorize.StudentGuardianHasPermission(updated, authorize.GuardianPermissionNotesWrite))
+	})
+
+	t.Run("updates every optional relationship field", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-all")
+		student := testpkg.CreateTestStudent(t, db, "RelUpdateAll", "Student", "5b")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		created, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:          student.ID,
+			GuardianProfileID:  guardian.ID,
+			RelationshipType:   "parent",
+			IsPrimary:          false,
+			IsEmergencyContact: false,
+			CanPickup:          false,
+			EmergencyPriority:  1,
+		})
+		require.NoError(t, err)
+
+		newType := "relative"
+		isPrimary := true
+		isEmergencyContact := true
+		canPickup := true
+		pickupNotes := "Nur mit Ausweis"
+		emergencyPriority := 3
+
+		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, users.StudentGuardianUpdateRequest{
+			RelationshipType:   &newType,
+			IsPrimary:          &isPrimary,
+			IsEmergencyContact: &isEmergencyContact,
+			CanPickup:          &canPickup,
+			PickupNotes:        &pickupNotes,
+			EmergencyPriority:  &emergencyPriority,
+		})
+		require.NoError(t, err)
+
+		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		require.NoError(t, err)
+		assert.Equal(t, newType, updated.RelationshipType)
+		assert.True(t, updated.IsPrimary)
+		assert.True(t, updated.IsEmergencyContact)
+		assert.True(t, updated.CanPickup)
+		require.NotNil(t, updated.PickupNotes)
+		assert.Equal(t, pickupNotes, *updated.PickupNotes)
+		assert.Equal(t, emergencyPriority, updated.EmergencyPriority)
+	})
+
+	t.Run("returns error when relationship is missing", func(t *testing.T) {
+		missingID := time.Now().UnixNano()
+		isPrimary := true
+
+		err := service.UpdateStudentGuardianRelationship(ctx, missingID, users.StudentGuardianUpdateRequest{
+			IsPrimary: &isPrimary,
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "relationship not found")
+	})
+}
+
+// =============================================================================
+// New Student Guardian Batch Tests
+// =============================================================================
+
+func validNewStudentGuardian(email string) users.NewStudentGuardian {
+	return users.NewStudentGuardian{
+		Profile: users.GuardianCreateRequest{
+			FirstName:              "Batch",
+			LastName:               "Guardian",
+			Email:                  &email,
+			PreferredContactMethod: "email",
+			LanguagePreference:     "de",
+		},
+		Relationship: users.StudentGuardianRelationship{
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		},
+	}
+}
+
+func TestGuardianService_ValidateNewGuardians(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("accepts existing profile link request", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-existing")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		req := validNewStudentGuardian("")
+		req.ExistingProfileID = &profile.ID
+		req.Relationship.RelationshipType = "guardian"
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.NoError(t, err)
+	})
+
+	t.Run("rejects duplicate emails in one request", func(t *testing.T) {
+		email := fmt.Sprintf("dup-batch-%d@example.com", time.Now().UnixNano())
+		first := validNewStudentGuardian(email)
+		second := validNewStudentGuardian("  " + email + "  ")
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{first, second})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "mehrfach angegeben")
+	})
+
+	t.Run("rejects email already owned by a profile", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-owned")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		req := validNewStudentGuardian(*profile.Email)
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "bereits vergeben")
+	})
+
+	t.Run("rejects invalid existing profile relationship", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-bad-rel")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		req := validNewStudentGuardian("")
+		req.ExistingProfileID = &profile.ID
+		req.Relationship.RelationshipType = "invalid"
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
+	})
+
+	t.Run("rejects missing existing profile", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-missing-existing")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		missingID := profile.ID + time.Now().UnixNano()
+		req := validNewStudentGuardian("")
+		req.ExistingProfileID = &missingID
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ausgewählte Person nicht gefunden")
+	})
+
+	t.Run("rejects invalid new relationship", func(t *testing.T) {
+		email := fmt.Sprintf("bad-rel-%d@example.com", time.Now().UnixNano())
+		req := validNewStudentGuardian(email)
+		req.Relationship.RelationshipType = "friend"
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
+	})
+
+	t.Run("rejects invalid emergency priority", func(t *testing.T) {
+		email := fmt.Sprintf("bad-priority-%d@example.com", time.Now().UnixNano())
+		req := validNewStudentGuardian(email)
+		req.Relationship.EmergencyPriority = 0
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "Notfall-Priorität")
+	})
+
+	t.Run("rejects invalid profile fields", func(t *testing.T) {
+		email := "not-an-email"
+		req := validNewStudentGuardian(email)
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ungültiges E-Mail-Format")
+	})
+
+	t.Run("rejects invalid phone number", func(t *testing.T) {
+		email := fmt.Sprintf("bad-phone-%d@example.com", time.Now().UnixNano())
+		req := validNewStudentGuardian(email)
+		req.PhoneNumbers = []users.PhoneNumberCreateRequest{{
+			PhoneNumber: "12",
+			PhoneType:   "mobile",
+		}}
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "Telefonnummer")
+	})
+}
+
+func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("creates new guardian links student and adds phone", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "BatchAdd", "Student", "7a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		email := fmt.Sprintf("batch-add-%d@example.com", time.Now().UnixNano())
+		req := validNewStudentGuardian(email)
+		req.PhoneNumbers = []users.PhoneNumberCreateRequest{{
+			PhoneNumber: "+49 221 123456",
+			PhoneType:   "mobile",
+			IsPrimary:   true,
+		}}
+
+		err := service.AddGuardiansToStudent(ctx, student.ID, []users.NewStudentGuardian{req})
+		require.NoError(t, err)
+
+		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, guardians, 1)
+		assert.Equal(t, "Batch", guardians[0].Profile.FirstName)
+		assert.Equal(t, email, *guardians[0].Profile.Email)
+	})
+
+	t.Run("links existing profile once when selected twice", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "ExistingBatch", "Student", "7b")
+		profile := testpkg.CreateTestGuardianProfile(t, db, "existing-batch")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID)
+
+		first := validNewStudentGuardian("")
+		first.ExistingProfileID = &profile.ID
+		second := validNewStudentGuardian("")
+		second.ExistingProfileID = &profile.ID
+		second.Relationship.IsEmergencyContact = true
+
+		err := service.AddGuardiansToStudent(ctx, student.ID, []users.NewStudentGuardian{first, second})
+		require.NoError(t, err)
+
+		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, guardians, 1)
+		assert.Equal(t, profile.ID, guardians[0].Profile.ID)
+		assert.False(t, guardians[0].Relationship.IsEmergencyContact,
+			"duplicate existing-profile links are skipped without updating the first relationship")
+	})
+
+	t.Run("returns validation error before writing invalid guardian", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "InvalidBatch", "Student", "7c")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		req := validNewStudentGuardian(fmt.Sprintf("batch-invalid-%d@example.com", time.Now().UnixNano()))
+		req.Relationship.RelationshipType = "friend"
+
+		err := service.AddGuardiansToStudent(ctx, student.ID, []users.NewStudentGuardian{req})
+
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
+	})
+
+	t.Run("returns link error for missing student", func(t *testing.T) {
+		missingStudentID := time.Now().UnixNano()
+		email := fmt.Sprintf("batch-link-missing-%d@example.com", missingStudentID)
+		req := validNewStudentGuardian(email)
+
+		err := service.AddGuardiansToStudent(ctx, missingStudentID, []users.NewStudentGuardian{req})
+		t.Cleanup(func() {
+			_, _ = db.NewDelete().TableExpr("users.guardian_profiles").
+				Where("email = ?", email).Exec(context.Background())
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to link guardian at index 0")
+	})
+}
+
+func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns matches with linked children", func(t *testing.T) {
+		token := fmt.Sprintf("picker-%d", time.Now().UnixNano())
+		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
+		student := testpkg.CreateTestStudent(t, db, "Picker", "Child", "8a")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:          student.ID,
+			GuardianProfileID:  guardian.ID,
+			RelationshipType:   "parent",
+			EmergencyPriority:  1,
+			IsEmergencyContact: true,
+		})
+		require.NoError(t, err)
+
+		matches, err := service.SearchGuardiansForPicker(ctx, token, 10)
+		require.NoError(t, err)
+		require.Len(t, matches, 1)
+		assert.Equal(t, guardian.ID, matches[0].Profile.ID)
+		require.Len(t, matches[0].Children, 1)
+		assert.Equal(t, student.ID, matches[0].Children[0].StudentID)
+	})
+
+	t.Run("returns matches without linked children", func(t *testing.T) {
+		token := fmt.Sprintf("picker-unlinked-%d", time.Now().UnixNano())
+		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		matches, err := service.SearchGuardiansForPicker(ctx, token, 10)
+		require.NoError(t, err)
+		require.Len(t, matches, 1)
+		assert.Equal(t, guardian.ID, matches[0].Profile.ID)
+		assert.Empty(t, matches[0].Children)
+	})
+
+	t.Run("returns empty slice for no matches", func(t *testing.T) {
+		matches, err := service.SearchGuardiansForPicker(ctx, fmt.Sprintf("missing-%d", time.Now().UnixNano()), 10)
+		require.NoError(t, err)
+		assert.NotNil(t, matches)
+		assert.Empty(t, matches)
+	})
+
+	t.Run("returns search repository error", func(t *testing.T) {
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		matches, err := service.SearchGuardiansForPicker(canceledCtx, "picker", 10)
+
+		require.Error(t, err)
+		assert.Nil(t, matches)
 	})
 }
 
@@ -1055,7 +1489,7 @@ func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 // =============================================================================
 
 // setupGuardianServiceWithMailer creates a GuardianService with injected mailer for testing email flows
-func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer) users.GuardianService {
+func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer) *users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
 
 	// Create dispatcher from the capturing mailer
@@ -1331,12 +1765,16 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
-		// Accept the invitation to create account
-		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-			Token:           invitation.Token,
-			Password:        testValidPassword,
-			ConfirmPassword: testValidPassword,
-		})
+		// Mark the profile as having an account (what accepting the live
+		// guardian invitation flow does)
+		_ = invitation
+		account := testpkg.CreateTestAccount(t, db, guardianEmail)
+		_, err = db.NewUpdate().
+			ModelTableExpr(`users.guardian_profiles`).
+			Set("account_id = ?", account.ID).
+			Set("has_account = TRUE").
+			Where("id = ?", profile.ID).
+			Exec(ctx)
 		require.NoError(t, err)
 
 		// ACT - try to create another guardian with same email
@@ -1345,406 +1783,6 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "already has an account")
-	})
-}
-
-// =============================================================================
-// ValidateInvitation Tests
-// =============================================================================
-
-func TestGuardianService_ValidateInvitation_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("validates invitation and returns guardian info", func(t *testing.T) {
-		// ARRANGE
-		guardianEmail := fmt.Sprintf("validate-test-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Validate",
-			LastName:               "Test",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Validator", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
-
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-		// ACT
-		result, err := service.ValidateInvitation(ctx, invitation.Token)
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		assert.Equal(t, "Validate", result.GuardianFirstName)
-		assert.Equal(t, "Test", result.GuardianLastName)
-		assert.Equal(t, guardianEmail, result.Email)
-		assert.NotEmpty(t, result.ExpiresAt)
-	})
-}
-
-func TestGuardianService_ValidateInvitation_NotFound(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for invalid token", func(t *testing.T) {
-		// ACT
-		result, err := service.ValidateInvitation(ctx, "invalid-token-12345")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "not found")
-	})
-}
-
-func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for already accepted invitation", func(t *testing.T) {
-		// ARRANGE
-		guardianEmail := fmt.Sprintf("accepted-test-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Accepted",
-			LastName:               "Test",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Accept", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
-
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-		// Accept the invitation
-		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-			Token:           invitation.Token,
-			Password:        testValidPassword,
-			ConfirmPassword: testValidPassword,
-		})
-		require.NoError(t, err)
-
-		// ACT - try to validate again
-		result, err := service.ValidateInvitation(ctx, invitation.Token)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "already been accepted")
-	})
-}
-
-// =============================================================================
-// AcceptInvitation Tests
-// =============================================================================
-
-func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("creates account and links to guardian", func(t *testing.T) {
-		// ARRANGE
-		guardianEmail := fmt.Sprintf("accept-success-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Accept",
-			LastName:               "Success",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Invite", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
-
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-		// ACT
-		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-			Token:           invitation.Token,
-			Password:        testValidPassword,
-			ConfirmPassword: testValidPassword,
-		})
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, account)
-		assert.Equal(t, guardianEmail, account.Email)
-		assert.True(t, account.Active)
-
-		// Verify guardian now has account
-		updatedProfile, err := service.GetGuardianByID(ctx, profile.ID)
-		require.NoError(t, err)
-		assert.True(t, updatedProfile.HasAccount)
-	})
-}
-
-func TestGuardianService_AcceptInvitation_ReusesExistingAccountWithoutPasswordChange(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	repoFactory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
-
-	guardianEmail := fmt.Sprintf("legacy-existing-%d@example.com", time.Now().UnixNano())
-	account := testpkg.CreateTestAccountWithPassword(t, db, guardianEmail, "Existing!2026")
-	existingHash := *account.PasswordHash
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
-	})
-
-	req := users.GuardianCreateRequest{
-		FirstName:              "Existing",
-		LastName:               "Guardian",
-		Email:                  &guardianEmail,
-		PreferredContactMethod: "email",
-	}
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Existing", "Inviter")
-	defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
-	profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-	acceptedAccount, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-		Token:           invitation.Token,
-		Password:        testValidPassword,
-		ConfirmPassword: testValidPassword,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, acceptedAccount)
-	assert.Equal(t, account.ID, acceptedAccount.ID)
-
-	stored, err := repoFactory.Account.FindByEmail(ctx, guardianEmail)
-	require.NoError(t, err)
-	require.NotNil(t, stored.PasswordHash)
-	assert.Equal(t, existingHash, *stored.PasswordHash)
-}
-
-func TestGuardianService_AcceptInvitation_ReactivatesExistingTenantMapping(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	repoFactory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
-
-	guardianEmail := fmt.Sprintf("legacy-inactive-%d@example.com", time.Now().UnixNano())
-	account := testpkg.CreateTestAccountWithPassword(t, db, guardianEmail, "Existing!2026")
-	deactivatedAt := time.Now().Add(-time.Hour)
-	require.NoError(t, repoFactory.AccountTenant.Create(ctx, &authModels.AccountTenant{
-		AccountID:     account.ID,
-		TenantID:      1,
-		Status:        authModels.AccountTenantStatusInactive,
-		DeactivatedAt: &deactivatedAt,
-	}))
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
-	})
-
-	req := users.GuardianCreateRequest{
-		FirstName:              "Inactive",
-		LastName:               "Guardian",
-		Email:                  &guardianEmail,
-		PreferredContactMethod: "email",
-	}
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Inactive", "Inviter")
-	defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
-	profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-	_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-		Token:           invitation.Token,
-		Password:        testValidPassword,
-		ConfirmPassword: testValidPassword,
-	})
-	require.NoError(t, err)
-
-	var mapping authModels.AccountTenant
-	err = db.NewSelect().
-		Model(&mapping).
-		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
-		Where(`"account_tenant".account_id = ?`, account.ID).
-		Where(`"account_tenant".tenant_id = ?`, 1).
-		Scan(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
-	assert.Nil(t, mapping.DeactivatedAt)
-	assert.NotNil(t, mapping.ActivatedAt)
-}
-
-func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error when passwords do not match", func(t *testing.T) {
-		// ARRANGE
-		guardianEmail := fmt.Sprintf("mismatch-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Mismatch",
-			LastName:               "Test",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Mismatch", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
-
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-		// ACT
-		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-			Token:           invitation.Token,
-			Password:        testValidPassword,
-			ConfirmPassword: testMismatchPassword,
-		})
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account)
-		assert.Contains(t, err.Error(), "do not match")
-	})
-}
-
-func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for weak password", func(t *testing.T) {
-		// ARRANGE
-		guardianEmail := fmt.Sprintf("weak-pwd-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Weak",
-			LastName:               "Password",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Weak", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
-
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-		// ACT - weak password (no special chars, too short)
-		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-			Token:           invitation.Token,
-			Password:        testWeakPassword,
-			ConfirmPassword: testWeakPassword,
-		})
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account)
-		assert.Contains(t, err.Error(), "password")
-	})
-}
-
-func TestGuardianService_AcceptInvitation_InvalidToken(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for invalid token", func(t *testing.T) {
-		// ACT
-		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-			Token:           "invalid-token-xyz",
-			Password:        testValidPassword,
-			ConfirmPassword: testValidPassword,
-		})
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account)
-		assert.Contains(t, err.Error(), "not found")
-	})
-}
-
-func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error when invitation already accepted", func(t *testing.T) {
-		// ARRANGE
-		guardianEmail := fmt.Sprintf("double-accept-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Double",
-			LastName:               "Accept",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Double", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
-
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-		// Accept first time
-		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-			Token:           invitation.Token,
-			Password:        testValidPassword,
-			ConfirmPassword: testValidPassword,
-		})
-		require.NoError(t, err)
-
-		// ACT - try to accept again
-		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
-			Token:           invitation.Token,
-			Password:        testValidPassword,
-			ConfirmPassword: testValidPassword,
-		})
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account)
-		assert.Contains(t, err.Error(), "already been accepted")
 	})
 }
 
@@ -2359,4 +2397,147 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
+}
+
+func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(db)
+	inviter := testpkg.CreateTestAccount(t, db, "inv-states")
+
+	cases := []struct {
+		name   string
+		mutate func(*authModels.GuardianInvitation)
+	}{
+		{"accepted", func(i *authModels.GuardianInvitation) { now := time.Now(); i.AcceptedAt = &now }},
+		{"expired", func(i *authModels.GuardianInvitation) { i.ExpiresAt = time.Now().Add(-time.Hour) }},
+		{"rejected", func(i *authModels.GuardianInvitation) {
+			i.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			guardian := testpkg.CreateTestGuardianProfile(t, db, "inv-"+c.name)
+			student := testpkg.CreateTestStudent(t, db, "Inv", "State", "1a")
+			defer func() {
+				_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", student.ID).Exec(ctx)
+				_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(ctx)
+			}()
+
+			_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+				StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
+			})
+			require.NoError(t, err)
+
+			inv := &authModels.GuardianInvitation{
+				Token:             fmt.Sprintf("state-%s-%d", c.name, time.Now().UnixNano()),
+				GuardianProfileID: guardian.ID,
+				CreatedBy:         inviter.ID,
+				ExpiresAt:         time.Now().Add(48 * time.Hour),
+				ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+			}
+			c.mutate(inv)
+			inv.SetTenantID(1)
+			require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, inv))
+
+			res, err := service.GetStudentGuardians(ctx, student.ID)
+			require.NoError(t, err)
+			require.Len(t, res, 1)
+			assert.False(t, res[0].InvitationPending, c.name+" invitation must not count as pending")
+		})
+	}
+}
+
+// TestGuardianService_ContactWritersShareProfileLock is the serialization guard
+// for review #1743 critical 4: every staff-side guardian contact writer
+// (UpdateGuardian plus the phone mutators) now locks the owning
+// guardian_profiles row FOR UPDATE — the SAME row the parents-portal contact
+// path locks before its read-modify-write and wholesale phone replace. Holding
+// that lock from a separate, uncommitted transaction must BLOCK each staff
+// writer, proven deterministically with a short lock_timeout (no goroutine
+// timing — mirrors the students_guardians FOR UPDATE test). Drop any of the
+// LockByIDForUpdate calls and that writer races straight through, so a staff
+// edit could clobber or lose a concurrent parent contact save.
+func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	email := fmt.Sprintf("lock-guardian-%d@example.com", time.Now().UnixNano())
+	profile := testpkg.CreateTestGuardianProfile(t, db, email)
+	defer func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(bg)
+	}()
+
+	// Seed one phone so the update/delete writers have a live target.
+	seedPhone, err := service.AddPhoneNumber(ctx, profile.ID, users.PhoneNumberCreateRequest{
+		PhoneNumber: "0151 1234567",
+		PhoneType:   "mobile",
+	})
+	require.NoError(t, err)
+
+	// Each writer is exercised in order; UpdatePhoneNumber and SetPrimaryPhone run
+	// before DeletePhoneNumber so the seeded phone still exists for all three.
+	writers := []struct {
+		name string
+		run  func(runCtx context.Context) error
+	}{
+		{"UpdateGuardian", func(runCtx context.Context) error {
+			return service.UpdateGuardian(runCtx, profile.ID, users.GuardianCreateRequest{
+				FirstName: "Locked", LastName: "Name",
+			})
+		}},
+		{"AddPhoneNumber", func(runCtx context.Context) error {
+			_, e := service.AddPhoneNumber(runCtx, profile.ID, users.PhoneNumberCreateRequest{
+				PhoneNumber: "0151 7654321", PhoneType: "mobile",
+			})
+			return e
+		}},
+		{"UpdatePhoneNumber", func(runCtx context.Context) error {
+			label := "Aktualisiert"
+			return service.UpdatePhoneNumber(runCtx, seedPhone.ID, users.PhoneNumberUpdateRequest{Label: &label})
+		}},
+		{"SetPrimaryPhone", func(runCtx context.Context) error {
+			return service.SetPrimaryPhone(runCtx, seedPhone.ID)
+		}},
+		{"DeletePhoneNumber", func(runCtx context.Context) error {
+			return service.DeletePhoneNumber(runCtx, seedPhone.ID)
+		}},
+	}
+
+	repoFactory := repositories.NewFactory(db)
+	for _, w := range writers {
+		t.Run(w.name+" blocks on a held profile lock", func(t *testing.T) {
+			// Hold the profile FOR UPDATE lock from an uncommitted tx.
+			holdTx, err := db.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = holdTx.Rollback() }()
+			holdCtx := modelBase.ContextWithTx(ctx, &holdTx)
+			require.NoError(t, repoFactory.GuardianProfile.LockByIDForUpdate(holdCtx, profile.ID))
+
+			// The staff writer, on a separate tx with a short lock_timeout, must
+			// fail to acquire the same row lock.
+			staffTx, err := db.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = staffTx.Rollback() }()
+			_, err = staffTx.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "250ms")
+			require.NoError(t, err)
+			staffCtx := modelBase.ContextWithTx(ctx, &staffTx)
+
+			runErr := w.run(staffCtx)
+			require.Errorf(t, runErr, "%s must block on the held profile FOR UPDATE lock", w.name)
+			assert.Truef(t, isProfileLockTimeout(runErr), "%s: expected lock_timeout, got: %v", w.name, runErr)
+			_ = staffTx.Rollback()
+
+			// Release the holder; the writer must now succeed on a fresh tx.
+			require.NoError(t, holdTx.Rollback())
+			require.NoErrorf(t, w.run(ctx), "%s must succeed once the lock holder releases", w.name)
+		})
+	}
 }

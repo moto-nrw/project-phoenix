@@ -1,27 +1,10 @@
-import type { NextRequest } from "next/server";
-import {
-  createOperatorGetHandler,
-  createOperatorDeleteHandler,
-  operatorApiGet,
-  operatorApiDelete,
-  isStringParam,
-} from "~/lib/operator/route-wrapper.server";
+import { proxyGet, proxyDelete } from "~/lib/operator/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const GET = createOperatorGetHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
-    return await operatorApiGet(`/operator/suggestions/${params.id}`, token);
-  },
+export const GET = proxyGet(
+  (params) => `/operator/suggestions/${requirePathSegmentParam(params)}`,
 );
 
-export const DELETE = createOperatorDeleteHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
-    await operatorApiDelete(`/operator/suggestions/${params.id}`, token);
-    return null;
-  },
+export const DELETE = proxyDelete(
+  (params) => `/operator/suggestions/${requirePathSegmentParam(params)}`,
 );

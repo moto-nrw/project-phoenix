@@ -78,6 +78,25 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 		assert.GreaterOrEqual(t, len(rows), 2)
 	})
 
+	t.Run("single and batch reads share created-at substitute order", func(t *testing.T) {
+		baseTime := time.Date(2026, 9, 15, 8, 0, 0, 0, time.UTC)
+		_, err := db.NewUpdate().Table("schedule.instance_staff").
+			Set("created_at = ?", baseTime.Add(time.Hour)).Where("id = ?", rowA.ID).Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewUpdate().Table("schedule.instance_staff").
+			Set("created_at = ?", baseTime).Where("id = ?", rowB.ID).Exec(ctx)
+		require.NoError(t, err)
+
+		single, err := repo.FindByInstanceID(ctx, inst.ID)
+		require.NoError(t, err)
+		batch, err := repo.FindByInstanceIDs(ctx, []int64{inst.ID})
+		require.NoError(t, err)
+		require.Len(t, single, 2)
+		require.Len(t, batch, 2)
+		assert.Equal(t, []int64{rowB.ID, rowA.ID}, []int64{single[0].ID, single[1].ID})
+		assert.Equal(t, []int64{rowB.ID, rowA.ID}, []int64{batch[0].ID, batch[1].ID})
+	})
+
 	t.Run("UNIQUE(instance_id, staff_id) blocks duplicate", func(t *testing.T) {
 		dup := &scheduleModels.InstanceStaff{
 			InstanceID: inst.ID,
@@ -366,7 +385,7 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 		require.Error(t, err)
 		var dbErr *modelBase.DatabaseError
 		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "list", dbErr.Op)
+		assert.Equal(t, "list with options", dbErr.Op)
 	})
 }
 
@@ -460,4 +479,46 @@ func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, m)
 	})
+}
+
+func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+
+	instEarly, cleanupEarly := createInstanceFixture(t, db, "range-early", timezone.NewDate(2026, 9, 18))
+	defer cleanupEarly()
+	instLate, cleanupLate := createInstanceFixture(t, db, "range-late", timezone.NewDate(2026, 9, 20))
+	defer cleanupLate()
+	instOutside, cleanupOutside := createInstanceFixture(t, db, "range-out", timezone.NewDate(2026, 9, 25))
+	defer cleanupOutside()
+
+	staff := testpkg.CreateTestStaff(t, db, "Dana", fmt.Sprintf("Range-%d", time.Now().UnixNano()))
+	other := testpkg.CreateTestStaff(t, db, "Erik", fmt.Sprintf("Other-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, other.ID)
+
+	newRow := func(instID, staffID int64) *scheduleModels.InstanceStaff {
+		row := &scheduleModels.InstanceStaff{InstanceID: instID, StaffID: staffID}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID) })
+		return row
+	}
+
+	rowLate := newRow(instLate.ID, staff.ID)
+	rowEarly := newRow(instEarly.ID, staff.ID)
+	newRow(instOutside.ID, staff.ID) // outside the queried window
+	newRow(instEarly.ID, other.ID)   // another staff member — must not leak
+
+	rows, err := repo.FindByStaffAndDateRange(ctx, staff.ID, timezone.NewDate(2026, 9, 18), timezone.NewDate(2026, 9, 20))
+	require.NoError(t, err)
+	require.Len(t, rows, 2, "only the calling staff member's in-window rows come back")
+	assert.Equal(t, rowEarly.ID, rows[0].ID, "ordered by instance date ascending")
+	assert.Equal(t, rowLate.ID, rows[1].ID)
+
+	empty, err := repo.FindByStaffAndDateRange(ctx, staff.ID, timezone.NewDate(2026, 10, 1), timezone.NewDate(2026, 10, 5))
+	require.NoError(t, err)
+	assert.Empty(t, empty)
 }

@@ -107,6 +107,7 @@ describe("tenant-api", () => {
           organization_name: "Org A",
           hidden: false,
           settings: { primaryColor: "#ff0000" },
+          grade_level_max: 13,
         },
       };
 
@@ -136,6 +137,76 @@ describe("tenant-api", () => {
         presenceMode: "detailed",
         studentPhotosEnabled: false,
         nfcEnabled: false,
+        messagingEnabled: false,
+        displayEnabled: false,
+        // Older backend responses omit this additive field. Keep the editor
+        // available until the server explicitly publishes false.
+        careOfferingsEnabled: true,
+        attendanceWebEnabled: false,
+        groupMode: "fixed_groups",
+        showTimetableCounts: true,
+        waitlistEnabled: true,
+        gradeLevelMax: 13,
+      });
+    });
+
+    it("normalizes explicit enabled and disabled tenant settings", async () => {
+      const tenantData = {
+        tenant_id: 2,
+        slug: "settings-school",
+        name: "Settings School",
+        subdomain: "settings",
+        organization_id: 11,
+        organization_name: "Org B",
+        settings: {},
+      };
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              status: "success",
+              data: {
+                ...tenantData,
+                care_offerings_enabled: true,
+                attendance_web_enabled: true,
+                group_mode: "open_care",
+                show_timetable_counts: true,
+                waitlist_enabled: true,
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              status: "success",
+              data: {
+                ...tenantData,
+                care_offerings_enabled: false,
+                attendance_web_enabled: false,
+                group_mode: "fixed_groups",
+                show_timetable_counts: false,
+                waitlist_enabled: false,
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+
+      await expect(resolveTenant("settings-school")).resolves.toMatchObject({
+        careOfferingsEnabled: true,
+        attendanceWebEnabled: true,
+        groupMode: "open_care",
+        showTimetableCounts: true,
+        waitlistEnabled: true,
+      });
+      await expect(resolveTenant("settings-school")).resolves.toMatchObject({
+        careOfferingsEnabled: false,
+        attendanceWebEnabled: false,
+        groupMode: "fixed_groups",
+        showTimetableCounts: false,
+        waitlistEnabled: false,
       });
     });
 
@@ -203,6 +274,30 @@ describe("tenant-api", () => {
       );
       const result = await resolveTenant("nfc-school");
       expect(result?.nfcEnabled).toBe(true);
+    });
+
+    it("passes through displayEnabled=true when the backend advertises it", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 3,
+          slug: "display-school",
+          name: "Display School",
+          subdomain: "display",
+          organization_id: 12,
+          organization_name: "Org C",
+          settings: {},
+          display_enabled: true,
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("display-school");
+      expect(result?.displayEnabled).toBe(true);
     });
 
     it("maps hidden tenants from resolve response", async () => {
@@ -326,12 +421,6 @@ describe("tenant-api", () => {
         organizationId: 0,
         organizationName: "Org Alpha",
         hidden: false,
-        settings: {},
-        // List endpoints don't carry per-tenant presence mode; consumers
-        // call resolveTenant() once the user picks a tenant.
-        presenceMode: "detailed",
-        studentPhotosEnabled: false,
-        nfcEnabled: false,
       });
     });
 
@@ -446,12 +535,6 @@ describe("tenant-api", () => {
         subdomain: "school-a",
         organizationId: 10,
         organizationName: "Org Alpha",
-        settings: {},
-        // account-tenants is pre-switch listing; presenceMode is re-resolved
-        // when the new tenant's layout mounts and calls resolveTenant.
-        presenceMode: "detailed",
-        studentPhotosEnabled: false,
-        nfcEnabled: false,
       });
     });
 

@@ -71,7 +71,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 		activityGroup.ID, device.ID, staff.ID, student.ID)
 
 	// Start a group session using real IDs
-	session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, nil)
+	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 
@@ -152,11 +152,11 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 		activity1.ID, activity2.ID, device1.ID, device2.ID, staff.ID, student1.ID, student2.ID)
 
 	// Start two group sessions with real IDs on SEPARATE devices
-	session1, err := service.StartActivitySession(ctx, activity1.ID, device1.ID, staff.ID, nil)
+	session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device1.ID, []int64{staff.ID}, nil)
 	require.NoError(t, err)
 
 	// Start second session on separate device (no conflict)
-	session2, err := service.StartActivitySession(ctx, activity2.ID, device2.ID, staff.ID, nil)
+	session2, err := service.StartActivitySessionWithSupervisors(ctx, activity2.ID, device2.ID, []int64{staff.ID}, nil)
 	require.NoError(t, err)
 
 	// Create visits for both groups using real student IDs

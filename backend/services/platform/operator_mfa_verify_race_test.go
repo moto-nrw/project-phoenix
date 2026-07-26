@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -59,8 +61,7 @@ func TestOperatorMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	op := createTestOperatorForMFAService(t, db, "race-loser")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	plaintext := "246810"
@@ -112,8 +113,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_RaceLoserRejected(t *testing.T
 	})
 	require.NoError(t, err)
 
-	op := createTestOperatorForMFAService(t, db, "race-loser-jwt-less")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 
 	plaintext := "135790"
 	hash, err := authService.HashShortCode(plaintext)

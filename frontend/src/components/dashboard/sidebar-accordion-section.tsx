@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
 
 interface SidebarAccordionSectionProps {
   readonly icon: string;
@@ -14,6 +15,10 @@ interface SidebarAccordionSectionProps {
   readonly emptyText?: string;
   readonly children?: ReactNode;
   readonly hasChildren: boolean;
+  // Aggregate red badge shown on the collapsed header (e.g. the sum of unread
+  // messages + pending requests across the section's sub-items) so the count
+  // stays visible without expanding. Renders nothing when 0.
+  readonly badgeCount?: number;
 }
 
 export function SidebarAccordionSection({
@@ -28,6 +33,7 @@ export function SidebarAccordionSection({
   emptyText = "Keine Einträge",
   children,
   hasChildren,
+  badgeCount = 0,
 }: SidebarAccordionSectionProps) {
   const headerBase =
     "flex items-center px-3 py-2.5 text-sm lg:px-4 lg:py-3 lg:text-base xl:px-3 xl:py-2.5 xl:text-sm rounded-lg transition-colors";
@@ -69,8 +75,11 @@ export function SidebarAccordionSection({
           />
         </svg>
         <span className="min-w-0 flex-1 truncate">{label}</span>
+        {/* Aggregate badge on the collapsed header; hidden once expanded, where
+            the per-item badges take over. */}
+        {!isExpanded && <UnreadBadge count={badgeCount} className="mr-2" />}
         <svg
-          className={`ml-auto h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

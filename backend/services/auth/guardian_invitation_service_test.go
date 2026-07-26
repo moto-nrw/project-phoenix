@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -31,16 +32,13 @@ type guardianTestEnv struct {
 	cleanup func()
 }
 
-// stubOutboxEnqueuer satisfies authService.OutboxEnqueuer for tests that
-// exercise the production (outbox) email path instead of the legacy
-// dispatcher path. The legacy path spawns a goroutine whose delivery
-// callback writes email_sent_at back to the invitation row, racing any
-// assertion on those columns.
+// stubOutboxEnqueuer satisfies authService.OutboxEnqueuer so tests can
+// capture what the service enqueues without wiring the full outbox stack.
 type stubOutboxEnqueuer struct {
-	requests []authService.OutboxEnqueueRequest
+	requests []platformModels.OutboxEnqueueRequest
 }
 
-func (s *stubOutboxEnqueuer) Enqueue(_ context.Context, req authService.OutboxEnqueueRequest) error {
+func (s *stubOutboxEnqueuer) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
 	s.requests = append(s.requests, req)
 	return nil
 }
@@ -52,7 +50,6 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 
 	repoFactory := repositories.NewFactory(db)
 	mailer := email.NewMockMailer()
-	dispatcher := email.NewDispatcher(mailer, slog.Default())
 
 	cfg := authService.GuardianInvitationServiceConfig{
 		InvitationRepo:      repoFactory.GuardianInvitation,
@@ -62,11 +59,11 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 		RoleRepo:            repoFactory.Role,
 		PersonRepo:          repoFactory.Person,
 		GuardianProfileRepo: repoFactory.GuardianProfile,
+		StudentGuardianRepo: repoFactory.StudentGuardian,
+		StudentRepo:         repoFactory.Student,
 		SchoolRepo:          repoFactory.School,
-		Mailer:              mailer,
-		Dispatcher:          dispatcher,
+		OutboxEnqueuer:      &stubOutboxEnqueuer{},
 		FrontendURL:         "http://localhost:3000",
-		DefaultFrom:         email.NewEmail("Test", "no-reply@moto.local"),
 		FallbackExpiry:      48 * time.Hour,
 		DB:                  db,
 		Logger:              slog.Default(),
@@ -313,6 +310,44 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	assert.True(t, hasGuardian, "guardian role should be assigned")
 }
 
+func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	ctx := testpkg.TenantContext(1)
+	creatorID := env.inviterAccountID(t)
+	statuses := []string{
+		authModels.GuardianInvitationApprovalPending,
+		authModels.GuardianInvitationApprovalRejected,
+	}
+	for _, status := range statuses {
+		t.Run(status, func(t *testing.T) {
+			profile := testpkg.CreateTestGuardianProfile(t, env.db, "unapproved-token-"+status)
+			invitation := &authModels.GuardianInvitation{
+				Token:             "unapproved-token-" + status + "-" + time.Now().Format("150405.000000000"),
+				GuardianProfileID: profile.ID,
+				CreatedBy:         creatorID,
+				ExpiresAt:         time.Now().Add(time.Hour),
+				ApprovalStatus:    status,
+			}
+			invitation.SetTenantID(1)
+			require.NoError(t, env.repos.GuardianInvitation.Create(ctx, invitation))
+			defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+			_, err := env.service.Validate(context.Background(), invitation.Token)
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, authService.ErrInvitationNotFound))
+
+			_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+				Password:        strongTestPassword,
+				ConfirmPassword: strongTestPassword,
+			})
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, authService.ErrInvitationNotFound))
+		})
+	}
+}
+
 func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordChange(t *testing.T) {
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
@@ -517,44 +552,6 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	assert.Nil(t, updated.EmailError, "email_error must be cleared on resend")
 }
 
-func TestGuardianInvitationService_CleanupExpired_RemovesExpired(t *testing.T) {
-	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
-
-	profile := testpkg.CreateTestGuardianProfile(t, env.db, "cleanup-test")
-	creatorID := env.inviterAccountID(t)
-
-	ctx := testpkg.TenantContext(1)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
-		GuardianProfileID: profile.ID,
-		CreatedBy:         creatorID,
-	})
-	require.NoError(t, err)
-	defer func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("users.guardian_profiles").
-			Where("id = ?", profile.ID).
-			Exec(context.Background())
-	}()
-
-	// Push the invitation into the expired window.
-	_, err = env.db.NewUpdate().
-		TableExpr("auth.guardian_invitations").
-		Set("expires_at = ?", time.Now().Add(-1*time.Hour)).
-		Where("id = ?", invitation.ID).
-		Exec(context.Background())
-	require.NoError(t, err)
-
-	count, err := env.service.CleanupExpired(context.Background())
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, count, 1, "expired invitation should be deleted")
-
-	// Confirm the row is gone.
-	_, err = env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
-	require.Error(t, err, "expired invitation should no longer exist after cleanup")
-	_ = authModels.GuardianInvitation{} // import retention
-}
-
 // --- Enrollment backfill on accept ---
 
 // stubEnrollmentBackfiller records inputs to BackfillGuardianAccountID
@@ -587,7 +584,6 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 
 	repoFactory := repositories.NewFactory(db)
 	mailer := email.NewMockMailer()
-	dispatcher := email.NewDispatcher(mailer, slog.Default())
 
 	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
 		InvitationRepo:       repoFactory.GuardianInvitation,
@@ -599,10 +595,8 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 		GuardianProfileRepo:  repoFactory.GuardianProfile,
 		SchoolRepo:           repoFactory.School,
 		EnrollmentBackfiller: backfiller,
-		Mailer:               mailer,
-		Dispatcher:           dispatcher,
+		OutboxEnqueuer:       &stubOutboxEnqueuer{},
 		FrontendURL:          "http://localhost:3000",
-		DefaultFrom:          email.NewEmail("Test", "no-reply@moto.local"),
 		FallbackExpiry:       48 * time.Hour,
 		DB:                   db,
 		Logger:               slog.Default(),

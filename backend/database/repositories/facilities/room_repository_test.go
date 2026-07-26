@@ -2,9 +2,11 @@ package facilities_test
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -13,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var roomRepositoryTenantCounter int64 = 920_000 + time.Now().UnixNano()%50_000
 
 // ============================================================================
 // CRUD Tests
@@ -183,42 +187,6 @@ func TestRoomRepository_FindByName(t *testing.T) {
 	})
 }
 
-func TestRoomRepository_FindByBuilding(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Room
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds rooms by building", func(t *testing.T) {
-		uniqueBuilding := fmt.Sprintf("Building_%d", time.Now().UnixNano())
-		room1 := &facilities.Room{
-			Name:     fmt.Sprintf("Room1_%d", time.Now().UnixNano()),
-			Building: uniqueBuilding,
-			Floor:    testpkg.IntPtr(1),
-			Capacity: testpkg.IntPtr(20),
-			Category: testpkg.StrPtr("classroom"),
-		}
-		room2 := &facilities.Room{
-			Name:     fmt.Sprintf("Room2_%d", time.Now().UnixNano()),
-			Building: uniqueBuilding,
-			Floor:    testpkg.IntPtr(2),
-			Capacity: testpkg.IntPtr(25),
-			Category: testpkg.StrPtr("classroom"),
-		}
-
-		err := repo.Create(ctx, room1)
-		require.NoError(t, err)
-		err = repo.Create(ctx, room2)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room1.ID, room2.ID)
-
-		rooms, err := repo.FindByBuilding(ctx, uniqueBuilding)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(rooms), 2)
-	})
-}
-
 func TestRoomRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -241,51 +209,6 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := repo.FindByCategory(ctx, uniqueCategory)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(rooms), 1)
-	})
-}
-
-func TestRoomRepository_FindByFloor(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Room
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds rooms by floor", func(t *testing.T) {
-		uniqueBuilding := fmt.Sprintf("FloorBuilding_%d", time.Now().UnixNano())
-		room := &facilities.Room{
-			Name:     fmt.Sprintf("FloorRoom_%d", time.Now().UnixNano()),
-			Building: uniqueBuilding,
-			Floor:    testpkg.IntPtr(5),
-			Capacity: testpkg.IntPtr(20),
-			Category: testpkg.StrPtr("classroom"),
-		}
-
-		err := repo.Create(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-
-		rooms, err := repo.FindByFloor(ctx, uniqueBuilding, 5)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(rooms), 1)
-	})
-
-	t.Run("finds rooms by floor without building filter", func(t *testing.T) {
-		room := &facilities.Room{
-			Name:     fmt.Sprintf("FloorOnlyRoom_%d", time.Now().UnixNano()),
-			Building: "SomeBuilding",
-			Floor:    testpkg.IntPtr(99),
-			Capacity: testpkg.IntPtr(20),
-			Category: testpkg.StrPtr("classroom"),
-		}
-
-		err := repo.Create(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-
-		rooms, err := repo.FindByFloor(ctx, "", 99)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(rooms), 1)
 	})
@@ -487,6 +410,54 @@ func TestRoomRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, rooms)
 	})
+}
+
+func TestRoomRepository_ListWithOccupancy_GroupsVisibilityInsideTenantScope(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	tenantA := atomic.AddInt64(&roomRepositoryTenantCounter, 1)
+	tenantB := atomic.AddInt64(&roomRepositoryTenantCounter, 1)
+	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.EnsureTestTenant(t, db, tenantB)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantA, tenantB) })
+
+	repo := repositories.NewFactory(db).Room
+	ctxA := testpkg.TenantContext(tenantA)
+	ctxB := testpkg.TenantContext(tenantB)
+
+	normalA := &facilities.Room{Name: "Lernraum", Building: "Haus A"}
+	normalA.SetTenantID(tenantA)
+	require.NoError(t, repo.Create(ctxA, normalA))
+	schulhofA := &facilities.Room{Name: constants.SchulhofRoomName, Building: "Außen", IsSystem: true}
+	schulhofA.SetTenantID(tenantA)
+	require.NoError(t, repo.Create(ctxA, schulhofA))
+	schulhofB := &facilities.Room{Name: constants.SchulhofRoomName, Building: "Außen", IsSystem: true}
+	schulhofB.SetTenantID(tenantB)
+	require.NoError(t, repo.Create(ctxB, schulhofB))
+
+	staffVisible := modelBase.NewFilter().
+		Equal("is_system", false).
+		NotIn("name", constants.WCRoomName, constants.WCRoomAliasName)
+	staffVisible.Or(*modelBase.NewFilter().Equal("name", constants.SchulhofRoomName))
+	options := modelBase.NewQueryOptions()
+	options.Filter.And(*staffVisible)
+
+	rows, err := repo.ListWithOccupancy(ctxA, options)
+
+	require.NoError(t, err)
+	ids := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		ids[row.ID] = true
+	}
+	assert.True(t, ids[normalA.ID])
+	assert.True(t, ids[schulhofA.ID])
+	assert.False(t, ids[schulhofB.ID], "grouped Schulhof OR must not escape tenant scope")
+
+	foundByIDs, err := repo.FindByIDs(ctxA, []int64{schulhofA.ID, schulhofB.ID})
+	require.NoError(t, err)
+	require.Len(t, foundByIDs, 1)
+	assert.Equal(t, schulhofA.ID, foundByIDs[0].ID, "FindByIDs must keep the explicit tenant filter")
 }
 
 // ============================================================================

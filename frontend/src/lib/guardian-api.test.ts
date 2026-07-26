@@ -241,6 +241,7 @@ const mockGuardianFormData: GuardianFormData = {
 const mockLinkRequest: StudentGuardianLinkRequest = {
   guardianProfileId: "1",
   relationshipType: "parent",
+  guardianRole: "primary_guardian",
   isPrimary: true,
   isEmergencyContact: true,
   canPickup: true,
@@ -304,11 +305,13 @@ describe("guardian-api functions", () => {
         accountId: undefined,
         relationshipId: "10",
         relationshipType: "parent",
+        guardianRole: "custom",
         isPrimary: true,
         isEmergencyContact: true,
         canPickup: true,
         pickupNotes: "Can pickup anytime",
         emergencyPriority: 1,
+        accountStatus: "none",
       });
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/guardians/students/123/guardians",
@@ -722,6 +725,7 @@ describe("guardian-api functions", () => {
             lastName: "Guardian",
             email: "a@b.de",
             relationshipType: "parent",
+            guardianRole: "legal_guardian",
             isPrimary: true,
             isEmergencyContact: false,
             canPickup: true,
@@ -748,6 +752,7 @@ describe("guardian-api functions", () => {
             last_name: "Guardian",
             email: "a@b.de",
             relationship_type: "parent",
+            guardian_role: "legal_guardian",
             is_primary: true,
             can_pickup: true,
             emergency_priority: 1,
@@ -784,6 +789,7 @@ describe("guardian-api functions", () => {
             isPrimary: false,
             isEmergencyContact: false,
             canPickup: false,
+            guardianRole: "pickup_only",
             emergencyPriority: 1,
           },
         ]),
@@ -828,6 +834,7 @@ describe("guardian-api functions", () => {
       >;
       expect(body.guardian_profile_id).toBe(1);
       expect(body.relationship_type).toBe("parent");
+      expect(body.guardian_role).toBe(mockLinkRequest.guardianRole);
       expect(body.is_primary).toBe(true);
     });
 
@@ -871,6 +878,7 @@ describe("guardian-api functions", () => {
 
       await updateStudentGuardianRelationship("10", {
         relationshipType: "guardian",
+        guardianRole: "co_guardian",
         isPrimary: false,
         isEmergencyContact: true,
         canPickup: false,
@@ -899,6 +907,7 @@ describe("guardian-api functions", () => {
       >;
       expect(body).toEqual({
         relationship_type: "guardian",
+        guardian_role: "co_guardian",
         is_primary: false,
         is_emergency_contact: true,
         can_pickup: false,

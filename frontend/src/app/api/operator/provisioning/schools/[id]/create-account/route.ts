@@ -1,19 +1,7 @@
-import type { NextRequest } from "next/server";
-import {
-  createOperatorPostHandler,
-  isStringParam,
-  operatorApiPost,
-} from "~/lib/operator/route-wrapper.server";
+import { proxyPost } from "~/lib/operator/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const POST = createOperatorPostHandler(
-  async (_request: NextRequest, body: unknown, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
-    return await operatorApiPost(
-      `/operator/schools/${params.id}/create-account`,
-      token,
-      body,
-    );
-  },
+export const POST = proxyPost(
+  (params) =>
+    `/operator/schools/${requirePathSegmentParam(params)}/create-account`,
 );

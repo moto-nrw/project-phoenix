@@ -80,37 +80,6 @@ func (s *service) SessionTimeUntilTimeout(ctx context.Context, group *active.Gro
 	return s.ResolveSessionTimeout(ctx, group) - SessionInactivityDuration(group, now)
 }
 
-// MarkSessionActivity stamps the session's LastActivity with the supplied clock.
-// This is a policy-bearing "activity happened now" marker read by the timeout
-// logic, so it lives in the service rather than the model.
-func MarkSessionActivity(group *active.Group, now time.Time) {
-	group.LastActivity = now
-}
-
-// EndGroupSession stamps the group session's EndTime with the supplied clock.
-func EndGroupSession(group *active.Group, now time.Time) {
-	group.EndTime = &now
-}
-
-// EndVisitRecord stamps a visit's ExitTime with the supplied clock (in-memory).
-// Persistence and the surrounding audit/SSE side-effects stay in the Service's
-// EndVisit(ctx, id) flow.
-func EndVisitRecord(visit *active.Visit, now time.Time) {
-	visit.ExitTime = &now
-}
-
-// EndSupervisionRecord stamps a supervision's EndDate with the supplied
-// clock's Berlin calendar day.
-func EndSupervisionRecord(supervisor *active.GroupSupervisor, now time.Time) {
-	endDate := timezone.DateFromTime(now)
-	supervisor.EndDate = &endDate
-}
-
-// EndCombinationRecord stamps a combined group's EndTime with the supplied clock.
-func EndCombinationRecord(group *active.CombinedGroup, now time.Time) {
-	group.EndTime = &now
-}
-
 // IsSupervisorActive decides whether a supervision assignment is still active as
 // of now. A nil EndDate means open-ended (active); otherwise it is active while
 // now is before the recorded end.

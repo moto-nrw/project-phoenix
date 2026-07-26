@@ -1,9 +1,14 @@
 package users_test
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -360,27 +365,6 @@ func TestStaffRepository_FindByIDs(t *testing.T) {
 // UpdateNotes Tests
 // ============================================================================
 
-func TestStaffRepository_UpdateNotes(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Staff
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("updates staff notes", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "UpdateNotes", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
-
-		err := repo.UpdateNotes(ctx, staff.ID, "New notes")
-		require.NoError(t, err)
-
-		// Verify the notes were updated
-		found, err := repo.FindByID(ctx, staff.ID)
-		require.NoError(t, err)
-		assert.Equal(t, "New notes", found.StaffNotes)
-	})
-}
-
 // ============================================================================
 // ListAllWithPerson Tests
 // ============================================================================
@@ -421,6 +405,53 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 
 		assert.True(t, foundStaff1, "should find staff1 in results")
 		assert.True(t, foundStaff2, "should find staff2 in results")
+	})
+
+	t.Run("loads work-time model linkage fields", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "WorkTime", "Linkage")
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		modelRepo := configRepo.NewWorkTimeModelRepository(db)
+		anchor := timezone.NewDate(2026, time.January, 5)
+		model := &configModel.WorkTimeModel{
+			Name:               fmt.Sprintf("Linkage %d", staff.ID),
+			RotationLength:     2,
+			RotationAnchorDate: anchor,
+		}
+		require.NoError(t, modelRepo.Create(ctx, model, []*configModel.WorkTimeModelEntry{
+			{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
+		}))
+		staffAnchor := anchor.AddDays(7)
+		_, err := db.NewUpdate().
+			Table("users.staff").
+			Set("work_time_model_id = ?", model.ID).
+			Set("rotation_anchor_date = ?", staffAnchor).
+			Where("id = ?", staff.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+		defer func() {
+			_, _ = db.NewUpdate().
+				Table("users.staff").
+				Set("work_time_model_id = NULL").
+				Where("id = ?", staff.ID).
+				Exec(ctx)
+			_ = modelRepo.Delete(ctx, model.ID)
+		}()
+
+		results, err := repo.ListAllWithPerson(ctx)
+		require.NoError(t, err)
+		var found *users.Staff
+		for _, s := range results {
+			if s.ID == staff.ID {
+				found = s
+				break
+			}
+		}
+		require.NotNil(t, found, "should find the created staff member")
+		require.NotNil(t, found.WorkTimeModelID, "work_time_model_id must be scanned")
+		assert.Equal(t, model.ID, *found.WorkTimeModelID)
+		require.NotNil(t, found.RotationAnchorDate, "rotation_anchor_date must be scanned")
+		assert.Equal(t, staffAnchor, *found.RotationAnchorDate)
 	})
 
 	t.Run("returns empty slice when no staff exist", func(t *testing.T) {

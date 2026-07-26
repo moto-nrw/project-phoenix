@@ -44,11 +44,6 @@ const (
 	EventTypeMFAAdminOverride      = "mfa_admin_override"
 )
 
-// TableName returns the database table name
-func (ae *AuthEvent) TableName() string {
-	return "audit.auth_events"
-}
-
 // Validate ensures auth event is valid
 func (ae *AuthEvent) Validate() error {
 	if ae.AccountID <= 0 {

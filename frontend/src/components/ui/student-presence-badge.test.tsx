@@ -3,9 +3,10 @@ import { describe, it, expect, vi } from "vitest";
 
 // Opt out of the global tenant-provider mock so the real TenantContext
 // is wired in — the wrapper depends on it to decide between badges.
-vi.unmock("~/components/tenant/tenant-provider");
+vi.unmock("~/lib/tenant-context");
+vi.unmock("~/lib/tenant-context");
 
-import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 import { StudentPresenceBadge } from "./student-presence-badge";
 
@@ -23,6 +24,9 @@ function makeTenant(
     presenceMode,
     studentPhotosEnabled: false,
     nfcEnabled: false,
+    messagingEnabled: false,
+    displayEnabled: false,
+    gradeLevelMax: 4,
   };
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, Check, Clock, ShieldCheck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 import {
   PublicEnrollmentBrand,

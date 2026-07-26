@@ -8,8 +8,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableActiveStaffAbsenceAudit = "active.staff_absence_audit"
-
 type StaffAbsenceAudit struct {
 	bun.BaseModel `bun:"schema:active,table:staff_absence_audit"`
 	ID            int64 `bun:"id,pk,autoincrement" json:"id"`
@@ -31,13 +29,6 @@ func (a *StaffAbsenceAudit) Validate() error {
 	}
 	if a.ActorID <= 0 {
 		return errors.New("actor_id is required")
-	}
-	return nil
-}
-
-func (a *StaffAbsenceAudit) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActiveStaffAbsenceAudit)
 	}
 	return nil
 }

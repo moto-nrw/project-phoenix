@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentPhaseExportRoute" });
@@ -43,7 +44,7 @@ async function proxyExport(phaseId: string, body: string, token: string) {
   return new NextResponse(data, { status: 200, headers });
 }
 
-export async function POST(request: NextRequest, context: RouteContext) {
+async function POSTHandler(request: NextRequest, context: RouteContext) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
@@ -69,3 +70,5 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

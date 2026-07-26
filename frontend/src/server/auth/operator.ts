@@ -8,16 +8,21 @@
  */
 
 import NextAuth from "next-auth";
-import { cache } from "react";
 
 import { operatorAuthConfig } from "./operator-config";
+import { createResponseAwareAuth } from "./route-handler";
 
+const { auth: rawOperatorAuth, handlers: operatorHandlers } =
+  NextAuth(operatorAuthConfig);
 const {
-  auth: uncachedOperatorAuth,
-  handlers: operatorHandlers,
-  signIn: operatorSignIn,
-} = NextAuth(operatorAuthConfig);
+  auth: operatorAuth,
+  uncachedAuth: uncachedOperatorAuth,
+  withAuthResponse: withOperatorAuth,
+} = createResponseAwareAuth(rawOperatorAuth);
 
-const operatorAuth = cache(uncachedOperatorAuth);
-
-export { operatorAuth, uncachedOperatorAuth, operatorHandlers, operatorSignIn };
+export {
+  operatorAuth,
+  uncachedOperatorAuth,
+  operatorHandlers,
+  withOperatorAuth,
+};

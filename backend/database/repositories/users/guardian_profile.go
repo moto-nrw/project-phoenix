@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -72,6 +74,88 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 	}
 
 	return profile, nil
+}
+
+// FindByIDs retrieves guardian profiles for the given ids in a single query,
+// keyed by id for O(1) lookup. Missing ids are simply absent from the map.
+// Tenant-scoped via RLS / TenantWhere, mirroring FindByIDs on the other repos.
+func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.GuardianProfile), nil
+	}
+
+	var profiles []*users.GuardianProfile
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&profiles).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".id IN (?)`, bun.List(ids))
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to find guardian profiles by ids: %w", err)
+	}
+
+	result := make(map[int64]*users.GuardianProfile, len(profiles))
+	for _, profile := range profiles {
+		result[profile.ID] = profile
+	}
+	return result, nil
+}
+
+// FindActivePortalProfilesByIDs returns only guardian profiles that are linked
+// to an account that can actually sign in to the parent portal for the current
+// tenant. Reachability mirrors the parent login flow (services/auth): the
+// tenant mapping (account_tenants.status) and the account itself
+// (accounts.active) must be active, AND the account must hold the guardian role
+// on that tenant. Parent login rejects accounts without the guardian role
+// (ErrAccountNoGuardianRole), so a profile whose account lacks it must not be
+// treated as reachable — otherwise staff could target a parent who can never
+// see or answer the invitation.
+//
+// Runtime-role note: this runs under phoenix_tenant (the staff calendar routes
+// use TenantTxMiddleware). That role has SELECT on every auth table via the
+// "GRANT SELECT ON ALL TABLES IN SCHEMA auth TO phoenix_tenant" in migration
+// 1.14.1 (no later revoke), and RLS permits the reads with app.current_tenant_id
+// set: auth.roles allows tenant_id IS NULL (the guardian base role), and
+// auth.account_roles / auth.account_tenants rows match the current tenant.
+// It is NOT limited to phoenix_auth — these joins do not need an admin tx.
+func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.GuardianProfile), nil
+	}
+
+	var profiles []*users.GuardianProfile
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&profiles).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "guardian_profile".account_id AND "account_tenant".tenant_id = "guardian_profile".tenant_id`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "guardian_profile".account_id`).
+		Join(`INNER JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "guardian_profile".account_id AND "account_role".tenant_id = "guardian_profile".tenant_id`).
+		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
+		Where(`"guardian_profile".id IN (?)`, bun.List(ids)).
+		Where(`"guardian_profile".account_id IS NOT NULL`).
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"account".active = ?`, true).
+		// Match the parent login guardian-role check (case-insensitive, mirrors
+		// strings.EqualFold in services/auth). Deduped by the result map below.
+		Where(`LOWER("role".name) = ?`, strings.ToLower(authModels.BaseRoleGuardian))
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to find active portal guardian profiles by ids: %w", err)
+	}
+
+	result := make(map[int64]*users.GuardianProfile, len(profiles))
+	for _, profile := range profiles {
+		result[profile.ID] = profile
+	}
+	return result, nil
 }
 
 // LockByIDForUpdate locks a guardian profile row for the current transaction.
@@ -289,20 +373,6 @@ func (r *GuardianProfileRepository) SearchByText(ctx context.Context, searchText
 	return profiles, nil
 }
 
-// Count returns the total number of guardian profiles
-func (r *GuardianProfileRepository) Count(ctx context.Context) (int, error) {
-	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model((*users.GuardianProfile)(nil)).
-		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-		Count(ctx)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to count guardian profiles: %w", err)
-	}
-
-	return count, nil
-}
-
 // Update updates an existing guardian profile
 func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.GuardianProfile) error {
 	if err := profile.Validate(); err != nil {
@@ -409,32 +479,6 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 	return nil
 }
 
-// UnlinkAccount unlinks a guardian profile from their account
-func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID int64) error {
-	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.GuardianProfile)(nil)).
-		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-		Set("account_id = NULL").
-		Set("has_account = ?", false).
-		Where(`"guardian_profile".id = ?`, profileID).
-		Exec(ctx)
-
-	if err != nil {
-		return fmt.Errorf("failed to unlink account: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(errRowsAffected, err)
-	}
-
-	if rowsAffected == 0 {
-		return users.ErrGuardianProfileNotFound
-	}
-
-	return nil
-}
-
 // LoadProfileWithChildren returns the guardian profile linked to the
 // account plus the primary phone + active-student summaries. Multi-
 // schema join (users.students_guardians → users.students →
@@ -489,6 +533,7 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		Join(`INNER JOIN users.students AS "s" ON "s".id = "sg".student_id`).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"sg".guardian_profile_id = ?`, profile.ID).
+		Where(`COALESCE(("sg".permissions ->> ?)::boolean, false) = TRUE`, authorize.GuardianPermissionPortalAccess).
 		Where(`"s".status <> ?`, "alumnus").
 		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
 		Scan(ctx, &rows)
@@ -505,19 +550,4 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 	}
 
 	return result, nil
-}
-
-// GetStudentCount returns the number of students for a guardian
-func (r *GuardianProfileRepository) GetStudentCount(ctx context.Context, profileID int64) (int, error) {
-	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model((*users.StudentGuardian)(nil)).
-		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".guardian_profile_id = ?`, profileID).
-		Count(ctx)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to count students: %w", err)
-	}
-
-	return count, nil
 }

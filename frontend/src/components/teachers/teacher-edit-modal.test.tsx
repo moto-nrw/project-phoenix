@@ -29,7 +29,9 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="modal">
         <h2>{title}</h2>
-        <button onClick={onClose}>Close</button>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
         {children}
       </div>
     ) : null,
@@ -52,13 +54,18 @@ vi.mock("./teacher-form", () => ({
     <div data-testid="teacher-form">
       <div data-testid="initial-data">{JSON.stringify(initialData)}</div>
       <button
+        type="button"
         onClick={onSubmitAction}
         disabled={isLoading}
         data-testid="submit-button"
       >
         Submit
       </button>
-      <button onClick={onCancelAction} data-testid="cancel-button">
+      <button
+        type="button"
+        onClick={onCancelAction}
+        data-testid="cancel-button"
+      >
         Cancel
       </button>
     </div>

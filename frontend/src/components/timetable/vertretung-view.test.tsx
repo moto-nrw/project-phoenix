@@ -1,0 +1,565 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { EnrichedInstance } from "~/lib/timetable-types";
+
+const {
+  mockSearch,
+  mockUseSession,
+  mockToastSuccess,
+  mockToastError,
+  mockTenantMutate,
+  mockUseSWRAuth,
+  mockApplyDeviations,
+  mockDayListProps,
+  mockGridProps,
+  mockEditorProps,
+} = vi.hoisted(() => ({
+  mockSearch: { value: "" },
+  mockUseSession: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+  mockTenantMutate: vi.fn(),
+  mockUseSWRAuth: vi.fn(),
+  mockApplyDeviations: vi.fn(),
+  mockDayListProps: vi.fn(),
+  mockGridProps: vi.fn(),
+  mockEditorProps: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(mockSearch.value),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+    warning: vi.fn(),
+  }),
+}));
+
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: mockUseSWRAuth,
+  useTenantMutate: () => mockTenantMutate,
+}));
+
+vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
+  useTimetableDayHours: () => ({ dayStartHour: 9, dayEndHour: 17 }),
+}));
+
+vi.mock("~/lib/timetable-api", () => ({
+  timetableService: {
+    getWeek: vi.fn(),
+    getGaps: vi.fn(),
+    applyDeviations: mockApplyDeviations,
+  },
+}));
+
+// Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
+// Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
+vi.mock("~/lib/settings-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/settings-api")>()),
+  fetchSettingsSchema: vi.fn(),
+}));
+
+vi.mock("~/lib/staff-api", () => ({
+  staffService: {
+    getAllStaff: vi.fn(),
+  },
+}));
+
+vi.mock("~/components/timetable/vertretung-day-list", () => ({
+  VertretungDayList: (props: {
+    instances: Array<{ id: string }>;
+    gapsAvailable: boolean;
+    mode: string;
+    canManage: boolean;
+    onEdit: (id: string) => void;
+  }) => {
+    mockDayListProps(props);
+    return (
+      <div data-testid="day-list" data-mode={props.mode}>
+        <button type="button" onClick={() => props.onEdit("42")}>
+          day-list-edit
+        </button>
+      </div>
+    );
+  },
+}));
+
+vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
+  WeeklyCalendarGrid: (props: {
+    instances: Array<{ id: string }>;
+    selectedId: string | null;
+    onInstanceClick: (instance: { id: string }) => void;
+  }) => {
+    mockGridProps(props);
+    return (
+      <div data-testid="calendar-grid">
+        <button
+          type="button"
+          onClick={() => props.onInstanceClick({ id: "42" })}
+        >
+          grid-click
+        </button>
+      </div>
+    );
+  },
+}));
+
+vi.mock("~/components/timetable/substitution-slide-over", () => ({
+  SubstitutionSlideOver: (props: {
+    instance: { id: string } | null;
+    initialTab: string;
+    staffLoadError?: boolean;
+    canManage: boolean;
+    dayAbsentStaffIds: ReadonlySet<string>;
+    onClose: () => void;
+    onApply: (input: unknown) => Promise<boolean>;
+    onTabChange: (tab: "bearbeiten" | "verlauf") => void;
+  }) => {
+    mockEditorProps(props);
+    if (!props.instance) return null;
+    return (
+      <div data-testid="editor" data-initial-tab={props.initialTab}>
+        <span>editor-instance-{props.instance.id}</span>
+        <button type="button" onClick={() => props.onClose()}>
+          editor-close
+        </button>
+        <button type="button" onClick={() => props.onTabChange("verlauf")}>
+          editor-history
+        </button>
+        <button
+          type="button"
+          onClick={() => void props.onApply({ cancel: true })}
+        >
+          editor-cancel-save
+        </button>
+      </div>
+    );
+  },
+}));
+
+import { VertretungView } from "./vertretung-view";
+
+function makeInstance(overrides: Partial<EnrichedInstance>): EnrichedInstance {
+  return {
+    id: "42",
+    date: "2026-07-15",
+    startTime: "12:00",
+    endTime: "13:00",
+    title: "Mensa",
+    status: "planned",
+    isSpontaneous: false,
+    isLive: false,
+    activityType: "care",
+    roomId: "3",
+    roomName: "Mensa",
+    staff: [],
+    studentIds: [],
+    students: [],
+    staffCount: 0,
+    absentStaffCount: 0,
+    expectedStudentsCount: 0,
+    notScheduledStudentsCount: 0,
+    presentStudentsCount: 0,
+    requiredStaffCount: 0,
+    assignedStaffCount: 0,
+    conflictWarnings: [],
+    ...overrides,
+  };
+}
+
+const WEEK_INSTANCES: EnrichedInstance[] = [
+  makeInstance({ id: "42", date: "2026-07-15", title: "Mensa" }),
+  makeInstance({ id: "43", date: "2026-07-16", title: "Fussball" }),
+];
+
+interface SwrState {
+  weekData?: { from: string; to: string; instances: EnrichedInstance[] };
+  weekError?: Error;
+  weekLoading?: boolean;
+  gapsData?: {
+    from: string;
+    to: string;
+    gaps: unknown[];
+    acknowledged: unknown[];
+  };
+  gapsError?: Error;
+  gapsLoading?: boolean;
+  staffData?: Array<{ id: string; name: string }>;
+  staffError?: Error;
+  settingsSchema?: unknown;
+  settingsLoading?: boolean;
+}
+
+function setupSWR(state: SwrState = {}) {
+  const {
+    weekData = {
+      from: "2026-07-13",
+      to: "2026-07-19",
+      instances: WEEK_INSTANCES,
+    },
+    weekError,
+    weekLoading = false,
+    gapsData = {
+      from: "2026-07-15",
+      to: "2026-07-19",
+      gaps: [],
+      acknowledged: [],
+    },
+    gapsError,
+    gapsLoading = false,
+    staffData = [{ id: "11", name: "Ada Staff" }],
+    staffError,
+    settingsSchema = null,
+    settingsLoading = false,
+  } = state;
+
+  mockUseSWRAuth.mockImplementation((key: string | null) => {
+    if (key === null) return {};
+    if (key === "settings-schema") {
+      return settingsLoading
+        ? { isLoading: true }
+        : { data: settingsSchema, isLoading: false };
+    }
+    if (key === "vertretung-staff-list") {
+      return { data: staffData, error: staffError };
+    }
+    if (key.startsWith("vertretung-gaps")) {
+      if (gapsLoading) return { isLoading: true };
+      return { data: gapsData, error: gapsError, isLoading: gapsLoading };
+    }
+    if (key.startsWith("vertretung-week")) {
+      return {
+        data: weekError ? undefined : weekData,
+        error: weekError,
+        isLoading: weekLoading,
+      };
+    }
+    return {};
+  });
+}
+
+function urlKeys(): string[] {
+  return [...new URLSearchParams(window.location.search).keys()];
+}
+
+describe("VertretungView", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mittwoch 2026-07-15, Berlin (Sommerzeit UTC+2). Woche Mo 13. – So 19.07.
+    vi.setSystemTime(new Date("2026-07-15T12:00:00Z"));
+    mockSearch.value = "";
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:manage"] } },
+    });
+    mockTenantMutate.mockResolvedValue(undefined);
+    mockApplyDeviations.mockResolvedValue({
+      instanceId: "42",
+      cancelled: true,
+      understaffedAck: false,
+      affectedInstances: [],
+      warnings: [],
+    });
+    setupSWR();
+    window.history.replaceState(null, "", "/acme/vertretung");
+  });
+
+  it("defaults to today's Berlin date when d is absent", () => {
+    render(<VertretungView />);
+
+    const props = mockDayListProps.mock.calls.at(-1)?.[0];
+    expect(props.instances.map((i: EnrichedInstance) => i.id)).toEqual(["42"]);
+    expect(props.instances[0].date).toBe("2026-07-15");
+    // Kein "Heute"-Button, solange d der heutige Tag ist.
+    expect(
+      screen.queryByRole("button", { name: "Heute" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders exactly the five Mo–Fr chips, never Sa/So", () => {
+    render(<VertretungView />);
+
+    for (const label of [
+      "Mo 13.07.",
+      "Di 14.07.",
+      "Mi 15.07.",
+      "Do 16.07.",
+      "Fr 17.07.",
+    ]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(
+      screen.queryByRole("button", { name: "Sa 18.07." }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "So 19.07." }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("snaps a weekend deep link to the following Monday", () => {
+    mockSearch.value = "d=2026-07-18"; // Samstag
+    render(<VertretungView />);
+
+    // Angezeigt wird Montag der Folgewoche, dessen Chip ist selektiert.
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
+      "bg-gray-900",
+    );
+    const props = mockDayListProps.mock.calls.at(-1)?.[0];
+    expect(props.instances).toEqual([]);
+  });
+
+  it("defaults to next Monday on a weekend and hides the Heute button", () => {
+    // Samstag 2026-07-18, Berlin (Sommerzeit UTC+2).
+    vi.setSystemTime(new Date("2026-07-18T12:00:00Z"));
+    render(<VertretungView />);
+
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
+      "bg-gray-900",
+    );
+    // dayISO == Heute-Ziel (nächster Montag) -> kein Heute-Button.
+    expect(
+      screen.queryByRole("button", { name: "Heute" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("navigates to next Monday when Heute is clicked on a weekend", () => {
+    vi.setSystemTime(new Date("2026-07-18T12:00:00Z")); // Samstag
+    mockSearch.value = "d=2026-07-15";
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Heute" }));
+    expect(new URLSearchParams(window.location.search).get("d")).toBe(
+      "2026-07-20",
+    );
+  });
+
+  it("respects d, opens the editor for block, and starts on the Verlauf tab for verlauf=1", () => {
+    mockSearch.value = "d=2026-07-16&block=43&verlauf=1";
+    render(<VertretungView />);
+
+    const dayList = mockDayListProps.mock.calls.at(-1)?.[0];
+    expect(dayList.instances.map((i: EnrichedInstance) => i.id)).toEqual([
+      "43",
+    ]);
+
+    const editor = mockEditorProps.mock.calls.at(-1)?.[0];
+    expect(editor.instance?.id).toBe("43");
+    expect(editor.initialTab).toBe("verlauf");
+    expect(screen.getByTestId("editor")).toHaveAttribute(
+      "data-initial-tab",
+      "verlauf",
+    );
+  });
+
+  it("falls back to today when d is not a real calendar date", () => {
+    // "foo" ergäbe ohne Guard NaN-NaN-NaN-Fetchfenster, "2026-02-31" würde
+    // still zum 3. März überlaufen — beide müssen auf heute zurückfallen.
+    for (const bad of ["foo", "2026-02-31"]) {
+      mockSearch.value = `d=${bad}`;
+      const { unmount } = render(<VertretungView />);
+
+      const props = mockDayListProps.mock.calls.at(-1)?.[0];
+      expect(props.instances.map((i: EnrichedInstance) => i.id)).toEqual([
+        "42",
+      ]);
+      expect(props.instances[0].date).toBe("2026-07-15");
+      unmount();
+    }
+  });
+
+  it("strips unknown query params on the first URL write", () => {
+    mockSearch.value = "d=2026-07-15&utm_source=x";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&utm_source=x",
+    );
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Do 16.07." }));
+    expect(urlKeys()).toEqual(["d"]);
+    expect(new URLSearchParams(window.location.search).get("d")).toBe(
+      "2026-07-16",
+    );
+  });
+
+  it("keeps the URL to at most d/block/verlauf across interactions", () => {
+    mockSearch.value = "d=2026-07-15&block=42";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&block=42",
+    );
+    render(<VertretungView />);
+
+    const allowed = ["d", "block", "verlauf"];
+    const expectAllowed = () => {
+      for (const key of urlKeys()) expect(allowed).toContain(key);
+    };
+
+    // Tageswechsel über einen Wochenleisten-Chip: setzt d, entfernt block+verlauf.
+    fireEvent.click(screen.getByRole("button", { name: "Do 16.07." }));
+    expect(urlKeys()).toEqual(["d"]);
+    expect(new URLSearchParams(window.location.search).get("d")).toBe(
+      "2026-07-16",
+    );
+
+    // Editor öffnen aus der Liste: setzt block.
+    fireEvent.click(screen.getByText("day-list-edit"));
+    expectAllowed();
+    expect(new URLSearchParams(window.location.search).get("block")).toBe("42");
+
+    // Reiterwechsel auf Verlauf: setzt verlauf=1.
+    fireEvent.click(screen.getByText("editor-history"));
+    expect(urlKeys().sort()).toEqual(["block", "d", "verlauf"]);
+
+    // Editor schließen: entfernt block UND verlauf.
+    fireEvent.click(screen.getByText("editor-close"));
+    expect(urlKeys()).toEqual(["d"]);
+  });
+
+  it("räumt verlauf ab, wenn ein Block per Klick geöffnet wird", () => {
+    mockSearch.value = "d=2026-07-15&block=42";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&block=42",
+    );
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByText("editor-history"));
+    expect(new URLSearchParams(window.location.search).get("verlauf")).toBe(
+      "1",
+    );
+
+    // Block-Klick bei offenem Verlaufs-Reiter: verlauf darf nicht in der URL
+    // kleben, sonst startet der nächste geöffnete Block im Verlauf statt im
+    // Bearbeiten-Formular (Muster der alten handleSelectInstance).
+    fireEvent.click(screen.getByText("grid-click"));
+    expect(new URLSearchParams(window.location.search).get("block")).toBe("42");
+    expect(new URLSearchParams(window.location.search).has("verlauf")).toBe(
+      false,
+    );
+  });
+
+  it("shows placeholders (never a fabricated 0) for a fully past day", () => {
+    mockSearch.value = "d=2026-06-15"; // Woche komplett in der Vergangenheit
+    render(<VertretungView />);
+
+    expect(screen.getByText("Offen: –")).toBeInTheDocument();
+    expect(screen.getByText("Quittiert: –")).toBeInTheDocument();
+    expect(screen.queryByText("Offen: 0")).not.toBeInTheDocument();
+    expect(screen.queryByText("Quittiert: 0")).not.toBeInTheDocument();
+    expect(mockDayListProps.mock.calls.at(-1)?.[0].gapsAvailable).toBe(false);
+  });
+
+  it("passes unavailable gaps to the list while the gaps request is still loading", () => {
+    setupSWR({ gapsLoading: true });
+    render(<VertretungView />);
+
+    expect(mockDayListProps.mock.calls.at(-1)?.[0].gapsAvailable).toBe(false);
+  });
+
+  it("passes unavailable gaps to the list when the gaps request fails", () => {
+    setupSWR({ gapsError: new Error("gaps unavailable") });
+    render(<VertretungView />);
+
+    expect(mockDayListProps.mock.calls.at(-1)?.[0].gapsAvailable).toBe(false);
+  });
+
+  it("renders an error surface (not an empty plan) when the week fails to load", () => {
+    setupSWR({ weekError: new Error("boom") });
+    render(<VertretungView />);
+
+    expect(screen.getByTestId("vertretung-week-error")).toBeVisible();
+    expect(
+      screen.getByText("Vertretung konnte nicht geladen werden"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut versuchen" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();
+  });
+
+  it("retries week, gaps, AND staff list from the error surface", () => {
+    // Ein Backend-Blip lässt typischerweise alle drei Abrufe gleichzeitig
+    // scheitern; ein Retry nur des Wochen-Keys ließe Gaps-Chips und
+    // Personal-Alert bis zum Reload stale.
+    setupSWR({ weekError: new Error("boom") });
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(mockTenantMutate.mock.calls.map((c) => c[0] as string)).toEqual([
+      "vertretung-week-2026-07-13-2026-07-19",
+      "vertretung-gaps-2026-07-15-2026-07-19",
+      "vertretung-staff-list",
+    ]);
+  });
+
+  it("defaults the list filter to 'Nur Störungen' and toggles to 'Ganzer Tag'", async () => {
+    render(<VertretungView />);
+
+    expect(mockDayListProps.mock.calls.at(-1)?.[0].mode).toBe("stoerungen");
+
+    // Radix-Tabs aktivieren per mousedown, nicht click.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Ganzer Tag" }), {
+      button: 0,
+    });
+
+    await waitFor(() =>
+      expect(mockDayListProps.mock.calls.at(-1)?.[0].mode).toBe("ganzer-tag"),
+    );
+  });
+
+  it("applies a cancel save in one call and clears block from the URL", async () => {
+    mockSearch.value = "d=2026-07-15&block=42&verlauf=1";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&block=42&verlauf=1",
+    );
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByText("editor-cancel-save"));
+
+    await waitFor(() =>
+      expect(mockApplyDeviations).toHaveBeenCalledWith("42", { cancel: true }),
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith("Block abgesagt");
+    // Cache-Refresh nach dem committeten Save.
+    await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
+    // block und verlauf sind aus der URL entfernt.
+    expect(urlKeys()).toEqual(["d"]);
+  });
+
+  it("renders the disabled state when timetable.enabled is false", () => {
+    setupSWR({
+      settingsSchema: {
+        tabs: [
+          {
+            id: "operations",
+            categories: [
+              {
+                id: "timetable",
+                items: [{ key: "timetable.enabled", value: false }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    render(<VertretungView />);
+
+    expect(screen.getByTestId("vertretung-disabled-state")).toBeVisible();
+    expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
+  });
+});

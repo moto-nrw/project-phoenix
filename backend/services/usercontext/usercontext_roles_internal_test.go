@@ -20,25 +20,9 @@ func contextWithRoles(userID int, roles ...string) context.Context {
 	return context.WithValue(ctx, jwt.CtxClaims, claims)
 }
 
-func TestCurrentUserHasRoleHelpers(t *testing.T) {
-	ctx := contextWithRoles(42, "Admin", "User")
-
-	assert.True(t, isAuthenticated(ctx))
-	assert.True(t, currentUserHasRole(ctx, "admin"))
-	assert.True(t, currentUserHasAnyRole(ctx, "teacher", "user"))
-	assert.False(t, currentUserHasAnyRole(ctx, "guardian"))
+func TestIsAuthenticated(t *testing.T) {
+	assert.True(t, isAuthenticated(contextWithRoles(42, "Admin")))
 	assert.False(t, isAuthenticated(context.Background()))
-}
-
-func TestCurrentUserHasAnyRole_AllowsExplicitAndLegacyRoleShapes(t *testing.T) {
-	assert.True(t, currentUserHasAnyRole(contextWithRoles(42, "guardian"), "guardian"))
-	assert.True(t, currentUserHasAnyRole(contextWithRoles(42), "user"))
-}
-
-func TestCaregiverRoleGate_AllowsExplicitTeacherRole(t *testing.T) {
-	ctx := contextWithRoles(42, "teacher")
-
-	assert.True(t, currentUserHasAnyRole(ctx, "user", "teacher", "admin"))
 }
 
 func TestGetMyGroups_RejectsUnauthenticated(t *testing.T) {

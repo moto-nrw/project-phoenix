@@ -12,6 +12,14 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Loading } from "~/components/ui/loading";
+import { Button } from "~/components/ui/button";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "~/components/ui/drawer";
 import {
   type ChartConfig,
   ChartContainer,
@@ -20,7 +28,10 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
+import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Modal } from "~/components/ui/modal";
+import { OriginChip } from "~/components/ui/origin-chip";
 import {
   formatSignedDuration,
   ViewToggle,
@@ -28,20 +39,29 @@ import {
 } from "~/components/staff/staff-time-views";
 import { StaffSessionTable } from "~/components/staff/staff-session-table";
 import { StaffExportButton } from "~/components/staff/staff-export-button";
+import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
+import { Monatskarte } from "~/components/time-tracking/monatskarte";
 import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
-import { toISODate } from "~/lib/date-helpers";
+import { ownShiftService } from "~/lib/shift-api";
+import type { StaffShift } from "~/lib/shift-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useToast } from "~/contexts/ToastContext";
-import { useSWRAuth } from "~/lib/swr";
-import { useSWRConfig } from "swr";
+import {
+  usePeriodMetrics,
+  type PeriodMetrics,
+} from "~/lib/hooks/use-period-metrics";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { staffScheduleService } from "~/lib/staff-api";
 import {
-  computeStaffMetrics,
-  resolveAccountStartDate,
+  adaptAbsenceForMetrics,
+  adaptHistorySessionForMetrics,
   startOfYear,
-  toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import {
+  DEVIATION_REASON_REQUIRED_CODE,
+  PLANNED_START_NOT_REACHED_CODE,
   REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
 } from "~/lib/time-tracking-api";
@@ -49,6 +69,7 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { ApiError } from "~/lib/auth-api";
 import {
   type AbsenceType,
+  type MonthSummary,
   type StaffAbsence,
   type WorkSession,
   type WorkSessionBreak,
@@ -60,51 +81,13 @@ import {
   getWeekDays,
   getWeekNumber,
   calculateNetMinutes,
+  OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function adaptHistorySessionForMetrics(
-  session: WorkSessionHistory,
-): StaffHistorySession {
-  return {
-    id: session.id ? Number(session.id) : undefined,
-    date: session.date,
-    status: session.status,
-    source: undefined,
-    net_minutes: session.netMinutes,
-    check_in_time: session.checkInTime,
-    check_out_time: session.checkOutTime,
-    break_minutes: session.breakMinutes,
-    auto_checked_out: session.autoCheckedOut,
-    notes: session.notes || undefined,
-    edit_count: session.editCount,
-  };
-}
-
-function adaptAbsenceForMetrics(absence: StaffAbsence): StaffAbsenceRow {
-  return {
-    id: Number(absence.id),
-    staff_id: Number(absence.staffId),
-    absence_type: absence.absenceType,
-    date_start: absence.dateStart,
-    date_end: absence.dateEnd,
-    half_day: absence.halfDay,
-    start_half_day: absence.startHalfDay,
-    end_half_day: absence.endHalfDay,
-    note: absence.note,
-    status: absence.status,
-    approved_by: absence.approvedBy ? Number(absence.approvedBy) : null,
-    approved_at: absence.approvedAt,
-    working_days: absence.workingDays,
-    decision_note: absence.decisionNote,
-    requested_at: absence.requestedAt,
-    duration_days: absence.durationDays,
-  };
-}
 
 function formatDateGerman(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
@@ -169,6 +152,12 @@ function friendlyError(err: unknown, fallback: string): string {
   ) {
     return "Für diesen Zeitraum ist bereits eine andere Abwesenheitsart eingetragen.";
   }
+  if (code.startsWith("invalid session data:")) {
+    return "Bitte prüfe Start- und Endzeit.";
+  }
+  if (code === "planned start not reached") {
+    return "Einstempeln ist noch nicht möglich. Bitte prüfe deine geplante Startzeit.";
+  }
 
   return fallback;
 }
@@ -196,11 +185,96 @@ function extractTimeFromISO(isoString: string): string {
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
 
+// Schichtart chip: a color dot + label driven by the tenant-defined Schichtart
+// color the backend embeds (#1844). The color is data, not a brand hue, so the
+// inline style is intentional; falls back to neutral gray when absent.
+function ShiftTypeChip({
+  name,
+  color,
+}: {
+  readonly name: string;
+  readonly color: string | null;
+}) {
+  const dot = color ?? "#6B7280";
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: dot }}
+      />
+      {name}
+    </span>
+  );
+}
+
+// Renders today's planned Dienstplan shifts under the Stempeluhr title: each
+// active shift with its Schichtart chip, a "Vertretung" tag for replacement
+// shifts, plus a muted line for shifts that do not take place ("entfällt"),
+// so Dienstplan-level changes are visible to the staff member (#1844).
+function PlannedShiftsInfo({
+  plannedShifts,
+  cancelledShifts,
+}: {
+  readonly plannedShifts?: readonly StaffShift[];
+  readonly cancelledShifts?: readonly StaffShift[];
+}) {
+  const active = plannedShifts ?? [];
+  const cancelled = cancelledShifts ?? [];
+  if (active.length === 0 && cancelled.length === 0) return null;
+  return (
+    <div className="-mt-3 mb-5 space-y-1 text-sm text-gray-500">
+      {active.map((shift) => (
+        <div key={shift.id} className="flex flex-wrap items-center gap-1.5">
+          <span className="text-gray-400">Geplant:</span>
+          {shift.shiftTypeName && (
+            <ShiftTypeChip
+              name={shift.shiftTypeName}
+              color={shift.shiftTypeColor}
+            />
+          )}
+          <span className="tabular-nums">
+            {shift.startTime}–{shift.endTime}
+          </span>
+          {shift.originShiftId && (
+            <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+              Vertretung
+            </span>
+          )}
+          {shift.breakMinutes > 0 && (
+            <span className="text-gray-400">
+              · Pause {shift.breakMinutes} min
+            </span>
+          )}
+        </div>
+      ))}
+      {cancelled.map((shift) => (
+        <div
+          key={shift.id}
+          className="flex flex-wrap items-center gap-1.5 text-gray-400"
+        >
+          <span className="tabular-nums line-through">
+            {shift.startTime}–{shift.endTime}
+          </span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+            Entfällt
+          </span>
+          {shift.changeReason && (
+            <span className="italic">{shift.changeReason}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatTimeFromDate(date: Date): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
 
-const BREAK_OPTIONS = [15, 30, 45, 60] as const;
+const DEFAULT_BREAK_MINUTES = 30;
+const BREAK_STEP_MINUTES = 15;
+const MIN_BREAK_MINUTES = 15;
+const MAX_BREAK_MINUTES = 240;
 
 // Session status type (only present or home_office - no absent for active sessions)
 type SessionStatus = "present" | "home_office";
@@ -406,6 +480,7 @@ function renderTimerContent(
   isOnBreak: boolean,
   countdownRemainingSecs: number | null,
   plannedBreakDurationMins: number | null,
+  plannedBreakEndsAt: string | null,
   activeBreakElapsedSecs: number,
   displayMinutes: number,
   breakWarning: string | null,
@@ -423,6 +498,11 @@ function renderTimerContent(
         </span>
         <span className="mt-0.5 text-xs font-medium text-amber-500">
           Pause ({plannedBreakDurationMins} Min)
+        </span>
+        <span className="mt-0.5 text-center text-xs font-medium text-amber-600">
+          {plannedBreakEndsAt
+            ? `Automatisch weiter um ${formatTime(plannedBreakEndsAt)}`
+            : "Automatisch weiter nach der Pause"}
         </span>
       </>
     );
@@ -465,6 +545,8 @@ function ClockInCard({
   weeklyMinutes,
   onAddAbsence,
   metrics,
+  plannedShifts,
+  cancelledShifts,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -474,7 +556,9 @@ function ClockInCard({
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
-  readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
+  readonly metrics?: PeriodMetrics | null;
+  readonly plannedShifts?: readonly StaffShift[];
+  readonly cancelledShifts?: readonly StaffShift[];
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -486,6 +570,10 @@ function ClockInCard({
   const [plannedBreakMinutes, setPlannedBreakMinutes] = useState<number | null>(
     null,
   );
+  const [individualBreakMinutes, setIndividualBreakMinutes] = useState(
+    DEFAULT_BREAK_MINUTES,
+  );
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
 
@@ -572,6 +660,15 @@ function ClockInCard({
     }
   }, [isOnBreak]);
 
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsMobileViewport(window.innerWidth < 640);
+    };
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
+
   // Break compliance warning (only shown when checked in)
   const breakWarning = getBreakWarningIfActive(
     isCheckedIn,
@@ -622,6 +719,15 @@ function ClockInCard({
     }
   };
 
+  const handleBreakStepperChange = (direction: 1 | -1) => {
+    setIndividualBreakMinutes((current) =>
+      Math.min(
+        MAX_BREAK_MINUTES,
+        Math.max(MIN_BREAK_MINUTES, current + direction * BREAK_STEP_MINUTES),
+      ),
+    );
+  };
+
   const handleEndBreakEarly = async () => {
     setActionLoading(true);
     try {
@@ -631,6 +737,90 @@ function ClockInCard({
       setActionLoading(false);
     }
   };
+
+  const showBreakDurationPicker = breakMenuOpen && !isOnBreak;
+  const breakDurationStepper = (
+    <div className="mx-auto grid w-full max-w-xs grid-cols-[4.5rem_1fr_4.5rem] items-center gap-1 sm:flex sm:max-w-sm sm:justify-center sm:gap-5">
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Pausendauer verringern"
+        disabled={actionLoading || individualBreakMinutes <= MIN_BREAK_MINUTES}
+        onClick={() => handleBreakStepperChange(-1)}
+        className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
+      >
+        <svg
+          className="h-9 w-9 sm:h-7 sm:w-7"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="M5 12h14" />
+        </svg>
+      </Button>
+      <div className="flex h-20 min-w-32 items-center justify-center px-3 sm:h-14 sm:min-w-24">
+        <span className="text-5xl font-semibold text-gray-900 tabular-nums sm:text-3xl">
+          {individualBreakMinutes}
+        </span>
+        <span className="ml-2 text-lg font-medium text-gray-500 sm:text-sm">
+          min
+        </span>
+      </div>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Pausendauer erhöhen"
+        disabled={actionLoading || individualBreakMinutes >= MAX_BREAK_MINUTES}
+        onClick={() => handleBreakStepperChange(1)}
+        className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
+      >
+        <svg
+          className="h-9 w-9 sm:h-7 sm:w-7"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+      </Button>
+    </div>
+  );
+  const breakStartButton = (
+    <Button
+      type="button"
+      size="md"
+      variant="primary"
+      disabled={actionLoading}
+      onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
+      className="mx-auto w-full max-w-sm text-sm shadow-none"
+    >
+      Starten
+    </Button>
+  );
+  const breakDurationControls = (
+    <>
+      {breakDurationStepper}
+      <Button
+        type="button"
+        size="md"
+        variant="primary"
+        disabled={actionLoading}
+        onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
+        className="mx-auto mt-6 w-full max-w-sm text-sm shadow-none"
+      >
+        Starten
+      </Button>
+    </>
+  );
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
@@ -649,24 +839,35 @@ function ClockInCard({
           )}
         </div>
 
+        {/* Heute geplante Schichten (Dienstplan) — dezente Zeilen unter dem
+            Titel: Schichtart als farbiger Chip, Vertretungen und entfallene
+            Schichten sichtbar (#1844). Geteilte Dienste zeigen jede Schicht. */}
+        <PlannedShiftsInfo
+          plannedShifts={plannedShifts}
+          cancelledShifts={cancelledShifts}
+        />
+
         {/* ── Not checked in: start controls ── */}
         {!isCheckedIn && !isCheckedOut && (
           <div className="flex flex-col items-center gap-5">
             {/* Mode toggle */}
             <div className="flex flex-wrap justify-center gap-2">
               <button
+                type="button"
                 onClick={() => setMode("present")}
                 className={getModeToggleClassName("present", mode)}
               >
                 In der OGS
               </button>
               <button
+                type="button"
                 onClick={() => setMode("home_office")}
                 className={getModeToggleClassName("home_office", mode)}
               >
                 Homeoffice
               </button>
               <button
+                type="button"
                 onClick={() => setMode("absent")}
                 className={getModeToggleClassName("absent", mode)}
               >
@@ -677,6 +878,7 @@ function ClockInCard({
             {/* Action button: play (check-in) or calendar (absence) */}
             {mode === "absent" ? (
               <button
+                type="button"
                 onClick={onAddAbsence}
                 className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-red-400 text-red-500 transition-all hover:bg-red-50 active:scale-95"
                 aria-label="Abwesenheit melden"
@@ -697,6 +899,7 @@ function ClockInCard({
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleCheckIn}
                 disabled={actionLoading || mode === null}
                 className={getCheckInButtonClassName(mode)}
@@ -735,6 +938,7 @@ function ClockInCard({
               <div className="relative">
                 {isOnBreak ? (
                   <button
+                    type="button"
                     onClick={handleEndBreakEarly}
                     disabled={actionLoading}
                     className={getBreakButtonClassName(true, breakMins)}
@@ -750,6 +954,7 @@ function ClockInCard({
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => setBreakMenuOpen(!breakMenuOpen)}
                     disabled={actionLoading}
                     className={getBreakButtonClassName(false, breakMins)}
@@ -766,7 +971,7 @@ function ClockInCard({
                 )}
 
                 {/* Break duration menu */}
-                {breakMenuOpen && !isOnBreak && (
+                {showBreakDurationPicker && !isMobileViewport && (
                   <>
                     {/* Backdrop to close menu */}
                     <button
@@ -779,21 +984,57 @@ function ClockInCard({
                           setBreakMenuOpen(false);
                       }}
                     />
-                    <div className="absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
-                      {BREAK_OPTIONS.map((mins) => (
-                        <button
-                          key={mins}
-                          onClick={() => handleSelectBreakDuration(mins)}
-                          disabled={actionLoading}
-                          className="rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition-all hover:bg-amber-100 active:scale-95 disabled:opacity-50"
-                        >
-                          {mins}m
-                        </button>
-                      ))}
+                    <div className="absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-lg sm:w-72">
+                      {breakDurationControls}
                     </div>
                   </>
                 )}
               </div>
+
+              {showBreakDurationPicker && isMobileViewport && (
+                <Drawer
+                  open
+                  onOpenChange={(next) => {
+                    if (!next) setBreakMenuOpen(false);
+                  }}
+                  direction="bottom"
+                  shouldScaleBackground
+                >
+                  <DrawerContent
+                    aria-label="Pause stempeln"
+                    aria-describedby={undefined}
+                    className="max-h-[calc(100vh-7rem)] min-h-[22rem] overflow-visible px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+                  >
+                    <DrawerHeader className="flex items-center justify-between px-0 pt-4 pb-4 text-left">
+                      <DrawerTitle>Pause stempeln</DrawerTitle>
+                      <DrawerClose
+                        type="button"
+                        aria-label="Pausendauer schließen"
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                      >
+                        <svg
+                          className="h-5 w-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M6 6l12 12" />
+                          <path d="M18 6L6 18" />
+                        </svg>
+                      </DrawerClose>
+                    </DrawerHeader>
+                    <div className="flex min-h-56 flex-1 flex-col pt-2 pb-1">
+                      <div className="flex flex-1 items-start pt-8">
+                        {breakDurationStepper}
+                      </div>
+                      {breakStartButton}
+                    </div>
+                  </DrawerContent>
+                </Drawer>
+              )}
 
               {/* Timer display */}
               <div className="flex flex-col items-center">
@@ -801,6 +1042,7 @@ function ClockInCard({
                   isOnBreak,
                   countdownRemainingSecs,
                   plannedBreakDurationMins,
+                  activeBreak?.plannedEndTime ?? null,
                   activeBreakElapsedSecs,
                   displayMinutes,
                   breakWarning,
@@ -809,6 +1051,7 @@ function ClockInCard({
 
               {/* Stop / check-out button */}
               <button
+                type="button"
                 onClick={handleCheckOut}
                 disabled={actionLoading || isOnBreak}
                 className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 transition-all hover:border-red-400 hover:text-red-500 active:scale-95 disabled:opacity-50"
@@ -881,6 +1124,15 @@ function ClockInCard({
         {metrics ? (
           <div className="mt-5 border-t border-gray-100 pt-4">
             <ClockInStatsStrip metrics={metrics} />
+            {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2):
+                genau einer pro Oberfläche, solange die Soll-Quellen-Frage
+                offen ist. */}
+            <div className="mt-3 flex justify-end">
+              <OriginChip
+                label="Soll aus Arbeitszeitmodell"
+                title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
+              />
+            </div>
           </div>
         ) : (
           <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
@@ -911,40 +1163,55 @@ function ClockInCard({
 function ClockInStatsStrip({
   metrics,
 }: {
-  readonly metrics: ReturnType<typeof computeStaffMetrics>;
+  // Every figure is date-valid, straight from the backend month model
+  // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
+  // historical days at the CURRENT schedule and contradicts the Monatskarte
+  // further down the page after a contract change. null = loading.
+  readonly metrics: PeriodMetrics;
 }) {
-  const weekPct =
-    metrics.weekSoll > 0 ? (metrics.weekIst / metrics.weekSoll) * 100 : 0;
-  const monthPct =
-    metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
+  const { week, month, accountBalanceMinutes } = metrics;
+
+  const weekPct = week && week.soll > 0 ? (week.ist / week.soll) * 100 : 0;
+  const monthPct = month && month.soll > 0 ? (month.ist / month.soll) * 100 : 0;
 
   const accountTone: StatusTone =
-    metrics.accountBalance > 0
-      ? "amber"
-      : metrics.accountBalance < -60
-        ? "gray"
-        : "green";
+    accountBalanceMinutes === null
+      ? "gray"
+      : accountBalanceMinutes > 0
+        ? "amber"
+        : accountBalanceMinutes < -60
+          ? "gray"
+          : "green";
 
   return (
     <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
       <InlineStat
         label="Diese Woche"
-        primary={formatDuration(metrics.weekIst)}
-        secondary={`von ${formatDuration(metrics.weekSoll)}`}
-        progressPct={weekPct}
+        primary={week === null ? "–" : formatDuration(week.ist)}
+        secondary={
+          week === null ? undefined : `von ${formatDuration(week.soll)}`
+        }
+        progressPct={week === null ? undefined : weekPct}
         tone="green"
       />
       <InlineStat
         label="Dieser Monat"
-        primary={formatDuration(metrics.monthIst)}
-        secondary={`von ${formatDuration(metrics.monthSoll)}`}
-        progressPct={monthPct}
+        primary={month === null ? "–" : formatDuration(month.ist)}
+        secondary={
+          month === null ? undefined : `von ${formatDuration(month.soll)}`
+        }
+        progressPct={month === null ? undefined : monthPct}
         tone="green"
       />
       <InlineStat
         label="Stundenkonto"
-        primary={formatSignedDuration(metrics.accountBalance)}
+        primary={
+          accountBalanceMinutes === null
+            ? "–"
+            : formatSignedDuration(accountBalanceMinutes)
+        }
         secondary={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
+          timeZone: "Europe/Berlin",
           day: "numeric",
           month: "short",
         })}`}
@@ -1140,7 +1407,7 @@ function BreakActivityLog({
     showBorder: boolean,
   ) => (
     <div
-      key={`${seg.type}-${index}`}
+      key={`${seg.type}-${seg.start.toISOString()}`}
       className={`flex items-center justify-between py-2.5 text-sm ${
         showBorder ? "border-t border-gray-50" : ""
       } ${getSegmentRowColor(seg)}`}
@@ -1196,6 +1463,7 @@ function BreakActivityLog({
       {/* Toggle button at the bottom */}
       {hasHidden && (
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
           className="w-full border-t border-gray-50 py-1.5 text-center text-xs font-medium text-gray-400 transition-colors hover:text-gray-600"
         >
@@ -1244,19 +1512,23 @@ function OwnZeiterfassungSection({
     absence: StaffAbsence | null,
   ) => void;
 }) {
-  const today = useMemo(() => new Date(), []);
+  // The Berlin day, not the browser's, and re-rendered on the rollover: this
+  // section stays mounted all day, and `new Date()` frozen at mount would keep
+  // "Diesen Monat" and the open-month poll pointing at yesterday's month after
+  // midnight — and at the wrong month entirely from a non-Berlin browser
+  // (#1842). The backend derives its month from timezone.TodayDate().
+  const todayISO = useBerlinToday();
+  const today = useMemo(() => parseISODate(todayISO), [todayISO]);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
-    const d = new Date();
+    const d = parseISODate(berlinTodayISO());
     const day = (d.getDay() + 6) % 7; // Mon = 0
     d.setDate(d.getDate() - day);
-    d.setHours(0, 0, 0, 0);
     return d;
   });
   const [monthAnchor, setMonthAnchor] = useState<Date>(() => {
-    const d = new Date();
+    const d = parseISODate(berlinTodayISO());
     d.setDate(1);
-    d.setHours(0, 0, 0, 0);
     return d;
   });
 
@@ -1311,6 +1583,108 @@ function OwnZeiterfassungSection({
     [tableAbsences],
   );
 
+  // Own Dienstplan shifts for the visible range → the "Plan (Schicht)"
+  // column, same as the admin view (#1842 AC1). Loading and error state are
+  // surfaced explicitly: rendering an unresolved or failed request as []
+  // would show "–" in every Plan cell, presenting a fetch failure as proof
+  // that no shifts were planned.
+  const {
+    data: tableShifts,
+    isLoading: shiftsLoading,
+    error: shiftsError,
+  } = useSWRAuth(
+    `time-tracking-table-shifts-${visibleFromKey}-${visibleToKey}`,
+    () => ownShiftService.getOwnShifts(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Date-valid Soll for the visible range (#1842). Fetched in BOTH view modes:
+  // the table's `schedule` prop only ever describes the CURRENT plan, so after
+  // a contract change it would print today's hours onto historical rows and
+  // contradict the Monatskarte above it.
+  // `isLoading` is the staleness signal, not a spinner: with keepPreviousData
+  // SWR serves the PREVIOUS range's map while the new one is in flight, and the
+  // table must not fall back to today's plan for the days it doesn't cover.
+  const {
+    data: dailyTargets,
+    error: dailyTargetsError,
+    isLoading: dailyTargetsLoading,
+  } = useSWRAuth(
+    `time-tracking-schedule-targets-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getScheduleTargets(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Monatskarte (#1842): server-computed month aggregate, read-only for the
+  // staff member. Only fetched in month mode. Check-ins, checkouts and
+  // absence changes invalidate this key (refreshTableData); the poll on top
+  // covers a still-running session, whose Ist grows server-side.
+  const monthYear = monthAnchor.getFullYear();
+  const monthNumber = monthAnchor.getMonth() + 1;
+  const isCurrentMonth =
+    monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
+  // Gesetzliche Feiertage im sichtbaren Zeitraum (#1418 3a): eigenes Badge
+  // in der Tabelle + Feiertagsarbeit-Warnung. Das Soll dieser Tage liefert
+  // der Server bereits als 0; ein Fetch-Fehler lässt die Markierung weg,
+  // ohne die Tabelle zu blockieren.
+  const { data: tableHolidays } = useSWRAuth(
+    `time-tracking-holidays-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getHolidays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+  // OGS-Schließtage im sichtbaren Zeitraum (#1418 3b): eigenes Badge in der
+  // Tabelle, Soll kommt bereits als 0 vom Server.
+  const { data: tableClosingDays } = useSWRAuth(
+    `time-tracking-closing-days-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getClosingDays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  const {
+    data: monthSummary,
+    isLoading: monthSummaryLoading,
+    error: monthSummaryError,
+  } = useSWRAuth<MonthSummary>(
+    viewMode === "month"
+      ? `time-tracking-month-summary-${monthYear}-${monthNumber}`
+      : null,
+    () => timeTrackingService.getMonthSummary(monthYear, monthNumber),
+    { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
+  );
+
+  const {
+    data: timeTrackingConfig,
+    isLoading: timeTrackingConfigLoading,
+    error: timeTrackingConfigError,
+  } = useSWRAuth(
+    "time-tracking-config",
+    () => timeTrackingService.getConfig(),
+    { revalidateOnFocus: false },
+  );
+  // A month wholly before the configured account start is summarized standalone
+  // by the backend (full month, zero carry) and its closing value never enters
+  // the account chain — so the Monatskarte must not sell it as a carry or as
+  // the Stundenkonto (#1842).
+  const accountStartDate = timeTrackingConfig?.accountStartDate ?? "";
+  const isPreAccountMonth =
+    accountStartDate !== "" &&
+    `${monthYear}-${String(monthNumber).padStart(2, "0")}` <
+      accountStartDate.slice(0, 7);
+  // A start later THIS month (same month, future day) is not "pre-account" by
+  // the month comparison above, but the account still hasn't begun — the card
+  // must not print a "Stundenkonto Stand" for it (#1842). ISO dates compare
+  // lexicographically; both are "YYYY-MM-DD".
+  const accountStartsInFuture =
+    accountStartDate !== "" && accountStartDate > todayISO;
+
+  // Self-scoped audit-trail fetcher so staff read their own Abweichungsgründe
+  // without time_tracking:manage (#1842 AC8).
+  const fetchOwnEdits = useCallback(
+    (_staffId: string, sessionId: string) =>
+      timeTrackingService.getSessionEdits(sessionId),
+    [],
+  );
+
   const handleEdit = (date: Date) => {
     const dateKey = toISODate(date);
     const session = tableHistory.find((h) => h.date === dateKey) ?? null;
@@ -1360,31 +1734,31 @@ function OwnZeiterfassungSection({
   };
   const isOnCurrent = useMemo(() => {
     if (viewMode === "month") {
-      return (
-        monthAnchor.getFullYear() === today.getFullYear() &&
-        monthAnchor.getMonth() === today.getMonth()
-      );
+      return isCurrentMonth;
     }
     const cur = new Date(today);
     const day = (cur.getDay() + 6) % 7;
     cur.setDate(cur.getDate() - day);
     cur.setHours(0, 0, 0, 0);
     return cur.getTime() === weekAnchor.getTime();
-  }, [viewMode, monthAnchor, weekAnchor, today]);
+  }, [viewMode, isCurrentMonth, weekAnchor, today]);
 
   const labelRange = useMemo(() => {
     if (viewMode === "month") {
       return monthAnchor.toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         month: "long",
         year: "numeric",
       });
     }
     const weekNum = getWeekNumber(visibleFrom);
     const start = visibleFrom.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       day: "numeric",
       month: "short",
     });
     const end = visibleTo.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -1472,20 +1846,60 @@ function OwnZeiterfassungSection({
           </button>
         </div>
       </div>
-      {tableLoading && tableHistory.length === 0 ? (
+      {viewMode === "month" && (
+        <div className="mb-4">
+          <Monatskarte
+            summary={monthSummary ?? null}
+            isLoading={monthSummaryLoading}
+            error={
+              monthSummaryError
+                ? "Die Monatskarte konnte nicht geladen werden."
+                : null
+            }
+            isCurrentMonth={isCurrentMonth}
+            isPreAccountMonth={isPreAccountMonth}
+            accountStartsInFuture={accountStartsInFuture}
+            accountStartDate={accountStartDate}
+          />
+        </div>
+      )}
+      {(tableLoading && tableHistory.length === 0) || shiftsLoading ? (
         <div className="py-10 text-center text-sm text-gray-400">...</div>
       ) : (
-        <StaffSessionTable
-          staffId={ownStaffId ?? ""}
-          from={visibleFrom}
-          to={visibleTo}
-          sessions={adaptedSessions}
-          absences={adaptedAbsences}
-          schedule={schedule}
-          today={today}
-          isAdminView={ownStaffId !== null}
-          onEditDay={(date) => handleEdit(date)}
-        />
+        <>
+          {shiftsError ? (
+            <div className="mb-4">
+              <Alert
+                type="error"
+                message="Der Dienstplan konnte nicht geladen werden. Die Plan-Spalte ist deshalb unvollständig; bitte die Seite neu laden."
+              />
+            </div>
+          ) : null}
+          <StaffSessionTable
+            staffId={ownStaffId ?? ""}
+            from={visibleFrom}
+            to={visibleTo}
+            sessions={adaptedSessions}
+            absences={adaptedAbsences}
+            schedule={schedule}
+            dailyTargets={dailyTargets}
+            dailyTargetsError={dailyTargetsError != null}
+            dailyTargetsPending={dailyTargetsLoading}
+            holidays={tableHolidays}
+            closingDays={tableClosingDays}
+            accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
+            accountStartDatePending={timeTrackingConfigLoading}
+            accountStartDateError={
+              timeTrackingConfig === undefined &&
+              timeTrackingConfigError != null
+            }
+            today={today}
+            isAdminView={ownStaffId !== null}
+            onEditDay={(date) => handleEdit(date)}
+            plannedShifts={tableShifts ?? []}
+            fetchEdits={fetchOwnEdits}
+          />
+        </>
       )}
     </div>
   );
@@ -1710,6 +2124,23 @@ function WeekChart({
 
 const BREAK_DURATION_OPTIONS = [0, 15, 30, 45, 60] as const;
 
+function timeInputToMinutes(value: string): number | null {
+  const [hoursRaw, minutesRaw] = value.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
 /** Calculate compliance warnings for edited session times */
 function calcEditComplianceWarnings(
   startTime: string,
@@ -1842,6 +2273,7 @@ function EditSessionModal({
   const hasSession = session !== null;
   const hasAbsence = absence !== null;
   const hasBoth = hasSession && hasAbsence;
+  const isManagerControlledAbsence = absence?.absenceType === "comp_time";
 
   useEffect(() => {
     if (isOpen) {
@@ -1902,6 +2334,10 @@ function EditSessionModal({
 
   // Compliance check for the edited values
   const warnings = calcEditComplianceWarnings(startTime, endTime, editedBreak);
+  const startMinutes = timeInputToMinutes(startTime);
+  const endMinutes = timeInputToMinutes(endTime);
+  const hasInvalidTimeRange =
+    startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes;
 
   const handleBreakDurationChange = (breakId: string, minutes: number) => {
     setBreakDurations((prev) => {
@@ -1913,6 +2349,7 @@ function EditSessionModal({
 
   const handleSave = async () => {
     if (!session) return;
+    if (hasInvalidTimeRange) return;
     setSaving(true);
     try {
       // Use session's actual date, not the clicked day (they may differ)
@@ -1995,14 +2432,16 @@ function EditSessionModal({
   const sessionFooter = (
     <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
+        type="button"
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
       >
         Abbrechen
       </button>
       <button
+        type="button"
         onClick={handleSave}
-        disabled={saving || !startTime || !notes.trim()}
+        disabled={saving || !startTime || !notes.trim() || hasInvalidTimeRange}
         className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {saving ? "Speichern..." : "Speichern"}
@@ -2013,12 +2452,14 @@ function EditSessionModal({
   const absenceFooter = (
     <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
+        type="button"
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
       >
         Abbrechen
       </button>
       <button
+        type="button"
         onClick={handleAbsenceSave}
         disabled={absenceSaving || !absDateStart || !absDateEnd}
         className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2028,12 +2469,18 @@ function EditSessionModal({
     </div>
   );
 
+  const readOnlyAbsenceFooter = (
+    <Button type="button" variant="outline" size="md" onClick={onClose}>
+      Schließen
+    </Button>
+  );
+
   const footer = getEditModalFooter(
     hasBoth,
     hasAbsence,
     activeTab,
     sessionFooter,
-    absenceFooter,
+    isManagerControlledAbsence ? readOnlyAbsenceFooter : absenceFooter,
   );
 
   return (
@@ -2107,6 +2554,12 @@ function EditSessionModal({
               </div>
             </div>
 
+            {hasInvalidTimeRange && (
+              <p className="text-xs font-medium text-red-600">
+                Ende muss nach Start liegen.
+              </p>
+            )}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Break section */}
               <div>
@@ -2121,39 +2574,24 @@ function EditSessionModal({
                           <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
                             {formatTime(brk.startedAt)}
                           </span>
-                          <div className="relative flex-1">
-                            <select
+                          <div className="flex-1">
+                            <CustomSelect
+                              ariaLabel={`Pausendauer ab ${formatTime(brk.startedAt)}`}
                               value={(
                                 breakDurations.get(brk.id) ??
                                 brk.durationMinutes
                               ).toString()}
-                              onChange={(e) =>
+                              onChange={(next) =>
                                 handleBreakDurationChange(
                                   brk.id,
-                                  Number.parseInt(e.target.value, 10),
+                                  Number.parseInt(next, 10),
                                 )
                               }
-                              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                            >
-                              {BREAK_DURATION_OPTIONS.map((m) => (
-                                <option key={m} value={m.toString()}>
-                                  {m} min
-                                </option>
-                              ))}
-                            </select>
-                            <svg
-                              className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 9l-7 7-7-7"
-                              />
-                            </svg>
+                              options={BREAK_DURATION_OPTIONS.map((m) => ({
+                                value: m.toString(),
+                                label: `${m} min`,
+                              }))}
+                            />
                           </div>
                         </div>
                       ))}
@@ -2170,72 +2608,43 @@ function EditSessionModal({
                 ) : (
                   <div>
                     <label
+                      id="edit-break-label"
                       htmlFor="edit-break"
                       className="mb-1 block text-sm font-medium text-gray-700"
                     >
                       Pause (Min)
                     </label>
-                    <div className="relative">
-                      <select
-                        id="edit-break"
-                        value={breakMins}
-                        onChange={(e) => setBreakMins(e.target.value)}
-                        className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                      >
-                        {[0, 15, 30, 45, 60].map((m) => (
-                          <option key={m} value={m.toString()}>
-                            {m} min
-                          </option>
-                        ))}
-                      </select>
-                      <svg
-                        className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </div>
+                    <CustomSelect
+                      id="edit-break"
+                      ariaLabelledBy="edit-break-label"
+                      value={breakMins}
+                      onChange={setBreakMins}
+                      options={[0, 15, 30, 45, 60].map((m) => ({
+                        value: m.toString(),
+                        label: `${m} min`,
+                      }))}
+                    />
                   </div>
                 )}
               </div>
               <div>
                 <label
+                  id="edit-status-label"
                   htmlFor="edit-status"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
                   Ort
                 </label>
-                <div className="relative">
-                  <select
-                    id="edit-status"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as SessionStatus)}
-                    className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  >
-                    <option value="present">In der OGS</option>
-                    <option value="home_office">Homeoffice</option>
-                  </select>
-                  <svg
-                    className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </div>
+                <CustomSelect
+                  id="edit-status"
+                  ariaLabelledBy="edit-status-label"
+                  value={status}
+                  onChange={(next) => setStatus(next as SessionStatus)}
+                  options={[
+                    { value: "present", label: "In der OGS" },
+                    { value: "home_office", label: "Homeoffice" },
+                  ]}
+                />
               </div>
             </div>
 
@@ -2294,131 +2703,146 @@ function EditSessionModal({
         {/* ── Absence section ──────────────────────────────────────────── */}
         {hasAbsence && (!hasBoth || activeTab === "absence") && (
           <>
-            {/* Absence type */}
-            <div>
-              <label
-                htmlFor="edit-abs-type"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Art der Abwesenheit
-              </label>
-              <div className="relative">
-                <select
-                  id="edit-abs-type"
-                  value={absType}
-                  onChange={(e) => setAbsType(e.target.value as AbsenceType)}
-                  className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                >
-                  {ABSENCE_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <svg
-                  className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
+            {isManagerControlledAbsence ? (
+              <div className="space-y-4">
+                <Alert
+                  type="info"
+                  message="Freizeitausgleich wird von der Leitung eingetragen und kann hier nicht geändert oder gelöscht werden."
+                />
+                <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="font-medium text-gray-500">Zeitraum</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {absence.dateStart} bis {absence.dateEnd}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-gray-500">Umfang</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {absence.halfDay ? "Halber Tag" : "Ganzer Tag"}
+                    </dd>
+                  </div>
+                  {absence.note && (
+                    <div className="sm:col-span-2">
+                      <dt className="font-medium text-gray-500">Bemerkung</dt>
+                      <dd className="mt-1 text-gray-900">{absence.note}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            ) : (
+              <>
+                {/* Absence type */}
+                <div>
+                  <label
+                    id="edit-abs-type-label"
+                    htmlFor="edit-abs-type"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Art der Abwesenheit
+                  </label>
+                  <CustomSelect
+                    id="edit-abs-type"
+                    ariaLabelledBy="edit-abs-type-label"
+                    value={absType}
+                    onChange={(next) => setAbsType(next as AbsenceType)}
+                    options={ABSENCE_TYPE_OPTIONS}
                   />
-                </svg>
-              </div>
-            </div>
+                </div>
 
-            {/* Date range */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="edit-abs-start"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Von
-                </label>
-                <input
-                  id="edit-abs-start"
-                  type="date"
-                  value={absDateStart}
-                  onChange={(e) => setAbsDateStart(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  required
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="edit-abs-end"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Bis
-                </label>
-                <input
-                  id="edit-abs-end"
-                  type="date"
-                  value={absDateEnd}
-                  min={absDateStart}
-                  onChange={(e) => setAbsDateEnd(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  required
-                />
-              </div>
-            </div>
+                {/* Date range */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="edit-abs-start"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Von
+                    </label>
+                    <input
+                      id="edit-abs-start"
+                      type="date"
+                      value={absDateStart}
+                      onChange={(e) => setAbsDateStart(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-abs-end"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Bis
+                    </label>
+                    <input
+                      id="edit-abs-end"
+                      type="date"
+                      value={absDateEnd}
+                      min={absDateStart}
+                      onChange={(e) => setAbsDateEnd(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                      required
+                    />
+                  </div>
+                </div>
 
-            {/* Half day toggle */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={absHalfDay}
-                onClick={() => setAbsHalfDay(!absHalfDay)}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${absHalfDay ? "bg-gray-900" : "bg-gray-200"}`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 translate-y-0.5 rounded-full bg-white transition-transform ${absHalfDay ? "translate-x-4.5" : "translate-x-0.5"}`}
-                />
-              </button>
-              <span className="text-sm font-medium text-gray-700">
-                Halber Tag
-              </span>
-            </div>
+                {/* Half day toggle */}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-label="Halber Tag"
+                    aria-checked={absHalfDay}
+                    onClick={() => setAbsHalfDay(!absHalfDay)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${absHalfDay ? "bg-gray-900" : "bg-gray-200"}`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 translate-y-0.5 rounded-full bg-white transition-transform ${absHalfDay ? "translate-x-4.5" : "translate-x-0.5"}`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-gray-700">
+                    Halber Tag
+                  </span>
+                </div>
 
-            {/* Absence note */}
-            <div>
-              <label
-                htmlFor="edit-abs-note"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Bemerkung{" "}
-                <span className="font-normal text-gray-400">(optional)</span>
-              </label>
-              <textarea
-                id="edit-abs-note"
-                value={absNote}
-                onChange={(e) => setAbsNote(e.target.value)}
-                rows={2}
-                maxLength={2000}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                placeholder="z.B. Arzttermin, Schulung ..."
-              />
-            </div>
+                {/* Absence note */}
+                <div>
+                  <label
+                    htmlFor="edit-abs-note"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Bemerkung{" "}
+                    <span className="font-normal text-gray-400">
+                      (optional)
+                    </span>
+                  </label>
+                  <textarea
+                    id="edit-abs-note"
+                    value={absNote}
+                    onChange={(e) => setAbsNote(e.target.value)}
+                    rows={2}
+                    maxLength={2000}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                    placeholder="z.B. Arzttermin, Schulung ..."
+                  />
+                </div>
 
-            {/* Destructive action */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={handleAbsenceDelete}
-                disabled={absenceDeleting}
-                className="text-sm font-medium text-red-500 transition-colors hover:text-red-700 disabled:opacity-50"
-              >
-                {absenceDeleting
-                  ? "Abwesenheit wird gelöscht..."
-                  : "Abwesenheit löschen"}
-              </button>
-            </div>
+                {/* Destructive action */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={handleAbsenceDelete}
+                    disabled={absenceDeleting}
+                    className="text-sm font-medium text-red-500 transition-colors hover:text-red-700 disabled:opacity-50"
+                  >
+                    {absenceDeleting
+                      ? "Abwesenheit wird gelöscht..."
+                      : "Abwesenheit löschen"}
+                  </button>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -2500,12 +2924,14 @@ function CreateAbsenceModal({
       footer={
         <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
           <button
+            type="button"
             onClick={onClose}
             className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
           >
             Abbrechen
           </button>
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving || !dateStart || !dateEnd}
             className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2519,38 +2945,19 @@ function CreateAbsenceModal({
         {/* Absence type */}
         <div>
           <label
+            id="absence-type-label"
             htmlFor="absence-type"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
             Art der Abwesenheit
           </label>
-          <div className="relative">
-            <select
-              id="absence-type"
-              value={absenceType}
-              onChange={(e) => setAbsenceType(e.target.value as AbsenceType)}
-              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-            >
-              {ABSENCE_TYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <svg
-              className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </div>
+          <CustomSelect
+            id="absence-type"
+            ariaLabelledBy="absence-type-label"
+            value={absenceType}
+            onChange={(next) => setAbsenceType(next as AbsenceType)}
+            options={ABSENCE_TYPE_OPTIONS}
+          />
         </div>
 
         {/* Date range */}
@@ -2595,6 +3002,7 @@ function CreateAbsenceModal({
           <button
             type="button"
             role="switch"
+            aria-label="Halber Tag"
             aria-checked={halfDay}
             onClick={() => setHalfDay(!halfDay)}
             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${halfDay ? "bg-gray-900" : "bg-gray-200"}`}
@@ -2641,6 +3049,7 @@ function TimeTrackingContent() {
   });
 
   const toast = useToast();
+  const todayISO = useBerlinToday();
   // WeekChart shows trailing 10 workdays from today; no UI to navigate it
   // anymore (the table owns its own range state). Kept as a constant so the
   // chart's data window stays anchored at "now".
@@ -2690,6 +3099,24 @@ function TimeTrackingContent() {
     setReopenStatusChangeReason("");
   }, []);
 
+  // F9 deviation-reason prompt. Set when the backend rejects a stamp with
+  // DEVIATION_REASON_REQUIRED_CODE because it falls outside the tolerance
+  // window around the planned shift window. The modal collects the reason
+  // and retries the same stamp; the backend stores it in the audit log.
+  const [pendingDeviation, setPendingDeviation] = useState<{
+    action: "check_in" | "check_out";
+    status?: SessionStatus;
+    plannedTime?: string;
+    actualTime?: string;
+    deviationMinutes?: string;
+  } | null>(null);
+  const [deviationReason, setDeviationReason] = useState("");
+  const [deviationSubmitting, setDeviationSubmitting] = useState(false);
+  const handleClosePendingDeviation = useCallback(() => {
+    setPendingDeviation(null);
+    setDeviationReason("");
+  }, []);
+
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
   // - WeekView shows calendar week containing reference date, so the
@@ -2722,18 +3149,15 @@ function TimeTrackingContent() {
       { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
     );
 
-  // Pattern-mutate helper — refreshes both the WeekChart's history fetch
-  // and the OwnZeiterfassungSection's dedicated table fetches after an
-  // edit, so the table updates without a manual refresh.
-  const { mutate: swrMutate } = useSWRConfig();
-  const refreshTableData = useCallback(
-    () =>
-      swrMutate(
-        (key) =>
-          typeof key === "string" && key.startsWith("time-tracking-table"),
-      ),
-    [swrMutate],
-  );
+  // Pattern-mutate helper — refreshes the OwnZeiterfassungSection's dedicated
+  // table fetches and its Monatskarte after a check-in/out, edit or absence
+  // change, so both update without a manual refresh. The Monatskarte belongs
+  // in here: its Ist, Gutschriften, Saldo and Übertrag are server-derived from
+  // exactly the sessions and absences these handlers just changed.
+  const refreshTableData = useTenantMutateMatching([
+    "time-tracking-table",
+    "time-tracking-month-summary",
+  ]);
 
   // Fetch history covering 2 weeks (chart needs prev + current week)
   const { data: historyData, mutate: mutateHistory } = useSWRAuth<{
@@ -2763,29 +3187,49 @@ function TimeTrackingContent() {
   const absences = absencesData ?? [];
 
   // Check if today has an absence (for check-in warning)
-  const todayISO = toISODate(new Date());
   const todayAbsence = absences.find(
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
   );
 
+  // Today's own planned shifts (Dienstplan) — shown as a quiet
+  // "Geplant: 08:00–16:00" line in the Stempeluhr card. Fetched for today
+  // only, independent of the viewed chart week, so navigating to another
+  // week never hides today's planned shifts.
+  const { data: ownTodayShifts } = useSWRAuth<StaffShift[]>(
+    `time-tracking-own-shifts-today-${todayISO}`,
+    () => ownShiftService.getOwnShifts(todayISO, todayISO),
+    { revalidateOnFocus: false, errorRetryCount: 1 },
+  );
+  const todayShifts = useMemo(
+    () =>
+      (ownTodayShifts ?? [])
+        // A cancelled shift does not take place (#1841): the person is absent
+        // or the gap is left open, so it must not appear as a *planned* shift in
+        // the Stempeluhr. A replacement is the covering person's own shift and
+        // shows for them normally (tagged "Vertretung", #1844).
+        .filter((s) => s.date === todayISO && !s.cancelled)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [ownTodayShifts, todayISO],
+  );
+  // Cancelled shifts are shown separately as "entfällt" so Dienstplan-level
+  // changes stay visible to the staff member instead of silently vanishing
+  // (#1844, AC 2).
+  const todayCancelledShifts = useMemo(
+    () =>
+      (ownTodayShifts ?? [])
+        .filter((s) => s.date === todayISO && s.cancelled)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [ownTodayShifts, todayISO],
+  );
+
   // --- MA-Saldo-Widget (Tranche 1.5) ----------------------------------------
   //
-  // The user's own staff id comes from the user-context endpoint; we then
-  // fetch the staff-scoped schedule/history/absence endpoints over the
-  // cumulative range and feed them into
-  // computeStaffMetrics, the same helper the admin staff-detail view uses.
-  // KpiCards then renders Diese Woche / Dieser Monat / Überstunden / Stundenkonto.
-  //
-  // Note: history is already fetched up there for the chart, but only over
-  // 2 weeks. The Stundenkonto card needs the full account range.
-  // So we issue a parallel, wider fetch keyed by the cumulative range; SWR
-  // dedupes anything that overlaps.
-  const todayMidnight = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
+  // Diese Woche / Dieser Monat / Stundenkonto all come from the server-computed
+  // model (usePeriodMetrics, #1842), which prices every day against the
+  // schedule that was valid on that day. The old path fed the CURRENT schedule
+  // plus a history fetch over the whole account range into computeStaffMetrics,
+  // which re-priced historical days at today's hours and contradicted the
+  // Monatskarte further down this very page.
   const { data: ownStaff } = useSWRAuth(
     "time-tracking-own-staff",
     () => userContextService.getCurrentStaff(),
@@ -2799,63 +3243,7 @@ function TimeTrackingContent() {
     { revalidateOnFocus: false },
   );
 
-  const { data: timeTrackingConfig } = useSWRAuth(
-    "time-tracking-config",
-    () => timeTrackingService.getConfig(),
-    { revalidateOnFocus: false },
-  );
-
-  const accountAnchor = useMemo(() => {
-    return resolveAccountStartDate(
-      todayMidnight,
-      timeTrackingConfig?.accountStartDate,
-    );
-  }, [timeTrackingConfig?.accountStartDate, todayMidnight]);
-  const accountFrom = toDateKey(accountAnchor);
-  const accountTo = toDateKey(todayMidnight);
-  const { data: accountHistoryData } = useSWRAuth<{
-    sessions: WorkSessionHistory[];
-    weeklySummaries: WeeklySummary[];
-  }>(
-    ownStaffId
-      ? `time-tracking-own-history-${ownStaffId}-${accountFrom}-${accountTo}`
-      : null,
-    () => timeTrackingService.getHistory(accountFrom, accountTo),
-    { revalidateOnFocus: false },
-  );
-  const accountSessions = useMemo<StaffHistorySession[]>(
-    () =>
-      (accountHistoryData?.sessions ?? []).map(adaptHistorySessionForMetrics),
-    [accountHistoryData],
-  );
-  const { data: accountAbsenceData } = useSWRAuth<StaffAbsence[]>(
-    ownStaffId
-      ? `time-tracking-own-absences-${ownStaffId}-${accountFrom}-${accountTo}`
-      : null,
-    () => timeTrackingService.getAbsences(accountFrom, accountTo),
-    { revalidateOnFocus: false },
-  );
-  const accountAbsences = useMemo<StaffAbsenceRow[]>(
-    () => (accountAbsenceData ?? []).map(adaptAbsenceForMetrics),
-    [accountAbsenceData],
-  );
-
-  const ownMetrics = useMemo(() => {
-    if (!ownSchedule) return null;
-    return computeStaffMetrics(
-      ownSchedule,
-      accountSessions,
-      accountAbsences,
-      todayMidnight,
-      timeTrackingConfig?.accountStartDate,
-    );
-  }, [
-    ownSchedule,
-    accountSessions,
-    accountAbsences,
-    todayMidnight,
-    timeTrackingConfig?.accountStartDate,
-  ]);
+  const ownMetrics = usePeriodMetrics();
 
   // Fetch breaks for current session
   const fetchBreaks = useCallback(async () => {
@@ -2914,6 +3302,27 @@ function TimeTrackingContent() {
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
         const apiErr = err as ApiError;
+        if (apiErr.code === DEVIATION_REASON_REQUIRED_CODE) {
+          const details = apiErr.details;
+          setDeviationReason("");
+          setPendingDeviation({
+            action: "check_in",
+            status,
+            plannedTime:
+              typeof details?.planned_time === "string"
+                ? details.planned_time
+                : undefined,
+            actualTime:
+              typeof details?.actual_time === "string"
+                ? details.actual_time
+                : undefined,
+            deviationMinutes:
+              typeof details?.deviation_minutes === "string"
+                ? details.deviation_minutes
+                : undefined,
+          });
+          return;
+        }
         if (apiErr.code === REOPEN_STATUS_CONFLICT_CODE) {
           // Audit-trail gate: silent status change on reopen is forbidden.
           // Surface the prompt; the user supplies a reason and we route
@@ -2958,6 +3367,18 @@ function TimeTrackingContent() {
           });
           toast.error(
             "Heute liegt bereits eine Sitzung vor. Bitte kurz warten und erneut versuchen.",
+          );
+          return;
+        }
+        if (apiErr.code === PLANNED_START_NOT_REACHED_CODE) {
+          const plannedStart =
+            typeof apiErr.details?.planned_start_time === "string"
+              ? apiErr.details.planned_start_time
+              : undefined;
+          toast.error(
+            plannedStart
+              ? `Einstempeln ist erst ab ${plannedStart} Uhr möglich.`
+              : "Einstempeln ist noch nicht möglich.",
           );
           return;
         }
@@ -3069,12 +3490,76 @@ function TimeTrackingContent() {
       ]);
       toast.success("Erfolgreich ausgestempelt");
     } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.code === DEVIATION_REASON_REQUIRED_CODE) {
+        const details = apiErr.details;
+        setDeviationReason("");
+        setPendingDeviation({
+          action: "check_out",
+          plannedTime:
+            typeof details?.planned_time === "string"
+              ? details.planned_time
+              : undefined,
+          actualTime:
+            typeof details?.actual_time === "string"
+              ? details.actual_time
+              : undefined,
+          deviationMinutes:
+            typeof details?.deviation_minutes === "string"
+              ? details.deviation_minutes
+              : undefined,
+        });
+        return;
+      }
       logger.error("check_out_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       toast.error(friendlyError(err, "Fehler beim Ausstempeln"));
     }
   }, [mutateCurrentSession, mutateHistory, refreshTableData, toast]);
+
+  // Retry the rejected stamp with the collected reason. The modal stays open
+  // when the retry fails so the reason isn't lost.
+  const confirmDeviationReason = useCallback(async () => {
+    const pending = pendingDeviation;
+    if (!pending) return;
+    const reason = deviationReason.trim();
+    if (!reason) return;
+
+    setDeviationSubmitting(true);
+    try {
+      if (pending.action === "check_in" && pending.status) {
+        await timeTrackingService.checkIn(pending.status, reason);
+        toast.success("Erfolgreich eingestempelt");
+      } else {
+        await timeTrackingService.checkOut(reason);
+        setCurrentBreaks([]);
+        toast.success("Erfolgreich ausgestempelt");
+      }
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+      ]);
+      setPendingDeviation(null);
+      setDeviationReason("");
+    } catch (err) {
+      logger.error("deviation_reason_submit_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        action: pending.action,
+      });
+      toast.error(friendlyError(err, "Fehler beim Stempeln"));
+    } finally {
+      setDeviationSubmitting(false);
+    }
+  }, [
+    pendingDeviation,
+    deviationReason,
+    mutateCurrentSession,
+    mutateHistory,
+    refreshTableData,
+    toast,
+  ]);
 
   const handleStartBreak = useCallback(
     async (durationMinutes: number) => {
@@ -3094,14 +3579,25 @@ function TimeTrackingContent() {
   const handleEndBreak = useCallback(async () => {
     try {
       await timeTrackingService.endBreak();
-      await Promise.all([mutateCurrentSession(), fetchBreaks()]);
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+        fetchBreaks(),
+      ]);
     } catch (err) {
       logger.error("end_break_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       toast.error(friendlyError(err, "Fehler beim Beenden der Pause"));
     }
-  }, [mutateCurrentSession, fetchBreaks, toast]);
+  }, [
+    mutateCurrentSession,
+    mutateHistory,
+    refreshTableData,
+    fetchBreaks,
+    toast,
+  ]);
 
   const handleEditSave = useCallback(
     async (
@@ -3157,7 +3653,7 @@ function TimeTrackingContent() {
           half_day: req.half_day,
           note: req.note,
         });
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit eingetragen");
         setAbsenceModalOpen(false);
       } catch (err) {
@@ -3169,14 +3665,14 @@ function TimeTrackingContent() {
         );
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   const handleDeleteAbsence = useCallback(
     async (id: string) => {
       try {
         await timeTrackingService.deleteAbsence(id);
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit gelöscht");
       } catch (err) {
         logger.error("delete_absence_failed", {
@@ -3186,7 +3682,7 @@ function TimeTrackingContent() {
         toast.error(friendlyError(err, "Fehler beim Löschen der Abwesenheit"));
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   const handleUpdateAbsence = useCallback(
@@ -3202,7 +3698,7 @@ function TimeTrackingContent() {
     ) => {
       try {
         await timeTrackingService.updateAbsence(id, req);
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit aktualisiert");
       } catch (err) {
         logger.error("update_absence_failed", {
@@ -3214,7 +3710,7 @@ function TimeTrackingContent() {
         );
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   if (authStatus === "loading") {
@@ -3241,13 +3737,21 @@ function TimeTrackingContent() {
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
-          metrics={ownMetrics ?? null}
+          metrics={ownMetrics}
+          plannedShifts={todayShifts}
+          cancelledShifts={todayCancelledShifts}
         />
         <WeekChart
           history={history}
           currentSession={currentSession ?? null}
           weekOffset={weekOffset}
         />
+      </div>
+
+      {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
+          #1844). Rendert nichts, wenn die Schule keinen Betreuungsplan pflegt. */}
+      <div className="mb-4 md:mb-6">
+        <BetreuungsplanHeuteCard />
       </div>
 
       <div className="mb-4 md:mb-6">
@@ -3293,12 +3797,14 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={() => setPendingManualEditCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
             >
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={async () => {
                 const status = pendingManualEditCheckIn;
                 setPendingManualEditCheckIn(null);
@@ -3349,12 +3855,14 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={() => setPendingCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
             >
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={async () => {
                 const status = pendingCheckIn;
                 setPendingCheckIn(null);
@@ -3402,6 +3910,7 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={handleClosePendingReopenStatusChange}
               disabled={reopenStatusChangeSubmitting}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -3409,6 +3918,7 @@ function TimeTrackingContent() {
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={confirmReopenStatusChange}
               disabled={
                 reopenStatusChangeSubmitting ||
@@ -3453,6 +3963,93 @@ function TimeTrackingContent() {
             onChange={(e) => setReopenStatusChangeReason(e.target.value)}
             disabled={reopenStatusChangeSubmitting}
             placeholder="z. B. Mittags ins Homeoffice gewechselt"
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
+          />
+        </div>
+      </Modal>
+
+      {/* F9: stamping outside the tolerance window around the planned shift
+          needs a reason that lands in the audit trail. */}
+      <Modal
+        isOpen={pendingDeviation !== null}
+        onClose={handleClosePendingDeviation}
+        title="Abweichung vom Dienstplan"
+        footer={
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleClosePendingDeviation}
+              disabled={deviationSubmitting}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeviationReason}
+              disabled={deviationSubmitting || deviationReason.trim() === ""}
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pendingDeviation?.action === "check_in"
+                ? "Mit Begründung einstempeln"
+                : "Mit Begründung ausstempeln"}
+            </button>
+          </div>
+        }
+      >
+        <div className="py-2">
+          <p className="text-sm text-gray-600">
+            {pendingDeviation?.action === "check_in" ? (
+              <>
+                Du stempelst
+                {pendingDeviation?.deviationMinutes ? (
+                  <span className="font-medium text-gray-900">
+                    {" "}
+                    {pendingDeviation.deviationMinutes} Minuten
+                  </span>
+                ) : (
+                  " deutlich"
+                )}{" "}
+                vor deinem geplanten Dienstbeginn
+                {pendingDeviation?.plannedTime
+                  ? ` (${pendingDeviation.plannedTime} Uhr)`
+                  : ""}{" "}
+                ein.
+              </>
+            ) : (
+              <>
+                Du stempelst
+                {pendingDeviation?.deviationMinutes ? (
+                  <span className="font-medium text-gray-900">
+                    {" "}
+                    {pendingDeviation.deviationMinutes} Minuten
+                  </span>
+                ) : (
+                  " deutlich"
+                )}{" "}
+                nach deinem geplanten Dienstende
+                {pendingDeviation?.plannedTime
+                  ? ` (${pendingDeviation.plannedTime} Uhr)`
+                  : ""}{" "}
+                aus.
+              </>
+            )}{" "}
+            Bitte gib einen kurzen Grund an. Er wird im Audit-Trail der Sitzung
+            gespeichert.
+          </p>
+          <label
+            htmlFor="deviation-reason"
+            className="mt-4 block text-xs font-medium text-gray-700"
+          >
+            Grund
+          </label>
+          <textarea
+            id="deviation-reason"
+            value={deviationReason}
+            onChange={(e) => setDeviationReason(e.target.value)}
+            disabled={deviationSubmitting}
+            placeholder="z. B. Elterngespräch lief länger"
             rows={3}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
           />

@@ -37,7 +37,7 @@ func TestOperatorRepository_Create(t *testing.T) {
 	t.Run("NilOperator", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "operator cannot be nil")
+		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 
 	t.Run("ValidationError_EmptyEmail", func(t *testing.T) {
@@ -155,7 +155,7 @@ func TestOperatorRepository_Update(t *testing.T) {
 	t.Run("NilOperator", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "operator cannot be nil")
+		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 
 	t.Run("ValidationError", func(t *testing.T) {

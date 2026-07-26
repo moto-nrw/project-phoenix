@@ -59,7 +59,7 @@ interface LoggerConfig {
 /**
  * Logger interface (abstract, swappable implementations)
  */
-interface Logger {
+export interface Logger {
   /**
    * Log at DEBUG level (verbose, development only)
    */

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -154,6 +155,93 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	rows, err = repo.FindActiveByStudentAndDateRange(testpkg.TenantContext(1), student.ID, date, date)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
+}
+
+func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentStatusDay
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.EnsureTestTenant(t, db, tenantB)
+	ctxA := testpkg.TenantContext(tenantA)
+	ctxB := testpkg.TenantContext(tenantB)
+
+	today := timezone.TodayDate()
+	now := time.Now()
+	trueValue := true
+	studentIDs := make([]int64, 0, 10)
+	create := func(first, last string) int64 {
+		student := testpkg.CreateTestStudentForTenant(t, db, tenantA, first, last, "DA1")
+		studentIDs = append(studentIDs, student.ID)
+		return student.ID
+	}
+	setFlag := func(studentID int64, flag string) {
+		_, err := db.NewUpdate().
+			TableExpr(`users.students`).
+			Set(flag+" = ?", trueValue).
+			Where("id = ?", studentID).
+			Exec(ctxA)
+		require.NoError(t, err)
+	}
+	report := func(ctx context.Context, studentID int64, status string) {
+		require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+			StudentID:  studentID,
+			Date:       today,
+			Status:     status,
+			ReportedAt: now,
+			Source:     active.StudentStatusSourcePlanned,
+		}))
+	}
+
+	setFlag(create("FlagSick", "Dashboard"), "sick")
+	report(ctxA, create("PlannedSick", "Dashboard"), active.StudentStatusDaySick)
+	report(ctxA, create("PlannedExcused", "Dashboard"), active.StudentStatusDayExcused)
+	setFlag(create("FlagExcused", "Dashboard"), "excused")
+
+	overlap := create("Overlap", "Dashboard")
+	setFlag(overlap, "excused")
+	report(ctxA, overlap, active.StudentStatusDayExcused)
+
+	report(ctxA, create("ClassTrip", "Dashboard"), active.StudentStatusDayClassTrip)
+
+	sickWins := create("SickWins", "Dashboard")
+	report(ctxA, sickWins, active.StudentStatusDaySick)
+	report(ctxA, sickWins, active.StudentStatusDayExcused)
+	report(ctxA, sickWins, active.StudentStatusDayClassTrip)
+
+	cleared := create("Cleared", "Dashboard")
+	report(ctxA, cleared, active.StudentStatusDayExcused)
+	require.NoError(t, repo.MarkCleared(ctxA, cleared, active.StudentStatusDayExcused, today, now, active.StudentStatusSourceManual))
+
+	inactive := create("Inactive", "Dashboard")
+	report(ctxA, inactive, active.StudentStatusDayExcused)
+	_, err := db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModels.StudentStatusInactive)).
+		Where("id = ?", inactive).
+		Exec(ctxA)
+	require.NoError(t, err)
+
+	otherTenantStudent := testpkg.CreateTestStudentForTenant(t, db, tenantB, "OtherTenant", "Dashboard", "DB1")
+	studentIDs = append(studentIDs, otherTenantStudent.ID)
+	report(ctxB, otherTenantStudent.ID, active.StudentStatusDayExcused)
+
+	defer testpkg.CleanupActivityFixtures(t, db, studentIDs...)
+
+	counts, err := repo.CountEffectiveDashboardAbsences(ctxA, today)
+	require.NoError(t, err)
+	require.NotNil(t, counts)
+	assert.Equal(t, 3, counts.Sick)
+	assert.Equal(t, 4, counts.Excused)
+
+	otherCounts, err := repo.CountEffectiveDashboardAbsences(ctxB, today)
+	require.NoError(t, err)
+	require.NotNil(t, otherCounts)
+	assert.Equal(t, 0, otherCounts.Sick)
+	assert.Equal(t, 1, otherCounts.Excused)
 }
 
 func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {

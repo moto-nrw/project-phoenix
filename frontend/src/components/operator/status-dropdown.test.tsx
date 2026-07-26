@@ -39,14 +39,12 @@ describe("StatusDropdown", () => {
     const button = screen.getByRole("button");
     fireEvent.click(button);
 
-    await waitFor(() => {
-      const listbox = screen.getByRole("listbox");
-      const buttons = listbox.querySelectorAll("button");
-      const plannedButton = Array.from(buttons).find((btn) =>
-        btn.textContent?.includes("Geplant"),
-      );
-      fireEvent.click(plannedButton!);
-    });
+    const listbox = await screen.findByRole("listbox");
+    const buttons = listbox.querySelectorAll("button");
+    const plannedButton = Array.from(buttons).find((btn) =>
+      btn.textContent?.includes("Geplant"),
+    );
+    fireEvent.click(plannedButton!);
 
     expect(mockOnChange).toHaveBeenCalledWith("planned");
   });
@@ -57,14 +55,12 @@ describe("StatusDropdown", () => {
     const button = screen.getByRole("button");
     fireEvent.click(button);
 
-    await waitFor(() => {
-      const listbox = screen.getByRole("listbox");
-      const buttons = listbox.querySelectorAll("button");
-      const plannedButton = Array.from(buttons).find((btn) =>
-        btn.textContent?.includes("Geplant"),
-      );
-      fireEvent.click(plannedButton!);
-    });
+    const listbox = await screen.findByRole("listbox");
+    const buttons = listbox.querySelectorAll("button");
+    const plannedButton = Array.from(buttons).find((btn) =>
+      btn.textContent?.includes("Geplant"),
+    );
+    fireEvent.click(plannedButton!);
 
     await waitFor(() => {
       expect(screen.queryByRole("listbox")).not.toBeInTheDocument();

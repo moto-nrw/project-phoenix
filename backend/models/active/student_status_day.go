@@ -6,10 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const tableActiveStudentStatusDays = "active.student_status_days"
 
 const (
 	StudentStatusDaySick      = "sick"
@@ -60,40 +57,44 @@ type StudentStatusDay struct {
 	Note *string `bun:"note" json:"note,omitempty"`
 }
 
-func (s *StudentStatusDay) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActiveStudentStatusDays)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActiveStudentStatusDays)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActiveStudentStatusDays)
-	}
-	return nil
+type StudentStatusCounts struct {
+	Sick    int `bun:"sick_count"`
+	Excused int `bun:"excused_count"`
 }
 
-func (s *StudentStatusDay) GetID() any              { return s.ID }
-func (s *StudentStatusDay) GetCreatedAt() time.Time { return s.CreatedAt }
-func (s *StudentStatusDay) GetUpdatedAt() time.Time { return s.UpdatedAt }
-func (s *StudentStatusDay) TableName() string       { return tableActiveStudentStatusDays }
-
+// StudentStatusDayRepository persists broad day statuses (sick / excused /
+// class trip) and CASCADES them into per-slot attendance: UpsertReported and
+// the MarkCleared* methods also apply/release the status on matching
+// schedule.instance_students rows (see #1913). The cascade lives here — not in
+// a service — because absence, parent, and active services call this
+// repository directly; repo placement guarantees no write path skips it.
 type StudentStatusDayRepository interface {
+	// UpsertReported inserts or refreshes a reported status day AND marks the
+	// student's still-expected slots on that date absent with status-day
+	// provenance (schedule.instance_students.student_status_day_id).
 	UpsertReported(ctx context.Context, entry *StudentStatusDay) error
 	// ArchiveAndClearStatusFlag archives a legacy boolean student flag into
 	// student_status_days for the date and clears the flag on
 	// users.students. Returns the number of students cleared. Column names
 	// must be trusted constants, never user input.
 	ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date timezone.Date, reportedFallback time.Time, source string) (int64, error)
-	// CountActiveClassTripStudents counts distinct students with an
-	// uncleared class-trip entry for the date, excluding currently
-	// sick/excused students. Used by the dashboard analytics.
-	CountActiveClassTripStudents(ctx context.Context, date timezone.Date) (int, error)
+	// CountEffectiveDashboardAbsences counts today's effective dashboard
+	// absence buckets from live flags and status-day rows, applying the same
+	// precedence as student responses: sick wins, class trip counts as excused.
+	CountEffectiveDashboardAbsences(ctx context.Context, date timezone.Date) (*StudentStatusCounts, error)
+	// MarkCleared / MarkClearedByID / MarkClearedForDates clear status days
+	// AND release the cascade: slot absences owned by the cleared status day
+	// revert to the latest remaining active status for that date, or back to
+	// expected (absent when the instance already completed).
 	MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error
 	MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string) error
 	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, clearedAt time.Time, source string) error
 	FindActiveByID(ctx context.Context, id int64) (*StudentStatusDay, error)
 	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*StudentStatusDay, error)
 	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentStatusDay, error)
+	// FindSignedOffByStudentIDsAndDate returns active rows plus end-of-day
+	// archived rows (source = "end_of_day") for the date — the full set of
+	// valid registered sign-offs for that day.
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentStatusDay, error)
 	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*StudentStatusDay, error)
 }

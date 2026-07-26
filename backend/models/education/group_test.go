@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGroup_Validate(t *testing.T) {
@@ -137,27 +136,6 @@ func TestGroup_HasRoom(t *testing.T) {
 				t.Errorf("Group.HasRoom() = %v, want %v", got, tt.expected)
 			}
 		})
-	}
-}
-
-func TestGroup_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		group := &Group{Name: "Test Group"}
-		err := group.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		group := &Group{Name: "Test Group"}
-		err := group.BeforeAppendModel("some string")
-		assert.NoError(t, err)
-	})
-}
-
-func TestGroup_TableName(t *testing.T) {
-	group := &Group{}
-	if got := group.TableName(); got != "education.groups" {
-		t.Errorf("TableName() = %v, want education.groups", got)
 	}
 }
 

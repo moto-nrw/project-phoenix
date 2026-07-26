@@ -5,12 +5,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
+	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
+	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
+	mealplanRepo "github.com/moto-nrw/project-phoenix/database/repositories/mealplan"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -21,12 +24,15 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	calendarModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -56,6 +62,8 @@ type Factory struct {
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
 	MFATrustedDevice       authModels.MFATrustedDeviceRepository
 	MFAOverride            authModels.MFAOverrideRepository
+	PasskeyCredential      authModels.PasskeyCredentialRepository
+	PasskeySession         authModels.PasskeySessionRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -65,8 +73,8 @@ type Factory struct {
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
-	PersonGuardian      userModels.PersonGuardianRepository
 	StudentGuardian     userModels.StudentGuardianRepository
+	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
@@ -81,20 +89,26 @@ type Factory struct {
 	GradeTransition   educationModels.GradeTransitionRepository
 
 	// Schedule domain
-	Dateframe               scheduleModels.DateframeRepository
-	Timeframe               scheduleModels.TimeframeRepository
-	RecurrenceRule          scheduleModels.RecurrenceRuleRepository
-	StudentPickupSchedule   scheduleModels.StudentPickupScheduleRepository
-	StudentPickupException  scheduleModels.StudentPickupExceptionRepository
-	StudentPickupNote       scheduleModels.StudentPickupNoteRepository
-	StudentArrivalSchedule  scheduleModels.StudentArrivalScheduleRepository
-	StudentArrivalException scheduleModels.StudentArrivalExceptionRepository
-	StudentArrivalNote      scheduleModels.StudentArrivalNoteRepository
-	CalendarPeriod          scheduleModels.CalendarPeriodRepository
-	ActivityInstance        scheduleModels.ActivityInstanceRepository
-	InstanceStaff           scheduleModels.InstanceStaffRepository
-	InstanceStudent         scheduleModels.InstanceStudentRepository
-	ActivityException       scheduleModels.ActivityExceptionRepository
+	Dateframe                 scheduleModels.DateframeRepository
+	Timeframe                 scheduleModels.TimeframeRepository
+	RecurrenceRule            scheduleModels.RecurrenceRuleRepository
+	StudentPickupSchedule     scheduleModels.StudentPickupScheduleRepository
+	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
+	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
+	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
+	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
+	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
+	CareScheduleChangeRequest scheduleModels.CareScheduleChangeRequestRepository
+	StaffShift                scheduleModels.StaffShiftRepository
+	StaffShiftSeries          scheduleModels.StaffShiftSeriesRepository
+	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
+	ShiftType                 scheduleModels.ShiftTypeRepository
+	CalendarPeriod            scheduleModels.CalendarPeriodRepository
+	ClosingDay                scheduleModels.ClosingDayRepository
+	ActivityInstance          scheduleModels.ActivityInstanceRepository
+	InstanceStaff             scheduleModels.InstanceStaffRepository
+	InstanceStudent           scheduleModels.InstanceStudentRepository
+	ActivityException         scheduleModels.ActivityExceptionRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -104,18 +118,24 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup        activeModels.GroupRepository
-	ActiveVisit        activeModels.VisitRepository
-	GroupSupervisor    activeModels.GroupSupervisorRepository
-	CombinedGroup      activeModels.CombinedGroupRepository
-	GroupMapping       activeModels.GroupMappingRepository
-	Attendance         activeModels.AttendanceRepository
-	StudentStatusDay   activeModels.StudentStatusDayRepository
-	WorkSession        activeModels.WorkSessionRepository
-	WorkSessionBreak   activeModels.WorkSessionBreakRepository
-	StaffAbsence       activeModels.StaffAbsenceRepository
-	StaffAbsenceAudit  activeModels.StaffAbsenceAuditRepository
-	StaffVacationQuota activeModels.StaffVacationQuotaRepository
+	ActiveGroup           activeModels.GroupRepository
+	ActiveVisit           activeModels.VisitRepository
+	GroupSupervisor       activeModels.GroupSupervisorRepository
+	CombinedGroup         activeModels.CombinedGroupRepository
+	GroupMapping          activeModels.GroupMappingRepository
+	Attendance            activeModels.AttendanceRepository
+	StudentStatusDay      activeModels.StudentStatusDayRepository
+	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
+	WorkSession           activeModels.WorkSessionRepository
+	WorkSessionBreak      activeModels.WorkSessionBreakRepository
+	StaffAbsence          activeModels.StaffAbsenceRepository
+	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
+	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
+	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
+	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
+
+	// Meal plan domain
+	MealPlanEntry mealplanModels.MealPlanEntryRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -137,13 +157,17 @@ type Factory struct {
 	SuggestionPostRead    suggestionsModels.PostReadRepository
 
 	// Audit domain
-	DataDeletion        auditModels.DataDeletionRepository
-	DataAccessLog       auditModels.DataAccessLogRepository
-	AuthEvent           auditModels.AuthEventRepository
-	DataImport          auditModels.DataImportRepository
-	WorkSessionEdit     auditModels.WorkSessionEditRepository
-	StudentFieldEdit    auditModels.StudentFieldEditRepository
-	UnregisteredTagScan auditModels.UnregisteredTagScanRepository
+	DataDeletion                 auditModels.DataDeletionRepository
+	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository
+	DataAccessLog                auditModels.DataAccessLogRepository
+	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
+	GuardianChange               auditModels.GuardianChangeRepository
+	DeviationEvent               auditModels.DeviationEventRepository
+	AuthEvent                    auditModels.AuthEventRepository
+	DataImport                   auditModels.DataImportRepository
+	WorkSessionEdit              auditModels.WorkSessionEditRepository
+	StudentFieldEdit             auditModels.StudentFieldEditRepository
+	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
 
 	// Platform domain (operator dashboard)
 	Organization             platformModels.OrganizationRepository
@@ -152,32 +176,59 @@ type Factory struct {
 	AnnouncementView         platformModels.AnnouncementViewRepository
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
+	OperatorRefreshToken     platformModels.OperatorRefreshTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
-	EmailOutbox              platformModels.EmailOutboxRepository
+	EmailOutbox              platformModels.EmailOutboxCleanupRepository
 
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
 	OperatorMFAEmailChallenge platformModels.OperatorMFAEmailChallengeRepository
 	OperatorMFATrustedDevice  platformModels.OperatorMFATrustedDeviceRepository
+	OperatorPasskeyCredential platformModels.OperatorPasskeyCredentialRepository
+	OperatorPasskeySession    platformModels.OperatorPasskeySessionRepository
 
 	// Enrollment domain (parent-enrollment PR 5+)
 	FormSchema           enrollmentModels.FormSchemaRepository
 	Request              enrollmentModels.RequestRepository
+	EnrollmentDeletion   enrollmentModels.DeletionRepository
 	RequestChild         enrollmentModels.RequestChildRepository
+	RequestGuardian      enrollmentModels.RequestGuardianRepository
+	LateInvite           enrollmentModels.LateInviteRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
+	ChangeRequest        enrollmentModels.ChangeRequestRepository
+	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
 	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
 	Phase                enrollmentModels.PhaseRepository
+
+	// Display domain (info-point dashboards, issue #1325)
+	Display displayModels.Repository
 
 	// Parent domain (cross-tenant guardian portal — PR 9+)
 	ParentChild             parentModels.ChildRepository
 	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
 	ParentEnrollmentRequest parentModels.EnrollmentRequestRepository
 
-	// Parent-submitted notes (tenant-scoped; read by parents + staff)
-	StudentParentNote userModels.StudentParentNoteRepository
+	// Parent Stammdaten direct-edit audit + change-request review
+	StudentDataChangeRequest userModels.StudentDataChangeRequestRepository
+
+	// Parent-OGS messaging (tenant-scoped two-way conversation per child)
+	ParentMessageThread userModels.ParentMessageThreadRepository
+	ParentMessage       userModels.ParentMessageRepository
+	ParentMessageRead   userModels.ParentMessageReadRepository
+
+	// Calendar domain
+	CalendarAppointment               calendarModels.AppointmentRepository
+	CalendarRecurrenceRule            calendarModels.RecurrenceRuleRepository
+	CalendarAppointmentRecipient      calendarModels.AppointmentRecipientRepository
+	CalendarAppointmentRecipientChild calendarModels.AppointmentRecipientStudentRepository
+	CalendarAppointmentTarget         calendarModels.AppointmentTargetRepository
+	CalendarOccurrenceOverride        calendarModels.AppointmentOccurrenceOverrideRepository
+
+	// Parent announcements (tenant-authored broadcast news to guardians)
+	ParentAnnouncement userModels.ParentAnnouncementRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -201,6 +252,8 @@ func NewFactory(db *bun.DB) *Factory {
 		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
 		MFAOverride:            auth.NewMFAOverrideRepository(db),
+		PasskeyCredential:      auth.NewPasskeyCredentialRepository(db),
+		PasskeySession:         auth.NewPasskeySessionRepository(db),
 
 		// Users repositories
 		Person:              users.NewPersonRepository(db),
@@ -210,8 +263,8 @@ func NewFactory(db *bun.DB) *Factory {
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),
-		PersonGuardian:      users.NewPersonGuardianRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
+		StudentCompanion:    users.NewStudentCompanionRepository(db),
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
@@ -226,20 +279,26 @@ func NewFactory(db *bun.DB) *Factory {
 		GradeTransition:   education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories
-		Dateframe:               schedule.NewDateframeRepository(db),
-		Timeframe:               schedule.NewTimeframeRepository(db),
-		RecurrenceRule:          schedule.NewRecurrenceRuleRepository(db),
-		StudentPickupSchedule:   schedule.NewStudentPickupScheduleRepository(db),
-		StudentPickupException:  schedule.NewStudentPickupExceptionRepository(db),
-		StudentPickupNote:       schedule.NewStudentPickupNoteRepository(db),
-		StudentArrivalSchedule:  schedule.NewStudentArrivalScheduleRepository(db),
-		StudentArrivalException: schedule.NewStudentArrivalExceptionRepository(db),
-		StudentArrivalNote:      schedule.NewStudentArrivalNoteRepository(db),
-		CalendarPeriod:          schedule.NewCalendarPeriodRepository(db),
-		ActivityInstance:        schedule.NewActivityInstanceRepository(db),
-		InstanceStaff:           schedule.NewInstanceStaffRepository(db),
-		InstanceStudent:         schedule.NewInstanceStudentRepository(db),
-		ActivityException:       schedule.NewActivityExceptionRepository(db),
+		Dateframe:                 schedule.NewDateframeRepository(db),
+		Timeframe:                 schedule.NewTimeframeRepository(db),
+		RecurrenceRule:            schedule.NewRecurrenceRuleRepository(db),
+		StudentPickupSchedule:     schedule.NewStudentPickupScheduleRepository(db),
+		StudentPickupException:    schedule.NewStudentPickupExceptionRepository(db),
+		StudentPickupNote:         schedule.NewStudentPickupNoteRepository(db),
+		StudentArrivalSchedule:    schedule.NewStudentArrivalScheduleRepository(db),
+		StudentArrivalException:   schedule.NewStudentArrivalExceptionRepository(db),
+		StudentArrivalNote:        schedule.NewStudentArrivalNoteRepository(db),
+		CareScheduleChangeRequest: schedule.NewCareScheduleChangeRequestRepository(db),
+		StaffShift:                schedule.NewStaffShiftRepository(db),
+		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
+		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
+		ShiftType:                 schedule.NewShiftTypeRepository(db),
+		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
+		ClosingDay:                schedule.NewClosingDayRepository(db),
+		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
+		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
+		InstanceStudent:           schedule.NewInstanceStudentRepository(db),
+		ActivityException:         schedule.NewActivityExceptionRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),
@@ -249,18 +308,24 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:        active.NewGroupRepository(db),
-		ActiveVisit:        active.NewVisitRepository(db),
-		GroupSupervisor:    active.NewGroupSupervisorRepository(db),
-		CombinedGroup:      active.NewCombinedGroupRepository(db),
-		GroupMapping:       active.NewGroupMappingRepository(db),
-		Attendance:         active.NewAttendanceRepository(db),
-		StudentStatusDay:   active.NewStudentStatusDayRepository(db),
-		WorkSession:        active.NewWorkSessionRepository(db),
-		WorkSessionBreak:   active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:       active.NewStaffAbsenceRepository(db),
-		StaffAbsenceAudit:  active.NewStaffAbsenceAuditRepository(db),
-		StaffVacationQuota: active.NewStaffVacationQuotaRepository(db),
+		ActiveGroup:           active.NewGroupRepository(db),
+		ActiveVisit:           active.NewVisitRepository(db),
+		GroupSupervisor:       active.NewGroupSupervisorRepository(db),
+		CombinedGroup:         active.NewCombinedGroupRepository(db),
+		GroupMapping:          active.NewGroupMappingRepository(db),
+		Attendance:            active.NewAttendanceRepository(db),
+		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
+		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
+		WorkSession:           active.NewWorkSessionRepository(db),
+		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:          active.NewStaffAbsenceRepository(db),
+		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
+		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
+		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
+		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
+
+		// Meal plan repositories
+		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),
@@ -282,13 +347,17 @@ func NewFactory(db *bun.DB) *Factory {
 		SuggestionPostRead:    suggestionsRepo.NewPostReadRepository(db),
 
 		// Audit repositories
-		DataDeletion:        audit.NewDataDeletionRepository(db),
-		DataAccessLog:       audit.NewDataAccessLogRepository(db),
-		AuthEvent:           audit.NewAuthEventRepository(db),
-		DataImport:          audit.NewDataImportRepository(db),
-		WorkSessionEdit:     audit.NewWorkSessionEditRepository(db),
-		StudentFieldEdit:    audit.NewStudentFieldEditRepository(db),
-		UnregisteredTagScan: audit.NewUnregisteredTagScanRepository(db),
+		DataDeletion:                 audit.NewDataDeletionRepository(db),
+		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(db),
+		DataAccessLog:                audit.NewDataAccessLogRepository(db),
+		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),
+		GuardianChange:               audit.NewGuardianChangeRepository(db),
+		DeviationEvent:               audit.NewDeviationEventRepository(db),
+		AuthEvent:                    audit.NewAuthEventRepository(db),
+		DataImport:                   audit.NewDataImportRepository(db),
+		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),
+		StudentFieldEdit:             audit.NewStudentFieldEditRepository(db),
+		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
 
 		// Platform repositories
 		Organization:             platformRepo.NewOrganizationRepository(db),
@@ -297,6 +366,7 @@ func NewFactory(db *bun.DB) *Factory {
 		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),
 		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
+		OperatorRefreshToken:     platformRepo.NewOperatorRefreshTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
@@ -305,22 +375,46 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
 		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
 		OperatorMFATrustedDevice:  platformRepo.NewOperatorMFATrustedDeviceRepository(db),
+		OperatorPasskeyCredential: platformRepo.NewOperatorPasskeyCredentialRepository(db),
+		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 
 		// Enrollment repositories
 		FormSchema:           enrollment.NewFormSchemaRepository(db),
 		Request:              enrollment.NewRequestRepository(db),
+		EnrollmentDeletion:   enrollment.NewDeletionRepository(db),
 		RequestChild:         enrollment.NewRequestChildRepository(db),
+		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
+		LateInvite:           enrollment.NewLateInviteRepository(db),
 		CareOffering:         enrollment.NewCareOfferingRepository(db),
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
 		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                enrollment.NewPhaseRepository(db),
+
+		// Display (info-point dashboards, issue #1325)
+		Display: displayRepo.NewDisplayRepository(db),
 
 		// Parent (cross-tenant guardian portal — PR 9+)
 		ParentChild:             parentRepo.NewChildRepository(db),
 		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
 
-		// Parent-submitted notes (tenant-scoped; read by parents + staff)
-		StudentParentNote: users.NewStudentParentNoteRepository(db),
+		// Parent Stammdaten direct-edit audit + change-request review
+		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
+
+		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
+		ParentMessageThread: users.NewParentMessageThreadRepository(db),
+		ParentMessage:       users.NewParentMessageRepository(db),
+		ParentMessageRead:   users.NewParentMessageReadRepository(db),
+
+		// Calendar repositories
+		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),
+		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(db),
+		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(db),
+		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(db),
+		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
+		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
+		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
 	}
 }

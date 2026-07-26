@@ -111,7 +111,7 @@ func TestErrorRenderer_GuardianNotFound(t *testing.T) {
 	// GuardianNotFound is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "GetGuardian",
-		Err: usersSvc.ErrGuardianNotFound,
+		Err: errors.New("guardian not found"),
 	}
 
 	renderer := ErrorRenderer(err)
@@ -128,7 +128,7 @@ func TestErrorRenderer_StaffNotFound(t *testing.T) {
 	// StaffNotFound is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "GetStaff",
-		Err: usersSvc.ErrStaffNotFound,
+		Err: errors.New("staff member not found"),
 	}
 
 	renderer := ErrorRenderer(err)
@@ -162,7 +162,7 @@ func TestErrorRenderer_StaffAlreadyExists(t *testing.T) {
 	// StaffAlreadyExists is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "CreateStaff",
-		Err: usersSvc.ErrStaffAlreadyExists,
+		Err: errors.New("staff member already exists for this person"),
 	}
 
 	renderer := ErrorRenderer(err)
@@ -179,7 +179,7 @@ func TestErrorRenderer_TeacherAlreadyExists(t *testing.T) {
 	// TeacherAlreadyExists is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "CreateTeacher",
-		Err: usersSvc.ErrTeacherAlreadyExists,
+		Err: errors.New("teacher already exists for this staff member"),
 	}
 
 	renderer := ErrorRenderer(err)
@@ -196,7 +196,7 @@ func TestErrorRenderer_InvalidPIN(t *testing.T) {
 	// InvalidPIN is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "ValidatePIN",
-		Err: usersSvc.ErrInvalidPIN,
+		Err: errors.New("invalid staff PIN"),
 	}
 
 	renderer := ErrorRenderer(err)

@@ -18,6 +18,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     );
   }
   try {
+    // This proxies to the tenant-aware backend API, not static/object storage;
+    // encodeURIComponent keeps the slug inside one path segment.
     const response = await fetch(
       `${getServerApiUrl()}/api/enrollment/captcha-config/${encodeURIComponent(
         tenantSlug,

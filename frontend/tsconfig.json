@@ -36,6 +36,9 @@
       ],
       "@/*": [
         "./src/*"
+      ],
+      "~storybook/*": [
+        "./.storybook/*"
       ]
     }
   },
@@ -50,6 +53,7 @@
   ],
   "exclude": [
     "node_modules",
-    "coverage"
+    "coverage",
+    "storybook-static"
   ]
 }

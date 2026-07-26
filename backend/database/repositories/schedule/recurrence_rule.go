@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -144,36 +143,6 @@ func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDat
 	// For now, we'll return all rules that either have no end date or end after the start date.
 
 	return rules, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *RecurrenceRuleRepository) Create(ctx context.Context, rule *schedule.RecurrenceRule) error {
-	if rule == nil {
-		return fmt.Errorf("recurrence rule cannot be nil")
-	}
-
-	// Validate rule
-	if err := rule.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, rule)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *RecurrenceRuleRepository) Update(ctx context.Context, rule *schedule.RecurrenceRule) error {
-	if rule == nil {
-		return fmt.Errorf("recurrence rule cannot be nil")
-	}
-
-	// Validate rule
-	if err := rule.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, rule)
 }
 
 // List retrieves recurrence rules matching the provided query options

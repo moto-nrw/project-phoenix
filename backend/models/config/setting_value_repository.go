@@ -10,9 +10,6 @@ type SettingValueRepository interface {
 	// Returns (nil, nil) if not found.
 	FindByTenantAndKey(ctx context.Context, tenantID int64, key string) (*SettingValue, error)
 
-	// FindByTenant retrieves all setting values for a tenant.
-	FindByTenant(ctx context.Context, tenantID int64) ([]*SettingValue, error)
-
 	// Upsert inserts or updates a setting value (INSERT ... ON CONFLICT ... DO UPDATE).
 	Upsert(ctx context.Context, sv *SettingValue) error
 

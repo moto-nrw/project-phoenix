@@ -3,32 +3,25 @@ import {
   mapActiveGroupResponse,
   mapVisitResponse,
   mapSupervisorResponse,
-  mapCombinedGroupResponse,
-  mapGroupMappingResponse,
   mapSchulhofStatusResponse,
   mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
   prepareVisitForBackend,
   prepareSupervisorForBackend,
-  prepareCombinedGroupForBackend,
-  prepareGroupMappingForBackend,
   type BackendActiveGroup,
   type BackendVisit,
   type BackendSupervisor,
-  type BackendCombinedGroup,
-  type BackendGroupMapping,
   type BackendSchulhofStatus,
   type BackendToggleSupervisionResponse,
   type ActiveGroup,
   type Visit,
   type Supervisor,
-  type CombinedGroup,
 } from "./active-helpers";
 import {
   buildBackendActiveSession,
   buildBackendVisit,
   buildBackendSupervisor,
-} from "~/test/fixtures";
+} from "~/test/fixtures/sessions";
 
 // Sample backend data matching actual API responses
 const sampleBackendActiveGroup = buildBackendActiveSession({
@@ -70,28 +63,6 @@ const sampleBackendSupervisor = buildBackendSupervisor({
   staff_name: "Frau Schmidt",
   active_group_name: "Morning Session",
 });
-
-const sampleBackendCombinedGroup: BackendCombinedGroup = {
-  id: 300,
-  name: "Combined Morning",
-  description: "Combined session for multiple groups",
-  room_id: 5,
-  start_time: "2024-01-15T08:00:00Z",
-  end_time: "2024-01-15T12:00:00Z",
-  is_active: true,
-  notes: "Special combined session",
-  group_count: 3,
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-15T08:00:00Z",
-};
-
-const sampleBackendGroupMapping: BackendGroupMapping = {
-  id: 400,
-  active_group_id: 1,
-  combined_group_id: 300,
-  group_name: "Class 3A",
-  combined_name: "Combined Morning",
-};
 
 describe("active-helpers", () => {
   describe("mapActiveGroupResponse", () => {
@@ -255,66 +226,6 @@ describe("active-helpers", () => {
     });
   });
 
-  describe("mapCombinedGroupResponse", () => {
-    it("maps all fields correctly from backend to frontend format", () => {
-      const result = mapCombinedGroupResponse(sampleBackendCombinedGroup);
-
-      expect(result.id).toBe("300");
-      expect(result.name).toBe("Combined Morning");
-      expect(result.description).toBe("Combined session for multiple groups");
-      expect(result.roomId).toBe("5");
-      expect(result.startTime).toEqual(new Date("2024-01-15T08:00:00Z"));
-      expect(result.endTime).toEqual(new Date("2024-01-15T12:00:00Z"));
-      expect(result.isActive).toBe(true);
-      expect(result.notes).toBe("Special combined session");
-      expect(result.groupCount).toBe(3);
-    });
-
-    it("handles undefined optional fields", () => {
-      const minimalCombinedGroup: BackendCombinedGroup = {
-        id: 300,
-        name: "Combined Morning",
-        room_id: 5,
-        start_time: "2024-01-15T08:00:00Z",
-        is_active: true,
-        created_at: "2024-01-01T00:00:00Z",
-        updated_at: "2024-01-15T08:00:00Z",
-      };
-
-      const result = mapCombinedGroupResponse(minimalCombinedGroup);
-
-      expect(result.description).toBeUndefined();
-      expect(result.endTime).toBeUndefined();
-      expect(result.notes).toBeUndefined();
-      expect(result.groupCount).toBeUndefined();
-    });
-  });
-
-  describe("mapGroupMappingResponse", () => {
-    it("maps all fields correctly from backend to frontend format", () => {
-      const result = mapGroupMappingResponse(sampleBackendGroupMapping);
-
-      expect(result.id).toBe("400");
-      expect(result.activeGroupId).toBe("1");
-      expect(result.combinedGroupId).toBe("300");
-      expect(result.groupName).toBe("Class 3A");
-      expect(result.combinedName).toBe("Combined Morning");
-    });
-
-    it("handles undefined optional fields", () => {
-      const minimalMapping: BackendGroupMapping = {
-        id: 400,
-        active_group_id: 1,
-        combined_group_id: 300,
-      };
-
-      const result = mapGroupMappingResponse(minimalMapping);
-
-      expect(result.groupName).toBeUndefined();
-      expect(result.combinedName).toBeUndefined();
-    });
-  });
-
   describe("prepareActiveGroupForBackend", () => {
     it("converts frontend ActiveGroup to backend format", () => {
       const frontendGroup: Partial<ActiveGroup> = {
@@ -428,83 +339,6 @@ describe("active-helpers", () => {
       expect(result.start_time).toBeUndefined();
       expect(result.end_time).toBeUndefined();
       expect(result.notes).toBeUndefined();
-    });
-  });
-
-  describe("prepareCombinedGroupForBackend", () => {
-    it("converts frontend CombinedGroup to backend format", () => {
-      const frontendCombined: Partial<CombinedGroup> = {
-        name: "Combined Morning",
-        description: "Combined session",
-        roomId: "5",
-        startTime: new Date("2024-01-15T08:00:00Z"),
-        endTime: new Date("2024-01-15T12:00:00Z"),
-        notes: "Test combined",
-      };
-
-      const result = prepareCombinedGroupForBackend(frontendCombined);
-
-      expect(result.name).toBe("Combined Morning");
-      expect(result.description).toBe("Combined session");
-      expect(result.room_id).toBe(5);
-      expect(result.start_time).toBe("2024-01-15T08:00:00.000Z");
-      expect(result.end_time).toBe("2024-01-15T12:00:00.000Z");
-      expect(result.notes).toBe("Test combined");
-    });
-
-    it("only includes defined fields", () => {
-      const partialCombined: Partial<CombinedGroup> = {
-        name: "Test Group",
-        roomId: "5",
-      };
-
-      const result = prepareCombinedGroupForBackend(partialCombined);
-
-      expect(result.name).toBe("Test Group");
-      expect(result.room_id).toBe(5);
-      expect(result.description).toBeUndefined();
-      expect(result.start_time).toBeUndefined();
-      expect(result.end_time).toBeUndefined();
-      expect(result.notes).toBeUndefined();
-    });
-
-    it("handles empty description", () => {
-      const combinedWithEmptyDesc: Partial<CombinedGroup> = {
-        name: "Test",
-        description: "",
-      };
-
-      const result = prepareCombinedGroupForBackend(combinedWithEmptyDesc);
-
-      expect(result.description).toBe("");
-    });
-  });
-
-  describe("prepareGroupMappingForBackend", () => {
-    it("converts frontend group mapping to backend format", () => {
-      const mapping = {
-        activeGroupId: "1",
-        combinedGroupId: "300",
-      };
-
-      const result = prepareGroupMappingForBackend(mapping);
-
-      expect(result.active_group_id).toBe(1);
-      expect(result.combined_group_id).toBe(300);
-    });
-
-    it("parses string IDs to integers", () => {
-      const mapping = {
-        activeGroupId: "999",
-        combinedGroupId: "1000",
-      };
-
-      const result = prepareGroupMappingForBackend(mapping);
-
-      expect(typeof result.active_group_id).toBe("number");
-      expect(typeof result.combined_group_id).toBe("number");
-      expect(result.active_group_id).toBe(999);
-      expect(result.combined_group_id).toBe(1000);
     });
   });
 

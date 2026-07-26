@@ -16,7 +16,6 @@ import (
 
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -26,27 +25,66 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// init seeds JWT viper defaults before any test (and before setupTestContext
+// constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
+// AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
+func init() {
+	testutil.SeedTestJWTConfig()
+}
+
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *staffAPI.Resource
+	router   chi.Router
 }
 
-// setupTestContext initializes test database, services, and resource.
+// setupTestContext initializes test database, services, and resource. The
+// router serves the resource through the production middleware chain
+// (Verifier → Authenticator → TenantMiddleware → RequiresPermission →
+// TenantTxMiddleware) exactly as the real server does, mounted at /staff.
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
 
-	// Create repo factory to get GroupSupervisor repository
-	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, db, slog.Default())
+	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, db, slog.Default())
+
+	router := chi.NewRouter()
+	router.Mount("/staff", resource.Router())
 
 	return &testContext{
 		db:       db,
 		services: svc,
 		resource: resource,
+		router:   router,
 	}
+}
+
+// authToken mints a bearer token from default admin claims narrowed to the
+// given permissions. It replaces the old WithClaims(DefaultTestClaims) +
+// WithPermissions(perms) pairing now that requests flow through Router() and
+// the middleware chain reads permissions from the signed token.
+func authToken(t *testing.T, perms ...string) string {
+	t.Helper()
+	claims := testutil.DefaultTestClaims()
+	claims.Permissions = perms
+	return testutil.MintTestJWT(t, claims)
+}
+
+// pinToken mints a bearer token for a PIN-endpoint test. The /pin routes carry
+// no permission guard, but the JWT middleware still requires id + sub + roles,
+// so we start from DefaultTestClaims and only override the account id/username.
+// An accountID of 0 yields a token whose id claim is omitted, which the
+// middleware rejects with 401 (used by the InvalidToken cases).
+func pinToken(t *testing.T, accountID int, username string) string {
+	t.Helper()
+	claims := testutil.DefaultTestClaims()
+	claims.ID = accountID
+	claims.Username = username
+	claims.Permissions = nil
+	return testutil.MintTestJWT(t, claims)
 }
 
 func cleanupStaffScheduleRows(t *testing.T, db *bun.DB, staffID int64) {
@@ -114,15 +152,10 @@ func TestListStaff_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -135,15 +168,10 @@ func TestListStaff_WithTeachersOnlyFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?teachers_only=true", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -156,15 +184,10 @@ func TestListStaff_WithTeachersOnlyFilter_IncludesLegacyTeacherAccounts(t *testi
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?teachers_only=true", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -188,15 +211,10 @@ func TestListStaff_WithNameFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?first_name=Test", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -210,15 +228,10 @@ func TestListStaff_WithAccountEmail(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -236,15 +249,10 @@ func TestGetStaff_WithAccountEmail(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -267,32 +275,52 @@ func TestGetStaff_Success(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "GetStaff", "Test")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "TimeTrackingManager", "Profile")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithJWTBearer(authToken(t, "time_tracking:manage")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetStaff_RejectsUnrelatedPermission(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "UnrelatedPermission", "Profile")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithJWTBearer(authToken(t, "rooms:read")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
 }
 
 func TestGetStaff_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -301,15 +329,10 @@ func TestGetStaff_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -339,15 +362,9 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 	require.NoError(t, err)
 	defer testpkg.CleanupTableRecords(t, ctx.db, "active.work_sessions", session.ID)
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
-
 	listReq := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
-	listRR := testutil.ExecuteRequest(router, listReq)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
+	listRR := testutil.ExecuteRequest(ctx.router, listReq)
 	testutil.AssertSuccessResponse(t, listRR, http.StatusOK)
 
 	listResp := testutil.ParseJSONResponse(t, listRR.Body.Bytes())
@@ -369,10 +386,8 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 		"list endpoint should expose the open work session as present")
 
 	detailReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
-	detailRR := testutil.ExecuteRequest(router, detailReq)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
+	detailRR := testutil.ExecuteRequest(ctx.router, detailReq)
 	testutil.AssertSuccessResponse(t, detailRR, http.StatusOK)
 
 	detailResp := testutil.ParseJSONResponse(t, detailRR.Body.Bytes())
@@ -397,20 +412,15 @@ func TestCreateStaff_Success(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, ctx.db, "NewStaff"+uniqueSuffix, "Person")
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
-	router := chi.NewRouter()
-	router.Post("/staff", ctx.resource.CreateStaffHandler())
-
 	body := map[string]interface{}{
 		"person_id":   person.ID,
 		"staff_notes": "Test staff notes",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:create"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:create")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -432,9 +442,6 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, ctx.db, "NewTeacher"+uniqueSuffix, "Person")
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
-	router := chi.NewRouter()
-	router.Post("/staff", ctx.resource.CreateStaffHandler())
-
 	body := map[string]interface{}{
 		"person_id":      person.ID,
 		"staff_notes":    "Teacher notes",
@@ -444,11 +451,9 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:create"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:create")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -465,19 +470,14 @@ func TestCreateStaff_PersonNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/staff", ctx.resource.CreateStaffHandler())
-
 	body := map[string]interface{}{
 		"person_id": 999999,
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:create"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:create")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -486,19 +486,14 @@ func TestCreateStaff_MissingPersonID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/staff", ctx.resource.CreateStaffHandler())
-
 	body := map[string]interface{}{
 		"staff_notes": "Missing person ID",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:create"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:create")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -515,20 +510,15 @@ func TestUpdateStaff_Success(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateStaff", "Test")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	body := map[string]interface{}{
 		"person_id":   staff.PersonID,
 		"staff_notes": "Updated notes",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -537,20 +527,15 @@ func TestUpdateStaff_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	body := map[string]interface{}{
 		"person_id":   1,
 		"staff_notes": "Should fail",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/999999", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -559,19 +544,14 @@ func TestUpdateStaff_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	body := map[string]interface{}{
 		"person_id": 1,
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/invalid", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -593,15 +573,10 @@ func TestDeleteStaff_Success(t *testing.T) {
 		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	})
 
-	router := chi.NewRouter()
-	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:delete"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:delete")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -620,15 +595,10 @@ func TestDeleteStaff_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/999999", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:delete"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:delete")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	// NOTE: The delete operation returns success even for non-existent IDs.
 	// This is idempotent behavior - deleting something that doesn't exist is still "successful".
@@ -639,15 +609,10 @@ func TestDeleteStaff_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:delete"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:delete")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -664,15 +629,10 @@ func TestGetStaffGroups_Success(t *testing.T) {
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupsTest", "Teacher")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}/groups", ctx.resource.GetStaffGroupsHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/groups", teacher.StaffID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -685,15 +645,10 @@ func TestGetStaffGroups_NonTeacher(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "NonTeacher", "Staff")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}/groups", ctx.resource.GetStaffGroupsHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/groups", staff.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	// Should return success with empty groups array for non-teachers
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -703,15 +658,10 @@ func TestGetStaffGroups_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}/groups", ctx.resource.GetStaffGroupsHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999/groups", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -728,15 +678,10 @@ func TestGetStaffSubstitutions_Success(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "SubstitutionsTest", "Staff")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}/substitutions", ctx.resource.GetStaffSubstitutionsHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/substitutions", staff.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -745,15 +690,10 @@ func TestGetStaffSubstitutions_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}/substitutions", ctx.resource.GetStaffSubstitutionsHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999/substitutions", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -766,15 +706,10 @@ func TestGetAvailableStaff_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/available", ctx.resource.GetAvailableStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -787,15 +722,10 @@ func TestGetAvailableForSubstitution_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/available-for-substitution", ctx.resource.GetAvailableForSubstitutionHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -804,15 +734,10 @@ func TestGetAvailableForSubstitution_WithDateFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/available-for-substitution", ctx.resource.GetAvailableForSubstitutionHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?date=2024-01-15", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -821,15 +746,10 @@ func TestGetAvailableForSubstitution_WithSearchFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/available-for-substitution", ctx.resource.GetAvailableForSubstitutionHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?search=Test", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -842,15 +762,10 @@ func TestGetStaffByRole_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=user", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -865,15 +780,10 @@ func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) 
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
 	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "teacher")
 
-	router := chi.NewRouter()
-	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=teacher", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -903,15 +813,10 @@ func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
 	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "teacher")
 
-	router := chi.NewRouter()
-	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=user", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -937,15 +842,10 @@ func TestGetStaffByRole_MissingRoleParam(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -967,18 +867,10 @@ func TestGetPINStatus_Success(t *testing.T) {
 	require.NotNil(t, person)
 	require.NotNil(t, person.AccountID)
 
-	router := chi.NewRouter()
-	router.Get("/staff/pin", ctx.resource.GetPINStatusHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			TenantID: 1,
-			Username: "pintest",
-		}),
-	)
+		testutil.WithJWTBearer(pinToken(t, int(*person.AccountID), "pintest")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -987,17 +879,11 @@ func TestGetPINStatus_InvalidToken(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/pin", ctx.resource.GetPINStatusHandler())
-
 	// Request with invalid (zero) user ID
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
-		testutil.WithClaims(jwt.AppClaims{
-			ID: 0,
-		}),
-	)
+		testutil.WithJWTBearer(pinToken(t, 0, "")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertUnauthorized(t, rr)
 }
@@ -1018,23 +904,15 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 	require.NotNil(t, person)
 	require.NotNil(t, person.AccountID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
-
 	// PIN must be exactly 4 digits
 	body := map[string]interface{}{
 		"new_pin": "123", // Invalid - only 3 digits
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			TenantID: 1,
-			Username: "updatepin",
-		}),
-	)
+		testutil.WithJWTBearer(pinToken(t, int(*person.AccountID), "updatepin")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1051,23 +929,15 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 	require.NotNil(t, person)
 	require.NotNil(t, person.AccountID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
-
 	// PIN must contain only digits
 	body := map[string]interface{}{
 		"new_pin": "12ab", // Invalid - contains letters
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			TenantID: 1,
-			Username: "nondigitpin",
-		}),
-	)
+		testutil.WithJWTBearer(pinToken(t, int(*person.AccountID), "nondigitpin")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1084,20 +954,12 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 	require.NotNil(t, person)
 	require.NotNil(t, person.AccountID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
-
 	body := map[string]interface{}{}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			TenantID: 1,
-			Username: "missingpin",
-		}),
-	)
+		testutil.WithJWTBearer(pinToken(t, int(*person.AccountID), "missingpin")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1106,21 +968,15 @@ func TestUpdatePIN_InvalidToken(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
-
 	body := map[string]interface{}{
 		"new_pin": "1234",
 	}
 
 	// Request with invalid (zero) user ID
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID: 0,
-		}),
-	)
+		testutil.WithJWTBearer(pinToken(t, 0, "")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertUnauthorized(t, rr)
 }
@@ -1137,22 +993,14 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 	require.NotNil(t, person)
 	require.NotNil(t, person.AccountID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
-
 	body := map[string]interface{}{
 		"new_pin": "1234",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			TenantID: 1,
-			Username: "firstpinsetup",
-		}),
-	)
+		testutil.WithJWTBearer(pinToken(t, int(*person.AccountID), "firstpinsetup")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1165,16 +1013,11 @@ func TestListStaff_WithAnwesendFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	// Test that the anwesend filter works (even if no staff are currently present)
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?anwesend=true", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1183,16 +1026,11 @@ func TestListStaff_WithRoleFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	// Test filtering by role (the role filter branch)
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?role=admin", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1201,16 +1039,11 @@ func TestListStaff_WithLastNameFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	// Test filtering by last name
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?last_name=Test", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1219,16 +1052,11 @@ func TestListStaff_WithCombinedFilters(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.ListStaffHandler())
-
 	// Test multiple filters combined
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?first_name=Test&last_name=Staff&teachers_only=true", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1245,9 +1073,6 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ConvertTo", "Teacher")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	// Update to convert to teacher
 	body := map[string]interface{}{
 		"person_id":      staff.PersonID,
@@ -1258,11 +1083,9 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -1283,9 +1106,6 @@ func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdateTeacher", "Test")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	// Update teacher fields
 	body := map[string]interface{}{
 		"person_id":      teacher.Staff.PersonID,
@@ -1297,11 +1117,9 @@ func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", teacher.StaffID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1314,9 +1132,6 @@ func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "KeepTeacher", "Test")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	// Update without is_teacher flag - should still return teacher response
 	body := map[string]interface{}{
 		"person_id":   teacher.Staff.PersonID,
@@ -1324,11 +1139,9 @@ func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", teacher.StaffID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1340,20 +1153,15 @@ func TestUpdateStaff_InvalidRequest(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidReq", "Staff")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	// Invalid request - missing person_id
 	body := map[string]interface{}{
 		"staff_notes": "Missing person ID",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1373,9 +1181,6 @@ func TestUpdateStaff_ChangePersonID(t *testing.T) {
 	staff := testpkg.CreateTestStaffForPerson(t, ctx.db, person1.ID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	// Update to point to person2
 	body := map[string]interface{}{
 		"person_id":   person2.ID,
@@ -1383,11 +1188,9 @@ func TestUpdateStaff_ChangePersonID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1399,9 +1202,6 @@ func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidPerson", "Staff")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Put("/staff/{id}", ctx.resource.UpdateStaffHandler())
-
 	// Try to update to non-existent person
 	body := map[string]interface{}{
 		"person_id":   999999,
@@ -1409,11 +1209,9 @@ func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:update"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:update")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -1430,15 +1228,10 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "DeleteTeacher", "Test")
 	// Note: No defer cleanup as we're deleting
 
-	router := chi.NewRouter()
-	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", teacher.StaffID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:delete"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:delete")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	// Should successfully delete both teacher and staff records
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -1457,15 +1250,10 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.ID, room.ID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
-	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:delete"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:delete")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 }
@@ -1485,10 +1273,8 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 			DayOfWeek:      configModels.DayMonday,
 			TargetMinutes:  300,
 		},
-	}))
+	}, timezone.Date{}))
 
-	router := chi.NewRouter()
-	router.Mount("/staff", ctx.resource.Router())
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = []string{"time_tracking:manage"}
 	token := testutil.MintTestJWT(t, claims)
@@ -1507,7 +1293,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/staff/%d/schedule", staff.ID), body, testutil.WithJWTBearer(token))
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	activeRows, err := repositories.NewFactory(ctx.db).StaffWorkSchedule.GetCurrentByStaffID(testpkg.TenantContext(1), staff.ID)
@@ -1545,17 +1331,15 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 			DayOfWeek:      configModels.DayMonday,
 			TargetMinutes:  300,
 		},
-	}))
+	}, timezone.Date{}))
 
-	router := chi.NewRouter()
-	router.Mount("/staff", ctx.resource.Router())
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)
 	claims.Permissions = []string{"time_tracking:own"}
 	token := testutil.MintTestJWT(t, claims)
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d/schedule", staff.ID), nil, testutil.WithJWTBearer(token))
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1568,15 +1352,13 @@ func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
 	otherStaff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleOther", "Denied")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, otherStaff.ID, ownStaff.ID)
 
-	router := chi.NewRouter()
-	router.Mount("/staff", ctx.resource.Router())
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)
 	claims.Permissions = []string{"time_tracking:own"}
 	token := testutil.MintTestJWT(t, claims)
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d/schedule", otherStaff.ID), nil, testutil.WithJWTBearer(token))
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
 }
@@ -1589,15 +1371,10 @@ func TestGetStaffGroups_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}/groups", ctx.resource.GetStaffGroupsHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid/groups", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1610,15 +1387,10 @@ func TestGetStaffSubstitutions_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/{id}/substitutions", ctx.resource.GetStaffSubstitutionsHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid/substitutions", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1631,16 +1403,11 @@ func TestGetAvailableForSubstitution_WithInvalidDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/staff/available-for-substitution", ctx.resource.GetAvailableForSubstitutionHandler())
-
 	// Invalid date format should fall back to current date
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?date=invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions("users:read"),
-	)
+		testutil.WithJWTBearer(authToken(t, "users:read")))
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	// Should still succeed with fallback to current date
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)

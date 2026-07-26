@@ -29,11 +29,7 @@ vi.mock("./group-helpers", () => ({
   mapSingleGroupResponse: vi.fn(<T>(data: T): T => data),
   mapGroupResponse: vi.fn(<T>(data: T): T => data),
   prepareGroupForBackend: vi.fn(<T>(data: T): T => data),
-  mapSingleCombinedGroupResponse: vi.fn(<T>(data: T): T => data),
-  prepareCombinedGroupForBackend: vi.fn(<T>(data: T): T => data),
   mapGroupsResponse: vi.fn(<T>(data: T): T => data),
-  mapCombinedGroupsResponse: vi.fn(<T>(data: T): T => data),
-  mapCombinedGroupResponse: vi.fn(<T>(data: T): T => data),
 }));
 
 vi.mock("./room-helpers", () => ({
@@ -48,6 +44,22 @@ function setupBrowserEnv() {
   const original = globalThis.window;
   Object.defineProperty(globalThis, "window", {
     value: {},
+    writable: true,
+    configurable: true,
+  });
+  return () => {
+    Object.defineProperty(globalThis, "window", {
+      value: original,
+      writable: true,
+      configurable: true,
+    });
+  };
+}
+
+function setupServerEnv() {
+  const original = globalThis.window;
+  Object.defineProperty(globalThis, "window", {
+    value: undefined,
     writable: true,
     configurable: true,
   });
@@ -106,6 +118,81 @@ describe("api.ts helper functions", () => {
         expect(callUrl).toContain("page=2");
         expect(callUrl).toContain("page_size=25");
       } finally {
+        restore();
+      }
+    });
+
+    it("includes room filter and falls back to the session token when no token is provided", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: [],
+        response: new Response(),
+      });
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "session-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.getStudents({
+          roomId: "room-7",
+        });
+
+        expect(getSession).toHaveBeenCalled();
+        expect(fetchWithRetry).toHaveBeenCalledWith(
+          expect.stringContaining("room_id=room-7"),
+          "session-token",
+          expect.any(Object),
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("uses axios and maps paginated backend students on the server", async () => {
+      const apiTransport = (await import("./api-transport")).default;
+      const getSpy = vi.spyOn(apiTransport, "get").mockResolvedValue({
+        data: {
+          data: [{ id: 1, first_name: "Server", last_name: "Student" }],
+          pagination: {
+            current_page: 2,
+            page_size: 10,
+            total_pages: 3,
+            total_records: 21,
+          },
+        },
+      } as never);
+      const { mapStudentsResponse } = await import("./student-helpers");
+      const { studentService } = await import("./api");
+
+      const restore = setupServerEnv();
+      try {
+        const result = await studentService.getStudents({
+          search: "Server",
+          page: 2,
+          pageSize: 10,
+        });
+
+        expect(getSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "/api/students?search=Server&page=2&page_size=10",
+          ),
+          { params: expect.any(URLSearchParams) },
+        );
+        expect(mapStudentsResponse).toHaveBeenCalledWith([
+          { id: 1, first_name: "Server", last_name: "Student" },
+        ]);
+        expect(result.pagination).toEqual({
+          current_page: 2,
+          page_size: 10,
+          total_pages: 3,
+          total_records: 21,
+        });
+      } finally {
+        getSpy.mockRestore();
         restore();
       }
     });
@@ -245,6 +332,41 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("logs Axios-style 429 responses as rate-limit warnings", async () => {
+      const consoleWarn = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+      const { fetchWithRetry } = await import("./api-helpers");
+      const axiosError = new Error(
+        "Request failed with status code 429",
+      ) as Error & {
+        response: { status: number };
+      };
+      axiosError.response = { status: 429 };
+      vi.mocked(fetchWithRetry).mockRejectedValueOnce(axiosError);
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getStudents({ token: "test-token" }),
+        ).rejects.toThrow(
+          "Error fetching students: Request failed with status code 429",
+        );
+
+        expect(consoleWarn).toHaveBeenCalledWith("api operation rate limited", {
+          context: "Error fetching students",
+          error: "Request failed with status code 429",
+          status: 429,
+          rate_limited: true,
+        });
+      } finally {
+        consoleWarn.mockRestore();
+        restore();
+      }
+    });
   });
 
   describe("studentService.createStudent", () => {
@@ -288,6 +410,141 @@ describe("api.ts helper functions", () => {
           current_location: "",
         }),
       ).rejects.toThrow("School class is required");
+    });
+  });
+
+  describe("studentService.getSchoolClasses", () => {
+    it("fetches distinct class options without sampling the students page", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: {
+          success: true,
+          data: ["1a", "2b"],
+        },
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        const result = await studentService.getSchoolClasses({
+          token: "test-token",
+        });
+
+        expect(result).toEqual(["1a", "2b"]);
+        expect(fetchWithRetry).toHaveBeenCalledWith(
+          "/api/students/school-classes",
+          "test-token",
+          expect.any(Object),
+        );
+        const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
+        expect(callUrl).not.toContain("page_size=1000");
+      } finally {
+        restore();
+      }
+    });
+
+    it("trims classes and removes blanks or non-string values", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: {
+          success: true,
+          data: [" 1a ", "", "   ", "2b", 42, null],
+        },
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        const result = await studentService.getSchoolClasses({
+          token: "test-token",
+        });
+
+        expect(result).toEqual(["1a", "2b"]);
+      } finally {
+        restore();
+      }
+    });
+
+    it("parses direct arrays and invalid payloads", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        vi.mocked(fetchWithRetry).mockResolvedValueOnce({
+          data: ["3c", " 4d "],
+          response: new Response(),
+        });
+        await expect(
+          studentService.getSchoolClasses({ token: "test-token" }),
+        ).resolves.toEqual(["3c", "4d"]);
+
+        vi.mocked(fetchWithRetry).mockResolvedValueOnce({
+          data: { success: true, data: { not: "an array" } },
+          response: new Response(),
+        });
+        await expect(
+          studentService.getSchoolClasses({ token: "test-token" }),
+        ).resolves.toEqual([]);
+      } finally {
+        restore();
+      }
+    });
+
+    it("uses getSession when no token is provided and fails on null data", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "session-token" },
+      } as never);
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(studentService.getSchoolClasses()).rejects.toThrow(
+          "Error fetching school classes: Authentication failed",
+        );
+        expect(fetchWithRetry).toHaveBeenCalledWith(
+          "/api/students/school-classes",
+          "session-token",
+          expect.any(Object),
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("uses axios and parses wrapped school classes on the server", async () => {
+      const apiTransport = (await import("./api-transport")).default;
+      const getSpy = vi.spyOn(apiTransport, "get").mockResolvedValue({
+        data: {
+          success: true,
+          data: [" 5e ", "6f"],
+        },
+      } as never);
+      const { studentService } = await import("./api");
+
+      const restore = setupServerEnv();
+      try {
+        const result = await studentService.getSchoolClasses();
+
+        expect(result).toEqual(["5e", "6f"]);
+        expect(getSpy).toHaveBeenCalledWith(
+          expect.stringContaining("/api/students/school-classes"),
+        );
+      } finally {
+        getSpy.mockRestore();
+        restore();
+      }
     });
   });
 
@@ -684,45 +941,6 @@ describe("api.ts helper functions", () => {
     });
   });
 
-  describe("combinedGroupService.createCombinedGroup", () => {
-    it("validates required name field", async () => {
-      const { combinedGroupService } = await import("./api");
-      const { prepareCombinedGroupForBackend } =
-        await import("./group-helpers");
-      vi.mocked(prepareCombinedGroupForBackend).mockReturnValue({
-        name: "",
-        access_policy: "all",
-      });
-
-      // Use type assertion to test validation with minimal data
-      await expect(
-        combinedGroupService.createCombinedGroup({
-          name: "",
-          access_policy: "all",
-          is_active: true,
-        }),
-      ).rejects.toThrow("Missing required field: name");
-    });
-
-    it("validates required access_policy field", async () => {
-      const { combinedGroupService } = await import("./api");
-      const { prepareCombinedGroupForBackend } =
-        await import("./group-helpers");
-      vi.mocked(prepareCombinedGroupForBackend).mockReturnValue({
-        name: "Test",
-        access_policy: "" as "all", // Empty string to test validation
-      });
-
-      await expect(
-        combinedGroupService.createCombinedGroup({
-          name: "Test",
-          access_policy: "" as "all", // Empty string to test validation
-          is_active: true,
-        }),
-      ).rejects.toThrow("Missing required field: access_policy");
-    });
-  });
-
   describe("groupService.deleteGroup error handling", () => {
     it("extracts detailed error from JSON response", async () => {
       global.fetch = vi.fn().mockResolvedValue({
@@ -830,6 +1048,7 @@ describe("api.ts helper functions", () => {
           search: "John",
           inHouse: false,
           groupId: "456",
+          schoolClass: "3a",
           page: 3,
           pageSize: 100,
           token: "test-token",
@@ -839,6 +1058,7 @@ describe("api.ts helper functions", () => {
         expect(callUrl).toContain("search=John");
         expect(callUrl).toContain("in_house=false");
         expect(callUrl).toContain("group_id=456");
+        expect(callUrl).toContain("school_class=3a");
         expect(callUrl).toContain("page=3");
         expect(callUrl).toContain("page_size=100");
       } finally {
@@ -1074,6 +1294,175 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    // The "läuft mit" links are stored in their own table and are absent from
+    // this response, and the backend also trims links a shrunken departure plan
+    // no longer allows — so a departure-plan update has to tell every mounted
+    // companion view to refetch, or it renders the pre-save list (#1694).
+    it("announces a companion change after a departure plan update", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", {
+          first_name: "Updated",
+          departure_days: { mon: "accompanied" },
+        });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // The announcement is not a free refetch: an open Laufgemeinschaft form
+    // answers it by discarding its draft, or by blocking the save while the
+    // draft is dirty. A payload that cannot touch a link — a sick flag, a
+    // rename, a photo — must therefore stay silent, or an unrelated action in
+    // the same tab costs the user the edit they are in the middle of (#1694).
+    it("stays silent for an update that cannot change companions", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", { sick: true });
+        await studentService.updateStudent("1", { first_name: "Updated" });
+        expect(listener).not.toHaveBeenCalled();
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // An edited list travels as `companions` and replaces the stored one, so it
+    // is the one payload that certainly changed the links.
+    it("announces a companion change when a list is submitted", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", { companions: [] });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // The backend answers the question itself, and its answer beats the shape
+    // of the request: the forms resubmit the whole departure plan on every
+    // save, so a pure name or address edit looks exactly like a plan change
+    // from here. Announcing one costs every other open Laufgemeinschaft editor
+    // its draft — for a write the backend already decided changed nothing.
+    it("stays silent when the response reports no companion change", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { id: 1, first_name: "Updated", companions_changed: false },
+          }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", {
+          first_name: "Updated",
+          departure_days: { mon: "accompanied" },
+        });
+        expect(listener).not.toHaveBeenCalled();
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // The other direction: the backend trims links off weekdays a narrowed plan
+    // no longer allows, so a write can change them without the payload naming a
+    // single link. Its verdict is what the mounted views have to hear.
+    it("announces when the response reports a companion change", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { id: 1, first_name: "Updated", companions_changed: true },
+          }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", {
+          departure_days: { mon: "alone" },
+        });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
     it("throws error on API failure", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
@@ -1103,109 +1492,330 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
-  });
 
-  describe("combinedGroupService.getCombinedGroups", () => {
-    it("calls fetch with correct URL", async () => {
-      const mockGroups = [{ id: 1, name: "Combined A" }];
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ data: mockGroups }),
-      });
+    // The student PUT answers 409 for several unrelated reasons. Only the one
+    // carrying a conflict list is the companion question the caller can answer
+    // with extend_companion_plans; typing another 409 as that error would hand
+    // the user an empty, unanswerable confirmation instead of the real message.
+    it("types only a 409 carrying conflicts as the companion question", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 409,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
+      const { CompanionPlanConflictError } = await import("./api");
 
-      const { combinedGroupService } = await import("./api");
+      const companionConflict = await respondWith(
+        JSON.stringify({
+          error:
+            "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+          conflicts: [{ student_id: 42, weekdays: ["mon"] }],
+        }),
+      );
+      expect(companionConflict).toBeInstanceOf(CompanionPlanConflictError);
 
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.getCombinedGroups();
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined"),
-          expect.any(Object),
-        );
-      } finally {
-        restore();
-      }
+      // A different 409 (sick + excused) keeps its own contract.
+      const sickExcused = await respondWith(
+        JSON.stringify({
+          error: "a student cannot be both sick and excused at the same time",
+          code: "SICK_EXCUSED_CONFLICT",
+        }),
+      );
+      expect(sickExcused).not.toBeInstanceOf(CompanionPlanConflictError);
+      expect((sickExcused as Error).message).toContain(
+        "cannot be both sick and excused",
+      );
     });
 
-    it("throws error on API failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve("Server Error"),
-      });
+    // The stranded-companion refusal is an instruction, not a failure: it names
+    // the child whose Heimweg has to be filled in before this link can go. It
+    // must survive the trip to the form intact, and only it — every other 400
+    // keeps the generic handling.
+    it("types only the coded 400 as the stranded-companion refusal", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
+      const { CompanionDepartureRefusedError, isCompanionDepartureRefusal } =
+        await import("./api");
 
-      const { combinedGroupService } = await import("./api");
+      const stranded = await respondWith(
+        JSON.stringify({
+          status: "error",
+          error:
+            "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+          code: "companion_would_lose_departure",
+        }),
+      );
+      expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
+      expect(isCompanionDepartureRefusal(stranded)).toBe(true);
+      // The German instruction reaches the form verbatim, without the
+      // "API error 400:" prefix the generic branch would add.
+      expect((stranded as Error).message).toBe(
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      );
 
-      const restore = setupBrowserEnv();
-      try {
-        await expect(combinedGroupService.getCombinedGroups()).rejects.toThrow(
-          "API error",
-        );
-      } finally {
-        restore();
-      }
+      const otherBadRequest = await respondWith(
+        JSON.stringify({ status: "error", error: "invalid weekday" }),
+      );
+      expect(otherBadRequest).not.toBeInstanceOf(
+        CompanionDepartureRefusedError,
+      );
+      expect(isCompanionDepartureRefusal(otherBadRequest)).toBe(false);
     });
-  });
 
-  describe("combinedGroupService.getCombinedGroup", () => {
-    it("calls fetch with correct URL", async () => {
-      const mockGroup = { id: 1, name: "Combined A" };
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ data: mockGroup }),
-      });
+    // The stale-list 409 is the third 409 on this endpoint and the only one
+    // whose retry must NOT re-send the same list: doing so would delete the
+    // change the refusal is protecting. It therefore needs its own type, and
+    // must not be mistaken for the answerable companion question.
+    it("types the stale-list 409 apart from the companion question", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 409,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
+      const {
+        CompanionsChangedError,
+        CompanionPlanConflictError,
+        isCompanionsChanged,
+        companionsChangedMessage,
+      } = await import("./api");
 
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.getCombinedGroup("1");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/1"),
-          expect.any(Object),
-        );
-      } finally {
-        restore();
-      }
+      const stale = await respondWith(
+        JSON.stringify({
+          status: "error",
+          error:
+            "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
+          code: "companions_changed",
+        }),
+      );
+      expect(stale).toBeInstanceOf(CompanionsChangedError);
+      expect(stale).not.toBeInstanceOf(CompanionPlanConflictError);
+      expect(isCompanionsChanged(stale)).toBe(true);
+      expect(companionsChangedMessage(stale)).toBe(
+        "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
+      );
     });
 
-    it("throws error on API failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: () => Promise.resolve("Not Found"),
+    // The body-fragment predicate the CRUD-service path uses must make the same
+    // distinction: a stale-list 409 offers nothing to confirm, so treating it as
+    // the question would ask the user to widen a child's plan for a conflict
+    // that was never reported.
+    it("does not read the stale-list body as the companion question", async () => {
+      const { isCompanionPlanConflictBody, isCompanionsChangedBody } =
+        await import("./api");
+
+      const body = JSON.stringify({
+        error:
+          "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert.",
+        code: "companions_changed",
+      });
+      expect(isCompanionsChangedBody(body)).toBe(true);
+      expect(isCompanionPlanConflictBody(body)).toBe(false);
+    });
+
+    // The student PUT proxy writes the privacy consent first, against a
+    // different backend transaction. A failure after that write is a partial
+    // success, and the form has to say so rather than report a blanket failure
+    // the user answers by abandoning the retry.
+    it("reads the partial-success marker off the failed save", async () => {
+      const {
+        isPrivacyConsentSaved,
+        withPrivacyConsentSavedNotice,
+        PRIVACY_CONSENT_SAVED_NOTICE,
+      } = await import("./api");
+
+      const marked = Object.assign(new Error("Fehler"), {
+        body: JSON.stringify({
+          error: "Fehler",
+          details: { privacy_consent_saved: true },
+        }),
+      });
+      const plain = Object.assign(new Error("Fehler"), {
+        body: JSON.stringify({ error: "Fehler" }),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
+      expect(isPrivacyConsentSaved(marked)).toBe(true);
+      expect(isPrivacyConsentSaved(plain)).toBe(false);
+      expect(
+        withPrivacyConsentSavedNotice(marked, "Fehler beim Speichern."),
+      ).toBe(`${PRIVACY_CONSENT_SAVED_NOTICE} Fehler beim Speichern.`);
+      expect(
+        withPrivacyConsentSavedNotice(plain, "Fehler beim Speichern."),
+      ).toBe("Fehler beim Speichern.");
+    });
 
-      const { combinedGroupService } = await import("./api");
+    // The marker also has to survive the wrapping where the body is lost and
+    // only the message carries the JSON.
+    it("reads the marker out of the message when no body is attached", async () => {
+      const { isPrivacyConsentSaved } = await import("./api");
 
-      const restore = setupBrowserEnv();
-      try {
-        await expect(
-          combinedGroupService.getCombinedGroup("1"),
-        ).rejects.toThrow("API error");
-      } finally {
-        restore();
-      }
+      const fromMessage = new Error(
+        `API error (409): ${JSON.stringify({
+          error: "Konflikt",
+          details: { privacy_consent_saved: true },
+        })}`,
+      );
+      expect(isPrivacyConsentSaved(fromMessage)).toBe(true);
+      expect(isPrivacyConsentSaved(new Error("API error (500): boom"))).toBe(
+        false,
+      );
+    });
+
+    // The typed companion refusals reduce the response to a display message, so
+    // they have to carry the untouched body along — the marker lives in
+    // `details`, and the proxy stamps it onto exactly these refusals when the
+    // consent half of the same request already committed.
+    it("keeps the marker on the typed companion refusals", async () => {
+      const respondWith = async (status: number, body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const {
+        isPrivacyConsentSaved,
+        CompanionPlanConflictError,
+        CompanionsChangedError,
+        CompanionDepartureRefusedError,
+      } = await import("./api");
+      const details = { privacy_consent_saved: true };
+
+      const conflict = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Ein verknüpftes Kind läuft an diesem Tag nicht allein.",
+          conflicts: [{ student_id: 7, weekdays: ["mon"] }],
+          details,
+        }),
+      );
+      expect(conflict).toBeInstanceOf(CompanionPlanConflictError);
+      expect(isPrivacyConsentSaved(conflict)).toBe(true);
+
+      const stale = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          code: "companions_changed",
+          details,
+        }),
+      );
+      expect(stale).toBeInstanceOf(CompanionsChangedError);
+      expect(isPrivacyConsentSaved(stale)).toBe(true);
+
+      const stranded = await respondWith(
+        400,
+        JSON.stringify({
+          error: "Bitte zuerst den Heimweg dieses Kindes anpassen.",
+          code: "companion_would_lose_departure",
+          details,
+        }),
+      );
+      expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
+      expect(isPrivacyConsentSaved(stranded)).toBe(true);
+
+      // …and stays absent when the consent write never ran.
+      const unmarked = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          code: "companions_changed",
+        }),
+      );
+      expect(unmarked).toBeInstanceOf(CompanionsChangedError);
+      expect(isPrivacyConsentSaved(unmarked)).toBe(false);
     });
   });
 
@@ -1295,37 +1905,6 @@ describe("api.ts helper functions", () => {
     });
   });
 
-  describe("combinedGroupService.updateCombinedGroup", () => {
-    it("calls fetch with correct URL and method", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ id: 1, name: "Updated Combined" }),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.updateCombinedGroup("1", {
-          name: "Updated Combined",
-          access_policy: "all",
-          is_active: true,
-        });
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/1"),
-          expect.objectContaining({ method: "PUT" }),
-        );
-      } finally {
-        restore();
-      }
-    });
-  });
-
   describe("studentService.deleteStudent", () => {
     it("calls fetch with correct URL and method", async () => {
       global.fetch = vi.fn().mockResolvedValue({
@@ -1393,33 +1972,6 @@ describe("api.ts helper functions", () => {
         await roomService.deleteRoom("456");
         expect(global.fetch).toHaveBeenCalledWith(
           expect.stringContaining("/api/rooms/456"),
-          expect.objectContaining({ method: "DELETE" }),
-        );
-      } finally {
-        restore();
-      }
-    });
-  });
-
-  describe("combinedGroupService.deleteCombinedGroup", () => {
-    it("calls fetch with correct URL and method", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.deleteCombinedGroup("789");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/789"),
           expect.objectContaining({ method: "DELETE" }),
         );
       } finally {
@@ -1743,111 +2295,6 @@ describe("api.ts helper functions", () => {
       const restore = setupBrowserEnv();
       try {
         await expect(roomService.getRoomsByCategory()).rejects.toThrow();
-      } finally {
-        restore();
-      }
-    });
-  });
-
-  describe("combinedGroupService.addGroupToCombined", () => {
-    it("adds group to combined group successfully", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.addGroupToCombined("100", "200");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/100/groups"),
-          expect.objectContaining({
-            method: "POST",
-            body: JSON.stringify({ group_id: 200 }),
-          }),
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("throws error on API failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 409,
-        text: () => Promise.resolve("Conflict"),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await expect(
-          combinedGroupService.addGroupToCombined("100", "200"),
-        ).rejects.toThrow("API error: 409");
-      } finally {
-        restore();
-      }
-    });
-  });
-
-  describe("combinedGroupService.removeGroupFromCombined", () => {
-    it("removes group from combined group successfully", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.removeGroupFromCombined("100", "200");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/100/groups/200"),
-          expect.objectContaining({ method: "DELETE" }),
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("throws error on API failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: () => Promise.resolve("Not Found"),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await expect(
-          combinedGroupService.removeGroupFromCombined("100", "200"),
-        ).rejects.toThrow("API error: 404");
       } finally {
         restore();
       }

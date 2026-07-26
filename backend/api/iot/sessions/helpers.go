@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -218,7 +219,7 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 		return
 	}
 
-	for _, staffID := range uniquePositiveIDs(supervisorIDs) {
+	for _, staffID := range sliceutil.UniquePositive(supervisorIDs) {
 		row := &scheduleModel.InstanceStaff{
 			InstanceID: inst.ID,
 			StaffID:    staffID,
@@ -235,31 +236,59 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 	rs.broadcastMirroredInstance(ctx, realtime.EventInstanceStarted, inst, activeGroup)
 }
 
-func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activeGroupID int64) {
+// completeMirroredTimetableInstance ends the timetable side of an RFID session
+// the kiosk just closed.
+//
+// It goes through the bridge rather than stamping the instance completed
+// directly (#1747 review). Completion is not a status flip: the bridge
+// finalizes the attendance first — genuinely expected children flip to
+// 'absent', children the care plan does not book that day keep their expected
+// row and are stamped as non-bookings. Marking the instance completed on its
+// own would leave every expected row behind, which readers show as an
+// unfinished day and which no later path ever repairs.
+//
+// Every failure is returned, not logged and swallowed (#1747 review). The
+// caller runs inside the request's tenant transaction, so a returned error
+// rolls the RFID session close back with it: either both sides of "Sitzung
+// beenden" happen or neither does. Acknowledging the close while the mirrored
+// instance stays active is the one outcome nothing later repairs — the kiosk
+// has moved on, the block still counts as running, and its attendance is never
+// finalized.
+func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activeGroupID int64) error {
 	if activeGroupID <= 0 || rs.TimetableData == nil {
-		return
+		// No mirroring wired at all: this deployment never created the
+		// instance either, so there is nothing to complete.
+		return nil
+	}
+	if rs.TimetableBridge == nil {
+		// Mirroring is wired but its completion half is not. Sessions started
+		// here DO create instances, so staying quiet would leak a permanently
+		// active block per kiosk session. A wiring gap must fail visibly.
+		return fmt.Errorf("timetable mirroring is wired without a completion bridge (active group %d)", activeGroupID)
 	}
 	inst, err := rs.TimetableData.GetInstanceByActiveGroupID(ctx, activeGroupID)
-	if err != nil || inst == nil {
-		if err != nil {
-			slog.Default().WarnContext(ctx, "failed to find mirrored timetable instance for completion",
-				slog.Int64("active_group_id", activeGroupID),
-				slog.String("error", err.Error()),
-			)
-		}
-		return
+	if err != nil {
+		return fmt.Errorf("find mirrored timetable instance for completion (active group %d): %w", activeGroupID, err)
+	}
+	if inst == nil {
+		// The session was never mirrored (started before mirroring existed, or
+		// by a path that does not mirror). Nothing to complete.
+		return nil
 	}
 	now := time.Now()
+	completed, err := rs.TimetableBridge.CompleteActiveByActiveGroupIDs(ctx, []int64{activeGroupID}, now)
+	if err != nil {
+		return fmt.Errorf("complete mirrored timetable instance %d: %w", inst.ID, err)
+	}
+	if completed == 0 {
+		// Already completed by another path — nothing was finalized here, so
+		// re-announcing it would be a phantom event.
+		return nil
+	}
 	inst.Status = scheduleModel.InstanceStatusCompleted
 	inst.CompletedAt = &now
-	if err := rs.TimetableData.MarkInstanceCompleted(ctx, inst.ID, now); err != nil {
-		slog.Default().WarnContext(ctx, "failed to complete mirrored timetable instance",
-			slog.Int64("instance_id", inst.ID),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
 	rs.broadcastMirroredInstance(ctx, realtime.EventInstanceCompleted, inst, &active.Group{RoomID: inst.RoomID})
+	return nil
 }
 
 func (rs *Resource) timetableTitleForActivity(ctx context.Context, activityGroupID *int64) string {
@@ -318,20 +347,4 @@ func firstPositiveID(ids []int64) *int64 {
 		}
 	}
 	return nil
-}
-
-func uniquePositiveIDs(ids []int64) []int64 {
-	seen := make(map[int64]struct{}, len(ids))
-	result := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		result = append(result, id)
-	}
-	return result
 }

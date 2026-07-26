@@ -20,7 +20,6 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -63,7 +62,6 @@ func (m *mockIoTService) UpdateDevice(_ context.Context, _ *iot.Device) error {
 }
 
 // Required interface methods (not used in device auth tests)
-func (m *mockIoTService) WithTx(_ bun.Tx) interface{} { return m }
 func (m *mockIoTService) CreateDevice(_ context.Context, _ *iot.Device) error {
 	return nil
 }
@@ -108,10 +106,6 @@ func (m *mockIoTService) IsDeviceOnlineAt(_ context.Context, _ *iot.Device, _ ti
 func (m *mockIoTService) SetSettingsService(_ iotSvc.SettingsResolver)              {}
 func (m *mockIoTService) DetectNewDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
 func (m *mockIoTService) ScanNetwork(_ context.Context) (map[string]string, error)  { return nil, nil }
-func (m *mockIoTService) UpdateDeviceLastSeen(ctx context.Context, id int64) error {
-	return m.UpdateDeviceLastSeenAt(ctx, id, time.Now())
-}
-
 func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ int64, lastSeen time.Time) error {
 	if m.updateStarted != nil {
 		select {
@@ -438,7 +432,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil)) // PersonService not used
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		// Verify device is in context
 		ctxDevice := DeviceFromCtx(r.Context())
@@ -787,12 +781,7 @@ func TestErrorTypes(t *testing.T) {
 		{ErrInvalidAPIKeyFormat, "invalid API key format - use Bearer token"},
 		{ErrMissingPIN, "staff PIN is required"},
 		{ErrInvalidPIN, "invalid staff PIN"},
-		{ErrMissingStaffID, "staff ID is required"},
-		{ErrInvalidStaffID, "invalid staff ID format"},
 		{ErrDeviceInactive, "device is not active"},
-		{ErrStaffAccountLocked, "staff account is locked due to failed PIN attempts"},
-		{ErrDeviceOffline, "device is offline"},
-		{ErrPINAttemptsExceeded, "maximum PIN attempts exceeded"},
 	}
 
 	for _, tc := range testCases {

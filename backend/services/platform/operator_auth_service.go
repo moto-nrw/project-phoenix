@@ -1,14 +1,18 @@
 package platform
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	emailpkg "github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
@@ -46,8 +50,8 @@ type OperatorAuthService interface {
 	// Mirrors authService.IssueTokensForAuthenticatedAccount.
 	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 
-	// RefreshToken validates the operator is still active and issues a new token pair
-	RefreshToken(ctx context.Context, operatorID int64) (accessToken, refreshToken string, err error)
+	// RefreshToken validates a persisted operator refresh session and rotates it.
+	RefreshToken(ctx context.Context, operatorID int64, refreshTokenValue string) (accessToken, refreshToken string, err error)
 
 	// ValidateOperator validates an operator's credentials without generating tokens
 	ValidateOperator(ctx context.Context, email, password string) (*platform.Operator, error)
@@ -74,19 +78,8 @@ type OperatorAuthService interface {
 }
 
 type operatorAuthService struct {
-	operatorRepo         platform.OperatorRepository
-	auditLogRepo         platform.OperatorAuditLogRepository
-	emailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
-	invitationTokenRepo  platform.OperatorInvitationTokenRepository
-	tokenAuth            *jwt.TokenAuth
-	db                   *bun.DB
-	logger               *slog.Logger
-	dispatcher           *emailpkg.Dispatcher
-	defaultFrom          emailpkg.Email
-	frontendURL          string
-	operatorFrontendURL  string
-	emailChangeExpiry    time.Duration
-	invitationExpiry     time.Duration
+	OperatorAuthServiceConfig
+	tokenAuth *jwt.TokenAuth
 	// mfaService is optional. When non-nil the LoginWithMFAGate path uses it
 	// to gate token issuance behind a second factor. Wired post-construction
 	// via SetMFAService to break the OperatorAuthService ↔ OperatorMFAService
@@ -105,6 +98,7 @@ type OperatorAuthServiceConfig struct {
 	OperatorRepo         platform.OperatorRepository
 	AuditLogRepo         platform.OperatorAuditLogRepository
 	EmailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
+	RefreshTokenRepo     platform.OperatorRefreshTokenRepository
 	InvitationTokenRepo  platform.OperatorInvitationTokenRepository
 	DB                   *bun.DB
 	Logger               *slog.Logger
@@ -126,27 +120,13 @@ func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthAndInvit
 	}
 
 	return &operatorAuthService{
-		operatorRepo:         cfg.OperatorRepo,
-		auditLogRepo:         cfg.AuditLogRepo,
-		emailChangeTokenRepo: cfg.EmailChangeTokenRepo,
-		invitationTokenRepo:  cfg.InvitationTokenRepo,
-		tokenAuth:            tokenAuth,
-		db:                   cfg.DB,
-		logger:               cfg.Logger,
-		dispatcher:           cfg.Dispatcher,
-		defaultFrom:          cfg.DefaultFrom,
-		frontendURL:          cfg.FrontendURL,
-		operatorFrontendURL:  cfg.OperatorFrontendURL,
-		emailChangeExpiry:    cfg.EmailChangeExpiry,
-		invitationExpiry:     cfg.InvitationExpiry,
+		OperatorAuthServiceConfig: cfg,
+		tokenAuth:                 tokenAuth,
 	}, nil
 }
 
 func (s *operatorAuthService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // OperatorLoginStatus discriminates between the two shapes the operator
@@ -195,10 +175,10 @@ func (s *operatorAuthService) LoginWithMFAGate(
 	email, password, ipAddress, userAgent, trustedDeviceCookie string,
 ) (*OperatorLoginResult, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
-	clientIP := parseClientIPForOperator(ipAddress)
+	clientIP := authSvc.ParseClientIP(ipAddress)
 
 	// Step 1: credential check (same as Login).
-	operator, err := s.operatorRepo.FindByEmail(ctx, email)
+	operator, err := s.OperatorRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +239,7 @@ func (s *operatorAuthService) LoginWithMFAGate(
 			Status:                OperatorLoginStatusMFAEnrollmentRequired,
 			AccessToken:           enrollmentToken,
 			Operator:              operator,
-			MaskedEmail:           maskOperatorEmailForUX(operator.Email),
+			MaskedEmail:           authSvc.MaskEmailForUX(operator.Email),
 			MFAEnrollmentRequired: true,
 		}, nil
 	}
@@ -283,7 +263,7 @@ func (s *operatorAuthService) LoginWithMFAGate(
 		return &OperatorLoginResult{
 			Status:               OperatorLoginStatusMFARequired,
 			ChallengeToken:       challenge,
-			MaskedEmail:          maskOperatorEmailForUX(operator.Email),
+			MaskedEmail:          authSvc.MaskEmailForUX(operator.Email),
 			TrustedDeviceEnabled: true,
 			TrustedDeviceDays:    int(OperatorMFATrustedDeviceDuration.Hours() / 24),
 		}, nil
@@ -307,26 +287,15 @@ func (s *operatorAuthService) LoginWithMFAGate(
 // the original Login flow so LoginWithMFAGate can reuse it without changing
 // the legacy code path.
 func (s *operatorAuthService) issueOperatorTokenPair(ctx context.Context, operator *platform.Operator, clientIP net.IP) (string, string, error) {
-	accessClaims := jwt.AppClaims{
-		ID:          int(operator.ID),
-		Sub:         fmt.Sprintf("operator:%d", operator.ID),
-		Username:    operator.Email,
-		FirstName:   operator.DisplayName,
-		LastName:    "",
-		Roles:       []string{"operator"},
-		Permissions: []string{},
-		IsAdmin:     false,
-		Scope:       "platform",
-	}
-	refreshClaims := jwt.RefreshClaims{
-		ID:    int(operator.ID),
-		Token: fmt.Sprintf("operator-refresh-%d", operator.ID),
-	}
-	access, refresh, err := s.tokenAuth.GenTokenPair(accessClaims, refreshClaims)
+	refreshSession := s.newOperatorRefreshToken(operator.ID, "", 0)
+	access, refresh, err := s.mintOperatorTokenPair(operator, refreshSession)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate tokens: %w", err)
+		return "", "", err
 	}
-	if err := s.operatorRepo.UpdateLastLogin(ctx, operator.ID); err != nil {
+	if err := s.persistOperatorRefreshToken(ctx, refreshSession); err != nil {
+		return "", "", err
+	}
+	if err := s.OperatorRepo.UpdateLastLogin(ctx, operator.ID); err != nil {
 		s.getLogger().Error("failed to update last login",
 			"operator_id", operator.ID,
 			"error", err,
@@ -339,7 +308,7 @@ func (s *operatorAuthService) issueOperatorTokenPair(ctx context.Context, operat
 		ResourceID:   &operator.ID,
 		RequestIP:    clientIP,
 	}
-	if err := s.auditLogRepo.Create(ctx, entry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, entry); err != nil {
 		s.getLogger().Error("failed to create audit log",
 			"operator_id", operator.ID,
 			"action", platform.ActionLogin,
@@ -360,7 +329,7 @@ func (s *operatorAuthService) IssueTokensForAuthenticatedOperator(
 	ipAddress, userAgent string,
 ) (string, string, error) {
 	_ = userAgent // operator audit log doesn't carry UA today; kept for parity
-	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+	operator, err := s.OperatorRepo.FindByID(ctx, operatorID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to find operator: %w", err)
 	}
@@ -370,32 +339,63 @@ func (s *operatorAuthService) IssueTokensForAuthenticatedOperator(
 	if !operator.Active {
 		return "", "", &OperatorInactiveError{OperatorID: operatorID}
 	}
-	return s.issueOperatorTokenPair(ctx, operator, parseClientIPForOperator(ipAddress))
+	return s.issueOperatorTokenPair(ctx, operator, authSvc.ParseClientIP(ipAddress))
 }
 
-// maskOperatorEmailForUX mirrors auth.maskEmailForUX so the operator UX
-// matches the tenant one — show users which mailbox just received a code
-// without leaking the full address.
-func maskOperatorEmailForUX(email string) string {
-	at := strings.IndexByte(email, '@')
-	if at <= 0 {
-		return email
+func (s *operatorAuthService) operatorAccessClaims(operator *platform.Operator) jwt.AppClaims {
+	return jwt.AppClaims{
+		ID:          int(operator.ID),
+		Sub:         fmt.Sprintf("operator:%d", operator.ID),
+		Username:    operator.Email,
+		FirstName:   operator.DisplayName,
+		LastName:    "",
+		Roles:       []string{"operator"},
+		Permissions: []string{},
+		IsAdmin:     false,
+		Scope:       "platform",
 	}
-	local := email[:at]
-	domain := email[at:]
-	if len(local) <= 1 {
-		return local + "***" + domain
-	}
-	return string(local[0]) + "***" + domain
 }
 
-// parseClientIPForOperator wraps net.ParseIP with the empty-string guard
-// so audit rows don't get malformed inet values.
-func parseClientIPForOperator(ipAddress string) net.IP {
-	if ipAddress == "" {
-		return nil
+func (s *operatorAuthService) newOperatorRefreshToken(operatorID int64, familyID string, generation int) *platform.OperatorRefreshToken {
+	if familyID == "" {
+		familyID = uuid.Must(uuid.NewV4()).String()
 	}
-	return net.ParseIP(ipAddress)
+	return &platform.OperatorRefreshToken{
+		OperatorID: operatorID,
+		Token:      uuid.Must(uuid.NewV4()).String(),
+		Expiry:     time.Now().Add(s.tokenAuth.GetRefreshExpiry()),
+		FamilyID:   familyID,
+		Generation: generation,
+	}
+}
+
+func (s *operatorAuthService) mintOperatorTokenPair(operator *platform.Operator, refreshToken *platform.OperatorRefreshToken) (string, string, error) {
+	if refreshToken == nil {
+		return "", "", fmt.Errorf("operator refresh token is required")
+	}
+	refreshClaims := jwt.RefreshClaims{
+		ID:    int(operator.ID),
+		Token: refreshToken.Token,
+		Scope: "platform",
+		CommonClaims: jwt.CommonClaims{
+			ExpiresAt: refreshToken.Expiry.Unix(),
+		},
+	}
+	access, refresh, err := s.tokenAuth.GenTokenPair(s.operatorAccessClaims(operator), refreshClaims)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate tokens: %w", err)
+	}
+	return access, refresh, nil
+}
+
+func (s *operatorAuthService) persistOperatorRefreshToken(ctx context.Context, refreshToken *platform.OperatorRefreshToken) error {
+	if s.RefreshTokenRepo == nil {
+		return fmt.Errorf("operator refresh token repository is not configured")
+	}
+	if err := s.RefreshTokenRepo.Create(ctx, refreshToken); err != nil {
+		return fmt.Errorf("failed to persist operator refresh token: %w", err)
+	}
+	return nil
 }
 
 // Login authenticates an operator and returns JWT tokens
@@ -403,7 +403,7 @@ func (s *operatorAuthService) Login(ctx context.Context, email, password string,
 	email = strings.ToLower(strings.TrimSpace(email))
 
 	// Find operator by email
-	operator, err := s.operatorRepo.FindByEmail(ctx, email)
+	operator, err := s.OperatorRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -422,100 +422,171 @@ func (s *operatorAuthService) Login(ctx context.Context, email, password string,
 		return "", "", nil, &InvalidCredentialsError{}
 	}
 
-	// Generate JWT tokens with platform scope
-	accessClaims := jwt.AppClaims{
-		ID:          int(operator.ID),
-		Sub:         fmt.Sprintf("operator:%d", operator.ID),
-		Username:    operator.Email,
-		FirstName:   operator.DisplayName,
-		LastName:    "",
-		Roles:       []string{"operator"},
-		Permissions: []string{}, // Operators don't have tenant permissions
-		IsAdmin:     false,
-		Scope:       "platform", // Key differentiation from tenant tokens
-	}
-
-	refreshClaims := jwt.RefreshClaims{
-		ID:    int(operator.ID),
-		Token: fmt.Sprintf("operator-refresh-%d", operator.ID),
-	}
-
-	accessToken, refreshToken, err := s.tokenAuth.GenTokenPair(accessClaims, refreshClaims)
+	accessToken, refreshToken, err := s.issueOperatorTokenPair(ctx, operator, clientIP)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to generate tokens: %w", err)
-	}
-
-	// Update last login
-	if err := s.operatorRepo.UpdateLastLogin(ctx, operator.ID); err != nil {
-		s.getLogger().Error("failed to update last login",
-			"operator_id", operator.ID,
-			"error", err,
-		)
-	}
-
-	// Audit log
-	auditEntry := &platform.OperatorAuditLog{
-		OperatorID:   operator.ID,
-		Action:       platform.ActionLogin,
-		ResourceType: platform.ResourceOperator,
-		ResourceID:   &operator.ID,
-		RequestIP:    clientIP,
-	}
-	if err := s.auditLogRepo.Create(ctx, auditEntry); err != nil {
-		s.getLogger().Error("failed to create audit log",
-			"operator_id", operator.ID,
-			"action", platform.ActionLogin,
-			"error", err,
-		)
+		return "", "", nil, err
 	}
 
 	return accessToken, refreshToken, operator, nil
 }
 
-// RefreshToken validates the operator is still active and issues a new JWT token pair.
-// No DB token table is involved — it verifies the operator exists and is active, then generates fresh tokens.
-func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64) (string, string, error) {
-	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+// RefreshToken validates the persisted operator refresh session, rotates it,
+// and issues a new JWT token pair. A refresh JWT without a matching DB row is
+// stale, replayed, or from the pre-revocation stateless scheme and is rejected.
+func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
+	refreshTokenValue = strings.TrimSpace(refreshTokenValue)
+	if refreshTokenValue == "" {
+		return "", "", &OperatorRefreshTokenInvalidError{}
+	}
+	if s.RefreshTokenRepo == nil {
+		return "", "", fmt.Errorf("operator refresh token repository is not configured")
+	}
+
+	var operator *platform.Operator
+	var accessToken string
+	var refreshToken string
+	var rejectAfterCommit bool
+	var recovered bool
+	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		dbToken, err := s.RefreshTokenRepo.FindByTokenForUpdate(txCtx, refreshTokenValue)
+		if err != nil {
+			return fmt.Errorf("failed to find operator refresh token: %w", err)
+		}
+		if dbToken == nil || dbToken.OperatorID != operatorID {
+			return &OperatorRefreshTokenInvalidError{}
+		}
+
+		now := time.Now()
+		if now.After(dbToken.Expiry) {
+			if err := s.RefreshTokenRepo.DeleteByFamilyID(txCtx, dbToken.FamilyID); err != nil {
+				return fmt.Errorf("failed to delete expired operator refresh-token family: %w", err)
+			}
+			rejectAfterCommit = true
+			s.logOperatorRefreshDecision("token_expired", operatorID, dbToken.Generation)
+			return nil
+		}
+
+		dbToken, recovered, err = s.resolveOperatorRefreshHandoff(txCtx, dbToken, now)
+		if err != nil {
+			var invalidRefresh *OperatorRefreshTokenInvalidError
+			if !errors.As(err, &invalidRefresh) {
+				return err
+			}
+			if err := s.RefreshTokenRepo.DeleteByFamilyID(txCtx, dbToken.FamilyID); err != nil {
+				return fmt.Errorf("failed to revoke replayed operator refresh-token family: %w", err)
+			}
+			rejectAfterCommit = true
+			s.logOperatorRefreshDecision("replay_detected", operatorID, dbToken.Generation)
+			return nil
+		}
+
+		latestToken, err := s.RefreshTokenRepo.GetLatestTokenInFamily(txCtx, dbToken.FamilyID)
+		if err != nil {
+			return fmt.Errorf("failed to inspect operator refresh token family: %w", err)
+		}
+		if latestToken != nil && latestToken.Generation > dbToken.Generation {
+			if err := s.RefreshTokenRepo.DeleteByFamilyID(txCtx, dbToken.FamilyID); err != nil {
+				return fmt.Errorf("failed to revoke operator refresh token family: %w", err)
+			}
+			rejectAfterCommit = true
+			s.logOperatorRefreshDecision("lineage_mismatch", operatorID, dbToken.Generation)
+			return nil
+		}
+
+		operator, err = s.OperatorRepo.FindByID(txCtx, operatorID)
+		if err != nil {
+			return fmt.Errorf("failed to find operator: %w", err)
+		}
+		if operator == nil {
+			return &OperatorNotFoundError{OperatorID: operatorID}
+		}
+		if !operator.Active {
+			return &OperatorInactiveError{OperatorID: operatorID}
+		}
+
+		if recovered {
+			accessToken, refreshToken, err = s.mintOperatorTokenPair(operator, dbToken)
+			if err != nil {
+				return err
+			}
+		} else {
+			newDBToken := s.newOperatorRefreshToken(operator.ID, dbToken.FamilyID, dbToken.Generation+1)
+			accessToken, refreshToken, err = s.mintOperatorTokenPair(operator, newDBToken)
+			if err != nil {
+				return err
+			}
+			if err := s.RefreshTokenRepo.Create(txCtx, newDBToken); err != nil {
+				return fmt.Errorf("failed to persist rotated operator refresh token: %w", err)
+			}
+			if err := s.RefreshTokenRepo.MarkRotated(txCtx, dbToken.ID, newDBToken.Token, rotation.RecoveryProofHash(txCtx), now); err != nil {
+				return fmt.Errorf("failed to persist operator refresh-token handoff: %w", err)
+			}
+			if err := s.RefreshTokenRepo.DeleteExpiredRotated(txCtx, dbToken.FamilyID, now); err != nil {
+				return fmt.Errorf("failed to clean operator refresh-token handoffs: %w", err)
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		return "", "", fmt.Errorf("failed to find operator: %w", err)
+		return "", "", err
 	}
-	if operator == nil {
-		return "", "", &OperatorNotFoundError{OperatorID: operatorID}
+	if rejectAfterCommit {
+		return "", "", &OperatorRefreshTokenInvalidError{}
 	}
-	if !operator.Active {
-		return "", "", &OperatorInactiveError{OperatorID: operatorID}
-	}
-
-	accessClaims := jwt.AppClaims{
-		ID:          int(operator.ID),
-		Sub:         fmt.Sprintf("operator:%d", operator.ID),
-		Username:    operator.Email,
-		FirstName:   operator.DisplayName,
-		LastName:    "",
-		Roles:       []string{"operator"},
-		Permissions: []string{},
-		IsAdmin:     false,
-		Scope:       "platform",
-	}
-
-	refreshClaims := jwt.RefreshClaims{
-		ID:    int(operator.ID),
-		Token: fmt.Sprintf("operator-refresh-%d", operator.ID),
-	}
-
-	accessToken, refreshToken, err := s.tokenAuth.GenTokenPair(accessClaims, refreshClaims)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to generate tokens: %w", err)
+	if recovered {
+		s.getLogger().Info("operator_refresh_rotation_recovered",
+			slog.Int64("operator_id", operatorID),
+		)
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (s *operatorAuthService) resolveOperatorRefreshHandoff(ctx context.Context, presented *platform.OperatorRefreshToken, now time.Time) (*platform.OperatorRefreshToken, bool, error) {
+	current := presented
+	// The request proves possession of the token it presented. Successor hops
+	// are accepted only after validating their persisted family and generation
+	// lineage; each hop may have been rotated under a different access token.
+	proofValidated := false
+	for hop := 0; hop < rotation.MaxRecoveryHops; hop++ {
+		if current.RotatedAt == nil {
+			return current, current.ID != presented.ID, nil
+		}
+		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > rotation.RecoveryGrace {
+			return current, false, &OperatorRefreshTokenInvalidError{}
+		}
+		if !proofValidated {
+			if !rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
+				return current, false, &OperatorRefreshTokenInvalidError{}
+			}
+			proofValidated = true
+		}
+
+		next, err := s.RefreshTokenRepo.FindByTokenForUpdate(ctx, *current.ReplacementToken)
+		if err != nil {
+			return current, false, fmt.Errorf("failed to follow operator refresh-token handoff: %w", err)
+		}
+		if next == nil || next.FamilyID != current.FamilyID || next.OperatorID != current.OperatorID || next.Generation != current.Generation+1 {
+			return current, false, &OperatorRefreshTokenInvalidError{}
+		}
+		current = next
+	}
+	return current, false, &OperatorRefreshTokenInvalidError{}
+}
+
+func (s *operatorAuthService) logOperatorRefreshDecision(reason string, operatorID int64, generation int) {
+	s.getLogger().Warn("operator_refresh_session_rejected",
+		slog.String("reason", reason),
+		slog.Int64("operator_id", operatorID),
+		slog.Int("generation", generation),
+	)
 }
 
 // ValidateOperator validates an operator's credentials without generating tokens
 func (s *operatorAuthService) ValidateOperator(ctx context.Context, email, password string) (*platform.Operator, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 
-	operator, err := s.operatorRepo.FindByEmail(ctx, email)
+	operator, err := s.OperatorRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +609,7 @@ func (s *operatorAuthService) ValidateOperator(ctx context.Context, email, passw
 
 // GetOperator retrieves an operator by ID
 func (s *operatorAuthService) GetOperator(ctx context.Context, id int64) (*platform.Operator, error) {
-	operator, err := s.operatorRepo.FindByID(ctx, id)
+	operator, err := s.OperatorRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -550,7 +621,7 @@ func (s *operatorAuthService) GetOperator(ctx context.Context, id int64) (*platf
 
 // ListOperators retrieves all operators
 func (s *operatorAuthService) ListOperators(ctx context.Context) ([]*platform.Operator, error) {
-	return s.operatorRepo.List(ctx)
+	return s.OperatorRepo.List(ctx)
 }
 
 // UpdateProfile updates an operator's display name
@@ -563,7 +634,7 @@ func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int6
 		return nil, &InvalidDataError{Err: fmt.Errorf("display name must not exceed 100 characters")}
 	}
 
-	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+	operator, err := s.OperatorRepo.FindByID(ctx, operatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -572,7 +643,7 @@ func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int6
 	}
 
 	operator.DisplayName = displayName
-	if err := s.operatorRepo.Update(ctx, operator); err != nil {
+	if err := s.OperatorRepo.Update(ctx, operator); err != nil {
 		return nil, fmt.Errorf("failed to update operator profile: %w", err)
 	}
 
@@ -581,7 +652,7 @@ func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int6
 
 // ChangePassword changes an operator's password after verifying the current one
 func (s *operatorAuthService) ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
-	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+	operator, err := s.OperatorRepo.FindByID(ctx, operatorID)
 	if err != nil {
 		return err
 	}
@@ -608,17 +679,24 @@ func (s *operatorAuthService) ChangePassword(ctx context.Context, operatorID int
 
 	operator.PasswordHash = hash
 
-	// Atomically update the password and invalidate any outstanding email-change
-	// tokens. A surviving link after a password rotation would let an attacker
-	// re-take the account.
-	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		if err := s.operatorRepo.Update(txCtx, operator); err != nil {
+	if s.RefreshTokenRepo == nil {
+		return fmt.Errorf("operator refresh token repository is not configured")
+	}
+
+	// Atomically update the password and invalidate outstanding bearer-style
+	// controls. A surviving email-change link or refresh session after a
+	// password rotation would let an attacker re-take or keep the account.
+	return tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.OperatorRepo.Update(txCtx, operator); err != nil {
 			return fmt.Errorf("failed to update password: %w", err)
 		}
-		if s.emailChangeTokenRepo != nil {
-			if err := s.emailChangeTokenRepo.InvalidateByOperatorID(txCtx, operatorID); err != nil {
+		if s.EmailChangeTokenRepo != nil {
+			if err := s.EmailChangeTokenRepo.InvalidateByOperatorID(txCtx, operatorID); err != nil {
 				return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
 			}
+		}
+		if _, err := s.RefreshTokenRepo.DeleteByOperatorID(txCtx, operatorID); err != nil {
+			return fmt.Errorf("failed to revoke refresh tokens after password change: %w", err)
 		}
 		return nil
 	})

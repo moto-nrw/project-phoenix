@@ -30,22 +30,31 @@ vi.mock("@/lib/guardian-helpers", () => ({
   },
 }));
 
-vi.mock("~/components/simple/student", () => ({
-  ModernContactActions: ({
+vi.mock("./guardian-contact-actions", () => ({
+  GuardianContactActions: ({
     email,
     phone,
-    studentName,
+    phoneNumbers,
+    contactName,
   }: {
     email?: string;
     phone?: string;
-    studentName: string;
+    phoneNumbers?: Array<{ number: string }>;
+    contactName: string;
   }) => (
     <div data-testid="contact-actions">
       <span data-testid="contact-email">{email}</span>
       <span data-testid="contact-phone">{phone}</span>
-      <span data-testid="contact-name">{studentName}</span>
+      <span data-testid="contact-phone-count">{phoneNumbers?.length ?? 0}</span>
+      <span data-testid="contact-name">{contactName}</span>
     </div>
   ),
+  buildGuardianMailtoHref: (email: string, contactName?: string) =>
+    `mailto:${email}?subject=${encodeURIComponent(
+      contactName ? `Betreff: ${contactName}` : "Kontaktanfrage",
+    )}`,
+  buildGuardianTelHref: (phoneNumber: string) =>
+    `tel:${phoneNumber.replaceAll(/\s+/g, "")}`,
 }));
 
 const mockGuardians = [
@@ -186,10 +195,18 @@ describe("GuardianList", () => {
     expect(onEdit).toHaveBeenCalledWith(mockGuardians[0]);
   });
 
-  it("renders ModernContactActions for each guardian", () => {
+  it("renders GuardianContactActions for each guardian", () => {
     render(<GuardianList guardians={mockGuardians} />);
 
     const contactActions = screen.getAllByTestId("contact-actions");
     expect(contactActions.length).toBe(2);
+  });
+
+  it("passes every guardian phone option to contact actions", () => {
+    render(<GuardianList guardians={mockGuardians} />);
+
+    const phoneCounts = screen.getAllByTestId("contact-phone-count");
+    expect(phoneCounts[0]).toHaveTextContent("2");
+    expect(phoneCounts[1]).toHaveTextContent("0");
   });
 });

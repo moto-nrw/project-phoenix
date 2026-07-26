@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -45,9 +44,7 @@ func (r *GroupMappingRepository) FindByActiveCombinedGroupID(ctx context.Context
 		ModelTableExpr(tableExprGroupMappingsAsGM).
 		Where("active_combined_group_id = ?", combinedGroupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_mapping"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_mapping")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -68,9 +65,7 @@ func (r *GroupMappingRepository) FindByActiveGroupID(ctx context.Context, active
 		ModelTableExpr(tableExprGroupMappingsAsGM).
 		Where("active_group_id = ?", activeGroupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_mapping"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_mapping")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -91,9 +86,7 @@ func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, comb
 		ModelTableExpr(tableExprGroupMappingsAsGM).
 		Where("active_combined_group_id = ? AND active_group_id = ?", combinedGroupID, activeGroupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_mapping"); ok {
-		existsQuery = existsQuery.Where(where, val)
-	}
+	existsQuery = base.WithTenantFilter(ctx, existsQuery, "group_mapping")
 
 	exists, err := existsQuery.Exists(ctx)
 	if err != nil {
@@ -157,43 +150,15 @@ func (r *GroupMappingRepository) RemoveGroupFromCombination(ctx context.Context,
 	return nil
 }
 
-// Create overrides base Create to handle validation
-func (r *GroupMappingRepository) Create(ctx context.Context, mapping *active.GroupMapping) error {
-	if mapping == nil {
-		return fmt.Errorf("group mapping cannot be nil")
-	}
-
-	// Validate mapping
-	if err := mapping.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, mapping)
-}
-
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupMappingRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupMapping, error) {
-	mappings := make([]*active.GroupMapping, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&mappings).ModelTableExpr(tableExprGroupMappingsAsGM)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_mapping"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	mappings, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
+	if mappings == nil {
+		mappings = make([]*active.GroupMapping, 0)
+	}
 	return mappings, nil
 }
 
@@ -205,9 +170,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 		ModelTableExpr(tableExprGroupMappingsAsGM).
 		Where(whereIDEquals, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_mapping"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_mapping")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -225,9 +188,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 			ModelTableExpr(`active.combined_groups AS "combined_group"`).
 			Where(whereIDEquals, mapping.ActiveCombinedGroupID)
 
-		if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
-			cgQuery = cgQuery.Where(where, val)
-		}
+		cgQuery = base.WithTenantFilter(ctx, cgQuery, "combined_group")
 
 		cgErr := cgQuery.Scan(ctx)
 		if cgErr == nil {
@@ -249,9 +210,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 			ModelTableExpr(`active.groups AS "group"`).
 			Where(whereIDEquals, mapping.ActiveGroupID)
 
-		if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-			agQuery = agQuery.Where(where, val)
-		}
+		agQuery = base.WithTenantFilter(ctx, agQuery, "group")
 
 		agErr := agQuery.Scan(ctx)
 		if agErr == nil {

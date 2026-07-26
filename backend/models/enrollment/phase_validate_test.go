@@ -188,14 +188,20 @@ func TestPhase_Validate_RolloverSourceWithoutModeRejected(t *testing.T) {
 	assert.Contains(t, err.Error(), "rollover_source_phase_id and rollover_mode")
 }
 
-func TestPhase_IsRollover(t *testing.T) {
-	mode := PhaseRolloverModeOptOut
-	src := int64(7)
+func TestPhase_Validate_RequireSchoolClassWithoutClassesRejected(t *testing.T) {
 	p := validPhase()
-	p.RolloverMode = &mode
-	p.RolloverSourcePhaseID = &src
-	assert.True(t, p.IsRollover())
+	p.RequireSchoolClass = true
+	// AvailableSchoolClasses intentionally empty (also covers a list of
+	// blank entries after normalization).
+	p.AvailableSchoolClasses = []string{"  "}
+	err := p.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "require_school_class")
+}
 
-	p2 := validPhase()
-	assert.False(t, p2.IsRollover(), "fresh phase is not a rollover")
+func TestPhase_Validate_RequireSchoolClassWithClassesAccepted(t *testing.T) {
+	p := validPhase()
+	p.RequireSchoolClass = true
+	p.AvailableSchoolClasses = []string{"2a", "2b"}
+	require.NoError(t, p.Validate())
 }

@@ -105,13 +105,6 @@ func TestSupervisorPlannedSetNotPrimary(t *testing.T) {
 	}
 }
 
-func TestSupervisorPlanned_TableName(t *testing.T) {
-	sp := &SupervisorPlanned{}
-	if got := sp.TableName(); got != "activities.supervisors" {
-		t.Errorf("TableName() = %v, want activities.supervisors", got)
-	}
-}
-
 func TestSupervisorPlanned_GetID(t *testing.T) {
 	sp := &SupervisorPlanned{
 		Model:   base.Model{ID: 42},

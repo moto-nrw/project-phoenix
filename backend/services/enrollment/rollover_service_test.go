@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -36,12 +38,22 @@ type rolloverTestEnv struct {
 func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	// Close the pool after all fixture cleanups registered by the test. The
+	// decision-service tests reuse this setup and may register additional
+	// t.Cleanup hooks (for example calendar periods); closing inside the
+	// returned cleanup made those hooks run against a closed pool and leak rows
+	// into subsequent tests in the package-isolated database.
+	t.Cleanup(func() { _ = db.Close() })
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	repoFactory := repositories.NewFactory(db)
 	settings := newStubRequestSettings()
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
+	settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
+	settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
+	settings.boolValues[configModel.KeyEnrollmentWaitlistEnabled] = true
+	settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
 	settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 4
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 	// The shared env submits all four standard consent flags. Configure the
@@ -93,7 +105,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Rollover", []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 	}, account.ID)
 	require.NoError(t, err)
@@ -164,7 +176,6 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 			Where("tenant_id = 1 AND (id = ? OR rollover_source_phase_id = ?)", sourcePhase.ID, sourcePhase.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").Where("created_by = ?", account.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
-		_ = db.Close()
 	}
 	return env, cleanup
 }
@@ -231,7 +242,85 @@ func validRolloverRequest(env *rolloverTestEnv, mode string, bumpsGrade bool) en
 	}
 }
 
+func rolloverServiceWithSettings(
+	env *rolloverTestEnv,
+	settings enrollmentService.RequestSettingsResolver,
+) enrollmentService.RolloverService {
+	return enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+		PhaseRepo:                env.repos.Phase,
+		RequestRepo:              env.repos.Request,
+		RequestChildRepo:         env.repos.RequestChild,
+		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		OutboxEnqueuer:           env.outbox,
+		Settings:                 settings,
+		ParentsURL:               "http://parents.localhost:3000",
+		DB:                       env.db,
+		Logger:                   slog.Default(),
+	})
+}
+
 // --- CreatePhaseFromSource ---
+
+func TestRolloverService_CreatePhaseFromSource_RejectsMissingGradeSettingsService(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	service := rolloverServiceWithSettings(env, nil)
+	result, err := service.CreatePhaseFromSource(
+		ctx,
+		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true),
+	)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorContains(t, err, "enrollment.grade_level_max")
+	exists, lookupErr := env.repos.Phase.ExistsByRolloverSourcePhaseID(ctx, env.sourcePhase.ID)
+	require.NoError(t, lookupErr)
+	assert.False(t, exists, "configuration failure must not create a follow-up phase")
+}
+
+func TestRolloverService_CreatePhaseFromSource_RejectsGradeSettingReadFailure(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.intErrors[configModel.KeyEnrollmentGradeLevelMax] = errors.New("settings unavailable")
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(
+		ctx,
+		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true),
+	)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorContains(t, err, "settings unavailable")
+	exists, lookupErr := env.repos.Phase.ExistsByRolloverSourcePhaseID(ctx, env.sourcePhase.ID)
+	require.NoError(t, lookupErr)
+	assert.False(t, exists, "settings read failure must not create a follow-up phase")
+}
+
+func TestRolloverService_CreatePhaseFromSource_RejectsOutOfRangeGradeSetting(t *testing.T) {
+	for _, value := range []int{0, 14} {
+		t.Run(fmt.Sprintf("value_%d", value), func(t *testing.T) {
+			env, cleanup := setupRolloverTest(t)
+			defer cleanup()
+			ctx := testpkg.TenantContext(1)
+			env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = value
+
+			result, err := env.rolloverSvc.CreatePhaseFromSource(
+				ctx,
+				validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true),
+			)
+
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.ErrorContains(t, err, "outside 1..13")
+			exists, lookupErr := env.repos.Phase.ExistsByRolloverSourcePhaseID(ctx, env.sourcePhase.ID)
+			require.NoError(t, lookupErr)
+			assert.False(t, exists, "invalid cap must not create a follow-up phase")
+		})
+	}
+}
 
 func TestRolloverService_CreatePhaseFromSource_OptOutHappyPath(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
@@ -548,6 +637,40 @@ func TestRolloverService_DecideReview_DropWithdraws(t *testing.T) {
 	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, updated.Status)
 }
 
+// TestRolloverService_CreatePhaseFromSource_DropsClassForReviewRow proves a
+// row heading into admin review never carries the source's concrete class.
+// The carried letter (e.g. "5a") would otherwise win on approval even after
+// the admin overrides the target grade in the review queue. Issue #1833.
+func TestRolloverService_CreatePhaseFromSource_DropsClassForReviewRow(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Seed at a valid grade, then push the source above the grade cap
+	// (max = 4) and pin a concrete class directly. A non-bumping rollover of
+	// an above-cap child is exactly the review case that used to carry the
+	// stale class forward.
+	source := seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Cap", "cap-review@example.com", "Lina", "Cap", int16(4))
+	_, err := env.db.NewUpdate().
+		TableExpr("enrollment.request_children").
+		Set("target_grade_level = ?", int16(5)).
+		Set("target_school_class = ?", "5a").
+		Where("id = ?", source.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, false))
+	require.NoError(t, err)
+	require.Equal(t, 1, result.ReviewCount, "above-cap child must land in admin review")
+
+	queue, err := env.rolloverSvc.ListReviewQueue(ctx, result.Phase.ID)
+	require.NoError(t, err)
+	require.Len(t, queue, 1)
+	assert.Nil(t, queue[0].Child.TargetSchoolClass, "review row must not carry the stale concrete class")
+	require.NotNil(t, queue[0].Child.TargetGradeLevel)
+	assert.Equal(t, int16(5), *queue[0].Child.TargetGradeLevel, "target grade is still carried for admin context")
+}
+
 func TestRolloverService_DecideReview_RejectsUnknownDecision(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
@@ -641,6 +764,10 @@ func (f *fakeApproveDecisionService) List(_ context.Context, _ enrollmentService
 	return nil, nil
 }
 
+func (f *fakeApproveDecisionService) ListByStudent(_ context.Context, _ int64) ([]*enrollmentService.RequestSummary, error) {
+	return nil, nil
+}
+
 func (f *fakeApproveDecisionService) Get(_ context.Context, _ int64) (*enrollmentService.RequestSummary, error) {
 	return nil, nil
 }
@@ -649,7 +776,19 @@ func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int
 	return nil, nil
 }
 
+func (f *fakeApproveDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+	return nil, nil
+}
+
+func (f *fakeApproveDecisionService) ListOfferingAdjustments(_ context.Context, _, _ int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
+	return nil, nil
+}
+
 func (f *fakeApproveDecisionService) ExportPhase(_ context.Context, _, _ int64, _, _, _ string) (*enrollmentService.PhaseExport, error) {
+	return nil, nil
+}
+
+func (f *fakeApproveDecisionService) ExportStudent(_ context.Context, _, _ int64, _, _ string) (*enrollmentService.StudentEnrollmentExport, error) {
 	return nil, nil
 }
 

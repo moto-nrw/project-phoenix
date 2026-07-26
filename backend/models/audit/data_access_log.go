@@ -15,6 +15,9 @@ const (
 	// the temporal span of the disclosed data — and metadata carries
 	// phase_id, format, request_count and child_count.
 	ResourceTypeEnrollmentPhaseExport = "enrollment_phase_export"
+	// ResourceTypeEnrollmentStudentExport records an export of enrollment
+	// answers attached to one student profile.
+	ResourceTypeEnrollmentStudentExport = "enrollment_student_export"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive
@@ -34,11 +37,6 @@ type DataAccessLog struct {
 	// Metadata holds event-specific context (migration 1.15.101).
 	// Mirrors the metadata column on the sibling audit tables.
 	Metadata map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
-}
-
-// TableName returns the database table name.
-func (d *DataAccessLog) TableName() string {
-	return "audit.data_access_log"
 }
 
 // GetID implements the base.Entity interface.

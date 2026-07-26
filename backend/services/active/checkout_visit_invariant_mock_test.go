@@ -20,15 +20,14 @@ import (
 
 func TestEndOpenVisitForStudent_LookupErrorPropagates(t *testing.T) {
 	lookupErr := errors.New("connection reset")
-	svc := &service{
-		visitRepo: &mockVisitRepository{
-			getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
-				return nil, lookupErr
-			},
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+			return nil, lookupErr
 		},
+	}},
 	}
 
-	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711)
 
 	require.Error(t, err, "a non-NotFound lookup failure must propagate so the checkout transaction rolls back")
 	assert.False(t, errors.Is(err, ErrVisitNotFound))
@@ -47,20 +46,20 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	openView := *endedVisit
 	openView.ExitTime = nil
 
-	svc := &service{
-		visitRepo: &mockVisitRepository{
-			getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
-				return &openView, nil
-			},
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-				return endedVisit, nil
-			},
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+			return &openView, nil
 		},
+		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+			return endedVisit, nil
+		},
+	}},
 	}
 
-	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+	result, err := svc.endOpenVisitForStudent(context.Background(), 4711)
 
 	require.NoError(t, err, "a visit ended by a concurrent caller is the desired end state, not an error")
+	assert.Same(t, endedVisit, result)
 }
 
 func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
@@ -71,23 +70,27 @@ func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 	}
 	endCalled := false
 
-	svc := &service{
-		settings: &stubSettingsResolver{
-			stringValues: map[string]string{"operations.presence_mode": "binary"},
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+			return openVisit, nil
 		},
-		visitRepo: &mockVisitRepository{
-			getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
-				return openVisit, nil
-			},
-			endVisitFunc: func(_ context.Context, id int64) error {
-				assert.Equal(t, openVisit.ID, id)
-				endCalled = true
-				return nil
-			},
+		endVisitFunc: func(_ context.Context, id int64) error {
+			assert.Equal(t, openVisit.ID, id)
+			endCalled = true
+			return nil
 		},
+		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+			ended := *openVisit
+			exitTime := time.Now()
+			ended.ExitTime = &exitTime
+			return &ended, nil
+		},
+	}}, settings: &stubSettingsResolver{
+		stringValues: map[string]string{"operations.presence_mode": "binary"},
+	},
 	}
 
-	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711)
 
 	require.NoError(t, err)
 	assert.True(t, endCalled, "checkout stale-visit healing must bypass the binary-mode EndVisit no-op")
@@ -100,21 +103,20 @@ func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
 		EntryTime: time.Now().Add(-1 * time.Hour),
 	}
 
-	svc := &service{
-		visitRepo: &mockVisitRepository{
-			getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
-				return openVisit, nil
-			},
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-				return openVisit, nil
-			},
-			endVisitFunc: func(context.Context, int64) error {
-				return errors.New("disk full")
-			},
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+			return openVisit, nil
 		},
+		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+			return openVisit, nil
+		},
+		endVisitFunc: func(context.Context, int64) error {
+			return errors.New("disk full")
+		},
+	}},
 	}
 
-	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711)
 
 	require.Error(t, err, "an EndVisit failure must propagate so attendance close and visit end stay atomic")
 	assert.False(t, errors.Is(err, ErrVisitAlreadyEnded))

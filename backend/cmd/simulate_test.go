@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,9 +14,9 @@ import (
 
 func TestSimulateCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "simulate", simulateCmd.Use)
-	assert.Contains(t, simulateCmd.Short, "IoT simulator")
-	assert.Contains(t, simulateCmd.Long, "discovery loop")
-	assert.NotNil(t, simulateCmd.Run)
+	assert.Contains(t, simulateCmd.Short, "simulation commands")
+	assert.Contains(t, simulateCmd.Long, ".seed-state.json")
+	assert.Nil(t, simulateCmd.Run, "simulate is a group command without its own Run")
 }
 
 func TestSimulateCmd_IsRegisteredOnRoot(t *testing.T) {
@@ -41,41 +40,6 @@ func TestSimulateCmd_UsageOutput(t *testing.T) {
 
 	output := buf.String()
 	assert.Contains(t, output, "simulate")
-}
-
-// =============================================================================
-// Constants Tests
-// =============================================================================
-
-func TestSimulateConstants(t *testing.T) {
-	assert.Equal(t, "simulator/iot/simulator.yaml", defaultSimulatorConfig)
-	assert.Equal(t, "SIMULATOR_CONFIG", envSimulatorConfig)
-}
-
-// =============================================================================
-// resolveSimulatorConfigPath Tests
-// =============================================================================
-
-func TestResolveSimulatorConfigPath_EnvVarTakesPriority(t *testing.T) {
-	t.Setenv(envSimulatorConfig, "/custom/path/config.yaml")
-
-	result := resolveSimulatorConfigPath()
-	assert.Equal(t, "/custom/path/config.yaml", result)
-}
-
-func TestResolveSimulatorConfigPath_UsesDefaultWhenNoEnv(t *testing.T) {
-	t.Setenv(envSimulatorConfig, "")
-
-	result := resolveSimulatorConfigPath()
-	assert.Equal(t, filepath.Clean(defaultSimulatorConfig), result)
-}
-
-func TestResolveSimulatorConfigPath_DefaultPathIsCleaned(t *testing.T) {
-	t.Setenv(envSimulatorConfig, "")
-
-	result := resolveSimulatorConfigPath()
-	// filepath.Clean should normalize the path
-	assert.Equal(t, result, filepath.Clean(result))
 }
 
 // =============================================================================

@@ -177,31 +177,6 @@ func TestScheduleHasTimeframe(t *testing.T) {
 	}
 }
 
-func TestSchedule_TableName(t *testing.T) {
-	schedule := &Schedule{}
-	if got := schedule.TableName(); got != "activities.schedules" {
-		t.Errorf("TableName() = %v, want activities.schedules", got)
-	}
-}
-
-func TestSchedule_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		schedule := &Schedule{Weekday: WeekdayMonday, ActivityGroupID: 1}
-		err := schedule.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		schedule := &Schedule{Weekday: WeekdayMonday, ActivityGroupID: 1}
-		err := schedule.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestSchedule_GetID(t *testing.T) {
 	schedule := &Schedule{
 		Model:           base.Model{ID: 42},

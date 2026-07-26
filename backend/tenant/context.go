@@ -33,15 +33,6 @@ func FromContext(ctx context.Context) int64 {
 	return id
 }
 
-// MustFromContext returns the tenant ID from context or panics if not set.
-func MustFromContext(ctx context.Context) int64 {
-	id, ok := ctx.Value(tenantKey).(int64)
-	if !ok || id == 0 {
-		panic("tenant: missing tenant_id in context")
-	}
-	return id
-}
-
 // WithOrgID returns a new context with the organization ID set.
 func WithOrgID(ctx context.Context, id int64) context.Context {
 	return context.WithValue(ctx, orgKey, id)
@@ -64,22 +55,4 @@ func WithScope(ctx context.Context, scope string) context.Context {
 func ScopeFromContext(ctx context.Context) string {
 	s, _ := ctx.Value(scopeKey).(string)
 	return s
-}
-
-// IsPlatformScope returns true if the context scope is "platform".
-func IsPlatformScope(ctx context.Context) bool {
-	return ScopeFromContext(ctx) == ScopePlatform
-}
-
-// IsOrgScope returns true if the context scope is "org".
-func IsOrgScope(ctx context.Context) bool {
-	return ScopeFromContext(ctx) == ScopeOrg
-}
-
-// NewContext returns a context pre-populated with tenant ID and org ID.
-// Use this when spawning goroutines that need tenant context from a parent request.
-func NewContext(ctx context.Context, tenantID, orgID int64) context.Context {
-	ctx = WithTenantID(ctx, tenantID)
-	ctx = WithOrgID(ctx, orgID)
-	return ctx
 }

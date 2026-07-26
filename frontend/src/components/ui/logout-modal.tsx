@@ -71,6 +71,7 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
         </p>
         <div className="mt-6">
           <button
+            type="button"
             onClick={handleConfirmLogout}
             disabled={isLoggingOut}
             className="inline-flex items-center rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-gray-800 hover:shadow-xl focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none disabled:hover:scale-100"

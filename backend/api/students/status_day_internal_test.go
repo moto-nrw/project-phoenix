@@ -53,11 +53,8 @@ func TestStatusDayDateHelpers(t *testing.T) {
 	dates, err := parseStatusDayDates([]string{"2026-05-25", "2026-05-27"})
 	require.NoError(t, err)
 	require.Len(t, dates, 2)
-
-	assert.Equal(t, "2026-05-25", minDate(dates).String())
-	assert.Equal(t, "2026-05-27", maxDate(dates).String())
-	assert.True(t, containsDate(dates, timezone.NewDate(2026, 5, 25)))
-	assert.False(t, containsDate(dates, timezone.NewDate(2026, 5, 26)))
+	assert.Equal(t, timezone.NewDate(2026, 5, 25), dates[0])
+	assert.Equal(t, timezone.NewDate(2026, 5, 27), dates[1])
 
 	_, err = parseStatusDayDates([]string{"2026-05-25", "broken"})
 	require.ErrorContains(t, err, "invalid date format")
@@ -176,13 +173,10 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 			},
 		},
 	}
-	resource := &Resource{
-		StudentStatusDayService: activeService.NewStudentStatusDayService(repo),
-		Logger:                  slog.Default(),
-	}
+	resource := &Resource{ResourceConfig: ResourceConfig{StudentStatusDayService: activeService.NewStudentStatusDayService(repo), Logger: slog.Default()}}
 	responses := []StudentResponse{{ID: 90}, {ID: 91}}
 
-	resource.applyStatusDaysForDate(context.Background(), responses, now)
+	require.NoError(t, resource.applyStatusDaysForDate(context.Background(), responses, now))
 
 	assert.Equal(t, timezone.DateFromTime(now), repo.findByIDsDate)
 	assert.Equal(t, []int64{90, 91}, repo.findByIDsStudentIDs)
@@ -509,7 +503,7 @@ func newStatusDayTestResource(db *bun.DB) *Resource {
 	repoFactory := repositories.NewFactory(db)
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repoFactory.Student}),
-		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentParentNote),
+		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion),
 		StudentStatusDayService: activeService.NewStudentStatusDayService(repoFactory.StudentStatusDay),
 		Logger:                  slog.Default(),
 		DB:                      db,
@@ -576,6 +570,12 @@ func (r *fakeStatusDayRepo) FindActiveByStudentIDsAndDate(_ context.Context, stu
 	return r.findByIDsRows, nil
 }
 
+func (r *fakeStatusDayRepo) FindSignedOffByStudentIDsAndDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*active.StudentStatusDay, error) {
+	r.findByIDsStudentIDs = append([]int64(nil), studentIDs...)
+	r.findByIDsDate = date
+	return r.findByIDsRows, nil
+}
+
 func (r *fakeStatusDayRepo) FindByStudentAndDateRange(_ context.Context, _ int64, _, _ timezone.Date) ([]*active.StudentStatusDay, error) {
 	return nil, nil
 }
@@ -605,6 +605,6 @@ func (r *fakeStatusDayRepo) ArchiveAndClearStatusFlag(context.Context, string, s
 	return 0, nil
 }
 
-func (r *fakeStatusDayRepo) CountActiveClassTripStudents(context.Context, timezone.Date) (int, error) {
-	return 0, nil
+func (r *fakeStatusDayRepo) CountEffectiveDashboardAbsences(context.Context, timezone.Date) (*active.StudentStatusCounts, error) {
+	return &active.StudentStatusCounts{}, nil
 }

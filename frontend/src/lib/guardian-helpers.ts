@@ -29,6 +29,34 @@ export const PHONE_TYPE_LABELS: Record<PhoneType, string> = {
   other: "Sonstige",
 };
 
+export type GuardianRole =
+  | "primary_guardian"
+  | "legal_guardian"
+  | "co_guardian"
+  | "emergency_contact"
+  | "pickup_only"
+  | "social_worker"
+  | "custom";
+
+export const GUARDIAN_ROLE_OPTIONS: Array<{
+  value: GuardianRole;
+  label: string;
+}> = [
+  { value: "primary_guardian", label: "Hauptberechtigte/r" },
+  { value: "legal_guardian", label: "Erziehungsberechtigte/r" },
+  { value: "co_guardian", label: "Mitberechtigte/r" },
+  { value: "emergency_contact", label: "Notfallkontakt" },
+  { value: "pickup_only", label: "Nur Abholung" },
+  { value: "social_worker", label: "Sozialdienst" },
+  { value: "custom", label: "Individuell" },
+];
+
+function normalizeGuardianRole(value: unknown): GuardianRole {
+  return GUARDIAN_ROLE_OPTIONS.some((option) => option.value === value)
+    ? (value as GuardianRole)
+    : "custom";
+}
+
 // Frontend Guardian Profile Type
 export interface Guardian {
   id: string;
@@ -87,15 +115,25 @@ export interface BackendGuardianPickerResponse {
 
 // Backend Student-Guardian Relationship
 
+// Portal-access state of a guardian, surfaced in the staff guardian list:
+// "active" = has a login account · "pending" = invited, not yet accepted ·
+// "none" = info on file, no account (can be invited).
+export type GuardianAccountStatus = "active" | "pending" | "none";
+
 // Guardian with Relationship (for student detail view)
 export interface GuardianWithRelationship extends Guardian {
   relationshipId: string;
   relationshipType: string;
+  guardianRole?: GuardianRole;
   isPrimary: boolean;
   isEmergencyContact: boolean;
   canPickup: boolean;
   pickupNotes?: string;
   emergencyPriority: number;
+  // Optional: present on data mapped from the backend (always set by
+  // mapGuardianWithRelationshipResponse), but omittable in test fixtures and
+  // older payloads. Consumers default a missing value to "none".
+  accountStatus?: GuardianAccountStatus;
 }
 
 // Backend Guardian with Relationship
@@ -103,11 +141,13 @@ export interface BackendGuardianWithRelationship {
   guardian: BackendGuardianProfile;
   relationship_id: number;
   relationship_type: string;
+  guardian_role?: string;
   is_primary: boolean;
   is_emergency_contact: boolean;
   can_pickup: boolean;
   pickup_notes?: string;
   emergency_priority: number;
+  account_status?: GuardianAccountStatus;
 }
 
 // Guardian Create/Update Request
@@ -143,6 +183,7 @@ export interface StudentGuardianPayload {
   language_preference?: string;
   notes?: string;
   relationship_type: string;
+  guardian_role?: GuardianRole;
   is_primary: boolean;
   is_emergency_contact: boolean;
   can_pickup: boolean;
@@ -175,6 +216,7 @@ interface BackendGuardianCreateRequest {
 export interface StudentGuardianLinkRequest {
   guardianProfileId: string;
   relationshipType: string;
+  guardianRole?: GuardianRole;
   isPrimary: boolean;
   isEmergencyContact: boolean;
   canPickup: boolean;
@@ -186,6 +228,7 @@ export interface StudentGuardianLinkRequest {
 interface BackendStudentGuardianLinkRequest {
   guardian_profile_id: number;
   relationship_type: string;
+  guardian_role?: GuardianRole;
   is_primary: boolean;
   is_emergency_contact: boolean;
   can_pickup: boolean;
@@ -255,11 +298,16 @@ export function mapGuardianWithRelationshipResponse(
     ...mapGuardianResponse(data.guardian),
     relationshipId: data.relationship_id.toString(),
     relationshipType: data.relationship_type,
+    guardianRole: normalizeGuardianRole(data.guardian_role),
     isPrimary: data.is_primary,
     isEmergencyContact: data.is_emergency_contact,
     canPickup: data.can_pickup,
     pickupNotes: data.pickup_notes,
     emergencyPriority: data.emergency_priority,
+    // Fall back to deriving from has_account if the backend omits the field
+    // (older builds): account → active, otherwise none.
+    accountStatus:
+      data.account_status ?? (data.guardian.has_account ? "active" : "none"),
   };
 }
 
@@ -285,6 +333,7 @@ export function mapStudentGuardianLinkToBackend(
   return {
     guardian_profile_id: Number.parseInt(data.guardianProfileId),
     relationship_type: data.relationshipType,
+    guardian_role: data.guardianRole,
     is_primary: data.isPrimary,
     is_emergency_contact: data.isEmergencyContact,
     can_pickup: data.canPickup,

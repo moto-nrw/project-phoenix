@@ -312,7 +312,7 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 		require.Error(t, err)
 		var dbErr *modelBase.DatabaseError
 		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "list", dbErr.Op)
+		assert.Equal(t, "list with options", dbErr.Op)
 	})
 }
 

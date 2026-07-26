@@ -87,6 +87,14 @@ func (e *PasswordMismatchError) Error() string {
 	return "current password is incorrect"
 }
 
+// OperatorRefreshTokenInvalidError is returned when an operator refresh token
+// has expired, was rotated already, was revoked, or never existed server-side.
+type OperatorRefreshTokenInvalidError struct{}
+
+func (e *OperatorRefreshTokenInvalidError) Error() string {
+	return "operator refresh token is invalid"
+}
+
 // OrganizationNotFoundError is returned when an organization does not exist.
 type OrganizationNotFoundError struct {
 	OrganizationID int64

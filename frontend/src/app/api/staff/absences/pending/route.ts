@@ -1,6 +1,13 @@
-import { createProxyGetDataHandler } from "~/lib/route-wrapper.server";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
-// Tenant-wide list of vacation requests still awaiting decision. Used by the
-// per-staff Abwesenheiten tab to count incoming requests, and (next step) by
-// the inbox section on /staff.
-export const GET = createProxyGetDataHandler("/api/staff/absences/pending");
+// Tenant-wide open absence requests (status requested + question) for the
+// /staff inbox and the sidebar pending counter (#1419). Backend gates on
+// vacation:approve.
+export const GET = createGetHandler(async (_request, token) => {
+  const response = await apiGet<{ data: unknown }>(
+    `/api/staff/absences/pending`,
+    token,
+  );
+  return response.data;
+});

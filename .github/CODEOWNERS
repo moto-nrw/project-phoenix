@@ -4,3 +4,10 @@
 
 # Global owner for all files
 * @yungweng
+
+# Deployment and production-state controls require board visibility.
+/.github/workflows/ @yungweng @moto-nrw/moto-vorstand
+/scripts/deploy-remote.sh @yungweng @moto-nrw/moto-vorstand
+/scripts/rollback-remote.sh @yungweng @moto-nrw/moto-vorstand
+/environments/ @yungweng @moto-nrw/moto-vorstand
+/backend/database/migrations/ @yungweng @moto-nrw/moto-vorstand

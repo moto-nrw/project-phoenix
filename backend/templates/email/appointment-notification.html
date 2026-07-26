@@ -1,0 +1,30 @@
+{{define "appointment-notification.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "school-brand" .}}
+    <h1>{{.Title}}</h1>
+
+    <p>Guten Tag{{if .GuardianFirstName}} {{.GuardianFirstName}} {{.GuardianLastName}}{{end}},</p>
+
+    <p>{{if .SchoolName}}die {{.SchoolName}}: {{end}}{{.IntroText}} Die Details finden Sie im Eltern-Portal.</p>
+
+    <div class="link-box" style="margin-top: 16px;">
+        <strong>{{.Title}}</strong><br>
+        {{.WhenText}}{{if .Location}}<br>Ort: {{.Location}}{{end}}
+    </div>
+
+    {{if .PortalURL}}
+    <div class="button-wrapper" style="text-align: center; margin-top: 24px;">
+        <a class="button" href="{{.PortalURL}}">Zum Eltern-Portal</a>
+    </div>
+
+    <p style="margin-top: 16px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.PortalURL}}">{{.PortalURL}}</a>
+    </div>
+    {{end}}
+</div>
+
+{{template "footer" .}}
+{{end}}

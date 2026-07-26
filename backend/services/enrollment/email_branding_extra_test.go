@@ -51,12 +51,12 @@ func TestSchoolLoginImageURL_TrimsWhitespaceFromValue(t *testing.T) {
 // so the bottom of every email has consistent branding.
 
 func TestMotoLogoURL_AppendsImagePath(t *testing.T) {
-	assert.Equal(t, "https://parents.localhost:3000/images/moto_transparent.png",
+	assert.Equal(t, "https://parents.localhost:3000/images/moto-logo-mit-schriftzug.png",
 		motoLogoURL("https://parents.localhost:3000"))
 }
 
 func TestMotoLogoURL_TrimsTrailingSlash(t *testing.T) {
-	assert.Equal(t, "https://parents.localhost:3000/images/moto_transparent.png",
+	assert.Equal(t, "https://parents.localhost:3000/images/moto-logo-mit-schriftzug.png",
 		motoLogoURL("https://parents.localhost:3000/"))
 }
 
@@ -64,7 +64,7 @@ func TestMotoLogoURL_EmptyBaseReturnsRelative(t *testing.T) {
 	// No base URL → return the relative path. The email template will
 	// render a broken image; the test pins that the function doesn't
 	// silently inject "http://localhost" or similar.
-	assert.Equal(t, "/images/moto_transparent.png", motoLogoURL(""))
+	assert.Equal(t, "/images/moto-logo-mit-schriftzug.png", motoLogoURL(""))
 }
 
 // absoluteBrandURL resolves brand assets against the parents-portal

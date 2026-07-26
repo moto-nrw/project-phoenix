@@ -18,30 +18,19 @@ type StringIDModel struct {
 	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 }
 
-// BeforeAppendModel is a hook that can be embedded in models to set timestamps before insert/update
-type BeforeAppendModel struct{}
+// GetID, GetCreatedAt and GetUpdatedAt satisfy the base.Entity interface for
+// every embedder of Model. They live here ONCE (backend-conventions.md Rule 3)
+// so individual entities never redeclare these trivial accessors; an entity
+// that needs different semantics may still shadow them.
+func (m *Model) GetID() any              { return m.ID }
+func (m *Model) GetCreatedAt() time.Time { return m.CreatedAt }
+func (m *Model) GetUpdatedAt() time.Time { return m.UpdatedAt }
 
-// BeforeAppend sets the timestamp values before the model is saved
-func (m *Model) BeforeAppend() error {
-	now := time.Now()
-	if m.CreatedAt.IsZero() {
-		m.CreatedAt = now
-	}
-	m.UpdatedAt = now
-	return nil
-}
-
-// TimeRange represents a time range with start and end timestamps
-type TimeRange struct {
-	StartTime time.Time  `bun:"start_time,nullzero,notnull" json:"start_time"`
-	EndTime   *time.Time `bun:"end_time,nullzero" json:"end_time,omitempty"`
-}
-
-// DateRange represents a date range with start and end dates
-type DateRange struct {
-	StartDate time.Time `bun:"start_date,nullzero,notnull" json:"start_date"`
-	EndDate   time.Time `bun:"end_date,nullzero,notnull" json:"end_date"`
-}
+// GetID, GetCreatedAt and GetUpdatedAt satisfy the base.Entity interface for
+// every embedder of StringIDModel (Rule 3, same as Model above).
+func (m *StringIDModel) GetID() any              { return m.ID }
+func (m *StringIDModel) GetCreatedAt() time.Time { return m.CreatedAt }
+func (m *StringIDModel) GetUpdatedAt() time.Time { return m.UpdatedAt }
 
 // Activatable represents models that can be activated or deactivated
 type Activatable struct {
@@ -52,32 +41,6 @@ type Activatable struct {
 type Nameable struct {
 	Name string `bun:"name,notnull" json:"name"`
 }
-
-// NameableUnique represents models with a unique name field
-type NameableUnique struct {
-	Name string `bun:"name,notnull,unique" json:"name"`
-}
-
-// Describable represents models with a description field
-type Describable struct {
-	Description string `bun:"description" json:"description,omitempty"`
-}
-
-// Schema constants for the database schema names
-const (
-	SchemaAuth       = "auth"
-	SchemaUsers      = "users"
-	SchemaEducation  = "education"
-	SchemaSchedule   = "schedule"
-	SchemaActivities = "activities"
-	SchemaFacilities = "facilities"
-	SchemaIoT        = "iot"
-	SchemaFeedback   = "feedback"
-	SchemaActive     = "active"
-	SchemaConfig     = "config"
-	SchemaMeta       = "meta"
-	SchemaPlatform   = "platform"
-)
 
 // Pointer helper functions for creating pointers to primitive values in tests.
 // These are placed here to avoid import cycles when used in model package tests.
@@ -93,3 +56,12 @@ func Int64Ptr(i int64) *int64 { return &i }
 
 // TimePtr returns a pointer to the given time.Time.
 func TimePtr(t time.Time) *time.Time { return &t }
+
+// Deref returns the pointed-to value, or T's zero value when p is nil.
+func Deref[T any](p *T) T {
+	if p == nil {
+		var zero T
+		return zero
+	}
+	return *p
+}

@@ -7,6 +7,8 @@ import {
   wrapInApiResponse,
   createUnauthorizedResponse,
   isStringParam,
+  requirePathSegmentParam,
+  requireStringParam,
   type RouteContext,
 } from "./route-wrapper-utils.server";
 
@@ -204,5 +206,23 @@ describe("isStringParam", () => {
     expect(isStringParam(undefined)).toBe(false);
     expect(isStringParam({})).toBe(false);
     expect(isStringParam([])).toBe(false);
+  });
+});
+
+describe("route param helpers", () => {
+  it("returns the raw string from requireStringParam", () => {
+    expect(requireStringParam({ id: "abc/123" })).toBe("abc/123");
+  });
+
+  it("encodes one URL path segment with requirePathSegmentParam", () => {
+    expect(
+      requirePathSegmentParam({ slug: "school/name with spaces" }, "slug"),
+    ).toBe("school%2Fname%20with%20spaces");
+  });
+
+  it("throws when the required path segment param is missing", () => {
+    expect(() => requirePathSegmentParam({}, "studentId")).toThrow(
+      "Invalid studentId parameter",
+    );
   });
 });

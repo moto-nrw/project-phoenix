@@ -179,21 +179,6 @@ export function ActiveSupervisionsBreadcrumb({
   return <PageTitleDisplay title="Aktuelle Aufsicht" />;
 }
 
-/**
- * Invitations breadcrumb (3-level)
- */
-export function InvitationsBreadcrumb() {
-  return (
-    <BreadcrumbNav>
-      <BreadcrumbLink href="/database">Datenverwaltung</BreadcrumbLink>
-      <BreadcrumbSeparator />
-      <BreadcrumbLink href="/database/personal">Personal</BreadcrumbLink>
-      <BreadcrumbSeparator />
-      <BreadcrumbCurrent>Einladungen</BreadcrumbCurrent>
-    </BreadcrumbNav>
-  );
-}
-
 interface EnrollmentBreadcrumbProps {
   readonly current: string;
   readonly pathname?: string;
@@ -224,23 +209,6 @@ export function EnrollmentBreadcrumb({
       ) : (
         <BreadcrumbCurrent>{current}</BreadcrumbCurrent>
       )}
-    </BreadcrumbNav>
-  );
-}
-
-/**
- * Activity detail breadcrumb
- */
-interface ActivityBreadcrumbProps {
-  readonly activityName: string;
-}
-
-export function ActivityBreadcrumb({ activityName }: ActivityBreadcrumbProps) {
-  return (
-    <BreadcrumbNav>
-      <BreadcrumbLink href="/activities">Aktivitäten</BreadcrumbLink>
-      <BreadcrumbSeparator />
-      <BreadcrumbCurrent>{activityName}</BreadcrumbCurrent>
     </BreadcrumbNav>
   );
 }

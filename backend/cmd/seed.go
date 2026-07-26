@@ -29,7 +29,6 @@ DEMO DATA:
 
 OUTPUT FILES:
 - .seed-state.json — all created IDs, credentials, and API keys
-- simulator.yaml   — ready-to-use simulator configuration
 
 OPTIONAL FLAGS (deterministic mode):
 By default, the seeder generates random suffixes and passwords for each run.

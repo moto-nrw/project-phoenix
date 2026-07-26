@@ -69,9 +69,15 @@ export function PageHeaderWithSearch({
   const scrollY = useScrollY();
   const isScrolled = compactOnScroll && scrollY > COMPACT_SCROLL_THRESHOLD;
 
-  // Check if any filters are active (not in their default state)
+  // Check if any filters are active (not in their default state). Custom
+  // filters are skipped: their `value`/`options` are unused stubs (see
+  // FilterConfig.render), so the first-option comparison below would read an
+  // empty string against `undefined` and mark them active in every default
+  // state. A custom control owns its own rendering and reports its state
+  // through `activeFilters` like any other filter.
   const hasActiveFilters = useMemo(() => {
     return filters.some((filter) => {
+      if (filter.type === "custom") return false;
       const defaultValue = filter.options[0]?.value;
       return filter.value !== defaultValue;
     });

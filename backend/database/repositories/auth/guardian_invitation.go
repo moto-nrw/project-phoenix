@@ -87,7 +87,9 @@ func (r *GuardianInvitationRepository) FindByID(ctx context.Context, id int64) (
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errMsgInvitationNotFound)
+			// Wrap sql.ErrNoRows so service-layer not-found checks
+			// (errors.Is / isNotFoundError) can map this to a 404.
+			return nil, fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation: %w", err)
 	}
@@ -107,7 +109,9 @@ func (r *GuardianInvitationRepository) FindByToken(ctx context.Context, token st
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errMsgInvitationNotFound)
+			// Wrap sql.ErrNoRows so service-layer not-found checks
+			// (errors.Is / isNotFoundError) can map this to a 404.
+			return nil, fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation by token: %w", err)
 	}
@@ -133,7 +137,12 @@ func (r *GuardianInvitationRepository) FindByGuardianProfileID(ctx context.Conte
 	return invitations, nil
 }
 
-// FindPending retrieves all pending (not accepted, not expired) invitations
+// FindPending retrieves all consumable pending (not accepted, not expired)
+// invitations. Parent-initiated approval-queue rows are excluded: a 'pending'
+// row has no usable token until staff approval and never had an email sent, and
+// a 'rejected' row must not resurface as a live invite. Only 'not_required'
+// (staff invites + parent direct mode) and 'approved' (staff approved; email
+// dispatched) statuses back a real, acceptable invitation.
 func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
 
@@ -142,6 +151,10 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
 		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
+		Where(`"guardian_invitation".approval_status IN (?)`, bun.List([]string{
+			auth.GuardianInvitationApprovalNotRequired,
+			auth.GuardianInvitationApprovalApproved,
+		})).
 		OrderExpr(`"guardian_invitation".created_at DESC`).
 		Scan(ctx)
 
@@ -152,20 +165,25 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 	return invitations, nil
 }
 
-// FindExpired retrieves all expired invitations
-func (r *GuardianInvitationRepository) FindExpired(ctx context.Context) ([]*auth.GuardianInvitation, error) {
+// FindPendingApproval retrieves parent-initiated invitations awaiting staff
+// approval (approval_status = 'pending'), newest first. Backs the staff
+// approval queue. Expired requests are excluded so stale rows that cleanup has
+// not yet removed cannot be approved into a live child link. Tenant isolation
+// is enforced by RLS on the ambient tenant transaction.
+func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
 
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&invitations).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
+		Where(`"guardian_invitation".approval_status = ?`, auth.GuardianInvitationApprovalPending).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
-		Where(`"guardian_invitation".expires_at <= ?`, time.Now()).
-		OrderExpr(`"guardian_invitation".expires_at DESC`).
+		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
+		OrderExpr(`"guardian_invitation".created_at DESC`).
 		Scan(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to find expired invitations: %w", err)
+		return nil, fmt.Errorf("failed to find invitations pending approval: %w", err)
 	}
 
 	return invitations, nil
@@ -244,18 +262,4 @@ func (r *GuardianInvitationRepository) DeleteExpired(ctx context.Context) (int, 
 	}
 
 	return int(rowsAffected), nil
-}
-
-// Count returns the total number of guardian invitations
-func (r *GuardianInvitationRepository) Count(ctx context.Context) (int, error) {
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*auth.GuardianInvitation)(nil)).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Count(ctx)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to count guardian invitations: %w", err)
-	}
-
-	return count, nil
 }

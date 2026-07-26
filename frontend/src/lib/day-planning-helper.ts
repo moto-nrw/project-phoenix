@@ -18,8 +18,18 @@ export function getDayPlanningNotComingLabel(
     | "actual_arrival_time"
     | "current_location"
   >,
+  options?: {
+    /**
+     * Skip the actual-attendance suppression. Set when the planning status was
+     * computed for a non-today date (#1939): a child being present right now
+     * says nothing about another day, so the "not expected" label must stay.
+     */
+    ignoreCurrentAttendance?: boolean;
+  },
 ): string | null {
-  if (hasActualAttendance(student)) return null;
+  if (!options?.ignoreCurrentAttendance && hasActualAttendance(student)) {
+    return null;
+  }
   if (student.day_planning_status !== "not_coming_today") return null;
   return student.day_planning_label ?? "kein Plan für heute";
 }

@@ -100,6 +100,12 @@ type Phase struct {
 	EnrollmentOpenAt  *time.Time    `bun:"enrollment_open_at" json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt *time.Time    `bun:"enrollment_close_at" json:"enrollment_close_at,omitempty"`
 	FormSchemaID      *int64        `bun:"form_schema_id" json:"form_schema_id,omitempty"`
+	// CalendarPeriodID links the phase to a shared planning period
+	// (schedule.calendar_periods, migration 1.15.167). NULL for phases
+	// that predate the planning calendar or don't map to one. The
+	// service period dates above stay authoritative for enrollment
+	// semantics; the link is the planning-side reference.
+	CalendarPeriodID *int64 `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
 	// Note: bool fields below intentionally omit the bun `default:`
 	// directive. With `default:`, bun skips zero values on INSERT,
 	// which means setting IsActive=false in Go would silently roundtrip
@@ -130,18 +136,18 @@ type Phase struct {
 	RolloverAutoApprove   bool       `bun:"rollover_auto_approve,notnull" json:"rollover_auto_approve"`
 	RolloverDeadline      *time.Time `bun:"rollover_deadline" json:"rollover_deadline,omitempty"`
 	RolloverBumpsGrade    bool       `bun:"rollover_bumps_grade,notnull" json:"rollover_bumps_grade"`
-}
 
-// IsRollover reports whether this phase was created from a source
-// phase (i.e., the rollover columns are set). Used by the deadline
-// worker to scope its scan to rollover phases only.
-func (p *Phase) IsRollover() bool {
-	return p.RolloverSourcePhaseID != nil && p.RolloverMode != nil
-}
-
-// TableName returns the schema-qualified table name.
-func (p *Phase) TableName() string {
-	return "enrollment.phases"
+	// Concrete-class config (migration 1.15.171, issue #1833). Only
+	// meaningful when the tenant setting enrollment.collect_school_class
+	// is on. AvailableSchoolClasses is the admin-managed pick list the
+	// public form offers for grade >= 2 (e.g. ["2a","2b","3a"]);
+	// RequireSchoolClass makes that pick mandatory for grade >= 2 (grade
+	// 1 is always exempt because the concrete class isn't known yet).
+	//
+	// RequireSchoolClass intentionally omits the bun `default:` directive
+	// for the same reason as the bool fields above — see the note there.
+	AvailableSchoolClasses []string `bun:"available_school_classes,type:jsonb,notnull" json:"available_school_classes"`
+	RequireSchoolClass     bool     `bun:"require_school_class,notnull" json:"require_school_class"`
 }
 
 // Validate runs the column-level checks in app code so the service can
@@ -193,7 +199,31 @@ func (p *Phase) Validate() error {
 	if (p.RolloverSourcePhaseID == nil) != (p.RolloverMode == nil) {
 		return errors.New("rollover_source_phase_id and rollover_mode must be set together or both omitted")
 	}
+	// available_school_classes is NOT NULL jsonb; a nil slice would bind
+	// NULL and violate the constraint. Coalesce so every create/update
+	// path (admin form, rollover, tests) stores '[]' rather than NULL.
+	if p.AvailableSchoolClasses == nil {
+		p.AvailableSchoolClasses = []string{}
+	}
+	// A phase that makes the concrete class mandatory must offer at least
+	// one class to pick. Otherwise every grade >= 2 submission is
+	// unsatisfiable: the submit validator rejects both an empty value and
+	// any value not in the (empty) offered list. Issue #1833.
+	if p.RequireSchoolClass && !hasNonEmptySchoolClass(p.AvailableSchoolClasses) {
+		return errors.New("require_school_class needs at least one available_school_class")
+	}
 	return nil
+}
+
+// hasNonEmptySchoolClass reports whether the list contains at least one
+// non-blank class entry.
+func hasNonEmptySchoolClass(classes []string) bool {
+	for _, c := range classes {
+		if strings.TrimSpace(c) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // PhaseRepository is the DB contract the phase service consumes. PR A

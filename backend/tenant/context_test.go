@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWithTenantID_RoundTrip(t *testing.T) {
@@ -20,27 +19,6 @@ func TestWithTenantID_RoundTrip(t *testing.T) {
 func TestFromContext_EmptyContext(t *testing.T) {
 	got := tenant.FromContext(context.Background())
 	assert.Equal(t, int64(0), got)
-}
-
-func TestMustFromContext_Panics(t *testing.T) {
-	assert.Panics(t, func() {
-		tenant.MustFromContext(context.Background())
-	})
-}
-
-func TestMustFromContext_PanicsOnZero(t *testing.T) {
-	ctx := tenant.WithTenantID(context.Background(), 0)
-	assert.Panics(t, func() {
-		tenant.MustFromContext(ctx)
-	})
-}
-
-func TestMustFromContext_Success(t *testing.T) {
-	ctx := tenant.WithTenantID(context.Background(), 99)
-	require.NotPanics(t, func() {
-		got := tenant.MustFromContext(ctx)
-		assert.Equal(t, int64(99), got)
-	})
 }
 
 func TestWithOrgID_RoundTrip(t *testing.T) {
@@ -69,47 +47,6 @@ func TestScopeFromContext_EmptyContext(t *testing.T) {
 	assert.Equal(t, "", got)
 }
 
-func TestIsPlatformScope(t *testing.T) {
-	tests := []struct {
-		name     string
-		scope    string
-		expected bool
-	}{
-		{"platform scope", tenant.ScopePlatform, true},
-		{"tenant scope (empty)", tenant.ScopeTenant, false},
-		{"org scope", tenant.ScopeOrg, false},
-		{"empty scope", "", false},
-		{"unknown scope", "unknown", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := tenant.WithScope(context.Background(), tt.scope)
-			assert.Equal(t, tt.expected, tenant.IsPlatformScope(ctx))
-		})
-	}
-}
-
-func TestIsOrgScope(t *testing.T) {
-	tests := []struct {
-		name     string
-		scope    string
-		expected bool
-	}{
-		{"org scope", tenant.ScopeOrg, true},
-		{"platform scope", tenant.ScopePlatform, false},
-		{"tenant scope (empty)", tenant.ScopeTenant, false},
-		{"empty scope", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := tenant.WithScope(context.Background(), tt.scope)
-			assert.Equal(t, tt.expected, tenant.IsOrgScope(ctx))
-		})
-	}
-}
-
 func TestScopeTenantIsEmptyString(t *testing.T) {
 	// Per architecture plan: "" is the default tenant scope.
 	// Existing JWTs have no scope field, which parses as "".
@@ -125,12 +62,4 @@ func TestMultipleContextValues(t *testing.T) {
 	assert.Equal(t, int64(10), tenant.FromContext(ctx))
 	assert.Equal(t, int64(20), tenant.OrgFromContext(ctx))
 	assert.Equal(t, tenant.ScopePlatform, tenant.ScopeFromContext(ctx))
-	assert.True(t, tenant.IsPlatformScope(ctx))
-}
-
-func TestNewContext(t *testing.T) {
-	ctx := tenant.NewContext(context.Background(), 42, 77)
-
-	assert.Equal(t, int64(42), tenant.FromContext(ctx))
-	assert.Equal(t, int64(77), tenant.OrgFromContext(ctx))
 }

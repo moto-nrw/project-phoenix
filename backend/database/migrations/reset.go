@@ -41,6 +41,8 @@ func ResetDatabase() error {
 		"suggestions", // created by migration 1.9.1
 		"platform",    // created by migration 1.11.1
 		"enrollment",  // created by migration 1.15.59
+		"calendar",    // created by migration 1.15.173
+		"display",     // created by migration 1.15.175
 	}
 
 	// 1. Drop all schemas with CASCADE to remove all objects inside them

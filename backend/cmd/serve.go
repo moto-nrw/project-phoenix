@@ -10,6 +10,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/applog"
+	appmiddleware "github.com/moto-nrw/project-phoenix/middleware"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -37,19 +38,13 @@ var serveCmd = &cobra.Command{
 			Env:    viper.GetString("app_env"),
 		})
 
-		if dsn := viper.GetString("sentry_dsn"); dsn != "" {
+		if dsn := strings.TrimSpace(viper.GetString("sentry_dsn")); dsn != "" {
+			sentryEnv := strings.TrimSpace(viper.GetString("sentry_environment"))
 			err := sentry.Init(sentry.ClientOptions{
 				Dsn:         dsn,
-				Environment: viper.GetString("app_env"),
+				Environment: sentryEnv,
 				BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
-					if event.Request != nil {
-						for _, key := range []string{"X-Staff-PIN", "X-Staff-Id", "X-Device-Key"} {
-							if _, ok := event.Request.Headers[key]; ok {
-								event.Request.Headers[key] = "[filtered]"
-							}
-						}
-					}
-					return event
+					return scrubSentryEvent(event)
 				},
 			})
 			if err != nil {
@@ -67,6 +62,44 @@ var serveCmd = &cobra.Command{
 		}
 		server.Start()
 	},
+}
+
+func scrubSentryEvent(event *sentry.Event) *sentry.Event {
+	if event == nil {
+		return event
+	}
+	// The public /public/calendar/{token} feed authenticates purely by the token
+	// in its URL. Sentry's HTTP integration captures that URL (and the derived
+	// transaction name / breadcrumbs), so a failing feed request would otherwise
+	// ship a replayable capability token to Sentry. Redact it everywhere the SDK
+	// may have recorded the path.
+	event.Message = appmiddleware.RedactFeedToken(event.Message)
+	event.Transaction = appmiddleware.RedactFeedToken(event.Transaction)
+	for _, bc := range event.Breadcrumbs {
+		if bc == nil {
+			continue
+		}
+		bc.Message = appmiddleware.RedactFeedToken(bc.Message)
+		for key, value := range bc.Data {
+			if s, ok := value.(string); ok {
+				bc.Data[key] = appmiddleware.RedactFeedToken(s)
+			}
+		}
+	}
+	if event.Request != nil {
+		event.Request.URL = appmiddleware.RedactFeedToken(event.Request.URL)
+		event.Request.QueryString = appmiddleware.RedactFeedToken(event.Request.QueryString)
+		event.Request.Data = ""
+		for key := range event.Request.Headers {
+			for _, sensitive := range []string{"X-Staff-PIN", "X-Staff-Id", "X-Staff-Auth-PIN", "X-Device-Key"} {
+				if strings.EqualFold(key, sensitive) {
+					event.Request.Headers[key] = "[filtered]"
+					break
+				}
+			}
+		}
+	}
+	return event
 }
 
 func init() {
@@ -110,6 +143,11 @@ func validateServeConfig() error {
 		} else {
 			missing = append(missing, "DB_DSN")
 		}
+	}
+
+	if strings.TrimSpace(viper.GetString("sentry_dsn")) != "" &&
+		strings.TrimSpace(viper.GetString("sentry_environment")) == "" {
+		missing = append(missing, "SENTRY_ENVIRONMENT")
 	}
 
 	if len(missing) > 0 {

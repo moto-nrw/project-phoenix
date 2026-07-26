@@ -1,0 +1,509 @@
+"use client";
+
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useTenantRouter } from "~/lib/tenant-router";
+import { Alert } from "~/components/ui/alert";
+import { useSession } from "next-auth/react";
+import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
+import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
+import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
+import { BackButton } from "~/components/ui/back-button";
+import { FeedbackHistorySkeleton } from "./page-skeleton";
+import { createLogger } from "~/lib/logger";
+import { fetchStudent } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
+import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "~/components/ui/chart";
+
+const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
+
+const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
+  positive: "Positives Feedback",
+  neutral: "Neutrales Feedback",
+  negative: "Negatives Feedback",
+};
+
+const feedbackChartConfig = {
+  positive: { label: "Positiv", color: "#22c55e" },
+  neutral: { label: "Neutral", color: "#eab308" },
+  negative: { label: "Negativ", color: "#ef4444" },
+} satisfies ChartConfig;
+
+const timeRangeOptions = [
+  { key: "all", label: "Alle" },
+  { key: "today", label: "Heute" },
+  { key: "week", label: "Diese Woche" },
+  { key: "7days", label: "Letzte 7 Tage" },
+  { key: "month", label: "Diesen Monat" },
+];
+
+const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+function formatDateShort(date: Date): string {
+  return date.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
+export default function StudentFeedbackHistoryPage() {
+  return (
+    <Suspense fallback={<FeedbackHistorySkeleton />}>
+      <StudentFeedbackHistoryPageContent />
+    </Suspense>
+  );
+}
+
+function StudentFeedbackHistoryPageContent() {
+  const router = useTenantRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const studentId = params.id as string;
+  const referrer = searchParams.get("from") ?? "/students/search";
+  useSession();
+
+  const [student, setStudent] = useState<Student | null>(null);
+  const [feedbackHistory, setFeedbackHistory] = useState<FeedbackEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState<string>("7days");
+  const [showDetails, setShowDetails] = useState(false);
+
+  useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
+
+  // Start at the top instead of inheriting the previous page's scroll position
+  useScrollToTop(studentId);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    async function loadData() {
+      try {
+        const [studentData, feedbackData] = await Promise.all([
+          fetchStudent(studentId),
+          fetchStudentFeedback(studentId),
+        ]);
+        if (cancelled) return;
+        setStudent(studentData);
+        setFeedbackHistory(feedbackData);
+      } catch (err) {
+        if (cancelled) return;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error("failed_to_fetch_feedback_history", {
+          error: errMsg,
+        });
+        if (errMsg === "feature_disabled") {
+          setError(
+            "Diese Funktion ist für Ihre Schule deaktiviert. Sie kann in den Einstellungen unter Datenschutz aktiviert werden.",
+          );
+        } else {
+          setError("Fehler beim Laden der Daten.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadData();
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId]);
+
+  const filteredFeedbackHistory = useMemo(() => {
+    if (timeRange === "all") return feedbackHistory;
+    const now = new Date();
+    const startDate = getStartDateForTimeRange(timeRange, now);
+    return feedbackHistory.filter((entry) => {
+      const entryDate = new Date(entry.timestamp);
+      return entryDate >= startDate;
+    });
+  }, [feedbackHistory, timeRange]);
+
+  // Counts
+  const positiveFeedbackCount = filteredFeedbackHistory.filter(
+    (e) => e.feedback_type === "positive",
+  ).length;
+  const neutralFeedbackCount = filteredFeedbackHistory.filter(
+    (e) => e.feedback_type === "neutral",
+  ).length;
+  const negativeFeedbackCount = filteredFeedbackHistory.filter(
+    (e) => e.feedback_type === "negative",
+  ).length;
+  const totalFeedback =
+    positiveFeedbackCount + neutralFeedbackCount + negativeFeedbackCount;
+
+  // Chart data: aggregate per day
+  const chartData = useMemo(() => {
+    const dayMap = new Map<
+      string,
+      { date: Date; positive: number; neutral: number; negative: number }
+    >();
+
+    for (const entry of filteredFeedbackHistory) {
+      const d = new Date(entry.timestamp);
+      const key = toISODate(d);
+      const existing = dayMap.get(key) ?? {
+        date: d,
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+      };
+      existing[entry.feedback_type]++;
+      dayMap.set(key, existing);
+    }
+
+    return Array.from(dayMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => {
+        const dayIndex = (v.date.getDay() + 6) % 7;
+        return {
+          day: DAY_NAMES[dayIndex] ?? "",
+          label: `${DAY_NAMES[dayIndex] ?? ""} ${formatDateShort(v.date)}`,
+          positive: v.positive,
+          neutral: v.neutral,
+          negative: v.negative,
+        };
+      });
+  }, [filteredFeedbackHistory]);
+
+  // Group for detail list
+  const groupedFeedbackHistory = useMemo(() => {
+    const groups: Record<string, FeedbackEntry[]> = {};
+    for (const entry of filteredFeedbackHistory) {
+      const date = new Date(entry.timestamp).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      groups[date] ??= [];
+      groups[date].push(entry);
+    }
+    return groups;
+  }, [filteredFeedbackHistory]);
+
+  const sortedDates = useMemo(
+    () =>
+      Object.keys(groupedFeedbackHistory).sort(
+        (a, b) => new Date(b).getTime() - new Date(a).getTime(),
+      ),
+    [groupedFeedbackHistory],
+  );
+
+  const formatTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("de-DE", {
+      timeZone: "Europe/Berlin",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  if (loading) {
+    return <FeedbackHistorySkeleton />;
+  }
+
+  if (error || !student) {
+    return (
+      <div className="flex min-h-[80vh] flex-col items-center justify-center">
+        <Alert type="error" message={error ?? "Kind nicht gefunden"} />
+        <button
+          type="button"
+          onClick={() => router.push(referrer)}
+          className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
+        >
+          Zurück
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl">
+      {/* tab=historie returns to the originating tab on the detail page
+          (this sub-page lives under Historie, issue #1501); from= still drives
+          the detail page's own back button to the list. */}
+      <BackButton
+        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
+      />
+
+      {/* Header */}
+      <div className="mb-6 ml-6">
+        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+          {student.name}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">Feedbackhistorie</p>
+        <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+          <svg
+            className="h-4 w-4 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            />
+          </svg>
+          <span>
+            {student.school_class} · Gruppe: {student.group_name}
+          </span>
+        </div>
+      </div>
+
+      {/* Filter pills — compact, no card wrapper */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        {timeRangeOptions.map((option) => (
+          <button
+            type="button"
+            key={option.key}
+            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              timeRange === option.key
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+            onClick={() => setTimeRange(option.key)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Main visual card */}
+      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+        <div className="p-4 sm:p-6 md:p-8">
+          <h2 className="mb-1 text-base font-bold text-gray-900 sm:text-lg">
+            Feedback-Übersicht
+          </h2>
+
+          {totalFeedback === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-400">
+              Kein Feedback für den ausgewählten Zeitraum verfügbar.
+            </p>
+          ) : (
+            <>
+              {/* Proportion bar */}
+              <div className="mt-4 flex h-3 overflow-hidden rounded-full">
+                {positiveFeedbackCount > 0 && (
+                  <div
+                    className="bg-green-500 transition-all duration-300"
+                    style={{
+                      width: `${(positiveFeedbackCount / totalFeedback) * 100}%`,
+                    }}
+                  />
+                )}
+                {neutralFeedbackCount > 0 && (
+                  <div
+                    className="bg-yellow-400 transition-all duration-300"
+                    style={{
+                      width: `${(neutralFeedbackCount / totalFeedback) * 100}%`,
+                    }}
+                  />
+                )}
+                {negativeFeedbackCount > 0 && (
+                  <div
+                    className="bg-red-500 transition-all duration-300"
+                    style={{
+                      width: `${(negativeFeedbackCount / totalFeedback) * 100}%`,
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Inline stats */}
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
+                  <span className="font-medium text-gray-900">
+                    {positiveFeedbackCount}
+                  </span>
+                  <span className="text-gray-500">Positiv</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                  <span className="font-medium text-gray-900">
+                    {neutralFeedbackCount}
+                  </span>
+                  <span className="text-gray-500">Neutral</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+                  <span className="font-medium text-gray-900">
+                    {negativeFeedbackCount}
+                  </span>
+                  <span className="text-gray-500">Negativ</span>
+                </span>
+              </div>
+
+              {/* Stacked bar chart */}
+              {chartData.length > 1 && (
+                <div className="mt-6">
+                  <ChartContainer
+                    config={feedbackChartConfig}
+                    className="!aspect-auto h-[180px] w-full sm:h-[220px]"
+                  >
+                    <BarChart
+                      accessibilityLayer
+                      data={chartData}
+                      margin={{ top: 4, right: 4, bottom: 0, left: -24 }}
+                      barCategoryGap={chartData.length > 14 ? 1 : 4}
+                    >
+                      <CartesianGrid vertical={false} />
+                      <XAxis
+                        dataKey="day"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        fontSize={11}
+                        interval={
+                          chartData.length > 14
+                            ? Math.floor(chartData.length / 7)
+                            : 0
+                        }
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={4}
+                        fontSize={11}
+                        allowDecimals={false}
+                      />
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent
+                            labelFormatter={(
+                              _value: unknown,
+                              payload: ReadonlyArray<{
+                                payload?: { label?: string };
+                              }>,
+                            ) => payload[0]?.payload?.label ?? ""}
+                          />
+                        }
+                      />
+                      <ChartLegend content={<ChartLegendContent />} />
+                      <Bar
+                        dataKey="negative"
+                        stackId="fb"
+                        fill="var(--color-negative)"
+                        radius={[0, 0, 4, 4]}
+                      />
+                      <Bar
+                        dataKey="neutral"
+                        stackId="fb"
+                        fill="var(--color-neutral)"
+                        radius={[0, 0, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="positive"
+                        stackId="fb"
+                        fill="var(--color-positive)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Expandable detail list */}
+        {totalFeedback > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowDetails((prev) => !prev)}
+              className="flex w-full items-center justify-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+            >
+              {showDetails ? (
+                <>
+                  Einträge ausblenden
+                  <ChevronUp className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  Alle Einträge anzeigen ({totalFeedback})
+                  <ChevronDown className="h-4 w-4" />
+                </>
+              )}
+            </button>
+
+            {showDetails && (
+              <div className="border-t border-gray-100">
+                {sortedDates.map((dateString) => {
+                  const feedbackForDate =
+                    groupedFeedbackHistory[dateString] ?? [];
+                  const dateObj = new Date(
+                    feedbackForDate[0]?.timestamp ?? dateString,
+                  );
+
+                  return (
+                    <div key={dateString}>
+                      <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
+                        <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                          {dateObj.toLocaleDateString("de-DE", {
+                            timeZone: "Europe/Berlin",
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </h3>
+                      </div>
+                      <div className="divide-y divide-gray-50 px-4 sm:px-6">
+                        {feedbackForDate.map((feedback) => (
+                          <div
+                            key={feedback.id}
+                            className="flex items-center gap-3 py-2.5"
+                            data-testid={`feedback-indicator-${feedback.feedback_type}`}
+                          >
+                            <span
+                              className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ${
+                                feedback.feedback_type === "positive"
+                                  ? "bg-green-500"
+                                  : feedback.feedback_type === "neutral"
+                                    ? "bg-yellow-400"
+                                    : "bg-red-500"
+                              }`}
+                            />
+                            <span className="text-sm text-gray-900">
+                              {feedbackTypeLabels[feedback.feedback_type]}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {formatTime(feedback.timestamp)}
+                            </span>
+                            {feedback.is_mensa_feedback && (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                Mensa
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -13,6 +13,7 @@ import (
 
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -140,6 +141,58 @@ func TestRequestRepository_FindByID_NotFound(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Nil(t, got)
+}
+
+func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T) {
+	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
+	token := uniqueToken("pinNotificationMode")
+	defer wipeRequests(db, tenantID, token)
+
+	req := makeRequest(phaseID, token, "anna@example.test")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, req)
+	}))
+
+	var first, second string
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		first, err = repo.PinDecisionNotificationMode(ctx, req.ID, configModels.EnrollmentNotifyPerDecisionDigest)
+		return err
+	}))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		second, err = repo.PinDecisionNotificationMode(ctx, req.ID, configModels.EnrollmentNotifyPerDecisionImmediate)
+		return err
+	}))
+
+	assert.Equal(t, configModels.EnrollmentNotifyPerDecisionDigest, first)
+	assert.Equal(t, first, second)
+	var stored *enrollmentModels.Request
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		stored, err = repo.FindByID(ctx, req.ID)
+		return err
+	}))
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModels.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+}
+
+func TestRequestRepository_PinDecisionNotificationMode_RejectsInvalidMode(t *testing.T) {
+	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
+	token := uniqueToken("invalidNotificationMode")
+	defer wipeRequests(db, tenantID, token)
+
+	req := makeRequest(phaseID, token, "anna@example.test")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, req)
+	}))
+
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		_, pinErr := repo.PinDecisionNotificationMode(ctx, req.ID, "batch")
+		return pinErr
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "invalid enrollment decision notification mode")
 }
 
 // --- FindByStatusToken -------------------------------------------------

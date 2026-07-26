@@ -17,13 +17,35 @@ type LiveOptions struct {
 	Verbose   bool
 }
 
+// visitCooldown is the minimum pause between rotation events for the same
+// student (mirrors the retired simulator/iot engine).
+const visitCooldown = 3 * time.Second
+
+// rotationPhase values for the Schulhof rotation cycle.
+const (
+	phaseHeimatraum = "heimatraum"
+	phaseAG         = "ag"
+	phaseSchulhof   = "schulhof"
+)
+
 // liveCounts tracks actions performed during the live simulation.
 type liveCounts struct {
-	roomMoves  int
-	unterwegs  int
-	returns    int
-	sickToggle int
-	errors     int
+	roomMoves       int
+	unterwegs       int
+	returns         int
+	sickToggle      int
+	schulhofRotates int
+	attendance      int
+	supervisorSwaps int
+	errors          int
+}
+
+// rotationState tracks a student's position in the Heimatraum → AG → Schulhof cycle.
+type rotationState struct {
+	phase         string
+	agHops        int
+	agHopTarget   int
+	cooldownUntil time.Time
 }
 
 // liveState tracks the mutable simulation state.
@@ -33,6 +55,13 @@ type liveState struct {
 	sick      map[int64]bool   // student IDs currently marked sick
 	rfidTags  map[int64]string // student ID → RFID tag
 	roomIDs   []int64
+
+	rotation       map[int64]*rotationState // Schulhof rotation per student
+	lastAttendance map[int64]time.Time      // attendance-toggle cooldown per student
+	schulhofRoomID int64                    // 0 = system room not found → fall back to random room
+	sessionID      int64                    // active session for supervisor swaps (0 = unknown)
+	staffIDs       []int64                  // supervisor pool from seed-state accounts
+	interval       time.Duration
 }
 
 // RunLive runs the continuous live simulation loop.
@@ -42,7 +71,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := NewClient(state.BaseURL, opts.Verbose)
+	client := newClient(state.BaseURL, opts.Verbose)
 
 	// Login as admin
 	if len(state.Accounts.Admin) == 0 {
@@ -76,11 +105,19 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 
 	// Bootstrap state from server
 	ls := &liveState{
-		checkedIn: make(map[int64]bool),
-		unterwegs: make(map[int64]bool),
-		sick:      make(map[int64]bool),
-		rfidTags:  rfidTags,
-		roomIDs:   roomIDs,
+		checkedIn:      make(map[int64]bool),
+		unterwegs:      make(map[int64]bool),
+		sick:           make(map[int64]bool),
+		rfidTags:       rfidTags,
+		roomIDs:        roomIDs,
+		rotation:       make(map[int64]*rotationState),
+		lastAttendance: make(map[int64]time.Time),
+		staffIDs:       collectStaffIDs(state),
+		interval:       opts.Interval,
+	}
+	ls.schulhofRoomID = lookupSchulhofRoom(client)
+	if ls.schulhofRoomID == 0 {
+		fmt.Println("  NOTE: Schulhof room not found; rotation uses random rooms for the Schulhof leg")
 	}
 	if err := bootstrapLiveState(client, ls, state.Students); err != nil {
 		fmt.Printf("  WARNING: could not bootstrap live state: %v\n", err)
@@ -124,7 +161,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 	}
 }
 
-func runLiveTick(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, counts *liveCounts) {
+func runLiveTick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, counts *liveCounts) {
 	now := time.Now().Format("15:04:05")
 
 	// Keep session alive (mirrors PyrePortal's periodic ping)
@@ -133,41 +170,65 @@ func runLiveTick(client *Client, ls *liveState, state *seedapi.SeedState, device
 	// Weighted random action selection
 	roll := rand.Intn(100)
 	switch {
-	case roll < 50:
-		// Room move (50%)
+	case roll < 35:
+		// Room move (35%)
 		if err := liveRoomMove(client, ls, state, device, now); err != nil {
 			counts.errors++
 			return
 		}
 		counts.roomMoves++
 
-	case roll < 65:
-		// Go unterwegs (15%)
+	case roll < 45:
+		// Go unterwegs (10%)
 		if err := liveGoUnterwegs(client, ls, state, device, now); err != nil {
 			counts.errors++
 			return
 		}
 		counts.unterwegs++
 
-	case roll < 90:
-		// Return from unterwegs (25%)
+	case roll < 65:
+		// Return from unterwegs (20%)
 		if err := liveReturnFromUnterwegs(client, ls, state, device, now); err != nil {
 			counts.errors++
 			return
 		}
 		counts.returns++
 
-	default:
-		// Toggle sick (10%)
+	case roll < 70:
+		// Toggle sick (5%)
 		if err := liveToggleSick(client, ls, state, now); err != nil {
 			counts.errors++
 			return
 		}
 		counts.sickToggle++
+
+	case roll < 85:
+		// Schulhof rotation (15%)
+		if err := liveSchulhofRotate(client, ls, state, device, now); err != nil {
+			counts.errors++
+			return
+		}
+		counts.schulhofRotates++
+
+	case roll < 95:
+		// Attendance toggle (10%)
+		if err := liveAttendanceToggle(client, ls, state, device, now); err != nil {
+			counts.errors++
+			return
+		}
+		counts.attendance++
+
+	default:
+		// Supervisor swap (5%)
+		if err := liveSupervisorSwap(client, ls, state, device, now); err != nil {
+			counts.errors++
+			return
+		}
+		counts.supervisorSwaps++
 	}
 }
 
-func liveRoomMove(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveRoomMove(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.checkedIn)
 	if studentID == 0 {
 		return fmt.Errorf("no checked-in students")
@@ -205,7 +266,7 @@ func liveRoomMove(client *Client, ls *liveState, state *seedapi.SeedState, devic
 	return nil
 }
 
-func liveGoUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveGoUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.checkedIn)
 	if studentID == 0 {
 		return fmt.Errorf("no checked-in students")
@@ -228,7 +289,7 @@ func liveGoUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, de
 	return nil
 }
 
-func liveReturnFromUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveReturnFromUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.unterwegs)
 	if studentID == 0 {
 		// Nobody unterwegs — check in a random checked-in student to a new room instead
@@ -255,14 +316,14 @@ func liveReturnFromUnterwegs(client *Client, ls *liveState, state *seedapi.SeedS
 	return nil
 }
 
-func liveToggleSick(client *Client, ls *liveState, state *seedapi.SeedState, now string) error {
+func liveToggleSick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, now string) error {
 	if len(state.Students) == 0 {
 		return fmt.Errorf("no students")
 	}
 	student := state.Students[rand.Intn(len(state.Students))]
 	newSick := !ls.sick[student.ID]
 
-	_, err := client.AdminPut(fmt.Sprintf("/api/students/%d", student.ID), map[string]any{
+	_, err := client.Put(fmt.Sprintf("/api/students/%d", student.ID), map[string]any{
 		"sick": newSick,
 	})
 	if err != nil {
@@ -279,8 +340,239 @@ func liveToggleSick(client *Client, ls *liveState, state *seedapi.SeedState, now
 	return nil
 }
 
-func bootstrapLiveState(client *Client, ls *liveState, students []seedapi.SeedStudent) error {
-	resp, err := client.AdminGet("/api/active/visits?active=true")
+// liveSchulhofRotate advances a random student through the
+// Heimatraum → AG (1-2 hops) → Schulhof → Heimatraum cycle.
+func liveSchulhofRotate(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+	studentID := ls.pickRotationCandidate()
+	if studentID == 0 {
+		return fmt.Errorf("no rotation-eligible students")
+	}
+	rfid := ls.rfidTags[studentID]
+	student := findStudent(state.Students, studentID)
+	rot := ls.rotationFor(studentID)
+
+	roomID, nextPhase := ls.nextRotationStep(rot)
+
+	// Checkout current room, then checkin to the next phase's room
+	_, err := client.DevicePost("/api/iot/checkin", map[string]any{
+		"student_rfid": rfid,
+		"action":       "checkout",
+	}, device.APIKey, state.DevicePIN)
+	if err != nil {
+		fmt.Printf("[%s] ERROR rotation checkout %s %s: %v\n", now, student.FirstName, student.LastName, err)
+		rot.cooldownUntil = time.Now().Add(visitCooldown)
+		return err
+	}
+
+	_, err = client.DevicePost("/api/iot/checkin", map[string]any{
+		"student_rfid": rfid,
+		"action":       "checkin",
+		"room_id":      roomID,
+	}, device.APIKey, state.DevicePIN)
+	if err != nil {
+		fmt.Printf("[%s] ERROR rotation checkin %s %s: %v\n", now, student.FirstName, student.LastName, err)
+		// Checkout succeeded, so the student is now unterwegs
+		delete(ls.checkedIn, studentID)
+		ls.unterwegs[studentID] = true
+		rot.cooldownUntil = time.Now().Add(visitCooldown)
+		return err
+	}
+
+	ls.applyRotationStep(rot, nextPhase)
+	fmt.Printf("[%s] %s %s → %s (%s)\n", now, student.FirstName, student.LastName, roomNameByID(state.Rooms, roomID), nextPhase)
+	return nil
+}
+
+// pickRotationCandidate returns a random checked-in student whose rotation
+// cooldown has elapsed (0 = none available).
+func (ls *liveState) pickRotationCandidate() int64 {
+	nowTime := time.Now()
+	eligible := make(map[int64]bool, len(ls.checkedIn))
+	for id := range ls.checkedIn {
+		if rot, ok := ls.rotation[id]; ok && rot.cooldownUntil.After(nowTime) {
+			continue
+		}
+		eligible[id] = true
+	}
+	return randomFromSet(eligible)
+}
+
+// rotationFor returns the student's rotation state, initializing it lazily.
+func (ls *liveState) rotationFor(studentID int64) *rotationState {
+	if ls.rotation == nil {
+		ls.rotation = make(map[int64]*rotationState)
+	}
+	rot, ok := ls.rotation[studentID]
+	if !ok {
+		rot = &rotationState{phase: phaseHeimatraum, agHopTarget: randAGHopTarget()}
+		ls.rotation[studentID] = rot
+	}
+	return rot
+}
+
+// nextRotationStep decides the target room and next phase for a student.
+func (ls *liveState) nextRotationStep(rot *rotationState) (roomID int64, nextPhase string) {
+	switch {
+	case rot.phase == phaseAG && rot.agHops >= rot.agHopTarget:
+		roomID = ls.schulhofRoomID
+		if roomID == 0 {
+			roomID = ls.roomIDs[rand.Intn(len(ls.roomIDs))]
+		}
+		return roomID, phaseSchulhof
+	case rot.phase == phaseSchulhof:
+		return ls.roomIDs[rand.Intn(len(ls.roomIDs))], phaseHeimatraum
+	default: // heimatraum, or ag with hops remaining → next AG hop
+		return ls.roomIDs[rand.Intn(len(ls.roomIDs))], phaseAG
+	}
+}
+
+// applyRotationStep records a successful rotation move.
+func (ls *liveState) applyRotationStep(rot *rotationState, nextPhase string) {
+	switch nextPhase {
+	case phaseAG:
+		rot.agHops++
+	case phaseHeimatraum:
+		rot.agHops = 0
+		rot.agHopTarget = randAGHopTarget()
+	}
+	rot.phase = nextPhase
+	rot.cooldownUntil = time.Now().Add(visitCooldown)
+}
+
+// randAGHopTarget mirrors the seed-generated engine config (min 1, max 2 AG hops).
+func randAGHopTarget() int {
+	return 1 + rand.Intn(2)
+}
+
+// liveAttendanceToggle confirms attendance for a random student, rate-limited
+// per student to one toggle per tick interval.
+func liveAttendanceToggle(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+	cutoff := time.Now().Add(-ls.interval)
+	eligible := make(map[int64]bool, len(ls.rfidTags))
+	for id := range ls.rfidTags {
+		if last, ok := ls.lastAttendance[id]; ok && last.After(cutoff) {
+			continue
+		}
+		eligible[id] = true
+	}
+	studentID := randomFromSet(eligible)
+	if studentID == 0 {
+		return fmt.Errorf("no attendance-eligible students")
+	}
+	student := findStudent(state.Students, studentID)
+
+	if ls.lastAttendance == nil {
+		ls.lastAttendance = make(map[int64]time.Time)
+	}
+	_, err := client.DevicePost("/api/iot/attendance/toggle", map[string]string{
+		"rfid":   ls.rfidTags[studentID],
+		"action": "confirm",
+	}, device.APIKey, state.DevicePIN)
+	ls.lastAttendance[studentID] = time.Now()
+	if err != nil {
+		fmt.Printf("[%s] ERROR attendance toggle %s %s: %v\n", now, student.FirstName, student.LastName, err)
+		return err
+	}
+
+	fmt.Printf("[%s] %s %s → Anwesenheit bestätigt\n", now, student.FirstName, student.LastName)
+	return nil
+}
+
+// liveSupervisorSwap reassigns a random supervisor to the primary device's session.
+func liveSupervisorSwap(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+	if len(ls.staffIDs) == 0 {
+		return fmt.Errorf("no staff IDs in seed state")
+	}
+
+	if ls.sessionID == 0 {
+		sessionID, err := fetchCurrentSessionID(client, state, device)
+		if err != nil {
+			fmt.Printf("[%s] ERROR supervisor swap (session lookup): %v\n", now, err)
+			return err
+		}
+		if sessionID == 0 {
+			return fmt.Errorf("no active session on primary device")
+		}
+		ls.sessionID = sessionID
+	}
+
+	staffID := ls.staffIDs[rand.Intn(len(ls.staffIDs))]
+	_, err := client.DevicePut(fmt.Sprintf("/api/iot/session/%d/supervisors", ls.sessionID), map[string]any{
+		"supervisor_ids": []int64{staffID},
+	}, device.APIKey, state.DevicePIN)
+	if err != nil {
+		fmt.Printf("[%s] ERROR supervisor swap session %d: %v\n", now, ls.sessionID, err)
+		// Session may have ended — re-discover it on the next attempt
+		ls.sessionID = 0
+		return err
+	}
+
+	fmt.Printf("[%s] session %d → supervisor %d\n", now, ls.sessionID, staffID)
+	return nil
+}
+
+// fetchCurrentSessionID queries the device's current session (0 = none active).
+func fetchCurrentSessionID(client *seedapi.Client, state *seedapi.SeedState, device seedapi.SeedDevice) (int64, error) {
+	resp, err := client.DeviceGet("/api/iot/session/current", device.APIKey, state.DevicePIN)
+	if err != nil {
+		return 0, err
+	}
+	var envelope struct {
+		Data struct {
+			ActiveGroupID *int64 `json:"active_group_id"`
+			IsActive      bool   `json:"is_active"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp, &envelope); err != nil {
+		return 0, fmt.Errorf("parse current session: %w", err)
+	}
+	if !envelope.Data.IsActive || envelope.Data.ActiveGroupID == nil {
+		return 0, nil
+	}
+	return *envelope.Data.ActiveGroupID, nil
+}
+
+// lookupSchulhofRoom finds the auto-provisioned Schulhof system room (0 = not found).
+func lookupSchulhofRoom(client *seedapi.Client) int64 {
+	resp, err := client.Get("/api/rooms?include_system=true&page_size=100")
+	if err != nil {
+		return 0
+	}
+	var envelope struct {
+		Data []struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp, &envelope); err != nil {
+		return 0
+	}
+	for _, room := range envelope.Data {
+		if room.Name == "Schulhof" {
+			return room.ID
+		}
+	}
+	return 0
+}
+
+// collectStaffIDs gathers the supervisor pool from seed-state accounts.
+func collectStaffIDs(state *seedapi.SeedState) []int64 {
+	ids := make([]int64, 0, len(state.Accounts.Betreuer)+len(state.Accounts.Admin))
+	for _, acc := range state.Accounts.Betreuer {
+		if acc.StaffID > 0 {
+			ids = append(ids, acc.StaffID)
+		}
+	}
+	for _, acc := range state.Accounts.Admin {
+		if acc.StaffID > 0 {
+			ids = append(ids, acc.StaffID)
+		}
+	}
+	return ids
+}
+
+func bootstrapLiveState(client *seedapi.Client, ls *liveState, students []seedapi.SeedStudent) error {
+	resp, err := client.Get("/api/active/visits?active=true")
 	if err != nil {
 		return err
 	}
@@ -346,12 +638,16 @@ func roomNameByID(rooms map[string]int64, targetID int64) string {
 
 func printLiveSummary(counts *liveCounts) {
 	fmt.Println("\n--- Live Simulation Summary ---")
-	fmt.Printf("  Room moves:    %d\n", counts.roomMoves)
-	fmt.Printf("  Unterwegs:     %d\n", counts.unterwegs)
-	fmt.Printf("  Returns:       %d\n", counts.returns)
-	fmt.Printf("  Sick toggles:  %d\n", counts.sickToggle)
-	fmt.Printf("  Errors:        %d\n", counts.errors)
-	total := counts.roomMoves + counts.unterwegs + counts.returns + counts.sickToggle
-	fmt.Printf("  Total actions: %d\n", total)
+	fmt.Printf("  Room moves:       %d\n", counts.roomMoves)
+	fmt.Printf("  Unterwegs:        %d\n", counts.unterwegs)
+	fmt.Printf("  Returns:          %d\n", counts.returns)
+	fmt.Printf("  Sick toggles:     %d\n", counts.sickToggle)
+	fmt.Printf("  Schulhof rotates: %d\n", counts.schulhofRotates)
+	fmt.Printf("  Attendance:       %d\n", counts.attendance)
+	fmt.Printf("  Supervisor swaps: %d\n", counts.supervisorSwaps)
+	fmt.Printf("  Errors:           %d\n", counts.errors)
+	total := counts.roomMoves + counts.unterwegs + counts.returns + counts.sickToggle +
+		counts.schulhofRotates + counts.attendance + counts.supervisorSwaps
+	fmt.Printf("  Total actions:    %d\n", total)
 	fmt.Println("-------------------------------")
 }

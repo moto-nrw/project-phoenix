@@ -13,6 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -32,6 +34,25 @@ func setupActivityService(t *testing.T, db *bun.DB) activities.ActivityService {
 // cleanupGroup is a test helper to delete a group with admin permission (for cleanup purposes)
 func cleanupGroup(service activities.ActivityService, ctx context.Context, groupID int64) {
 	_ = service.DeleteGroup(ctx, groupID, 0, true) // 0 staff ID, true = admin permission
+}
+
+type fakeActiveEnrollmentRepo struct {
+	activitiesModels.StudentEnrollmentRepository
+	enrollments []*activitiesModels.StudentEnrollment
+	err         error
+	calls       int
+	studentIDs  []int64
+	onDate      timezone.Date
+}
+
+func (r *fakeActiveEnrollmentRepo) FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*activitiesModels.StudentEnrollment, error) {
+	r.calls++
+	r.studentIDs = append([]int64(nil), studentIDs...)
+	r.onDate = onDate
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.enrollments, nil
 }
 
 // =============================================================================
@@ -110,57 +131,6 @@ func TestActivityService_GetCategory(t *testing.T) {
 		result, err := service.GetCategory(ctx, 99999999)
 
 		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestActivityService_UpdateCategory(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("updates category successfully", func(t *testing.T) {
-		// ARRANGE
-		category := testpkg.CreateTestActivityCategory(t, db, "to-update")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
-
-		// Use unique name to avoid collision
-		newName := fmt.Sprintf("Updated-%d", time.Now().UnixNano())
-		category.Name = newName
-		category.Description = "Updated description"
-
-		// ACT
-		result, err := service.UpdateCategory(ctx, category)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, newName, result.Name)
-	})
-}
-
-func TestActivityService_DeleteCategory(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("deletes category successfully", func(t *testing.T) {
-		// ARRANGE
-		category := testpkg.CreateTestActivityCategory(t, db, "to-delete")
-
-		// ACT
-		err := service.DeleteCategory(ctx, category.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify deleted
-		result, err := service.GetCategory(ctx, category.ID)
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
@@ -447,6 +417,133 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 	})
 }
 
+func TestActivityService_RejectsLegacyMutationsForTimetableTemplates(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
+	service := setupActivityService(t, db)
+
+	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, fmt.Sprintf("template-guard-%d", time.Now().UnixNano()))
+	ordinaryGroup := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, fmt.Sprintf("ordinary-guard-%d", time.Now().UnixNano()))
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, tenantID, fmt.Sprintf("template-guard-%d", time.Now().UnixNano()))
+	schedule := &activitiesModels.Schedule{
+		ActivityGroupID: group.ID,
+		Weekday:         activitiesModels.WeekdayMonday,
+		TimeframeID:     &timeframe.ID,
+	}
+	schedule.SetTenantID(tenantID)
+	require.NoError(t, db.NewInsert().Model(schedule).ModelTableExpr(`activities.schedules`).Scan(ctx))
+	supervisor := &activitiesModels.SupervisorPlanned{
+		GroupID:   group.ID,
+		StaffID:   *group.CreatedBy,
+		IsPrimary: true,
+		ValidFrom: timezone.TodayDate(),
+	}
+	supervisor.SetTenantID(tenantID)
+	require.NoError(t, db.NewInsert().Model(supervisor).ModelTableExpr(`activities.supervisors`).Scan(ctx))
+	_, err := db.NewUpdate().
+		TableExpr(`activities.groups`).
+		Set("is_template = TRUE").
+		Where("tenant_id = ?", tenantID).
+		Where("id = ?", group.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		for _, table := range []string{
+			"activities.student_enrollments",
+			"activities.supervisors",
+			"activities.schedules",
+			"activities.groups",
+			"activities.categories",
+			"schedule.timeframes",
+		} {
+			_, cleanupErr := db.NewDelete().TableExpr(table).Where("tenant_id = ?", tenantID).Exec(cleanupCtx)
+			require.NoError(t, cleanupErr, "clean up %s", table)
+		}
+		testpkg.CleanupTenantTestData(t, db, tenantID)
+		_, cleanupErr := db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
+		require.NoError(t, cleanupErr)
+		_, cleanupErr = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)
+		require.NoError(t, cleanupErr)
+	})
+
+	template, err := service.GetGroup(ctx, group.ID)
+	require.NoError(t, err)
+	require.True(t, template.IsTemplate)
+
+	assertProtected := func(t *testing.T, err error) {
+		t.Helper()
+		require.ErrorIs(t, err, activities.ErrTimetableTemplateProtected)
+	}
+
+	t.Run("create group", func(t *testing.T) {
+		_, createErr := service.CreateGroup(ctx, &activitiesModels.Group{IsTemplate: true}, nil, nil)
+		assertProtected(t, createErr)
+	})
+	t.Run("update persisted template", func(t *testing.T) {
+		forged := *template
+		forged.IsTemplate = false
+		forged.Name = "must-not-change"
+		_, updateErr := service.UpdateGroup(ctx, &forged, *group.CreatedBy, true)
+		assertProtected(t, updateErr)
+	})
+	t.Run("convert ordinary input to template", func(t *testing.T) {
+		candidate := *ordinaryGroup
+		candidate.IsTemplate = true
+		_, updateErr := service.UpdateGroup(ctx, &candidate, *ordinaryGroup.CreatedBy, true)
+		assertProtected(t, updateErr)
+
+		storedOrdinary, getErr := service.GetGroup(ctx, ordinaryGroup.ID)
+		require.NoError(t, getErr)
+		assert.False(t, storedOrdinary.IsTemplate)
+		assert.Equal(t, ordinaryGroup.Name, storedOrdinary.Name)
+	})
+	t.Run("delete group", func(t *testing.T) {
+		assertProtected(t, service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true))
+	})
+	t.Run("enrollment mutations", func(t *testing.T) {
+		assertProtected(t, service.EnrollStudent(ctx, group.ID, 999_001))
+		assertProtected(t, service.UnenrollStudent(ctx, group.ID, 999_001))
+		assertProtected(t, service.UpdateGroupEnrollments(ctx, group.ID, []int64{999_001}))
+	})
+	t.Run("schedule mutations", func(t *testing.T) {
+		_, addErr := service.AddSchedule(ctx, group.ID, &activitiesModels.Schedule{
+			Weekday: activitiesModels.WeekdayTuesday,
+		})
+		assertProtected(t, addErr)
+		updated := *schedule
+		updated.Weekday = activitiesModels.WeekdayTuesday
+		_, updateErr := service.UpdateSchedule(ctx, &updated)
+		assertProtected(t, updateErr)
+		assertProtected(t, service.DeleteSchedule(ctx, schedule.ID))
+	})
+	t.Run("supervisor mutations", func(t *testing.T) {
+		_, addErr := service.AddSupervisor(ctx, group.ID, *group.CreatedBy, false)
+		assertProtected(t, addErr)
+		updated := *supervisor
+		updated.IsPrimary = false
+		_, updateErr := service.UpdateSupervisor(ctx, &updated)
+		assertProtected(t, updateErr)
+		assertProtected(t, service.DeleteSupervisor(ctx, supervisor.ID))
+		assertProtected(t, service.SetPrimarySupervisor(ctx, supervisor.ID))
+		assertProtected(t, service.UpdateGroupSupervisors(ctx, group.ID, []int64{*group.CreatedBy}))
+	})
+
+	stored, err := service.GetGroup(ctx, group.ID)
+	require.NoError(t, err)
+	assert.Equal(t, group.Name, stored.Name)
+	storedSchedule, err := service.GetSchedule(ctx, schedule.ID)
+	require.NoError(t, err)
+	assert.Equal(t, activitiesModels.WeekdayMonday, storedSchedule.Weekday)
+	storedSupervisor, err := service.GetSupervisor(ctx, supervisor.ID)
+	require.NoError(t, err)
+	assert.True(t, storedSupervisor.IsPrimary)
+}
+
 func TestActivityService_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -668,6 +765,62 @@ func TestActivityService_GetStudentEnrollments(t *testing.T) {
 	})
 }
 
+func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
+	onDate := timezone.NewDate(2026, time.September, 15)
+
+	t.Run("returns empty map without repository call for empty input", func(t *testing.T) {
+		repo := &fakeActiveEnrollmentRepo{}
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		require.NoError(t, err)
+
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), nil, onDate)
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
+		assert.Zero(t, repo.calls)
+	})
+
+	t.Run("wraps repository errors", func(t *testing.T) {
+		repo := &fakeActiveEnrollmentRepo{err: errors.New("database unavailable")}
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		require.NoError(t, err)
+
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), []int64{10}, onDate)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "get active student enrollments by student IDs")
+		assert.Equal(t, []int64{10}, repo.studentIDs)
+		assert.Equal(t, onDate, repo.onDate)
+	})
+
+	t.Run("groups active enrollments by student and de-duplicates groups", func(t *testing.T) {
+		groupA := &activitiesModels.Group{Model: base.Model{ID: 101}, Name: "A"}
+		groupB := &activitiesModels.Group{Model: base.Model{ID: 202}, Name: "B"}
+		repo := &fakeActiveEnrollmentRepo{
+			enrollments: []*activitiesModels.StudentEnrollment{
+				nil,
+				{StudentID: 0, ActivityGroupID: 999},
+				{StudentID: 10, ActivityGroupID: groupA.ID, ActivityGroup: groupA},
+				{StudentID: 10, ActivityGroupID: groupA.ID, ActivityGroup: groupA},
+				{StudentID: 10, ActivityGroupID: 303},
+				{StudentID: 20, ActivityGroupID: groupB.ID, ActivityGroup: groupB},
+			},
+		}
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		require.NoError(t, err)
+
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), []int64{10, 20}, onDate)
+
+		require.NoError(t, err)
+		require.Len(t, result[10], 2)
+		assert.Equal(t, int64(101), result[10][0].ID)
+		assert.Equal(t, int64(303), result[10][1].ID)
+		require.Len(t, result[20], 1)
+		assert.Equal(t, groupB, result[20][0])
+	})
+}
+
 func TestActivityService_GetAvailableGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -692,86 +845,6 @@ func TestActivityService_GetAvailableGroups(t *testing.T) {
 // =============================================================================
 // Public Operations Tests
 // =============================================================================
-
-func TestActivityService_GetPublicGroups(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns public groups", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestActivityGroup(t, db, "public-grp")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
-
-		// ACT
-		groups, counts, err := service.GetPublicGroups(ctx, nil)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, groups)
-		assert.NotNil(t, counts)
-	})
-
-	t.Run("returns public groups filtered by category", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestActivityGroup(t, db, "public-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
-
-		categoryID := group.CategoryID
-
-		// ACT
-		groups, counts, err := service.GetPublicGroups(ctx, &categoryID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, groups)
-		assert.NotNil(t, counts)
-	})
-}
-
-func TestActivityService_GetPublicCategories(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns public categories", func(t *testing.T) {
-		// ARRANGE
-		category := testpkg.CreateTestActivityCategory(t, db, "public-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
-
-		// ACT
-		result, err := service.GetPublicCategories(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-	})
-}
-
-func TestActivityService_GetOpenGroups(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns open groups", func(t *testing.T) {
-		// ARRANGE - groups are open by default
-		group := testpkg.CreateTestActivityGroup(t, db, "open-grp")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
-
-		// ACT
-		result, err := service.GetOpenGroups(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-	})
-}
 
 // =============================================================================
 // Schedule Operations Tests
@@ -881,58 +954,9 @@ func TestActivityService_AddSupervisor(t *testing.T) {
 	})
 }
 
-func TestActivityService_GetStaffAssignments(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns staff assignments", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestActivityGroup(t, db, "staff-assign")
-		staff := testpkg.CreateTestStaff(t, db, "Assigned", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
-
-		_, err := service.AddSupervisor(ctx, group.ID, staff.ID, true)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetStaffAssignments(ctx, staff.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.GreaterOrEqual(t, len(result), 1)
-	})
-}
-
 // =============================================================================
 // Device Operations Tests
 // =============================================================================
-
-func TestActivityService_GetTeacherTodaysActivities(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns today activities for teacher", func(t *testing.T) {
-		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Today")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-		// ACT
-		result, err := service.GetTeacherTodaysActivities(ctx, staff.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		// Staff with no assigned activities will have empty result
-		// Just verify the call succeeds without error
-		_ = result
-	})
-}
 
 // =============================================================================
 // CreateGroup Tests (0% coverage)
@@ -1381,48 +1405,6 @@ func TestActivityService_UpdateGroupSupervisors(t *testing.T) {
 // Attendance and History Tests (0% coverage)
 // =============================================================================
 
-func TestActivityService_GetEnrollmentsByDate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns enrollments for date", func(t *testing.T) {
-		// ACT - query today
-		result, err := service.GetEnrollmentsByDate(ctx, timezone.TodayDate())
-
-		// ASSERT
-		require.NoError(t, err)
-		// Result may be empty but should not error
-		_ = result
-	})
-}
-
-func TestActivityService_GetEnrollmentHistory(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns enrollment history for student", func(t *testing.T) {
-		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "History", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-		// ACT
-		startDate := timezone.TodayDate().AddDays(-30) // 1 month ago
-		endDate := timezone.TodayDate()
-		result, err := service.GetEnrollmentHistory(ctx, student.ID, startDate, endDate)
-
-		// ASSERT
-		require.NoError(t, err)
-		// Result may be empty but should not error
-		_ = result
-	})
-}
-
 // =============================================================================
 // Additional Edge Case Tests for Higher Coverage
 // =============================================================================
@@ -1630,59 +1612,6 @@ func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
 
 // ======== Additional Tests for 80%+ Coverage ========
 
-func TestActivityService_UpdateAttendanceStatus(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("updates attendance status successfully", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestActivityGroup(t, db, "attend-status")
-		student := testpkg.CreateTestStudent(t, db, "Attendance", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-		defer func() { cleanupGroup(service, ctx, group.ID) }()
-
-		// Enroll student
-		err := service.EnrollStudent(ctx, group.ID, student.ID)
-		require.NoError(t, err)
-
-		// Get the enrollment to get its ID using GetEnrollmentsByDate
-		// (GetEnrolledStudents returns *users.Student, not enrollments)
-		today := timezone.TodayDate()
-		enrollments, err := service.GetEnrollmentsByDate(ctx, today)
-		require.NoError(t, err)
-
-		// Find our enrollment
-		var enrollmentID int64
-		for _, e := range enrollments {
-			if e.StudentID == student.ID && e.ActivityGroupID == group.ID {
-				enrollmentID = e.ID
-				break
-			}
-		}
-		require.NotZero(t, enrollmentID, "enrollment not found")
-
-		status := "PRESENT" // Valid statuses: PRESENT, ABSENT, EXCUSED, UNKNOWN
-
-		// ACT
-		err = service.UpdateAttendanceStatus(ctx, enrollmentID, &status)
-
-		// ASSERT
-		require.NoError(t, err)
-	})
-
-	t.Run("returns error for nonexistent enrollment", func(t *testing.T) {
-		// ACT
-		status := "present"
-		err := service.UpdateAttendanceStatus(ctx, 99999999, &status)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
 // Note: TestActivityService_GetPublicGroups, TestActivityService_GetPublicCategories,
 // TestActivityService_GetOpenGroups, TestActivityService_GetTeacherTodaysActivities,
 // TestActivityService_GetStudentEnrollments, and TestActivityService_GetAvailableGroups
@@ -1748,27 +1677,6 @@ func TestActivityService_DeleteSchedule_NotFound(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-	})
-}
-
-func TestActivityService_DeleteCategory_InUse(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error when category is in use", func(t *testing.T) {
-		// ARRANGE - CreateTestActivityGroup creates both category and group
-		group := testpkg.CreateTestActivityGroup(t, db, "cat-in-use")
-		defer func() { cleanupGroup(service, ctx, group.ID) }()
-
-		// ACT - try to delete the category while group exists
-		err := service.DeleteCategory(ctx, group.CategoryID)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "in use")
 	})
 }
 
@@ -1997,52 +1905,6 @@ func TestActivityService_UpdateGroupSupervisors_GroupNotFound(t *testing.T) {
 	})
 }
 
-func TestActivityService_GetEnrollmentHistory_NoData(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns empty list for student with no history", func(t *testing.T) {
-		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "No", "History", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-		startDate := timezone.TodayDate().AddDays(-30)
-		endDate := timezone.TodayDate()
-
-		// ACT
-		history, err := service.GetEnrollmentHistory(ctx, student.ID, startDate, endDate)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Empty(t, history)
-	})
-
-	t.Run("returns history for enrolled student", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestActivityGroup(t, db, "history-group")
-		student := testpkg.CreateTestStudent(t, db, "With", "History", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-		defer func() { cleanupGroup(service, ctx, group.ID) }()
-
-		// Enroll student
-		err := service.EnrollStudent(ctx, group.ID, student.ID)
-		require.NoError(t, err)
-
-		startDate := timezone.TodayDate().AddDays(-1)
-		endDate := timezone.TodayDate().AddDays(1)
-
-		// ACT
-		history, err := service.GetEnrollmentHistory(ctx, student.ID, startDate, endDate)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, history)
-	})
-}
-
 func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -2247,36 +2109,6 @@ func TestActivityService_CreateCategory_ValidationError(t *testing.T) {
 
 		// ACT
 		result, err := service.CreateCategory(ctx, category)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestActivityService_UpdateCategory_ValidationError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for invalid category update", func(t *testing.T) {
-		// ARRANGE
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "update-cat-val")
-		defer func() {
-			// Cleanup - delete the group first, then the category
-			cleanupGroup(service, ctx, activityGroup.ID)
-		}()
-
-		// Get the category and make it invalid
-		cat, err := service.GetCategory(ctx, activityGroup.CategoryID)
-		require.NoError(t, err)
-
-		cat.Name = "" // Invalid: empty name
-
-		// ACT
-		result, err := service.UpdateCategory(ctx, cat)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2650,30 +2482,6 @@ func TestActivityService_GetGroup_DatabaseError(t *testing.T) {
 	})
 }
 
-func TestActivityService_UpdateCategory_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("updates existing category successfully", func(t *testing.T) {
-		// ARRANGE
-		category := testpkg.CreateTestActivityCategory(t, db, "update-success-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
-
-		// Use unique name with timestamp to avoid conflicts
-		category.Name = fmt.Sprintf("Updated-%d", time.Now().UnixNano())
-
-		// ACT
-		result, err := service.UpdateCategory(ctx, category)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Contains(t, result.Name, "Updated-")
-	})
-}
-
 func TestActivityService_UpdateGroup_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -2769,60 +2577,6 @@ func TestActivityService_AddSupervisor_PrimaryReplacement(t *testing.T) {
 	})
 }
 
-// TestActivityService_GetEnrollmentsByDate_DatabaseError tests error handling
-func TestActivityService_GetEnrollmentsByDate_DatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-
-	// ARRANGE: Use canceled context to trigger database error
-	canceledCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// ACT
-	_, err := service.GetEnrollmentsByDate(canceledCtx, timezone.TodayDate())
-
-	// ASSERT
-	require.Error(t, err)
-}
-
-// TestActivityService_GetEnrollmentHistory_DatabaseError tests error handling
-func TestActivityService_GetEnrollmentHistory_DatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-
-	// ARRANGE: Use canceled context to trigger database error
-	canceledCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// ACT
-	_, err := service.GetEnrollmentHistory(canceledCtx, 1, timezone.TodayDate(), timezone.TodayDate())
-
-	// ASSERT
-	require.Error(t, err)
-}
-
-// TestActivityService_GetPublicGroups_DatabaseError tests error handling
-func TestActivityService_GetPublicGroups_DatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-
-	// ARRANGE: Use canceled context to trigger database error
-	canceledCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// ACT
-	_, _, err := service.GetPublicGroups(canceledCtx, nil)
-
-	// ASSERT
-	require.Error(t, err)
-}
-
 // TestActivityService_GetAvailableGroups_DatabaseError tests error handling
 func TestActivityService_GetAvailableGroups_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
@@ -2881,30 +2635,6 @@ func TestActivityService_UpdateGroupEnrollments_EmptyList(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 	})
-}
-
-// TestActivityService_UpdateCategory_DatabaseError tests UpdateCategory error handling
-func TestActivityService_UpdateCategory_DatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-
-	// ARRANGE: Use canceled context to trigger database error
-	canceledCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	category := &activitiesModels.Category{
-		Name:  "Test",
-		Color: "#FFFFFF",
-	}
-	category.ID = 1
-
-	// ACT
-	_, err := service.UpdateCategory(canceledCtx, category)
-
-	// ASSERT
-	require.Error(t, err)
 }
 
 // TestActivityService_UpdateGroupSupervisors_AddThenRemove tests full supervisor update flow
@@ -3232,4 +2962,50 @@ func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
 
 	// Cleanup: Delete with admin permission
 	cleanupGroup(service, ctx, created.ID)
+}
+
+// =============================================================================
+// Kategorie↔Schichtart mapping (#1837 follow-up)
+// =============================================================================
+
+func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	catRepo := repositories.NewFactory(db).ActivityCategory
+	stRepo := repositories.NewFactory(db).ShiftType
+	ctx := testpkg.TenantContext(1)
+
+	st := &scheduleModels.ShiftType{Name: fmt.Sprintf("SvcLink-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
+	require.NoError(t, stRepo.Create(ctx, st))
+	t.Cleanup(func() { _ = stRepo.Delete(ctx, st.ID) })
+
+	cat1 := testpkg.CreateTestActivityCategory(t, db, "svc-link-1")
+	cat2 := testpkg.CreateTestActivityCategory(t, db, "svc-link-2")
+	defer testpkg.CleanupActivityFixtures(t, db, cat1.ID, cat2.ID)
+
+	// ACT: link both categories
+	require.NoError(t, service.SetCategoryShiftTypeLinks(ctx, st.ID, []int64{cat1.ID, cat2.ID}))
+
+	// ASSERT: ListCategories surfaces shift_type_id on the mapped categories.
+	cats, err := service.ListCategories(ctx)
+	require.NoError(t, err)
+	byID := map[int64]*activitiesModels.Category{}
+	for _, c := range cats {
+		byID[c.ID] = c
+	}
+	require.NotNil(t, byID[cat1.ID].ShiftTypeID)
+	assert.Equal(t, st.ID, *byID[cat1.ID].ShiftTypeID)
+	require.NotNil(t, byID[cat2.ID].ShiftTypeID)
+
+	// ACT: reduce the set to cat2 only -> cat1 is cleared.
+	require.NoError(t, service.SetCategoryShiftTypeLinks(ctx, st.ID, []int64{cat2.ID}))
+	c1, err := catRepo.FindByID(ctx, cat1.ID)
+	require.NoError(t, err)
+	assert.Nil(t, c1.ShiftTypeID, "de-selected category is unlinked via the service")
+	c2, err := catRepo.FindByID(ctx, cat2.ID)
+	require.NoError(t, err)
+	require.NotNil(t, c2.ShiftTypeID)
+	assert.Equal(t, st.ID, *c2.ShiftTypeID)
 }

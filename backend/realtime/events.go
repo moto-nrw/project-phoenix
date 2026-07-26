@@ -2,7 +2,10 @@
 // This package stays independent from api and services layers to avoid circular imports.
 package realtime
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // EventType represents the type of SSE event
 type EventType string
@@ -13,6 +16,19 @@ const (
 	EventStudentCheckIn  EventType = "student_checkin"
 	EventStudentCheckOut EventType = "student_checkout"
 	EventStudentUpdated  EventType = "student_updated"
+
+	// EventStudentCompanionsChanged fires when a write may have changed a
+	// child's Laufgemeinschaft ("läuft mit", users.student_companions): a
+	// submitted companion list, or a departure-plan write, which trims the links
+	// on a weekday the new plan no longer allows.
+	//
+	// It exists BECAUSE student_updated is far too broad for this: the links are
+	// symmetric and the editing forms hold a draft they must not overwrite, so a
+	// client that treats every student_updated as a companion write blocks an
+	// in-progress edit whenever anyone renames a child, uploads a photo or marks
+	// someone sick. Emitted IN ADDITION to student_updated (never instead of
+	// it), tenant-scoped like its sibling.
+	EventStudentCompanionsChanged EventType = "student_companions_changed"
 
 	// Bulk checkout event — emitted when a whole session ends (manual end or
 	// scheduler timeout) and every active visit is closed at once. One event
@@ -39,8 +55,28 @@ const (
 	EventInstanceCancelled EventType = "instance_cancelled"
 	EventInstanceOverdue   EventType = "instance_overdue"
 
+	// EventStaffingDeviationChanged is a tenant-wide signal that planned
+	// staffing state changed on an instance — an absence was set or cleared, a
+	// substitute assigned, the deliberately-unstaffed acknowledgement toggled,
+	// or a still-planned instance was created, edited (title/time/room/staff,
+	// incl. a date move), or deleted (#1840/#1844). The instance_* lifecycle
+	// events do NOT cover these writes: they change no lifecycle status, and on
+	// an active block only a group-scoped activity_update fires, which the
+	// affected staff member may not be subscribed to. Clients treat it like an
+	// instance lifecycle trigger and refetch timetable + own-assignment caches.
+	// The Source field names the emitting flow (e.g. "deviations",
+	// "understaffed_ack", "instance_create", "instance_update",
+	// "instance_delete").
+	EventStaffingDeviationChanged EventType = "staffing_deviation_changed"
+
 	// Global refresh event — tells all clients to re-fetch dashboard counts
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
+
+	// EventStaffTimeTrackingChanged is a tenant-wide invalidation trigger for
+	// writes that change staff work sessions, absences, balances, contractual
+	// schedules, or planned shifts. It carries no staff identifier: authorized
+	// clients re-fetch their permission-scoped time-tracking views.
+	EventStaffTimeTrackingChanged EventType = "staff_time_tracking_changed"
 
 	// Active supervision refresh event — tenant-wide signal that the active
 	// supervision view is stale regardless of whether the cause was IoT, NFC,
@@ -50,6 +86,33 @@ const (
 	// Arrival schedule events affect derived "not arriving today" badges and
 	// bulk arrival-time lookups across student list/detail pages.
 	EventArrivalScheduleChanged EventType = "arrival_schedule_changed"
+
+	// EventPickupScheduleChanged is the pickup-side counterpart of
+	// EventArrivalScheduleChanged: a staff write changed a child's weekly
+	// pickup plan, a date-specific pickup exception, or a day note (Gehzeit —
+	// all three travel in the same pickup payload). It is its own
+	// event rather than a reuse of the arrival one so clients can invalidate
+	// only the pickup-derived caches, and so the arrival name keeps meaning
+	// what it says.
+	//
+	// It exists BECAUSE the staff pickup handlers previously woke only the
+	// child's guardians (#1725): the parents app updated live while every OTHER
+	// staff tab — the per-child Betreuungsplan, the student list's Gehzeit
+	// column — kept the old time indefinitely (those views disable focus
+	// revalidation, so nothing else would refetch). Broadcast to ALL like its
+	// arrival sibling: pickup times are read across tenants' dashboards and
+	// list pages, and the payload carries no student data.
+	EventPickupScheduleChanged EventType = "pickup_schedule_changed"
+
+	// EventChangeRequestsChanged is a tenant-wide staff signal that a parent
+	// change-request queue changed — a request was created, decided, or withdrawn
+	// (excused absence today; care-schedule / master-data can adopt it too). Staff
+	// review lists and the "Änderungsanfragen" pending-count badge refetch on it,
+	// so an already-open review page updates in real time WITHOUT depending on the
+	// parent-messaging pill (which the school may have disabled). Unlike
+	// student_updated it fires ONLY on a request transition — never on the
+	// high-frequency check-in/out traffic — so listeners can refetch unconditionally.
+	EventChangeRequestsChanged EventType = "change_requests_changed"
 
 	// Tenant-scoped settings change. Fires when a setting whose value travels
 	// through /auth/tenant/resolve (currently operations.student_photos_enabled)
@@ -65,6 +128,29 @@ const (
 	// field carries the setting key so log review (and future selective
 	// invalidation) can distinguish writers without parsing the payload.
 	EventTenantSettingsChanged EventType = "tenant_settings_changed"
+
+	// EventParentMessage signals that a parent sent a new message to the OGS
+	// (or staff replied), so staff inbox / parent thread views refetch their
+	// list and unread badge. Trigger only — clients refetch via the API.
+	EventParentMessage EventType = "parent_message"
+
+	// EventParentMessageRead signals that the COUNTERPART in a parent-OGS thread
+	// has read the conversation, so the other side's open chat refreshes its
+	// "Gelesen" receipts live. Unlike EventParentMessage it adds no message: the
+	// client re-decorates read receipts only and must NOT bump any unread badge (a
+	// counterpart's read never changes the reader's own unread set). It is emitted
+	// ONLY when a read cursor actually advances (parentmessaging.MarkReadToNewest),
+	// so it cannot ping-pong with the receipt refetch it triggers on the far side.
+	EventParentMessageRead EventType = "parent_message_read"
+
+	// EventParentChildUpdated is a message-INDEPENDENT invalidation delivered to
+	// EVERY guardian of a child (not just the one who acted) so an already-open
+	// parents-app tab refetches that child's care state in real time — after a
+	// parent write or a staff decision — regardless of whether parent messaging is
+	// enabled. Unlike EventParentMessage it never accompanies a thread/pill and
+	// must NOT touch any unread badge or thread list; it carries only student_id so
+	// the affected child's view refetches while others skip. Trigger only.
+	EventParentChildUpdated EventType = "parent_child_updated"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -81,8 +167,6 @@ type EventData struct {
 	// Student-related fields (for check-in/check-out events)
 	StudentID   *string `json:"student_id,omitempty"`
 	StudentName *string `json:"student_name,omitempty"`
-	SchoolClass *string `json:"school_class,omitempty"`
-	GroupName   *string `json:"group_name,omitempty"` // Student's OGS group, not active group
 
 	// StudentIDs carries the affected students on a bulk_student_checkout event
 	// (whole-session end). The client adds each to its per-student
@@ -109,11 +193,61 @@ type EventData struct {
 	AttendanceSubstatus *string `json:"attendance_substatus,omitempty"`
 	AttendanceNote      *string `json:"attendance_note,omitempty"`
 
+	// Parent-messaging field (parent_message events). With StudentID, it lets an
+	// open chat/conversation skip refetching when the event is about a different
+	// thread/child — instead of every staff member and multi-child guardian
+	// refetching the heavy inbox projection on every message tenant-wide. Trigger
+	// only; the client still refetches the affected thread via the API.
+	//
+	// NOTE: ThreadID, StudentID, and Source (guardian account id) are all cleared
+	// for the staff fan-out by staffSafeParentMessage so an unauthorized staffer
+	// cannot observe which child/guardian — or which specific conversation — a
+	// thread concerns from raw SSE traffic (gdpr.student_data_scope =
+	// group_supervisors_only). ThreadID is opaque, but a staffer who once opened a
+	// thread (or otherwise knows its URL) and later loses access to that child
+	// could still correlate future parent_message events to that conversation, so
+	// it is stripped too. The addressed guardian's own clients still receive the
+	// full event.
+	ThreadID *string `json:"thread_id,omitempty"`
+
 	// Source tracking
 	Source *string `json:"source,omitempty"` // "rfid", "manual", "automated"
 
 	// Reason tracking for generic refresh events.
 	Reason *string `json:"reason,omitempty"`
+}
+
+// staffSafeParentMessage returns a copy of a parent-message event with every
+// conversation-identifying field cleared, for fan-out to staff who may not be
+// authorized to read the thread. The guardian's OWN clients receive the full
+// event (their own data); staff only need a refresh trigger for their
+// access-filtered inbox. ThreadID, StudentID, and Source (the guardian account
+// id) are all removed so an unauthorized staffer cannot observe which
+// child/guardian — or which specific conversation — a thread concerns from raw
+// SSE traffic. ThreadID is opaque, but a staffer who once opened a thread (or
+// otherwise knows its URL) and later loses access to that child could still
+// correlate future parent_message events to that conversation through the
+// per-thread useMessagesActivity filter, even though GET
+// /api/messages/threads/{id} would now be forbidden — so it is stripped too.
+//
+// The receiver is a value copy: reassigning the copy's pointer fields to nil
+// leaves the original event (delivered to the guardian) untouched.
+//
+// Accepted consequence: with ThreadID and StudentID both cleared, neither the
+// per-thread filter on the staff thread page nor the per-student filter on the
+// staff ParentMessagesCard can match, so every mounted staff messaging surface
+// refetches its projection on any tenant-wide parent message (the threadId and
+// studentId props are intentionally INERT for staff — they only narrow the
+// guardian's own clients). This is a deliberate privacy-over-efficiency trade:
+// leaking which child or conversation a thread concerns to an unauthorized
+// staffer is worse than an extra refetch. The 500 ms debounce on the staff side
+// collapses a sick-note rush into far fewer fetches.
+func staffSafeParentMessage(event Event) Event {
+	safe := event
+	safe.Data.ThreadID = nil
+	safe.Data.StudentID = nil
+	safe.Data.Source = nil
+	return safe
 }
 
 // NewEvent creates a new event with current timestamp
@@ -124,4 +258,48 @@ func NewEvent(eventType EventType, activeGroupID string, data EventData) Event {
 		Data:          data,
 		Timestamp:     time.Now(),
 	}
+}
+
+// NewParentMessageEvent builds the EventParentMessage SSE event shared by both
+// portals' messaging services (staff in services/messaging and parents in
+// services/parent). The guardian account is stamped as Source so the guardian's
+// own tabs can skip a redundant refetch; threadID/studentID (when positive) let
+// an open chat refetch only the affected thread. Centralizing the payload shape
+// here means adding a field can never drift between the two emitters.
+func NewParentMessageEvent(guardianAccountID, threadID, studentID int64) Event {
+	return NewEvent(EventParentMessage, "", parentMessageData(guardianAccountID, threadID, studentID))
+}
+
+// NewParentMessageReadEvent builds the EventParentMessageRead SSE event. It
+// carries the SAME envelope as NewParentMessageEvent (guardian Source + the
+// thread/student filter for an open chat), differing only in Type so the client
+// routes it to a receipt-only refresh instead of a new-message refresh + badge
+// bump. Same staffSafeParentMessage sanitization applies to the staff fan-out.
+func NewParentMessageReadEvent(guardianAccountID, threadID, studentID int64) Event {
+	return NewEvent(EventParentMessageRead, "", parentMessageData(guardianAccountID, threadID, studentID))
+}
+
+// NewParentChildUpdatedEvent builds the EventParentChildUpdated invalidation for
+// one guardian: the guardian account as Source (so their own tabs can dedupe) and
+// the affected student_id (so only that child's view refetches). No thread id — it
+// accompanies no message. The caller fans it out once per guardian of the child.
+func NewParentChildUpdatedEvent(guardianAccountID, studentID int64) Event {
+	return NewEvent(EventParentChildUpdated, "", parentMessageData(guardianAccountID, 0, studentID))
+}
+
+// parentMessageData builds the shared payload for the parent-messaging events:
+// the guardian account as Source plus the (optional) thread/student filter. One
+// home so the new-message and read events can never drift in shape.
+func parentMessageData(guardianAccountID, threadID, studentID int64) EventData {
+	gid := strconv.FormatInt(guardianAccountID, 10)
+	data := EventData{Source: &gid}
+	if threadID > 0 {
+		tid := strconv.FormatInt(threadID, 10)
+		data.ThreadID = &tid
+	}
+	if studentID > 0 {
+		sid := strconv.FormatInt(studentID, 10)
+		data.StudentID = &sid
+	}
+	return data
 }

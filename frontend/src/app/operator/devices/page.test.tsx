@@ -90,7 +90,7 @@ vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (dateStr: string) => `relative(${dateStr})`,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
     <div data-testid="page-header">
       <h1>{title}</h1>
@@ -98,6 +98,7 @@ vi.mock("~/components/ui/page-header", () => ({
         <div data-testid="tabs">
           {tabs.items.map((tab: any) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               className={tabs.activeTab === tab.id ? "active" : ""}
@@ -127,7 +128,7 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal">
         <h2>{title}</h2>
         {children}
-        <button data-testid="confirm-btn" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-btn" onClick={onConfirm}>
           Bestätigen
         </button>
       </div>
@@ -144,7 +145,7 @@ import OperatorDevicesPage from "./page";
 import {
   mockSchool,
   setupSWR,
-} from "../provisioning/provisioning-test-helpers";
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 // Matches the old provisioning/page.test.tsx Devices Tab fixture.
 const mockDevice = {

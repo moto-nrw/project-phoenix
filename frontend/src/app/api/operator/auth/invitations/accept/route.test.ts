@@ -25,6 +25,9 @@ global.fetch = mockFetch as unknown as typeof fetch;
 
 import { POST } from "./route";
 
+const FLOW_A = "11111111-1111-4111-8111-111111111111";
+const FLOW_B = "22222222-2222-4222-8222-222222222222";
+
 describe("POST /api/operator/auth/invitations/accept", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -42,20 +45,36 @@ describe("POST /api/operator/auth/invitations/accept", () => {
       "http://localhost:3000/api/operator/auth/invitations/accept",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-operator-invitation-flow": FLOW_A,
+        },
         body: JSON.stringify({
-          token: "abc",
           display_name: "Test",
           password: "Str0ng!Pass",
           confirm_password: "Str0ng!Pass",
         }),
       },
     );
-    await POST(request);
+    request.cookies.set(`operator.invitation-token.${FLOW_A}`, "token-a");
+    request.cookies.set(`operator.invitation-token.${FLOW_B}`, "token-b");
+    const response = await POST(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8080/operator/auth/invitations/accept",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          display_name: "Test",
+          password: "Str0ng!Pass",
+          confirm_password: "Str0ng!Pass",
+          token: "token-a",
+        }),
+      }),
     );
+    expect(response.headers.get("set-cookie")).toContain(
+      `operator.invitation-token.${FLOW_A}=`,
+    );
+    expect(response.headers.get("set-cookie")).not.toContain(FLOW_B);
   });
 });

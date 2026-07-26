@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 	"testing"
 	"time"
 
@@ -35,55 +34,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// recordingBroadcaster captures both BroadcastToGroup and BroadcastToAll
-// so the enrichment assertion can inspect the Event payload, not just the
-// event type. The existing mockBroadcaster in broadcast_test.go ignores
-// BroadcastToGroup, which is exactly where student_checkin goes.
-type recordingBroadcaster struct {
-	mu         sync.Mutex
-	groupCalls []realtime.Event
-	allCalls   []realtime.Event
-}
-
-func (r *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtime.Event) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.groupCalls = append(r.groupCalls, event)
-	return nil
-}
-
-func (r *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.allCalls = append(r.allCalls, event)
-	return nil
-}
-
-func (r *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.allCalls = append(r.allCalls, event)
-	return nil
-}
-
-// firstOfType returns the first event of the given type seen across either
-// broadcast channel, or nil if none matches.
-func (r *recordingBroadcaster) firstOfType(t realtime.EventType) *realtime.Event {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for i := range r.groupCalls {
-		if r.groupCalls[i].Type == t {
-			e := r.groupCalls[i]
-			return &e
-		}
+// firstOfType returns the first event of the given type seen across every
+// recorded broadcast call, in call order, or nil if none matches.
+func firstOfType(b *testpkg.RecordingBroadcaster, t realtime.EventType) *realtime.Event {
+	events := b.EventsOfType(t)
+	if len(events) == 0 {
+		return nil
 	}
-	for i := range r.allCalls {
-		if r.allCalls[i].Type == t {
-			e := r.allCalls[i]
-			return &e
-		}
-	}
-	return nil
+	return &events[0]
 }
 
 func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
@@ -100,7 +58,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		repos.InstanceStudent,
 		slog.Default(),
 	)
-	broadcaster := &recordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -179,7 +137,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// ASSERT: student_checkin event carries attendance_status=present.
 	// This is the load-bearing assertion — it's what protects against
 	// someone silently removing applyAttendanceSnapshot from visit_helpers.go.
-	ev := broadcaster.firstOfType(realtime.EventStudentCheckIn)
+	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	require.NotNil(t, ev.Data.AttendanceStatus,
 		"attendance_status must be populated when the visit bridges to an instance_students row")
@@ -194,6 +152,67 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, updated.Status)
 	require.NotNil(t, updated.CheckedInAt, "checked_in_at must be stamped by the mirror write")
+
+	// Create a second bridged care slot, then move the same visit. The source
+	// slot must close at the transfer boundary and the target must open at that
+	// exact boundary, even though broadcasting is not responsible for syncing.
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Target-Act-%d", suffix))
+	targetRoom := testpkg.CreateTestRoom(t, db, fmt.Sprintf("E2E-Target-Room-%d", suffix))
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(t, db, targetActivity.ID, targetRoom.ID, targetGroup.ID)
+	})
+
+	targetInstance := &scheduleModels.ActivityInstance{
+		Date:            timezone.NewDate(2026, 4, 21),
+		ActivityGroupID: &targetActivity.ID,
+		Title:           fmt.Sprintf("E2E-Target-Inst-%d", suffix),
+		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:          targetRoom.ID,
+		Status:          scheduleModels.InstanceStatusActive,
+		ActiveGroupID:   &targetGroup.ID,
+	}
+	targetInstance.SetTenantID(1)
+	_, err = db.NewInsert().Model(targetInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", targetInstance.ID)
+	})
+
+	targetRow := &scheduleModels.InstanceStudent{
+		InstanceID: targetInstance.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	targetRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, targetRow))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", targetRow.ID) })
+
+	visit.ActiveGroupID = targetGroup.ID
+	require.NoError(t, svc.UpdateVisit(deviceCtx, visit))
+
+	sourceAfterTransfer, err := isRepo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, sourceAfterTransfer.CheckedOutAt, "transfer must close the source slot")
+	require.NotNil(t, sourceAfterTransfer.CheckedInAt)
+	assert.False(t, sourceAfterTransfer.CheckedOutAt.Before(*sourceAfterTransfer.CheckedInAt))
+
+	targetAfterTransfer, err := isRepo.FindByID(ctx, targetRow.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, targetAfterTransfer.Status)
+	require.NotNil(t, targetAfterTransfer.CheckedInAt, "transfer must open the target slot")
+	assert.Nil(t, targetAfterTransfer.CheckedOutAt, "transfer must not immediately close the target slot")
+	assert.WithinDuration(t, *sourceAfterTransfer.CheckedOutAt, *targetAfterTransfer.CheckedInAt, time.Millisecond)
+
+	// A detailed-mode daily checkout ends the visit through attendance_service,
+	// not EndVisit. It must still close the exact bridged care slot.
+	_, err = svc.CheckOutStudent(deviceCtx, student.ID, staff.ID, true)
+	require.NoError(t, err)
+	updated, err = isRepo.FindByID(ctx, targetRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updated.CheckedOutAt, "daily checkout must stamp the bridged care slot")
+	assert.False(t, updated.CheckedOutAt.Before(*updated.CheckedInAt))
 }
 
 // TestCreateVisit_WalkInLeavesAttendanceFieldsUnset is the negative case
@@ -212,7 +231,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		repos.InstanceStudent,
 		slog.Default(),
 	)
-	broadcaster := &recordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -260,7 +279,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	require.NoError(t, svc.CreateVisit(deviceCtx, visit))
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, visit.ID) })
 
-	ev := broadcaster.firstOfType(realtime.EventStudentCheckIn)
+	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	assert.Nil(t, ev.Data.AttendanceStatus, "walk-in must not stamp attendance_status")
 	assert.Nil(t, ev.Data.AttendanceSubstatus)

@@ -15,9 +15,10 @@ import {
   busDaysHaveAny,
   pickupDaysHaveAny,
   type BusDays,
-  normalizeDepartureDays,
-  departureToBusDays,
-  departureToPickupDays,
+  allowedDepartureToBusDays,
+  allowedDepartureToDepartureDays,
+  allowedDepartureToPickupDays,
+  normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
 import GuardianFormModal, {
   type RelationshipFormData,
@@ -77,6 +78,7 @@ function toGuardianPayloads(
     language_preference: entry.guardianData.languagePreference,
     notes: entry.guardianData.notes,
     relationship_type: entry.relationshipData.relationshipType,
+    guardian_role: entry.relationshipData.guardianRole,
     is_primary: entry.relationshipData.isPrimary,
     is_emergency_contact: entry.relationshipData.isEmergencyContact,
     can_pickup: entry.relationshipData.canPickup,
@@ -106,6 +108,7 @@ function toExistingGuardianPayload(
     first_name: guardian.firstName,
     last_name: guardian.lastName,
     relationship_type: relationship.relationshipType,
+    guardian_role: relationship.guardianRole,
     is_primary: relationship.isPrimary,
     is_emergency_contact: relationship.isEmergencyContact,
     can_pickup: relationship.canPickup,
@@ -165,6 +168,7 @@ export function StudentCreateModal({
     // pickup section is never touched.
     pickup_days: {},
     departure_days: {},
+    allowed_departure_modes: {},
     pickup_status: "Geht alleine nach Hause",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -397,7 +401,7 @@ export function StudentCreateModal({
                   ].filter(Boolean);
                   return (
                     <li
-                      key={`${guardian.first_name}-${guardian.last_name}-${index}`}
+                      key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}`}
                       className="flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3"
                     >
                       <div className="min-w-0">
@@ -524,13 +528,15 @@ export function StudentCreateModal({
 
           {/* How the child leaves each weekday (alleine / Bus / Abholung) */}
           <DepartureSection
-            days={formData.departure_days}
+            days={formData.allowed_departure_modes}
             onChange={(value) => {
-              const departure = normalizeDepartureDays(value);
-              const busDays = departureToBusDays(departure);
-              const pickupDays = departureToPickupDays(departure);
+              const allowed = normalizeAllowedDepartureModes(value);
+              const departure = allowedDepartureToDepartureDays(allowed);
+              const busDays = allowedDepartureToBusDays(allowed);
+              const pickupDays = allowedDepartureToPickupDays(allowed);
               setFormData((prev) => ({
                 ...prev,
+                allowed_departure_modes: allowed,
                 departure_days: departure,
                 bus_days: busDays,
                 bus: busDaysHaveAny(busDays),
@@ -540,6 +546,14 @@ export function StudentCreateModal({
                   : "Geht alleine nach Hause",
               }));
             }}
+            companionNote={formData.departure_companion_note}
+            onCompanionNoteChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                departure_companion_note: value,
+              }))
+            }
+            companionNoteError={errors.departure_companion_note}
           />
 
           {/* Action Buttons */}

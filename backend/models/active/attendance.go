@@ -16,9 +16,12 @@ type Attendance struct {
 	Date         timezone.Date `bun:"date,notnull,type:date" json:"date"`
 	CheckInTime  time.Time     `bun:"check_in_time,notnull" json:"check_in_time"`
 	CheckOutTime *time.Time    `bun:"check_out_time" json:"check_out_time,omitempty"`
-	CheckedInBy  int64         `bun:"checked_in_by,notnull" json:"checked_in_by"`
-	CheckedOutBy *int64        `bun:"checked_out_by" json:"checked_out_by,omitempty"`
-	DeviceID     int64         `bun:"device_id,notnull" json:"device_id"`
+	// CheckedInBy is zero when an authenticated device records attendance
+	// without a verified personal staff credential. DeviceID remains the
+	// authenticated audit principal for those legacy kiosk requests.
+	CheckedInBy  int64  `bun:"checked_in_by,nullzero" json:"checked_in_by"`
+	CheckedOutBy *int64 `bun:"checked_out_by" json:"checked_out_by,omitempty"`
+	DeviceID     int64  `bun:"device_id,notnull" json:"device_id"`
 	// YardSince is set when the student transitions to "Schulhof" in binary
 	// mode and cleared on a school checkout. Schema and read paths
 	// (deriveAttendanceStatus, ResolveBinaryLocation, performCheckOut) are
@@ -33,43 +36,6 @@ type Attendance struct {
 // (still on premises, outside the building). Only meaningful while IsCheckedIn is also true.
 func (a *Attendance) IsOnYard() bool {
 	return a.YardSince != nil && a.CheckOutTime == nil
-}
-
-// BeforeAppendModel is commented out to let the repository control the table expression
-// func (a *Attendance) BeforeAppendModel(query any) error {
-// 	if q, ok := query.(*bun.SelectQuery); ok {
-// 		q.ModelTableExpr("active.attendance")
-// 	}
-// 	if q, ok := query.(*bun.InsertQuery); ok {
-// 		q.ModelTableExpr("active.attendance")
-// 	}
-// 	if q, ok := query.(*bun.UpdateQuery); ok {
-// 		q.ModelTableExpr("active.attendance")
-// 	}
-// 	if q, ok := query.(*bun.DeleteQuery); ok {
-// 		q.ModelTableExpr("active.attendance")
-// 	}
-// 	return nil
-// }
-
-// GetID returns the entity's ID
-func (a *Attendance) GetID() interface{} {
-	return a.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (a *Attendance) GetCreatedAt() time.Time {
-	return a.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (a *Attendance) GetUpdatedAt() time.Time {
-	return a.UpdatedAt
-}
-
-// TableName returns the database table name
-func (a *Attendance) TableName() string {
-	return "active.attendance"
 }
 
 // IsCheckedIn returns true if the student is currently checked in
@@ -129,6 +95,10 @@ type AttendanceRepository interface {
 
 	// GetTodayByStudentIDs gets today's attendance record for multiple students
 	GetTodayByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Attendance, error)
+
+	// GetOpenTodayByStudentIDsForUpdate gets today's open attendance rows for
+	// multiple students and locks them for the current transaction.
+	GetOpenTodayByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*Attendance, error)
 
 	// FindForDate finds all attendance records for a specific date
 	FindForDate(ctx context.Context, date timezone.Date) ([]*Attendance, error)

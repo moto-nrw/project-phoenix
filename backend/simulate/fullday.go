@@ -3,8 +3,9 @@ package simulate
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
-	"sort"
+	"slices"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
@@ -25,7 +26,7 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := NewClient(state.BaseURL, opts.Verbose)
+	client := newClient(state.BaseURL, opts.Verbose)
 	runtime := newRuntime(state, client, opts)
 	scenario := fullDayScenario(opts.Close)
 	if err := scenario.Run(ctx, runtime); err != nil {
@@ -223,7 +224,7 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 	for i := 90; i < len(rt.State.Students) && i < 100; i++ {
 		student := rt.State.Students[i]
 		body := map[string]any{"sick": true}
-		_, err := rt.Client.AdminPut(fmt.Sprintf("/api/students/%d", student.ID), body)
+		_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d", student.ID), body)
 		if err != nil {
 			if rt.Options.Verbose {
 				fmt.Printf("  WARNING: failed to mark student %d sick: %v\n", student.ID, err)
@@ -387,19 +388,9 @@ func findRoomForActivity(activityName string, rooms map[string]int64) int64 {
 }
 
 func sortedDeviceKeys(devices map[string]seedapi.SeedDevice) []string {
-	keys := make([]string, 0, len(devices))
-	for k := range devices {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(devices))
 }
 
 func sortedStringKeys(m map[string]int64) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(m))
 }

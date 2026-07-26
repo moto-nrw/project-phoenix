@@ -48,6 +48,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutateMatching: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -61,6 +62,8 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 vi.mock("~/lib/time-tracking-api", () => ({
+  DEVIATION_REASON_REQUIRED_CODE: "deviation_reason_required",
+  PLANNED_START_NOT_REACHED_CODE: "planned_start_not_reached",
   REOPEN_STATUS_CONFLICT_CODE: "reopen_status_conflict",
   timeTrackingService: mockTimeTrackingService,
 }));
@@ -238,7 +241,7 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="modal" data-title={title}>
         {title && <h3>{title}</h3>}
-        <button data-testid="modal-close" onClick={onClose}>
+        <button type="button" data-testid="modal-close" onClick={onClose}>
           close
         </button>
         <div data-testid="modal-body">{children}</div>
@@ -346,6 +349,7 @@ vi.mock("react-dom", async (importOriginal) => {
 });
 
 vi.mock("lucide-react", () => ({
+  ChevronDown: () => <span data-testid="chevron-down" />,
   ChevronLeft: () => <span data-testid="chevron-left" />,
   ChevronRight: () => <span data-testid="chevron-right" />,
   Download: () => <span data-testid="download-icon" />,
@@ -361,6 +365,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useToast } from "~/contexts/ToastContext";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type {
+  MonthSummary,
   WorkSession,
   WorkSessionHistory,
   StaffAbsence,
@@ -370,6 +375,7 @@ import type {
 
 const today = new Date();
 const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+const testTimestamp = (date: string, time: string) => `${date}T${time}:00`;
 
 // WeekTable skips weekends (day 0=Sun, 6=Sat). When today is a weekend,
 // shift test dates to the nearest weekday (previous Friday) so rows render.
@@ -383,20 +389,20 @@ const mockActiveSession: WorkSession = {
   staffId: "10",
   date: todayISO,
   status: "present",
-  checkInTime: `${todayISO}T08:00:00Z`,
+  checkInTime: testTimestamp(todayISO, "08:00"),
   checkOutTime: null,
   breakMinutes: 0,
   notes: "",
   autoCheckedOut: false,
   createdBy: "10",
   updatedBy: null,
-  createdAt: `${todayISO}T08:00:00Z`,
-  updatedAt: `${todayISO}T08:00:00Z`,
+  createdAt: testTimestamp(todayISO, "08:00"),
+  updatedAt: testTimestamp(todayISO, "08:00"),
 };
 
 const mockCheckedOutSession: WorkSession = {
   ...mockActiveSession,
-  checkOutTime: `${todayISO}T16:30:00Z`,
+  checkOutTime: testTimestamp(todayISO, "16:30"),
   breakMinutes: 30,
 };
 
@@ -413,10 +419,10 @@ const mockHistorySession: WorkSessionHistory = {
 const mockHistorySessionWithEdits: WorkSessionHistory = {
   ...mockHistorySession,
   date: weekdayISO,
-  checkInTime: `${weekdayISO}T08:00:00Z`,
-  checkOutTime: `${weekdayISO}T16:30:00Z`,
+  checkInTime: testTimestamp(weekdayISO, "08:00"),
+  checkOutTime: testTimestamp(weekdayISO, "16:30"),
   editCount: 2,
-  updatedAt: `${weekdayISO}T17:00:00Z`,
+  updatedAt: testTimestamp(weekdayISO, "17:00"),
 };
 
 const mockHistorySessionNonCompliant: WorkSessionHistory = {
@@ -445,12 +451,12 @@ const mockAbsence: StaffAbsence = {
   approvedBy: null,
   approvedAt: null,
   createdBy: "10",
-  createdAt: `${todayISO}T07:00:00Z`,
-  updatedAt: `${todayISO}T07:00:00Z`,
+  createdAt: testTimestamp(todayISO, "07:00"),
+  updatedAt: testTimestamp(todayISO, "07:00"),
   durationDays: 1,
   workingDays: 1,
   decisionNote: "",
-  requestedAt: `${todayISO}T07:00:00Z`,
+  requestedAt: testTimestamp(todayISO, "07:00"),
   substituteStaffId: null,
 };
 
@@ -494,11 +500,34 @@ function selectPresentMode() {
   fireEvent.click(screen.getByRole("button", { name: "In der OGS" }));
 }
 
+async function waitForLastSaveButtonEnabled() {
+  let saveBtn: HTMLElement | undefined;
+  await waitFor(() => {
+    const saveButtons = screen.getAllByText("Speichern");
+    saveBtn = saveButtons[saveButtons.length - 1];
+    expect(saveBtn).not.toBeDisabled();
+  });
+  return saveBtn!;
+}
+
+function clickQuickEditReason(reason: string) {
+  const buttons = screen.getAllByRole("button", { name: reason });
+  fireEvent.click(buttons[buttons.length - 1]!);
+}
+
+function chooseSelectOption(trigger: HTMLElement, optionLabel: string) {
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole("option", { name: optionLabel }));
+}
+
 function setupDefaultMocks(overrides?: {
   currentSession?: WorkSession | null;
   history?: WorkSessionHistory[];
   absences?: StaffAbsence[];
   historyLoading?: boolean;
+  configLoading?: boolean;
+  scheduleTargets?: ReadonlyMap<string, number>;
+  monthSummary?: MonthSummary;
 }) {
   vi.mocked(useSession).mockReturnValue({
     data: { user: { id: "1", token: "test-token" } },
@@ -510,6 +539,10 @@ function setupDefaultMocks(overrides?: {
   const history = overrides?.history ?? [];
   const absences = overrides?.absences ?? [];
   const historyLoading = overrides?.historyLoading ?? false;
+  const configLoading = overrides?.configLoading ?? false;
+  const scheduleTargets =
+    overrides?.scheduleTargets ?? new Map<string, number>();
+  const monthSummary = overrides?.monthSummary;
 
   vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
     if (key === null) {
@@ -533,6 +566,26 @@ function setupDefaultMocks(overrides?: {
       return {
         data: { sessions: history, weeklySummaries: [] },
         isLoading: historyLoading,
+        mutate: mockMutate,
+        isValidating: false,
+        error: undefined,
+      } as never;
+      // Date-valid Soll per day (#1842) — a Map, keyed by ISO day. The
+      // catch-all below hands back an array, which is not what any
+      // schedule-targets consumer reads.
+    } else if (key?.startsWith("time-tracking-schedule-targets")) {
+      return {
+        data: scheduleTargets,
+        isLoading: false,
+        mutate: mockMutate,
+        isValidating: false,
+        error: undefined,
+      } as never;
+      // Monatskarte / period-KPI aggregate (#1842).
+    } else if (key?.startsWith("time-tracking-month-summary")) {
+      return {
+        data: monthSummary,
+        isLoading: false,
         mutate: mockMutate,
         isValidating: false,
         error: undefined,
@@ -565,6 +618,14 @@ function setupDefaultMocks(overrides?: {
       return {
         data: mockOwnSchedule,
         isLoading: false,
+        mutate: mockMutate,
+        isValidating: false,
+        error: undefined,
+      } as never;
+    } else if (key === "time-tracking-config") {
+      return {
+        data: configLoading ? undefined : { accountStartDate: "" },
+        isLoading: configLoading,
         mutate: mockMutate,
         isValidating: false,
         error: undefined,
@@ -869,18 +930,50 @@ describe("TimeTrackingPage", () => {
       });
     });
 
-    it("shows break duration options when pause button clicked", () => {
+    it("shows break duration stepper when pause button clicked", () => {
       setupDefaultMocks({ currentSession: mockActiveSession });
       render(<TimeTrackingPage />);
       fireEvent.click(screen.getByLabelText("Pause starten"));
-      // Break options should appear: 15m, 30m, 45m, 60m
-      expect(screen.getByText("15m")).toBeInTheDocument();
-      expect(screen.getByText("30m")).toBeInTheDocument();
-      expect(screen.getByText("45m")).toBeInTheDocument();
-      expect(screen.getByText("60m")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Pausendauer verringern" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("30")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Pausendauer erhöhen" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Starten" })).toBeEnabled();
     });
 
-    it("calls startBreak when break duration selected", async () => {
+    it("uses a bottom sheet for break duration on mobile", async () => {
+      Object.defineProperty(window, "innerWidth", {
+        writable: true,
+        configurable: true,
+        value: 390,
+      });
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      render(<TimeTrackingPage />);
+      fireEvent.click(screen.getByLabelText("Pause starten"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("dialog", { name: "Pause stempeln" }),
+        ).toBeInTheDocument();
+      });
+      expect(screen.getByText("30")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Starten" })).toBeEnabled();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Pausendauer schließen" }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("dialog", { name: "Pause stempeln" }),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("starts a default 30 minute break", async () => {
       setupDefaultMocks({ currentSession: mockActiveSession });
       vi.mocked(timeTrackingService.startBreak).mockResolvedValue({
         id: "50",
@@ -894,11 +987,45 @@ describe("TimeTrackingPage", () => {
       fireEvent.click(screen.getByLabelText("Pause starten"));
 
       await act(async () => {
-        fireEvent.click(screen.getByText("30m"));
+        fireEvent.click(screen.getByRole("button", { name: "Starten" }));
       });
 
       await waitFor(() => {
-        expect(timeTrackingService.startBreak).toHaveBeenCalled();
+        expect(timeTrackingService.startBreak).toHaveBeenCalledWith(30);
+      });
+    });
+
+    it("starts an individual break with 15 minute stepper controls", async () => {
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      vi.mocked(timeTrackingService.startBreak).mockResolvedValue({
+        id: "50",
+        sessionId: "100",
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        durationMinutes: 0,
+        plannedEndTime: null,
+      });
+      render(<TimeTrackingPage />);
+      fireEvent.click(screen.getByLabelText("Pause starten"));
+
+      expect(screen.getByText("30")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Pausendauer verringern" }),
+      );
+      expect(screen.getByText("15")).toBeInTheDocument();
+      for (let i = 0; i < 5; i += 1) {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Pausendauer erhöhen" }),
+        );
+      }
+      expect(screen.getByText("90")).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Starten" }));
+      });
+
+      await waitFor(() => {
+        expect(timeTrackingService.startBreak).toHaveBeenCalledWith(90);
       });
     });
 
@@ -919,6 +1046,56 @@ describe("TimeTrackingPage", () => {
       // Need to wait for breaks to load
       await waitFor(() => {
         expect(screen.getByLabelText("Pause beenden")).toBeInTheDocument();
+      });
+    });
+
+    it("communicates automatic resume time for timed breaks", async () => {
+      const breakStart = new Date(Date.now() - 60 * 60 * 1000);
+      const plannedEnd = new Date(Date.now() + 30 * 60 * 1000);
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
+        {
+          id: "50",
+          sessionId: "100",
+          startedAt: breakStart.toISOString(),
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: plannedEnd.toISOString(),
+        },
+      ]);
+      render(<TimeTrackingPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Automatisch weiter um/)).toBeInTheDocument();
+      });
+    });
+
+    it("refreshes history and table data after a timed break auto-ends", async () => {
+      const breakStart = new Date(Date.now() - 90 * 60 * 1000);
+      const plannedEnd = new Date(Date.now() - 1000);
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
+        {
+          id: "50",
+          sessionId: "100",
+          startedAt: breakStart.toISOString(),
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: plannedEnd.toISOString(),
+        },
+      ]);
+      vi.mocked(timeTrackingService.endBreak).mockResolvedValue({
+        ...mockActiveSession,
+        breakMinutes: 90,
+      });
+
+      render(<TimeTrackingPage />);
+
+      await waitFor(() => {
+        expect(timeTrackingService.endBreak).toHaveBeenCalled();
+      });
+      await waitFor(() => {
+        expect(mockMutate).toHaveBeenCalledTimes(2);
       });
     });
 
@@ -1257,6 +1434,25 @@ describe("TimeTrackingPage", () => {
       return err;
     }
 
+    function makePlannedStartError(): Error & {
+      code?: string;
+      status?: number;
+      details?: Record<string, unknown>;
+    } {
+      const err = new Error("planned start not reached") as Error & {
+        code?: string;
+        status?: number;
+        details?: Record<string, unknown>;
+      };
+      err.code = "planned_start_not_reached";
+      err.status = 409;
+      err.details = {
+        planned_start_time: "09:00",
+        current_time: "08:45",
+      };
+      return err;
+    }
+
     it("opens the status-change modal on reopen_status_conflict", async () => {
       // Today: existing checked-out 'present' session in history.
       setupDefaultMocks({ history: [mockHistorySession] });
@@ -1279,6 +1475,34 @@ describe("TimeTrackingPage", () => {
       // Confirm button is disabled until the user enters a reason.
       const confirmBtn = screen.getByText("Auf Homeoffice ändern");
       expect(confirmBtn).toBeDisabled();
+    });
+
+    it("shows planned-start message when check-in is too early", async () => {
+      const mockToast = {
+        success: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      };
+      vi.mocked(useToast).mockReturnValue(mockToast);
+      setupDefaultMocks();
+      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
+        makePlannedStartError(),
+      );
+      render(<TimeTrackingPage />);
+
+      fireEvent.click(screen.getByText("In der OGS"));
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(mockToast.error).toHaveBeenCalledWith(
+          "Einstempeln ist erst ab 09:00 Uhr möglich.",
+        );
+      });
     });
 
     it("confirm calls checkIn(existingStatus) then updateSession with reason", async () => {
@@ -1554,8 +1778,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -1590,6 +1814,9 @@ describe("TimeTrackingPage", () => {
       fireEvent.click(screen.getByText("Abwesend"));
       fireEvent.click(screen.getByLabelText("Abwesenheit melden"));
       expect(screen.getByText("Art der Abwesenheit")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("option", { name: "Freizeitausgleich" }),
+      ).not.toBeInTheDocument();
     });
 
     it("shows date inputs in create modal", () => {
@@ -1714,7 +1941,7 @@ describe("TimeTrackingPage", () => {
       fireEvent.click(screen.getByLabelText("Pause starten"));
 
       await act(async () => {
-        fireEvent.click(screen.getByText("15m"));
+        fireEvent.click(screen.getByRole("button", { name: "Starten" }));
       });
 
       await waitFor(() => {
@@ -1823,10 +2050,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${todayISO}T07:30:00Z`,
-          newValue: `${todayISO}T08:00:00Z`,
+          oldValue: testTimestamp(todayISO, "07:30"),
+          newValue: testTimestamp(todayISO, "08:00"),
           notes: "Zeitkorrektur",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -1961,12 +2188,8 @@ describe("TimeTrackingPage", () => {
 
       render(<TimeTrackingPage />);
 
-      await waitFor(() => {
-        const endBreakBtn = screen.queryByLabelText("Pause beenden");
-        if (endBreakBtn) {
-          fireEvent.click(endBreakBtn);
-        }
-      });
+      const endBreakBtn = await screen.findByLabelText("Pause beenden");
+      fireEvent.click(endBreakBtn);
 
       // Verify test setup was correct - breaks were loaded
       expect(timeTrackingService.getSessionBreaks).toHaveBeenCalled();
@@ -1974,6 +2197,56 @@ describe("TimeTrackingPage", () => {
   });
 
   // ── Wochenübersicht heading ─────────────────────────────────────────────
+
+  // ── Own Dienstplan (Plan column) ────────────────────────────────────────
+
+  describe("own shift loading in the Zeiterfassung table", () => {
+    // A failed shift fetch must not render as an empty plan: every Plan cell
+    // would show "–", telling the staff member no shifts were scheduled.
+    it("warns instead of showing an empty plan when the shift fetch fails", () => {
+      setupDefaultMocks();
+      const base = vi.mocked(useSWRAuth).getMockImplementation()!;
+      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
+        if (key?.startsWith("time-tracking-table-shifts")) {
+          return {
+            data: undefined,
+            isLoading: false,
+            mutate: mockMutate,
+            isValidating: false,
+            error: new Error("network down"),
+          } as never;
+        }
+        return base(key, (() => Promise.resolve()) as never);
+      });
+
+      render(<TimeTrackingPage />);
+      expect(
+        screen.getByText(/Der Dienstplan konnte nicht geladen/),
+      ).toBeInTheDocument();
+    });
+
+    // Same reason: a table rendered before the shifts resolve shows "–" in
+    // every Plan cell, so it must wait rather than guess.
+    it("holds the table back while own shifts are still pending", () => {
+      setupDefaultMocks();
+      const base = vi.mocked(useSWRAuth).getMockImplementation()!;
+      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
+        if (key?.startsWith("time-tracking-table-shifts")) {
+          return {
+            data: undefined,
+            isLoading: true,
+            mutate: mockMutate,
+            isValidating: true,
+            error: undefined,
+          } as never;
+        }
+        return base(key, (() => Promise.resolve()) as never);
+      });
+
+      render(<TimeTrackingPage />);
+      expect(screen.queryByText("Woche gesamt")).not.toBeInTheDocument();
+    });
+  });
 
   describe("Wochenübersicht", () => {
     it("shows Wochenübersicht chart heading", () => {
@@ -2079,8 +2352,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -2118,10 +2391,10 @@ describe("TimeTrackingPage", () => {
         }
 
         // Click save
-        const saveButtons = screen.queryAllByText("Speichern");
-        if (saveButtons.length > 0) {
+        if (screen.queryAllByText("Speichern").length > 0) {
+          const saveBtn = await waitForLastSaveButtonEnabled();
           await act(async () => {
-            fireEvent.click(saveButtons[saveButtons.length - 1]!);
+            fireEvent.click(saveBtn);
           });
           await waitFor(() => {
             expect(timeTrackingService.updateSession).toHaveBeenCalled();
@@ -2175,8 +2448,8 @@ describe("TimeTrackingPage", () => {
       return {
         ...mockHistorySession,
         date: weekdayISO,
-        checkInTime: `${weekdayISO}T08:00:00Z`,
-        checkOutTime: `${weekdayISO}T16:30:00Z`,
+        checkInTime: testTimestamp(weekdayISO, "08:00"),
+        checkOutTime: testTimestamp(weekdayISO, "16:30"),
         ...overrides,
       };
     }
@@ -2204,6 +2477,9 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByLabelText("Start")).toHaveValue();
       });
     }
 
@@ -2283,15 +2559,15 @@ describe("TimeTrackingPage", () => {
     it("changing break dropdown works", async () => {
       await openEditModal(makePastSession({ breaks: [] }));
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "45" } });
-      expect((breakSelect as HTMLSelectElement).value).toBe("45");
+      chooseSelectOption(breakSelect, "45 min");
+      expect(breakSelect).toHaveTextContent("45 min");
     });
 
     it("changing status selector works", async () => {
       await openEditModal(makePastSession());
       const statusSelect = screen.getByLabelText("Ort");
-      fireEvent.change(statusSelect, { target: { value: "home_office" } });
-      expect((statusSelect as HTMLSelectElement).value).toBe("home_office");
+      chooseSelectOption(statusSelect, "Homeoffice");
+      expect(statusSelect).toHaveTextContent("Homeoffice");
     });
 
     it("shows compliance warning when work > 10h", async () => {
@@ -2300,7 +2576,7 @@ describe("TimeTrackingPage", () => {
       const endInput = screen.getByLabelText("Ende");
       // Set break to 0 first
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "0" } });
+      chooseSelectOption(breakSelect, "0 min");
       fireEvent.change(startInput, { target: { value: "06:00" } });
       fireEvent.change(endInput, { target: { value: "17:00" } });
       // 11h work, > 10h
@@ -2314,7 +2590,7 @@ describe("TimeTrackingPage", () => {
       const startInput = screen.getByLabelText("Start");
       const endInput = screen.getByLabelText("Ende");
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "15" } });
+      chooseSelectOption(breakSelect, "15 min");
       fireEvent.change(startInput, { target: { value: "08:00" } });
       fireEvent.change(endInput, { target: { value: "15:30" } });
       // 7.5h gross - 15min break = 7h15m net > 6h, break < 30
@@ -2330,7 +2606,7 @@ describe("TimeTrackingPage", () => {
       const startInput = screen.getByLabelText("Start");
       const endInput = screen.getByLabelText("Ende");
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "30" } });
+      chooseSelectOption(breakSelect, "30 min");
       fireEvent.change(startInput, { target: { value: "06:00" } });
       fireEvent.change(endInput, { target: { value: "16:30" } });
       // 10.5h gross - 30min = 10h net > 9h, break 30 < 45
@@ -2351,10 +2627,35 @@ describe("TimeTrackingPage", () => {
 
     it("save button is enabled when notes are provided", async () => {
       await openEditModal(makePastSession());
-      fireEvent.click(screen.getByText("Zeitkorrektur"));
+      clickQuickEditReason("Zeitkorrektur");
+      await waitForLastSaveButtonEnabled();
+    });
+
+    it("blocks saving when end time is not after start time", async () => {
+      await openEditModal(makePastSession());
+      vi.mocked(timeTrackingService.updateSession).mockClear();
+
+      clickQuickEditReason("Zeitkorrektur");
+      fireEvent.change(screen.getByLabelText("Start"), {
+        target: { value: "12:30" },
+      });
+      fireEvent.change(screen.getByLabelText("Ende"), {
+        target: { value: "12:00" },
+      });
+
+      expect(
+        screen.getByText("Ende muss nach Start liegen."),
+      ).toBeInTheDocument();
+
       const saveButtons = screen.getAllByText("Speichern");
       const saveBtn = saveButtons[saveButtons.length - 1]!;
-      expect(saveBtn).not.toBeDisabled();
+      expect(saveBtn).toBeDisabled();
+
+      await act(async () => {
+        fireEvent.click(saveBtn);
+      });
+
+      expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
     });
 
     it("calls onSave with correct data when saved without individual breaks", async () => {
@@ -2368,11 +2669,11 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
 
       await openEditModal(makePastSession({ breaks: [] }));
-      fireEvent.click(screen.getByText("Zeitkorrektur"));
+      clickQuickEditReason("Zeitkorrektur");
 
-      const saveButtons = screen.getAllByText("Speichern");
+      const saveBtn = await waitForLastSaveButtonEnabled();
       await act(async () => {
-        fireEvent.click(saveButtons[saveButtons.length - 1]!);
+        fireEvent.click(saveBtn);
       });
 
       await waitFor(() => {
@@ -2388,16 +2689,16 @@ describe("TimeTrackingPage", () => {
           {
             id: "b1",
             sessionId: "100",
-            startedAt: `${yISO}T10:00:00Z`,
-            endedAt: `${yISO}T10:30:00Z`,
+            startedAt: testTimestamp(yISO, "10:00"),
+            endedAt: testTimestamp(yISO, "10:30"),
             durationMinutes: 30,
             plannedEndTime: null,
           },
           {
             id: "b2",
             sessionId: "100",
-            startedAt: `${yISO}T13:00:00Z`,
-            endedAt: `${yISO}T13:15:00Z`,
+            startedAt: testTimestamp(yISO, "13:00"),
+            endedAt: testTimestamp(yISO, "13:15"),
             durationMinutes: 15,
             plannedEndTime: null,
           },
@@ -2428,8 +2729,8 @@ describe("TimeTrackingPage", () => {
           {
             id: "b1",
             sessionId: "100",
-            startedAt: `${yISO}T10:00:00Z`,
-            endedAt: `${yISO}T10:30:00Z`,
+            startedAt: testTimestamp(yISO, "10:00"),
+            endedAt: testTimestamp(yISO, "10:30"),
             durationMinutes: 30,
             plannedEndTime: null,
           },
@@ -2439,19 +2740,19 @@ describe("TimeTrackingPage", () => {
       await openEditModal(sessionWithBreaks);
 
       // Change break duration via select
-      const breakSelects = screen
+      const breakTrigger = screen
         .getByText("Pausen")
         .closest("div")!
-        .querySelectorAll("select");
-      if (breakSelects[0]) {
-        fireEvent.change(breakSelects[0], { target: { value: "45" } });
+        .querySelector<HTMLElement>('[role="combobox"]');
+      if (breakTrigger) {
+        chooseSelectOption(breakTrigger, "45 min");
       }
 
-      fireEvent.click(screen.getByText("Zeitkorrektur"));
+      clickQuickEditReason("Zeitkorrektur");
 
-      const saveButtons = screen.getAllByText("Speichern");
+      const saveBtn = await waitForLastSaveButtonEnabled();
       await act(async () => {
-        fireEvent.click(saveButtons[saveButtons.length - 1]!);
+        fireEvent.click(saveBtn);
       });
 
       await waitFor(() => {
@@ -2542,6 +2843,34 @@ describe("TimeTrackingPage", () => {
         expect(screen.getByText("Halber Tag")).toBeInTheDocument();
         expect(screen.getByText("Abwesenheit löschen")).toBeInTheDocument();
       });
+    });
+
+    it("shows manager-entered comp time as read-only", async () => {
+      const compTimeAbsence: StaffAbsence = {
+        ...mockAbsence,
+        absenceType: "comp_time",
+        dateStart: weekdayISO,
+        dateEnd: weekdayISO,
+        halfDay: true,
+        note: "Überstundenabbau",
+      };
+
+      await openEditModal(makePastSession(), {
+        absences: [compTimeAbsence],
+      });
+      fireEvent.click(screen.getByText("Abwesenheit"));
+
+      expect(
+        await screen.findByText(
+          /Freizeitausgleich wird von der Leitung eingetragen/,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Halber Tag")).toBeInTheDocument();
+      expect(screen.getByText("Überstundenabbau")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Von")).not.toBeInTheDocument();
+      expect(screen.queryByText("Abwesenheit löschen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Speichern")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Schließen" })).toBeEnabled();
     });
 
     it("calls updateAbsence when absence tab saved", async () => {
@@ -2639,7 +2968,7 @@ describe("TimeTrackingPage", () => {
       const startInput = screen.getByLabelText("Start");
       const endInput = screen.getByLabelText("Ende");
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "0" } });
+      chooseSelectOption(breakSelect, "0 min");
       fireEvent.change(startInput, { target: { value: "08:00" } });
       fireEvent.change(endInput, { target: { value: "13:00" } });
       // 5h work, no warnings expected
@@ -2681,12 +3010,10 @@ describe("TimeTrackingPage", () => {
       await openEditModal(pastSession, { absences: [pastAbsence] });
       fireEvent.click(screen.getByText("Abwesenheit"));
 
-      await waitFor(() => {
-        const toggle = screen.getByRole("switch");
-        expect(toggle.getAttribute("aria-checked")).toBe("false");
-        fireEvent.click(toggle);
-        expect(toggle.getAttribute("aria-checked")).toBe("true");
-      });
+      const toggle = await screen.findByRole("switch");
+      expect(toggle.getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(toggle);
+      expect(toggle.getAttribute("aria-checked")).toBe("true");
     });
   });
 
@@ -2930,7 +3257,7 @@ describe("TimeTrackingPage", () => {
       const activeHistory: WorkSessionHistory = {
         ...mockHistorySession,
         date: weekdayISO,
-        checkInTime: `${weekdayISO}T08:00:00Z`,
+        checkInTime: testTimestamp(weekdayISO, "08:00"),
         checkOutTime: null,
         netMinutes: 0,
       };
@@ -2950,8 +3277,8 @@ describe("TimeTrackingPage", () => {
       const hoSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:00"),
         status: "home_office",
       };
 
@@ -2967,8 +3294,8 @@ describe("TimeTrackingPage", () => {
       const presentSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:00"),
         status: "present",
       };
 
@@ -3009,7 +3336,7 @@ describe("TimeTrackingPage", () => {
           oldValue: "0",
           newValue: "30",
           notes: "Pause nachgetragen",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3032,10 +3359,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${todayISO}T07:00:00Z`,
-          newValue: `${todayISO}T08:00:00Z`,
+          oldValue: testTimestamp(todayISO, "07:00"),
+          newValue: testTimestamp(todayISO, "08:00"),
           notes: "Korrektur",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3102,10 +3429,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${todayISO}T07:00:00Z`,
-          newValue: `${todayISO}T08:00:00Z`,
+          oldValue: testTimestamp(todayISO, "07:00"),
+          newValue: testTimestamp(todayISO, "08:00"),
           notes: "Korrektur",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3137,7 +3464,7 @@ describe("TimeTrackingPage", () => {
           oldValue: "0",
           newValue: "30",
           notes: "Pause korrigiert",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3163,7 +3490,7 @@ describe("TimeTrackingPage", () => {
           oldValue: "present",
           newValue: "home_office",
           notes: "Ort-Änderung",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3192,7 +3519,7 @@ describe("TimeTrackingPage", () => {
           oldValue: null,
           newValue: "Some note",
           notes: "Added note",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3214,10 +3541,10 @@ describe("TimeTrackingPage", () => {
       const pastSessionWithEdits: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
         editCount: 1,
-        updatedAt: `${yISO}T17:00:00Z`,
+        updatedAt: testTimestamp(yISO, "17:00"),
       };
 
       vi.mocked(timeTrackingService.getSessionEdits).mockResolvedValue([
@@ -3227,10 +3554,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${yISO}T07:00:00Z`,
-          newValue: `${yISO}T08:00:00Z`,
+          oldValue: testTimestamp(yISO, "07:00"),
+          newValue: testTimestamp(yISO, "08:00"),
           notes: "Korrektur",
-          createdAt: `${yISO}T17:00:00Z`,
+          createdAt: testTimestamp(yISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [pastSessionWithEdits] });
@@ -3248,7 +3575,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("groups multiple edits with same timestamp", async () => {
-      const timestamp = `${todayISO}T17:00:00Z`;
+      const timestamp = testTimestamp(todayISO, "17:00");
       vi.mocked(timeTrackingService.getSessionEdits).mockResolvedValue([
         {
           id: "e1",
@@ -3256,8 +3583,8 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${todayISO}T07:00:00Z`,
-          newValue: `${todayISO}T08:00:00Z`,
+          oldValue: testTimestamp(todayISO, "07:00"),
+          newValue: testTimestamp(todayISO, "08:00"),
           notes: "Doppelkorrektur",
           createdAt: timestamp,
         },
@@ -3301,11 +3628,12 @@ describe("TimeTrackingPage", () => {
     it("resets form on open (absence type defaults to sick)", () => {
       openAbsenceModal();
       const typeSelect = screen.getByLabelText("Art der Abwesenheit");
-      expect((typeSelect as HTMLSelectElement).value).toBe("sick");
+      expect(typeSelect).toHaveTextContent("Krank");
     });
 
     it("shows all absence type options", () => {
       openAbsenceModal();
+      fireEvent.click(screen.getByLabelText("Art der Abwesenheit"));
       expect(screen.getAllByText("Krank").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Urlaub").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Fortbildung").length).toBeGreaterThan(0);
@@ -3315,8 +3643,8 @@ describe("TimeTrackingPage", () => {
     it("changes absence type via select", () => {
       openAbsenceModal();
       const typeSelect = screen.getByLabelText("Art der Abwesenheit");
-      fireEvent.change(typeSelect, { target: { value: "vacation" } });
-      expect((typeSelect as HTMLSelectElement).value).toBe("vacation");
+      chooseSelectOption(typeSelect, "Urlaub");
+      expect(typeSelect).toHaveTextContent("Urlaub");
     });
 
     it("toggles half day switch", () => {
@@ -3421,8 +3749,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -3436,10 +3764,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${yISO}T07:00:00Z`,
-          newValue: `${yISO}T08:00:00Z`,
+          oldValue: testTimestamp(yISO, "07:00"),
+          newValue: testTimestamp(yISO, "08:00"),
           notes: "Auto-expanded",
-          createdAt: `${yISO}T17:00:00Z`,
+          createdAt: testTimestamp(yISO, "17:00"),
         },
       ]);
 
@@ -3452,11 +3780,11 @@ describe("TimeTrackingPage", () => {
           expect(screen.getByTestId("modal")).toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByText("Zeitkorrektur"));
+        clickQuickEditReason("Zeitkorrektur");
 
-        const saveButtons = screen.getAllByText("Speichern");
+        const saveBtn = await waitForLastSaveButtonEnabled();
         await act(async () => {
-          fireEvent.click(saveButtons[saveButtons.length - 1]!);
+          fireEvent.click(saveBtn);
         });
 
         await waitFor(() => {
@@ -3481,8 +3809,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -3499,11 +3827,11 @@ describe("TimeTrackingPage", () => {
           expect(screen.getByTestId("modal")).toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByText("Zeitkorrektur"));
+        clickQuickEditReason("Zeitkorrektur");
 
-        const saveButtons = screen.getAllByText("Speichern");
+        const saveBtn = await waitForLastSaveButtonEnabled();
         await act(async () => {
-          fireEvent.click(saveButtons[saveButtons.length - 1]!);
+          fireEvent.click(saveBtn);
         });
 
         await waitFor(() => {
@@ -3576,8 +3904,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -3687,8 +4015,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -3856,8 +4184,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -3889,8 +4217,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -3905,7 +4233,7 @@ describe("TimeTrackingPage", () => {
       const activeHistory: WorkSessionHistory = {
         ...mockHistorySession,
         date: todayISO,
-        checkInTime: `${todayISO}T08:00:00Z`,
+        checkInTime: testTimestamp(todayISO, "08:00"),
         checkOutTime: null,
         netMinutes: 0,
       };
@@ -3927,8 +4255,8 @@ describe("TimeTrackingPage", () => {
       const hoSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:00"),
         status: "home_office",
       };
 
@@ -3945,8 +4273,8 @@ describe("TimeTrackingPage", () => {
       const presentSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:00"),
         status: "present",
       };
 
@@ -3963,10 +4291,10 @@ describe("TimeTrackingPage", () => {
       const sessionWithEdits: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
         editCount: 2,
-        updatedAt: `${yISO}T17:00:00Z`,
+        updatedAt: testTimestamp(yISO, "17:00"),
       };
 
       setupDefaultMocks({ history: [sessionWithEdits] });
@@ -4052,8 +4380,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -4070,11 +4398,11 @@ describe("TimeTrackingPage", () => {
           expect(screen.getByTestId("modal")).toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByText("Zeitkorrektur"));
+        clickQuickEditReason("Zeitkorrektur");
 
-        const saveButtons = screen.getAllByText("Speichern");
+        const saveBtn = await waitForLastSaveButtonEnabled();
         await act(async () => {
-          fireEvent.click(saveButtons[saveButtons.length - 1]!);
+          fireEvent.click(saveBtn);
         });
 
         await waitFor(() => {
@@ -4191,8 +4519,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T12:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "12:00"),
         netMinutes: 240,
       };
       const pastAbsence: StaffAbsence = {
@@ -4220,8 +4548,8 @@ describe("TimeTrackingPage", () => {
     const todayEditedHistory: WorkSessionHistory = {
       ...mockHistorySession,
       date: todayISO,
-      checkInTime: `${todayISO}T08:00:00Z`,
-      checkOutTime: `${todayISO}T16:30:00Z`,
+      checkInTime: testTimestamp(todayISO, "08:00"),
+      checkOutTime: testTimestamp(todayISO, "16:30"),
       editCount: 1,
     };
 
@@ -4250,8 +4578,8 @@ describe("TimeTrackingPage", () => {
       const uneditedHistory: WorkSessionHistory = {
         ...mockHistorySession,
         date: todayISO,
-        checkInTime: `${todayISO}T08:00:00Z`,
-        checkOutTime: `${todayISO}T16:30:00Z`,
+        checkInTime: testTimestamp(todayISO, "08:00"),
+        checkOutTime: testTimestamp(todayISO, "16:30"),
         editCount: 0,
       };
       setupDefaultMocks({
@@ -4379,5 +4707,163 @@ describe("TimeTrackingPage", () => {
       // Should not show check-in button at all when session is active
       expect(screen.queryByLabelText("Einstempeln")).not.toBeInTheDocument();
     });
+  });
+});
+
+// F9: the backend rejects stamps outside the tolerance window around the
+// planned shift window with code "deviation_reason_required". The page must
+// prompt for a reason and retry the SAME stamp with the reason attached
+// (see api/time-tracking/errors.go and work_session_service.go).
+describe("deviation-reason gate (F9)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function makeDeviationError(action: "check_in" | "check_out"): Error & {
+    code?: string;
+    status?: number;
+    details?: Record<string, unknown>;
+  } {
+    const err = new Error("deviation reason required") as Error & {
+      code?: string;
+      status?: number;
+      details?: Record<string, unknown>;
+    };
+    err.code = "deviation_reason_required";
+    err.status = 409;
+    err.details =
+      action === "check_in"
+        ? {
+            action,
+            planned_time: "08:00",
+            actual_time: "07:30",
+            deviation_minutes: "30",
+          }
+        : {
+            action,
+            planned_time: "16:00",
+            actual_time: "16:30",
+            deviation_minutes: "30",
+          };
+    return err;
+  }
+
+  it("opens the reason dialog when check-out deviates from the plan", async () => {
+    setupDefaultMocks({ currentSession: mockActiveSession });
+    vi.mocked(timeTrackingService.checkOut).mockRejectedValueOnce(
+      makeDeviationError("check_out"),
+    );
+    render(<TimeTrackingPage />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Ausstempeln"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/30 Minuten/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/nach deinem geplanten Dienstende/),
+    ).toBeInTheDocument();
+    // Confirm stays disabled until a reason is entered.
+    expect(screen.getByText("Mit Begründung ausstempeln")).toBeDisabled();
+  });
+
+  it("retries the check-out with the entered reason", async () => {
+    setupDefaultMocks({ currentSession: mockActiveSession });
+    vi.mocked(timeTrackingService.checkOut)
+      .mockRejectedValueOnce(makeDeviationError("check_out"))
+      .mockResolvedValueOnce(mockCheckedOutSession);
+    render(<TimeTrackingPage />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Ausstempeln"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Elterngespräch lief länger" },
+    });
+    const confirmBtn = screen.getByText("Mit Begründung ausstempeln");
+    expect(confirmBtn).not.toBeDisabled();
+
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => {
+      expect(timeTrackingService.checkOut).toHaveBeenLastCalledWith(
+        "Elterngespräch lief länger",
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Abweichung vom Dienstplan"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("retries the check-in with status and reason", async () => {
+    setupDefaultMocks();
+    vi.mocked(timeTrackingService.checkIn)
+      .mockRejectedValueOnce(makeDeviationError("check_in"))
+      .mockResolvedValueOnce(mockActiveSession);
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getByText("In der OGS"));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Einstempeln"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/vor deinem geplanten Dienstbeginn/),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Frühdienst übernommen" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Mit Begründung einstempeln"));
+    });
+
+    await waitFor(() => {
+      expect(timeTrackingService.checkIn).toHaveBeenLastCalledWith(
+        "present",
+        "Frühdienst übernommen",
+      );
+    });
+  });
+
+  it("keeps the dialog open when the retry fails", async () => {
+    setupDefaultMocks({ currentSession: mockActiveSession });
+    vi.mocked(timeTrackingService.checkOut)
+      .mockRejectedValueOnce(makeDeviationError("check_out"))
+      .mockRejectedValueOnce(new Error("network down"));
+    render(<TimeTrackingPage />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Ausstempeln"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Elterngespräch" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Mit Begründung ausstempeln"));
+    });
+
+    await waitFor(() => {
+      expect(timeTrackingService.checkOut).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
   });
 });

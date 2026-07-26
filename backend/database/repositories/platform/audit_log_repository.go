@@ -67,30 +67,6 @@ func (r *OperatorAuditLogRepository) FindByOperatorID(ctx context.Context, opera
 	return entries, nil
 }
 
-// FindByResourceType retrieves audit logs by resource type
-func (r *OperatorAuditLogRepository) FindByResourceType(ctx context.Context, resourceType string, limit int) ([]*platform.OperatorAuditLog, error) {
-	var entries []*platform.OperatorAuditLog
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&entries).
-		ModelTableExpr(tablePlatformOperatorAuditLogAlias).
-		Where(`"log".resource_type = ?`, resourceType).
-		Order(`"log".created_at DESC`)
-
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find audit logs by resource type",
-			Err: err,
-		}
-	}
-
-	return entries, nil
-}
-
 // FindByDateRange retrieves audit logs within a date range
 func (r *OperatorAuditLogRepository) FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*platform.OperatorAuditLog, error) {
 	var entries []*platform.OperatorAuditLog

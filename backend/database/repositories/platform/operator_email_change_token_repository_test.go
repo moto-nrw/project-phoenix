@@ -9,34 +9,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	repoplatform "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// createTestOperatorForTokenRepo creates a minimal operator for token repo tests.
-func createTestOperatorForTokenRepo(t *testing.T, db *bun.DB, email string) int64 {
-	t.Helper()
-	ctx := context.Background()
-
-	var operatorID int64
-	err := db.NewRaw(
-		`INSERT INTO platform.operators (email, password_hash, display_name, active)
-		 VALUES (?, ?, ?, true) RETURNING id`,
-		email, "$argon2id$v=19$m=1024,t=1,p=1$dGVzdHNhbHQ$fakehash", "Test Operator",
-	).Scan(ctx, &operatorID)
-	require.NoError(t, err, "Failed to create test operator")
-
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_email_change_tokens WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
-	})
-
-	return operatorID
-}
 
 func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
@@ -47,7 +24,7 @@ func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		email := fmt.Sprintf("create-ok-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		token := &platform.OperatorEmailChangeToken{
 			OperatorID: operatorID,
@@ -69,7 +46,7 @@ func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
 
 	t.Run("ValidationFailure_EmptyToken", func(t *testing.T) {
 		email := fmt.Sprintf("create-val-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		token := &platform.OperatorEmailChangeToken{
 			OperatorID: operatorID,
@@ -85,7 +62,7 @@ func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
 
 	t.Run("ValidationFailure_ExpiredToken", func(t *testing.T) {
 		email := fmt.Sprintf("create-exp-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		token := &platform.OperatorEmailChangeToken{
 			OperatorID: operatorID,
@@ -114,7 +91,7 @@ func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
 
 	t.Run("ValidationFailure_MissingNewEmail", func(t *testing.T) {
 		email := fmt.Sprintf("create-noemail-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		token := &platform.OperatorEmailChangeToken{
 			OperatorID: operatorID,
@@ -137,7 +114,7 @@ func TestOperatorEmailChangeTokenRepository_UpdateDeliveryResult(t *testing.T) {
 	ctx := context.Background()
 
 	email := fmt.Sprintf("delivery-%d@test.local", time.Now().UnixNano())
-	operatorID := createTestOperatorForTokenRepo(t, db, email)
+	operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 	// Helper to create a fresh token for each sub-test.
 	createToken := func(t *testing.T) *platform.OperatorEmailChangeToken {
@@ -266,7 +243,7 @@ func TestOperatorEmailChangeTokenRepository_ConsumeByToken(t *testing.T) {
 
 	t.Run("AlreadyUsedToken_ReturnsNilNil", func(t *testing.T) {
 		email := fmt.Sprintf("consume-used-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		tokenStr := uuid.Must(uuid.NewV4()).String()
 		_, err := db.ExecContext(ctx,
@@ -295,7 +272,7 @@ func TestOperatorEmailChangeTokenRepository_InvalidateByOperatorID(t *testing.T)
 
 	t.Run("NoTokens_NoError", func(t *testing.T) {
 		email := fmt.Sprintf("inv-none-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		err := repo.InvalidateByOperatorID(ctx, operatorID)
 		require.NoError(t, err, "invalidating with no tokens should not error")
@@ -303,7 +280,7 @@ func TestOperatorEmailChangeTokenRepository_InvalidateByOperatorID(t *testing.T)
 
 	t.Run("InvalidatesActiveToken", func(t *testing.T) {
 		email := fmt.Sprintf("inv-active-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		token := &platform.OperatorEmailChangeToken{
 			OperatorID: operatorID,
@@ -345,7 +322,7 @@ func TestOperatorEmailChangeTokenRepository_InvalidateExpiredTokens(t *testing.T
 
 	t.Run("InvalidatesExpiredUnused", func(t *testing.T) {
 		email := fmt.Sprintf("inv-exp-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		tokenStr := uuid.Must(uuid.NewV4()).String()
 		_, err := db.ExecContext(ctx,
@@ -386,7 +363,7 @@ func TestOperatorEmailChangeTokenRepository_DeleteStaleTokens(t *testing.T) {
 
 	t.Run("DeletesOldUsedToken", func(t *testing.T) {
 		email := fmt.Sprintf("del-stale-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		tokenStr := uuid.Must(uuid.NewV4()).String()
 		_, err := db.ExecContext(ctx,
@@ -411,7 +388,7 @@ func TestOperatorEmailChangeTokenRepository_DeleteStaleTokens(t *testing.T) {
 
 	t.Run("PreservesRecentToken", func(t *testing.T) {
 		email := fmt.Sprintf("del-recent-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		tokenStr := uuid.Must(uuid.NewV4()).String()
 		_, err := db.ExecContext(ctx,
@@ -446,7 +423,7 @@ func TestOperatorEmailChangeTokenRepository_CountRecentByOperatorID(t *testing.T
 
 	t.Run("NoTokens_ReturnsZero", func(t *testing.T) {
 		email := fmt.Sprintf("count-none-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		count, err := repo.CountRecentByOperatorID(ctx, operatorID, time.Now().Add(-1*time.Hour))
 		require.NoError(t, err)
@@ -455,7 +432,7 @@ func TestOperatorEmailChangeTokenRepository_CountRecentByOperatorID(t *testing.T
 
 	t.Run("CountsAllTokensInWindow", func(t *testing.T) {
 		email := fmt.Sprintf("count-all-%d@test.local", time.Now().UnixNano())
-		operatorID := createTestOperatorForTokenRepo(t, db, email)
+		operatorID := testpkg.CreateTestOperatorWithEmail(t, db, email, "Test Operator").ID
 
 		// Insert 3 tokens (2 used, 1 active) — all recent
 		for i := range 2 {

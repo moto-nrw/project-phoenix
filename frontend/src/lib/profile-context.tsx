@@ -11,6 +11,7 @@ import React, {
 import { useSession } from "next-auth/react";
 import { fetchProfile as apiFetchProfile } from "~/lib/profile-api";
 import { createLogger } from "~/lib/logger";
+import { useLatest } from "~/lib/hooks/use-latest";
 
 const logger = createLogger({ component: "ProfileContext" });
 import type { Profile } from "~/lib/profile-helpers";
@@ -48,8 +49,7 @@ export function ProfileProvider({
   const lastRefreshRef = React.useRef<number>(0);
 
   // Store token in ref to avoid dependency loops
-  const tokenRef = React.useRef<string | undefined>(session?.user?.token);
-  tokenRef.current = session?.user?.token;
+  const tokenRef = useLatest(session?.user?.token);
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(
@@ -94,7 +94,7 @@ export function ProfileProvider({
         isLoading: false,
       }));
     }
-  }, []); // No dependencies - uses ref
+  }, [tokenRef]);
 
   // Refresh profile with debouncing
   const refreshProfile = useCallback(
@@ -142,8 +142,10 @@ export function ProfileProvider({
     });
   }, []);
 
-  // Store the refresh function in ref
-  refreshRef.current = refreshProfile;
+  // Store the refresh function only after its render commits.
+  useEffect(() => {
+    refreshRef.current = refreshProfile;
+  }, [refreshProfile]);
 
   // Reset debounce when tenant changes so profile refreshes immediately after switch
   const tenantId = session?.user?.tenantId;

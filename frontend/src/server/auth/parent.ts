@@ -8,13 +8,16 @@
  */
 
 import NextAuth from "next-auth";
-import { cache } from "react";
 
 import { parentAuthConfig } from "./parent-config";
+import { createResponseAwareAuth } from "./route-handler";
 
-const { auth: uncachedParentAuth, handlers: parentHandlers } =
+const { auth: rawParentAuth, handlers: parentHandlers } =
   NextAuth(parentAuthConfig);
+const {
+  auth: parentAuth,
+  uncachedAuth: uncachedParentAuth,
+  withAuthResponse: withParentAuth,
+} = createResponseAwareAuth(rawParentAuth);
 
-const parentAuth = cache(uncachedParentAuth);
-
-export { parentAuth, uncachedParentAuth, parentHandlers };
+export { parentAuth, uncachedParentAuth, parentHandlers, withParentAuth };

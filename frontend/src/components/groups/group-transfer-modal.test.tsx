@@ -22,7 +22,7 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="modal">
         <h2>{title}</h2>
-        <button onClick={onClose} data-testid="modal-close">
+        <button type="button" onClick={onClose} data-testid="modal-close">
           Close
         </button>
         {children}
@@ -134,9 +134,16 @@ describe("GroupTransferModal", () => {
       />,
     );
 
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+
     await waitFor(() => {
-      expect(screen.getByText("John Doe")).toBeInTheDocument();
-      expect(screen.getByText("Jane Smith")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "John Doe" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Jane Smith" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -170,10 +177,9 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    await waitFor(() => {
-      const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "p1" } });
-    });
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+    fireEvent.click(screen.getByRole("option", { name: "John Doe" }));
 
     const transferButton = screen.getByText("Übergeben");
     fireEvent.click(transferButton);
@@ -213,10 +219,9 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    await waitFor(() => {
-      const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "p1" } });
-    });
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+    fireEvent.click(screen.getByRole("option", { name: "John Doe" }));
 
     const transferButton = screen.getByText("Übergeben");
     fireEvent.click(transferButton);
@@ -239,10 +244,8 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    await waitFor(() => {
-      const removeButton = screen.getByText("Entfernen");
-      fireEvent.click(removeButton);
-    });
+    const removeButton = await screen.findByText("Entfernen");
+    fireEvent.click(removeButton);
 
     await waitFor(() => {
       expect(mockOnCancelTransfer).toHaveBeenCalledWith("s1");
@@ -299,10 +302,9 @@ describe("GroupTransferModal", () => {
       );
 
       // Select a user
-      await waitFor(() => {
-        const select = screen.getByRole("combobox");
-        fireEvent.change(select, { target: { value: "p1" } });
-      });
+      const select = await screen.findByRole("combobox");
+      fireEvent.click(select);
+      fireEvent.click(screen.getByRole("option", { name: "John Doe" }));
 
       const transferButton = screen.getByText("Übergeben");
       fireEvent.click(transferButton);

@@ -50,7 +50,7 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -77,7 +77,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,
@@ -114,7 +114,11 @@ vi.mock("~/components/ui/page-header", () => ({
           ))}
         </select>
       ))}
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -122,22 +126,22 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/groups", () => ({
-  GroupCreateModal: ({
+vi.mock("~/components/ui/database/database-form-modal", () => ({
+  DatabaseFormModal: ({
     isOpen,
     onClose,
-    onCreate,
+    onSubmit,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: { name: string }) => Promise<void>;
+    onSubmit: (data: { name: string }) => Promise<void>;
   }) => {
-    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // Mirrors DatabaseForm: catches the rejection from onSubmit and renders
     // the message inline. Tests assert against the resulting message.
     const [error, setError] = useState<string | null>(null);
     const submit = (data: { name: string }) => {
       setError(null);
-      void onCreate(data).catch((err: unknown) => {
+      void onSubmit(data).catch((err: unknown) => {
         setError(err instanceof Error ? err.message : String(err));
       });
     };
@@ -145,17 +149,25 @@ vi.mock("@/components/groups", () => ({
       <div data-testid="group-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
         <button
+          type="button"
           data-testid="submit-create"
           onClick={() => submit({ name: "Neue Gruppe" })}
         >
           Submit
         </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="close-create-modal"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>
     ) : null;
   },
+}));
+
+vi.mock("@/components/groups/groups-master-detail", () => ({
   GroupsMasterDetail: ({
     groups,
     selectedId,
@@ -174,6 +186,7 @@ vi.mock("@/components/groups", () => ({
     <div data-testid="groups-master-detail">
       {groups.map((group) => (
         <button
+          type="button"
           key={group.id}
           data-testid={`group-row-${group.id}`}
           onClick={() => onSelect(group.id)}
@@ -188,15 +201,24 @@ vi.mock("@/components/groups", () => ({
             {selectedGroup?.name ?? "unbekannt"}
           </span>
           <button
+            type="button"
             data-testid="trigger-update"
             onClick={() => void onSaveGroup({ name: "Updated Group" })}
           >
             Save
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            data-testid="trigger-deselect"
+            onClick={() => onSelect(null)}
+          >
             Close
           </button>
-          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+          <button
+            type="button"
+            data-testid="trigger-delete"
+            onClick={onDeleteClick}
+          >
             Delete
           </button>
         </div>
@@ -217,10 +239,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>

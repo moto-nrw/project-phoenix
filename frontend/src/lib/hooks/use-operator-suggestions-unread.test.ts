@@ -81,7 +81,7 @@ describe("useOperatorSuggestionsUnread", () => {
       timestamp: Date.now(),
     };
     localStorage.setItem(
-      "operator_suggestions_unread_count",
+      "operator_suggestions_unread_count:v1",
       JSON.stringify(cachedData),
     );
 
@@ -112,7 +112,7 @@ describe("useOperatorSuggestionsUnread", () => {
       timestamp: Date.now() - 61 * 1000,
     };
     localStorage.setItem(
-      "operator_suggestions_unread_count",
+      "operator_suggestions_unread_count:v1",
       JSON.stringify(expiredData),
     );
 
@@ -174,7 +174,7 @@ describe("useOperatorSuggestionsUnread", () => {
 
     // Set cached data
     localStorage.setItem(
-      "operator_suggestions_unread_count",
+      "operator_suggestions_unread_count:v1",
       JSON.stringify({
         unreadComments: 1,
         unviewedPosts: 1,
@@ -263,7 +263,7 @@ describe("useOperatorSuggestionsUnread", () => {
 
     // Set cached data
     localStorage.setItem(
-      "operator_suggestions_unread_count",
+      "operator_suggestions_unread_count:v1",
       JSON.stringify({
         unreadComments: 2,
         unviewedPosts: 2,
@@ -278,7 +278,7 @@ describe("useOperatorSuggestionsUnread", () => {
 
     await waitFor(() => {
       expect(
-        localStorage.getItem("operator_suggestions_unread_count"),
+        localStorage.getItem("operator_suggestions_unread_count:v1"),
       ).toBeNull();
     });
   });
@@ -300,7 +300,9 @@ describe("useOperatorSuggestionsUnread", () => {
     renderHook(() => useOperatorSuggestionsUnread());
 
     await waitFor(() => {
-      const cached = localStorage.getItem("operator_suggestions_unread_count");
+      const cached = localStorage.getItem(
+        "operator_suggestions_unread_count:v1",
+      );
       expect(cached).not.toBeNull();
       if (cached) {
         const data = JSON.parse(cached) as CachedData;
@@ -317,7 +319,10 @@ describe("useOperatorSuggestionsUnread", () => {
     mockFetchUnviewedCount.mockResolvedValueOnce(3);
 
     // Set invalid JSON in cache
-    localStorage.setItem("operator_suggestions_unread_count", "invalid-json");
+    localStorage.setItem(
+      "operator_suggestions_unread_count:v1",
+      "invalid-json",
+    );
 
     const { result } = renderHook(() => useOperatorSuggestionsUnread());
 

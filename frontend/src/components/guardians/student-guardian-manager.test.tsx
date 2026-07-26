@@ -110,7 +110,11 @@ vi.mock("./guardian-list", () => ({
         <div key={g.id} data-testid={`guardian-${g.id}`}>
           <span>{`${g.firstName ?? ""} ${g.lastName ?? ""}`}</span>
           {!readOnly && onEdit && (
-            <button onClick={() => onEdit(g)} data-testid={`edit-${g.id}`}>
+            <button
+              type="button"
+              onClick={() => onEdit(g)}
+              data-testid={`edit-${g.id}`}
+            >
               Edit {g.id}
             </button>
           )}
@@ -145,17 +149,25 @@ vi.mock("./guardian-form-modal", () => ({
     isOpen ? (
       <div data-testid="guardian-form-modal">
         <h2>{mode === "create" ? "Create Guardian" : "Edit Guardian"}</h2>
-        <button onClick={onClose} data-testid="close-modal">
+        <button type="button" onClick={onClose} data-testid="close-modal">
           Close Modal
         </button>
         <button
+          type="button"
           onClick={() =>
             onSubmit(
               [
                 {
                   id: "test-id",
                   guardianData: { firstName: "Test", lastName: "Guardian" },
-                  relationshipData: { relationshipType: "parent" },
+                  relationshipData: {
+                    relationshipType: "parent",
+                    guardianRole: "legal_guardian",
+                    isPrimary: false,
+                    isEmergencyContact: false,
+                    canPickup: false,
+                    emergencyPriority: 1,
+                  },
                   phoneNumbers: [
                     {
                       phoneNumber: "+49 123 456",
@@ -173,7 +185,11 @@ vi.mock("./guardian-form-modal", () => ({
           Submit Form
         </button>
         {mode === "edit" && onDelete && (
-          <button onClick={onDelete} data-testid="modal-delete-button">
+          <button
+            type="button"
+            onClick={onDelete}
+            data-testid="modal-delete-button"
+          >
             Delete Guardian
           </button>
         )}
@@ -264,16 +280,21 @@ vi.mock("./guardian-delete-modal", () => ({
         {fullDeleteWarning && (
           <p data-testid="full-delete-warning">{fullDeleteWarning}</p>
         )}
-        <button onClick={onClose} data-testid="cancel-delete">
+        <button type="button" onClick={onClose} data-testid="cancel-delete">
           Cancel
         </button>
         {step === "choose" && (
           <>
-            <button onClick={onSelectUnlink} data-testid="select-unlink">
+            <button
+              type="button"
+              onClick={onSelectUnlink}
+              data-testid="select-unlink"
+            >
               Choose Unlink
             </button>
             {canFullDelete && (
               <button
+                type="button"
                 onClick={onSelectFullDelete}
                 data-testid="select-full-delete"
               >
@@ -284,20 +305,25 @@ vi.mock("./guardian-delete-modal", () => ({
         )}
         {step === "confirm-unlink" && (
           <>
-            <button onClick={onBack} data-testid="back">
+            <button type="button" onClick={onBack} data-testid="back">
               Back
             </button>
-            <button onClick={onConfirmUnlink} data-testid="confirm-delete">
+            <button
+              type="button"
+              onClick={onConfirmUnlink}
+              data-testid="confirm-delete"
+            >
               Confirm Unlink
             </button>
           </>
         )}
         {step === "confirm-full" && (
           <>
-            <button onClick={onBack} data-testid="back">
+            <button type="button" onClick={onBack} data-testid="back">
               Back
             </button>
             <button
+              type="button"
               onClick={onConfirmFullDelete}
               data-testid="confirm-full-delete"
               disabled={isWarningLoading}
@@ -611,6 +637,11 @@ describe("StudentGuardianManager", () => {
         "rel-1",
         {
           relationshipType: "parent",
+          guardianRole: "legal_guardian",
+          isPrimary: false,
+          isEmergencyContact: false,
+          canPickup: false,
+          emergencyPriority: 1,
         },
       );
 

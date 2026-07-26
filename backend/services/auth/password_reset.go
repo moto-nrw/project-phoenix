@@ -17,8 +17,35 @@ import (
 
 // Password Reset
 
+type passwordResetScope string
+
+const (
+	passwordResetScopeStaff  passwordResetScope = "staff"
+	passwordResetScopeParent passwordResetScope = "parent"
+)
+
+type passwordResetOptions struct {
+	scope   passwordResetScope
+	baseURL string
+}
+
 // InitiatePasswordReset creates a password reset token for an account
 func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string) (*auth.PasswordResetToken, error) {
+	return s.initiatePasswordReset(ctx, emailAddress, passwordResetOptions{
+		scope:   passwordResetScopeStaff,
+		baseURL: s.frontendURL,
+	})
+}
+
+// InitiateParentPasswordReset creates a password reset token for guardian accounts only.
+func (s *Service) InitiateParentPasswordReset(ctx context.Context, emailAddress string) (*auth.PasswordResetToken, error) {
+	return s.initiatePasswordReset(ctx, emailAddress, passwordResetOptions{
+		scope:   passwordResetScopeParent,
+		baseURL: s.parentsURL,
+	})
+}
+
+func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string, opts passwordResetOptions) (*auth.PasswordResetToken, error) {
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
@@ -29,13 +56,30 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		return nil, nil
 	}
 
-	// Check rate limiting
+	if opts.scope == passwordResetScopeParent {
+		hasGuardianRole, _, err := s.findGuardianTenantForAccount(ctx, account.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !hasGuardianRole {
+			return nil, nil
+		}
+	}
+
+	// Rate-limit only after confirming a real, actionable account. The
+	// per-email limiter writes a row to auth.password_reset_rate_limits, so
+	// keying it on accounts we will actually email keeps an unauthenticated
+	// caller from inflating that table with rows for arbitrary nonexistent
+	// addresses. Volumetric abuse and account-enumeration probing on the
+	// public reset routes are bounded ahead of this path by the IP-keyed auth
+	// rate limiter (api.base wires it via SetAuthRateLimiter on both the staff
+	// and parent /auth groups).
 	if err := s.checkPasswordResetRateLimit(ctx, emailAddress); err != nil {
 		return nil, err
 	}
 
 	s.getLogger().Info("password reset requested",
-		slog.String("email", emailAddress))
+		slog.String("scope", string(opts.scope)))
 
 	// Create password reset token in transaction
 	resetToken, err := s.createPasswordResetTokenInTransaction(ctx, account.ID)
@@ -47,7 +91,7 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		slog.Int64("account_id", account.ID))
 
 	// Dispatch password reset email
-	s.dispatchPasswordResetEmail(ctx, resetToken, account.Email)
+	s.dispatchPasswordResetEmail(ctx, resetToken, account.Email, opts.baseURL)
 
 	return resetToken, nil
 }
@@ -105,9 +149,8 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 	var resetToken *auth.PasswordResetToken
 
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(AuthService)
 
-		if err := txService.(*Service).repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
+		if err := s.repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
 			s.getLogger().Error("failed to invalidate reset tokens, rolling back",
 				slog.Int64("account_id", accountID),
 				slog.Any("error", err),
@@ -123,7 +166,7 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 			Used:      false,
 		}
 
-		if err := txService.(*Service).repos.PasswordResetToken.Create(ctx, resetToken); err != nil {
+		if err := s.repos.PasswordResetToken.Create(ctx, resetToken); err != nil {
 			return err
 		}
 
@@ -138,16 +181,16 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 }
 
 // dispatchPasswordResetEmail sends the password reset email asynchronously
-func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *auth.PasswordResetToken, accountEmail string) {
+func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *auth.PasswordResetToken, accountEmail, baseURL string) {
 	if s.dispatcher == nil {
 		s.getLogger().Warn("email dispatcher unavailable, skipping password reset email",
 			slog.Int64("account_id", resetToken.AccountID))
 		return
 	}
 
-	frontendURL := strings.TrimRight(s.frontendURL, "/")
+	frontendURL := strings.TrimRight(baseURL, "/")
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	message := email.Message{
 		From:     s.defaultFrom,
@@ -205,21 +248,18 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	// with no JWT/tenant context. Token.DeleteByAccountID touches auth.tokens which has
 	// RLS policies — phoenix_auth cannot satisfy them without tenant context.
 	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(AuthService)
-
 		// Update account password
-		if err := txService.(*Service).repos.Account.UpdatePassword(ctx, resetToken.AccountID, passwordHash); err != nil {
+		if err := s.repos.Account.UpdatePassword(ctx, resetToken.AccountID, passwordHash); err != nil {
 			return err
 		}
 
 		// Mark token as used
-		if err := txService.(*Service).repos.PasswordResetToken.MarkAsUsed(ctx, resetToken.ID); err != nil {
+		if err := s.repos.PasswordResetToken.MarkAsUsed(ctx, resetToken.ID); err != nil {
 			return err
 		}
 
 		// Invalidate all existing auth tokens for security
-		if err := txService.(*Service).repos.Token.DeleteByAccountID(ctx, resetToken.AccountID); err != nil {
+		if err := s.repos.Token.DeleteByAccountID(ctx, resetToken.AccountID); err != nil {
 			// Log error but don't fail the password reset
 			s.getLogger().Warn("failed to delete tokens during password reset",
 				slog.Int64("account_id", resetToken.AccountID),

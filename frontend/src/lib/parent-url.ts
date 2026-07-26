@@ -1,7 +1,7 @@
 /**
  * Utilities for parents subdomain URL handling.
  *
- * On the parents subdomain (e.g. parents.moto-app.de), URLs use clean
+ * On the parents subdomain (e.g. eltern.moto-app.de), URLs use clean
  * paths like /children/123 instead of /parents/children/123. The proxy
  * rewrites these to the actual /parents/* routes internally.
  *

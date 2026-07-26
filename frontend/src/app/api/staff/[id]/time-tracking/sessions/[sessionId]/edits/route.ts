@@ -1,6 +1,5 @@
-import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers.server";
-import { createGetHandler } from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**
  * GET /api/staff/[id]/time-tracking/sessions/[sessionId]/edits
@@ -9,19 +8,7 @@ import { createGetHandler } from "~/lib/route-wrapper.server";
  * but verifies the session belongs to the staff named in the URL
  * instead of the JWT subject.
  */
-export const GET = createGetHandler(
-  async (
-    _request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    const id = params.id as string;
-    const sessionId = params.sessionId as string;
-
-    const response = await apiGet<{ data: unknown }>(
-      `/api/staff/${id}/time-tracking/sessions/${sessionId}/edits`,
-      token,
-    );
-    return response.data;
-  },
+export const GET = proxyGet(
+  (p) =>
+    `/api/staff/${requirePathSegmentParam(p)}/time-tracking/sessions/${requirePathSegmentParam(p, "sessionId")}/edits`,
 );

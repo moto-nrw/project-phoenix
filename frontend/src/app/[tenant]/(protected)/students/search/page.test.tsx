@@ -41,13 +41,6 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid={fullPage ? "loading-full" : "loading"}>Loading...</div>
-  ),
-}));
-
 // Mock Alert component
 vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message, type }: { message: string; type: string }) => (
@@ -56,7 +49,7 @@ vi.mock("~/components/ui/alert", () => ({
 }));
 
 // Mock PageHeaderWithSearch
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     filters,
     activeFilters,
@@ -109,6 +102,7 @@ vi.mock("~/components/ui/page-header", () => ({
         {activeFilters.map(
           (f: { id: string; label: string; onRemove?: () => void }) => (
             <button
+              type="button"
               key={f.id}
               data-testid={`active-filter-${f.id}`}
               onClick={f.onRemove}
@@ -118,11 +112,16 @@ vi.mock("~/components/ui/page-header", () => ({
           ),
         )}
       </div>
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {(overflowMenu ?? []).map((item) => (
         <button
+          type="button"
           key={item.label}
           data-testid={`overflow-${item.label}`}
           onClick={item.onClick}
@@ -442,7 +441,7 @@ describe("StudentSearchPage", () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof sessionModule.useSession>);
 
-    const tenantProvider = await import("~/components/tenant/tenant-provider");
+    const tenantProvider = await import("~/lib/tenant-context");
     vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
       tenantSlug: "test-tenant",
       tenant: { studentPhotosEnabled: true },
@@ -1144,7 +1143,9 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("students-search-skeleton"),
+      ).toBeInTheDocument();
     });
 
     it("shows loading state while fetching students", async () => {
@@ -1161,7 +1162,9 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("loading")).toBeInTheDocument();
+        expect(
+          screen.getByTestId("student-card-grid-skeleton"),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -1460,6 +1463,13 @@ describe("StudentSearchPage", () => {
       )();
       expect(result).toEqual({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
+        // The fetcher now stamps the response with the date AND the
+        // today/planning mode it was fetched for, so the page can tell a fresh
+        // result apart from keepPreviousData holding the previous request's rows
+        // during a date OR mode switch — the mode tag catches the midnight
+        // rollover where the date is unchanged but semantics flip (#1939).
+        requestDate: expect.any(String),
+        requestIsToday: expect.any(Boolean),
       });
       expect(mockGetStudents).toHaveBeenCalledWith(
         expect.objectContaining({ dayStatus: "not_coming_today" }),
@@ -1602,7 +1612,9 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       // Should show loading, NOT empty state
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("students-search-skeleton"),
+      ).toBeInTheDocument();
       expect(
         screen.queryByText("Keine Kinder gefunden"),
       ).not.toBeInTheDocument();
@@ -1664,9 +1676,11 @@ describe("StudentSearchPage", () => {
         render(<StudentSearchPage />);
       });
 
-      // P2 FIX: Should show loading spinner, NOT "Keine Kinder gefunden"
+      // P2 FIX: Should show the grid skeleton, NOT "Keine Kinder gefunden"
       // because we're in initialization phase (groupsLoaded = false)
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("student-card-grid-skeleton"),
+      ).toBeInTheDocument();
       expect(
         screen.queryByText("Keine Kinder gefunden"),
       ).not.toBeInTheDocument();
@@ -1753,8 +1767,7 @@ describe("StudentSearchPage", () => {
   describe("Administrative Student Filters", () => {
     it("separates student caches when the photo feature flag changes", async () => {
       const swrModule = await import("~/lib/swr");
-      const tenantProvider =
-        await import("~/components/tenant/tenant-provider");
+      const tenantProvider = await import("~/lib/tenant-context");
       const studentKeys: string[] = [];
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
@@ -2015,8 +2028,7 @@ describe("StudentSearchPage", () => {
     });
 
     it("hides the photo consent filter when the tenant photo feature is disabled", async () => {
-      const tenantProvider =
-        await import("~/components/tenant/tenant-provider");
+      const tenantProvider = await import("~/lib/tenant-context");
       vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
         tenantSlug: "test-tenant",
         tenant: { studentPhotosEnabled: false },

@@ -25,6 +25,8 @@ global.fetch = mockFetch as unknown as typeof fetch;
 
 import { POST } from "./route";
 
+const FLOW_ID = "11111111-1111-4111-8111-111111111111";
+
 describe("POST /api/operator/auth/invitations/validate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -42,15 +44,41 @@ describe("POST /api/operator/auth/invitations/validate", () => {
       "http://localhost:3000/api/operator/auth/invitations/validate",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: "abc" }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-operator-invitation-flow": FLOW_ID,
+        },
+        body: JSON.stringify({}),
       },
     );
+    request.cookies.set(`operator.invitation-token.${FLOW_ID}`, "abc");
     await POST(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8080/operator/auth/invitations/validate",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ token: "abc" }),
+      }),
     );
+  });
+
+  it("rejects a malformed flow ID before contacting the backend", async () => {
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/auth/invitations/validate",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-operator-invitation-flow": "not-a-flow",
+        },
+        body: JSON.stringify({}),
+      },
+    );
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

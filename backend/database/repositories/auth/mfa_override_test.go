@@ -139,7 +139,7 @@ func TestMFAOverrideRepository_UpsertGlobal_ValidationBranches(t *testing.T) {
 		"set_by_type must be operator": {
 			AccountID: accountID,
 			Override:  auth.MFAAdminOverrideForceOff,
-			SetByType: auth.MFAOverrideSetByTypeAccount,
+			SetByType: "account",
 		},
 	}
 	for name, row := range cases {
@@ -160,7 +160,7 @@ func TestMFAOverrideRepository_UpsertTenant_HappyPath(t *testing.T) {
 		TenantID:  &tenantID,
 		Override:  auth.MFAAdminOverrideForceOn,
 		SetBy:     5,
-		SetByType: auth.MFAOverrideSetByTypeAccount,
+		SetByType: "account",
 		Reason:    "tenant policy",
 	}))
 
@@ -179,12 +179,12 @@ func TestMFAOverrideRepository_UpsertTenant_UpdatesExistingRow(t *testing.T) {
 
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
-		Override: auth.MFAAdminOverrideForceOn, SetByType: auth.MFAOverrideSetByTypeAccount,
+		Override: auth.MFAAdminOverrideForceOn, SetByType: "account",
 		Reason: "first",
 	}))
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
-		Override: auth.MFAAdminOverrideForceOff, SetByType: auth.MFAOverrideSetByTypeAccount,
+		Override: auth.MFAAdminOverrideForceOff, SetByType: "account",
 		Reason: "second",
 	}))
 
@@ -212,24 +212,24 @@ func TestMFAOverrideRepository_UpsertTenant_ValidationBranches(t *testing.T) {
 		"account_id zero": {
 			TenantID:  &tid,
 			Override:  auth.MFAAdminOverrideForceOn,
-			SetByType: auth.MFAOverrideSetByTypeAccount,
+			SetByType: "account",
 		},
 		"tenant_id nil": {
 			AccountID: accountID,
 			Override:  auth.MFAAdminOverrideForceOn,
-			SetByType: auth.MFAOverrideSetByTypeAccount,
+			SetByType: "account",
 		},
 		"tenant_id zero": {
 			AccountID: accountID,
 			TenantID:  &zero,
 			Override:  auth.MFAAdminOverrideForceOn,
-			SetByType: auth.MFAOverrideSetByTypeAccount,
+			SetByType: "account",
 		},
 		"invalid override": {
 			AccountID: accountID,
 			TenantID:  &tid,
 			Override:  "force_maybe",
-			SetByType: auth.MFAOverrideSetByTypeAccount,
+			SetByType: "account",
 		},
 	}
 	for name, row := range cases {
@@ -309,7 +309,7 @@ func TestMFAOverrideRepository_DeleteTenant_RemovesRow(t *testing.T) {
 
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
-		Override: auth.MFAAdminOverrideForceOn, SetByType: auth.MFAOverrideSetByTypeAccount,
+		Override: auth.MFAAdminOverrideForceOn, SetByType: "account",
 	}))
 	require.NoError(t, repo.DeleteTenant(ctx, accountID, tenantID))
 
@@ -333,7 +333,7 @@ func TestMFAOverrideRepository_ListByAccount_GlobalRowComesFirst(t *testing.T) {
 
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
-		Override: auth.MFAAdminOverrideForceOn, SetByType: auth.MFAOverrideSetByTypeAccount,
+		Override: auth.MFAAdminOverrideForceOn, SetByType: "account",
 	}))
 	require.NoError(t, repo.UpsertGlobal(ctx, &auth.MFAOverride{
 		AccountID: accountID,
@@ -369,7 +369,7 @@ func TestMFAOverrideRepository_DeleteAllByAccount_ReturnsCount(t *testing.T) {
 	}))
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
-		Override: auth.MFAAdminOverrideForceOn, SetByType: auth.MFAOverrideSetByTypeAccount,
+		Override: auth.MFAAdminOverrideForceOn, SetByType: "account",
 	}))
 
 	n, err := repo.DeleteAllByAccount(ctx, accountID)

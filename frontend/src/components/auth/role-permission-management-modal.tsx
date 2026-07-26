@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { ChevronRight, Check, Minus } from "lucide-react";
-import { FormModal } from "~/components/ui";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { FormModal } from "~/components/ui/form-modal";
+import { Alert } from "~/components/ui/alert";
 import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import {
@@ -13,6 +13,7 @@ import {
 } from "~/lib/permission-labels";
 import type { Role, Permission } from "~/lib/auth-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RolePermissionManagementModal" });
@@ -33,8 +34,8 @@ export function RolePermissionManagementModal({
   const getPermissionDisplayName = (p: Permission) =>
     formatPermissionDisplay(p.resource, p.action);
   const { success: toastSuccess } = useToast();
-  const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const errorRef = useScrollToError(errorMessage);
   // Warning alert disabled for now to reduce noise in UI
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [assignedMap, setAssignedMap] = useState<Record<string, boolean>>({});
@@ -50,11 +51,11 @@ export function RolePermissionManagementModal({
 
   const showError = (message: string) => {
     setErrorMessage(message);
-    setShowErrorAlert(true);
   };
 
   const fetchPermissions = async () => {
     try {
+      setErrorMessage("");
       setLoading(true);
 
       const [allPerms, rolePerms] = await Promise.all([
@@ -170,6 +171,7 @@ export function RolePermissionManagementModal({
 
   const handleSaveChanges = async () => {
     try {
+      setErrorMessage("");
       setSaving(true);
       const keys = new Set([
         ...Object.keys(initialAssignedMap),
@@ -239,6 +241,12 @@ export function RolePermissionManagementModal({
         footer={footer}
       >
         <div className="space-y-4 md:space-y-6">
+          {errorMessage && (
+            <div ref={errorRef}>
+              <Alert type="error" message={errorMessage} />
+            </div>
+          )}
+
           {/* Stats */}
           <div className="rounded-xl border border-gray-100 bg-purple-50/30 p-3 md:p-4">
             <div className="flex items-center justify-between">
@@ -360,6 +368,7 @@ export function RolePermissionManagementModal({
                               <button
                                 type="button"
                                 role="switch"
+                                aria-label={`${getPermissionDisplayName(permission)} zuweisen`}
                                 aria-checked={checked}
                                 onClick={() =>
                                   handleTogglePermission(permission.id)
@@ -381,15 +390,6 @@ export function RolePermissionManagementModal({
           )}
         </div>
       </FormModal>
-
-      {/* Success toasts handled globally */}
-      {showErrorAlert && (
-        <SimpleAlert
-          type="error"
-          message={errorMessage}
-          onClose={() => setShowErrorAlert(false)}
-        />
-      )}
       {/* Warning alert intentionally disabled */}
     </>
   );

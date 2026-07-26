@@ -24,7 +24,7 @@ SHARED KIT FACTS (already present in the codebase):
   - Compact/inline filter select: "moto-select block w-full rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
   - If a select already has a separate custom chevron icon element next to it, remove that now-redundant icon (moto-select draws one). If removing it is not trivially safe, instead keep that icon and DROP "moto-select" from the className (apply only the ring/radius/bg/text classes).
 - Card / surface radius — a content card/panel = rounded-2xl with border border-gray-200 bg-white shadow-sm. If it uses the "moto-content-surface" utility, that utility ALREADY supplies border-color + bg-white + shadow-sm; in that case only ensure it also has the "border" (width) class and "rounded-2xl" — do NOT add border-gray-200/bg-white/shadow-sm (redundant). Compact content tiles/blocks may use rounded-xl. Badges/pills/chips/status dots = rounded-full. Floating dropdown/popover panels STAY rounded-xl (do NOT bump to rounded-2xl). Buttons/inputs keep rounded-md/rounded-lg.
-- Modal inline error banner (a hand-rolled <div> rendering a string error message) → replace with { renderModalErrorAlert } from "~/components/ui/modal-utils": renderModalErrorAlert({ message: <theMessageExpression> }). It returns a styled rounded-2xl error block. Keep the same conditional that controls when it shows.
+- Modal inline error banner (a hand-rolled <div> rendering a string error message) → replace with <Alert type="error" message={theMessageExpression} /> from "~/components/ui/alert". Keep the same conditional that controls when it shows.
 - Colors — brand red = #FF3130. Never use generic Tailwind brand hues for brand semantics. Keep existing correct brand hexes (#83CD2D green, #EAB308 amber).
 
 After editing, return a precise summary: every change you made, anything you deliberately left alone (and why), and any uncertainty. Your entire output IS the structured object.
@@ -88,7 +88,7 @@ DO NOT touch: the trigger pill button (bordered pill with the green status dot),
     path: `${DIR}/calendar-period-modal.tsx`,
     label: 'calendar-period-modal',
     instructions: `FIXES:
-1. INLINE ERROR BANNER: it already uses renderModalErrorAlert — leave it. (Only if you find a genuinely hand-rolled <div> string-error banner, convert it via renderModalErrorAlert({ message: <expr> }).)
+1. INLINE ERROR BANNER: it already uses <Alert type="error" ... /> — leave it. (Only if you find a genuinely hand-rolled <div> string-error banner, convert it to <Alert type="error" message={expr} />.)
 2. Any ad-hoc dark red hex (e.g. #991B1B) used for a brand-red purpose: change to #FF3130 (brand red). Verify contrast still reads.
 3. The native <select> ("Typ"/period type): apply the FORM select className from the shared spec (keep the <select> and its options/onChange). It is currently rounded-lg — keep rounded-lg (the kit Input token).
 4. CHECKBOX: replace the raw <input type="checkbox" .../> ("Periode ist aktiv", className "h-4 w-4") with the kit <Checkbox .../> (import { Checkbox } from "~/components/ui/checkbox"), preserving checked={form.isActive} and onChange. Keep the surrounding <label> row and its German texts.
@@ -105,12 +105,12 @@ DO NOT touch: the trigger pill button (bordered pill with the green status dot),
 DO NOT convert the full-row clickable <button> targets (the instance rows) — leave them semantic.`,
   },
   {
-    path: `${DIR}/instance-detail-slide-over.tsx`,
-    label: 'instance-detail-slide-over',
+    path: `${DIR}/instance-detail-modal.tsx`,
+    label: 'instance-detail-modal',
     instructions: `FIXES:
 1. The "Spontan" badge and the activity-type badge: change bare "rounded" → "rounded-full".
-2. FOOTER BUTTONS: in SlideOverFooter, every action button currently using size="sm" (the outline/ghost cancel and the primary/lifecycle/danger actions) → change to size="md" (Flo's footer height). Keep each button's variant and all other props.
-DO NOT touch the SlideOverClose button (it uses asChild and forwards a DOM element) or the IconActionButton helper / lifecycle icon buttons — leave those as-is.`,
+2. FOOTER BUTTONS: in the Modal footer content, every action button currently using size="sm" (the outline/ghost cancel and the primary/lifecycle/danger actions) → change to size="md" (Flo's footer height). Keep each button's variant and all other props.
+DO NOT touch the kit Modal's own close button (it lives in ui/modal.tsx) or the IconActionButton helper / lifecycle icon buttons — leave those as-is.`,
   },
   {
     path: `${DIR}/timetable-event-modal.tsx`,
@@ -125,7 +125,7 @@ DO NOT touch the SlideOverClose button (it uses asChild and forwards a DOM eleme
        </TabsList>
      </Tabs>
    CRITICAL: read the current buttons' onClick to find the EXACT state variable, setter, and EXACT string value each button sets; reuse them verbatim. One button's onClick ALSO seeds a default weekday when switching away from "none" — preserve that side-effect (run the same follow-up inside onValueChange after calling the setter). Each TabsTrigger value must equal what the old button set. Keep the "Wiederholen" field label above the control. This also removes the bare "rounded" (4px) on those buttons.
-2. INLINE ERROR BANNERS: this file already uses renderModalErrorAlert for its error messages — leave those as-is. Only if you find a genuinely hand-rolled <div> error banner showing a string, convert it via renderModalErrorAlert({ message: <expr> }).
+2. INLINE ERROR BANNERS: this file already uses <Alert type="error" ... /> for its error messages — leave those as-is. Only if you find a genuinely hand-rolled <div> error banner showing a string, convert it to <Alert type="error" message={expr} />.
 3. MULTISELECT SEARCH INPUT (a raw <input type="search"> with an absolute Search icon overlay): KEEP the element and the icon; only align its className to the kit Input look — "block w-full rounded-lg border-0 bg-white py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400" plus the existing left padding for the icon (pl-9). Do NOT swap to the <Input> component (it would break the icon overlay).
 4. NATIVE <select> elements (room, category, education group, period, primary staff = FORM selects; the "Alle Klassen"/"Alle Gruppen" filters = COMPACT/inline selects): apply the matching FORM or COMPACT select className from the shared spec. Keep every <select>, its <option>s, value and onChange exactly. Their rounded-lg radius is the kit Input token — keep rounded-lg.
 5. CHECKBOX: in MultiSelectField, replace the raw <input type="checkbox" .../> (className "h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-200") with the kit <Checkbox .../> (import { Checkbox } from "~/components/ui/checkbox"). Preserve checked={...} and onChange={...}; let Checkbox provide the sizing/color/focus.

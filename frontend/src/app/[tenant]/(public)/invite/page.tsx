@@ -1,19 +1,5 @@
-"use client";
-
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { InvitationPageContent } from "~/components/auth/invitation-page-content";
-import { Loading } from "~/components/ui/loading";
-
-function InviteWithToken() {
-  const searchParams = useSearchParams();
-  return <InvitationPageContent token={searchParams.get("token")} />;
-}
+import { InvitationPageRoute } from "~/components/auth/invitation-page-route";
 
 export default function InvitePage() {
-  return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <InviteWithToken />
-    </Suspense>
-  );
+  return <InvitationPageRoute />;
 }

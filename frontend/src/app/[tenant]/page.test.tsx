@@ -69,7 +69,9 @@ vi.mock("~/components/ui/password-reset-modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="password-reset-modal">
-        <button onClick={onClose}>Close</button>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
       </div>
     ) : null,
 }));
@@ -79,34 +81,7 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock UI components
-vi.mock("~/components/ui", () => ({
-  Input: ({
-    id,
-    type,
-    value,
-    onChange,
-    ...props
-  }: {
-    id: string;
-    type: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    label: string;
-    className?: string;
-    required?: boolean;
-    autoComplete?: string;
-    name?: string;
-  }) => (
-    <input
-      id={id}
-      type={type}
-      value={value}
-      onChange={onChange}
-      data-testid={`input-${id}`}
-      {...props}
-    />
-  ),
+vi.mock("~/components/ui/alert", () => ({
   Alert: ({ type, message }: { type: string; message: string }) => (
     <div data-testid={`alert-${type}`}>{message}</div>
   ),
@@ -121,7 +96,7 @@ vi.mock("next/image", () => ({
 }));
 
 import { useSession } from "next-auth/react";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import { refreshToken } from "~/lib/auth-api";
 import HomePage from "./page";
 
@@ -158,6 +133,11 @@ describe("HomePage (Login)", () => {
       status: "unauthenticated",
       update: vi.fn(),
     });
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: null,
+    });
 
     // Mock Element.animate globally
     Element.prototype.animate = mockAnimate;
@@ -190,6 +170,7 @@ describe("HomePage (Login)", () => {
   it("displays tenant login logo when configured", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
+      routingMode: "path",
       tenant: {
         name: "Grundschule Musterstadt",
         settings: {
@@ -205,6 +186,34 @@ describe("HomePage (Login)", () => {
         screen.getByAltText("Grundschule Musterstadt Logo"),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows the moto attribution when a tenant login logo is configured", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: {
+        name: "Grundschule Musterstadt",
+        settings: {
+          loginImageUrl: "/uploads/school-logo.png",
+        },
+      } as ReturnType<typeof useTenant>["tenant"],
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Bereitgestellt von")).toBeInTheDocument();
+    });
+  });
+
+  it("does not show the moto attribution without a tenant login logo", async () => {
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Bereitgestellt von")).not.toBeInTheDocument();
   });
 
   it("displays login subtitle", async () => {
@@ -492,6 +501,7 @@ describe("Tenant name display", () => {
   it("displays tenant name when available", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
+      routingMode: "path",
       tenant: { name: "Grundschule Musterstadt" } as ReturnType<
         typeof useTenant
       >["tenant"],
@@ -507,6 +517,7 @@ describe("Tenant name display", () => {
   it("does not display tenant name when tenant has no name", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
+      routingMode: "path",
       tenant: null,
     });
 
@@ -522,6 +533,7 @@ describe("Tenant name display", () => {
   it("does not display tenant name when tenant.name is empty", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
+      routingMode: "path",
       tenant: { name: "" } as ReturnType<typeof useTenant>["tenant"],
     });
 

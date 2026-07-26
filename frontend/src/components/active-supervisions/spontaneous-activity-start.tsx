@@ -1,14 +1,25 @@
 "use client";
 
 import { Plus, Search, UserPlus } from "lucide-react";
-import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Modal } from "~/components/ui/modal";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
 import { activityService } from "~/lib/activity-service";
 import type { Activity } from "~/lib/activity-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  fetchPlannerRooms,
+  type PlannerRoomReference,
+} from "~/lib/planner-reference-api";
 import { staffService, type Staff } from "~/lib/staff-api";
+
+import { SCHULHOF_ROOM_NAME } from "./view-model";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -18,19 +29,6 @@ interface RoomOption {
   name: string;
   building?: string | null;
 }
-
-interface BackendRoomsEnvelope {
-  data?: Array<{
-    id: number | string;
-    name?: string;
-    room_name?: string;
-    building?: string | null;
-  }>;
-}
-
-type BackendRoomList =
-  | BackendRoomsEnvelope
-  | NonNullable<BackendRoomsEnvelope["data"]>;
 
 export interface SpontaneousActivityStartPayload {
   title: string;
@@ -45,11 +43,12 @@ interface SpontaneousActivityStartProps {
   readonly disabled?: boolean;
   readonly isStarting?: boolean;
   readonly occupiedRoomIds?: readonly string[];
+  readonly schulhofSupervisionAvailable: boolean;
   readonly onStart: (payload: SpontaneousActivityStartPayload) => void;
+  readonly onOpenSchulhofSupervision: () => void;
 }
 
-function normalizeRoomEnvelope(envelope: BackendRoomList): RoomOption[] {
-  const rooms = Array.isArray(envelope) ? envelope : (envelope.data ?? []);
+function normalizeRooms(rooms: PlannerRoomReference[]): RoomOption[] {
   return rooms
     .map((room) => ({
       id: String(room.id),
@@ -76,13 +75,44 @@ function findSelectedActivity(
   );
 }
 
+function consumeListboxEscape(event: KeyboardEvent): void {
+  // Keep Escape from reaching FormModal's document-level handler (which would
+  // close the whole modal and wipe the draft). stopImmediatePropagation is
+  // required because that listener sits on the same document node as React's
+  // delegated listener, where plain stopPropagation would not stop it.
+  event.preventDefault();
+  event.nativeEvent.stopImmediatePropagation();
+}
+
+function isSchulhofRoom(room: RoomOption | undefined): boolean {
+  return room?.name === SCHULHOF_ROOM_NAME;
+}
+
+function isUnavailableForActivityStart(
+  room: RoomOption,
+  occupiedRoomIds: ReadonlySet<string>,
+  schulhofSupervisionAvailable: boolean,
+): boolean {
+  if (isSchulhofRoom(room)) return !schulhofSupervisionAvailable;
+  return occupiedRoomIds.has(room.id);
+}
+
+function isAutomaticActivityRoom(
+  room: RoomOption,
+  occupiedRoomIds: ReadonlySet<string>,
+): boolean {
+  return !isSchulhofRoom(room) && !occupiedRoomIds.has(room.id);
+}
+
 export function SpontaneousActivityStart({
   currentStaffId,
   defaultRoomId,
   disabled = false,
   isStarting = false,
   occupiedRoomIds = EMPTY_OCCUPIED_ROOM_IDS,
+  schulhofSupervisionAvailable,
   onStart,
+  onOpenSchulhofSupervision,
 }: SpontaneousActivityStartProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoadingRefs, setIsLoadingRefs] = useState(false);
@@ -90,9 +120,12 @@ export function SpontaneousActivityStart({
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [activityInput, setActivityInput] = useState("");
-  const [roomId, setRoomId] = useState(defaultRoomId ?? "");
+  const [roomId, setRoomId] = useState("");
   const [additionalStaffIds, setAdditionalStaffIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [activityMenuOpen, setActivityMenuOpen] = useState(false);
+  const [activeActivityIndex, setActiveActivityIndex] = useState(0);
+  const activityFieldRef = useRef<HTMLDivElement>(null);
   const occupiedRoomIdSet = useMemo(
     () => new Set(occupiedRoomIds),
     [occupiedRoomIds],
@@ -100,7 +133,7 @@ export function SpontaneousActivityStart({
 
   useEffect(() => {
     if (!isOpen) return;
-    setRoomId((prev) => prev || defaultRoomId || "");
+    let cancelled = false;
     setIsLoadingRefs(true);
     setError(null);
 
@@ -111,9 +144,8 @@ export function SpontaneousActivityStart({
         });
         return [] as Activity[];
       }),
-      fetch("/api/rooms", { credentials: "include" })
-        .then((response) => response.json() as Promise<BackendRoomsEnvelope>)
-        .then(normalizeRoomEnvelope)
+      fetchPlannerRooms()
+        .then(normalizeRooms)
         .catch((err: unknown) => {
           logger.error("spontaneous_rooms_fetch_failed", {
             error: err instanceof Error ? err.message : String(err),
@@ -128,10 +160,14 @@ export function SpontaneousActivityStart({
       }),
     ])
       .then(([activityData, roomData, staffData]) => {
+        if (cancelled) return;
+        // The staff room list includes Schulhof as a planning/navigation
+        // destination while keeping WC infrastructure hidden.
+        const spontaneousRooms = roomData;
         setActivities(
           [...activityData].sort((a, b) => a.name.localeCompare(b.name, "de")),
         );
-        setRooms(roomData);
+        setRooms(spontaneousRooms);
         setStaff(
           staffData
             .filter((item) => item.id !== currentStaffId)
@@ -139,40 +175,120 @@ export function SpontaneousActivityStart({
         );
         setRoomId((prev) => {
           const firstAvailableRoom =
-            roomData.find((room) => !occupiedRoomIdSet.has(room.id)) ?? null;
+            spontaneousRooms.find((room) =>
+              isAutomaticActivityRoom(room, occupiedRoomIdSet),
+            ) ?? null;
+          const previousRoom = spontaneousRooms.find(
+            (room) => room.id === prev,
+          );
           if (
-            prev &&
-            !occupiedRoomIdSet.has(prev) &&
-            roomData.some((room) => room.id === prev)
+            previousRoom &&
+            isAutomaticActivityRoom(previousRoom, occupiedRoomIdSet)
           ) {
             return prev;
           }
+          const configuredDefaultRoom = spontaneousRooms.find(
+            (room) => room.id === defaultRoomId,
+          );
           if (
-            defaultRoomId &&
-            !occupiedRoomIdSet.has(defaultRoomId) &&
-            roomData.some((room) => room.id === defaultRoomId)
+            configuredDefaultRoom &&
+            isAutomaticActivityRoom(configuredDefaultRoom, occupiedRoomIdSet)
           ) {
-            return defaultRoomId;
+            return configuredDefaultRoom.id;
           }
           return firstAvailableRoom?.id ?? "";
         });
       })
-      .finally(() => setIsLoadingRefs(false));
+      .finally(() => {
+        if (!cancelled) setIsLoadingRefs(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [currentStaffId, defaultRoomId, isOpen, occupiedRoomIdSet]);
+
+  // Close the activity suggestions when clicking outside the field.
+  useEffect(() => {
+    if (!activityMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        activityFieldRef.current &&
+        !activityFieldRef.current.contains(event.target as Node)
+      ) {
+        setActivityMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [activityMenuOpen]);
 
   const selectedActivity = useMemo(
     () => findSelectedActivity(activities, activityInput),
     [activities, activityInput],
   );
   const title = selectedActivity?.name ?? activityInput.trim();
+  const selectedRoom = rooms.find((room) => room.id === roomId);
+  const isSchulhofSelected = isSchulhofRoom(selectedRoom);
   const isSelectedRoomOccupied =
-    roomId.length > 0 && occupiedRoomIdSet.has(roomId);
+    selectedRoom !== undefined &&
+    !isSchulhofSelected &&
+    isUnavailableForActivityStart(
+      selectedRoom,
+      occupiedRoomIdSet,
+      schulhofSupervisionAvailable,
+    );
+  const isSelectedSchulhofUnavailable =
+    isSchulhofSelected && !schulhofSupervisionAvailable;
   const canSubmit =
-    title.length > 0 &&
+    (isSchulhofSelected || title.length > 0) &&
     roomId.length > 0 &&
     !isSelectedRoomOccupied &&
+    !isSelectedSchulhofUnavailable &&
     !isStarting;
   const suggestedActivities = activities.slice(0, 5);
+  const filteredActivities = useMemo(() => {
+    const query = activityInput.trim().toLocaleLowerCase("de");
+    const matches = query
+      ? activities.filter((activity) =>
+          activity.name.toLocaleLowerCase("de").includes(query),
+        )
+      : activities;
+    return matches.slice(0, 8);
+  }, [activities, activityInput]);
+  const activityListboxOpen = activityMenuOpen && filteredActivities.length > 0;
+  const roomOptions = useMemo(
+    () =>
+      rooms.map((room) => ({
+        value: room.id,
+        label: `${room.building ? `${room.building} - ` : ""}${room.name}${
+          isSchulhofRoom(room) && !schulhofSupervisionAvailable
+            ? " (Aufsicht nicht verfügbar)"
+            : isUnavailableForActivityStart(
+                  room,
+                  occupiedRoomIdSet,
+                  schulhofSupervisionAvailable,
+                )
+              ? " (belegt)"
+              : ""
+        }`,
+        disabled: isUnavailableForActivityStart(
+          room,
+          occupiedRoomIdSet,
+          schulhofSupervisionAvailable,
+        ),
+      })),
+    [rooms, occupiedRoomIdSet, schulhofSupervisionAvailable],
+  );
+
+  useEffect(() => {
+    if (!activityListboxOpen) {
+      setActiveActivityIndex(0);
+      return;
+    }
+    setActiveActivityIndex((prev) =>
+      Math.min(prev, filteredActivities.length - 1),
+    );
+  }, [activityListboxOpen, filteredActivities.length]);
 
   function toggleStaff(staffId: string) {
     setAdditionalStaffIds((prev) =>
@@ -185,8 +301,17 @@ export function SpontaneousActivityStart({
   function resetAndClose() {
     setIsOpen(false);
     setActivityInput("");
+    setRoomId("");
     setAdditionalStaffIds([]);
     setError(null);
+    setActivityMenuOpen(false);
+    setActiveActivityIndex(0);
+  }
+
+  function selectActivitySuggestion(activity: Activity) {
+    setActivityInput(activity.name);
+    setActivityMenuOpen(false);
+    setActiveActivityIndex(0);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -195,8 +320,19 @@ export function SpontaneousActivityStart({
       setError("Der Raum ist bereits belegt.");
       return;
     }
+    if (isSelectedSchulhofUnavailable) {
+      setError(
+        "Die Schulhof-Aufsicht ist gerade nicht verfügbar. Bitte laden Sie die Seite neu.",
+      );
+      return;
+    }
     if (!canSubmit) {
       setError("Aktivität und Raum sind erforderlich.");
+      return;
+    }
+    if (isSchulhofSelected) {
+      onOpenSchulhofSupervision();
+      resetAndClose();
       return;
     }
     onStart({
@@ -231,46 +367,184 @@ export function SpontaneousActivityStart({
         </button>
       </section>
 
-      <Modal
+      <FormModal
         isOpen={isOpen}
         onClose={resetAndClose}
         title="Spontane Aktivität"
-        widthClass="mx-3 w-[calc(100%-1.5rem)] max-w-xl"
+        size="md"
+        mobilePosition="center"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={resetAndClose}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="submit"
+              form="spontaneous-activity-form"
+              variant="primary"
+              size="md"
+              isLoading={isStarting && !isSchulhofSelected}
+              loadingText="Startet ..."
+              disabled={!canSubmit || isLoadingRefs}
+            >
+              {isSchulhofSelected
+                ? "Zur Schulhof-Aufsicht"
+                : "Aktivität starten"}
+            </Button>
+          </>
+        }
       >
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          {error ? (
-            <div className="rounded-md border border-[#E5484D]/30 bg-[#E5484D]/10 px-3 py-2 text-sm text-[#A32020]">
-              {error}
-            </div>
-          ) : null}
+        <form
+          id="spontaneous-activity-form"
+          className="space-y-4"
+          onSubmit={handleSubmit}
+        >
+          {error ? <Alert type="error" message={error} /> : null}
 
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gray-700">
+          <div
+            ref={activityFieldRef}
+            className={isSchulhofSelected ? "hidden" : undefined}
+            onBlur={(event) => {
+              const nextFocusedNode = event.relatedTarget;
+              if (
+                !(nextFocusedNode instanceof Node) ||
+                !event.currentTarget.contains(nextFocusedNode)
+              ) {
+                setActivityMenuOpen(false);
+              }
+            }}
+          >
+            <label
+              htmlFor="activity"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
               Aktivität
-            </span>
+            </label>
             <div className="relative">
               <Search
-                className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                className="pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2 text-gray-400"
                 aria-hidden="true"
               />
-              <input
+              <Input
+                name="activity"
+                controlSize="compact"
+                className="pl-9"
                 value={activityInput}
-                onChange={(event) => setActivityInput(event.target.value)}
-                list="spontaneous-activity-options"
-                placeholder="Aktivität suchen oder neu eingeben"
-                className="min-h-11 w-full rounded-md border border-gray-300 bg-white pr-3 pl-9 text-sm focus:border-[#5080D8] focus:ring-2 focus:ring-[#5080D8]/20 focus:outline-none"
-                autoComplete="off"
-                required
-              />
-            </div>
-            <datalist id="spontaneous-activity-options">
-              {activities.map((activity) => (
-                <option key={activity.id} value={activity.name} />
-              ))}
-            </datalist>
-          </label>
+                onChange={(event) => {
+                  setActivityInput(event.target.value);
+                  setActivityMenuOpen(true);
+                  setActiveActivityIndex(0);
+                }}
+                onFocus={() => {
+                  setActivityMenuOpen(true);
+                  setActiveActivityIndex(0);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && activityListboxOpen) {
+                    consumeListboxEscape(event);
+                    setActivityMenuOpen(false);
+                    return;
+                  }
+                  if (!activityListboxOpen) return;
 
-          {suggestedActivities.length > 0 ? (
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setActiveActivityIndex(
+                      (prev) => (prev + 1) % filteredActivities.length,
+                    );
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setActiveActivityIndex(
+                      (prev) =>
+                        (prev - 1 + filteredActivities.length) %
+                        filteredActivities.length,
+                    );
+                    return;
+                  }
+                  if (event.key === "Home") {
+                    event.preventDefault();
+                    setActiveActivityIndex(0);
+                    return;
+                  }
+                  if (event.key === "End") {
+                    event.preventDefault();
+                    setActiveActivityIndex(filteredActivities.length - 1);
+                    return;
+                  }
+                  if (event.key === "Enter") {
+                    const activeActivity =
+                      filteredActivities[activeActivityIndex];
+                    if (activeActivity) {
+                      event.preventDefault();
+                      selectActivitySuggestion(activeActivity);
+                    }
+                  }
+                }}
+                placeholder="Aktivität suchen oder neu eingeben"
+                autoComplete="off"
+                role="combobox"
+                tabIndex={0}
+                aria-expanded={activityListboxOpen}
+                aria-controls="spontaneous-activity-listbox"
+                aria-activedescendant={
+                  activityListboxOpen
+                    ? `spontaneous-activity-option-${filteredActivities[activeActivityIndex]?.id}`
+                    : undefined
+                }
+                aria-autocomplete="list"
+                required={!isSchulhofSelected}
+              />
+              {activityListboxOpen ? (
+                <ul
+                  id="spontaneous-activity-listbox"
+                  role="listbox"
+                  className="absolute top-full left-0 z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+                >
+                  {filteredActivities.map((activity, index) => (
+                    <li key={activity.id} role="presentation">
+                      <button
+                        id={`spontaneous-activity-option-${activity.id}`}
+                        type="button"
+                        role="option"
+                        // Keep options out of the tab order: focus stays on the
+                        // combobox input (aria-activedescendant drives the active
+                        // option). Otherwise Tab lands on an option button, where
+                        // Escape would bubble to FormModal's document listener and
+                        // close the whole modal instead of just the listbox.
+                        tabIndex={-1}
+                        aria-selected={index === activeActivityIndex}
+                        onMouseEnter={() => setActiveActivityIndex(index)}
+                        // Select on pointer-down and keep focus on the input.
+                        // Safari/iOS does not focus a clicked button, so the
+                        // input would blur with relatedTarget === null, the
+                        // blur handler would close the menu, and the option
+                        // would unmount before its click fired — making pointer
+                        // selection unreliable on touch. preventDefault stops
+                        // the focus shift (no blur, menu stays open); we run the
+                        // selection here so a missed onClick can't drop it.
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          selectActivitySuggestion(activity);
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 aria-selected:bg-gray-100 aria-selected:text-gray-900"
+                      >
+                        {activity.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+
+          {!isSchulhofSelected && suggestedActivities.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {suggestedActivities.map((activity) => (
                 <button
@@ -285,57 +559,49 @@ export function SpontaneousActivityStart({
             </div>
           ) : null}
 
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gray-700">
+          <div>
+            <span className="mb-2 block text-sm font-medium text-gray-700">
               Raum
             </span>
-            <select
+            <CustomSelect
               value={roomId}
-              onChange={(event) => setRoomId(event.target.value)}
+              options={roomOptions}
+              onChange={setRoomId}
+              ariaLabel="Raum"
               disabled={isLoadingRefs}
-              className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-[#5080D8] focus:ring-2 focus:ring-[#5080D8]/20 focus:outline-none disabled:bg-gray-100"
               required
-            >
-              <option value="">
-                {isLoadingRefs ? "Lade Räume ..." : "Raum auswählen"}
-              </option>
-              {rooms.map((room) => (
-                <option
-                  key={room.id}
-                  value={room.id}
-                  disabled={occupiedRoomIdSet.has(room.id)}
-                >
-                  {room.building
-                    ? `${room.building} - ${room.name}`
-                    : room.name}
-                  {occupiedRoomIdSet.has(room.id) ? " (belegt)" : ""}
-                </option>
-              ))}
-            </select>
+              invalid={isSelectedRoomOccupied}
+              placeholder={isLoadingRefs ? "Lade Räume ..." : "Raum auswählen"}
+            />
             {isSelectedRoomOccupied ? (
               <span className="mt-1 block text-xs text-[#A32020]">
                 Dieser Raum ist bereits belegt.
               </span>
             ) : null}
-          </label>
+          </div>
 
-          {staff.length > 0 ? (
+          {isSchulhofSelected ? (
+            <Alert
+              type="info"
+              message="Der Schulhof wird über die eigene Schulhof-Aufsicht geführt. Es wird keine spontane Aktivität gestartet."
+            />
+          ) : null}
+
+          {!isSchulhofSelected && staff.length > 0 ? (
             <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                 <UserPlus className="h-4 w-4" aria-hidden="true" />
                 Weitere Betreuer
               </div>
-              <div className="grid max-h-44 gap-2 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 p-2">
+              <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
                 {staff.map((item) => (
                   <label
                     key={item.id}
-                    className="flex min-h-10 items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
+                    className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={additionalStaffIds.includes(item.id)}
                       onChange={() => toggleStaff(item.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-[#83CD2D] focus:ring-[#83CD2D]"
                     />
                     <span className="truncate">{staffLabel(item)}</span>
                   </label>
@@ -343,25 +609,8 @@ export function SpontaneousActivityStart({
               </div>
             </div>
           ) : null}
-
-          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={resetAndClose}
-              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="submit"
-              disabled={!canSubmit || isLoadingRefs}
-              className="min-h-11 rounded-md bg-[#83CD2D] px-4 text-sm font-semibold text-white hover:bg-[#6FB624] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isStarting ? "Startet ..." : "Aktivität starten"}
-            </button>
-          </div>
         </form>
-      </Modal>
+      </FormModal>
     </>
   );
 }

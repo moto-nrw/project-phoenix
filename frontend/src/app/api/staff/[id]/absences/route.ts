@@ -1,6 +1,9 @@
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers.server";
-import { createGetHandler } from "~/lib/route-wrapper.server";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "~/lib/route-wrapper.server";
 
 /**
  * GET /api/staff/[id]/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -22,6 +25,29 @@ export const GET = createGetHandler(
     const response = await apiGet<{ data: unknown }>(
       `/api/staff/${id}/absences?from=${from}&to=${to}`,
       token,
+    );
+    return response.data;
+  },
+);
+
+/**
+ * POST /api/staff/[id]/absences
+ * Admin endpoint: create an absence for a specific staff member. A `sick`
+ * absence triggers the Dienst-/Betreuungsplan cascade backend-side (#1843).
+ * The body is forwarded verbatim; the backend owns validation.
+ */
+export const POST = createPostHandler(
+  async (
+    _request: NextRequest,
+    body: unknown,
+    token: string,
+    params: Record<string, unknown>,
+  ) => {
+    const id = params.id as string;
+    const response = await apiPost<{ data: unknown }>(
+      `/api/staff/${id}/absences`,
+      token,
+      body,
     );
     return response.data;
   },

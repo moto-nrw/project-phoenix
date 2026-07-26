@@ -7,6 +7,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // ConsentSettings is the narrow settings surface the privacy-consent service
@@ -110,24 +111,8 @@ func (s *PrivacyConsentService) ResolveDataRetentionDays(ctx context.Context, co
 // falling back to the package constant when no override exists or settings are
 // unavailable.
 func (s *PrivacyConsentService) DefaultDataRetentionDays(ctx context.Context) int {
-	if s.settings == nil {
-		return userModels.DefaultDataRetentionDays
-	}
-
-	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyPrivacyConsentRetentionDays)
-	if err != nil {
-		s.logger.Warn("privacy consent retention override check failed, falling back",
-			slog.String("key", configModel.KeyPrivacyConsentRetentionDays),
-			slog.String("error", err.Error()),
-		)
-		return userModels.DefaultDataRetentionDays
-	}
-	if !has {
-		return userModels.DefaultDataRetentionDays
-	}
-
-	days, err := s.settings.ResolveInt(ctx, configModel.KeyPrivacyConsentRetentionDays)
-	if err != nil || days <= 0 {
+	days := config.ResolveIntOrDefault(ctx, s.settings, configModel.KeyPrivacyConsentRetentionDays, 0, s.logger)
+	if days <= 0 {
 		return userModels.DefaultDataRetentionDays
 	}
 	return days

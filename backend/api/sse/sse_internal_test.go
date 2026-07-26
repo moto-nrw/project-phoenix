@@ -273,14 +273,14 @@ func TestNewResource(t *testing.T) {
 	hub := realtime.NewHub(slog.Default())
 
 	// Test with nil services (should not panic)
-	resource := NewResource(hub, nil, nil, nil, nil, nil, slog.Default())
+	resource := NewResource(hub, nil, nil, slog.Default())
 	assert.NotNil(t, resource)
 	assert.Equal(t, hub, resource.hub)
 }
 
 func TestResource_Router(t *testing.T) {
 	hub := realtime.NewHub(slog.Default())
-	resource := NewResource(hub, nil, nil, nil, nil, nil, slog.Default())
+	resource := NewResource(hub, nil, nil, slog.Default())
 
 	router := resource.Router()
 	assert.NotNil(t, router)
@@ -288,38 +288,10 @@ func TestResource_Router(t *testing.T) {
 
 func TestResource_EventsHandler(t *testing.T) {
 	hub := realtime.NewHub(slog.Default())
-	resource := NewResource(hub, nil, nil, nil, nil, nil, slog.Default())
+	resource := NewResource(hub, nil, nil, slog.Default())
 
-	handler := resource.EventsHandler()
+	handler := resource.eventsHandler
 	assert.NotNil(t, handler)
-}
-
-// =============================================================================
-// SSE SETUP ERROR TESTS
-// =============================================================================
-
-func TestSSESetupError_ErrorMessage(t *testing.T) {
-	err := &sseSetupError{msg: "Account not found", status: http.StatusUnauthorized}
-
-	assert.Equal(t, "SSE setup: Account not found", err.Error())
-	assert.Equal(t, http.StatusUnauthorized, err.status)
-}
-
-func TestSSESetupError_ImplementsErrorInterface(t *testing.T) {
-	var err error = &sseSetupError{msg: "forbidden", status: http.StatusForbidden}
-
-	// Type assertion should succeed
-	setupErr, ok := err.(*sseSetupError)
-	require.True(t, ok, "Should be assertable to *sseSetupError")
-	assert.Equal(t, "forbidden", setupErr.msg)
-	assert.Equal(t, http.StatusForbidden, setupErr.status)
-}
-
-func TestSSESetupError_TypeAssertionDistinguishesErrors(t *testing.T) {
-	// Non-sseSetupError should fail the type assertion
-	err := assert.AnError
-	_, ok := err.(*sseSetupError)
-	assert.False(t, ok, "Regular error should not be assertable to *sseSetupError")
 }
 
 // Helper function

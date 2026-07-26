@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentsPage from "./page";
+import { useSession } from "next-auth/react";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
@@ -55,7 +56,7 @@ vi.mock("@/lib/database/service-factory", () => ({
 }));
 
 // Mock hooks
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -87,7 +88,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,
@@ -124,7 +125,11 @@ vi.mock("~/components/ui/page-header", () => ({
           )) ?? <option value="all">All</option>}
         </select>
       ))}
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -145,6 +150,7 @@ vi.mock("@/components/students/students-master-detail", () => ({
     onSelect,
     onUpdateStudent,
     detailActions,
+    canViewEnrollments,
   }: {
     students: Array<{
       id: string;
@@ -160,11 +166,16 @@ vi.mock("@/components/students/students-master-detail", () => ({
       data: { first_name: string; second_name: string },
     ) => Promise<void>;
     detailActions?: ReactNode;
+    canViewEnrollments?: boolean;
   }) => (
-    <div data-testid="students-master-detail">
+    <div
+      data-testid="students-master-detail"
+      data-can-view-enrollments={String(Boolean(canViewEnrollments))}
+    >
       {students.map((s) => (
         <div key={s.id} data-testid={`student-entry-${s.id}`}>
           <button
+            type="button"
             data-testid={`student-row-${s.id}`}
             onClick={() => onSelect(String(s.id))}
           >
@@ -182,6 +193,7 @@ vi.mock("@/components/students/students-master-detail", () => ({
         <div data-testid="student-detail-panel">
           <span data-testid="detail-selected-id">{selectedId}</span>
           <button
+            type="button"
             data-testid="trigger-update"
             onClick={() =>
               void onUpdateStudent(selectedId, {
@@ -192,7 +204,11 @@ vi.mock("@/components/students/students-master-detail", () => ({
           >
             Save
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            data-testid="trigger-deselect"
+            onClick={() => onSelect(null)}
+          >
             Close
           </button>
           <div data-testid="detail-actions">{detailActions}</div>
@@ -223,6 +239,7 @@ vi.mock("@/components/students/student-create-modal", () => ({
     isOpen ? (
       <div data-testid="student-create-modal">
         <button
+          type="button"
           data-testid="submit-create"
           onClick={() =>
             void onCreate({ first_name: "New", second_name: "Student" })
@@ -231,6 +248,7 @@ vi.mock("@/components/students/student-create-modal", () => ({
           Submit
         </button>
         <button
+          type="button"
           data-testid="submit-create-with-guardians"
           onClick={() =>
             void onCreate({
@@ -242,7 +260,11 @@ vi.mock("@/components/students/student-create-modal", () => ({
         >
           Submit with guardians
         </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="close-create-modal"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>
@@ -261,10 +283,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>
@@ -273,6 +295,16 @@ vi.mock("~/components/ui/modal", () => ({
 
 // Import mocked modules
 import { useSWRAuth } from "~/lib/swr";
+
+function mockSessionWithPermissions(permissions: string[]) {
+  vi.mocked(useSession).mockReturnValue({
+    data: {
+      user: { id: "1", token: "test-token", permissions },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  } as ReturnType<typeof useSession>);
+}
 
 const mockStudents = [
   {
@@ -312,6 +344,7 @@ describe("StudentsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setSelectedStudent(null);
+    mockSessionWithPermissions(["config:manage"]);
 
     // Default SWR mock - returns students data
     vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
@@ -349,6 +382,32 @@ describe("StudentsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
       expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
+    });
+  });
+
+  it("does not expose enrollment tab access for config read-only users", async () => {
+    mockSessionWithPermissions(["config:read"]);
+
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("students-master-detail")).toHaveAttribute(
+        "data-can-view-enrollments",
+        "false",
+      );
+    });
+  });
+
+  it("exposes enrollment tab access for config manage users", async () => {
+    mockSessionWithPermissions(["config:manage"]);
+
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("students-master-detail")).toHaveAttribute(
+        "data-can-view-enrollments",
+        "true",
+      );
     });
   });
 

@@ -4,12 +4,13 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -179,13 +180,16 @@ func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify this is an operator-scoped refresh token, not a tenant/user token
-	if !strings.HasPrefix(claims.Token, "operator-refresh-") {
+	// Verify this is an operator-scoped refresh token, not a tenant/user token.
+	// Pre-fix deterministic operator refresh tokens had no persisted session
+	// and no platform scope claim; reject them here before the service lookup.
+	if claims.Scope != "platform" || claims.Token == "" {
 		common.RenderError(w, r, ErrUnauthorized())
 		return
 	}
 
-	accessToken, refreshToken, err := rs.authService.RefreshToken(r.Context(), int64(claims.ID))
+	ctx := rotation.WithRecoveryProof(r.Context(), r.Header.Get(rotation.RecoveryProofHeader))
+	accessToken, refreshToken, err := rs.authService.RefreshToken(ctx, int64(claims.ID), claims.Token)
 	if err != nil {
 		common.RenderError(w, r, AuthErrorRenderer(err))
 		return
@@ -201,19 +205,5 @@ func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 // getClientIP extracts the client IP from the request
 func getClientIP(r *http.Request) net.IP {
-	// Check X-Forwarded-For header first
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		return net.ParseIP(xff)
-	}
-
-	// Check X-Real-IP header
-	xri := r.Header.Get("X-Real-IP")
-	if xri != "" {
-		return net.ParseIP(xri)
-	}
-
-	// Fall back to RemoteAddr
-	host, _, _ := net.SplitHostPort(r.RemoteAddr)
-	return net.ParseIP(host)
+	return clientip.ParseClientIP(r)
 }

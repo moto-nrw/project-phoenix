@@ -5,37 +5,21 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
-
-func uniquePositiveIDs(ids []int64) []int64 {
-	seen := make(map[int64]struct{}, len(ids))
-	out := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		out = append(out, id)
-	}
-	return out
-}
 
 func (rs *Resource) templateRosterValidFrom(ctx context.Context, calendarPeriodID *int64) (timezone.Date, error) {
 	if calendarPeriodID == nil {
 		return timezone.TodayDate(), nil
 	}
-	if rs.calendarPeriodService == nil {
+	if rs.CalendarPeriodService == nil {
 		return timezone.Date{}, errors.New("calendar period service not wired")
 	}
-	period, err := rs.calendarPeriodService.GetPeriodByID(ctx, *calendarPeriodID)
+	period, err := rs.CalendarPeriodService.GetPeriodByID(ctx, *calendarPeriodID)
 	if err != nil {
 		return timezone.Date{}, err
 	}
@@ -50,50 +34,95 @@ func renderTemplatePeriodLookupError(w http.ResponseWriter, r *http.Request, err
 	common.RenderError(w, r, common.ErrorInternalServerWrap("load calendar period failed", err))
 }
 
-func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, studentIDs []int64, calendarPeriodID *int64, validFrom timezone.Date) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return nil
+// templateWritePreflight resolves the tenant-scoped inputs both the create and
+// update write paths need before touching the database: the grade-level cap and
+// the roster valid_from anchor. It renders the appropriate error and returns
+// ok=false on failure.
+func (rs *Resource) templateWritePreflight(
+	w http.ResponseWriter,
+	r *http.Request,
+	calendarPeriodID *int64,
+) (gradeLevelMax int, rosterValidFrom timezone.Date, ok bool) {
+	ctx := r.Context()
+	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve template grade level limit failed", err))
+		return 0, timezone.Date{}, false
 	}
-	if err := rs.timetableData.CloseOpenEnrollmentsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
-		return err
+	rosterValidFrom, err = rs.templateRosterValidFrom(ctx, calendarPeriodID)
+	if err != nil {
+		renderTemplatePeriodLookupError(w, r, err)
+		return 0, timezone.Date{}, false
 	}
-	for _, studentID := range uniquePositiveIDs(studentIDs) {
-		row := &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
-			ActivityGroupID:  groupID,
-			ValidFrom:        validFrom,
-			CalendarPeriodID: calendarPeriodID,
-		}
-		row.SetTenantID(tenantID)
-		if err := rs.timetableData.CreateStudentEnrollment(ctx, row); err != nil {
-			return err
-		}
-	}
-	return nil
+	return gradeLevelMax, rosterValidFrom, true
 }
 
-func (rs *Resource) replaceTemplateStaff(ctx context.Context, groupID int64, staffIDs []int64, primaryStaffID *int64, calendarPeriodID *int64, validFrom timezone.Date) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return nil
+// renderTemplateEducationGroupError maps an education_group_id precheck failure
+// to a 400, preserving the precise message. Returns false for other errors so
+// callers can fall through to their next classification.
+func renderTemplateEducationGroupError(w http.ResponseWriter, r *http.Request, err error) bool {
+	var egErr *scheduleSvc.TemplateEducationGroupError
+	if !errors.As(err, &egErr) {
+		return false
 	}
-	if err := rs.timetableData.CloseOpenSupervisorsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
-		return err
+	common.RenderError(w, r, common.ErrorInvalidRequest(egErr))
+	return true
+}
+
+// parsedTemplateTiming holds the clock window and defaulted numeric fields
+// shared by the create and update request shapes.
+type parsedTemplateTiming struct {
+	startTime       time.Time
+	endTime         time.Time
+	weekPattern     int
+	maxParticipants int
+}
+
+// parseTemplateTiming validates the clock window and applies the week-pattern
+// and max-participants defaults shared by create and update. Format errors
+// render precise 400 messages and return ok=false.
+func parseTemplateTiming(
+	w http.ResponseWriter,
+	r *http.Request,
+	startStr, endStr string,
+	weekPatternPtr *int,
+	maxParticipantsPtr *int,
+) (parsedTemplateTiming, bool) {
+	startTime, err := parseClockTime(startStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("invalid start_time format, expected HH:MM")))
+		return parsedTemplateTiming{}, false
 	}
-	for _, staffID := range uniquePositiveIDs(staffIDs) {
-		isPrimary := primaryStaffID != nil && *primaryStaffID == staffID
-		row := &activitiesModel.SupervisorPlanned{
-			StaffID:          staffID,
-			GroupID:          groupID,
-			IsPrimary:        isPrimary,
-			ValidFrom:        validFrom,
-			CalendarPeriodID: calendarPeriodID,
-		}
-		row.SetTenantID(tenantID)
-		if err := rs.timetableData.CreatePlannedSupervisor(ctx, row); err != nil {
-			return err
-		}
+	endTime, err := parseClockTime(endStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("invalid end_time format, expected HH:MM")))
+		return parsedTemplateTiming{}, false
 	}
-	return nil
+	if !endTime.After(startTime) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("end_time must be after start_time")))
+		return parsedTemplateTiming{}, false
+	}
+	weekPattern := 0
+	if weekPatternPtr != nil {
+		weekPattern = *weekPatternPtr
+	}
+	if weekPattern < 0 || weekPattern > 2 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("week_pattern must be 0 (every), 1 (A), or 2 (B)")))
+		return parsedTemplateTiming{}, false
+	}
+	maxParticipants := 999
+	if maxParticipantsPtr != nil && *maxParticipantsPtr > 0 {
+		maxParticipants = *maxParticipantsPtr
+	}
+	return parsedTemplateTiming{
+		startTime:       startTime,
+		endTime:         endTime,
+		weekPattern:     weekPattern,
+		maxParticipants: maxParticipants,
+	}, true
 }

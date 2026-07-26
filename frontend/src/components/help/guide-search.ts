@@ -1,5 +1,6 @@
 import {
   appChapters,
+  nfcQuickstartChapters,
   nfcChapters,
   setupChapters,
   type GuideChapter,
@@ -45,6 +46,11 @@ interface GuideSource {
 export const GUIDE_SOURCES: readonly GuideSource[] = [
   { path: "/help/setup", label: "Ersteinrichtung", chapters: setupChapters },
   { path: "/help/features", label: "Die App im Alltag", chapters: appChapters },
+  {
+    path: "/help/nfc/erste-schritte",
+    label: "NFC Erste Schritte",
+    chapters: nfcQuickstartChapters,
+  },
   { path: "/help/nfc", label: "NFC & Tablets", chapters: nfcChapters },
 ];
 

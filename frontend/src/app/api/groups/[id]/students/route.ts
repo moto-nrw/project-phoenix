@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { apiGet, handleApiError } from "~/lib/api-helpers.server";
 
-export async function GET(
+async function GETHandler(
   request: NextRequest,
   context: { params: Promise<Record<string, string | string[] | undefined>> },
 ): Promise<NextResponse> {
@@ -42,3 +43,5 @@ export async function GET(
     return handleApiError(error);
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

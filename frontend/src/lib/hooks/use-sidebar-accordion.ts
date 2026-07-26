@@ -2,11 +2,15 @@
 
 import { useState, useCallback, useEffect } from "react";
 
+import { isPlanningPath } from "~/lib/planning-navigation";
+
 type AccordionSection =
   | "groups"
   | "supervisions"
   | "database"
+  | "planning"
   | "enrollments"
+  | "eltern"
   | null;
 
 // Paths that belong to the enrollments accordion. Centralized so the
@@ -20,6 +24,21 @@ const ENROLLMENT_PATH_PREFIXES = [
 
 function isEnrollmentPath(p: string): boolean {
   return ENROLLMENT_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
+
+// Paths that belong to the "Eltern" accordion (overview hub + the parent
+// communication sub-pages). Keep in sync with PARENT_SUB_PAGES in sidebar.tsx.
+const ELTERN_PATH_PREFIXES = [
+  "/eltern",
+  "/messages",
+  "/admin/guardian-approvals",
+  "/admin/change-requests",
+  "/parent-announcements",
+  "/meal-plan",
+];
+
+function isElternPath(p: string): boolean {
+  return ELTERN_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
@@ -36,14 +55,18 @@ function sectionFromPathname(
   if (pathname.startsWith("/ogs-groups")) return "groups";
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
+  if (isPlanningPath(pathname)) return "planning";
   if (isEnrollmentPath(pathname)) return "enrollments";
+  if (isElternPath(pathname)) return "eltern";
 
   // Child pages: keep the originating accordion section open
   if (fromParam) {
     if (fromParam.startsWith("/ogs-groups")) return "groups";
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
+    if (isPlanningPath(fromParam)) return "planning";
     if (isEnrollmentPath(fromParam)) return "enrollments";
+    if (isElternPath(fromParam)) return "eltern";
   }
 
   return null;
@@ -76,7 +99,9 @@ export function useSidebarAccordion(
       stored === "groups" ||
       stored === "supervisions" ||
       stored === "database" ||
-      stored === "enrollments"
+      stored === "planning" ||
+      stored === "enrollments" ||
+      stored === "eltern"
     ) {
       setExpanded(stored);
     }

@@ -65,6 +65,66 @@ func TestResponsePickupStatus_UsesDerivedStatusForCanonicalStoredText(t *testing
 	assert.False(t, resp.PickupDays.HasAny())
 }
 
+// TestPopulatePublicStudentFields_BusAndAccompaniedSameDayKeepsAccompanied is
+// the read-path guard for #1694. A child allowed BOTH Bus and "Mit anderem
+// Kind" on the same weekday is a self-goer in the exclusive DepartureDays()
+// projection (bus outranks accompanied there), so deriving the legacy
+// pickup_status from that projection would return this safety-sensitive child
+// to legacy list/search/admin consumers as "Geht alleine nach Hause". The
+// response must derive from the FULL non-exclusive AllowedDepartureModes set
+// instead, even though the stored canonical status gets recomputed.
+func TestPopulatePublicStudentFields_BusAndAccompaniedSameDayKeepsAccompanied(t *testing.T) {
+	stored := users.PickupStatusAccompanied
+	student := &users.Student{
+		PickupStatus: &stored,
+		AllowedDepartureModes: users.AllowedDepartureModes{
+			users.PickupDayMonday: {users.DepartureBus, users.DepartureAccompanied},
+		},
+	}
+	resp := StudentResponse{}
+
+	populatePublicStudentFields(&resp, student)
+
+	assert.Equal(t, users.PickupStatusAccompanied, resp.PickupStatus,
+		"bus+accompanied on the same day must not be bucketed as a self-goer")
+	assert.True(t, resp.BusDays[users.PickupDayMonday], "the bus signal must still surface")
+}
+
+func TestPopulateSnapshotPublicFields_BusAndAccompaniedSameDayKeepsAccompanied(t *testing.T) {
+	stored := users.PickupStatusAccompanied
+	student := &users.Student{
+		PickupStatus: &stored,
+		AllowedDepartureModes: users.AllowedDepartureModes{
+			users.PickupDayTuesday: {users.DepartureBus, users.DepartureAccompanied},
+		},
+	}
+	resp := StudentResponse{}
+
+	populateSnapshotPublicFields(&resp, student)
+
+	assert.Equal(t, users.PickupStatusAccompanied, resp.PickupStatus,
+		"bus+accompanied on the same day must not be bucketed as a self-goer")
+	assert.True(t, resp.BusDays[users.PickupDayTuesday], "the bus signal must still surface")
+}
+
+func TestPopulateStudentAddressFields(t *testing.T) {
+	street := "Musterstraße 12"
+	city := "Köln"
+	postalCode := "50667"
+	student := &users.Student{
+		AddressStreet:     &street,
+		AddressCity:       &city,
+		AddressPostalCode: &postalCode,
+	}
+	resp := StudentResponse{}
+
+	populateStudentAddressFields(&resp, student)
+
+	assert.Equal(t, street, resp.AddressStreet)
+	assert.Equal(t, city, resp.AddressCity)
+	assert.Equal(t, postalCode, resp.AddressPostalCode)
+}
+
 // helper: build a Student with a given ID + photo state.
 func makeStudent(id int64, photoPath *string, consentAt *time.Time, consentBy *int64) *users.Student {
 	s := &users.Student{

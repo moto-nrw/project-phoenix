@@ -42,7 +42,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		device := &iotModels.Device{
 			DeviceID:   fmt.Sprintf("test-device-%d", time.Now().UnixNano()),
 			DeviceType: "terminal",
-			Name:       stringPtr("Test Device"),
+			Name:       testpkg.StrPtr("Test Device"),
 		}
 
 		// ACT
@@ -923,56 +923,6 @@ func TestIoTService_ScanNetwork(t *testing.T) {
 }
 
 // =============================================================================
-// UpdateDeviceLastSeen Tests
-// =============================================================================
-
-func TestIoTService_UpdateDeviceLastSeen(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("updates last seen to current time", func(t *testing.T) {
-		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "lastseen-now")
-		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
-
-		before := time.Now().Add(-1 * time.Second)
-
-		// ACT
-		err := service.UpdateDeviceLastSeen(ctx, device.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify last_seen was updated to approximately now
-		updated, err := service.GetDeviceByID(ctx, device.ID)
-		require.NoError(t, err)
-		require.NotNil(t, updated.LastSeen)
-		assert.True(t, updated.LastSeen.After(before), "last_seen should be after the time before the call")
-	})
-
-	t.Run("returns error for zero ID", func(t *testing.T) {
-		// ACT
-		err := service.UpdateDeviceLastSeen(ctx, 0)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "device ID must be positive")
-	})
-
-	t.Run("returns error for negative ID", func(t *testing.T) {
-		// ACT
-		err := service.UpdateDeviceLastSeen(ctx, -5)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "device ID must be positive")
-	})
-}
-
-// =============================================================================
 // UpdateDeviceLastSeenAt Tests
 // =============================================================================
 
@@ -1086,7 +1036,7 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 		device := &iotModels.Device{
 			DeviceID:   fmt.Sprintf("tenant-virtual-%s-%d", suffix, time.Now().UnixNano()),
 			DeviceType: iotModels.DeviceTypeVirtual,
-			Name:       stringPtr("Tenant Virtual Device"),
+			Name:       testpkg.StrPtr("Tenant Virtual Device"),
 		}
 
 		err := service.CreateDevice(ctx, device)
@@ -1106,7 +1056,7 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 	})
 
 	t.Run("UpdateDevice rejects reserved web manual device", func(t *testing.T) {
-		webManualDevice.Name = stringPtr("Hacked Name")
+		webManualDevice.Name = testpkg.StrPtr("Hacked Name")
 
 		err := service.UpdateDevice(ctx, webManualDevice)
 
@@ -1123,7 +1073,7 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 
 	t.Run("UpdateDevice allows tenant-managed virtual devices", func(t *testing.T) {
 		virtualDevice := createTenantVirtualDevice(t, "update")
-		virtualDevice.Name = stringPtr("Updated Tenant Virtual Device")
+		virtualDevice.Name = testpkg.StrPtr("Updated Tenant Virtual Device")
 
 		err := service.UpdateDevice(ctx, virtualDevice)
 		require.NoError(t, err)
@@ -1219,9 +1169,4 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 		_, hasExclude := filters["exclude_device_id"]
 		assert.False(t, hasExclude, "caller's filter map should not be mutated")
 	})
-}
-
-// Helper function for string pointers
-func stringPtr(s string) *string {
-	return &s
 }

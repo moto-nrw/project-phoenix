@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
@@ -32,6 +38,9 @@ interface DataTableProps<T> {
   // another N per click. Use on tables whose row count is unbounded
   // (persons, accounts) — leave undefined on bounded views (orgs, devices).
   pageSize?: number;
+  // Changing this value resets incremental pagination to the first page.
+  // Callers with externally filtered rows should pass their active filter key.
+  paginationResetKey?: string | number;
 }
 
 const alignClass: Record<
@@ -56,6 +65,7 @@ export function DataTable<T>({
   defaultSortKey,
   defaultSortDirection = "asc",
   pageSize,
+  paginationResetKey,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
 
@@ -98,13 +108,12 @@ export function DataTable<T>({
   const [visibleCount, setVisibleCount] = useState(
     pageSize ?? Number.POSITIVE_INFINITY,
   );
-  // If the caller toggles pageSize on/off after mount, snap the visible window
-  // back to the new page size so we never strand the user on a stale slice.
-  const lastPageSize = useRef(pageSize);
-  if (lastPageSize.current !== pageSize) {
-    lastPageSize.current = pageSize;
+  // If the caller changes the page size or active filters, snap the visible
+  // window back to the first page so a narrower result never inherits a
+  // previously expanded row count.
+  useEffect(() => {
     setVisibleCount(pageSize ?? Number.POSITIVE_INFINITY);
-  }
+  }, [pageSize, paginationResetKey]);
   const visibleRows = useMemo(() => {
     if (visibleCount >= sortedRows.length) return sortedRows;
     return sortedRows.slice(0, visibleCount);
@@ -286,15 +295,25 @@ interface DataTableStatusBadgeProps {
   active: boolean;
   activeLabel?: string;
   inactiveLabel?: string;
+  // Tri-state: when the underlying value is unknown / not disclosed, render a
+  // neutral badge instead of asserting the inactive state.
+  unknown?: boolean;
+  unknownLabel?: string;
 }
 
 export function DataTableStatusBadge({
   active,
   activeLabel = "Aktiv",
   inactiveLabel = "Inaktiv",
+  unknown = false,
+  unknownLabel = "Unbekannt",
 }: Readonly<DataTableStatusBadgeProps>) {
-  const label = active ? activeLabel : inactiveLabel;
-  const color = active ? LOCATION_COLORS.GROUP_ROOM : LOCATION_COLORS.HOME;
+  const label = unknown ? unknownLabel : active ? activeLabel : inactiveLabel;
+  const color = unknown
+    ? LOCATION_COLORS.UNKNOWN
+    : active
+      ? LOCATION_COLORS.GROUP_ROOM
+      : LOCATION_COLORS.HOME;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
       <span

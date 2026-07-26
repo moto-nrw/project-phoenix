@@ -16,7 +16,39 @@ export function getDeleteErrorMessage(err: unknown): string {
     : "Fehler beim Löschen. Bitte versuchen Sie es erneut.";
 }
 
+export class MalformedCrudListResponseError extends Error {
+  readonly entity: string;
+  readonly endpoint: string;
+  readonly responseShape: string;
+
+  constructor(entity: string, endpoint: string, responseShape: string) {
+    super(
+      `Malformed CRUD list response for ${entity} from ${endpoint}: expected an array or an object with a data array. Received ${responseShape}.`,
+    );
+    this.name = "MalformedCrudListResponseError";
+    this.entity = entity;
+    this.endpoint = endpoint;
+    this.responseShape = responseShape;
+  }
+}
+
 // Helper functions extracted to reduce cognitive complexity (S3776)
+
+function describeResponseShape(response: unknown): string {
+  if (response === null) {
+    return "null";
+  }
+
+  if (Array.isArray(response)) {
+    return "array";
+  }
+
+  if (typeof response === "object") {
+    return `object keys: ${Object.keys(response).join(",")}`;
+  }
+
+  return typeof response;
+}
 
 /**
  * Creates a default pagination object for non-paginated responses
@@ -53,6 +85,7 @@ function isPaginatedResponse(obj: unknown): obj is {
     obj !== null &&
     typeof obj === "object" &&
     "data" in obj &&
+    Array.isArray((obj as { data: unknown }).data) &&
     "pagination" in obj
   );
 }
@@ -185,8 +218,18 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       // client-side validation error (4xx, message is user-facing) from a
       // network/server error (5xx, message is technical noise). Additive: the
       // message and `instanceof Error` are unchanged for existing consumers.
-      const apiError = new Error(userMessage) as Error & { status?: number };
+      const apiError = new Error(userMessage) as Error & {
+        status?: number;
+        body?: string;
+      };
       apiError.status = response.status;
+      // Carry the RAW response body too. extractErrorMessage reduces the
+      // response to one human sentence, which silently drops every structured
+      // sibling field the proxy forwards — notably the companion-plan 409's
+      // top-level `conflicts` array. Without it the student Stammdaten form
+      // cannot name what the user confirmed, so "Ergänzen und speichern"
+      // re-sends an empty confirmation and gets the same 409 forever.
+      apiError.body = errorText;
       throw apiError;
     }
 
@@ -218,6 +261,11 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       try {
         // Build query string
         const params = new URLSearchParams();
+        if (apiConfig.listParams) {
+          Object.entries(apiConfig.listParams).forEach(([key, value]) => {
+            params.append(key, value);
+          });
+        }
         if (filters) {
           Object.entries(filters).forEach(([key, value]) => {
             if (value !== undefined && value !== null) {
@@ -277,11 +325,18 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
           } as PaginatedResponse<T>;
         }
 
-        // Fallback - return empty paginated response
-        logger.warn("unexpected response structure", {
-          response: JSON.stringify(response),
+        const responseShape = describeResponseShape(dataSource);
+        const malformedResponseError = new MalformedCrudListResponseError(
+          config.name.plural,
+          endpoints.list,
+          responseShape,
+        );
+        logger.warn("malformed_crud_list_response", {
+          entity: malformedResponseError.entity,
+          endpoint: malformedResponseError.endpoint,
+          responseShape: malformedResponseError.responseShape,
         });
-        return { data: [], pagination: createDefaultPagination(0) };
+        throw malformedResponseError;
       } catch (error) {
         logger.error("error fetching entities", {
           entity: config.name.plural,

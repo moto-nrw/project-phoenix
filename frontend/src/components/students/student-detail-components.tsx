@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { AlertTriangle, Check, Clock, Info, Pencil } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
@@ -16,13 +16,27 @@ import {
   getStudentPresenceBadgePlanning,
 } from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
+import type { StudentEnrollmentExtraFieldGroup } from "~/lib/student-api";
 import {
-  formatDepartureDays,
+  allowedDepartureModesFromDeparture,
   departureDaysFromLegacy,
 } from "~/lib/student-helpers";
+import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
+import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import {
+  companionDisplayName,
+  fetchStudentCompanions,
+  formatCompanionWeekdays,
+  subscribeStudentCompanionDisplayChanged,
+  subscribeStudentCompanionsChanged,
+  type StudentCompanion,
+} from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentDetailComponents" });
 
 // =============================================================================
 // ICONS - Reusable SVG icons
@@ -342,7 +356,7 @@ function ForkKnifeIcon({
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={2}
-        d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13"
+        d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1ZM6 17h12"
       />
     </svg>
   );
@@ -705,6 +719,7 @@ function SupervisorItem({
           <>
             <p className="mt-1 text-sm text-gray-500">{supervisor.email}</p>
             <button
+              type="button"
               onClick={handleEmailClick}
               className="mt-3 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.98]"
             >
@@ -724,22 +739,95 @@ function SupervisorItem({
 
 interface PersonalInfoReadOnlyProps {
   student: ExtendedStudent;
+  enrollmentExtraGroups?: StudentEnrollmentExtraFieldGroup[];
   showEditButton?: boolean;
   onEditClick?: () => void;
 }
 
+const EMPTY_ENROLLMENT_EXTRA_GROUPS: StudentEnrollmentExtraFieldGroup[] = [];
+
 export function PersonalInfoReadOnly({
   student,
+  enrollmentExtraGroups = EMPTY_ENROLLMENT_EXTRA_GROUPS,
   showEditButton = false,
   onEditClick,
 }: Readonly<PersonalInfoReadOnlyProps>) {
+  // The Laufgemeinschaft lives in its own table, so it is fetched here rather
+  // than riding along on the student payload. A failure must not break the rest
+  // of the Stammdaten card, but it must not read as "walks alone" either: for a
+  // child whose accompanied days are backed only by links there is no free-text
+  // note, so silently dropping the row would leave "Mit anderem Kind" standing
+  // without a name. Hence a distinct unavailable state next to the list.
+  const [companions, setCompanions] = useState<StudentCompanion[]>([]);
+  const [companionsUnavailable, setCompanionsUnavailable] = useState(false);
+  // Saving the Stammdaten does not remount this card and does not bring the
+  // links along in the student payload, so the fetch below must be re-run on
+  // every companion write — including a symmetric one made from the linked
+  // child's card. The counter is the effect's second trigger.
+  const [companionsRevalidation, setCompanionsRevalidation] = useState(0);
+  useEffect(() => {
+    const revalidate = () => setCompanionsRevalidation((count) => count + 1);
+    // Two buses, because two different writes make this card stale. The links
+    // themselves change on a companion write; what the links DISPLAY changes on
+    // a plain student write — a linked child renamed or moved to another group
+    // emits only student_updated, and this effect's student id stays the same,
+    // so the old name would otherwise survive here forever. After a group
+    // reassignment that name can be one a fresh request would redact for the
+    // viewing supervisor, which makes the refetch a visibility fix, not a
+    // cosmetic one.
+    const unsubscribeCompanions = subscribeStudentCompanionsChanged(revalidate);
+    const unsubscribeDisplay =
+      subscribeStudentCompanionDisplayChanged(revalidate);
+    return () => {
+      unsubscribeCompanions();
+      unsubscribeDisplay();
+    };
+  }, []);
+  // This card is reused across children without unmounting, and the links are
+  // fetched separately from the student payload. Dropping the previous child's
+  // companions only once the new request resolves would show one child's
+  // departure companions under another child's name for the whole request —
+  // safety-relevant information about who walks home with whom. Reset during
+  // render (React's "adjusting state on prop change" pattern) so the wrong
+  // names never reach the screen, not in the effect, which runs after paint.
+  const [companionsStudentId, setCompanionsStudentId] = useState(student.id);
+  if (companionsStudentId !== student.id) {
+    setCompanionsStudentId(student.id);
+    setCompanions([]);
+    setCompanionsUnavailable(false);
+  }
+  useEffect(() => {
+    if (!student.id) return;
+    let cancelled = false;
+    fetchStudentCompanions(student.id)
+      .then((loaded) => {
+        if (cancelled) return;
+        setCompanions(loaded);
+        setCompanionsUnavailable(false);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setCompanions([]);
+        setCompanionsUnavailable(true);
+        logger.error("student_companions_load_failed", {
+          student_id: student.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [student.id, companionsRevalidation]);
+
   const birthdayDisplay = student.birthday
     ? new Date(student.birthday).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
       })
     : "Nicht angegeben";
+  const addressDisplay = formatStudentAddress(student);
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
@@ -755,6 +843,7 @@ export function PersonalInfoReadOnly({
         </div>
         {showEditButton && onEditClick ? (
           <button
+            type="button"
             onClick={onEditClick}
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
             title="Bearbeiten"
@@ -773,18 +862,24 @@ export function PersonalInfoReadOnly({
           value={student.group_name ?? "Nicht zugewiesen"}
         />
         <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
+        {addressDisplay && <InfoItem label="Adresse" value={addressDisplay} />}
         <InfoItem
-          label="Geh- und Abholregelung"
+          label="Erlaubte Heimwege"
           value={
             <span className="flex items-start gap-1.5">
               <span className="min-w-0 flex-1">
-                {formatDepartureDays(
-                  student.departure_days ??
-                    departureDaysFromLegacy(
-                      student.bus_days,
-                      student.pickup_days,
-                    ),
-                )}
+                <AllowedDepartureModesDisplay
+                  value={
+                    student.allowed_departure_modes ??
+                    allowedDepartureModesFromDeparture(
+                      student.departure_days ??
+                        departureDaysFromLegacy(
+                          student.bus_days,
+                          student.pickup_days,
+                        ),
+                    )
+                  }
+                />
               </span>
               <FieldHistoryInfo
                 studentId={student.id}
@@ -793,6 +888,43 @@ export function PersonalInfoReadOnly({
             </span>
           }
         />
+        {companionsUnavailable && (
+          <InfoItem
+            label="Geht mit"
+            value={
+              <span className="text-sm text-gray-500">
+                Laufgemeinschaft konnte nicht geladen werden
+              </span>
+            }
+          />
+        )}
+        {!companionsUnavailable && companions.length > 0 && (
+          <InfoItem
+            label="Geht mit"
+            value={
+              <span className="space-y-0.5">
+                {companions.map((companion) => (
+                  <span
+                    key={companion.companion_student_id}
+                    className="block text-sm"
+                  >
+                    {companionDisplayName(companion)}
+                    <span className="text-gray-500">
+                      {" "}
+                      ({formatCompanionWeekdays(companion.weekdays)})
+                    </span>
+                  </span>
+                ))}
+              </span>
+            }
+          />
+        )}
+        {student.departure_companion_note && (
+          <InfoItem
+            label="Geht außerdem mit"
+            value={student.departure_companion_note}
+          />
+        )}
         {student.health_info && (
           <InfoItem
             label="Gesundheitsinformationen"
@@ -837,8 +969,47 @@ export function PersonalInfoReadOnly({
             }
           />
         )}
+        <EnrollmentExtraInfoItems groups={enrollmentExtraGroups} />
       </div>
     </div>
+  );
+}
+
+function formatStudentAddress(student: ExtendedStudent): string | null {
+  const street = student.address_street?.trim();
+  const postalCode = student.address_postal_code?.trim();
+  const city = student.address_city?.trim();
+  const locality = [postalCode, city].filter(Boolean).join(" ");
+  const lines = [street, locality].filter(Boolean);
+  return lines.length > 0 ? lines.join(", ") : null;
+}
+
+function EnrollmentExtraInfoItems({
+  groups,
+}: Readonly<{ groups: StudentEnrollmentExtraFieldGroup[] }>) {
+  if (groups.length === 0) return null;
+  const prefixWithPhase = groups.length > 1;
+
+  return (
+    <>
+      {groups.flatMap((group) =>
+        group.fields.map((field) => {
+          const value = formatCustomValue(field.value, field);
+          if (value === null) return null;
+          const label =
+            prefixWithPhase && group.phase_name
+              ? `${group.phase_name} · ${field.label}`
+              : field.label;
+          return (
+            <InfoItem
+              key={`${group.request_id}-${field.key}`}
+              label={label}
+              value={value}
+            />
+          );
+        }),
+      )}
+    </>
   );
 }
 
@@ -934,7 +1105,7 @@ export function StudentHistorySection({
             readOnly
               ? "Nur für Gruppenbetreuer"
               : attendanceLogEnabled
-                ? "Anwesenheit und besuchte Räume"
+                ? "Anwesenheit je Betreuungsangebot und besuchte Räume"
                 : "Für Ihre Schule deaktiviert"
           }
           bgColor="bg-[#5080D8]"
@@ -959,7 +1130,7 @@ export function StudentHistorySection({
           disabled={feedbackDisabled}
           onClick={
             !feedbackDisabled
-              ? () => onNavigate(`/students/${studentId}/feedback_history`)
+              ? () => onNavigate(`/students/${studentId}/feedback-history`)
               : undefined
           }
         />

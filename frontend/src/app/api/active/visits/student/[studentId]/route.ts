@@ -1,29 +1,13 @@
 // app/api/active/visits/student/[studentId]/route.ts
-import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers.server";
-import { createGetHandler } from "~/lib/route-wrapper.server";
-
-/**
- * Type guard to check if parameter exists and is a string
- */
-function isStringParam(param: unknown): param is string {
-  return typeof param === "string";
-}
+import { proxyGet } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**
  * Handler for GET /api/active/visits/student/[studentId]
  * Returns visits for a specific student
  */
-export const GET = createGetHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.studentId)) {
-      throw new Error("Invalid studentId parameter");
-    }
-
-    // Fetch student visits from the API
-    return await apiGet(
-      `/api/active/visits/student/${params.studentId}`,
-      token,
-    );
-  },
+export const GET = proxyGet(
+  (p) =>
+    `/api/active/visits/student/${requirePathSegmentParam(p, "studentId")}`,
+  { raw: true },
 );

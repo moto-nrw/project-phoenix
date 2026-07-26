@@ -66,20 +66,30 @@ func (f *fakeStudentGuardianRepo) Delete(ctx context.Context, id interface{}) er
 
 type fakeStudentRepo struct {
 	users.StudentRepository
-	findByIDFn func(ctx context.Context, id interface{}) (*users.Student, error)
+	findByIDFn  func(ctx context.Context, id interface{}) (*users.Student, error)
+	findByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
 }
 
 func (f *fakeStudentRepo) FindByID(ctx context.Context, id interface{}) (*users.Student, error) {
 	return f.findByIDFn(ctx, id)
 }
 
+func (f *fakeStudentRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	return f.findByIDsFn(ctx, ids)
+}
+
 type fakePersonRepo struct {
 	users.PersonRepository
-	findByIDFn func(ctx context.Context, id interface{}) (*users.Person, error)
+	findByIDFn  func(ctx context.Context, id interface{}) (*users.Person, error)
+	findByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Person, error)
 }
 
 func (f *fakePersonRepo) FindByID(ctx context.Context, id interface{}) (*users.Person, error) {
 	return f.findByIDFn(ctx, id)
+}
+
+func (f *fakePersonRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error) {
+	return f.findByIDsFn(ctx, ids)
 }
 
 // --- unexported helpers ----------------------------------------------------
@@ -106,16 +116,16 @@ func TestSameInt64Set(t *testing.T) {
 
 func TestIsGuardianUniqueViolation(t *testing.T) {
 	t.Run("nil error is not a violation", func(t *testing.T) {
-		assert.False(t, isGuardianUniqueViolation(nil))
+		assert.False(t, base.IsUniqueViolation(nil))
 	})
 	t.Run("plain error is not a violation", func(t *testing.T) {
-		assert.False(t, isGuardianUniqueViolation(errors.New("boom")))
+		assert.False(t, base.IsUniqueViolation(errors.New("boom")))
 	})
 	t.Run("wrapped non-pg DatabaseError is not a violation", func(t *testing.T) {
 		// Exercises the DatabaseError-unwrap branch: it must unwrap and then
 		// still report false because the inner error is not a pg integrity error.
 		err := &base.DatabaseError{Op: "create", Err: errors.New("connection reset")}
-		assert.False(t, isGuardianUniqueViolation(err))
+		assert.False(t, base.IsUniqueViolation(err))
 	})
 }
 
@@ -123,9 +133,11 @@ func TestIsGuardianUniqueViolation(t *testing.T) {
 
 func TestCreateGuardian_NonUniqueCreateErrorIsWrapped(t *testing.T) {
 	email := "new-guardian@example.com"
-	svc := &guardianService{
-		guardianProfileRepo: &fakeProfileRepo{
-			// Pre-check finds no existing guardian, so creation proceeds.
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{
+
+		// Pre-check finds no existing guardian, so creation proceeds.
+		GuardianProfileRepo: &fakeProfileRepo{
+
 			findByEmailFn: func(_ context.Context, _ string) (*users.GuardianProfile, error) {
 				return nil, users.ErrGuardianProfileNotFound
 			},
@@ -134,7 +146,7 @@ func TestCreateGuardian_NonUniqueCreateErrorIsWrapped(t *testing.T) {
 			createFn: func(_ context.Context, _ *users.GuardianProfile) error {
 				return errors.New("connection refused")
 			},
-		},
+		}},
 	}
 
 	_, err := svc.CreateGuardian(context.Background(), GuardianCreateRequest{
@@ -150,8 +162,14 @@ func TestCreateGuardian_NonUniqueCreateErrorIsWrapped(t *testing.T) {
 
 func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 	email := "edited@example.com"
-	svc := &guardianService{
-		guardianProfileRepo: &fakeProfileRepo{
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{
+
+		// UpdateGuardian now locks the profile row FOR UPDATE before reading
+		// it (serializes with the parents-portal contact path — #1667 review);
+		// the fake returns a no-op lock so this branch reaches the Update.
+		GuardianProfileRepo: &fakeProfileRepo{
+
+			lockFn: func(_ context.Context, _ int64) error { return nil },
 			findByIDFn: func(_ context.Context, _ int64) (*users.GuardianProfile, error) {
 				return &users.GuardianProfile{}, nil
 			},
@@ -162,7 +180,7 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 			updateFn: func(_ context.Context, _ *users.GuardianProfile) error {
 				return errors.New("connection refused")
 			},
-		},
+		}},
 	}
 
 	err := svc.UpdateGuardian(context.Background(), 1, GuardianCreateRequest{
@@ -176,10 +194,9 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 }
 
 func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
-	svc := &guardianService{
-		guardianProfileRepo: &fakeProfileRepo{
-			lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
-		},
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
+		lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
+	}},
 	}
 	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1})
 	require.Error(t, err)
@@ -187,15 +204,13 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 }
 
 func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
-	svc := &guardianService{
-		guardianProfileRepo: &fakeProfileRepo{
-			lockFn: func(_ context.Context, _ int64) error { return nil },
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
+		lockFn: func(_ context.Context, _ int64) error { return nil },
+	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
+		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
+			return nil, errors.New("query failed")
 		},
-		studentGuardianRepo: &fakeStudentGuardianRepo{
-			findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
-				return nil, errors.New("query failed")
-			},
-		},
+	}},
 	}
 	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1})
 	require.Error(t, err)
@@ -205,18 +220,16 @@ func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
 func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 	link := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	link.ID = 5
-	svc := &guardianService{
-		guardianProfileRepo: &fakeProfileRepo{
-			lockFn: func(_ context.Context, _ int64) error { return nil },
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
+		lockFn: func(_ context.Context, _ int64) error { return nil },
+	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
+		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
+			return []*users.StudentGuardian{link}, nil
 		},
-		studentGuardianRepo: &fakeStudentGuardianRepo{
-			findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
-				return []*users.StudentGuardian{link}, nil
-			},
-			deleteFn: func(_ context.Context, _ interface{}) error {
-				return errors.New("delete failed")
-			},
+		deleteFn: func(_ context.Context, _ interface{}) error {
+			return errors.New("delete failed")
 		},
+	}},
 	}
 	// expectedLinkIDs matches the current set, so the stale-preview guard passes
 	// and execution reaches the link-deletion loop, which then fails.
@@ -225,22 +238,20 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to remove guardian link")
 }
 
-func TestGetLinkedStudentNames_StudentLoadError(t *testing.T) {
+func TestGetGuardianDeleteImpact_StudentLoadError(t *testing.T) {
 	rel := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	rel.ID = 5
-	svc := &guardianService{
-		studentGuardianRepo: &fakeStudentGuardianRepo{
-			findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
-				return []*users.StudentGuardian{rel}, nil
-			},
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{StudentGuardianRepo: &fakeStudentGuardianRepo{
+		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
+			return []*users.StudentGuardian{rel}, nil
 		},
-		studentRepo: &fakeStudentRepo{
-			findByIDFn: func(_ context.Context, _ interface{}) (*users.Student, error) {
-				return nil, errors.New("student gone")
-			},
+	}, StudentRepo: &fakeStudentRepo{
+		findByIDsFn: func(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
+			return nil, errors.New("student gone")
 		},
+	}},
 	}
-	_, err := svc.GetLinkedStudentNames(context.Background(), 1)
+	_, err := svc.GetGuardianDeleteImpact(context.Background(), 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load student")
 }
@@ -249,24 +260,21 @@ func TestGetGuardianDeleteImpact_NilPersonIsRejected(t *testing.T) {
 	rel := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	rel.ID = 5
 	student := &users.Student{PersonID: 9}
-	svc := &guardianService{
-		studentGuardianRepo: &fakeStudentGuardianRepo{
-			findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
-				return []*users.StudentGuardian{rel}, nil
-			},
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{StudentGuardianRepo: &fakeStudentGuardianRepo{
+		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
+			return []*users.StudentGuardian{rel}, nil
 		},
-		studentRepo: &fakeStudentRepo{
-			findByIDFn: func(_ context.Context, _ interface{}) (*users.Student, error) {
-				return student, nil
-			},
+	}, StudentRepo: &fakeStudentRepo{
+		findByIDsFn: func(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
+			return map[int64]*users.Student{7: student}, nil
 		},
-		personRepo: &fakePersonRepo{
-			// Some repositories return (nil, nil) for a missing row — the impact
-			// builder must treat that as a hard error, not a nil-pointer panic.
-			findByIDFn: func(_ context.Context, _ interface{}) (*users.Person, error) {
-				return nil, nil
-			},
+	}, PersonRepo: &fakePersonRepo{
+		// A missing row surfaces as an absent/nil map entry — the impact
+		// builder must treat that as a hard error, not a nil-pointer panic.
+		findByIDsFn: func(_ context.Context, _ []int64) (map[int64]*users.Person, error) {
+			return map[int64]*users.Person{9: nil}, nil
 		},
+	}},
 	}
 	_, err := svc.GetGuardianDeleteImpact(context.Background(), 1)
 	require.Error(t, err)

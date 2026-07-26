@@ -32,6 +32,14 @@ var validPickupDays = map[string]bool{
 const (
 	PickupStatusPickedUp  = "Wird abgeholt"
 	PickupStatusGoesAlone = "Geht alleine nach Hause"
+	// PickupStatusAccompanied is the legacy pickup_status for a child whose only
+	// non-self departure is the accompanied ("Mit anderem Kind") mode. Such a
+	// child does NOT go home alone, so they must never collapse onto
+	// PickupStatusGoesAlone: that would let search/list UI and admin filters
+	// bucket safety-sensitive accompanied children as self-goers (#1694). It is
+	// deliberately neither canonical value, so pickupStatusKind sorts it into the
+	// "other"/"Sonstige" bucket rather than "self" or "pickedUp".
+	PickupStatusAccompanied = "Geht mit anderem Kind"
 )
 
 // PickupDays stores the recurring weekdays on which a child is picked up

@@ -1,7 +1,7 @@
 "use client";
 
 import { notFound } from "next/navigation";
-import { useNFCEnabled } from "~/components/tenant/tenant-provider";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 /**
  * NfcModeGuard — triggers Next.js 404 when the tenant does not use NFC.

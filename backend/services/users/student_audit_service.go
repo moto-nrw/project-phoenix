@@ -147,8 +147,6 @@ func statusLabel(s userModels.StudentStatus) string {
 		return "Aktiv"
 	case userModels.StudentStatusInactive:
 		return "Inaktiv"
-	case userModels.StudentStatusAlumnus:
-		return "Ehemalig"
 	default:
 		return string(s)
 	}

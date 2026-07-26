@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -50,7 +52,7 @@ func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeRoomSnapshotExportRequest(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -88,7 +90,7 @@ func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	file, err := rs.ListExportService.Render(doc, req.Format, doc.Title)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -178,8 +180,8 @@ func roomSnapshotLocationFromRoom(room facilities.RoomWithOccupancy, studentIDs 
 		Status:      occupiedLabel(room.IsOccupied),
 		Building:    room.Building,
 		Floor:       formatSnapshotFloor(room.Floor),
-		Activity:    stringValue(room.GroupName),
-		Supervision: stringValue(room.SupervisorNames),
+		Activity:    base.Deref(room.GroupName),
+		Supervision: base.Deref(room.SupervisorNames),
 		ChildCount:  len(studentIDs),
 		StudentIDs:  studentIDs,
 	}
@@ -262,7 +264,7 @@ func buildRoomSnapshotRows(locations []roomSnapshotLocation, studentsByID map[in
 			}
 		}
 		sort.SliceStable(students, func(i, j int) bool {
-			return strings.ToLower(students[i].Name) < strings.ToLower(students[j].Name)
+			return collation.CompareGerman(students[i].Name, students[j].Name) < 0
 		})
 
 		if len(students) == 0 {
@@ -353,13 +355,6 @@ func snapshotStudentName(student *userModels.Student, person *userModels.Person)
 		return fmt.Sprintf("Kind %d", student.ID)
 	}
 	return strings.TrimSpace(person.FirstName + " " + person.LastName)
-}
-
-func stringValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }
 
 func appendUniqueInt64(values []int64, next int64) []int64 {

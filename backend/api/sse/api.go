@@ -2,7 +2,7 @@ package sse
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -34,16 +34,8 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
-// sseSetupError carries HTTP error info out of a tenant transaction.
-type sseSetupError struct {
-	msg    string
-	status int
-}
-
-func (e *sseSetupError) Error() string { return fmt.Sprintf("SSE setup: %s", e.msg) }
-
 // eventsHandler handles Server-Sent Events connections
-// Orchestrates: connection setup → staff resolution → topic subscription → event streaming
+// Orchestrates: connection setup → subscription resolution → event streaming
 func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -58,53 +50,16 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
 	conn.tenantID = tenant.FromContext(ctx)
 
-	// Steps 3-4 require a tenant transaction because RLS on users.persons
-	// and users.staff requires app.current_tenant_id to be set.
-	var staff *users.Staff
-	var topics *sseTopics
-	err := tenant.WithTenantTx(ctx, rs.db, conn.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		// Step 3: Resolve staff member from JWT claims.
-		// Pure admins may not have a staff record — that's OK,
-		// they can still receive BroadcastToAll events and (if
-		// admin_supervision_overview is enabled) all group events.
-		resolved, errMsg, code := rs.resolveStaff(txCtx)
-		if resolved == nil {
-			claims := jwt.ClaimsFromCtx(txCtx)
-			if !claims.IsAdmin {
-				return &sseSetupError{msg: errMsg, status: code}
-			}
-		} else {
-			staff = resolved
-		}
-
-		// Step 4: Build subscription topics (active groups + educational groups)
-		var staffID int64
-		if staff != nil {
-			staffID = staff.ID
-		}
-		built, err := rs.buildSubscriptionTopics(txCtx, staffID)
-		if err != nil {
-			return err
-		}
-		topics = built
-		return nil
-	})
+	// Step 3: Resolve staff + subscription topics.
+	topics, staffID, err := rs.resolveSSESubscription(ctx, conn.tenantID)
 	if err != nil {
-		if setupErr, ok := err.(*sseSetupError); ok {
-			slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.msg))
-			http.Error(w, setupErr.msg, setupErr.status)
-		} else {
-			slog.ErrorContext(ctx, "SSE failed to determine supervised groups", slog.String("error", err.Error()))
-			http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
-		}
+		rs.writeSSESetupError(w, ctx, err)
 		return
 	}
-	if staff != nil {
-		conn.staffID = staff.ID
-	}
+	conn.staffID = staffID
 	conn.topics = topics
 
-	// Step 5: Send initial "connected" event
+	// Step 4: Send initial "connected" event
 	if err := conn.sendConnectedEvent(topics); err != nil {
 		slog.ErrorContext(ctx, "SSE failed to send connected event", slog.String("error", err.Error()))
 		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
@@ -117,9 +72,39 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	rs.runEventLoop(ctx, conn)
 }
 
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
+// resolveSSESubscription resolves the client's topic subscription inside a
+// tenant transaction. Resolution requires it because RLS on users.persons and
+// users.staff needs app.current_tenant_id to be set — the SSE router uses
+// jwt.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
+func (rs *Resource) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
+	var sub *usercontext.SSESubscription
+	err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		resolved, resolveErr := rs.userCtx.ResolveSSESubscription(txCtx)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		sub = resolved
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return &sseTopics{
+		activeGroupIDs: sub.ActiveGroupIDs,
+		eduTopics:      sub.EduTopics,
+		allTopics:      sub.AllTopics,
+	}, sub.StaffID, nil
+}
 
-// EventsHandler returns the eventsHandler
-func (rs *Resource) EventsHandler() http.HandlerFunc { return rs.eventsHandler }
+// writeSSESetupError maps a subscription-resolution error to the SSE HTTP
+// response: the carried status for an *SSESetupError (401/403), 500 otherwise.
+func (rs *Resource) writeSSESetupError(w http.ResponseWriter, ctx context.Context, err error) {
+	var setupErr *usercontext.SSESetupError
+	if errors.As(err, &setupErr) {
+		slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.Message))
+		http.Error(w, setupErr.Message, setupErr.Status)
+		return
+	}
+	slog.ErrorContext(ctx, "SSE failed to determine supervised groups", slog.String("error", err.Error()))
+	http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
+}

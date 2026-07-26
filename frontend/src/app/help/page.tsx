@@ -32,7 +32,7 @@ export default function HelpLandingPage() {
             <HelpSearchInline />
           </div>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
+          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {guideEntryPoints.map((entry) => (
               <EntryPointCard
                 key={entry.href}

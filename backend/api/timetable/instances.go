@@ -11,15 +11,21 @@
 package timetable
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
+
+const schulhofSupervisionRequiredCode = "schulhof_supervision_required"
 
 // StartInstanceResponse is the 200 body for POST /instances/{id}/start. Warnings
 // is always present (empty array when clean) so clients can iterate without a
@@ -47,7 +53,7 @@ func (rs *Resource) startInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
@@ -58,7 +64,7 @@ func (rs *Resource) startInstance(w http.ResponseWriter, r *http.Request) {
 	// the admin should not see as a 500.
 	startedByStaffID := rs.resolveStartedByStaffID(r.Context())
 
-	result, err := rs.instanceService.Start(r.Context(), id, startedByStaffID)
+	result, err := rs.InstanceService.Start(r.Context(), id, startedByStaffID)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
@@ -86,12 +92,12 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
 
-	instance, err := rs.instanceService.Complete(r.Context(), id)
+	instance, err := rs.InstanceService.Complete(r.Context(), id)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
@@ -111,12 +117,26 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
 
-	instance, err := rs.instanceService.Cancel(r.Context(), id)
+	// Optional {reason} body (#1840). No body / empty body → nil reason, so the
+	// shared cancel keeps working for callers that send nothing.
+	var reason *string
+	if r.Body != nil {
+		var body struct {
+			Reason *string `json:"reason,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
+			return
+		}
+		reason = trimReason(body.Reason)
+	}
+
+	instance, err := rs.InstanceService.Cancel(r.Context(), id, reason, jwt.ActorAccountIDFromCtx(r.Context()))
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
@@ -129,21 +149,21 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, resp, "Instance cancelled")
 }
 
-// deleteInstance handles DELETE /instances/{id}. Only already-cancelled
-// instances can be deleted; other statuses return the same 409 contract as
-// lifecycle transitions.
+// deleteInstance handles DELETE /instances/{id}. Planned and cancelled
+// instances can be deleted; active/completed history stays protected and
+// returns the same 409 contract as lifecycle transitions.
 func (rs *Resource) deleteInstance(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
 
-	if err := rs.instanceService.DeleteCancelled(r.Context(), id); err != nil {
+	if err := rs.InstanceService.DeleteCancelled(r.Context(), id); err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
 	}
@@ -158,11 +178,28 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 	switch {
 	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, scheduleSvc.ErrSchulhofSupervisionRequired):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, schulhofSupervisionRequiredCode))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrInstanceMoved):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("block was changed concurrently; reopen it and try again"),
+			"instance_moved",
+		))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "invalid_transition"))
-	case isUniqueViolationOnConstraint(err, "idx_activity_instances_template_unique"):
+	case errors.Is(err, scheduleSvc.ErrUnderstaffedAckStillStaffed):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist"),
+			"understaffed_still_staffed",
+		))
+	case errors.Is(err, scheduleSvc.ErrAmbiguousTemplateInstanceDelete):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat"),
+			"ambiguous_template_instance_delete",
+		))
+	case base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique"):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("instance already exists for this template/date/start_time"),
 			"duplicate_instance",
@@ -177,7 +214,7 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 // missing staff row all return 0 — StartedBy is nullable in the schema and
 // the transition is already authorised via SchedulesManage.
 func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
-	if rs.personService == nil {
+	if rs.PersonService == nil {
 		return 0
 	}
 	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
@@ -185,14 +222,14 @@ func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
 		return 0
 	}
 	accountID := int64(claims.ID)
-	person, err := rs.personService.FindByAccountID(ctx, accountID)
+	person, err := rs.PersonService.FindByAccountID(ctx, accountID)
 	if err != nil || person == nil {
 		rs.getLogger().Debug("started_by lookup: person not found",
 			slog.Int64("account_id", accountID),
 		)
 		return 0
 	}
-	staff, err := rs.personService.GetStaffByPersonID(ctx, person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		rs.getLogger().Debug("started_by lookup: staff not found",
 			slog.Int64("person_id", person.ID),
@@ -205,8 +242,5 @@ func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
 // getLogger is a nil-safe accessor used by helpers that run outside the
 // chi handler's standard error-rendering path.
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.logger != nil {
-		return rs.logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }

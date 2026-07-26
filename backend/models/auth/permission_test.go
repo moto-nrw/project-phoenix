@@ -178,10 +178,6 @@ func TestPermission_GetFullName(t *testing.T) {
 	}
 }
 
-// Note: the admin-level classification (formerly Permission.IsAdminPermission)
-// moved out of the model in issue #586 (Rule 12). Its test follows the logic to:
-//   - auth/authorize/role_permission_test.go (TestPermissionIsAdmin)
-
 func TestPermission_Clone(t *testing.T) {
 	now := time.Now()
 	original := &Permission{
@@ -225,34 +221,6 @@ func TestPermission_Clone(t *testing.T) {
 	if original.Name == "modified" {
 		t.Error("Modifying clone should not affect original")
 	}
-}
-
-func TestPermission_TableName(t *testing.T) {
-	perm := &Permission{}
-	if got := perm.TableName(); got != "auth.permissions" {
-		t.Errorf("TableName() = %v, want auth.permissions", got)
-	}
-}
-
-func TestPermission_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		perm := &Permission{Name: "test", Resource: "users", Action: "read"}
-		err := perm.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		perm := &Permission{Name: "test", Resource: "users", Action: "read"}
-		err := perm.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
 }
 
 func TestPermission_GetID(t *testing.T) {

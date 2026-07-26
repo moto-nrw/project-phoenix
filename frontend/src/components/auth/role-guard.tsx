@@ -10,9 +10,16 @@ interface RoleGuardProps {
   readonly variant: "adminOnly" | "staffOnly";
   readonly children: React.ReactNode;
   readonly message?: string;
+  /** Rendered while the session loads; pages pass their skeleton to avoid a spinner flash. */
+  readonly fallback?: React.ReactNode;
 }
 
-export function RoleGuard({ variant, children, message }: RoleGuardProps) {
+export function RoleGuard({
+  variant,
+  children,
+  message,
+  fallback,
+}: RoleGuardProps) {
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -21,7 +28,7 @@ export function RoleGuard({ variant, children, message }: RoleGuardProps) {
   });
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return <>{fallback ?? <Loading fullPage={false} />}</>;
   }
 
   const isAllowed =

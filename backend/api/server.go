@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/observability"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/spf13/viper"
 )
@@ -19,6 +21,7 @@ type Server struct {
 	*http.Server
 	scheduler      *scheduler.Scheduler
 	capacityLogger *observability.CapacityLogger
+	tracker        analytics.Tracker
 }
 
 // NewServer creates and configures a new API server
@@ -30,19 +33,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		return nil, err
 	}
 
-	var addr string
-	port := viper.GetString("port")
-
-	// Allow port to be set as localhost:8080 in env during development
-	if strings.Contains(port, ":") {
-		addr = port
-	} else {
-		addr = ":" + port
-	}
-
 	srv := &Server{
 		Server: &http.Server{
-			Addr:    addr,
+			Addr:    resolveListenAddr(viper.GetString("port")),
 			Handler: api,
 			// ReadTimeout stays modest to protect against slowloris attacks,
 			// but WriteTimeout must be disabled to allow long-lived SSE streams.
@@ -50,87 +43,124 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 			WriteTimeout: 0,
 			IdleTimeout:  0,
 		},
-		scheduler:      nil, // Will be initialized if cleanup is enabled
+		scheduler:      newScheduler(api, logger),
 		capacityLogger: observability.NewCapacityLogger(api.db.DB, api.Services.RealtimeHub, api.Metrics, logger.With("component", "capacity")),
-	}
-
-	// Initialize scheduler if cleanup is enabled
-	// Note: Session cleanup is now handled by the scheduler's scheduleSessionCleanupTask()
-	if api.Services != nil && api.Services.ActiveCleanup != nil && api.Services.Active != nil {
-		// OperatorAuth implements EmailChangeTokenCleaner (5th arg).
-		// OperatorInvitation implements OperatorInvitationCleaner (6th arg).
-		// Both are backed by the same concrete struct exposed through the
-		// two narrower interfaces defined in services/platform.
-		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, api.Services.OperatorAuth, api.Services.OperatorInvitation, logger.With("service", "scheduler"))
-		srv.scheduler.SetDB(api.db)
-		srv.scheduler.SetSchoolRepo(api.repos.School)
-		if api.Services.Settings != nil {
-			srv.scheduler.SetSettingsService(api.Services.Settings)
-		}
-		if api.Services.WorkSession != nil {
-			srv.scheduler.SetWorkSessionCleaner(api.Services.WorkSession)
-			srv.scheduler.SetBreakAutoEnder(api.Services.WorkSession)
-		}
-		if api.Services.Feedback != nil {
-			srv.scheduler.SetFeedbackCleaner(api.Services.Feedback)
-		}
-		if api.Services.UnregisteredTagScans != nil {
-			srv.scheduler.SetUnregisteredTagScanCleaner(api.Services.UnregisteredTagScans)
-		}
-		if api.Services.Materialization != nil {
-			srv.scheduler.SetMaterializer(api.Services.Materialization)
-		}
-		if api.Services.AutoStart != nil {
-			srv.scheduler.SetAutoStartService(api.Services.AutoStart)
-		}
-		// WP-B14: timetable GDPR cleanup. Nil service → task does not register.
-		if api.Services.TimetableCleanup != nil {
-			srv.scheduler.SetTimetableCleanup(api.Services.TimetableCleanup)
-		}
-		// Tranche 0b: time-tracking GDPR cleanup. Same nil-safe wiring.
-		if api.Services.TimeTrackingCleanup != nil {
-			srv.scheduler.SetTimeTrackingCleanup(api.Services.TimeTrackingCleanup)
-		}
-		// Issue #1455: per-child change-history GDPR cleanup. Same nil-safe wiring.
-		if api.Services.StudentChangeLogCleanup != nil {
-			srv.scheduler.SetStudentChangeLogCleanup(api.Services.StudentChangeLogCleanup)
-		}
-		// WP-B9: overdue instance tick. Requires both the ActivityInstance
-		// repo and a broadcaster — either missing disables the tick.
-		if api.repos != nil && api.Services.RealtimeHub != nil {
-			srv.scheduler.SetInstanceOverdueDeps(api.repos.ActivityInstance, api.Services.RealtimeHub)
-		}
-		// Daily session-end bridge: closes schedule-side rows for ended
-		// active.groups via repositories (issue #585 layering).
-		if api.repos != nil {
-			srv.scheduler.SetTimetableBridgeRepos(api.repos.InstanceStudent, api.repos.ActivityInstance)
-			srv.scheduler.SetStudentStatusDayRepo(api.repos.StudentStatusDay)
-		}
-		// Parent-enrollment PR 2: activate-students tick.
-		if api.repos != nil && api.repos.Student != nil {
-			srv.scheduler.SetStudentLifecycleRepo(api.repos.Student)
-			if api.Services.StudentAudit != nil {
-				srv.scheduler.SetStudentLifecycleAudit(api.Services.StudentAudit)
-			}
-		}
-		// Parent-enrollment PR 5: platform email outbox worker.
-		if api.Services.EmailOutboxWorker != nil {
-			srv.scheduler.SetOutboxWorker(api.Services.EmailOutboxWorker)
-		}
-		// Phase rollover slice 1: per-tenant deadline resolver tick.
-		// The adapter narrows the typed return value behind `any` so
-		// the scheduler doesn't import the enrollment package.
-		if api.Services.EnrollmentRollover != nil {
-			rolloverSvc := api.Services.EnrollmentRollover
-			srv.scheduler.SetRolloverDeadlineRunner(scheduler.NewRolloverDeadlineRunner(
-				func(ctx context.Context, asOf time.Time) (any, error) {
-					return rolloverSvc.RunDeadlineWorker(ctx, asOf)
-				},
-			))
-		}
+		tracker:        api.Services.Tracker,
 	}
 
 	return srv, nil
+}
+
+// resolveListenAddr turns a configured port into a listen address. A value
+// containing ":" (e.g. "localhost:8080" in dev) is used verbatim; a bare port
+// is prefixed with ":".
+func resolveListenAddr(port string) string {
+	if strings.Contains(port, ":") {
+		return port
+	}
+	return ":" + port
+}
+
+// newScheduler builds and wires the background scheduler, or returns nil when
+// cleanup dependencies are absent (session cleanup is one of its tasks).
+func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
+	if api.Services == nil || api.Services.ActiveCleanup == nil || api.Services.Active == nil {
+		return nil
+	}
+
+	// OperatorAuth implements EmailChangeTokenCleaner (5th arg).
+	// OperatorInvitation implements OperatorInvitationCleaner (6th arg).
+	// Both are backed by the same concrete struct exposed through the
+	// two narrower interfaces defined in services/platform.
+	sched := scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, api.Services.OperatorAuth, api.Services.OperatorInvitation, logger.With("service", "scheduler"))
+	sched.SetDB(api.db)
+	sched.SetSchoolRepo(api.repos.School)
+
+	configureSchedulerServices(sched, api.Services)
+	configureSchedulerRepos(sched, api)
+
+	return sched
+}
+
+// configureSchedulerServices attaches the optional service-backed scheduler
+// tasks; each is skipped when its backing service is nil.
+func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factory) {
+	if svc.Settings != nil {
+		sched.SetSettingsService(svc.Settings)
+	}
+	if svc.WorkSession != nil {
+		sched.SetWorkSessionCleaner(svc.WorkSession)
+		sched.SetBreakAutoEnder(svc.WorkSession)
+		// #1798: auto-checkout at planned shift end (per-tenant opt-in).
+		sched.SetAutoCheckouter(svc.WorkSession)
+	}
+	if svc.Feedback != nil {
+		sched.SetFeedbackCleaner(svc.Feedback)
+	}
+	if svc.UnregisteredTagScans != nil {
+		sched.SetUnregisteredTagScanCleaner(svc.UnregisteredTagScans)
+	}
+	if svc.Materialization != nil {
+		sched.SetMaterializer(svc.Materialization)
+	}
+	if svc.AutoStart != nil {
+		sched.SetAutoStartService(svc.AutoStart)
+	}
+	// WP-B14: timetable GDPR cleanup. Nil service → task does not register.
+	if svc.TimetableCleanup != nil {
+		sched.SetTimetableCleanup(svc.TimetableCleanup)
+	}
+	// Tranche 0b: time-tracking GDPR cleanup. Same nil-safe wiring.
+	if svc.TimeTrackingCleanup != nil {
+		sched.SetTimeTrackingCleanup(svc.TimeTrackingCleanup)
+	}
+	// Issue #1455: per-child change-history GDPR cleanup. Same nil-safe wiring.
+	if svc.StudentChangeLogCleanup != nil {
+		sched.SetStudentChangeLogCleanup(svc.StudentChangeLogCleanup)
+	}
+	if svc.EnrollmentRejectedCleanup != nil {
+		sched.SetEnrollmentRejectedCleanup(svc.EnrollmentRejectedCleanup)
+	}
+	// Parent-enrollment PR 5: platform email outbox worker.
+	if svc.EmailOutboxWorker != nil {
+		sched.SetOutboxWorker(svc.EmailOutboxWorker)
+	}
+	// Phase rollover slice 1: per-tenant deadline resolver tick.
+	// The adapter narrows the typed return value behind `any` so
+	// the scheduler doesn't import the enrollment package.
+	if svc.EnrollmentRollover != nil {
+		rolloverSvc := svc.EnrollmentRollover
+		sched.SetRolloverDeadlineRunner(scheduler.NewRolloverDeadlineRunner(
+			func(ctx context.Context, asOf time.Time) (any, error) {
+				return rolloverSvc.RunDeadlineWorker(ctx, asOf)
+			},
+		))
+	}
+}
+
+// configureSchedulerRepos attaches the repository-backed scheduler tasks; each
+// is skipped when its repositories (or the broadcaster) are absent.
+func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
+	repos := api.repos
+	if repos == nil {
+		return
+	}
+	// WP-B9: overdue instance tick. Requires the activity-instance repo,
+	// room repo, and broadcaster; partial wiring disables the tick.
+	if api.Services.RealtimeHub != nil {
+		sched.SetInstanceOverdueDeps(repos.ActivityInstance, repos.Room, api.Services.RealtimeHub)
+	}
+	// Daily session-end bridge: closes schedule-side rows for ended
+	// active.groups via repositories (issue #585 layering).
+	sched.SetTimetableBridgeRepos(repos.InstanceStudent, repos.ActivityInstance, api.Services.TimetableBridge)
+	sched.SetStudentStatusDayRepo(repos.StudentStatusDay)
+	// Parent-enrollment PR 2: activate-students tick.
+	if repos.Student != nil {
+		sched.SetStudentLifecycleRepo(repos.Student)
+		if api.Services.StudentAudit != nil {
+			sched.SetStudentLifecycleAudit(api.Services.StudentAudit)
+		}
+	}
 }
 
 // Start runs the server with graceful shutdown
@@ -177,6 +207,13 @@ func (srv *Server) Start() {
 	if err := srv.Shutdown(ctx); err != nil {
 		slog.Error("Server forced to shutdown", slog.String("error", err.Error()))
 		os.Exit(1)
+	}
+
+	// Flush buffered analytics events before exit
+	if srv.tracker != nil {
+		if err := srv.tracker.Close(); err != nil {
+			slog.Warn("analytics tracker close failed", slog.String("error", err.Error()))
+		}
 	}
 
 	slog.Info("Server gracefully stopped")

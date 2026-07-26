@@ -20,14 +20,16 @@ import (
 // EmailOutboxRepository. The worker tests don't need a real DB —
 // they're checking dispatch decisions, not the SQL.
 type stubOutboxRepo struct {
-	mu          sync.Mutex
-	due         []*platformModels.EmailOutbox
-	claimedIDs  []int64
-	sent        []int64
-	retried     []retryEntry
-	failed      []failEntry
-	claimErr    error
-	markSentErr error
+	mu           sync.Mutex
+	due          []*platformModels.EmailOutbox
+	claimedIDs   []int64
+	sent         []int64
+	retried      []retryEntry
+	failed       []failEntry
+	claimErr     error
+	markSentErr  error
+	cancelledIDs map[int64]bool // LockSending returns false for these
+	locked       []int64
 }
 
 type retryEntry struct {
@@ -65,6 +67,13 @@ func (s *stubOutboxRepo) ClaimDuePending(_ context.Context, _ int, _ time.Time) 
 	return out, nil
 }
 
+func (s *stubOutboxRepo) LockSending(_ context.Context, id int64) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.locked = append(s.locked, id)
+	return !s.cancelledIDs[id], nil
+}
+
 func (s *stubOutboxRepo) MarkSent(_ context.Context, id int64, _ time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -91,6 +100,10 @@ func (s *stubOutboxRepo) MarkFailed(_ context.Context, id int64, attempts int, e
 
 func (s *stubOutboxRepo) FindByRelatedEntity(_ context.Context, _ string, _ int64) ([]*platformModels.EmailOutbox, error) {
 	return nil, errors.New("not implemented in stub")
+}
+
+func (s *stubOutboxRepo) CancelPendingByRelatedEntity(_ context.Context, _ string, _ int64, _ string) (int64, error) {
+	return 0, errors.New("not implemented in stub")
 }
 
 // TestTemplateRegistry_LookupRoundTrip — register + lookup + kinds.
@@ -223,7 +236,7 @@ func TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent(t *testing.T) {
 	defer cleanup()
 
 	expectAdminTx(mock) // Phase 1: ClaimDuePending
-	expectAdminTx(mock) // Phase 2: MarkSent
+	expectAdminTx(mock) // Phase 2: send tx (LockSending + send + MarkSent)
 
 	registry := NewTemplateRegistry()
 	registry.Register("welcome", RendererFunc(func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
@@ -247,6 +260,43 @@ func TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent(t *testing.T) {
 	assert.Empty(t, repo.failed)
 	require.Len(t, mailer.sent, 1)
 	assert.Equal(t, "Welcome", mailer.sent[0].Subject)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestOutboxWorker_RunOnce_RowCancelledAfterClaim_SkipsSend — when the
+// claimed row disappears before the send (a feature deleted its outbox
+// rows, e.g. enrollment deletion), the worker must NOT send the already
+// rendered message and must not record sent/retry/failed for it.
+func TestOutboxWorker_RunOnce_RowCancelledAfterClaim_SkipsSend(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+
+	expectAdminTx(mock) // ClaimDuePending
+	expectAdminTx(mock) // send tx (LockSending finds the row gone)
+
+	registry := NewTemplateRegistry()
+	registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
+		return &email.Message{Subject: "stale data"}, nil
+	}))
+
+	row := makeRow(6006, 99, "welcome", 0)
+	repo := &stubOutboxRepo{
+		due:          []*platformModels.EmailOutbox{row},
+		cancelledIDs: map[int64]bool{6006: true},
+	}
+	mailer := &stubMailer{}
+	w := NewOutboxWorker(OutboxWorkerConfig{
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+	})
+
+	n, err := w.RunOnce(context.Background(), 10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.Equal(t, []int64{6006}, repo.locked, "the worker must re-check the row before sending")
+	assert.Empty(t, mailer.sent, "a cancelled row must never be sent")
+	assert.Empty(t, repo.sent)
+	assert.Empty(t, repo.retried)
+	assert.Empty(t, repo.failed)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -294,6 +344,7 @@ func TestOutboxWorker_RunOnce_SendError_SchedulesRetry(t *testing.T) {
 	defer cleanup()
 
 	expectAdminTx(mock) // ClaimDuePending
+	expectAdminTx(mock) // send tx (LockSending + failed send)
 	expectAdminTx(mock) // MarkRetry
 
 	registry := NewTemplateRegistry()
@@ -326,6 +377,7 @@ func TestOutboxWorker_RunOnce_ExhaustedAttempts_MarksFailed(t *testing.T) {
 	defer cleanup()
 
 	expectAdminTx(mock) // ClaimDuePending
+	expectAdminTx(mock) // send tx (LockSending + failed send)
 	expectAdminTx(mock) // MarkFailed
 
 	registry := NewTemplateRegistry()

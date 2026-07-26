@@ -1,0 +1,162 @@
+package schedule_test
+
+import (
+	"testing"
+
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// =============================================================================
+// ClosingDayRepository Tests (#1418 3b)
+// =============================================================================
+
+func createTestClosingDay(t *testing.T, repo scheduleModels.ClosingDayRepository, start, end timezone.Date, reason string) *scheduleModels.ClosingDay {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+
+	day := &scheduleModels.ClosingDay{
+		StartDate: start,
+		EndDate:   end,
+		Reason:    reason,
+	}
+	day.SetTenantID(1)
+
+	err := repo.Create(ctx, day)
+	require.NoError(t, err)
+	require.Greater(t, day.ID, int64(0))
+	return day
+}
+
+func TestClosingDayRepository_CRUD(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewClosingDayRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("creates and reads a range", func(t *testing.T) {
+		day := createTestClosingDay(t, repo,
+			timezone.NewDate(2026, 12, 24), timezone.NewDate(2026, 12, 31), "Weihnachtswoche")
+		defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
+
+		found, err := repo.FindByID(ctx, day.ID)
+		require.NoError(t, err)
+		assert.Equal(t, timezone.NewDate(2026, 12, 24), found.StartDate)
+		assert.Equal(t, timezone.NewDate(2026, 12, 31), found.EndDate)
+		assert.Equal(t, "Weihnachtswoche", found.Reason)
+	})
+
+	t.Run("creates a single-day closing (start = end)", func(t *testing.T) {
+		day := createTestClosingDay(t, repo,
+			timezone.NewDate(2027, 2, 8), timezone.NewDate(2027, 2, 8), "Rosenmontag")
+		defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
+
+		found, err := repo.FindByID(ctx, day.ID)
+		require.NoError(t, err)
+		assert.Equal(t, found.StartDate, found.EndDate)
+	})
+
+	t.Run("fails validation on missing reason", func(t *testing.T) {
+		day := &scheduleModels.ClosingDay{
+			StartDate: timezone.NewDate(2026, 12, 24),
+			EndDate:   timezone.NewDate(2026, 12, 31),
+		}
+		day.SetTenantID(1)
+
+		err := repo.Create(ctx, day)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "reason is required")
+	})
+
+	t.Run("updates and deletes", func(t *testing.T) {
+		day := createTestClosingDay(t, repo,
+			timezone.NewDate(2026, 10, 12), timezone.NewDate(2026, 10, 16), "Herbstschließung")
+		defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
+
+		day.EndDate = timezone.NewDate(2026, 10, 23)
+		day.Reason = "Herbstschließung verlängert"
+		require.NoError(t, repo.Update(ctx, day))
+
+		found, err := repo.FindByID(ctx, day.ID)
+		require.NoError(t, err)
+		assert.Equal(t, timezone.NewDate(2026, 10, 23), found.EndDate)
+		assert.Equal(t, "Herbstschließung verlängert", found.Reason)
+
+		require.NoError(t, repo.Delete(ctx, day.ID))
+		days, err := repo.FindByTenantID(ctx)
+		require.NoError(t, err)
+		for _, d := range days {
+			assert.NotEqual(t, day.ID, d.ID)
+		}
+	})
+}
+
+func TestClosingDayRepository_FindOverlappingRange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewClosingDayRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	day := createTestClosingDay(t, repo,
+		timezone.NewDate(2026, 7, 20), timezone.NewDate(2026, 8, 7), "Sommerschließung")
+	defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
+
+	contains := func(days []*scheduleModels.ClosingDay) bool {
+		for _, d := range days {
+			if d.ID == day.ID {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("window fully inside the range", func(t *testing.T) {
+		days, err := repo.FindOverlappingRange(ctx, timezone.NewDate(2026, 7, 27), timezone.NewDate(2026, 7, 31))
+		require.NoError(t, err)
+		assert.True(t, contains(days))
+	})
+
+	t.Run("range overlaps the window edge", func(t *testing.T) {
+		days, err := repo.FindOverlappingRange(ctx, timezone.NewDate(2026, 8, 7), timezone.NewDate(2026, 8, 31))
+		require.NoError(t, err)
+		assert.True(t, contains(days), "inclusive end_date must match the window start")
+	})
+
+	t.Run("no hit outside the range", func(t *testing.T) {
+		days, err := repo.FindOverlappingRange(ctx, timezone.NewDate(2026, 8, 8), timezone.NewDate(2026, 8, 31))
+		require.NoError(t, err)
+		assert.False(t, contains(days))
+	})
+}
+
+func TestClosingDayRepository_TenantIsolation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	testpkg.EnsureTestTenant(t, db, 2)
+
+	repo := scheduleRepo.NewClosingDayRepository(db)
+
+	day := createTestClosingDay(t, repo,
+		timezone.NewDate(2026, 11, 2), timezone.NewDate(2026, 11, 6), "Pädagogische Woche")
+	defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
+
+	ctxT2 := testpkg.TenantContext(2)
+	days, err := repo.FindByTenantID(ctxT2)
+	require.NoError(t, err)
+	for _, d := range days {
+		assert.NotEqual(t, day.ID, d.ID, "tenant 2 must not see tenant 1 closing days")
+	}
+
+	overlapping, err := repo.FindOverlappingRange(ctxT2, timezone.NewDate(2026, 11, 1), timezone.NewDate(2026, 11, 30))
+	require.NoError(t, err)
+	for _, d := range overlapping {
+		assert.NotEqual(t, day.ID, d.ID)
+	}
+}

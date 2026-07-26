@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { Suspense, use, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public page; tenant-router not needed
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, Check, Mail, ShieldCheck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -17,7 +17,8 @@ import {
   PublicEnrollmentSteps,
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   fetchPublicEnrollmentBootstrap,
   type PublicEnrollmentBootstrap,
@@ -33,15 +34,24 @@ interface PageProps {
  * phase. The form fetches its own schema + offerings using the phaseId,
  * and posts to /api/enrollment/{tenantSlug}/submit with phase_id set.
  *
- * Grade-level cap is hardcoded to 4 (OGS default), same as the
- * pre-phase page. PR D autofill or per-phase grade-cap settings can
- * promote this later.
+ * The grade-level cap comes from the tenant resolve contract so the client
+ * enforces the same tenant setting as submission validation.
  */
 export default function EnrollPhaseFormPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <EnrollPhaseFormPageContent params={params} />
+    </Suspense>
+  );
+}
+
+function EnrollPhaseFormPageContent({ params }: PageProps) {
   const t = useTranslations("enrollmentPublic");
   const locale = useLocale();
   const { phaseId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const lateInviteToken = searchParams.get("late_invite")?.trim();
   const { tenantSlug, tenant } = useTenant();
   const [bootstrap, setBootstrap] = useState<PublicEnrollmentBootstrap | null>(
     null,
@@ -53,7 +63,9 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void fetchPublicEnrollmentBootstrap(tenantSlug, phaseId)
+    void fetchPublicEnrollmentBootstrap(tenantSlug, phaseId, {
+      lateInviteToken,
+    })
       .then((result) => {
         if (!cancelled) setBootstrap(result);
       })
@@ -68,9 +80,13 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
     return () => {
       cancelled = true;
     };
-  }, [phaseId, tenantSlug, t]);
+  }, [lateInviteToken, phaseId, tenantSlug, t]);
 
   const phase = bootstrap?.phase ?? null;
+  const resolvedGradeLevelMax = tenant?.gradeLevelMax;
+  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
+    ? resolvedGradeLevelMax
+    : null;
   const prefetchedData = useMemo<
     EnrollmentFormPrefetchedData | undefined
   >(() => {
@@ -79,16 +95,20 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
       schema: bootstrap.schema,
       offerings: bootstrap.offerings,
       careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
+      collectGradeLevel: bootstrap.collect_grade_level,
+      careOfferingsEnabled: bootstrap.care_offerings_enabled,
       captchaConfig: bootstrap.captcha_config,
       legalTexts: bootstrap.legal_texts,
       profile: bootstrap.profile ?? null,
+      schoolClass: bootstrap.school_class,
     };
   }, [bootstrap]);
 
   const handleSubmitted = (statusURL: string) => {
     try {
       const u = new URL(statusURL);
-      router.push(`${u.pathname}?submitted=1`);
+      u.searchParams.set("submitted", "1");
+      router.push(`${u.pathname}?${u.searchParams.toString()}`);
     } catch {
       globalThis.window.location.href = statusURL;
     }
@@ -125,16 +145,17 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
             <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
               {t("detailsLoading")}
             </div>
-          ) : error ? (
+          ) : error || gradeLevelMax === null ? (
             <div className="moto-content-surface rounded-3xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-6 text-sm font-medium text-[#9F1F1E] shadow-sm">
-              {error}
+              {error ?? t("detailsLoadFailed")}
             </div>
           ) : (
             <EnrollmentForm
               phaseID={phaseId}
-              gradeLevelMax={4}
+              gradeLevelMax={gradeLevelMax}
               onSubmitted={handleSubmitted}
               prefetchedData={prefetchedData}
+              lateInviteToken={lateInviteToken ?? undefined}
               localizedCopy
             />
           )}
@@ -209,6 +230,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
 
 function formatDate(value: string, locale: string): string {
   return new Date(value).toLocaleDateString(locale, {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -217,6 +239,7 @@ function formatDate(value: string, locale: string): string {
 
 function formatDateTime(value: string, locale: string): string {
   return new Date(value).toLocaleString(locale, {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

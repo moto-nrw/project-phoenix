@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -31,25 +30,6 @@ func buildProvisioningService(t *testing.T, db *bun.DB) platformSvc.OperatorProv
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.OperatorProvisioning
-}
-
-// createTestOperator inserts a minimal operator row for audit log FK satisfaction.
-func createTestOperator(t *testing.T, db *bun.DB) int64 {
-	t.Helper()
-	ctx := context.Background()
-	var operatorID int64
-	err := db.NewRaw(`INSERT INTO platform.operators (email, password_hash, display_name, active)
-		VALUES (?, ?, ?, true) RETURNING id`,
-		fmt.Sprintf("test-operator-%d@test.local", time.Now().UnixNano()),
-		"$argon2id$v=19$m=65536,t=3,p=1$dGVzdA$dGVzdA", // dummy hash
-		"Test Operator",
-	).Scan(ctx, &operatorID)
-	require.NoError(t, err, "Failed to create test operator")
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
-	})
-	return operatorID
 }
 
 // =============================================================================
@@ -102,7 +82,7 @@ func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
 	defer testpkg.CleanupPerson(t, db, person.ID)
 
 	// Soft delete the person
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
 	require.NoError(t, err)
 
@@ -193,7 +173,7 @@ func TestIntegration_SoftDeletePerson_Success(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, db, "Delete", "Me")
 	defer testpkg.CleanupPerson(t, db, person.ID)
 
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
 	require.NoError(t, err)
 
@@ -225,7 +205,7 @@ func TestIntegration_SoftDeletePerson_WithAccount(t *testing.T) {
 	defer testpkg.CleanupPerson(t, db, person.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
 	require.NoError(t, err)
 
@@ -279,7 +259,7 @@ func TestIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Soft delete
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err = service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
 	require.NoError(t, err)
 
@@ -301,7 +281,7 @@ func TestIntegration_SoftDeletePerson_NotFound(t *testing.T) {
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, int64(99999999), operatorID, testClientIP)
 	require.Error(t, err)
 	var notFoundErr *platformSvc.PersonNotFoundError
@@ -319,7 +299,7 @@ func TestIntegration_SoftDeletePerson_AlreadyDeleted(t *testing.T) {
 	defer testpkg.CleanupPerson(t, db, person.ID)
 
 	// First delete succeeds
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
 	require.NoError(t, err)
 
@@ -348,7 +328,7 @@ func TestIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T
 	defer testpkg.CleanupTableRecords(t, db, "activities.groups", activity.ID)
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, staff.PersonID, operatorID, testClientIP)
 	require.Error(t, err)
 	var activeSupErr *platformSvc.PersonHasActiveSupervisionsError
@@ -368,7 +348,7 @@ func TestIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
 	// Staff without active supervision should be deletable
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, staff.PersonID, operatorID, testClientIP)
 	require.NoError(t, err)
 
@@ -393,7 +373,7 @@ func TestIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, db, "Audit", "LogTest")
 	defer testpkg.CleanupPerson(t, db, person.ID)
 
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
 	require.NoError(t, err)
 
@@ -419,7 +399,7 @@ func TestIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Student", "ToDelete", "2b")
 	defer testpkg.CleanupPerson(t, db, student.PersonID)
 
-	operatorID := createTestOperator(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, student.PersonID, operatorID, testClientIP)
 	require.NoError(t, err)
 

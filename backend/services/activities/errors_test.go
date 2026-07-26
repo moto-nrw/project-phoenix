@@ -25,7 +25,6 @@ func TestActivitiesErrorVariables(t *testing.T) {
 		{"ErrNotEnrolled", ErrNotEnrolled, "student is not enrolled in this activity group"},
 		{"ErrInvalidAttendanceStatus", ErrInvalidAttendanceStatus, "invalid attendance status"},
 		{"ErrGroupClosed", ErrGroupClosed, "activity group is not open for enrollment"},
-		{"ErrCannotDeletePrimary", ErrCannotDeletePrimary, "cannot delete primary supervisor"},
 		{"ErrStaffNotFound", ErrStaffNotFound, "staff not found"},
 		{"ErrSystemActivityProtected", ErrSystemActivityProtected, "Systemaktivität kann nicht gelöscht oder umbenannt werden"},
 	}
@@ -50,7 +49,6 @@ func TestActivitiesErrorsAreDistinct(t *testing.T) {
 		ErrNotEnrolled,
 		ErrInvalidAttendanceStatus,
 		ErrGroupClosed,
-		ErrCannotDeletePrimary,
 		ErrStaffNotFound,
 		ErrSystemActivityProtected,
 	}

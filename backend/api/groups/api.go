@@ -70,15 +70,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations only require groups:read permission
 		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
@@ -240,13 +233,13 @@ func newGroupResponse(group *education.Group, teachers []*users.Teacher, student
 func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*education.Group, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
 		return nil, false
 	}
 
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return nil, false
 	}
 
@@ -282,7 +275,7 @@ func (rs *Resource) isUserGroupLeader(ctx context.Context, teacherID int64, grou
 // Returns true if user is admin or supervises the group.
 func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if common.HasAdminPermissions(userPermissions) {
+	if authorize.HasAdminWildcard(userPermissions) {
 		return true
 	}
 
@@ -498,7 +491,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	// Get all groups
 	groups, err := rs.EducationService.ListGroups(r.Context(), queryOptions)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -551,7 +544,7 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 	// Get group with room details
 	group, err := rs.EducationService.FindGroupWithRoom(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
@@ -576,7 +569,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &GroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -631,14 +624,14 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &GroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing group
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
@@ -720,7 +713,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	// Get students for this group
 	students, err := rs.UserService.GetStudentsByGroupID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -801,12 +794,12 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
 	if !rs.userHasGroupAccess(r, id) {
-		common.RenderError(w, r, ErrorForbidden(errors.New("you do not supervise this group")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("you do not supervise this group")))
 		return
 	}
 
@@ -886,7 +879,7 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 
 	substitutions, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), group.ID, date)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -934,26 +927,26 @@ func (rs *Resource) validateGroupLeaderAccess(w http.ResponseWriter, r *http.Req
 	currentStaff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben")))
 		return nil, nil, false
 	}
 
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben")))
 		return nil, nil, false
 	}
 
 	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return nil, nil, false
 	}
 
 	if !isGroupLeader {
 		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen")))
 		return nil, nil, false
 	}
 
@@ -965,14 +958,14 @@ func (rs *Resource) resolveTargetStaff(w http.ResponseWriter, r *http.Request, t
 	targetPerson, err := rs.UserService.Get(r.Context(), targetUserID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden")))
 		return nil, nil, false
 	}
 
 	targetStaff, err := rs.UserService.GetStaffByPersonID(r.Context(), targetPerson.ID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter")))
 		return nil, nil, false
 	}
 
@@ -992,7 +985,7 @@ func (rs *Resource) checkDuplicateTransfer(w http.ResponseWriter, r *http.Reques
 	today := timezone.TodayDate()
 	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return false
 	}
 
@@ -1000,7 +993,7 @@ func (rs *Resource) checkDuplicateTransfer(w http.ResponseWriter, r *http.Reques
 		if transfer.RegularStaffID == nil && transfer.SubstituteStaffID == targetStaffID {
 			targetName := targetPerson.FirstName + " " + targetPerson.LastName
 			errorMsg := fmt.Sprintf("Du hast diese Gruppe bereits an %s übergeben", targetName)
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New(errorMsg)))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errorMsg)))
 			return false
 		}
 	}
@@ -1018,7 +1011,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	req := &TransferGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
 		errMsg := rs.translateTransferRequestError(err)
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsg)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsg)))
 		return
 	}
 
@@ -1034,7 +1027,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 
 	if targetStaff.ID == currentStaff.ID {
 		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben")))
 		return
 	}
 
@@ -1056,7 +1049,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Validate substitution data
 	if err := substitution.Validate(); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1066,7 +1059,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.EducationService.CreateGroupTransfer(ctx, substitution)
 	}); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1095,20 +1088,20 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen")))
 		return
 	}
 
 	// Verify that current user is a leader of this group
 	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	if !isGroupLeader {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen")))
 		return
 	}
 
@@ -1116,20 +1109,20 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	substitution, err := rs.EducationService.GetSubstitution(r.Context(), substitutionID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("Übertragung nicht gefunden")))
 		return
 	}
 
 	// Verify it's a transfer (not admin substitution) and belongs to this group
 	if substitution.RegularStaffID != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden")))
 		return
 	}
 
 	if substitution.GroupID != groupID {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe")))
 		return
 	}
 
@@ -1138,68 +1131,9 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.EducationService.DeleteSubstitution(ctx, substitutionID)
 	}); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Transfer cancelled successfully")
-}
-
-// =============================================================================
-// EXPORTED HANDLER METHODS FOR TESTING
-// =============================================================================
-
-// ListGroupsHandler returns the listGroups handler for testing
-func (rs *Resource) ListGroupsHandler() http.HandlerFunc {
-	return rs.listGroups
-}
-
-// GetGroupHandler returns the getGroup handler for testing
-func (rs *Resource) GetGroupHandler() http.HandlerFunc {
-	return rs.getGroup
-}
-
-// CreateGroupHandler returns the createGroup handler for testing
-func (rs *Resource) CreateGroupHandler() http.HandlerFunc {
-	return rs.createGroup
-}
-
-// UpdateGroupHandler returns the updateGroup handler for testing
-func (rs *Resource) UpdateGroupHandler() http.HandlerFunc {
-	return rs.updateGroup
-}
-
-// DeleteGroupHandler returns the deleteGroup handler for testing
-func (rs *Resource) DeleteGroupHandler() http.HandlerFunc {
-	return rs.deleteGroup
-}
-
-// GetGroupStudentsHandler returns the getGroupStudents handler for testing
-func (rs *Resource) GetGroupStudentsHandler() http.HandlerFunc {
-	return rs.getGroupStudents
-}
-
-// GetGroupSupervisorsHandler returns the getGroupSupervisors handler for testing
-func (rs *Resource) GetGroupSupervisorsHandler() http.HandlerFunc {
-	return rs.getGroupSupervisors
-}
-
-// GetGroupStudentsRoomStatusHandler returns the getGroupStudentsRoomStatus handler for testing
-func (rs *Resource) GetGroupStudentsRoomStatusHandler() http.HandlerFunc {
-	return rs.getGroupStudentsRoomStatus
-}
-
-// GetGroupSubstitutionsHandler returns the getGroupSubstitutions handler for testing
-func (rs *Resource) GetGroupSubstitutionsHandler() http.HandlerFunc {
-	return rs.getGroupSubstitutions
-}
-
-// TransferGroupHandler returns the transferGroup handler for testing
-func (rs *Resource) TransferGroupHandler() http.HandlerFunc {
-	return rs.transferGroup
-}
-
-// CancelSpecificTransferHandler returns the cancelSpecificTransfer handler for testing
-func (rs *Resource) CancelSpecificTransferHandler() http.HandlerFunc {
-	return rs.cancelSpecificTransfer
 }

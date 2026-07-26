@@ -1,15 +1,10 @@
-import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers.server";
-import {
-  createPostHandler,
-  createProxyGetDataHandler,
-} from "~/lib/route-wrapper.server";
+import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
 
 /**
  * GET /api/time-tracking/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
  * Get staff absences for date range
  */
-export const GET = createProxyGetDataHandler("/api/time-tracking/absences");
+export const GET = proxyGet("/api/time-tracking/absences");
 
 interface CreateAbsenceBody {
   absence_type: string;
@@ -23,13 +18,6 @@ interface CreateAbsenceBody {
  * POST /api/time-tracking/absences
  * Create a new absence
  */
-export const POST = createPostHandler<unknown, CreateAbsenceBody>(
-  async (_request: NextRequest, body: CreateAbsenceBody, token: string) => {
-    const response = await apiPost<{ data: unknown }>(
-      "/api/time-tracking/absences",
-      token,
-      body,
-    );
-    return response.data;
-  },
+export const POST = proxyPost<unknown, CreateAbsenceBody>(
+  "/api/time-tracking/absences",
 );

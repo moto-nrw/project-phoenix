@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
@@ -44,7 +43,7 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 // GET STATS TESTS
 // Note: In production, this endpoint requires JWT auth + system:manage permission.
-// These tests mount the handler directly to test basic functionality.
+// These tests exercise the production Router() with a signed test JWT.
 // =============================================================================
 
 func TestGetStats_NoAuth(t *testing.T) {
@@ -71,12 +70,11 @@ func TestGetStats_Success(t *testing.T) {
 	// Create admin with system:manage permission
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Admin", "Stats")
 
-	router := chi.NewRouter()
-	// Mount handler directly to bypass JWT middleware (we're using test claims)
-	router.Get("/stats", ctx.resource.GetStatsHandler())
+	router := ctx.resource.Router()
 
+	token := testutil.MintTestJWT(t, testutil.AdminTestClaims(int(admin.ID)))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/stats", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithJWTBearer(token),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

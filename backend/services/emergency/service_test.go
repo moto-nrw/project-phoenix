@@ -8,6 +8,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 
@@ -222,9 +223,9 @@ func TestBuildDocumentRows(t *testing.T) {
 }
 
 func TestJoinUnique(t *testing.T) {
-	assert.Equal(t, "Lea Albrecht; Noah Albrecht", joinUnique("Lea Albrecht", "Noah Albrecht", "lea albrecht"))
-	assert.Equal(t, "02551 111; 02551 222", joinUnique("02551 111; 02551 222", "02551 111"))
-	assert.Empty(t, joinUnique("", " "))
+	assert.Equal(t, "Lea Albrecht; Noah Albrecht", strutil.JoinUnique("Lea Albrecht", "Noah Albrecht", "lea albrecht"))
+	assert.Equal(t, "02551 111; 02551 222", strutil.JoinUnique("02551 111; 02551 222", "02551 111"))
+	assert.Empty(t, strutil.JoinUnique("", " "))
 }
 
 func TestBinaryLocationLabel(t *testing.T) {
@@ -232,4 +233,29 @@ func TestBinaryLocationLabel(t *testing.T) {
 	assert.Equal(t, "Schulhof", binaryLocationLabel(&activeService.AttendanceStatus{Status: "on_yard"}))
 	assert.Equal(t, "Abwesend", binaryLocationLabel(&activeService.AttendanceStatus{Status: "checked_out"}))
 	assert.Equal(t, "Abwesend", binaryLocationLabel(nil))
+}
+
+func TestSortSnapshotRowsGermanNameOrder(t *testing.T) {
+	rows := []snapshotRow{
+		{Name: "Jan Zimmermann", Location: "Raum A"},
+		{Name: "emre özdemir", Location: "Raum A"},
+		{Name: "Lena Ärmel", Location: "Raum A"},
+		{Name: "Anna Müller", Location: "Unterwegs"},
+		{Name: "Ben Anders", Location: "Unterwegs"},
+	}
+
+	sortSnapshotRows(rows)
+
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
+		got = append(got, row.Location+"/"+row.Name)
+	}
+	want := []string{
+		"Raum A/emre özdemir",
+		"Raum A/Jan Zimmermann",
+		"Raum A/Lena Ärmel",
+		"Unterwegs/Anna Müller",
+		"Unterwegs/Ben Anders",
+	}
+	assert.Equal(t, want, got)
 }

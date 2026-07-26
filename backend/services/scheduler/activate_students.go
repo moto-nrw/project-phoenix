@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -49,17 +48,7 @@ func (s *Scheduler) scheduleActivateStudentsTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "activate-students",
-		Schedule: "interval-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runActivateStudentsTaskPolling(task)
+	s.registerTask("activate-students", "interval-poll", s.runActivateStudentsTaskPolling)
 }
 
 // runActivateStudentsTaskPolling ticks at the configured per-tenant interval.
@@ -67,39 +56,9 @@ func (s *Scheduler) scheduleActivateStudentsTask() {
 // can shorten the cadence without restart. Tenants without an override get
 // the registry default (60 minutes).
 func (s *Scheduler) runActivateStudentsTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in activate-students task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("activate-students using interval polling for per-tenant scheduling")
-
-	// Brief delay so the rest of the services finish booting before the first tick.
-	// Honor s.done so shutdown during startup is responsive.
-	select {
-	case <-time.After(20 * time.Second):
-	case <-s.done:
-		return
-	}
-	s.checkAndRunActivateStudents(task)
-
-	// Resolve interval from a representative tenant context. The setting is
-	// per-tenant but the polling loop is global — we use the conservative
-	// minimum across tenants on each tick by re-reading inside the loop.
-	for {
-		interval := s.resolveActivateStudentsInterval()
-		select {
-		case <-time.After(interval):
-			s.checkAndRunActivateStudents(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runIntervalPolling(task, "panic in activate-students task",
+		"activate-students using interval polling for per-tenant scheduling",
+		20*time.Second, s.resolveActivateStudentsInterval, s.checkAndRunActivateStudents)
 }
 
 // resolveActivateStudentsInterval reads the interval setting from a non-tenant

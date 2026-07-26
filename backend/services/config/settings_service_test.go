@@ -359,6 +359,101 @@ func TestGetSchema_ReturnsGroupedSettings(t *testing.T) {
 	assert.Len(t, schema.Tabs[0].Categories[0].Items, 2)
 }
 
+// findSchemaItem returns the resolved setting with the given key, or nil.
+func findSchemaItem(schema *configSvc.SettingsSchema, key string) *configSvc.ResolvedSetting {
+	for _, tab := range schema.Tabs {
+		for _, cat := range tab.Categories {
+			for _, item := range cat.Items {
+				if item.Key == key {
+					return item
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// is_default must be value-based, not just override-existence-based (issue
+// #1680). Boolean toggles have no reset button, so an override row equal to the
+// registry default has to still report is_default=true.
+func TestGetSchema_IsDefault_NoOverride(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, false)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), nil)
+	require.NoError(t, err)
+	item := findSchemaItem(schema, "test.flag")
+	require.NotNil(t, item)
+	assert.True(t, item.IsDefault, "no override should be default")
+}
+
+func TestGetSchema_IsDefault_BooleanOverrideEqualsDefault(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, false)
+
+	repo := newMockValueRepo()
+	repo.values["1:test.flag"] = &config.SettingValue{
+		SettingKey: "test.flag",
+		Value:      json.RawMessage(`false`),
+	}
+	repo.values["1:test.flag"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), nil)
+	require.NoError(t, err)
+	item := findSchemaItem(schema, "test.flag")
+	require.NotNil(t, item)
+	assert.True(t, item.IsDefault, "override equal to default must report is_default")
+}
+
+func TestGetSchema_IsDefault_BooleanOverrideDiffersFromDefault(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, false)
+
+	repo := newMockValueRepo()
+	repo.values["1:test.flag"] = &config.SettingValue{
+		SettingKey: "test.flag",
+		Value:      json.RawMessage(`true`),
+	}
+	repo.values["1:test.flag"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), nil)
+	require.NoError(t, err)
+	item := findSchemaItem(schema, "test.flag")
+	require.NotNil(t, item)
+	assert.False(t, item.IsDefault, "override differing from default must not report is_default")
+}
+
+// Resettable settings (here: a number) keep override-existence semantics even
+// when the override value equals the registry default. The value-based check is
+// boolean-only (issue #1680): for everything else the reset button must stay
+// available to clear an explicit override, so is_default has to report false
+// while a row exists — regardless of whether the value matches the default.
+func TestGetSchema_IsDefault_NumberOverrideEqualsDefault_StaysResettable(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.timeout", config.FieldNumber, 30)
+
+	repo := newMockValueRepo()
+	repo.values["1:test.timeout"] = &config.SettingValue{
+		SettingKey: "test.timeout",
+		Value:      json.RawMessage(`30`),
+	}
+	repo.values["1:test.timeout"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), nil)
+	require.NoError(t, err)
+	item := findSchemaItem(schema, "test.timeout")
+	require.NotNil(t, item)
+	assert.False(t, item.IsDefault, "a number override must stay resettable even when it equals the default")
+}
+
 func TestGetSchema_FiltersByPermission(t *testing.T) {
 	setupTest(t)
 
@@ -1621,83 +1716,42 @@ func TestResolveString_UnknownKey(t *testing.T) {
 
 // --- Mock school repository for login image tests ---
 
-type mockSchoolRepo struct {
-	school *platform.School
-	err    error
-}
+// newMockSchoolRepo wires a testpkg.SchoolRepoMock to reproduce the exact
+// behavior of the old hand-rolled mockSchoolRepo: FindByID (and its
+// ForShare/ForUpdate aliases) return the stored school when its ID matches,
+// "school not found" otherwise, or err when set; Update stores the new
+// school (mutating what subsequent FindByID calls return); Create returns
+// err. All other methods keep the SchoolRepoMock zero-value defaults
+// (nil, nil / 0, nil), matching the old mock's always-nil behavior.
+func newMockSchoolRepo(school *platform.School, err error) *testpkg.SchoolRepoMock {
+	m := &testpkg.SchoolRepoMock{}
+	current := school
 
-func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error {
-	return m.err
-}
-
-func (m *mockSchoolRepo) FindByID(_ context.Context, id int64) (*platform.School, error) {
-	if m.err != nil {
-		return nil, m.err
+	findByID := func(_ context.Context, id int64) (*platform.School, error) {
+		if err != nil {
+			return nil, err
+		}
+		if current == nil || current.ID != id {
+			return nil, fmt.Errorf("school not found")
+		}
+		return current, nil
 	}
-	if m.school == nil || m.school.ID != id {
-		return nil, fmt.Errorf("school not found")
+
+	m.FindByIDFn = findByID
+	m.FindByIDForShareFn = findByID
+	m.FindByIDForUpdateFn = findByID
+	m.CreateFn = func(_ context.Context, _ *platform.School) error {
+		return err
 	}
-	return m.school, nil
-}
-
-func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, id int64) (*platform.School, error) {
-	return m.FindByID(context.Background(), id)
-}
-
-func (m *mockSchoolRepo) FindByIDForUpdate(_ context.Context, id int64) (*platform.School, error) {
-	return m.FindByID(context.Background(), id)
-}
-
-func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) FindByOrganizationAndSlug(_ context.Context, _ int64, _ string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) FindBySubdomain(_ context.Context, _ string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) List(_ context.Context) ([]*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) ListActive(_ context.Context) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) ListPublic(_ context.Context) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) FindActiveByAccountID(_ context.Context, _ int64) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) Update(_ context.Context, school *platform.School) error {
-	if m.err != nil {
-		return m.err
+	m.UpdateFn = func(_ context.Context, s *platform.School) error {
+		if err != nil {
+			return err
+		}
+		current = s
+		return nil
 	}
-	m.school = school
-	return nil
-}
 
-func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error {
-	return nil
-}
-
-func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error {
-	return nil
-}
-
-func (m *mockSchoolRepo) CountByIDs(_ context.Context, _ []int64) (int, error) {
-	return 0, nil
-}
-
-func (m *mockSchoolRepo) CountNonDeletedByOrganizationID(_ context.Context, _ int64) (int, error) {
-	return 0, nil
+	return m
 }
 
 func createServiceWithSchoolRepo(
@@ -1719,7 +1773,7 @@ func newSchool(id int64, settings string) *platform.School {
 func TestGetLoginImageURL_NoImage(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, "")}
+	schoolRepo := newMockSchoolRepo(newSchool(42, ""), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1730,7 +1784,7 @@ func TestGetLoginImageURL_NoImage(t *testing.T) {
 func TestGetLoginImageURL_EmptyObject(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, "{}")}
+	schoolRepo := newMockSchoolRepo(newSchool(42, "{}"), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1741,7 +1795,7 @@ func TestGetLoginImageURL_EmptyObject(t *testing.T) {
 func TestGetLoginImageURL_NullLiteral(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, "null")}
+	schoolRepo := newMockSchoolRepo(newSchool(42, "null"), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1753,7 +1807,7 @@ func TestGetLoginImageURL_WithImage(t *testing.T) {
 	setupTest(t)
 
 	settings := `{"loginImageUrl":"/uploads/tenant/42/login.jpg","other":"value"}`
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, settings)}
+	schoolRepo := newMockSchoolRepo(newSchool(42, settings), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1764,7 +1818,7 @@ func TestGetLoginImageURL_WithImage(t *testing.T) {
 func TestGetLoginImageURL_InvalidTenantID(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"loginImageUrl":"/img.jpg"}`)}
+	schoolRepo := newMockSchoolRepo(newSchool(42, `{"loginImageUrl":"/img.jpg"}`), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 0)
@@ -1775,7 +1829,7 @@ func TestGetLoginImageURL_InvalidTenantID(t *testing.T) {
 func TestGetLoginImageURL_NegativeTenantID(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"loginImageUrl":"/img.jpg"}`)}
+	schoolRepo := newMockSchoolRepo(newSchool(42, `{"loginImageUrl":"/img.jpg"}`), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), -1)
@@ -1786,7 +1840,7 @@ func TestGetLoginImageURL_NegativeTenantID(t *testing.T) {
 func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, "not json")}
+	schoolRepo := newMockSchoolRepo(newSchool(42, "not json"), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	_, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1797,7 +1851,7 @@ func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
 func TestGetLoginImageURL_RepoError(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{err: fmt.Errorf("database connection lost")}
+	schoolRepo := newMockSchoolRepo(nil, fmt.Errorf("database connection lost"))
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	_, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1808,7 +1862,7 @@ func TestGetLoginImageURL_RepoError(t *testing.T) {
 func TestGetLoginImageURL_SettingsWithOtherKeysButNoImage(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"theme":"dark","lang":"de"}`)}
+	schoolRepo := newMockSchoolRepo(newSchool(42, `{"theme":"dark","lang":"de"}`), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1950,4 +2004,108 @@ func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
 	_, err := svc.SetLoginImageURL(context.Background(), 999999999, "/uploads/test.jpg")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "find school")
+}
+
+// TestSetValue_SlotListCutoffPair_CrossFieldValidation covers the #1565-review
+// fix: an inverted or equal Ganztag cutoff pair passes the per-field FieldTime
+// validation but must be rejected here so it can never be persisted (and then
+// 500 every pickup list). A valid pair, and any pair reached in a consistent
+// edit order, is accepted.
+func TestSetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
+	registerCutoffs := func() {
+		registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
+		registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	}
+
+	t.Run("long cutoff not after short is rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		err := svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "14:00", nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+	})
+
+	t.Run("equal cutoffs are rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		err := svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "16:00", nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+	})
+
+	t.Run("valid pair is accepted", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "17:00", nil, nil))
+	})
+
+	t.Run("window can be shifted later via a consistent edit order", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Setting the short cutoff past the current long cutoff first is refused,
+		// but setting the long cutoff first, then the short cutoff, succeeds.
+		require.Error(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+	})
+}
+
+// TestResetValue_SlotListCutoffPair_CrossFieldValidation covers the #1565-review
+// fix: resetting a Ganztag cutoff restores its registry default, which can
+// invert the effective pair even though SetValue guards it. The reset must be
+// validated the same way, or it 500s every pickup list until repaired.
+func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
+	registerCutoffs := func() {
+		registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
+		registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	}
+
+	t.Run("reset that inverts the effective pair is rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Valid overrides: short 18:00, long 19:00.
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+
+		// Resetting the long cutoff would restore its 16:00 default, leaving the
+		// short cutoff at 18:00 — an inverted pair. It must be refused, and the
+		// override must survive.
+		err := svc.ResetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+
+		long, err := svc.ResolveString(tenantCtx(1), config.KeySlotListLongDayCutoff)
+		require.NoError(t, err)
+		assert.Equal(t, "19:00", long, "rejected reset must not delete the override")
+	})
+
+	t.Run("reset that keeps a valid pair is accepted", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Valid overrides: short 18:00, long 19:00. Resetting the short cutoff
+		// restores 14:30, which is still before the long 19:00 → allowed.
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+
+		require.NoError(t, svc.ResetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, nil, nil))
+
+		short, err := svc.ResolveString(tenantCtx(1), config.KeySlotListShortDayCutoff)
+		require.NoError(t, err)
+		assert.Equal(t, "14:30", short, "accepted reset falls back to the registry default")
+	})
 }

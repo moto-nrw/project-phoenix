@@ -252,15 +252,8 @@ type MFAServiceConfig struct {
 
 // MFAService implementation.
 type mfaService struct {
-	repos       *repositories.Factory
-	tokenAuth   *authjwt.TokenAuth
-	settings    config.SettingsService
-	dispatcher  *email.Dispatcher
-	defaultFrom email.Email
-	frontendURL string
-	mfaSecret   []byte
-	db          *bun.DB
-	logger      *slog.Logger
+	MFAServiceConfig
+	mfaSecret []byte
 }
 
 // Compile-time assertion that mfaService satisfies MFAService.
@@ -281,20 +274,13 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 	if cfg.JWTSecret == "" {
 		return nil, errors.New("MFAServiceConfig.JWTSecret is required (for trusted-device HMAC)")
 	}
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
+	cfg.Logger = cfg.Logger.With("service", "mfa")
 	return &mfaService{
-		repos:       cfg.Repos,
-		tokenAuth:   cfg.TokenAuth,
-		settings:    cfg.Settings,
-		dispatcher:  cfg.Dispatcher,
-		defaultFrom: cfg.DefaultFrom,
-		frontendURL: cfg.FrontendURL,
-		mfaSecret:   DeriveMFASecret(cfg.JWTSecret),
-		db:          cfg.DB,
-		logger:      logger.With("service", "mfa"),
+		MFAServiceConfig: cfg,
+		mfaSecret:        DeriveMFASecret(cfg.JWTSecret),
 	}, nil
 }
 
@@ -335,14 +321,14 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 		global         *auth.MFAOverride
 		tenantOverride *auth.MFAOverride
 	)
-	txErr := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		global, err = s.repos.MFAOverride.FindGlobal(txCtx, account.ID)
+		global, err = s.Repos.MFAOverride.FindGlobal(txCtx, account.ID)
 		if err != nil {
 			return err
 		}
 		if tenantID > 0 {
-			tenantOverride, err = s.repos.MFAOverride.FindByAccountAndTenant(txCtx, account.ID, tenantID)
+			tenantOverride, err = s.Repos.MFAOverride.FindByAccountAndTenant(txCtx, account.ID, tenantID)
 			if err != nil {
 				return err
 			}
@@ -350,7 +336,7 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 		return nil
 	})
 	if txErr != nil {
-		s.logger.Warn("mfa override lookup failed; refusing login",
+		s.Logger.Warn("mfa override lookup failed; refusing login",
 			slog.Int64("account_id", account.ID),
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", txErr.Error()))
@@ -375,7 +361,7 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 		}
 	}
 	mode := configModel.MFAModeOff
-	if s.settings != nil {
+	if s.Settings != nil {
 		// Login runs outside the tenant-transaction middleware, so
 		// tenant.FromContext(ctx) is 0. Use ResolveStringForTenant when
 		// the caller passed the resolved tenant explicitly; fall back to
@@ -385,9 +371,9 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 			err error
 		)
 		if tenantID > 0 {
-			val, err = s.settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyMFAMode)
+			val, err = s.Settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyMFAMode)
 		} else {
-			val, err = s.settings.ResolveString(ctx, configModel.KeyMFAMode)
+			val, err = s.Settings.ResolveString(ctx, configModel.KeyMFAMode)
 		}
 		if err != nil {
 			// Settings infra error (DB timeout, connection drop). We can't
@@ -395,7 +381,7 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 			// to "off" would silently downgrade security; fail-closed to
 			// "required" would lock everyone out on a registry hiccup.
 			// Refuse THIS login instead — caller maps to 503.
-			s.logger.Warn("mfa_mode resolve failed; refusing login",
+			s.Logger.Warn("mfa_mode resolve failed; refusing login",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()))
 			return false, ErrMFAStatusUnavailable
@@ -411,13 +397,13 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 	case configModel.MFAModeRequiredAdmins:
 		return authorize.AccountHasRole(account, "admin"), nil
 	default:
-		s.logger.Warn("unknown mfa_mode value; treating as off", slog.String("value", mode))
+		s.Logger.Warn("unknown mfa_mode value; treating as off", slog.String("value", mode))
 		return false, nil
 	}
 }
 
 func (s *mfaService) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
-	cred, err := s.repos.MFACredential.FindByAccountID(ctx, accountID)
+	cred, err := s.Repos.MFACredential.FindByAccountID(ctx, accountID)
 	if err != nil {
 		// sql.ErrNoRows is the legitimate "not enrolled" signal — every
 		// fresh account hits it. Anything else (DB timeout, connection
@@ -427,7 +413,7 @@ func (s *mfaService) HasEnrollment(ctx context.Context, accountID int64) (bool, 
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
-		s.logger.Warn("mfa enrollment lookup failed; refusing login",
+		s.Logger.Warn("mfa enrollment lookup failed; refusing login",
 			slog.Int64("account_id", accountID),
 			slog.String("error", err.Error()))
 		return false, ErrMFAStatusUnavailable
@@ -442,7 +428,7 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		return "", ErrMFAUnsupportedScope
 	}
 
-	account, err := s.repos.Account.FindByID(ctx, accountID)
+	account, err := s.Repos.Account.FindByID(ctx, accountID)
 	if err != nil {
 		return "", fmt.Errorf("look up account: %w", err)
 	}
@@ -454,7 +440,7 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 	// hard cap (3 codes / 15 min) stays in code — it's an abuse defense, not
 	// a UX knob.
 	since := time.Now().Add(-MFAEmailRateLimitWindow)
-	count, err := s.repos.MFAEmailChallenge.CountRecentByAccountID(ctx, accountID, since)
+	count, err := s.Repos.MFAEmailChallenge.CountRecentByAccountID(ctx, accountID, since)
 	if err == nil && count >= MFAEmailRateLimitMaxSent {
 		return "", ErrMFARateLimited
 	}
@@ -474,7 +460,7 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		ExpiresAt: time.Now().Add(MFAChallengeTTL),
 		IPAddress: ip,
 	}
-	if err := s.repos.MFAEmailChallenge.Create(ctx, challenge); err != nil {
+	if err := s.Repos.MFAEmailChallenge.Create(ctx, challenge); err != nil {
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
@@ -483,7 +469,7 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		"challenge_id": challenge.ID,
 	})
 
-	tokenString, err := s.tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
+	tokenString, err := s.TokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
 		AccountID: accountID,
 		Scope:     scope,
 		TenantID:  tenantID,
@@ -503,7 +489,7 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 		return nil, ErrMFAUnsupportedScope
 	}
 
-	account, err := s.repos.Account.FindByID(ctx, claims.AccountID)
+	account, err := s.Repos.Account.FindByID(ctx, claims.AccountID)
 	if err != nil {
 		return nil, ErrMFAChallengeTokenInvalid
 	}
@@ -511,7 +497,7 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 		return nil, ErrMFALocked
 	}
 
-	active, err := s.repos.MFAEmailChallenge.FindActiveByAccountID(ctx, claims.AccountID)
+	active, err := s.Repos.MFAEmailChallenge.FindActiveByAccountID(ctx, claims.AccountID)
 	if err != nil || active == nil {
 		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return nil, ErrMFACodeInvalid
@@ -534,8 +520,8 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 	// with the same single-use code. Treat any consume failure the same
 	// way (DB outage included — we can't prove single-use, so we refuse).
 	now := time.Now()
-	if err := s.repos.MFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
-		s.logger.Warn("failed to mark challenge consumed; refusing verify",
+	if err := s.Repos.MFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
+		s.Logger.Warn("failed to mark challenge consumed; refusing verify",
 			slog.Int64("account_id", claims.AccountID),
 			slog.Int64("challenge_id", active.ID),
 			slog.String("error", err.Error()))
@@ -545,15 +531,15 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 	// Atomic reset (UPDATE SET mfa_attempts=0, mfa_locked_until=NULL).
 	// Prevents a successful verify from clobbering a concurrent failed
 	// verify's increment via a full-row Update of stale in-memory state.
-	if err := s.repos.Account.ResetMFAAttempts(ctx, account.ID); err != nil {
-		s.logger.Warn("failed to reset MFA attempts", slog.String("error", err.Error()))
+	if err := s.Repos.Account.ResetMFAAttempts(ctx, account.ID); err != nil {
+		s.Logger.Warn("failed to reset MFA attempts", slog.String("error", err.Error()))
 	}
 	account.MFAAttempts = 0
 	account.MFALockedUntil = nil
 
-	cred, _ := s.repos.MFACredential.FindByAccountID(ctx, claims.AccountID)
+	cred, _ := s.Repos.MFACredential.FindByAccountID(ctx, claims.AccountID)
 	if cred != nil && cred.ID > 0 {
-		_ = s.repos.MFACredential.UpdateLastUsedAt(ctx, cred.ID, now)
+		_ = s.Repos.MFACredential.UpdateLastUsedAt(ctx, cred.ID, now)
 	}
 
 	s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAVerified, true, nil, "", nil)
@@ -568,7 +554,7 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 // without the JWT round-trip — the caller has already authenticated the user
 // out-of-band (typically a regular access token from /auth/mfa/enroll/confirm).
 func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error {
-	account, err := s.repos.Account.FindByID(ctx, accountID)
+	account, err := s.Repos.Account.FindByID(ctx, accountID)
 	if err != nil {
 		return ErrMFACodeInvalid
 	}
@@ -579,7 +565,7 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	// authenticated /auth/mfa/enroll/confirm), so tenant.FromContext(ctx)
 	// is set. Pass 0 below; recordAuthEvent + handleFailedAttempt fall
 	// back to the context tenant.
-	active, err := s.repos.MFAEmailChallenge.FindActiveByAccountID(ctx, accountID)
+	active, err := s.Repos.MFAEmailChallenge.FindActiveByAccountID(ctx, accountID)
 	if err != nil || active == nil {
 		s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return ErrMFACodeInvalid
@@ -591,12 +577,12 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 		return ErrMFACodeInvalid
 	}
 	now := time.Now()
-	if err := s.repos.MFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
+	if err := s.Repos.MFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
 		// Same single-use guard as VerifyChallenge — if the atomic UPDATE
 		// reports 0 rows affected, another concurrent caller already
 		// consumed this code. Refuse this caller so the code remains
 		// single-use across racing requests.
-		s.logger.Warn("failed to mark challenge consumed; refusing verify",
+		s.Logger.Warn("failed to mark challenge consumed; refusing verify",
 			slog.Int64("account_id", accountID),
 			slog.Int64("challenge_id", active.ID),
 			slog.String("error", err.Error()))
@@ -605,7 +591,7 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	}
 	// Atomic reset matches VerifyChallenge — single UPDATE so a concurrent
 	// failed verify's increment is never silently overwritten.
-	_ = s.repos.Account.ResetMFAAttempts(ctx, accountID)
+	_ = s.Repos.Account.ResetMFAAttempts(ctx, accountID)
 	account.MFAAttempts = 0
 	account.MFALockedUntil = nil
 	s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAVerified, true, nil, "", nil)
@@ -657,9 +643,9 @@ func (s *mfaService) isMFALocked(account *auth.Account, now time.Time) bool {
 func (s *mfaService) handleFailedAttempt(ctx context.Context, account *auth.Account, tenantID int64) {
 	threshold := s.resolveLockoutThreshold(ctx, tenantID)
 	duration := s.resolveLockoutDuration(ctx, tenantID)
-	result, err := s.repos.Account.IncrementMFAAttempts(ctx, account.ID, threshold, duration)
+	result, err := s.Repos.Account.IncrementMFAAttempts(ctx, account.ID, threshold, duration)
 	if err != nil {
-		s.logger.Warn("failed to persist MFA attempt counter", slog.String("error", err.Error()))
+		s.Logger.Warn("failed to persist MFA attempt counter", slog.String("error", err.Error()))
 		return
 	}
 	// Keep the in-memory account in sync so callers higher up that still
@@ -685,7 +671,7 @@ func (s *mfaService) handleFailedAttempt(ctx context.Context, account *auth.Acco
 // any error or missing override (issue #586). Follows the HasTenantOverride →
 // Resolve → fallback contract from .claude/rules/settings-system.md.
 func (s *mfaService) resolveLockoutThreshold(ctx context.Context, tenantID int64) int {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return MFALockoutThreshold
 	}
 	var (
@@ -693,9 +679,9 @@ func (s *mfaService) resolveLockoutThreshold(ctx context.Context, tenantID int64
 		err error
 	)
 	if tenantID > 0 {
-		val, err = s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutThreshold)
+		val, err = s.Settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutThreshold)
 	} else {
-		val, err = s.settings.ResolveInt(ctx, configModel.KeyAccountLockoutThreshold)
+		val, err = s.Settings.ResolveInt(ctx, configModel.KeyAccountLockoutThreshold)
 	}
 	if err != nil || val <= 0 {
 		return MFALockoutThreshold
@@ -707,7 +693,7 @@ func (s *mfaService) resolveLockoutThreshold(ctx context.Context, tenantID int64
 // security.account_lockout_duration_minutes, falling back to MFALockoutDuration
 // on any error or missing override (issue #586).
 func (s *mfaService) resolveLockoutDuration(ctx context.Context, tenantID int64) time.Duration {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return MFALockoutDuration
 	}
 	var (
@@ -715,9 +701,9 @@ func (s *mfaService) resolveLockoutDuration(ctx context.Context, tenantID int64)
 		err     error
 	)
 	if tenantID > 0 {
-		minutes, err = s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutDurationMinutes)
+		minutes, err = s.Settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutDurationMinutes)
 	} else {
-		minutes, err = s.settings.ResolveInt(ctx, configModel.KeyAccountLockoutDurationMinutes)
+		minutes, err = s.Settings.ResolveInt(ctx, configModel.KeyAccountLockoutDurationMinutes)
 	}
 	if err != nil || minutes <= 0 {
 		return MFALockoutDuration
@@ -728,7 +714,7 @@ func (s *mfaService) resolveLockoutDuration(ctx context.Context, tenantID int64)
 // ===== Enrollment / lifecycle =====
 
 func (s *mfaService) Enroll(ctx context.Context, accountID int64) error {
-	existing, _ := s.repos.MFACredential.FindByAccountID(ctx, accountID)
+	existing, _ := s.Repos.MFACredential.FindByAccountID(ctx, accountID)
 	if existing != nil && existing.ID > 0 {
 		return ErrMFAAlreadyEnrolled
 	}
@@ -737,7 +723,7 @@ func (s *mfaService) Enroll(ctx context.Context, accountID int64) error {
 		Method:     auth.MFAMethodEmail,
 		EnrolledAt: time.Now(),
 	}
-	if err := s.repos.MFACredential.Create(ctx, cred); err != nil {
+	if err := s.Repos.MFACredential.Create(ctx, cred); err != nil {
 		return fmt.Errorf("persist mfa credential: %w", err)
 	}
 	return nil
@@ -749,17 +735,17 @@ func (s *mfaService) Enroll(ctx context.Context, accountID int64) error {
 // account in a half-disabled state (e.g. credential gone but devices
 // still trusted).
 func (s *mfaService) Disable(ctx context.Context, accountID int64) error {
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		if err := s.repos.MFACredential.DeleteByAccountID(txCtx, accountID); err != nil {
+	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.Repos.MFACredential.DeleteByAccountID(txCtx, accountID); err != nil {
 			return fmt.Errorf("delete credential: %w", err)
 		}
-		if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, accountID, time.Now()); err != nil {
+		if err := s.Repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, accountID, time.Now()); err != nil {
 			return fmt.Errorf("revoke trusted devices: %w", err)
 		}
 		// Atomic reset — replaces the previous fetch + Update with a single
 		// UPDATE so the disable cascade isn't racing concurrent failed
 		// verifies on the same account.
-		if err := s.repos.Account.ResetMFAAttempts(txCtx, accountID); err != nil {
+		if err := s.Repos.Account.ResetMFAAttempts(txCtx, accountID); err != nil {
 			return fmt.Errorf("reset mfa attempts: %w", err)
 		}
 		return nil
@@ -792,21 +778,21 @@ func (s *mfaService) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64)
 }
 
 func (s *mfaService) isTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return true
 	}
 	if tenantID <= 0 {
-		enabled, err := s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled)
+		enabled, err := s.Settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled)
 		if err != nil {
-			s.logger.Warn("trusted_device_enabled resolve failed; disabling feature",
+			s.Logger.Warn("trusted_device_enabled resolve failed; disabling feature",
 				slog.String("error", err.Error()))
 			return false
 		}
 		return enabled
 	}
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
 	if err != nil {
-		s.logger.Warn("trusted_device_enabled resolve failed; disabling feature",
+		s.Logger.Warn("trusted_device_enabled resolve failed; disabling feature",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()))
 		return false
@@ -840,7 +826,7 @@ func (s *mfaService) IssueTrustedDevice(ctx context.Context, accountID, tenantID
 		ua := userAgent
 		device.UserAgent = &ua
 	}
-	if err := s.repos.MFATrustedDevice.Create(ctx, device); err != nil {
+	if err := s.Repos.MFATrustedDevice.Create(ctx, device); err != nil {
 		return "", time.Time{}, fmt.Errorf("persist trusted device: %w", err)
 	}
 	signed := SignTrustedDeviceToken(rawToken, s.mfaSecret)
@@ -869,16 +855,16 @@ func (s *mfaService) VerifyTrustedDevice(ctx context.Context, accountID, tenantI
 	// Tenant-scoped lookup: the repo refuses to match against a row that
 	// belongs to a different tenant, even if the (account_id, token_hash)
 	// pair happens to collide. (#1430 review #9)
-	device, err := s.repos.MFATrustedDevice.FindActiveByAccountTenantAndTokenHash(ctx, accountID, tenantID, tokenHash)
+	device, err := s.Repos.MFATrustedDevice.FindActiveByAccountTenantAndTokenHash(ctx, accountID, tenantID, tokenHash)
 	if err != nil || device == nil {
 		return false, nil
 	}
-	_ = s.repos.MFATrustedDevice.UpdateLastUsedAt(ctx, device.ID, time.Now())
+	_ = s.Repos.MFATrustedDevice.UpdateLastUsedAt(ctx, device.ID, time.Now())
 	return true, nil
 }
 
 func (s *mfaService) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]*auth.MFATrustedDevice, error) {
-	return s.repos.MFATrustedDevice.ListActiveByAccountTenant(ctx, accountID, tenantID)
+	return s.Repos.MFATrustedDevice.ListActiveByAccountTenant(ctx, accountID, tenantID)
 }
 
 func (s *mfaService) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
@@ -887,7 +873,7 @@ func (s *mfaService) RevokeTrustedDevice(ctx context.Context, accountID, tenantI
 	// with a stolen access token for account A in tenant T1 can't revoke
 	// account B's devices via id-guessing, and can't revoke A's tenant-T2
 	// devices either.
-	devices, err := s.repos.MFATrustedDevice.ListActiveByAccountTenant(ctx, accountID, tenantID)
+	devices, err := s.Repos.MFATrustedDevice.ListActiveByAccountTenant(ctx, accountID, tenantID)
 	if err != nil {
 		return err
 	}
@@ -901,7 +887,7 @@ func (s *mfaService) RevokeTrustedDevice(ctx context.Context, accountID, tenantI
 	if !owned {
 		return ErrMFAPermissionDenied
 	}
-	return s.repos.MFATrustedDevice.Revoke(ctx, deviceID, time.Now())
+	return s.Repos.MFATrustedDevice.Revoke(ctx, deviceID, time.Now())
 }
 
 // ===== Admin override ("Godmode") =====
@@ -953,7 +939,7 @@ func (s *mfaService) GetTenantMFAOverride(ctx context.Context, accountID, tenant
 	if tenantID == 0 {
 		return MFAAdminOverrideNone, nil
 	}
-	row, err := s.repos.MFAOverride.FindByAccountAndTenant(ctx, accountID, tenantID)
+	row, err := s.Repos.MFAOverride.FindByAccountAndTenant(ctx, accountID, tenantID)
 	if err != nil {
 		return "", fmt.Errorf("load tenant mfa override: %w", err)
 	}
@@ -966,7 +952,7 @@ func (s *mfaService) GetTenantMFAOverride(ctx context.Context, accountID, tenant
 // GetGlobalMFAOverride returns the platform-wide override or "none" if
 // the operator has not set one. Used by the operator surface only.
 func (s *mfaService) GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error) {
-	row, err := s.repos.MFAOverride.FindGlobal(ctx, accountID)
+	row, err := s.Repos.MFAOverride.FindGlobal(ctx, accountID)
 	if err != nil {
 		return "", fmt.Errorf("load global mfa override: %w", err)
 	}
@@ -1138,8 +1124,8 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 	}
 
 	previous := MFAAdminOverrideNone
-	txErr := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		existing, err := s.repos.MFAOverride.FindByAccountAndTenant(txCtx, targetAccountID, targetTenantID)
+	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		existing, err := s.Repos.MFAOverride.FindByAccountAndTenant(txCtx, targetAccountID, targetTenantID)
 		if err != nil {
 			return fmt.Errorf("load existing tenant override: %w", err)
 		}
@@ -1147,7 +1133,7 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 			previous = existing.Override
 		}
 		if override == MFAAdminOverrideNone {
-			if err := s.repos.MFAOverride.DeleteTenant(txCtx, targetAccountID, targetTenantID); err != nil {
+			if err := s.Repos.MFAOverride.DeleteTenant(txCtx, targetAccountID, targetTenantID); err != nil {
 				return fmt.Errorf("clear tenant override: %w", err)
 			}
 			return nil
@@ -1161,14 +1147,14 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 			SetByType: actorType,
 			Reason:    reason,
 		}
-		if err := s.repos.MFAOverride.UpsertTenant(txCtx, row); err != nil {
+		if err := s.Repos.MFAOverride.UpsertTenant(txCtx, row); err != nil {
 			return fmt.Errorf("persist tenant mfa override: %w", err)
 		}
 		// Force-off must revoke trusted devices for THIS tenant only —
 		// the same account may legitimately keep trust in other tenants
 		// where the admin hasn't (yet) flipped the switch.
 		if override == MFAAdminOverrideForceOff {
-			if err := s.repos.MFATrustedDevice.RevokeAllByAccountTenant(txCtx, targetAccountID, targetTenantID, time.Now()); err != nil {
+			if err := s.Repos.MFATrustedDevice.RevokeAllByAccountTenant(txCtx, targetAccountID, targetTenantID, time.Now()); err != nil {
 				return fmt.Errorf("revoke tenant-scoped trusted devices: %w", err)
 			}
 		}
@@ -1238,8 +1224,8 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 	}
 
 	previous := MFAAdminOverrideNone
-	txErr := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		existing, err := s.repos.MFAOverride.FindGlobal(txCtx, targetAccountID)
+	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		existing, err := s.Repos.MFAOverride.FindGlobal(txCtx, targetAccountID)
 		if err != nil {
 			return fmt.Errorf("load existing global override: %w", err)
 		}
@@ -1247,7 +1233,7 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 			previous = existing.Override
 		}
 		if override == MFAAdminOverrideNone {
-			if err := s.repos.MFAOverride.DeleteGlobal(txCtx, targetAccountID); err != nil {
+			if err := s.Repos.MFAOverride.DeleteGlobal(txCtx, targetAccountID); err != nil {
 				return fmt.Errorf("clear global mfa override: %w", err)
 			}
 			return nil
@@ -1260,13 +1246,13 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 			SetByType: auth.MFAOverrideSetByTypeOperator,
 			Reason:    reason,
 		}
-		if err := s.repos.MFAOverride.UpsertGlobal(txCtx, row); err != nil {
+		if err := s.Repos.MFAOverride.UpsertGlobal(txCtx, row); err != nil {
 			return fmt.Errorf("persist global mfa override: %w", err)
 		}
 		if override == MFAAdminOverrideForceOff {
 			// Force_off at platform scope yanks trust across every
 			// tenant — that's the whole point of the emergency switch.
-			if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, targetAccountID, time.Now()); err != nil {
+			if err := s.Repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, targetAccountID, time.Now()); err != nil {
 				return fmt.Errorf("revoke trusted devices: %w", err)
 			}
 		}
@@ -1323,15 +1309,15 @@ func (s *mfaService) recordOperatorAudit(operatorID, targetAccountID int64, chan
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("panic in operator mfa-override audit logging: %v", r)
-				s.logger.Error("goroutine panic recovered", slog.String("error", err.Error()))
+				s.Logger.Error("goroutine panic recovered", slog.String("error", err.Error()))
 				sentry.CurrentHub().Recover(r)
 				sentry.Flush(2 * time.Second)
 			}
 		}()
 		logCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := s.repos.OperatorAuditLog.Create(logCtx, entry); err != nil {
-			s.logger.Error("failed to log operator mfa-override audit event",
+		if err := s.Repos.OperatorAuditLog.Create(logCtx, entry); err != nil {
+			s.Logger.Error("failed to log operator mfa-override audit event",
 				slog.Int64("operator_id", operatorID),
 				slog.Int64("account_id", targetAccountID),
 				slog.String("error", err.Error()),
@@ -1357,7 +1343,7 @@ func (s *mfaService) requireSchoolMembership(ctx context.Context, actorType stri
 		})
 		return ErrMFAPermissionDenied
 	}
-	exists, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, targetAccountID, schoolID)
+	exists, err := s.Repos.AccountTenant.ExistsByAccountAndTenant(ctx, targetAccountID, schoolID)
 	if err != nil {
 		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
 			ActorType:       actorType,
@@ -1440,7 +1426,7 @@ func hasWildcardMatch(granted, required string) bool {
 // ===== Internal helpers =====
 
 func (s *mfaService) parseChallengeToken(tokenString string) (*authjwt.MFAChallengeClaims, error) {
-	return s.tokenAuth.ParseMFAChallengeJWT(tokenString)
+	return s.TokenAuth.ParseMFAChallengeJWT(tokenString)
 }
 
 // TrustedDeviceDays is the exported entry point for callers that need the
@@ -1458,17 +1444,17 @@ func (s *mfaService) TrustedDeviceDays(ctx context.Context, tenantID int64) int 
 // on any error / missing override so the cookie still issues with a
 // reasonable lifetime.
 func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context, tenantID int64) int {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return MFATrustedDeviceCookieDefaultDays
 	}
 	if tenantID <= 0 {
-		val, err := s.settings.ResolveInt(ctx, configModel.KeyMFATrustedDeviceDays)
+		val, err := s.Settings.ResolveInt(ctx, configModel.KeyMFATrustedDeviceDays)
 		if err != nil || val <= 0 {
 			return MFATrustedDeviceCookieDefaultDays
 		}
 		return val
 	}
-	val, err := s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceDays)
+	val, err := s.Settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceDays)
 	if err != nil || val <= 0 {
 		return MFATrustedDeviceCookieDefaultDays
 	}
@@ -1485,14 +1471,14 @@ func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context, tenantID int6
 // That kills the most common phishing pattern (a malicious mail with
 // "click here to confirm").
 func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.Account, tenantID int64, plainCode string, ip net.IP) {
-	if s.dispatcher == nil {
-		s.logger.Warn("email dispatcher unavailable; mfa code not sent",
+	if s.Dispatcher == nil {
+		s.Logger.Warn("email dispatcher unavailable; mfa code not sent",
 			slog.Int64("account_id", account.ID))
 		return
 	}
 
-	frontendURL := strings.TrimRight(s.frontendURL, "/")
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	frontendURL := strings.TrimRight(s.FrontendURL, "/")
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	requestIP := ""
 	if ip != nil && !ip.IsUnspecified() {
@@ -1502,7 +1488,7 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 	trustedDeviceEnabled, trustedDeviceDays := s.resolveTrustedDeviceHint(ctx, tenantID)
 
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail("", account.Email),
 		Subject:  "Ihr moto-Anmeldecode",
 		Template: "mfa-email-code.html",
@@ -1520,7 +1506,7 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 		ReferenceID: account.ID,
 		Recipient:   account.Email,
 	}
-	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
@@ -1533,22 +1519,22 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 // security signal: "this device was just added — wasn't you? remove it in
 // settings." Fires asynchronously and never blocks the login flow.
 func (s *mfaService) dispatchTrustedDeviceAddedEmail(ctx context.Context, accountID int64, userAgent string, ip net.IP, days int) {
-	if s.dispatcher == nil {
-		s.logger.Warn("email dispatcher unavailable; trusted-device-added mail skipped",
+	if s.Dispatcher == nil {
+		s.Logger.Warn("email dispatcher unavailable; trusted-device-added mail skipped",
 			slog.Int64("account_id", accountID))
 		return
 	}
 
-	account, err := s.repos.Account.FindByID(ctx, accountID)
+	account, err := s.Repos.Account.FindByID(ctx, accountID)
 	if err != nil || account == nil || strings.TrimSpace(account.Email) == "" {
-		s.logger.Warn("could not load account for trusted-device-added mail",
+		s.Logger.Warn("could not load account for trusted-device-added mail",
 			slog.Int64("account_id", accountID),
 			slog.Any("error", err))
 		return
 	}
 
-	frontendURL := strings.TrimRight(s.frontendURL, "/")
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	frontendURL := strings.TrimRight(s.FrontendURL, "/")
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	requestIP := ""
 	if ip != nil && !ip.IsUnspecified() {
@@ -1561,7 +1547,7 @@ func (s *mfaService) dispatchTrustedDeviceAddedEmail(ctx context.Context, accoun
 	// The mail now points users without that access to contact their
 	// school's administration instead.
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail("", account.Email),
 		Subject:  "Neues vertrautes Gerät zu Ihrem moto-Konto hinzugefügt",
 		Template: "trusted-device-added.html",
@@ -1578,7 +1564,7 @@ func (s *mfaService) dispatchTrustedDeviceAddedEmail(ctx context.Context, accoun
 		ReferenceID: accountID,
 		Recipient:   account.Email,
 	}
-	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
@@ -1634,7 +1620,7 @@ func ShortenUserAgent(ua string) string {
 // falls back to (false, 0) so a misconfigured deployment skips the hint
 // instead of advertising a feature that may not actually work.
 func (s *mfaService) resolveTrustedDeviceHint(ctx context.Context, tenantID int64) (bool, int) {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return false, 0
 	}
 	if !s.isTrustedDeviceEnabled(ctx, tenantID) {
@@ -1681,13 +1667,13 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("panic in mfa audit logging: %v", r)
-				s.logger.Error("goroutine panic recovered", slog.String("error", err.Error()))
+				s.Logger.Error("goroutine panic recovered", slog.String("error", err.Error()))
 				sentry.CurrentHub().Recover(r)
 				sentry.Flush(2 * time.Second)
 			}
 		}()
 		if tenantID == 0 {
-			s.logger.Warn("skipping mfa audit event: no tenant context",
+			s.Logger.Warn("skipping mfa audit event: no tenant context",
 				slog.Int64("account_id", accountID),
 				slog.String("event_type", eventType),
 			)
@@ -1700,11 +1686,11 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 			5*time.Second,
 		)
 		defer cancel()
-		err := tenant.WithTenantTx(logCtx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			return s.repos.AuthEvent.Create(ctx, event)
+		err := tenant.WithTenantTx(logCtx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return s.Repos.AuthEvent.Create(ctx, event)
 		})
 		if err != nil {
-			s.logger.Error("failed to log mfa audit event",
+			s.Logger.Error("failed to log mfa audit event",
 				slog.String("event_type", eventType),
 				slog.String("error", err.Error()),
 			)
@@ -1715,5 +1701,5 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 // AccountBelongsToTenant reports whether the account has a tenant mapping for
 // the given school (issue #584; repository result verbatim).
 func (s *mfaService) AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	return s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, tenantID)
+	return s.Repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, tenantID)
 }

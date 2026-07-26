@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // slugRegex validates URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens.
@@ -32,7 +31,8 @@ var reservedSlugs = map[string]bool{
 	"www":        true, // www.moto-app.de redirect
 	"api":        true, // api.moto-app.de, api-staging, api-demo
 	"operator":   true, // operator dashboard
-	"parents":    true, // parents.moto-app.de — guardian portal (cross-tenant)
+	"parents":    true, // parents.moto-app.de — legacy guardian portal redirect
+	"eltern":     true, // eltern.moto-app.de — guardian portal (cross-tenant)
 	"grafana":    true, // grafana.moto-app.de monitoring
 	"pyreportal": true, // pyreportal.moto-app.de kiosk SPA
 	"help":       true, // public /help docs — top-level app route shadows [tenant]
@@ -47,9 +47,6 @@ var reservedSlugs = map[string]bool{
 	"demo":      true,
 }
 
-// tablePlatformOrganizations is the schema-qualified table name
-const tablePlatformOrganizations = "platform.organizations"
-
 // Organization represents a top-level tenant organization (e.g. a school district).
 type Organization struct {
 	base.Model `bun:"schema:platform,table:organizations"`
@@ -58,24 +55,6 @@ type Organization struct {
 	Active     bool       `bun:"active,notnull,default:true" json:"active"`
 	DeletedAt  *time.Time `bun:"deleted_at" json:"deleted_at,omitempty"`
 	Settings   string     `bun:"settings,default:'{}'" json:"settings,omitempty"`
-}
-
-func (o *Organization) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tablePlatformOrganizations)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.organizations AS "organization"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.organizations AS "organization"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (o *Organization) TableName() string {
-	return tablePlatformOrganizations
 }
 
 // Validate ensures organization data is valid
@@ -102,21 +81,6 @@ func (o *Organization) Validate() error {
 		return errors.New("slug is reserved for infrastructure use")
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (o *Organization) GetID() any {
-	return o.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (o *Organization) GetCreatedAt() time.Time {
-	return o.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (o *Organization) GetUpdatedAt() time.Time {
-	return o.UpdatedAt
 }
 
 // IsDeleted returns true if the organization has been soft-deleted.

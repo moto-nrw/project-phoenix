@@ -250,22 +250,7 @@ func (rs *SuggestionsResource) AddComment(w http.ResponseWriter, r *http.Request
 
 // DeleteComment handles deleting a comment
 func (rs *SuggestionsResource) DeleteComment(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	operatorID := int64(claims.ID)
-
-	commentID, ok := common.ParseInt64IDWithError(w, r, "commentId", "invalid comment ID")
-	if !ok {
-		return
-	}
-
-	clientIP := getClientIP(r)
-
-	if err := rs.suggestionsService.DeleteComment(r.Context(), commentID, operatorID, clientIP); err != nil {
-		common.RenderError(w, r, SuggestionsErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, nil, "Comment deleted successfully")
+	idAuditedAction(w, r, "commentId", "invalid comment ID", rs.suggestionsService.DeleteComment, SuggestionsErrorRenderer, "Comment deleted successfully")
 }
 
 // MarkCommentsRead marks all comments on a suggestion as read for the operator
@@ -360,20 +345,5 @@ func (rs *SuggestionsResource) HidePost(w http.ResponseWriter, r *http.Request) 
 
 // DeletePost permanently removes a suggestion
 func (rs *SuggestionsResource) DeletePost(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	operatorID := int64(claims.ID)
-
-	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid ID")
-	if !ok {
-		return
-	}
-
-	clientIP := getClientIP(r)
-
-	if err := rs.suggestionsService.DeletePost(r.Context(), id, operatorID, clientIP); err != nil {
-		common.RenderError(w, r, SuggestionsErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, nil, "Post deleted successfully")
+	idAuditedAction(w, r, "id", "invalid ID", rs.suggestionsService.DeletePost, SuggestionsErrorRenderer, "Post deleted successfully")
 }

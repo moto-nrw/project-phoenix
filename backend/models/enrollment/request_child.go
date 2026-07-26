@@ -54,20 +54,27 @@ const (
 type RequestChild struct {
 	base.Model `bun:"schema:enrollment,table:request_children"`
 	base.TenantModel
-	RequestID        int64          `bun:"request_id,notnull" json:"request_id"`
-	FirstName        string         `bun:"first_name,notnull" json:"first_name"`
-	LastName         string         `bun:"last_name,notnull" json:"last_name"`
-	DateOfBirth      timezone.Date  `bun:"date_of_birth,notnull,type:date" json:"date_of_birth"`
-	TargetGradeLevel *int16         `bun:"target_grade_level" json:"target_grade_level,omitempty"`
-	CustomData       map[string]any `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
-	Status           string         `bun:"status,notnull,default:'submitted'" json:"status"`
-	StatusReason     *string        `bun:"status_reason" json:"status_reason,omitempty"`
-	ActivationMode   string         `bun:"activation_mode,notnull,default:'scheduled'" json:"activation_mode"`
-	ActivateOn       *timezone.Date `bun:"activate_on,type:date" json:"activate_on,omitempty"`
-	ReviewedAt       *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
-	ReviewedBy       *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
-	CreatedStudentID *int64         `bun:"created_student_id" json:"created_student_id,omitempty"`
-	SortOrder        int            `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	RequestID        int64         `bun:"request_id,notnull" json:"request_id"`
+	FirstName        string        `bun:"first_name,notnull" json:"first_name"`
+	LastName         string        `bun:"last_name,notnull" json:"last_name"`
+	DateOfBirth      timezone.Date `bun:"date_of_birth,notnull,type:date" json:"date_of_birth"`
+	TargetGradeLevel *int16        `bun:"target_grade_level" json:"target_grade_level,omitempty"`
+	// TargetSchoolClass is the concrete future class (e.g. "2a") chosen at
+	// enrollment (migration 1.15.172, issue #1833). NULL/empty means
+	// grade-only ("Klasse offen"); on approval a non-empty value lands
+	// verbatim in users.students.school_class, otherwise the grade-derived
+	// fallback is used. Only collected for grade >= 2 when the tenant
+	// setting enrollment.collect_school_class is on.
+	TargetSchoolClass *string        `bun:"target_school_class" json:"target_school_class,omitempty"`
+	CustomData        map[string]any `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
+	Status            string         `bun:"status,notnull,default:'submitted'" json:"status"`
+	StatusReason      *string        `bun:"status_reason" json:"status_reason,omitempty"`
+	ActivationMode    string         `bun:"activation_mode,notnull,default:'scheduled'" json:"activation_mode"`
+	ActivateOn        *timezone.Date `bun:"activate_on,type:date" json:"activate_on,omitempty"`
+	ReviewedAt        *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
+	ReviewedBy        *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
+	CreatedStudentID  *int64         `bun:"created_student_id" json:"created_student_id,omitempty"`
+	SortOrder         int            `bun:"sort_order,notnull,default:0" json:"sort_order"`
 
 	// Rollover columns (migration 1.15.62). NULL on rows created via
 	// the public form; set by RolloverService when a previous-year
@@ -79,10 +86,6 @@ type RequestChild struct {
 	// drives the localised label in the admin review queue.
 	RolloverSourceChildID *int64  `bun:"rollover_source_child_id" json:"rollover_source_child_id,omitempty"`
 	ReviewReason          *string `bun:"review_reason" json:"review_reason,omitempty"`
-}
-
-func (c *RequestChild) TableName() string {
-	return "enrollment.request_children"
 }
 
 // IsTerminal returns true when this child's status is approved, rejected,
@@ -97,20 +100,6 @@ func (c *RequestChild) IsTerminal() bool {
 	}
 }
 
-// IsRenewalPending returns true while this child is waiting on a
-// parent action (opt-in confirm) or deadline (opt-out decline). Used
-// by the deadline worker to scope its scan.
-func (c *RequestChild) IsRenewalPending() bool {
-	return c.Status == ChildStatusPendingRenewal || c.Status == ChildStatusAutoRenewed
-}
-
-// IsRollover returns true when this row was created by RolloverService
-// from a previous-year approval. The decision service uses this to
-// update the existing student record instead of creating a new one.
-func (c *RequestChild) IsRollover() bool {
-	return c.RolloverSourceChildID != nil
-}
-
 // RequestChildRepository describes the DB operations PR 5/7/8 need. PR 5
 // only implements + tests Create/ListByRequestID/UpdateStatus; PR 8
 // adds LinkCreatedStudent to back-link the row to the student record
@@ -120,6 +109,7 @@ type RequestChildRepository interface {
 	Create(ctx context.Context, child *RequestChild) error
 	FindByID(ctx context.Context, id int64) (*RequestChild, error)
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestChild, error)
+	ListByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*RequestChild, error)
 
 	// ListByRequestIDs is the batched form of ListByRequestID: one
 	// query for every child across the given requests, sorted by
@@ -129,8 +119,10 @@ type RequestChildRepository interface {
 	ListByRequestIDs(ctx context.Context, requestIDs []int64) ([]*RequestChild, error)
 
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
+	UpdateData(ctx context.Context, child *RequestChild) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
 	UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *timezone.Date) error
+	DeleteByRequestID(ctx context.Context, requestID int64) error
 
 	// ListByPhaseAndStatuses returns every child row in the given
 	// phase whose status is in the provided set, sorted by request

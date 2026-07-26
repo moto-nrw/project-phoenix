@@ -2,16 +2,12 @@ package users
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -22,19 +18,6 @@ import (
 // After PINLockoutThreshold failed PIN entries the account is locked for
 // PINLockoutDuration. These mirror the MFA lockout policy in services/auth.
 // Per-tenant overrides live behind security.account_lockout_* settings keys.
-const (
-	PINLockoutThreshold = 5
-	PINLockoutDuration  = 15 * time.Minute
-)
-
-// isPINLocked reports whether the account is inside its PIN-failure lockout
-// window relative to now. The decision lives in the service (clock injected)
-// rather than on the model (issue #586, Rule 12). The account row holds only
-// the pin_locked_until fact.
-func isPINLocked(account *auth.Account, now time.Time) bool {
-	return account.PINLockedUntil != nil && now.Before(*account.PINLockedUntil)
-}
-
 const (
 	// opGetPerson is the operation name for Get operations
 	opGetPerson = "get person"
@@ -48,12 +31,6 @@ const (
 	opLinkToAccount = "link to account"
 	// opLinkToRFIDCard is the operation name for LinkToRFIDCard operations
 	opLinkToRFIDCard = "link to RFID card"
-	// opValidateStaffPIN is the operation name for ValidateStaffPIN operations
-	opValidateStaffPIN = "validate staff PIN"
-	// opValidateStaffPINSpecific is the operation name for ValidateStaffPINForSpecificStaff operations
-	opValidateStaffPINSpecific = "validate staff PIN for specific staff"
-	// opGetStudentsByTeacher is the operation name for GetStudentsByTeacher operations
-	opGetStudentsByTeacher = "get students by teacher"
 	// opGetStudentsWithGroupsByTeacher is the operation name for GetStudentsWithGroupsByTeacher operations
 	opGetStudentsWithGroupsByTeacher = "get students with groups by teacher"
 )
@@ -61,13 +38,12 @@ const (
 // PersonServiceDependencies contains all dependencies required by the person service
 type PersonServiceDependencies struct {
 	// Repository dependencies
-	PersonRepo         userModels.PersonRepository
-	RFIDRepo           userModels.RFIDCardRepository
-	AccountRepo        auth.AccountRepository
-	PersonGuardianRepo userModels.PersonGuardianRepository
-	StudentRepo        userModels.StudentRepository
-	StaffRepo          userModels.StaffRepository
-	TeacherRepo        userModels.TeacherRepository
+	PersonRepo  userModels.PersonRepository
+	RFIDRepo    userModels.RFIDCardRepository
+	AccountRepo auth.AccountRepository
+	StudentRepo userModels.StudentRepository
+	StaffRepo   userModels.StaffRepository
+	TeacherRepo userModels.TeacherRepository
 
 	// Infrastructure
 	DB              *bun.DB
@@ -77,63 +53,28 @@ type PersonServiceDependencies struct {
 
 // personService implements the PersonService interface
 type personService struct {
-	personRepo         userModels.PersonRepository
-	rfidRepo           userModels.RFIDCardRepository
-	accountRepo        auth.AccountRepository
-	personGuardianRepo userModels.PersonGuardianRepository
-	studentRepo        userModels.StudentRepository
-	staffRepo          userModels.StaffRepository
-	teacherRepo        userModels.TeacherRepository
-	db                 *bun.DB
-	settings           configSvc.SettingsService
-	logger             *slog.Logger
+	PersonServiceDependencies
 }
 
 // NewPersonService creates a new person service
 func NewPersonService(deps PersonServiceDependencies) PersonService {
-	return &personService{
-		personRepo:         deps.PersonRepo,
-		rfidRepo:           deps.RFIDRepo,
-		accountRepo:        deps.AccountRepo,
-		personGuardianRepo: deps.PersonGuardianRepo,
-		studentRepo:        deps.StudentRepo,
-		staffRepo:          deps.StaffRepo,
-		teacherRepo:        deps.TeacherRepo,
-		db:                 deps.DB,
-		settings:           deps.SettingsService,
-		logger:             deps.Logger,
-	}
+	return &personService{PersonServiceDependencies: deps}
 }
 
 // Get retrieves a person by their ID
 func (s *personService) Get(ctx context.Context, id interface{}) (*userModels.Person, error) {
-	// Try to use FindWithAccount if repository supports it
-	if repo, ok := s.personRepo.(interface {
-		FindWithAccount(context.Context, int64) (*userModels.Person, error)
-	}); ok {
-		// Convert id to int64
-		var personID int64
-		switch v := id.(type) {
-		case int:
-			personID = int64(v)
-		case int64:
-			personID = v
-		default:
-			return nil, &UsersError{Op: opGetPerson, Err: fmt.Errorf("invalid ID type")}
-		}
-
-		person, err := repo.FindWithAccount(ctx, personID)
-		if err != nil {
-			return nil, &UsersError{Op: opGetPerson, Err: err}
-		}
-		if person == nil {
-			return nil, &UsersError{Op: opGetPerson, Err: ErrPersonNotFound}
-		}
-		return person, nil
+	// Convert id to int64
+	var personID int64
+	switch v := id.(type) {
+	case int:
+		personID = int64(v)
+	case int64:
+		personID = v
+	default:
+		return nil, &UsersError{Op: opGetPerson, Err: fmt.Errorf("invalid ID type")}
 	}
 
-	// Fallback to regular FindByID
-	person, err := s.personRepo.FindByID(ctx, id)
+	person, err := s.PersonRepo.FindWithAccount(ctx, personID)
 	if err != nil {
 		return nil, &UsersError{Op: opGetPerson, Err: err}
 	}
@@ -149,7 +90,7 @@ func (s *personService) GetByIDs(ctx context.Context, ids []int64) (map[int64]*u
 		return make(map[int64]*userModels.Person), nil
 	}
 
-	persons, err := s.personRepo.FindByIDs(ctx, ids)
+	persons, err := s.PersonRepo.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, &UsersError{Op: "get persons by IDs", Err: err}
 	}
@@ -169,7 +110,7 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 
 	// Check if the account exists if AccountID is set
 	if person.AccountID != nil {
-		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
+		account, err := s.AccountRepo.FindByID(ctx, *person.AccountID)
 		if err != nil {
 			return &UsersError{Op: opCreatePerson, Err: err}
 		}
@@ -180,7 +121,7 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 
 	// Check if the RFID card exists if TagID is set
 	if person.TagID != nil {
-		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
+		card, err := s.RFIDRepo.FindByID(ctx, *person.TagID)
 		if err != nil {
 			return &UsersError{Op: opCreatePerson, Err: err}
 		}
@@ -189,7 +130,7 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 		}
 	}
 
-	if err := s.personRepo.Create(ctx, person); err != nil {
+	if err := s.PersonRepo.Create(ctx, person); err != nil {
 		return &UsersError{Op: opCreatePerson, Err: err}
 	}
 
@@ -202,7 +143,7 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 		return &UsersError{Op: opUpdatePerson, Err: person.Validate()}
 	}
 
-	existingPerson, err := s.personRepo.FindByID(ctx, person.ID)
+	existingPerson, err := s.PersonRepo.FindByID(ctx, person.ID)
 	if err != nil {
 		return &UsersError{Op: opUpdatePerson, Err: err}
 	}
@@ -218,8 +159,31 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 		return err
 	}
 
-	if err := s.personRepo.Update(ctx, person); err != nil {
+	if err := s.PersonRepo.Update(ctx, person); err != nil {
 		return &UsersError{Op: opUpdatePerson, Err: err}
+	}
+
+	return nil
+}
+
+// validateChangedRef checks that a re-pointed reference (account, RFID card)
+// still resolves to an existing row. Skips when the new value is unset or
+// unchanged; find reports whether the referenced row exists.
+func validateChangedRef[T comparable](ctx context.Context, newID, oldID *T, find func(context.Context, T) (bool, error), notFound error) error {
+	if newID == nil {
+		return nil
+	}
+
+	if oldID != nil && *oldID == *newID {
+		return nil
+	}
+
+	found, err := find(ctx, *newID)
+	if err != nil {
+		return &UsersError{Op: opUpdatePerson, Err: err}
+	}
+	if !found {
+		return &UsersError{Op: opUpdatePerson, Err: notFound}
 	}
 
 	return nil
@@ -227,50 +191,26 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 
 // validateAccountIfChanged validates account exists if AccountID is being changed
 func (s *personService) validateAccountIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
-	if person.AccountID == nil {
-		return nil
-	}
-
-	if existingPerson.AccountID != nil && *existingPerson.AccountID == *person.AccountID {
-		return nil
-	}
-
-	account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
-	if err != nil {
-		return &UsersError{Op: opUpdatePerson, Err: err}
-	}
-	if account == nil {
-		return &UsersError{Op: opUpdatePerson, Err: ErrAccountNotFound}
-	}
-
-	return nil
+	return validateChangedRef(ctx, person.AccountID, existingPerson.AccountID,
+		func(ctx context.Context, id int64) (bool, error) {
+			account, err := s.AccountRepo.FindByID(ctx, id)
+			return account != nil, err
+		}, ErrAccountNotFound)
 }
 
 // validateRFIDCardIfChanged validates RFID card exists if TagID is being changed
 func (s *personService) validateRFIDCardIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
-	if person.TagID == nil {
-		return nil
-	}
-
-	if existingPerson.TagID != nil && *existingPerson.TagID == *person.TagID {
-		return nil
-	}
-
-	card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
-	if err != nil {
-		return &UsersError{Op: opUpdatePerson, Err: err}
-	}
-	if card == nil {
-		return &UsersError{Op: opUpdatePerson, Err: ErrRFIDCardNotFound}
-	}
-
-	return nil
+	return validateChangedRef(ctx, person.TagID, existingPerson.TagID,
+		func(ctx context.Context, id string) (bool, error) {
+			card, err := s.RFIDRepo.FindByID(ctx, id)
+			return card != nil, err
+		}, ErrRFIDCardNotFound)
 }
 
 // Delete removes a person
 func (s *personService) Delete(ctx context.Context, id interface{}) error {
 	// Verify the person exists
-	person, err := s.personRepo.FindByID(ctx, id)
+	person, err := s.PersonRepo.FindByID(ctx, id)
 	if err != nil {
 		return &UsersError{Op: opDeletePerson, Err: err}
 	}
@@ -278,7 +218,7 @@ func (s *personService) Delete(ctx context.Context, id interface{}) error {
 		return &UsersError{Op: opDeletePerson, Err: ErrPersonNotFound}
 	}
 
-	if err := s.personRepo.Delete(ctx, id); err != nil {
+	if err := s.PersonRepo.Delete(ctx, id); err != nil {
 		return &UsersError{Op: opDeletePerson, Err: err}
 	}
 	return nil
@@ -286,7 +226,7 @@ func (s *personService) Delete(ctx context.Context, id interface{}) error {
 
 // List retrieves persons matching the provided query options
 func (s *personService) List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error) {
-	persons, err := s.personRepo.ListWithOptions(ctx, options)
+	persons, err := s.PersonRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, &UsersError{Op: "list persons", Err: err}
 	}
@@ -295,7 +235,7 @@ func (s *personService) List(ctx context.Context, options *base.QueryOptions) ([
 
 // FindByTagID finds a person by their RFID tag ID
 func (s *personService) FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error) {
-	person, err := s.personRepo.FindByTagID(ctx, tagID)
+	person, err := s.PersonRepo.FindByTagID(ctx, tagID)
 	if err != nil {
 		return nil, &UsersError{Op: "find person by tag ID", Err: err}
 	}
@@ -307,7 +247,7 @@ func (s *personService) FindByTagID(ctx context.Context, tagID string) (*userMod
 
 // FindByAccountID finds a person by their account ID
 func (s *personService) FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error) {
-	person, err := s.personRepo.FindByAccountID(ctx, accountID)
+	person, err := s.PersonRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return nil, &UsersError{Op: "find person by account ID", Err: err}
 	}
@@ -342,7 +282,7 @@ func (s *personService) FindByName(ctx context.Context, firstName, lastName stri
 // LinkToAccount associates a person with an account
 func (s *personService) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
 	// Verify the account exists
-	account, err := s.accountRepo.FindByID(ctx, accountID)
+	account, err := s.AccountRepo.FindByID(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
@@ -351,7 +291,7 @@ func (s *personService) LinkToAccount(ctx context.Context, personID int64, accou
 	}
 
 	// Check if the account is already linked to another person
-	existingPerson, err := s.personRepo.FindByAccountID(ctx, accountID)
+	existingPerson, err := s.PersonRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
@@ -359,7 +299,7 @@ func (s *personService) LinkToAccount(ctx context.Context, personID int64, accou
 		return &UsersError{Op: opLinkToAccount, Err: ErrAccountAlreadyLinked}
 	}
 
-	if err := s.personRepo.LinkToAccount(ctx, personID, accountID); err != nil {
+	if err := s.PersonRepo.LinkToAccount(ctx, personID, accountID); err != nil {
 		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
 	return nil
@@ -367,7 +307,7 @@ func (s *personService) LinkToAccount(ctx context.Context, personID int64, accou
 
 // UnlinkFromAccount removes account association from a person
 func (s *personService) UnlinkFromAccount(ctx context.Context, personID int64) error {
-	if err := s.personRepo.UnlinkFromAccount(ctx, personID); err != nil {
+	if err := s.PersonRepo.UnlinkFromAccount(ctx, personID); err != nil {
 		return &UsersError{Op: "unlink from account", Err: err}
 	}
 	return nil
@@ -376,7 +316,7 @@ func (s *personService) UnlinkFromAccount(ctx context.Context, personID int64) e
 // LinkToRFIDCard associates a person with an RFID card
 func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	// Check if the RFID card exists, create it if it doesn't (auto-create on assignment)
-	card, err := s.rfidRepo.FindByID(ctx, tagID)
+	card, err := s.RFIDRepo.FindByID(ctx, tagID)
 	if err != nil {
 		return &UsersError{Op: opLinkToRFIDCard, Err: err}
 	}
@@ -387,24 +327,24 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 			Active:        true,
 		}
 		newCard.SetTenantID(tenant.FromContext(ctx))
-		if err := s.rfidRepo.Create(ctx, newCard); err != nil {
+		if err := s.RFIDRepo.Create(ctx, newCard); err != nil {
 			return &UsersError{Op: opLinkToRFIDCard, Err: err}
 		}
 	}
 
 	// Check if the card is already linked to another person
-	existingPerson, err := s.personRepo.FindByTagID(ctx, tagID)
+	existingPerson, err := s.PersonRepo.FindByTagID(ctx, tagID)
 	if err != nil {
 		return &UsersError{Op: opLinkToRFIDCard, Err: err}
 	}
 	if existingPerson != nil && existingPerson.ID != personID {
 		// Auto-unlink from previous person (tag override behavior)
-		if err := s.personRepo.UnlinkFromRFIDCard(ctx, existingPerson.ID); err != nil {
+		if err := s.PersonRepo.UnlinkFromRFIDCard(ctx, existingPerson.ID); err != nil {
 			return &UsersError{Op: opLinkToRFIDCard, Err: err}
 		}
 	}
 
-	if err := s.personRepo.LinkToRFIDCard(ctx, personID, tagID); err != nil {
+	if err := s.PersonRepo.LinkToRFIDCard(ctx, personID, tagID); err != nil {
 		return &UsersError{Op: opLinkToRFIDCard, Err: err}
 	}
 	return nil
@@ -412,71 +352,10 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 
 // UnlinkFromRFIDCard removes RFID card association from a person
 func (s *personService) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
-	if err := s.personRepo.UnlinkFromRFIDCard(ctx, personID); err != nil {
+	if err := s.PersonRepo.UnlinkFromRFIDCard(ctx, personID); err != nil {
 		return &UsersError{Op: "unlink from RFID card", Err: err}
 	}
 	return nil
-}
-
-// GetFullProfile retrieves a person with all related entities
-func (s *personService) GetFullProfile(ctx context.Context, personID int64) (*userModels.Person, error) {
-	// Get the basic person record
-	person, err := s.Get(ctx, personID)
-	if err != nil {
-		return nil, &UsersError{Op: "get full profile", Err: err}
-	}
-
-	// Fetch related account if AccountID is set
-	if person.AccountID != nil {
-		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
-		if err != nil {
-			return nil, &UsersError{Op: "get full profile - fetch account", Err: err}
-		}
-		person.Account = account
-	}
-
-	// Fetch related RFID card if TagID is set
-	if person.TagID != nil {
-		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
-		if err != nil {
-			return nil, &UsersError{Op: "get full profile - fetch RFID card", Err: err}
-		}
-		person.RFIDCard = card
-	}
-
-	return person, nil
-}
-
-// FindByGuardianID finds all persons with a guardian relationship to the specified account
-func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error) {
-	// Get all person-guardian relationships for this guardian
-	// Changed from FindByGuardianAccountID to FindByGuardianID to match the repository interface
-	relationships, err := s.personGuardianRepo.FindByGuardianID(ctx, guardianAccountID)
-	if err != nil {
-		return nil, &UsersError{Op: "find by guardian ID", Err: err}
-	}
-
-	// Extract person IDs from relationships
-	personIDs := make([]interface{}, 0, len(relationships))
-	for _, rel := range relationships {
-		personIDs = append(personIDs, rel.PersonID)
-	}
-
-	// If no person IDs found, return empty slice
-	if len(personIDs) == 0 {
-		return []*userModels.Person{}, nil
-	}
-
-	// Create a filter to get persons by IDs
-	options := base.NewQueryOptions()
-	filter := base.NewFilter().In("id", personIDs...)
-	options.Filter = filter
-
-	persons, err := s.List(ctx, options)
-	if err != nil {
-		return nil, &UsersError{Op: "find by guardian ID", Err: err}
-	}
-	return persons, nil
 }
 
 // Entity lookups (issue #584). CONTRACT: repository results and errors are
@@ -486,315 +365,106 @@ func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID 
 
 // GetStaffByID retrieves a staff member by ID.
 func (s *personService) GetStaffByID(ctx context.Context, id int64) (*userModels.Staff, error) {
-	return s.staffRepo.FindByID(ctx, id)
+	return s.StaffRepo.FindByID(ctx, id)
 }
 
 // GetStaffByPersonID retrieves the staff record belonging to a person.
 func (s *personService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
-	return s.staffRepo.FindByPersonID(ctx, personID)
+	return s.StaffRepo.FindByPersonID(ctx, personID)
+}
+
+// ResolveStaffIDByAccountID maps a JWT account id to its staff id via the
+// account → person → staff chain.
+func (s *personService) ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error) {
+	person, err := s.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("person not found for account: %w", err)
+	}
+	staff, err := s.GetStaffByPersonID(ctx, person.ID)
+	if err != nil {
+		return 0, fmt.Errorf("staff not found for editor account: %w", err)
+	}
+	return staff.ID, nil
 }
 
 // GetStaffWithPerson retrieves a staff member with person data preloaded.
 func (s *personService) GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
-	return s.staffRepo.FindWithPerson(ctx, id)
+	return s.StaffRepo.FindWithPerson(ctx, id)
 }
 
 // GetStaffWithPersonByIDs retrieves multiple staff with person data preloaded.
 func (s *personService) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
-	return s.staffRepo.FindWithPersonByIDs(ctx, ids)
+	return s.StaffRepo.FindWithPersonByIDs(ctx, ids)
 }
 
 // ListStaffWithPerson retrieves all staff with person data preloaded.
 func (s *personService) ListStaffWithPerson(ctx context.Context) ([]*userModels.Staff, error) {
-	return s.staffRepo.ListAllWithPerson(ctx)
+	return s.StaffRepo.ListAllWithPerson(ctx)
 }
 
 // ListStaffByRoles retrieves staff holding any of the given roles.
 func (s *personService) ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error) {
-	return s.staffRepo.ListStaffByRoles(ctx, roles)
+	return s.StaffRepo.ListStaffByRoles(ctx, roles)
 }
 
 // GetTeacherByStaffID retrieves the teacher record for a staff member.
 func (s *personService) GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
-	return s.teacherRepo.FindByStaffID(ctx, staffID)
+	return s.TeacherRepo.FindByStaffID(ctx, staffID)
 }
 
 // GetTeachersByStaffIDs retrieves teacher records for multiple staff members.
 func (s *personService) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
-	return s.teacherRepo.FindByStaffIDs(ctx, staffIDs)
+	return s.TeacherRepo.FindByStaffIDs(ctx, staffIDs)
 }
 
 // GetTeachersBySpecialization retrieves teachers by specialization.
 func (s *personService) GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error) {
-	return s.teacherRepo.FindBySpecialization(ctx, specialization)
+	return s.TeacherRepo.FindBySpecialization(ctx, specialization)
 }
 
 // GetTeacherWithStaffAndPerson retrieves a teacher with staff and person preloaded.
 func (s *personService) GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
-	return s.teacherRepo.FindWithStaffAndPerson(ctx, id)
+	return s.TeacherRepo.FindWithStaffAndPerson(ctx, id)
 }
 
 // ListTeachersWithStaffAndPerson retrieves all teachers with staff and person preloaded.
 func (s *personService) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
-	return s.teacherRepo.ListAllWithStaffAndPerson(ctx)
+	return s.TeacherRepo.ListAllWithStaffAndPerson(ctx)
 }
 
 // GetStudentByID retrieves a student by ID.
 func (s *personService) GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error) {
-	return s.studentRepo.FindByID(ctx, id)
+	return s.StudentRepo.FindByID(ctx, id)
 }
 
 // GetStudentByPersonID retrieves the student record belonging to a person.
 func (s *personService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
-	return s.studentRepo.FindByPersonID(ctx, personID)
+	return s.StudentRepo.FindByPersonID(ctx, personID)
 }
 
 // GetStudentsByIDs retrieves multiple students by ID.
 func (s *personService) GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
-	return s.studentRepo.FindByIDs(ctx, ids)
+	return s.StudentRepo.FindByIDs(ctx, ids)
 }
 
 // GetStudentsByGroupID retrieves the students of a group.
 func (s *personService) GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error) {
-	return s.studentRepo.FindByGroupID(ctx, groupID)
+	return s.StudentRepo.FindByGroupID(ctx, groupID)
 }
 
 // GetStudentsByGroupIDs retrieves the students of multiple groups.
 func (s *personService) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
-	return s.studentRepo.FindByGroupIDs(ctx, groupIDs)
+	return s.StudentRepo.FindByGroupIDs(ctx, groupIDs)
 }
 
 // CountStudentsByGroupIDs counts students per group in a single query.
 func (s *personService) CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
-	return s.studentRepo.CountByGroupIDs(ctx, groupIDs)
-}
-
-// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
-func (s *personService) ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error) {
-	// First, get all active RFID cards
-	filters := map[string]interface{}{
-		"active": true,
-	}
-
-	allCards, err := s.rfidRepo.List(ctx, filters)
-	if err != nil {
-		return nil, &UsersError{Op: "list all RFID cards", Err: err}
-	}
-
-	// Get all persons to check which cards are assigned
-	persons, err := s.personRepo.List(ctx, nil)
-	if err != nil {
-		return nil, &UsersError{Op: "list all persons", Err: err}
-	}
-
-	// Create a map of assigned tag IDs for fast lookup
-	assignedTags := make(map[string]bool)
-	for _, person := range persons {
-		if person.TagID != nil {
-			assignedTags[*person.TagID] = true
-		}
-	}
-
-	// Filter out assigned cards
-	var availableCards []*userModels.RFIDCard
-	for _, card := range allCards {
-		if !assignedTags[card.ID] {
-			availableCards = append(availableCards, card)
-		}
-	}
-
-	return availableCards, nil
-}
-
-// ValidateStaffPIN validates a staff member's PIN and returns the staff record
-func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error) {
-	if pin == "" {
-		return nil, &UsersError{Op: opValidateStaffPIN, Err: errors.New("PIN cannot be empty")}
-	}
-
-	accounts, err := s.accountRepo.List(ctx, nil)
-	if err != nil {
-		return nil, &UsersError{Op: opValidateStaffPIN, Err: err}
-	}
-
-	for _, account := range accounts {
-		staff, err := s.tryValidatePINForAccount(ctx, account, pin)
-		if err != nil {
-			// Propagate repository errors immediately
-			return nil, &UsersError{Op: opValidateStaffPIN, Err: err}
-		}
-		if staff != nil {
-			return staff, nil
-		}
-	}
-
-	return nil, &UsersError{Op: opValidateStaffPIN, Err: ErrInvalidPIN}
-}
-
-// tryValidatePINForAccount attempts to validate PIN for a single account and returns staff if successful
-// Returns (staff, nil) if PIN is valid and staff found
-// Returns (nil, nil) if PIN is invalid or account has no staff record
-// Returns (nil, error) if repository operations fail
-func (s *personService) tryValidatePINForAccount(ctx context.Context, account *auth.Account, pin string) (*userModels.Staff, error) {
-	if !account.HasPIN() || isPINLocked(account, time.Now()) {
-		return nil, nil
-	}
-
-	if !account.VerifyPIN(pin) {
-		s.handleFailedPINAttempt(ctx, account)
-		return nil, nil
-	}
-
-	staff, err := s.findStaffByAccount(ctx, account)
-	if err != nil {
-		return nil, err // Propagate repository errors
-	}
-
-	if staff != nil {
-		s.handleSuccessfulPINAuth(ctx, account)
-		// Load person details (ignore error as this is supplementary data)
-		staff.Person, _ = s.personRepo.FindByAccountID(ctx, account.ID)
-		return staff, nil
-	}
-
-	return nil, nil
-}
-
-// findStaffByAccount finds staff record from account, returning error if repository operations fail
-func (s *personService) findStaffByAccount(ctx context.Context, account *auth.Account) (*userModels.Staff, error) {
-	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
-	if err != nil {
-		// Distinguish between "not found" and actual errors
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil // Not found is OK - account might not be linked to person
-		}
-		return nil, err // Propagate repository errors
-	}
-
-	if person == nil {
-		return nil, nil // No person linked to account
-	}
-
-	staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil // Person exists but is not staff
-		}
-		return nil, err // Propagate repository errors
-	}
-
-	return staff, nil
-}
-
-// handleSuccessfulPINAuth resets PIN attempts after successful authentication.
-// Uses the atomic repo reset so a concurrent failed verify's increment is not
-// clobbered by a stale full-row Update (issue #586).
-func (s *personService) handleSuccessfulPINAuth(ctx context.Context, account *auth.Account) {
-	if err := s.accountRepo.ResetPINAttempts(ctx, account.ID); err == nil {
-		account.PINAttempts = 0
-		account.PINLockedUntil = nil
-	}
-}
-
-// handleFailedPINAttempt increments PIN attempts after failed authentication.
-// The atomic repo increment replaces the previous read-modify-write
-// (Account.IncrementPINAttempts + Update), which let concurrent failures
-// share an attempt budget (issue #586).
-func (s *personService) handleFailedPINAttempt(ctx context.Context, account *auth.Account) {
-	threshold := configSvc.ResolveIntOrDefault(ctx, s.settings, configModel.KeyAccountLockoutThreshold, PINLockoutThreshold, s.logger)
-	durationMinutes := configSvc.ResolveIntOrDefault(ctx, s.settings, configModel.KeyAccountLockoutDurationMinutes, int(PINLockoutDuration/time.Minute), s.logger)
-	result, err := s.accountRepo.IncrementPINAttempts(ctx, account.ID, threshold, time.Duration(durationMinutes)*time.Minute)
-	if err == nil {
-		account.PINAttempts = result.Attempts
-		account.PINLockedUntil = result.LockedUntil
-	}
-}
-
-// ValidateStaffPINForSpecificStaff validates a PIN for a specific staff member
-func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, staffID int64, pin string) (*userModels.Staff, error) {
-	if pin == "" {
-		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("PIN cannot be empty")}
-	}
-
-	// Get the specific staff member
-	staff, err := s.staffRepo.FindByID(ctx, staffID)
-	if err != nil {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff - find staff", Err: err}
-	}
-	if staff == nil {
-		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("staff member not found")}
-	}
-
-	// Get the person associated with this staff member
-	person, err := s.personRepo.FindByID(ctx, staff.PersonID)
-	if err != nil {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff - find person", Err: err}
-	}
-	if person == nil {
-		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("person not found for staff member")}
-	}
-
-	// Check if person has an account
-	if person.AccountID == nil {
-		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("staff member has no account")}
-	}
-
-	// Get the account
-	account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
-	if err != nil {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff - find account", Err: err}
-	}
-	if account == nil {
-		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("account not found")}
-	}
-
-	// Check if account has PIN and is not locked
-	if !account.HasPIN() {
-		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("staff member has no PIN set")}
-	}
-	if isPINLocked(account, time.Now()) {
-		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("account is locked")}
-	}
-
-	// Verify the PIN
-	if !account.VerifyPIN(pin) {
-		// Atomically increment failed attempts (no read-modify-write race).
-		s.handleFailedPINAttempt(ctx, account)
-		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: ErrInvalidPIN}
-	}
-
-	// PIN is valid - atomically reset attempts.
-	s.handleSuccessfulPINAuth(ctx, account)
-
-	// Load the person relation for the authenticated staff
-	staff.Person = person
-
-	return staff, nil
-}
-
-// GetStudentsByTeacher retrieves students supervised by a teacher (through group assignments)
-func (s *personService) GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error) {
-	// First verify the teacher exists
-	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
-	if err != nil {
-		return nil, &UsersError{Op: opGetStudentsByTeacher, Err: err}
-	}
-	if teacher == nil {
-		return nil, &UsersError{Op: opGetStudentsByTeacher, Err: ErrTeacherNotFound}
-	}
-
-	// Use the repository method to get students by teacher ID
-	students, err := s.studentRepo.FindByTeacherID(ctx, teacherID)
-	if err != nil {
-		return nil, &UsersError{Op: opGetStudentsByTeacher, Err: err}
-	}
-
-	return students, nil
+	return s.StudentRepo.CountByGroupIDs(ctx, groupIDs)
 }
 
 // GetAllStudentsWithGroups retrieves all students with their group info
 func (s *personService) GetAllStudentsWithGroups(ctx context.Context) ([]StudentWithGroup, error) {
-	studentsWithGroups, err := s.studentRepo.FindAllWithGroups(ctx)
+	studentsWithGroups, err := s.StudentRepo.FindAllWithGroups(ctx)
 	if err != nil {
 		return nil, &UsersError{Op: "get all students with groups", Err: err}
 	}
@@ -813,7 +483,7 @@ func (s *personService) GetAllStudentsWithGroups(ctx context.Context) ([]Student
 // GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error) {
 	// First verify the teacher exists
-	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
+	teacher, err := s.TeacherRepo.FindByID(ctx, teacherID)
 	if err != nil {
 		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
 	}
@@ -822,7 +492,7 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 	}
 
 	// Use the enhanced repository method to get students with group info
-	studentsWithGroups, err := s.studentRepo.FindByTeacherIDWithGroups(ctx, teacherID)
+	studentsWithGroups, err := s.StudentRepo.FindByTeacherIDWithGroups(ctx, teacherID)
 	if err != nil {
 		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
 	}
@@ -857,8 +527,8 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 	teacherCreationFailed := false
 
 	tenantID := tenant.FromContext(ctx)
-	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := s.staffRepo.Create(ctx, staff); err != nil {
+	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := s.StaffRepo.Create(ctx, staff); err != nil {
 			return err
 		}
 
@@ -869,7 +539,7 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 				Role:           input.Role,
 				Qualifications: input.Qualifications,
 			}
-			if s.teacherRepo.Create(ctx, teacher) != nil {
+			if s.TeacherRepo.Create(ctx, teacher) != nil {
 				// Still return the staff member even if teacher creation fails
 				teacher = nil
 				teacherCreationFailed = true
@@ -892,22 +562,22 @@ func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userM
 	action := TeacherActionNone
 
 	tenantID := tenant.FromContext(ctx)
-	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := s.staffRepo.Update(ctx, staff); err != nil {
+	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := s.StaffRepo.Update(ctx, staff); err != nil {
 			return err
 		}
 
 		// Reload staff with person data; fall back to loading the person alone.
-		if reloaded, err := s.staffRepo.FindWithPerson(ctx, staff.ID); err == nil {
+		if reloaded, err := s.StaffRepo.FindWithPerson(ctx, staff.ID); err == nil {
 			*staff = *reloaded
 		} else if staff.Person == nil && staff.PersonID > 0 {
-			if person, err := s.personRepo.FindByID(ctx, staff.PersonID); err == nil {
+			if person, err := s.PersonRepo.FindByID(ctx, staff.PersonID); err == nil {
 				staff.Person = person
 			}
 		}
 
 		// Existing teacher record, if any (lookup errors intentionally ignored).
-		existingTeacher, _ := s.teacherRepo.FindByStaffID(ctx, staff.ID)
+		existingTeacher, _ := s.TeacherRepo.FindByStaffID(ctx, staff.ID)
 
 		if !isTeacher {
 			if existingTeacher != nil {
@@ -921,7 +591,7 @@ func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userM
 			existingTeacher.Specialization = specialization
 			existingTeacher.Role = role
 			existingTeacher.Qualifications = qualifications
-			if s.teacherRepo.Update(ctx, existingTeacher) != nil {
+			if s.TeacherRepo.Update(ctx, existingTeacher) != nil {
 				action = TeacherActionUpdateFailed
 				return nil
 			}
@@ -936,7 +606,7 @@ func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userM
 			Role:           role,
 			Qualifications: qualifications,
 		}
-		if s.teacherRepo.Create(ctx, newTeacher) != nil {
+		if s.TeacherRepo.Create(ctx, newTeacher) != nil {
 			action = TeacherActionCreateFailed
 			return nil
 		}

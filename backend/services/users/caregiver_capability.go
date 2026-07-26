@@ -39,19 +39,8 @@ type CaregiverCapabilityServiceDependencies struct {
 }
 
 type caregiverCapabilityService struct {
-	accountRepo            authModels.AccountRepository
-	accountTenantRepo      authModels.AccountTenantRepository
-	authEventRepo          auditModels.AuthEventRepository
-	roleRepo               authModels.RoleRepository
-	personRepo             userModels.PersonRepository
-	staffRepo              userModels.StaffRepository
-	teacherRepo            userModels.TeacherRepository
-	groupTeacherRepo       educationModels.GroupTeacherRepository
-	groupSubstitutionRepo  educationModels.GroupSubstitutionRepository
-	groupSupervisorRepo    activeModels.GroupSupervisorRepository
-	activitySupervisorRepo activitiesModels.SupervisorPlannedRepository
-	authService            authSvc.AuthService
-	txHandler              *modelBase.TxHandler
+	CaregiverCapabilityServiceDependencies
+	txHandler *modelBase.TxHandler
 }
 
 type caregiverRoleFlags struct {
@@ -75,19 +64,8 @@ func NewCaregiverCapabilityService(
 	deps CaregiverCapabilityServiceDependencies,
 ) CaregiverCapabilityService {
 	return &caregiverCapabilityService{
-		accountRepo:            deps.AccountRepo,
-		accountTenantRepo:      deps.AccountTenantRepo,
-		authEventRepo:          deps.AuthEventRepo,
-		roleRepo:               deps.RoleRepo,
-		personRepo:             deps.PersonRepo,
-		staffRepo:              deps.StaffRepo,
-		teacherRepo:            deps.TeacherRepo,
-		groupTeacherRepo:       deps.GroupTeacherRepo,
-		groupSubstitutionRepo:  deps.GroupSubstitutionRepo,
-		groupSupervisorRepo:    deps.GroupSupervisorRepo,
-		activitySupervisorRepo: deps.ActivitySupervisorRepo,
-		authService:            deps.AuthService,
-		txHandler:              modelBase.NewTxHandler(deps.DB),
+		CaregiverCapabilityServiceDependencies: deps,
+		txHandler:                              modelBase.NewTxHandler(deps.DB),
 	}
 }
 
@@ -128,7 +106,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 		}
 
 		details := map[string]any{}
-		person, err := s.personRepo.FindByAccountID(txCtx, accountID)
+		person, err := s.PersonRepo.FindByAccountID(txCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -147,10 +125,10 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 				LastName:  input.LastName,
 			}
 			person.SetTenantID(tenant.FromContext(txCtx))
-			if err := s.personRepo.Create(txCtx, person); err != nil {
+			if err := s.PersonRepo.Create(txCtx, person); err != nil {
 				return err
 			}
-			if err := s.personRepo.LinkToAccount(txCtx, person.ID, account.ID); err != nil {
+			if err := s.PersonRepo.LinkToAccount(txCtx, person.ID, account.ID); err != nil {
 				return err
 			}
 			details["person_created"] = true
@@ -163,13 +141,13 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 		if staff == nil {
 			staff = &userModels.Staff{PersonID: person.ID}
 			staff.SetTenantID(tenant.FromContext(txCtx))
-			if err := s.staffRepo.Create(txCtx, staff); err != nil {
+			if err := s.StaffRepo.Create(txCtx, staff); err != nil {
 				return err
 			}
 			details["staff_created"] = true
 		}
 
-		teacher, err := s.teacherRepo.FindByStaffID(txCtx, staff.ID)
+		teacher, err := s.TeacherRepo.FindByStaffID(txCtx, staff.ID)
 		if err != nil {
 			return err
 		}
@@ -179,7 +157,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			if input.Position != "" {
 				teacher.Role = input.Position
 			}
-			if err := s.teacherRepo.Create(txCtx, teacher); err != nil {
+			if err := s.TeacherRepo.Create(txCtx, teacher); err != nil {
 				return err
 			}
 			details["teacher_created"] = true
@@ -188,7 +166,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			details["requested_position"] = input.Position
 		}
 
-		userRole, err := s.resolveSystemRoleByName(txCtx, "user")
+		userRole, err := authSvc.ResolveSystemRoleByName(txCtx, s.RoleRepo, "user")
 		if err != nil {
 			return err
 		}
@@ -196,7 +174,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			return &UsersError{Op: "enable caregiver capability", Err: fmt.Errorf("user role not found")}
 		}
 
-		if err := s.authService.AssignRoleToAccount(txCtx, int(accountID), int(userRole.ID)); err != nil {
+		if err := s.AuthService.AssignRoleToAccount(txCtx, int(accountID), int(userRole.ID)); err != nil {
 			return err
 		}
 
@@ -230,7 +208,11 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	}
 
 	var result *userModels.CaregiverCapabilityState
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	// This transaction LOCK TABLEs the four caregiver-binding tables (incl.
+	// active.group_supervisors). Concurrent room/supervision writes take row
+	// locks on the same tables in a different order, so a transient deadlock is
+	// possible — retry the whole transaction on 40P01/40001.
+	work := func(txCtx context.Context, tx bun.Tx) error {
 		if err := s.lockCaregiverCapabilityBindings(txCtx, tx); err != nil {
 			return err
 		}
@@ -258,7 +240,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		}
 
 		for _, roleName := range roleNamesToRemove {
-			role, err := s.resolveSystemRoleByName(txCtx, roleName)
+			role, err := authSvc.ResolveSystemRoleByName(txCtx, s.RoleRepo, roleName)
 			if err != nil {
 				return err
 			}
@@ -269,7 +251,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 				}
 			}
 
-			if err := s.authService.RemoveRoleFromAccount(txCtx, int(accountID), int(role.ID)); err != nil {
+			if err := s.AuthService.RemoveRoleFromAccount(txCtx, int(accountID), int(role.ID)); err != nil {
 				return err
 			}
 		}
@@ -285,11 +267,53 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 			auditModels.EventTypeCaregiverCapabilityDisabled,
 			s.buildCapabilityAuditMetadata(txCtx, state, result, nil),
 		)
-	}); err != nil {
+	}
+
+	// Retry only works when this code owns the transaction it can re-run. On the
+	// production API paths the request already carries an outer tenant
+	// transaction (TenantTxMiddleware / operator WithAdminTx); reusing it would
+	// make RunInTxWithRetry a no-op, because a deadlock aborts the whole outer
+	// transaction and re-running just the inner work is unsound. When an ambient
+	// transaction is present we mask it and open our own retryable tenant
+	// transaction; otherwise (direct service calls) RunInTxWithRetry owns the
+	// transaction and its built-in retry already applies.
+	tenantID := tenant.FromContext(ctx)
+	var err error
+	if _, inTx := modelBase.TxFromContext(ctx); inTx && tenantID > 0 {
+		err = s.runInRetryableTenantTx(ctx, tenantID, work)
+	} else {
+		err = s.txHandler.RunInTxWithRetry(ctx, work)
+	}
+	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
+}
+
+// caregiverDisableTxRetries is the number of additional attempts
+// runInRetryableTenantTx makes after the first on a transient deadlock or
+// serialization failure.
+const caregiverDisableTxRetries = 3
+
+// runInRetryableTenantTx masks any ambient request transaction and runs fn in an
+// independent tenant-scoped transaction (re-establishing the RLS role + tenant
+// config), retrying the whole transaction on transient deadlock/serialization
+// failures. Mirrors the enrollment rate-limiter pattern.
+func (s *caregiverCapabilityService) runInRetryableTenantTx(
+	ctx context.Context,
+	tenantID int64,
+	fn func(ctx context.Context, tx bun.Tx) error,
+) error {
+	baseCtx := modelBase.ContextWithoutTx(ctx)
+	var err error
+	for attempt := 0; attempt <= caregiverDisableTxRetries; attempt++ {
+		err = tenant.WithTenantTx(baseCtx, s.txHandler.DB, tenantID, fn)
+		if err == nil || !modelBase.IsRetryableTxError(err) {
+			return err
+		}
+	}
+	return err
 }
 
 func (s *caregiverCapabilityService) lockCaregiverCapabilityBindings(
@@ -317,7 +341,7 @@ func (s *caregiverCapabilityService) recordCapabilityAuditEvent(
 	eventType string,
 	metadata map[string]any,
 ) error {
-	if s.authEventRepo == nil {
+	if s.AuthEventRepo == nil {
 		return &UsersError{
 			Op:  "record caregiver capability audit event",
 			Err: fmt.Errorf("auth event repository is not configured"),
@@ -329,7 +353,7 @@ func (s *caregiverCapabilityService) recordCapabilityAuditEvent(
 		event.SetMetadata(key, value)
 	}
 
-	return s.authEventRepo.Create(ctx, event)
+	return s.AuthEventRepo.Create(ctx, event)
 }
 
 func (s *caregiverCapabilityService) buildCapabilityAuditMetadata(
@@ -405,7 +429,7 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 	}
 	roleFlags := caregiverRoleFlags{}
 
-	roles, err := s.roleRepo.FindByAccountID(ctx, accountID)
+	roles, err := s.RoleRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return nil, caregiverRoleFlags{}, err
 	}
@@ -428,7 +452,7 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 	state.HasAdminRole = roleFlags.hasAdminRole
 	state.HasUserRole = roleFlags.hasUserRole
 
-	person, err := s.personRepo.FindByAccountID(ctx, accountID)
+	person, err := s.PersonRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return nil, caregiverRoleFlags{}, err
 	}
@@ -453,7 +477,7 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 
 	var teacher *userModels.Teacher
 	if staff != nil {
-		teacher, err = s.teacherRepo.FindByStaffID(ctx, staff.ID)
+		teacher, err = s.TeacherRepo.FindByStaffID(ctx, staff.ID)
 		if err != nil {
 			return nil, caregiverRoleFlags{}, err
 		}
@@ -491,7 +515,7 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 		return nil, 0, &UsersError{Op: "caregiver capability", Err: fmt.Errorf("tenant context is required")}
 	}
 
-	account, err := s.accountRepo.FindByID(ctx, accountID)
+	account, err := s.AccountRepo.FindByID(ctx, accountID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -499,7 +523,7 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 		return nil, 0, authSvc.ErrAccountNotFound
 	}
 
-	exists, err := s.accountTenantRepo.ExistsByAccountAndTenant(ctx, accountID, tenantID)
+	exists, err := s.AccountTenantRepo.ExistsByAccountAndTenant(ctx, accountID, tenantID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -514,7 +538,7 @@ func (s *caregiverCapabilityService) findStaffByPersonID(
 	ctx context.Context,
 	personID int64,
 ) (*userModels.Staff, error) {
-	staff, err := s.staffRepo.FindByPersonID(ctx, personID)
+	staff, err := s.StaffRepo.FindByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -522,28 +546,6 @@ func (s *caregiverCapabilityService) findStaffByPersonID(
 		return nil, err
 	}
 	return staff, nil
-}
-
-func (s *caregiverCapabilityService) resolveSystemRoleByName(
-	ctx context.Context,
-	name string,
-) (*authModels.Role, error) {
-	roles, err := s.roleRepo.List(ctx, map[string]interface{}{
-		"name":      strings.TrimSpace(strings.ToLower(name)),
-		"is_system": true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, role := range roles {
-		if role == nil {
-			continue
-		}
-		if role.TenantID == nil && role.IsSystem && strings.EqualFold(role.Name, name) {
-			return role, nil
-		}
-	}
-	return nil, nil
 }
 
 func (s *caregiverCapabilityService) listDisableBlockers(
@@ -613,7 +615,7 @@ func (s *caregiverCapabilityService) listActiveGroupSupervisions(
 	staffID int64,
 	tenantID int64,
 ) ([]userModels.BlockerSupervision, error) {
-	return s.groupSupervisorRepo.ListActiveSupervisionBlockers(ctx, staffID, tenantID)
+	return s.GroupSupervisorRepo.ListActiveSupervisionBlockers(ctx, staffID, tenantID)
 }
 
 func (s *caregiverCapabilityService) listActiveGroupSubstitutions(
@@ -621,7 +623,7 @@ func (s *caregiverCapabilityService) listActiveGroupSubstitutions(
 	staffID int64,
 	tenantID int64,
 ) ([]userModels.BlockerSubstitution, error) {
-	return s.groupSubstitutionRepo.ListActiveSubstitutionBlockers(ctx, staffID, tenantID)
+	return s.GroupSubstitutionRepo.ListActiveSubstitutionBlockers(ctx, staffID, tenantID)
 }
 
 func (s *caregiverCapabilityService) listPlannedActivitySupervisions(
@@ -629,7 +631,7 @@ func (s *caregiverCapabilityService) listPlannedActivitySupervisions(
 	staffID int64,
 	tenantID int64,
 ) ([]userModels.BlockerActivity, error) {
-	return s.activitySupervisorRepo.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
+	return s.ActivitySupervisorRepo.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
 }
 
 func (s *caregiverCapabilityService) listGroupTeacherAssignments(
@@ -637,5 +639,5 @@ func (s *caregiverCapabilityService) listGroupTeacherAssignments(
 	teacherID int64,
 	tenantID int64,
 ) ([]userModels.BlockerGroup, error) {
-	return s.groupTeacherRepo.ListGroupTeacherBlockers(ctx, teacherID, tenantID)
+	return s.GroupTeacherRepo.ListGroupTeacherBlockers(ctx, teacherID, tenantID)
 }

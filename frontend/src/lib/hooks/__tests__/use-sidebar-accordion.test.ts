@@ -83,6 +83,93 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe("database");
   });
 
+  it("expands 'eltern' section for /eltern hub path", () => {
+    const { result } = renderHook(() => useSidebarAccordion("/eltern"));
+    expect(result.current.expanded).toBe("eltern");
+  });
+
+  it("expands 'eltern' section for parent sub-pages", () => {
+    for (const path of [
+      "/messages",
+      "/admin/guardian-approvals",
+      "/admin/change-requests",
+      "/parent-announcements",
+      "/meal-plan",
+    ]) {
+      const { result } = renderHook(() => useSidebarAccordion(path));
+      expect(result.current.expanded).toBe("eltern");
+    }
+  });
+
+  it("expands 'eltern' from fromParam on child pages", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/students/123", "/messages"),
+    );
+    expect(result.current.expanded).toBe("eltern");
+  });
+
+  it("expands 'enrollments' section for enrollment paths", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/admin/enrollments"),
+    );
+    expect(result.current.expanded).toBe("enrollments");
+  });
+
+  it("expands 'enrollments' from fromParam on child pages", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/students/123", "/care-offerings"),
+    );
+    expect(result.current.expanded).toBe("enrollments");
+  });
+
+  it("expands 'planning' for all planning paths incl. legacy redirects (#1946)", () => {
+    // Betreuungsplan, Dienstplan, Vertretung und Kalenderzeiträume sind
+    // Unterpunkte des Planung-Akkordeons; die Redirect-Stubs zählen dazu.
+    for (const path of [
+      "/calendar-periods",
+      "/timetables",
+      "/staff/dienstplan",
+      "/betreuungsplan",
+      "/dienstplan",
+      "/vertretung",
+      "/vertretungsplan",
+    ]) {
+      const { result } = renderHook(() => useSidebarAccordion(path));
+      expect(result.current.expanded).toBe("planning");
+    }
+  });
+
+  it("restores a stored 'planning' value from localStorage", () => {
+    localStorageMock.getItem.mockReturnValueOnce("planning");
+
+    const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
+
+    expect(result.current.expanded).toBe("planning");
+  });
+
+  it("restores 'eltern' from localStorage when pathname does not determine section", () => {
+    localStorageMock.getItem.mockReturnValueOnce("eltern");
+
+    const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
+
+    expect(result.current.expanded).toBe("eltern");
+  });
+
+  it("restores 'enrollments' from localStorage when pathname does not determine section", () => {
+    localStorageMock.getItem.mockReturnValueOnce("enrollments");
+
+    const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
+
+    expect(result.current.expanded).toBe("enrollments");
+  });
+
+  it("returns null when fromParam is unrelated", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/students/123", "/dashboard"),
+    );
+    expect(result.current.expanded).toBe(null);
+  });
+
   it("toggles section on and off", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 

@@ -5,11 +5,14 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Alert } from "~/components/ui";
+import { KeyRound } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { refreshToken } from "~/lib/auth-api";
+import { trackEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import {
   AuthShell,
+  MotoBrand,
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
@@ -17,7 +20,7 @@ import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
@@ -27,6 +30,12 @@ import {
   MFAApiError,
   type MFATokenResponse,
 } from "~/lib/mfa-api";
+import {
+  isPasskeySupported,
+  isPasskeyCeremonyIncompleteError,
+  loginWithPasskey,
+  PasskeyApiError,
+} from "~/lib/passkey-api";
 
 import { createLogger } from "~/lib/logger";
 
@@ -75,16 +84,23 @@ function LoginForm() {
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const [enrollmentStep, setEnrollmentStep] =
     useState<MFAEnrollmentStep | null>(null);
+  const [passkeySupported, setPasskeySupported] = useState(false);
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const loginTitle = tenant?.name?.trim() ? tenant.name : "Willkommen bei moto";
+  const tenantLoginImageUrl = tenant?.settings?.loginImageUrl;
+  const hasTenantLoginLogo = Boolean(tenantLoginImageUrl);
 
   // Guard against calling signOut multiple times during stale session cleanup
   const isCleaningSessionRef = useRef(false);
 
   // Check for valid session
+  useEffect(() => {
+    setPasskeySupported(isPasskeySupported());
+  }, []);
+
   useEffect(() => {
     const checkAndRedirect = async () => {
       // If the session has an irrecoverable error (refresh token was rejected
@@ -209,8 +225,10 @@ function LoginForm() {
     if (result?.error) {
       setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
       logger.error("session_seed_failed", { error: result.error });
+      trackEvent("login_failed", { reason: "error" });
       return;
     }
+    trackEvent("login_success");
     setAwaitingRedirect(true);
     router.refresh();
   };
@@ -260,10 +278,45 @@ function LoginForm() {
     } catch (err) {
       if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
+        trackEvent("login_failed", { reason: "invalid_credentials" });
       } else {
         setError(germanMFAErrorMessage(err));
+        trackEvent("login_failed", { reason: "error" });
       }
       logger.error("login failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const response = await loginWithPasskey("tenant", { tenantSlug });
+      await seedSessionWithTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+    } catch (err) {
+      if (isPasskeyCeremonyIncompleteError(err)) {
+        logger.info("passkey login not completed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      }
+      if (err instanceof PasskeyApiError && err.status === 401) {
+        setError("Passkey-Anmeldung fehlgeschlagen.");
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Passkey-Anmeldung fehlgeschlagen.",
+        );
+      }
+      logger.error("passkey login failed", {
         error: err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -279,18 +332,21 @@ function LoginForm() {
         title={loginTitle}
         subtitle="Melden Sie sich mit Ihrem Konto an."
         variant="tenant"
+        showMotoAttribution={hasTenantLoginLogo}
         brand={
-          tenant?.settings?.loginImageUrl ? (
+          tenantLoginImageUrl ? (
             <Image
-              src={loginImageSrc(tenant.settings.loginImageUrl)}
-              alt={`${tenant.name} Logo`}
+              src={loginImageSrc(tenantLoginImageUrl)}
+              alt={`${tenant?.name ?? "Einrichtung"} Logo`}
               width={180}
               height={104}
               className="max-h-[104px] w-auto object-contain"
               priority
               unoptimized
             />
-          ) : null
+          ) : (
+            <MotoBrand />
+          )
         }
       >
         {isCheckingAuth && (
@@ -428,6 +484,17 @@ function LoginForm() {
                   </span>
                 </button>
               </div>
+              {passkeySupported && (
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={handlePasskeyLogin}
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <KeyRound className="h-4 w-4" aria-hidden="true" />
+                  <span>Mit Passkey anmelden</span>
+                </button>
+              )}
             </form>
           )}
         </div>
@@ -464,7 +531,7 @@ export default function HomePage() {
           title="Willkommen"
           subtitle="Melden Sie sich mit Ihrem Konto an."
           variant="tenant"
-          brand={null}
+          brand={<MotoBrand />}
         >
           <div className="flex flex-col items-center gap-4 py-8">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />

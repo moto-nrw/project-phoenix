@@ -48,7 +48,6 @@ type ActiveGroupResponse struct {
 	StartTime       time.Time               `json:"start_time"`
 	EndTime         *time.Time              `json:"end_time,omitempty"`
 	IsActive        bool                    `json:"is_active"`
-	Notes           string                  `json:"notes,omitempty"`
 	VisitCount      int                     `json:"visit_count,omitempty"`
 	SupervisorCount int                     `json:"supervisor_count,omitempty"`
 	Supervisors     []GroupSupervisorSimple `json:"supervisors,omitempty"`
@@ -83,7 +82,6 @@ type VisitResponse struct {
 	CheckInTime     time.Time  `json:"check_in_time"`
 	CheckOutTime    *time.Time `json:"check_out_time,omitempty"`
 	IsActive        bool       `json:"is_active"`
-	Notes           string     `json:"notes,omitempty"`
 	StudentName     string     `json:"student_name,omitempty"`
 	ActiveGroupName string     `json:"active_group_name,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
@@ -124,7 +122,6 @@ type SupervisorResponse struct {
 	StartTime       time.Time  `json:"start_time"`
 	EndTime         *time.Time `json:"end_time,omitempty"`
 	IsActive        bool       `json:"is_active"`
-	Notes           string     `json:"notes,omitempty"`
 	StaffName       string     `json:"staff_name,omitempty"`
 	ActiveGroupName string     `json:"active_group_name,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
@@ -202,6 +199,7 @@ type RecentActivityItem struct {
 
 // CurrentActivityItem represents current activity status
 type CurrentActivityItem struct {
+	ID           string `json:"id"`
 	Name         string `json:"name"`
 	Category     string `json:"category"`
 	Participants int    `json:"participants"`
@@ -237,7 +235,6 @@ type ActiveGroupRequest struct {
 	RoomID    int64      `json:"room_id"`
 	StartTime time.Time  `json:"start_time"`
 	EndTime   *time.Time `json:"end_time,omitempty"`
-	Notes     string     `json:"notes,omitempty"`
 }
 
 // VisitRequest represents a visit creation/update request
@@ -246,7 +243,6 @@ type VisitRequest struct {
 	ActiveGroupID int64      `json:"active_group_id"`
 	CheckInTime   time.Time  `json:"check_in_time"`
 	CheckOutTime  *time.Time `json:"check_out_time,omitempty"`
-	Notes         string     `json:"notes,omitempty"`
 }
 
 // SupervisorRequest represents a group supervisor creation/update request
@@ -255,7 +251,6 @@ type SupervisorRequest struct {
 	ActiveGroupID int64      `json:"active_group_id"`
 	StartTime     time.Time  `json:"start_time"`
 	EndTime       *time.Time `json:"end_time,omitempty"`
-	Notes         string     `json:"notes,omitempty"`
 }
 
 // CombinedGroupRequest represents a combined group creation/update request

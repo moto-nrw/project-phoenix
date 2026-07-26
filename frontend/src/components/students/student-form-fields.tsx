@@ -7,6 +7,8 @@ import { useId } from "react";
 import { Bus } from "lucide-react";
 import type { Student } from "@/lib/api";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
 import {
   BUS_WEEKDAYS,
   busDaysHaveAny,
@@ -19,13 +21,17 @@ import {
   normalizePickupDays,
   type PickupDays,
   DEPARTURE_WEEKDAYS,
-  type DepartureDays,
+  type AllowedDepartureModes,
   type DepartureMode,
-  departureModeFor,
-  departureDaysHaveAny,
-  formatDepartureDays,
-  normalizeDepartureDays,
+  formatAllowedDepartureDays,
+  normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
+import { CompanionPicker } from "./companion-picker";
+import type {
+  CompanionExtensionConfirmation,
+  CompanionWeekday,
+  StudentCompanion,
+} from "~/lib/student-companion-api";
 
 interface SelectOption {
   value: string;
@@ -116,6 +122,24 @@ export function PersonalInfoSection({
           value={formData.birthday ?? ""}
           onChange={(v) => onChange("birthday", v)}
         />
+        <TextInput
+          label="Straße und Hausnummer"
+          value={formData.address_street ?? ""}
+          onChange={(v) => onChange("address_street", v)}
+          placeholder="Musterstraße 12"
+        />
+        <TextInput
+          label="PLZ"
+          value={formData.address_postal_code ?? ""}
+          onChange={(v) => onChange("address_postal_code", v)}
+          placeholder="50667"
+        />
+        <TextInput
+          label="Ort"
+          value={formData.address_city ?? ""}
+          onChange={(v) => onChange("address_city", v)}
+          placeholder="Köln"
+        />
       </div>
     </div>
   );
@@ -139,12 +163,18 @@ function TextInput({
   required?: boolean;
   placeholder?: string;
 }>) {
+  const inputId = useId();
+
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-700">
+      <label
+        htmlFor={inputId}
+        className="mb-1 block text-xs font-medium text-gray-700"
+      >
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
+        id={inputId}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -180,40 +210,19 @@ function SelectInput({
   return (
     <div>
       <label
+        id={`${selectId}-label`}
         htmlFor={selectId}
         className="mb-1 block text-xs font-medium text-gray-700"
       >
         {label}
       </label>
-      <div className="relative">
-        <select
-          id={selectId}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="moto-content-surface block w-full appearance-none rounded-lg border px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </div>
-      </div>
+      <CustomSelect
+        id={selectId}
+        ariaLabelledBy={`${selectId}-label`}
+        value={value}
+        options={options}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -690,37 +699,74 @@ export function PickupStatusSection({
 }
 
 /**
- * Departure Section — unified per-weekday "how the child leaves" selector
- * (#1610). Replaces the separate Buskind + Abholregelung sections with one
- * mutually exclusive choice per day: geht alleine / fährt Bus / wird abgeholt.
- * Produces a DepartureDays map; the backend derives bus_days / pickup_days.
+ * Departure Section — per-weekday allowed way-home selector. Multiple options
+ * per day are valid because the OGS can allow parents to keep flexible pickup,
+ * bus and walking arrangements.
  */
 const DEPARTURE_OPTIONS: ReadonlyArray<{
   value: DepartureMode;
   short: string;
 }> = [
-  { value: "alone", short: "Alleine" },
+  { value: "alone", short: "Zu Fuß" },
   { value: "bus", short: "Bus" },
-  { value: "pickup", short: "Abholung" },
+  { value: "pickup", short: "Abgeholt" },
+  { value: "accompanied", short: "Anderes Kind" },
 ];
 
-// Active styling per mode, using MOTO brand hexes: pickup = brand green,
-// bus = brand blue, alone = neutral gray.
-const DEPARTURE_ACTIVE_CLASSES: Record<DepartureMode, string> = {
-  alone: "border-[#6B7280] bg-[#F3F4F6] text-[#374151]",
-  bus: "border-[#5080D8] bg-[#DCE7FA] text-[#2f5bb0]",
-  pickup: "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]",
-};
+// Stable empty default so the prop keeps referential equality across renders.
+const EMPTY_COMPANIONS: StudentCompanion[] = [];
+
+/** Weekdays whose allowed modes include "Anderes Kind" — the only days a
+ *  Laufgemeinschaft may be recorded for. */
+function accompaniedWeekdays(
+  allowed: AllowedDepartureModes,
+): CompanionWeekday[] {
+  return DEPARTURE_WEEKDAYS.filter((day) =>
+    allowed[day.key]?.includes("accompanied"),
+  ).map((day) => day.key as CompanionWeekday);
+}
 
 export function DepartureSection({
   days,
   onChange,
+  companionNote,
+  onCompanionNoteChange,
+  companionNoteError,
+  companions,
+  onCompanionsChange,
+  companionStudentId,
+  onCompanionExtensionConfirmed,
 }: Readonly<{
-  days?: DepartureDays | null;
-  onChange: (value: DepartureDays) => void;
+  days?: AllowedDepartureModes | null;
+  onChange: (value: AllowedDepartureModes) => void;
+  /** Free-text "mit wem" for the accompanied mode (#1694). Optional: when the
+   *  handler is omitted the note input is not rendered. */
+  companionNote?: string | null;
+  onCompanionNoteChange?: (value: string) => void;
+  /** Validation message shown under the companion note (required when an
+   *  accompanied day is selected). */
+  companionNoteError?: string;
+  /** Linked children (Laufgemeinschaft). Rendered only when the handler is
+   *  supplied AND a day allows the accompanied mode — the link exists only as
+   *  the detail of that mode. */
+  companions?: StudentCompanion[];
+  onCompanionsChange?: (next: StudentCompanion[]) => void;
+  /** The child being edited, filtered out of the companion search. */
+  companionStudentId?: string;
+  /** The user confirmed widening a linked child's own departure plan, for the
+   *  named child and weekdays. */
+  onCompanionExtensionConfirmed?: (
+    confirmation: CompanionExtensionConfirmation,
+  ) => void;
 }>) {
-  const normalized = normalizeDepartureDays(days);
-  const anySelected = departureDaysHaveAny(normalized);
+  const normalized = normalizeAllowedDepartureModes(days);
+  const anySelected = DEPARTURE_WEEKDAYS.some(
+    (day) => (normalized[day.key]?.length ?? 0) > 0,
+  );
+  const accompaniedSelected = DEPARTURE_WEEKDAYS.some((day) =>
+    normalized[day.key]?.includes("accompanied"),
+  );
+  const companionNoteId = useId();
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
@@ -729,49 +775,83 @@ export function DepartureSection({
             className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4"
             style={{ color: GROUP_ROOM_SHADES.text }}
           />
-          Geh- und Abholregelung
+          Erlaubte Heimwege
         </h3>
         {anySelected && (
           <span className="hidden shrink-0 rounded-full bg-[#DCF5C1] px-2.5 py-1 text-xs font-medium text-[#4a7a15] sm:inline">
-            {formatDepartureDays(normalized)}
+            {formatAllowedDepartureDays(normalized)}
           </span>
         )}
       </div>
       <p className="mb-3 text-xs text-gray-500">
-        Pro Wochentag festlegen, wie das Kind nach Hause geht. Standard ist
-        „Geht alleine“.
+        Pro Wochentag alle Heimwege auswählen, die für das Kind erlaubt sind.
       </p>
       <div className="space-y-2">
         {DEPARTURE_WEEKDAYS.map((day) => {
-          const current = departureModeFor(normalized, day.key);
           return (
             <div key={day.key} className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-xs font-semibold text-gray-700 md:w-20">
                 {day.label}
               </span>
-              <div className="grid flex-1 grid-cols-3 gap-1">
+              <div className="grid flex-1 grid-cols-2 gap-1">
                 {DEPARTURE_OPTIONS.map((opt) => {
-                  const active = current === opt.value;
+                  const active =
+                    normalized[day.key]?.includes(opt.value) ?? false;
                   return (
-                    <button
+                    <label
                       key={opt.value}
-                      type="button"
-                      aria-pressed={active}
-                      aria-label={`${day.label}: ${opt.short}`}
-                      onClick={() => {
-                        const next = { ...normalized };
-                        if (opt.value === "alone") delete next[day.key];
-                        else next[day.key] = opt.value;
-                        onChange(next);
-                      }}
-                      className={`flex h-8 items-center justify-center rounded-lg border px-1 text-xs font-semibold transition-colors ${
+                      className={`flex h-8 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
                         active
-                          ? DEPARTURE_ACTIVE_CLASSES[opt.value]
+                          ? "border-gray-900 bg-white text-gray-900"
                           : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
                       }`}
                     >
+                      <Checkbox
+                        checked={active}
+                        aria-label={`${day.label}: ${opt.short}`}
+                        onChange={() => {
+                          const current = new Set(normalized[day.key] ?? []);
+                          if (current.has(opt.value)) current.delete(opt.value);
+                          else current.add(opt.value);
+                          const ordered = DEPARTURE_OPTIONS.map(
+                            (option) => option.value,
+                          ).filter((mode) => current.has(mode));
+                          const next = { ...normalized };
+                          if (ordered.length === 0) delete next[day.key];
+                          else next[day.key] = ordered;
+                          onChange(next);
+                          // Drop the orphaned companion note when the last
+                          // accompanied day is removed, so a now-hidden stale
+                          // note is never submitted unchanged (#1694).
+                          const stillAccompanied = DEPARTURE_WEEKDAYS.some(
+                            (d) => next[d.key]?.includes("accompanied"),
+                          );
+                          if (
+                            !stillAccompanied &&
+                            onCompanionNoteChange &&
+                            (companionNote ?? "") !== ""
+                          ) {
+                            onCompanionNoteChange("");
+                          }
+                          // Same for the links, and for a second reason: the
+                          // picker is hidden from here on, so a list left
+                          // behind would travel with the save while the user
+                          // can no longer see or edit it. The backend refuses
+                          // a non-empty list on a plan that allows the mode on
+                          // no day at all — an error about a control that is
+                          // not on screen. Clearing it here submits what the
+                          // plan already says: no Laufgemeinschaft.
+                          if (
+                            !stillAccompanied &&
+                            onCompanionsChange &&
+                            (companions?.length ?? 0) > 0
+                          ) {
+                            onCompanionsChange([]);
+                          }
+                        }}
+                      />
                       {opt.short}
-                    </button>
+                    </label>
                   );
                 })}
               </div>
@@ -779,6 +859,52 @@ export function DepartureSection({
           );
         })}
       </div>
+      {onCompanionsChange && accompaniedSelected && (
+        <div className="mt-3">
+          <CompanionPicker
+            value={companions ?? EMPTY_COMPANIONS}
+            onChange={onCompanionsChange}
+            allowedDays={accompaniedWeekdays(normalized)}
+            excludeStudentId={companionStudentId}
+            onExtensionConfirmed={onCompanionExtensionConfirmed}
+          />
+        </div>
+      )}
+      {onCompanionNoteChange && accompaniedSelected && (
+        <div className="mt-3">
+          <label
+            htmlFor={companionNoteId}
+            className="mb-1 block text-xs font-medium text-gray-700"
+          >
+            {onCompanionsChange
+              ? "Oder mit welcher Person?"
+              : "Mit welchem Kind?"}
+          </label>
+          <input
+            id={companionNoteId}
+            type="text"
+            value={companionNote ?? ""}
+            onChange={(e) => onCompanionNoteChange(e.target.value)}
+            placeholder="z. B. Geschwisterkind, Freund, Name"
+            maxLength={255}
+            aria-invalid={companionNoteError ? true : undefined}
+            className={`moto-content-surface block w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-1 ${
+              companionNoteError
+                ? "border-[#FF3130] focus:border-[#FF3130] focus:ring-[#FF3130]"
+                : "focus:border-[#5080D8] focus:ring-[#5080D8]"
+            }`}
+          />
+          {companionNoteError ? (
+            <p className="mt-1 text-xs text-[#FF3130]">{companionNoteError}</p>
+          ) : (
+            <p className="mt-1 text-xs text-gray-500">
+              {onCompanionsChange
+                ? "Nur nötig, wenn das Kind mit einer Person geht, die kein Kind der Schule ist (z. B. Nachbarin)."
+                : "Mit welchem Kind das Kind an den Tagen „Mit anderem Kind“ nach Hause geht."}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

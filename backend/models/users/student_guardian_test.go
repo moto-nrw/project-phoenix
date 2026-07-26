@@ -74,6 +74,16 @@ func TestStudentGuardian_Validate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "normalizes guardian role",
+			sg: &StudentGuardian{
+				StudentID:         1,
+				GuardianProfileID: 2,
+				RelationshipType:  "parent",
+				GuardianRole:      " Legal_Guardian ",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -86,6 +96,12 @@ func TestStudentGuardian_Validate(t *testing.T) {
 			// Check normalization of relationship type
 			if tt.name == "normalize relationship type to lowercase" && tt.sg.RelationshipType != "parent" {
 				t.Errorf("StudentGuardian.Validate() failed to normalize relationship type, got %v", tt.sg.RelationshipType)
+			}
+			if err == nil && tt.sg.GuardianRole == "" {
+				t.Error("StudentGuardian.Validate() left guardian role empty")
+			}
+			if tt.name == "normalizes guardian role" && tt.sg.GuardianRole != "legal_guardian" {
+				t.Errorf("StudentGuardian.Validate() guardian role = %q, want legal_guardian", tt.sg.GuardianRole)
 			}
 		})
 	}

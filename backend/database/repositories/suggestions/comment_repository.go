@@ -159,21 +159,3 @@ func (r *CommentRepository) Delete(ctx context.Context, id int64) error {
 
 	return nil
 }
-
-// CountByPostID counts non-deleted comments for a post
-func (r *CommentRepository) CountByPostID(ctx context.Context, postID int64) (int, error) {
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		ModelTableExpr(tableSuggestionsCommentsAlias).
-		Where(`"comment".post_id = ?`, postID).
-		Where(`"comment".deleted_at IS NULL`).
-		Count(ctx)
-
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count comments by post id",
-			Err: err,
-		}
-	}
-
-	return count, nil
-}

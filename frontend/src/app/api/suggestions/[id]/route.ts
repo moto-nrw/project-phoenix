@@ -1,12 +1,6 @@
 // app/api/suggestions/[id]/route.ts
-import type { NextRequest } from "next/server";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
-import {
-  createGetHandler,
-  createPutHandler,
-  createDeleteHandler,
-  isStringParam,
-} from "~/lib/route-wrapper.server";
+import { proxyDelete, proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface BackendSuggestionResponse {
   id: number;
@@ -21,62 +15,19 @@ interface BackendSuggestionResponse {
   updated_at: string;
 }
 
-interface BackendSingleResponse {
-  status: string;
-  data: BackendSuggestionResponse;
-}
-
 interface UpdateRequest {
   title: string;
   description: string;
 }
 
-export const GET = createGetHandler(
-  async (
-    _request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid suggestion ID");
-    }
-    const response = await apiGet<BackendSingleResponse>(
-      `/api/suggestions/${params.id}`,
-      token,
-    );
-    return response.data;
-  },
+export const GET = proxyGet<BackendSuggestionResponse>(
+  (params) => `/api/suggestions/${requirePathSegmentParam(params)}`,
 );
 
-export const PUT = createPutHandler<BackendSuggestionResponse, UpdateRequest>(
-  async (
-    _request: NextRequest,
-    body: UpdateRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid suggestion ID");
-    }
-    const response = await apiPut<BackendSingleResponse>(
-      `/api/suggestions/${params.id}`,
-      token,
-      body,
-    );
-    return response.data;
-  },
+export const PUT = proxyPut<BackendSuggestionResponse, UpdateRequest>(
+  (params) => `/api/suggestions/${requirePathSegmentParam(params)}`,
 );
 
-export const DELETE = createDeleteHandler(
-  async (
-    _request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid suggestion ID");
-    }
-    await apiDelete(`/api/suggestions/${params.id}`, token);
-    return null;
-  },
+export const DELETE = proxyDelete(
+  (params) => `/api/suggestions/${requirePathSegmentParam(params)}`,
 );

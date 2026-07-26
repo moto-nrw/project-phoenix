@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, Loader2 } from "lucide-react";
 import { getSession } from "next-auth/react";
+import {
+  formatAttendanceSlotStatus,
+  type AttendanceSlotStatus,
+} from "~/lib/attendance-history-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentHistorieTab" });
@@ -30,6 +34,15 @@ interface AttendanceHistoryDay {
   attendance: AttendanceDayRecord | null;
   room_detail_available: boolean;
   visits: AttendanceVisitEntry[];
+  slots?: Array<{
+    instance_id: string;
+    title: string;
+    start_time: string;
+    end_time: string;
+    status: AttendanceSlotStatus;
+    substatus?: string | null;
+    is_unplanned: boolean;
+  }>;
 }
 
 interface AttendanceHistoryResponse {
@@ -51,6 +64,7 @@ function formatDateLabel(isoDate: string): string {
   const date = new Date(`${isoDate}T00:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
   return date.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
@@ -62,6 +76,7 @@ function formatTime(isoString: string): string {
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleTimeString("de-DE", {
+    timeZone: "Europe/Berlin",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -108,8 +123,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
         );
       }
       const payload = (await response.json()) as
-        | { data: AttendanceHistoryResponse }
-        | AttendanceHistoryResponse;
+        { data: AttendanceHistoryResponse } | AttendanceHistoryResponse;
       const data =
         "data" in payload && payload.data
           ? payload.data
@@ -174,7 +188,9 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   }
 
   const { data } = state;
-  const daysWithData = data.days.filter((day) => day.attendance !== null);
+  const daysWithData = data.days.filter(
+    (day) => day.attendance !== null || (day.slots?.length ?? 0) > 0,
+  );
 
   return (
     <div className="space-y-3">
@@ -218,6 +234,28 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
                     : null}
                 </div>
               </div>
+              {(day.slots?.length ?? 0) > 0 ? (
+                <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+                  {day.slots?.map((slot) => (
+                    <li
+                      key={slot.instance_id}
+                      className="flex items-center justify-between text-xs text-gray-600"
+                    >
+                      <span>
+                        {slot.title}
+                        {slot.is_unplanned ? " · ungeplant" : ""}
+                      </span>
+                      <span>
+                        {slot.start_time}–{slot.end_time} ·{" "}
+                        {formatAttendanceSlotStatus(
+                          slot.status,
+                          slot.substatus,
+                        ).toLocaleLowerCase("de-DE")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {day.room_detail_available && day.visits.length > 0 ? (
                 <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
                   {day.visits.map((visit, index) => (

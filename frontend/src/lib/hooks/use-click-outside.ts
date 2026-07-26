@@ -39,7 +39,7 @@ export function useClickOutside<T extends HTMLElement>(
     };
 
     document.addEventListener("mousedown", handlePointer);
-    document.addEventListener("touchstart", handlePointer);
+    document.addEventListener("touchstart", handlePointer, { passive: true });
     document.addEventListener("keydown", handleKey);
 
     return () => {

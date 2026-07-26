@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { apiPost, handleApiError } from "~/lib/api-helpers.server";
 
-export async function POST(
+async function POSTHandler(
   request: NextRequest,
   context: { params: Promise<Record<string, string | string[] | undefined>> },
 ) {
@@ -38,3 +39,5 @@ export async function POST(
     return handleApiError(error);
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

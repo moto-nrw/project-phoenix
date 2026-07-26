@@ -1,19 +1,8 @@
 import type { BackendAnnouncementViewDetail } from "~/lib/operator/announcements-helpers";
-import {
-  createOperatorGetHandler,
-  operatorApiGet,
-  isStringParam,
-} from "~/lib/operator/route-wrapper.server";
+import { proxyGet } from "~/lib/operator/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const GET = createOperatorGetHandler<BackendAnnouncementViewDetail[]>(
-  async (_request, token, params) => {
-    const id = params.id;
-    if (!isStringParam(id)) {
-      throw new Error("Invalid announcement ID");
-    }
-    return operatorApiGet<BackendAnnouncementViewDetail[]>(
-      `/operator/announcements/${id}/views`,
-      token,
-    );
-  },
+export const GET = proxyGet<BackendAnnouncementViewDetail[]>(
+  (params) =>
+    `/operator/announcements/${requirePathSegmentParam(params)}/views`,
 );

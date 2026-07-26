@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -75,6 +76,21 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 	assert.Equal(t, "2018-03-04", out.Children[0].DateOfBirth, "DOB rendered as YYYY-MM-DD")
 	assert.Equal(t, "submitted", out.Children[0].Status)
 	assert.Equal(t, "auto", out.Children[0].ActivationMode)
+}
+
+func TestToAdminRequestSummary_DoesNotExposeStatusToken(t *testing.T) {
+	req := mkRequest(1234, 5678)
+	req.StatusToken = "token-abc"
+
+	out := toAdminRequestSummary(&enrollmentService.RequestSummary{
+		Request:  req,
+		Children: []*enrollmentModels.RequestChild{},
+	})
+	raw, err := json.Marshal(out)
+	require.NoError(t, err)
+	body := string(raw)
+	assert.NotContains(t, body, "status_token")
+	assert.NotContains(t, body, "token-abc")
 }
 
 func TestToAdminRequestSummary_NilPhaseLeavesPhaseNameEmpty(t *testing.T) {

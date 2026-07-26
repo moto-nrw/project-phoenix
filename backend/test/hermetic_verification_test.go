@@ -167,11 +167,15 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"invitations_test.go",                                    // Uses mocks for handler tests
 		"error_helpers_test.go",                                  // Internal unit tests for helper functions (no DB)
 		"api/iot/api_test.go",                                    // Uses mock SchoolRepo for unit testing handler
-		"api/iot/common/errors_test.go",                          // Pure JSON-marshal regression tests for error renderers; int64 literals are throwaway IDs, not DB rows
+		"api/iot/checkin/capacity_errors_test.go",                // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
+		"api/iot/checkin/wire_format_test.go",                    // Pure render-to-recorder wire goldens (issue #575 B0, ex api/iot/common); int64 literals are throwaway IDs, not DB rows
+		"services/iot/checkin/checkin_pure_test.go",              // Pure/stub CheckinService unit tests (issue #575 B8); int64 literals are throwaway IDs in stack-allocated structs, not DB rows
 		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
 		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
 		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
+		"api/timetable/closing_days_test.go",                     // Uses mock ClosingDayService for unit testing handlers; int64 literals are fake IDs, not DB rows
 		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
+		"api/timetable/understaffed_test.go",                     // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
 		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler
 		"services/schedule/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
 		"services/schedule/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)
@@ -180,7 +184,6 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/config/sideeffects/registry_test.go",           // Pure registry unit test; tenant IDs are pass-through arguments, not DB rows
 		"services/facilities/settings_sideeffects_test.go",       // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
 		"api/config/settings_broadcast_test.go",                  // Pure unit test for scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
-		"api/operator/settings_broadcast_test.go",                // Pure unit test for the operator-side scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
 		"api/students/response_helpers_test.go",                  // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
 		"auth/authorize/student_access_test.go",                  // Pure-logic tests against stub user-context + settings; int64 literals are fake group IDs in stack-allocated structs (no DB)
 		"api/students/photo_error_mappers_test.go",               // Table-driven mapper tests with httptest.NewRecorder; no DB
@@ -189,6 +192,8 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/common/trusted_device_dto_test.go",                  // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
 		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
 		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
+		"guardian_related_accounts_errors_test.go",               // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
+		"services/parentmessaging/parentmessaging_test.go",       // Pure unit tests for the messaging core against narrow fakes (no DB); int64 literals are in-memory sentinel IDs (thread/account/ref), not DB rows
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -294,8 +299,15 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupTestContext",               // Indirect setup via shared helper (calls SetupAPITest)
 		"newScenario",                    // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",              // services/enrollment rollover integration tests — wraps SetupTestDB
+		"setupDecisionTest",              // services/enrollment decision integration tests — wraps setupRolloverTest
+		"setupCareTest",                  // services/enrollment care-offering integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
+		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
 		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
+		"makeMoveSetup",                  // services/schedule staff-pool/move tests (#1884) — wraps SetupTestDB
+		"buildDevSetup",                  // api/timetable deviations/protocol tests — wraps SetupTestDB
+		"setupCheckinServiceTest",        // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
+		"setupAbsenceAdminTest",          // api/staff absence question tests (#1419) — wraps setupTestContext
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)
@@ -327,11 +339,14 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		normalizedPath := filepath.ToSlash(path)
 		skipFiles := []string{
 			"http_middleware_test.go",                           // Uses nil *bun.DB for unit testing middleware
+			"parent_message_hooks_test.go",                      // Pure base.Model accessor unit test; no real DB
+			"parent_announcement_model_test.go",                 // Pure validator/derivation unit tests; no real DB
 			"role_management_internal_test.go",                  // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
 			"database/repositories/schedule/created_by_test.go", // Shared fixture helper; caller tests own DB setup
 			"test/architecture_ratchet_test.go",                 // Source-scanning ratchet; regex literals look like DB ops but no DB is used
 			"test/handler_layer_ratchet_test.go",                // Source-scanning ratchet (issue #584); same as above, no DB is used
 			"api/timetable/timetable_data_test_helpers_test.go", // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
+			"services/messaging/apply_export_internal_test.go",  // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
 		}
 		skip := false
 		for _, sf := range skipFiles {

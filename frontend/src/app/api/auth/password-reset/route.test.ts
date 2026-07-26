@@ -82,8 +82,6 @@ describe("POST /api/auth/password-reset", () => {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": "unknown",
-        "X-Forwarded-For": "unknown",
-        "X-Real-IP": "unknown",
       },
       body: JSON.stringify(requestBody),
     });

@@ -1,6 +1,7 @@
 package defaults
 
 import (
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
@@ -51,11 +52,7 @@ func registerEnrollmentMaster() {
 }
 
 func registerEnrollmentForm() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	// enrollment.open_window_start / end were tenant-wide tunables in
 	// the pre-phase model. Phases now own the open/close window per
@@ -75,6 +72,31 @@ func registerEnrollmentForm() {
 		DependsOn:       dependsOnEnabled,
 	})
 
+	// Concrete-class collection (issue #1833). When on, the public form
+	// asks for the concrete future class (e.g. "2a") in addition to the
+	// grade level, but only from grade 2 upwards - grade 1 stays
+	// grade-level only. The pick list and whether it is mandatory are
+	// configured per phase (enrollment.phases.available_school_classes /
+	// require_school_class), not here. Nested under the grade-level
+	// toggle because the flow keys off the chosen grade.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentCollectSchoolClass,
+		Label:           "Konkrete Klasse abfragen (ab Klasse 2)",
+		Description:     "Zusätzlich zur Klassenstufe wird ab der 2. Klasse die konkrete Klasse (z.B. 2a) abgefragt. Die auswählbaren Klassen und ob die Angabe verpflichtend ist, werden je Anmeldephase festgelegt. Für die 1. Klasse wird weiterhin nur die Klassenstufe erfasst.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "formular",
+		SortOrder:       21,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyEnrollmentCollectGradeLevel,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentAllowSubmissionEdit,
 		Label:           "Bearbeitung durch Eltern erlauben",
@@ -91,11 +113,7 @@ func registerEnrollmentForm() {
 }
 
 func registerEnrollmentCareOfferings() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentCareOfferingsEnabled,
 		Label:           "Betreuungsangebote anbieten",
@@ -116,11 +134,7 @@ func registerEnrollmentCareOfferings() {
 }
 
 func registerEnrollmentNotifications() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentNotificationEmails,
@@ -156,17 +170,27 @@ func registerEnrollmentNotifications() {
 		},
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentChangeRequestEmailNotificationsEnabled,
+		Label:           "E-Mails zu Änderungsanfragen",
+		Description:     "Sendet zusätzliche E-Mails, wenn Eltern nach Prüfungsbeginn eine Änderungsanfrage einreichen, beantworten oder wenn die Verwaltung dazu Rückfragen, Zusagen oder Ablehnungen sendet.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "benachrichtigung",
+		SortOrder:       42,
+		DependsOn:       dependsOnEnabled,
+	})
+
 	// enrollment.show_status_reason_to_parent moved to per-phase column -
 	// each phase decides whether parents see admin-provided reason
 	// strings on the status page.
 }
 
 func registerEnrollmentSafety() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	config.Register(config.Definition{
 		Key:         config.KeyEnrollmentRequireCaptcha,
@@ -206,8 +230,6 @@ func registerEnrollmentSafety() {
 		},
 	})
 
-	minRetention := float64(7)
-	maxRetention := float64(730)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentRejectedRetentionDays,
 		Label:           "Aufbewahrung abgelehnter Anmeldungen (Tage)",
@@ -219,7 +241,7 @@ func registerEnrollmentSafety() {
 		Tab:             "enrollment",
 		Category:        "sicherheit",
 		SortOrder:       52,
-		Validation:      &config.ValidationRules{Min: &minRetention, Max: &maxRetention},
+		Validation:      config.Range(7, 730),
 		DependsOn:       dependsOnEnabled,
 	})
 
@@ -239,11 +261,7 @@ func registerEnrollmentSafety() {
 }
 
 func registerEnrollmentLifecycle() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentDefaultActivationMode,
@@ -281,8 +299,6 @@ func registerEnrollmentLifecycle() {
 }
 
 func registerEnrollmentSystem() {
-	minAttempts := float64(1)
-	maxAttempts := float64(20)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentOutboxMaxAttempts,
 		Label:           "E-Mail-Versand: maximale Versuche",
@@ -294,12 +310,10 @@ func registerEnrollmentSystem() {
 		Tab:             "system",
 		Category:        "anmeldung",
 		SortOrder:       70,
-		Validation:      &config.ValidationRules{Min: &minAttempts, Max: &maxAttempts},
+		Validation:      config.Range(1, 20),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minWorkerInterval := float64(10)
-	maxWorkerInterval := float64(600)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentOutboxWorkerIntervalSeconds,
 		Label:           "E-Mail-Versand: Worker-Intervall (Sekunden)",
@@ -311,12 +325,10 @@ func registerEnrollmentSystem() {
 		Tab:             "system",
 		Category:        "anmeldung",
 		SortOrder:       72,
-		Validation:      &config.ValidationRules{Min: &minWorkerInterval, Max: &maxWorkerInterval},
+		Validation:      config.Range(10, 600),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minTokenTTL := float64(7)
-	maxTokenTTL := float64(1825)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentStatusTokenTTLDays,
 		Label:           "Status-Link Gültigkeit (Tage)",
@@ -328,7 +340,7 @@ func registerEnrollmentSystem() {
 		Tab:             "system",
 		Category:        "anmeldung",
 		SortOrder:       71,
-		Validation:      &config.ValidationRules{Min: &minTokenTTL, Max: &maxTokenTTL},
+		Validation:      config.Range(7, 1825),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 }
@@ -337,11 +349,7 @@ func registerEnrollmentSystem() {
 // grade-level cap, care-offering overflow mode. These are consumed by
 // the public submission flow.
 func registerEnrollmentPublicForm() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	// Captcha site key - public, tenant-scoped. Embedded in the
 	// public form HTML so the parent's browser can challenge.
@@ -379,25 +387,19 @@ func registerEnrollmentPublicForm() {
 
 	// Grade level cap on the public form. Default 4 (OGS norm); a
 	// Gymnasium can extend up to 13.
-	minGrade := float64(1)
-	maxGrade := float64(13)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentGradeLevelMax,
 		Label:           "Höchste Klassenstufe im Formular",
 		Description:     "Eltern können Klassenstufen 1 bis zu diesem Wert auswählen. Standard ist 4 (OGS-Schuljahre 1-4); Schulen mit weiterführenden Stufen erhöhen den Wert entsprechend.",
 		Type:            config.FieldNumber,
-		Default:         4,
+		Default:         schoolclass.DefaultGradeLevelMax,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "enrollment",
 		Category:        "formular",
 		SortOrder:       22,
-		Validation:      &config.ValidationRules{Min: &minGrade, Max: &maxGrade},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyEnrollmentCollectGradeLevel,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(schoolclass.MinGradeLevel, schoolclass.MaxGradeLevel),
+		DependsOn:       config.DependsOnEq(config.KeyEnrollmentCollectGradeLevel, true),
 	})
 
 	// enrollment.care_overflow_mode moved to per-phase column - each
@@ -414,11 +416,7 @@ func registerEnrollmentPublicForm() {
 // legally binding documents with GDPR implications, so they sit at the
 // same permission level as the other security/GDPR enrollment settings.
 func registerEnrollmentLegalTexts() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalTermsEnabled,
@@ -437,7 +435,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalAGBText,
 		Label:           "AGB-Text (Anmeldeformular)",
-		Description:     "Allgemeine Geschäftsbedingungen, Teilnahmebedingungen oder Ganztag Info-Brief, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
+		Description:     "Lege fest, ob Eltern die AGB als Text im Formular lesen oder als PDF öffnen. Über „AGB überarbeiten“ kannst du die Quelle wechseln, den Text bearbeiten oder die PDF-Datei austauschen. Wenn „Text eingeben“ gewählt ist, wird dieser Text im Formular angezeigt.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -446,6 +444,40 @@ func registerEnrollmentLegalTexts() {
 		Category:        "rechtstexte",
 		SortOrder:       80,
 		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalAGBDocumentURL,
+		Label:           "AGB-Datei (Anmeldeformular)",
+		Description:     "Öffentlich abrufbare PDF-Datei mit AGB, Teilnahmebedingungen oder Ganztag Info-Brief. Wird angezeigt, wenn als Quelle PDF gewählt ist.",
+		Type:            config.FieldText,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       80,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalAGBDisplayMode,
+		Label:           "AGB-Quelle (Anmeldeformular)",
+		Description:     "Legt fest, ob im Anmeldeformular der eingegebene AGB-Text oder ein PDF-Link angezeigt wird.",
+		Type:            config.FieldSelect,
+		Default:         config.EnrollmentLegalAGBDisplayModeText,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       80,
+		DependsOn:       dependsOnEnabled,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Text eingeben", Value: config.EnrollmentLegalAGBDisplayModeText},
+				{Label: "PDF-Datei hochladen", Value: config.EnrollmentLegalAGBDisplayModePDF},
+			},
+		},
 	})
 
 	config.Register(config.Definition{

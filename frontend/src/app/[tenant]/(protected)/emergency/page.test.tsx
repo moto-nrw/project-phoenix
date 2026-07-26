@@ -33,7 +33,11 @@ vi.mock("~/components/ui/button", () => ({
     loadingText?: string;
     [key: string]: unknown;
   }) => (
-    <button {...props} disabled={Boolean(props.disabled) || isLoading}>
+    <button
+      type="button"
+      {...props}
+      disabled={Boolean(props.disabled) || isLoading}
+    >
       {isLoading ? loadingText : children}
     </button>
   ),

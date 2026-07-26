@@ -21,6 +21,7 @@ package active_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -292,6 +293,38 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 	assert.False(t, result.Timestamp.IsZero())
 }
 
+// TestToggleStudentAttendance_CheckInWithZeroStaffID verifies that a
+// device-authenticated legacy kiosk can record attendance without claiming an
+// unverified staff identity.
+func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DeviceOnly", "CheckIn", "4d")
+	testDevice := testpkg.CreateTestDevice(t, db, "toggle-device-without-staff")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, testDevice.ID)
+
+	result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_in", result.Action)
+	assert.Equal(t, student.ID, result.StudentID)
+	assert.NotZero(t, result.AttendanceID)
+
+	var checkedInBy sql.NullInt64
+	err = db.NewSelect().
+		TableExpr(`active.attendance`).
+		Column("checked_in_by").
+		Where("id = ?", result.AttendanceID).
+		Scan(ctx, &checkedInBy)
+	require.NoError(t, err)
+	assert.False(t, checkedInBy.Valid, "device-attributed check-in must not claim a staff identity")
+}
+
 // TestToggleStudentAttendance_CheckOut tests checking out a student who is checked in.
 func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
@@ -467,6 +500,19 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 		// ASSERT: No error but no access (teacher exists but not assigned to student's group)
 		require.NoError(t, err)
 		assert.False(t, hasAccess, "Expected no access when teacher not in student's group")
+	})
+
+	t.Run("returns false for non-existent student", func(t *testing.T) {
+		// ARRANGE: Create a teacher so the check reaches the student lookup.
+		teacher := testpkg.CreateTestTeacher(t, db, "MissingStudent", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID)
+
+		// ACT
+		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, 999999999)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.False(t, hasAccess, "Missing students must be treated as an authorization miss")
 	})
 
 	t.Run("returns false for student with nil group ID", func(t *testing.T) {
@@ -954,6 +1000,86 @@ func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 	assert.NotNil(t, status.CheckOutTime)
 }
 
+func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "device-checkout-activity")
+	room := testpkg.CreateTestRoom(t, db, "Device Checkout Room")
+	device := testpkg.CreateTestDevice(t, db, "device-checkout-supervisor")
+	student := testpkg.CreateTestStudent(t, db, "Device", "Checkout", "5h")
+	staff := testpkg.CreateTestStaff(t, db, "Device", "Supervisor")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, student.ID, staff.ID)
+
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	_, err := db.NewUpdate().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Set("device_id = ?", device.ID).
+		Where("id = ?", activeGroup.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
+
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, device.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+	assert.Equal(t, open.ID, result.AttendanceID)
+
+	var row active.Attendance
+	err = db.NewSelect().
+		Model(&row).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".id = ?`, open.ID).
+		Scan(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, row.CheckOutTime)
+	require.NotNil(t, row.CheckedOutBy)
+	assert.Equal(t, staff.ID, *row.CheckedOutBy)
+}
+
+func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	device := testpkg.CreateTestDevice(t, db, "device-checkout-no-supervisor")
+	student := testpkg.CreateTestStudent(t, db, "Device", "NoSupervisor", "5i")
+	staff := testpkg.CreateTestStaff(t, db, "Device", "CheckInOnly")
+	defer testpkg.CleanupActivityFixtures(t, db, device.ID, student.ID, staff.ID)
+
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, device.ID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "device must have an active group")
+
+	var row active.Attendance
+	err = db.NewSelect().
+		Model(&row).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".id = ?`, open.ID).
+		Scan(context.Background())
+	require.NoError(t, err)
+	assert.Nil(t, row.CheckOutTime)
+	assert.Nil(t, row.CheckedOutBy)
+}
+
 // TestCheckOutStudent_NoOpenRow_IsIdempotent guards the state-checked UPDATE
 // path: when nothing is open (already checked out, or never checked in), the
 // service still returns Action="checked_out" with no error. This is the key
@@ -1121,4 +1247,54 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 	endedVisit, err := service.GetVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, endedVisit.ExitTime, "toggle checkout must end the open visit")
+}
+
+// TestConfirmDailyCheckout_NoAttendanceRecord verifies that confirming a daily
+// checkout for a student without today's attendance record returns the
+// wire-contract sentinel error.
+func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "NoRecord", "7a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	result, err := service.ConfirmDailyCheckout(ctx, student.ID, 0, "zuhause")
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, activeService.ErrNoAttendanceRecordForCheckout)
+	assert.Nil(t, result)
+}
+
+// TestConfirmDailyCheckout_Unterwegs verifies that an "unterwegs" confirmation
+// for a checked-in student leaves attendance untouched and reports the
+// "checked_out" transit action.
+func TestConfirmDailyCheckout_Unterwegs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "Unterwegs", "7b")
+	staff := testpkg.CreateTestStaff(t, db, "DailyCheckout", "Supervisor")
+	device := testpkg.CreateTestDevice(t, db, "daily-checkout-device-001")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+	result, err := service.ConfirmDailyCheckout(ctx, student.ID, device.ID, "unterwegs")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+
+	// Attendance must remain checked in — "unterwegs" performs no write.
+	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "checked_in", status.Status)
 }

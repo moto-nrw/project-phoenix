@@ -3,7 +3,6 @@ package education
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -15,11 +14,6 @@ type GradeTransitionMapping struct {
 	TransitionID int64   `bun:"transition_id,notnull" json:"transition_id"`
 	FromClass    string  `bun:"from_class,notnull" json:"from_class"`
 	ToClass      *string `bun:"to_class" json:"to_class,omitempty"` // NULL = graduate/delete
-}
-
-// TableName returns the database table name
-func (m *GradeTransitionMapping) TableName() string {
-	return "education.grade_transition_mappings"
 }
 
 // Validate ensures mapping data is valid
@@ -63,19 +57,4 @@ func (m *GradeTransitionMapping) GetAction() string {
 		return ActionGraduated
 	}
 	return ActionPromoted
-}
-
-// GetID returns the entity's ID
-func (m *GradeTransitionMapping) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *GradeTransitionMapping) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *GradeTransitionMapping) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

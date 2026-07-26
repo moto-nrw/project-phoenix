@@ -106,9 +106,8 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	}()
 
 	t.Run("include_pickup_times_returns_pickup_time_field", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?include_pickup_times=true&school_class=PT1&page_size=50", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
@@ -144,9 +143,8 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	})
 
 	t.Run("without_include_pickup_times_omits_field", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?school_class=PT1&page_size=50", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
 
@@ -208,9 +206,8 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 	}()
 
 	t.Run("include_arrival_times_returns_arrival_time_field", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?include_arrival_times=true&school_class=%s&page_size=50", schoolClass), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
@@ -244,9 +241,8 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 	})
 
 	t.Run("without_include_arrival_times_omits_field", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&page_size=50", schoolClass), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
 
@@ -306,11 +302,9 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 		nil,
 	)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
-
 	t.Run("returns_computed_day_planning_fields", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&page_size=50", schoolClass), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 		byID := decodeStudentsByID(t, rr.Body.Bytes())
@@ -328,7 +322,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 
 	t.Run("filters_comes_today_before_pagination", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&day_status=comes_today&page_size=1", schoolClass), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 		byID := decodeStudentsByID(t, rr.Body.Bytes())
@@ -339,7 +333,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 
 	t.Run("filters_actual_walk_in_as_comes_today_before_pagination", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&day_status=comes_today&page_size=2", schoolClass), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 		byID := decodeStudentsByID(t, rr.Body.Bytes())
@@ -350,7 +344,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 
 	t.Run("filters_not_coming_today", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&day_status=not_coming_today&page_size=50", schoolClass), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 		byID := decodeStudentsByID(t, rr.Body.Bytes())
@@ -372,34 +366,35 @@ func TestListStudents(t *testing.T) {
 	// Create test students using fixtures
 	student1 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentOne", "1a")
 	student2 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentTwo", "1b")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
-
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
+	student3 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentEleven", "11a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID, student3.ID)
 
 	t.Run("success_admin_lists_all_students", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
 
 	t.Run("success_with_pagination", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?page=1&page_size=10", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("success_with_school_class_filter", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?school_class=1a", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "StudentOne")
+		assert.NotContains(t, rr.Body.String(), "StudentEleven")
 	})
 
 	t.Run("success_with_search_filter", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?search=List", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -411,18 +406,16 @@ func TestListStudents_WithLocationFilter(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Filter", "LF1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
-
 	t.Run("filter_by_in_house", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?location=in_house", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("filter_by_absent", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?location=absent", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -435,20 +428,18 @@ func TestListStudents_WithNameFilters(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("filter_by_first_name", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?first_name=NameFilter", nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "NameFilter")
 	})
 
 	t.Run("filter_by_last_name", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?last_name=Test", nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -464,29 +455,26 @@ func TestListStudents_ExtendedFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroup")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?group_id=%d", group.ID), nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("invalid_page_size", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?page_size=invalid", nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		// Invalid page_size should return bad request or be ignored
 		assert.Contains(t, []int{http.StatusOK, http.StatusBadRequest}, rr.Code)
 	})
 
 	t.Run("negative_page", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?page=-1", nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		// Negative page should return bad request or default to 1
 		assert.Contains(t, []int{http.StatusOK, http.StatusBadRequest}, rr.Code)
@@ -503,11 +491,9 @@ func TestGetStudent(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Get", "Student", "GS1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.GetStudentHandler(), "id")
-
 	t.Run("success_admin_gets_student", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "Get")
@@ -515,14 +501,14 @@ func TestGetStudent(t *testing.T) {
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/999999", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/invalid", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -535,8 +521,6 @@ func TestGetStudent(t *testing.T) {
 func TestCreateStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	t.Run("success_creates_student", func(t *testing.T) {
 		body := map[string]interface{}{
 			"first_name":   "New",
@@ -544,24 +528,34 @@ func TestCreateStudent(t *testing.T) {
 			"school_class": "2a",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 	})
 
 	t.Run("success_creates_student_with_optional_fields", func(t *testing.T) {
 		body := map[string]interface{}{
-			"first_name":     "Optional",
-			"last_name":      "Fields",
-			"school_class":   "2b",
-			"birthday":       "2015-06-15",
-			"guardian_name":  "Parent Name",
-			"guardian_email": "parent@example.com",
+			"first_name":          "Optional",
+			"last_name":           "Fields",
+			"school_class":        "2b",
+			"birthday":            "2015-06-15",
+			"guardian_name":       "Parent Name",
+			"guardian_email":      "parent@example.com",
+			"address_street":      "Musterstraße 12",
+			"address_city":        "Köln",
+			"address_postal_code": "50667",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusCreated, rr.Code)
+		require.Equal(t, http.StatusCreated, rr.Code)
+		var resp struct {
+			Data students.StudentResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.Equal(t, "Musterstraße 12", resp.Data.AddressStreet)
+		assert.Equal(t, "Köln", resp.Data.AddressCity)
+		assert.Equal(t, "50667", resp.Data.AddressPostalCode)
 	})
 
 	t.Run("success_creates_student_with_bus_days", func(t *testing.T) {
@@ -577,7 +571,7 @@ func TestCreateStudent(t *testing.T) {
 			},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
@@ -604,7 +598,7 @@ func TestCreateStudent(t *testing.T) {
 			},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusCreated, rr.Code, "Body: %s", rr.Body.String())
 
@@ -629,7 +623,7 @@ func TestCreateStudent(t *testing.T) {
 			"departure_days": map[string]string{"mon": "taxi"},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "taxi")
@@ -641,7 +635,7 @@ func TestCreateStudent(t *testing.T) {
 			"school_class": "2c",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -652,7 +646,7 @@ func TestCreateStudent(t *testing.T) {
 			"school_class": "2c",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -663,7 +657,7 @@ func TestCreateStudent(t *testing.T) {
 			"last_name":  "Student",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -676,7 +670,7 @@ func TestCreateStudent(t *testing.T) {
 			"birthday":     "not-a-date",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		// Invalid birthday format should fail
 		assert.NotEqual(t, http.StatusCreated, rr.Code)
@@ -692,7 +686,7 @@ func TestCreateStudent(t *testing.T) {
 			},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "sat")
@@ -715,8 +709,6 @@ func TestCreateStudent_WithGroupID(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CreateGroup")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	t.Run("creates_student_with_group", func(t *testing.T) {
 		body := map[string]interface{}{
 			"first_name":   "WithGroup",
@@ -725,7 +717,7 @@ func TestCreateStudent_WithGroupID(t *testing.T) {
 			"group_id":     group.ID,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
@@ -738,7 +730,6 @@ func TestCreateStudent_WithAllOptionalFields(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "FullCreateGroup")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{
 			"first_name":       "Full",
 			"last_name":        "Create",
@@ -756,7 +747,7 @@ func TestCreateStudent_WithAllOptionalFields(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Should create student. Body: %s", rr.Body.String())
 	})
@@ -772,14 +763,12 @@ func TestUpdateStudent(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Update", "Student", "US1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 	t.Run("success_updates_student", func(t *testing.T) {
 		body := map[string]interface{}{
 			"first_name": "Updated",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "Updated")
@@ -792,7 +781,7 @@ func TestUpdateStudent(t *testing.T) {
 			"school_class": "4a",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -802,7 +791,7 @@ func TestUpdateStudent(t *testing.T) {
 			"first_name": "NotFound",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", "/999999", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -812,7 +801,7 @@ func TestUpdateStudent(t *testing.T) {
 			"first_name": "",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -824,14 +813,12 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 	t.Run("update_guardian_name", func(t *testing.T) {
 		body := map[string]interface{}{
 			"guardian_name": "New Guardian",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -841,7 +828,7 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 			"guardian_email": "guardian@example.com",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -851,7 +838,7 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 			"guardian_phone": "+49123456789",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -863,14 +850,12 @@ func TestUpdateStudent_WithSickStatus(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SS1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 	t.Run("mark_as_sick", func(t *testing.T) {
 		body := map[string]interface{}{
 			"sick": true,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), `"sick":true`)
@@ -881,7 +866,7 @@ func TestUpdateStudent_WithSickStatus(t *testing.T) {
 			"sick": false,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -894,14 +879,12 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "SickSince", "Student", "SS2")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 		// Mark as sick
 		body := map[string]interface{}{
 			"sick": true,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Should mark student as sick")
 		assert.Contains(t, rr.Body.String(), `"sick":true`)
@@ -911,14 +894,12 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ClearSick", "Student", "CS1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 		// First mark as sick
 		sickBody := map[string]interface{}{
 			"sick": true,
 		}
 		sickReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), sickBody)
-		sickRR := executeWithAuth(router, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		sickRR := authExec(t, tc, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 		assert.Equal(t, http.StatusOK, sickRR.Code)
 
 		// Then clear sick status
@@ -926,7 +907,7 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 			"sick": false,
 		}
 		clearReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), clearBody)
-		clearRR := executeWithAuth(router, clearReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		clearRR := authExec(t, tc, clearReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, clearRR.Code, "Should clear sick status")
 		assert.Contains(t, clearRR.Body.String(), `"sick":false`)
@@ -950,34 +931,32 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Status", "ES1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-		eventCount := len(tc.broadcaster.events)
+		eventCount := len(tc.broadcaster.Events())
 
 		body := map[string]interface{}{"excused": true}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), `"excused":true`)
 		assert.Contains(t, rr.Body.String(), `"excused_since"`)
-		require.Len(t, tc.broadcaster.events, eventCount+1)
-		assert.Equal(t, "student_updated", string(tc.broadcaster.events[eventCount].Type))
+		events := tc.broadcaster.Events()
+		require.Len(t, events, eventCount+1)
+		assert.Equal(t, "student_updated", string(events[eventCount].Type))
 	})
 
 	t.Run("clear_excused_clears_excused_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ClearExcused", "Student", "EC1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 		setReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
 			map[string]interface{}{"excused": true})
-		setRR := executeWithAuth(router, setReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		setRR := authExec(t, tc, setReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 		assert.Equal(t, http.StatusOK, setRR.Code)
 
 		clearReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
 			map[string]interface{}{"excused": false})
-		clearRR := executeWithAuth(router, clearReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		clearRR := authExec(t, tc, clearReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, clearRR.Code)
 		assert.Contains(t, clearRR.Body.String(), `"excused":false`)
@@ -1003,11 +982,9 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Student", "MS1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 		body := map[string]interface{}{"sick": true, "excused": true}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusConflict, rr.Code,
 			"setting both sick and excused to true must return 409")
@@ -1019,18 +996,16 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Excused", "ME1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 		// Pre-state: excused = true
 		excReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
 			map[string]interface{}{"excused": true})
-		excRR := executeWithAuth(router, excReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		excRR := authExec(t, tc, excReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 		assert.Equal(t, http.StatusOK, excRR.Code)
 
 		// Attempt: set sick = true without clearing excused
 		sickReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
 			map[string]interface{}{"sick": true})
-		sickRR := executeWithAuth(router, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		sickRR := authExec(t, tc, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusConflict, sickRR.Code)
 		assert.Contains(t, sickRR.Body.String(), students.ErrCodeSickExcusedConflict)
@@ -1040,18 +1015,16 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Switch", "Student", "SW1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 		// Pre-state: sick = true
 		sickReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
 			map[string]interface{}{"sick": true})
-		sickRR := executeWithAuth(router, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		sickRR := authExec(t, tc, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 		assert.Equal(t, http.StatusOK, sickRR.Code)
 
 		// Switch: clear sick AND set excused in one request
 		switchReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
 			map[string]interface{}{"sick": false, "excused": true})
-		switchRR := executeWithAuth(router, switchReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		switchRR := authExec(t, tc, switchReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, switchRR.Code,
 			"simultaneous clear-one + set-other must be accepted")
@@ -1067,13 +1040,12 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Health", "Student", "HS1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"health_info": "Allergies: Peanuts",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1082,13 +1054,12 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Extra", "Student", "EX1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"extra_info": "Additional notes about the student",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1097,28 +1068,71 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Notes", "Student", "NS1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"supervisor_notes": "Supervisor observations",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("update_and_clear_child_address", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Address", "Student", "AS1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		body := map[string]interface{}{
+			"address_street":      "  Neue Straße 5  ",
+			"address_city":        "  Bonn  ",
+			"address_postal_code": "  53111  ",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		var resp struct {
+			Data students.StudentResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.Equal(t, "Neue Straße 5", resp.Data.AddressStreet)
+		assert.Equal(t, "Bonn", resp.Data.AddressCity)
+		assert.Equal(t, "53111", resp.Data.AddressPostalCode)
+
+		clearBody := map[string]interface{}{
+			"address_street":      "",
+			"address_city":        "",
+			"address_postal_code": "",
+		}
+		clearReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), clearBody)
+		clearRR := authExec(t, tc, clearReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, clearRR.Code, "Body: %s", clearRR.Body.String())
+		var clearResp struct {
+			Data students.StudentResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(clearRR.Body.Bytes(), &clearResp))
+		assert.Empty(t, clearResp.Data.AddressStreet)
+		assert.Empty(t, clearResp.Data.AddressCity)
+		assert.Empty(t, clearResp.Data.AddressPostalCode)
+
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
+		require.NoError(t, err)
+		assert.Nil(t, fresh.AddressStreet)
+		assert.Nil(t, fresh.AddressCity)
+		assert.Nil(t, fresh.AddressPostalCode)
 	})
 
 	t.Run("update_pickup_status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Pickup", "Student", "PU1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"pickup_status": "ready",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1127,14 +1141,13 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Bus", "Student", "BU1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		// Bus is a boolean flag, not a string
 		body := map[string]interface{}{
 			"bus": true,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1156,13 +1169,12 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 			Exec(testpkg.TenantContext(1))
 		require.NoError(t, err)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"bus": true,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
 		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
@@ -1180,7 +1192,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "BusDays", "Replace", "BDR1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"bus_days": map[string]bool{
 				"tue": true,
@@ -1189,7 +1200,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
 		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
@@ -1209,14 +1220,13 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		// Seed an existing bus plan, then replace it via the unified field.
 		seed := map[string]interface{}{"bus_days": map[string]bool{"mon": true}}
 		seedReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), seed)
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-		require.Equal(t, http.StatusOK, executeWithAuth(router, seedReq, testutil.AdminTestClaims(1), []string{"admin:*"}).Code)
+		require.Equal(t, http.StatusOK, authExec(t, tc, seedReq, testutil.AdminTestClaims(1), []string{"admin:*"}).Code)
 
 		body := map[string]interface{}{
 			"departure_days": map[string]string{"tue": "pickup", "thu": "bus"},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
@@ -1249,7 +1259,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 			Exec(testpkg.TenantContext(1))
 		require.NoError(t, err)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"bus_days": map[string]bool{
 				"sat": true,
@@ -1257,7 +1266,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "sat")
@@ -1276,13 +1285,12 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Contact", "Student", "GC1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"guardian_contact": "Emergency: 0800-123456",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1295,13 +1303,12 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Original", "Last", "OL1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"last_name": "Updated",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "Updated")
@@ -1311,13 +1318,12 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Birthday", "Update", "BU2")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"birthday": "2015-06-15",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "2015-06-15")
@@ -1334,14 +1340,13 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 			"Parent Name", "parent@test.com", student.ID)
 		require.NoError(t, err)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		// Clear guardian name by setting empty string
 		body := map[string]interface{}{
 			"guardian_name": "",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1354,14 +1359,12 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 func TestDeleteStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
-
 	t.Run("success_deletes_student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Delete", "Me", "DM1")
 		// No cleanup needed - we're deleting
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		// Handler returns 200 OK with success message (not 204 NoContent)
 		assert.Equal(t, http.StatusOK, rr.Code)
@@ -1370,14 +1373,14 @@ func TestDeleteStudent(t *testing.T) {
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
 		req := testutil.NewRequest("DELETE", "/999999", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
 		req := testutil.NewRequest("DELETE", "/invalid", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1390,13 +1393,11 @@ func TestDeleteStudent(t *testing.T) {
 func TestStudentRequestValidation(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	t.Run("bind_validates_required_fields", func(t *testing.T) {
 		// Empty body should fail validation
 		body := map[string]interface{}{}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1421,11 +1422,10 @@ func TestRenderErrorCases(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("internal_server_error", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id")
 		// Request for student that doesn't exist to trigger error path
-		req := testutil.NewRequest("GET", "/999999", nil)
+		req := testutil.NewRequest("GET", "/999999/current-visit", nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		// Should return some error status
 		assert.NotEqual(t, http.StatusOK, rr.Code)
@@ -1453,11 +1453,10 @@ func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 
 		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 
-		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		// Admin sees full details including supervisors
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		// Should return student data with group
@@ -1481,19 +1480,18 @@ func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 
 		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, otherStaff.ID)
 
-		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		// Non-admin (supervisor of the group) sees student with supervisor contacts
 		claims := testutil.TeacherTestClaims(int(teacherAccount.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
 		// Also test with staff who has limited access - should see supervisor contacts
 		req2 := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 		claims2 := testutil.TeacherTestClaims(int(otherAccount.ID))
-		rr2 := executeWithAuth(router, req2, claims2, []string{"students:read"})
+		rr2 := authExec(t, tc, req2, claims2, []string{"users:read"})
 
 		// Staff can view student (read permission) but should see limited data with supervisor contacts
 		assert.Equal(t, http.StatusOK, rr2.Code, "Expected 200 OK. Body: %s", rr2.Body.String())
@@ -1511,7 +1509,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Update", "AllFields", "UAF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"first_name":  "NewFirst",
 			"last_name":   "NewLast",
@@ -1523,7 +1520,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "NewFirst")
@@ -1534,7 +1531,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"guardian_first_name": "GuardianFirst",
 			"guardian_last_name":  "GuardianLast",
@@ -1543,7 +1539,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -1552,7 +1548,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Student", "Specific", "SS2")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"school_class":        "2b",
 			"bus":                 true,
@@ -1563,7 +1558,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -1572,7 +1567,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SK1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"sick":       true,
 			"sick_since": "2024-01-15",
@@ -1580,7 +1574,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -1594,13 +1588,12 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		_, err := tc.db.ExecContext(ctx, "UPDATE users.students SET sick = true WHERE id = ?", student.ID)
 		require.NoError(t, err)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"sick": false,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -1614,7 +1607,6 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("create_with_all_optional_fields", func(t *testing.T) {
-		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{
 			"first_name":          "Complete",
 			"last_name":           "Student",
@@ -1636,7 +1628,7 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		if rr.Code == http.StatusCreated || rr.Code == http.StatusOK {
 			// Cleanup created student
@@ -1648,7 +1640,6 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "AssignGroup")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{
 			"first_name":   "Group",
 			"last_name":    "Assigned",
@@ -1657,7 +1648,7 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		if rr.Code == http.StatusCreated || rr.Code == http.StatusOK {
 			assert.Contains(t, rr.Body.String(), "Group")
@@ -1678,32 +1669,85 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID)
 
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?group_id=%d", group.ID), nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+
+	t.Run("filter_with_group_id_and_school_class", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroupClass")
+		matching := testpkg.CreateTestStudent(t, tc.db, "Filter", "MatchingClass", "FGC1")
+		other := testpkg.CreateTestStudent(t, tc.db, "Filter", "OtherClass", "FGC2")
+		testpkg.AssignStudentToGroup(t, tc.db, matching.ID, group.ID)
+		testpkg.AssignStudentToGroup(t, tc.db, other.ID, group.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, matching.ID, other.ID)
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?group_id=%d&school_class=FGC1&page_size=50", group.ID), nil)
+
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		var resp struct {
+			Data []struct {
+				ID          int64  `json:"id"`
+				SchoolClass string `json:"school_class"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		require.Len(t, resp.Data, 1)
+		assert.Equal(t, matching.ID, resp.Data[0].ID)
+		assert.Equal(t, "FGC1", resp.Data[0].SchoolClass)
 	})
 
 	t.Run("filter_combined_search_and_class", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Combined", "Filter", "CF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?search=Combined&school_class=CF1", nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("filter_with_large_page_size", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?page_size=100", nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
+}
+
+func TestListSchoolClasses(t *testing.T) {
+	tc := setupTestContext(t)
+	first := testpkg.CreateTestStudent(t, tc.db, "Class", "One", "DistinctClass1")
+	second := testpkg.CreateTestStudent(t, tc.db, "Class", "Two", "DistinctClass2")
+	duplicate := testpkg.CreateTestStudent(t, tc.db, "Class", "Duplicate", "DistinctClass1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, first.ID, second.ID, duplicate.ID)
+
+	req := testutil.NewRequest("GET", "/school-classes", nil)
+
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	var resp struct {
+		Data []string `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Contains(t, resp.Data, "DistinctClass1")
+	assert.Contains(t, resp.Data, "DistinctClass2")
+	assert.Equal(t, 1, countString(resp.Data, "DistinctClass1"))
+}
+
+func countString(values []string, needle string) int {
+	count := 0
+	for _, value := range values {
+		if value == needle {
+			count++
+		}
+	}
+	return count
 }

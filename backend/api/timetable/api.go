@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,12 +15,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -28,24 +31,63 @@ import (
 
 const dateLayout = "2006-01-02"
 
+const calendarPeriodRosterDeleteConflictMessage = "Kalenderzeitraum kann nicht gelöscht werden: " +
+	"Durch das Entfernen der Verknüpfungen würden doppelte aktive Kinder- oder Personalzuordnungen entstehen."
+
+const calendarPeriodCareOfferingConflictCode = "calendar_period_care_offering_conflict"
+
+const calendarPeriodOverlapConflictCode = "calendar_period_overlap_conflict"
+
+const (
+	calendarPeriodsLoadErrorMessage      = "Kalenderzeiträume konnten nicht geladen werden"
+	calendarPeriodUsageErrorMessage      = "Verwendung der Kalenderzeiträume konnte nicht geladen werden"
+	calendarPeriodCreateErrorMessage     = "Kalenderzeitraum konnte nicht erstellt werden"
+	calendarPeriodsBootstrapErrorMessage = "Kalenderzeiträume konnten nicht initialisiert werden"
+)
+
+var errCalendarPeriodCareOfferingConflict = errors.New(
+	"der Kalenderzeitraum wird von einem verknüpften Betreuungsangebot benötigt; bitte zuerst das Angebot oder den Regeltermin anpassen",
+)
+
+var errCalendarPeriodOverlapConflict = errors.New(
+	"es besteht bereits ein aktiver Zeitraum desselben Typs im gewählten Zeitraum; bitte Datum, Typ oder Aktiv-Status anpassen",
+)
+
+// calendarPeriodOverlapRenderer builds the 409 payload for the hard same-type
+// overlap rule. When the service exposes the conflicting periods, the message
+// names the first one (mirroring the advisory warning wording) and the
+// details carry all IDs/names; a bare sentinel keeps the static text.
+func calendarPeriodOverlapRenderer(err error) render.Renderer {
+	var overlapErr *schedule.CalendarPeriodOverlapError
+	if !errors.As(err, &overlapErr) || len(overlapErr.Overlaps) == 0 {
+		return common.ErrorConflictWithCode(errCalendarPeriodOverlapConflict, calendarPeriodOverlapConflictCode)
+	}
+	first := overlapErr.Overlaps[0]
+	ids := make([]int64, 0, len(overlapErr.Overlaps))
+	names := make([]string, 0, len(overlapErr.Overlaps))
+	for _, o := range overlapErr.Overlaps {
+		ids = append(ids, o.ID)
+		names = append(names, o.Name)
+	}
+	message := fmt.Errorf(
+		"es besteht bereits ein aktiver Zeitraum desselben Typs: „%s“ (%s – %s); bitte Datum, Typ oder Aktiv-Status anpassen",
+		first.Name,
+		first.StartDate.Format(germanDateLayout),
+		first.EndDate.Format(germanDateLayout),
+	)
+	return common.ErrorConflictWithDetails(message, calendarPeriodOverlapConflictCode, map[string]any{
+		"overlapping_period_ids":   ids,
+		"overlapping_period_names": names,
+	})
+}
+
 // Resource defines the timetable API resource.
 //
 // Optional services may be nil in tests that only exercise a subset of routes
 // — the dependent handler will return 500 instead of panicking. Production
 // wiring must populate every field.
 type Resource struct {
-	calendarPeriodService  scheduleSvc.CalendarPeriodService
-	materializationService scheduleSvc.MaterializationService
-	instanceService        scheduleSvc.InstanceService
-	operationsService      scheduleSvc.TimetableOperationsService
-	templateSplitService   scheduleSvc.TemplateSplitService
-	personService          userSvc.PersonService
-	timetableData          scheduleSvc.TimetableDataService
-	userContextService     usercontextSvc.UserContextService
-	settingsService        configSvc.SettingsService
-	broadcaster            realtime.Broadcaster
-	logger                 *slog.Logger
-	db                     *bun.DB
+	Dependencies
 }
 
 // Dependencies bundles everything NewResource needs. Using a struct instead
@@ -54,14 +96,17 @@ type Resource struct {
 // site.
 type Dependencies struct {
 	CalendarPeriodService  scheduleSvc.CalendarPeriodService
+	ClosingDayService      scheduleSvc.ClosingDayService
 	MaterializationService scheduleSvc.MaterializationService
 	InstanceService        scheduleSvc.InstanceService
 	OperationsService      scheduleSvc.TimetableOperationsService
-	TemplateSplitService   scheduleSvc.TemplateSplitService
+	TemplateSplitService   *scheduleSvc.TemplateSplitService
 	PersonService          userSvc.PersonService
-	TimetableData          scheduleSvc.TimetableDataService
+	TimetableData          *scheduleSvc.TimetableDataService
+	CareDayService         scheduleSvc.CareDayService
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
+	SlotListsService       slotlists.Service
 	Broadcaster            realtime.Broadcaster
 	Logger                 *slog.Logger
 	DB                     *bun.DB
@@ -71,20 +116,7 @@ type Dependencies struct {
 // Nil deps are tolerated at construction time; the dependent handler returns
 // 500 at request time if one of its deps is unset.
 func NewResource(deps Dependencies) *Resource {
-	return &Resource{
-		calendarPeriodService:  deps.CalendarPeriodService,
-		materializationService: deps.MaterializationService,
-		instanceService:        deps.InstanceService,
-		operationsService:      deps.OperationsService,
-		templateSplitService:   deps.TemplateSplitService,
-		personService:          deps.PersonService,
-		timetableData:          deps.TimetableData,
-		userContextService:     deps.UserContextService,
-		settingsService:        deps.SettingsService,
-		broadcaster:            deps.Broadcaster,
-		logger:                 deps.Logger,
-		db:                     deps.DB,
-	}
+	return &Resource{Dependencies: deps}
 }
 
 // Router returns a configured router for timetable endpoints
@@ -92,13 +124,7 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth := jwt.MustNewTokenAuth()
-
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
 
 		r.Route("/periods", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPeriods)
@@ -109,6 +135,15 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/{id}", rs.getPeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updatePeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deletePeriod)
+		})
+
+		// OGS-Schließtage (#1418 3b): closure ranges maintained on the same
+		// admin page as the calendar periods, hence the same permissions.
+		r.Route("/closing-days", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listClosingDays)
+			r.With(authorize.RequiresPermission(permissions.SchedulesCreate), withTx).Post("/", rs.createClosingDay)
+			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updateClosingDay)
+			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deleteClosingDay)
 		})
 
 		// WP-B8: manual materialization. Admin-only — reuses SchedulesManage
@@ -128,6 +163,11 @@ func (rs *Resource) Router() chi.Router {
 			// without being able to mutate it.
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/", rs.listInstances)
+			// #1875: probe which planned occurrences were individually edited
+			// in a window, so the planner can warn before a series re-plan
+			// discards them. Read-only, SchedulesRead like the list endpoint.
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/edited-in-window", rs.editedInWindow)
 			// Spontaneous (and template-bound out-of-cycle) create. Returns
 			// the same enriched shape as the list endpoint so the frontend
 			// can splice the fresh row into its SWR cache.
@@ -141,16 +181,33 @@ func (rs *Resource) Router() chi.Router {
 				Post("/re-plan-week", rs.replanWeek)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/start", rs.startInstance)
-			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/{id}/complete", rs.completeInstance)
-			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, rs.requireWebAttendanceForActiveInstance).
 				Post("/{id}/cancel", rs.cancelInstance)
+				// #1840 Vertretungsplan: mark a block as deliberately left
+				// unstaffed so it drops out of the gap list. SchedulesManage
+				// like the other instance mutations.
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
+				// #1840 Vertretungsplan: apply an entire slide-over save
+				// (absences, substitute, ack, cancel) atomically in one tenant
+				// tx so a mid-save failure never commits partial state.
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/deviations", rs.applyDeviations)
+				// #1884 Personalpool: who is available / already planned in this
+				// block's window (read), and the atomic move of one person onto
+				// this block — from another block or from the free pool (write).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/{id}/staff-pool", rs.getStaffPool)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/move-staff", rs.moveStaff)
 
 			// WP-B10: three-field attendance PATCH. Gated on SchedulesManage
 			// like the lifecycle routes. Path params are {instance_id} and
 			// {student_id} — distinct from the {id} param above so they live
 			// in a sibling route subtree.
-			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Patch("/{instance_id}/students/{student_id}", rs.patchInstanceStudent)
 		})
 
@@ -168,8 +225,12 @@ func (rs *Resource) Router() chi.Router {
 		// (information view), substitute is SchedulesManage (mutation).
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/gaps", rs.getGaps)
-		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
-			Post("/substitute", rs.substitute)
+
+		// Änderungsprotokoll (#1886): append-only deviation history, read-only.
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/deviations/history", rs.getDeviationHistory)
+		// POST /substitute wurde konsolidiert (#1886): der einzige Caller
+		// (Betreuungsplan-Gap-Fill) nutzt jetzt POST /instances/{id}/deviations.
 
 		// WP-B13: exception-conflict warnings (planning-only, read-only).
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
@@ -179,6 +240,28 @@ func (rs *Resource) Router() chi.Router {
 		// advisory). Same permission + tx middleware as /exception-conflicts.
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/conflicts", rs.getPlannedConflicts)
+
+			// Shift coverage exposes Dienstplan availability, so it requires both
+			// timetable read access and shift-management access. It is separate from
+			// /conflicts, which remains available to schedules:read-only users.
+		r.With(authorize.RequiresAllPermissions(
+			permissions.SchedulesRead,
+			permissions.TimeTrackingManage,
+			permissions.UsersRead,
+		), withTx).Post("/shift-coverage", rs.checkShiftCoverage)
+
+		// Issue #1565: lists from planned care slots (Plan / Ist / Abgleich).
+		// Read-only, but they expose named children + presence, so they require
+		// student-data read on top of schedule read (GDPR) — same bar as the
+		// emergency snapshot export (UsersRead).
+		r.Route("/lists", func(r chi.Router) {
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/options", rs.listSlotListOptions)
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/preview", rs.previewSlotList)
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/export", rs.exportSlotList)
+		})
 
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
@@ -196,13 +279,13 @@ func (rs *Resource) Router() chi.Router {
 				Post("/spontaneous/start", rs.operationsCreateAndStartSpontaneous)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Post("/instances/{id}/start", rs.operationsStart)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/instances/{id}/complete", rs.operationsComplete)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/instances/{id}/students/{student_id}/check-in", rs.operationsCheckInStudent)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/instances/{id}/students/{student_id}/check-out", rs.operationsCheckOutStudent)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Patch("/instances/{id}/students/{student_id}/attendance", rs.operationsPatchAttendance)
 		})
 
@@ -223,6 +306,11 @@ func (rs *Resource) Router() chi.Router {
 		// effective date and continue with a successor template.
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Post("/templates/{id}/split", rs.splitTemplate)
+		// "Dieser und alle folgenden löschen" — cap the template at the
+		// effective date without creating a successor and remove planned
+		// future instances.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/templates/{id}/end", rs.endTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Delete("/templates/{id}", rs.archiveTemplate)
 	})
@@ -299,6 +387,15 @@ type CalendarPeriodResponse struct {
 	CreatedAt       string          `json:"created_at"`
 	UpdatedAt       string          `json:"updated_at"`
 	Warnings        []PeriodWarning `json:"warnings,omitempty"`
+
+	// Reference counts returned by list, detail, and bootstrap reads. The
+	// frontend uses these for the "Verwendung" column and delete-impact warning.
+	EnrollmentPhaseCount   int `json:"enrollment_phase_count"`
+	ActivityGroupCount     int `json:"activity_group_count"`
+	ScheduleCount          int `json:"schedule_count"`
+	StudentEnrollmentCount int `json:"student_enrollment_count"`
+	SupervisorCount        int `json:"supervisor_count"`
+	ActivityInstanceCount  int `json:"activity_instance_count"`
 }
 
 func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
@@ -368,7 +465,7 @@ func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPe
 // lookup failures are logged at Warn and the response simply ships without
 // warnings.
 func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.CalendarPeriod, resp *CalendarPeriodResponse) {
-	overlaps, err := rs.calendarPeriodService.FindActiveOverlaps(ctx, period)
+	overlaps, err := rs.CalendarPeriodService.FindActiveOverlaps(ctx, period)
 	if err != nil {
 		rs.getLogger().Warn("calendar period overlap check failed, omitting warnings",
 			slog.Int64("period_id", period.ID),
@@ -393,16 +490,40 @@ func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.
 
 // Handlers
 
+// periodUsageCounts loads the reference counts that drive deletion impact.
+// A failure is not advisory: rendering zeroes would falsely describe a used
+// period as unused and can lead an administrator into a destructive action.
+func (rs *Resource) periodUsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	return rs.CalendarPeriodService.GetUsageCounts(ctx)
+}
+
+func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]schedule.CalendarPeriodUsage) {
+	if u, ok := usage[resp.ID]; ok {
+		resp.EnrollmentPhaseCount = u.EnrollmentPhases
+		resp.ActivityGroupCount = u.ActivityGroups
+		resp.ScheduleCount = u.Schedules
+		resp.StudentEnrollmentCount = u.StudentEnrollments
+		resp.SupervisorCount = u.Supervisors
+		resp.ActivityInstanceCount = u.ActivityInstances
+	}
+}
+
 func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
-	periods, err := rs.calendarPeriodService.GetAllPeriods(r.Context())
+	periods, err := rs.CalendarPeriodService.GetAllPeriods(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodsLoadErrorMessage, err))
 		return
 	}
 
+	usage, err := rs.periodUsageCounts(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodUsageErrorMessage, err))
+		return
+	}
 	responses := make([]CalendarPeriodResponse, len(periods))
 	for i, p := range periods {
 		responses[i] = mapPeriodToResponse(p)
+		applyPeriodUsage(&responses[i], usage)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Calendar periods retrieved successfully")
@@ -415,17 +536,24 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	period, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id)
+	period, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, mapPeriodToResponse(period), "Calendar period retrieved successfully")
+	resp := mapPeriodToResponse(period)
+	usage, err := rs.periodUsageCounts(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodUsageErrorMessage, err))
+		return
+	}
+	applyPeriodUsage(&resp, usage)
+	common.Respond(w, r, http.StatusOK, resp, "Calendar period retrieved successfully")
 }
 
 func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
@@ -454,11 +582,14 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		IsActive:        req.IsActive,
 	}
 
-	if err := rs.calendarPeriodService.CreatePeriod(r.Context(), period); err != nil {
-		if errors.Is(err, schedule.ErrCalendarPeriodNameConflict) {
+	if err := rs.CalendarPeriodService.CreatePeriod(r.Context(), period); err != nil {
+		switch {
+		case errors.Is(err, schedule.ErrCalendarPeriodNameConflict):
 			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+		case errors.Is(err, schedule.ErrCalendarPeriodOverlapConflict):
+			common.RenderError(w, r, calendarPeriodOverlapRenderer(err))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodCreateErrorMessage, err))
 		}
 		return
 	}
@@ -480,15 +611,21 @@ type bootstrapPeriodsResponse struct {
 // is always 200 with the tenant's periods plus a created flag — repeated
 // calls and concurrent calls never yield a 409.
 func (rs *Resource) bootstrapPeriods(w http.ResponseWriter, r *http.Request) {
-	periods, created, err := rs.calendarPeriodService.EnsureDefaultSchoolYear(r.Context())
+	periods, created, err := rs.CalendarPeriodService.EnsureDefaultSchoolYear(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodsBootstrapErrorMessage, err))
+		return
+	}
+	usage, err := rs.periodUsageCounts(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodUsageErrorMessage, err))
 		return
 	}
 
 	responses := make([]CalendarPeriodResponse, len(periods))
 	for i, p := range periods {
 		responses[i] = mapPeriodToResponse(p)
+		applyPeriodUsage(&responses[i], usage)
 	}
 
 	common.Respond(w, r, http.StatusOK, bootstrapPeriodsResponse{
@@ -504,12 +641,12 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id)
+	existing, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
 		return
 	}
@@ -537,11 +674,21 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 	existing.WeekCycleAnchor = anchor
 	existing.IsActive = req.IsActive
 
-	if err := rs.calendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {
-		if errors.Is(err, schedule.ErrCalendarPeriodNameConflict) {
+	if err := rs.CalendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {
+		switch {
+		case errors.Is(err, schedule.ErrCalendarPeriodNameConflict):
 			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+		case errors.Is(err, schedule.ErrCalendarPeriodCareOfferingConflict):
+			tenant.MarkRollback(r.Context())
+			common.RenderError(w, r, common.ErrorConflictWithCode(
+				errCalendarPeriodCareOfferingConflict,
+				calendarPeriodCareOfferingConflictCode,
+			))
+		case errors.Is(err, schedule.ErrCalendarPeriodOverlapConflict):
+			tenant.MarkRollback(r.Context())
+			common.RenderError(w, r, calendarPeriodOverlapRenderer(err))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht aktualisiert werden", err))
 		}
 		return
 	}
@@ -558,19 +705,69 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id); err != nil {
+	if _, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
 		return
 	}
 
-	if err := rs.calendarPeriodService.DeletePeriod(r.Context(), id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+	if err := rs.CalendarPeriodService.DeletePeriod(r.Context(), id); err != nil {
+		if errors.Is(err, schedule.ErrCalendarPeriodCareOfferingConflict) {
+			tenant.MarkRollback(r.Context())
+			common.RenderError(w, r, common.ErrorConflictWithCode(
+				errCalendarPeriodCareOfferingConflict,
+				calendarPeriodCareOfferingConflictCode,
+			))
+			return
+		}
+		if isCalendarPeriodRosterDeleteConflict(err) {
+			tenant.MarkRollback(r.Context())
+			common.RenderError(w, r, common.ErrorConflictMessage(calendarPeriodRosterDeleteConflictMessage))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht gelöscht werden", err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Calendar period deleted successfully")
+}
+
+func isCalendarPeriodRosterDeleteConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if base.IsUniqueViolationOn(err, "idx_student_enrollments_active") ||
+		base.IsUniqueViolationOn(err, "idx_supervisors_active") {
+		return true
+	}
+
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate key value violates unique constraint \"idx_student_enrollments_active\"") ||
+		strings.Contains(msg, "duplicate key value violates unique constraint \"idx_supervisors_active\"")
+}
+
+// defaultChildrenPerStaffRatio mirrors the registry default for
+// timetable.children_per_staff_ratio (services/config/defaults/timetable.go)
+// and is the fallback used when the settings service is unwired (tests) or a
+// tenant override lookup fails.
+const defaultChildrenPerStaffRatio = 12
+
+// childrenPerStaffRatio resolves the Betreuungsschlüssel setting once per
+// request so per-instance/per-template capacity math (RequiredStaffForChildren)
+// can apply a single resolved value instead of re-querying the settings
+// service for every row. Takes a context rather than *http.Request so it can
+// be called from handlers and from context-only helpers alike (e.g.
+// loadTemplates, which is shared by list/update/exists call sites).
+func (rs *Resource) childrenPerStaffRatio(ctx context.Context) int {
+	return configSvc.ResolveIntOrDefault(
+		ctx,
+		rs.SettingsService,
+		configModel.KeyTimetableChildrenPerStaffRatio,
+		defaultChildrenPerStaffRatio,
+		rs.getLogger(),
+	)
 }

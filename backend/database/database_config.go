@@ -12,9 +12,9 @@ import (
 // GetDatabaseDSN returns the explicitly configured database connection string.
 // Used by CLI commands (migrate, seed, cleanup) which run as the postgres superuser.
 //
-// Precedence order:
-// 1. DB_DSN for normal runtime and migrations
-// 2. TEST_DB_DSN only when APP_ENV=test
+// Selection rule:
+// 1. APP_ENV=test requires TEST_DB_DSN and never falls through to DB_DSN.
+// 2. Every other environment requires DB_DSN.
 //
 // Missing config is fatal by design; do not add localhost fallbacks here.
 func GetDatabaseDSN() string {
@@ -29,16 +29,16 @@ func GetDatabaseDSN() string {
 }
 
 func resolveDatabaseDSN() (string, error) {
-	if dsn := viper.GetString("db_dsn"); dsn != "" {
-		return dsn, nil
-	}
-
 	appEnv := viper.GetString("app_env")
 	if appEnv == "test" {
 		if testDSN := viper.GetString("test_db_dsn"); testDSN != "" {
 			return testDSN, nil
 		}
-		return "", fmt.Errorf("APP_ENV=test requires TEST_DB_DSN or DB_DSN environment variable")
+		return "", fmt.Errorf("APP_ENV=test requires TEST_DB_DSN environment variable")
+	}
+
+	if dsn := viper.GetString("db_dsn"); dsn != "" {
+		return dsn, nil
 	}
 
 	return "", fmt.Errorf("DB_DSN environment variable is required")

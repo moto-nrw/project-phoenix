@@ -21,7 +21,6 @@ type Service interface {
 	FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error)
 	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
 	FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error)
-	FindActiveGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error)
 	EndActiveGroupSession(ctx context.Context, id int64) error
 	GetActiveGroupWithVisits(ctx context.Context, id int64) (*active.Group, error)
 	GetActiveGroupWithSupervisors(ctx context.Context, id int64) (*active.Group, error)
@@ -34,7 +33,6 @@ type Service interface {
 	ListVisits(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error)
 	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error)
 	FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
-	FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error)
 	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error)
@@ -43,7 +41,10 @@ type Service interface {
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
 	ListStudentsInTransit(ctx context.Context) ([]int64, error)
+	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
+	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
+	MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
@@ -56,7 +57,6 @@ type Service interface {
 	FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error)
 	EndSupervision(ctx context.Context, id int64) error
 	GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error)
-	GetAllActiveSupervisions(ctx context.Context) ([]*active.GroupSupervisor, error)
 
 	// Combined Group operations
 	GetCombinedGroup(ctx context.Context, id int64) (*active.CombinedGroup, error)
@@ -77,11 +77,9 @@ type Service interface {
 	GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error)
 
 	// Activity Session Management with Conflict Detection
-	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
 	CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error)
 	EndActivitySession(ctx context.Context, activeGroupID int64) error
-	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
 	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
 
@@ -135,8 +133,17 @@ type Service interface {
 	// transaction, so attendance "checked_out" never coexists with an open
 	// visit (issue #895).
 	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckOutStudentFromDevice applies "out" for an IoT device after
+	// resolving the active session supervisor used as the checkout principal.
+	CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	BroadcastDailyCheckout(ctx context.Context, studentID int64)
+	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation for
+	// an IoT device: it validates the student has today's attendance record and,
+	// when destination is "zuhause" and the student is still checked in, checks
+	// them out and broadcasts the SSE update. Returns
+	// ErrNoAttendanceRecordForCheckout when no attendance record exists today.
+	ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error)
 
 	// Unclaimed groups management (deviceless claiming)
 	GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error)
@@ -174,6 +181,30 @@ type TransitAssignResult struct {
 	Skipped       []TransitAssignSkipped `json:"skipped"`
 	ActiveGroupID int64                  `json:"active_group_id"`
 	RoomID        int64                  `json:"room_id"`
+}
+
+// StudentMoveSkipped describes a student that could not be moved during a
+// historical room/Schulhof move operation.
+type StudentMoveSkipped struct {
+	StudentID int64  `json:"student_id"`
+	Reason    string `json:"reason"`
+}
+
+// StudentMoveResult is returned by real move operations that preserve the
+// room-visit timeline instead of mutating an existing visit's active_group_id.
+type StudentMoveResult struct {
+	Moved         []int64              `json:"moved"`
+	Unchanged     []int64              `json:"unchanged"`
+	Skipped       []StudentMoveSkipped `json:"skipped"`
+	ActiveGroupID *int64               `json:"active_group_id,omitempty"`
+	RoomID        *int64               `json:"room_id,omitempty"`
+}
+
+// StudentMoveAuthorization carries the caller context needed to authorize
+// bulk move requests against the locked move state inside the service.
+type StudentMoveAuthorization struct {
+	StaffID              int64
+	BypassResourceChecks bool
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard
@@ -223,6 +254,7 @@ type RecentActivity struct {
 
 // CurrentActivity represents current activity status
 type CurrentActivity struct {
+	ID           int64
 	Name         string
 	Category     string
 	Participants int
@@ -276,9 +308,6 @@ type SessionTimeoutInfo struct {
 type CleanupService interface {
 	// CleanupExpiredVisits runs the cleanup process for all students
 	CleanupExpiredVisits(ctx context.Context) (*CleanupResult, error)
-
-	// CleanupVisitsForStudent runs cleanup for a specific student
-	CleanupVisitsForStudent(ctx context.Context, studentID int64) (int64, error)
 
 	// GetRetentionStatistics gets statistics about data that will be deleted
 	GetRetentionStatistics(ctx context.Context) (*RetentionStats, error)
@@ -348,6 +377,14 @@ type AttendanceStatus struct {
 	YardSince    *time.Time `json:"yard_since,omitempty"`
 	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
 	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
+}
+
+// DailyCheckoutResult represents the outcome of confirming a deferred daily
+// checkout from an IoT device.
+type DailyCheckoutResult struct {
+	// Action is "checked_out_daily" when the student went home ("zuhause") or
+	// "checked_out" when they stayed in transit ("unterwegs").
+	Action string
 }
 
 // AttendanceResult represents the result of a student attendance toggle operation

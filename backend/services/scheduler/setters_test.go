@@ -14,10 +14,14 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -160,6 +164,16 @@ type fakeInstanceRepo struct {
 	err       error
 }
 
+type fakeOverdueRoomRepo struct {
+	facilitiesModel.RoomRepository
+	rooms []*facilitiesModel.Room
+	err   error
+}
+
+func (f *fakeOverdueRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilitiesModel.Room, error) {
+	return f.rooms, f.err
+}
+
 func (f *fakeInstanceRepo) Create(_ context.Context, _ *scheduleModel.ActivityInstance) error {
 	return nil
 }
@@ -188,7 +202,13 @@ func (f *fakeInstanceRepo) FindByTenantAndDateRange(_ context.Context, _, _ time
 func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
 func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
+func (f *fakeInstanceRepo) FindByIDs(_ context.Context, _ []int64) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (f *fakeInstanceRepo) MarkCompleted(_ context.Context, _ int64, _ time.Time) error {
@@ -197,7 +217,7 @@ func (f *fakeInstanceRepo) MarkCompleted(_ context.Context, _ int64, _ time.Time
 
 func TestCheckAndRunOverdue_AlreadyRunning(t *testing.T) {
 	repo := &fakeInstanceRepo{}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
@@ -215,7 +235,7 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 	// the threshold is resolved from registry default (5), and runOverdueForTenant
 	// runs for tenant 0 with no instances, which means no broadcasts.
 	repo := &fakeInstanceRepo{instances: nil}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
@@ -226,17 +246,94 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 	s.checkAndRunOverdue(task)
 
 	assert.Equal(t, 1, repo.calls, "one per-tenant call in fallback mode")
-	spy.mu.Lock()
-	assert.Empty(t, spy.all, "no overdue instances → no broadcast")
-	spy.mu.Unlock()
+	assert.Empty(t, spy.CallsByMethod("tenant"), "no overdue instances → no broadcast")
 	// Running flag must be cleared after the call.
 	task.mu.Lock()
 	defer task.mu.Unlock()
 	assert.False(t, task.Running)
 }
 
+func TestRunOverdueForTenant_SkipsSchulhof(t *testing.T) {
+	today := timezone.NewDate(2026, 4, 20)
+	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
+	newInstance := func(id, roomID int64) *scheduleModel.ActivityInstance {
+		inst := &scheduleModel.ActivityInstance{
+			Date:          today,
+			StartTime:     time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+			EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
+			Status:        scheduleModel.InstanceStatusPlanned,
+			IsSpontaneous: true,
+			RoomID:        roomID,
+		}
+		inst.ID = id
+		return inst
+	}
+	schulhofInstance := newInstance(151, 251)
+	normalInstance := newInstance(152, 252)
+	repo := &fakeInstanceRepo{instances: []*scheduleModel.ActivityInstance{schulhofInstance, normalInstance}}
+	roomRepo := &fakeOverdueRoomRepo{rooms: []*facilitiesModel.Room{
+		{Model: base.Model{ID: 251}, Name: constants.SchulhofRoomName},
+		{Model: base.Model{ID: 252}, Name: "Lernraum"},
+	}}
+	spy := testpkg.NewRecordingBroadcaster()
+	s := &Scheduler{
+		logger:             slog.Default(),
+		instanceRepo:       repo,
+		instanceRoomRepo:   roomRepo,
+		overdueBroadcaster: spy,
+	}
+
+	s.runOverdueForTenant(context.Background(), 1, 5, now)
+
+	assert.Equal(t, 0, spyFilter(spy, schulhofInstance.ID, realtime.EventInstanceOverdue))
+	assert.Equal(t, 0, spyFilter(spy, schulhofInstance.ID, realtime.EventActiveSupervisionChanged))
+	assert.Equal(t, 1, spyFilter(spy, normalInstance.ID, realtime.EventInstanceOverdue))
+	assert.Equal(t, 1, spyFilter(spy, normalInstance.ID, realtime.EventActiveSupervisionChanged))
+}
+
+func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
+	today := timezone.NewDate(2026, 4, 20)
+	inst := &scheduleModel.ActivityInstance{
+		Date:          today,
+		StartTime:     time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
+		Status:        scheduleModel.InstanceStatusPlanned,
+		IsSpontaneous: true,
+		RoomID:        253,
+	}
+	inst.ID = 153
+
+	tests := []struct {
+		name     string
+		roomRepo *fakeOverdueRoomRepo
+	}{
+		{name: "lookup error", roomRepo: &fakeOverdueRoomRepo{err: errors.New("rooms unavailable")}},
+		{name: "unresolved room", roomRepo: &fakeOverdueRoomRepo{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spy := testpkg.NewRecordingBroadcaster()
+			s := &Scheduler{
+				logger:             slog.Default(),
+				instanceRepo:       &fakeInstanceRepo{instances: []*scheduleModel.ActivityInstance{inst}},
+				instanceRoomRepo:   tt.roomRepo,
+				overdueBroadcaster: spy,
+			}
+
+			s.runOverdueForTenant(
+				context.Background(),
+				1,
+				5,
+				time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local),
+			)
+
+			assert.Empty(t, spy.CallsByMethod("tenant"))
+		})
+	}
+}
+
 // -----------------------------------------------------------------------------
-// scheduleInstanceOverdueTask — registers when both deps set.
+// scheduleInstanceOverdueTask — registers when all dependencies are set.
 // -----------------------------------------------------------------------------
 
 func TestScheduleInstanceOverdueTask_MissingRepo(t *testing.T) {
@@ -245,7 +342,7 @@ func TestScheduleInstanceOverdueTask_MissingRepo(t *testing.T) {
 		tasks:  make(map[string]*ScheduledTask),
 		done:   make(chan struct{}),
 		// instanceRepo not set → task should not register
-		overdueBroadcaster: &spyBroadcaster{},
+		overdueBroadcaster: testpkg.NewRecordingBroadcaster(),
 	}
 	s.scheduleInstanceOverdueTask()
 	assert.Empty(t, s.tasks, "no repo → no task registered")
@@ -262,13 +359,26 @@ func TestScheduleInstanceOverdueTask_MissingBroadcaster(t *testing.T) {
 	assert.Empty(t, s.tasks, "no broadcaster → no task registered")
 }
 
+func TestScheduleInstanceOverdueTask_MissingRoomRepo(t *testing.T) {
+	s := &Scheduler{
+		logger:             slog.Default(),
+		tasks:              make(map[string]*ScheduledTask),
+		done:               make(chan struct{}),
+		instanceRepo:       &fakeInstanceRepo{},
+		overdueBroadcaster: testpkg.NewRecordingBroadcaster(),
+	}
+	s.scheduleInstanceOverdueTask()
+	assert.Empty(t, s.tasks, "no room repo → no task registered")
+}
+
 func TestScheduleInstanceOverdueTask_Registers(t *testing.T) {
 	s := &Scheduler{
 		logger:             slog.Default(),
 		tasks:              make(map[string]*ScheduledTask),
 		done:               make(chan struct{}),
 		instanceRepo:       &fakeInstanceRepo{},
-		overdueBroadcaster: &spyBroadcaster{},
+		instanceRoomRepo:   &fakeOverdueRoomRepo{},
+		overdueBroadcaster: testpkg.NewRecordingBroadcaster(),
 	}
 	s.scheduleInstanceOverdueTask()
 
@@ -287,7 +397,7 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 	// Pre-close done before launching so waitUntilNextMinute returns false
 	// immediately after the startup check.
 	repo := &fakeInstanceRepo{}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		logger:             slog.Default(),
 		tasks:              make(map[string]*ScheduledTask),
@@ -414,10 +524,14 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	inst.ID = int64(101)
 
 	repo := &fakeInstanceRepo{instances: []*scheduleModel.ActivityInstance{inst}}
-	spy := &spyBroadcaster{fail: true}
+	spy := testpkg.NewRecordingBroadcaster()
+	spy.Err = errors.New("forced failure")
 	s := &Scheduler{
-		logger:             slog.Default(),
-		instanceRepo:       repo,
+		logger:       slog.Default(),
+		instanceRepo: repo,
+		instanceRoomRepo: &fakeOverdueRoomRepo{rooms: []*facilitiesModel.Room{
+			{Model: base.Model{ID: 42}, Name: "Lernraum"},
+		}},
 		overdueBroadcaster: spy,
 	}
 
@@ -425,15 +539,13 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
 	s.runOverdueForTenant(context.Background(), 1, 5, now)
 
-	spy.mu.Lock()
-	defer spy.mu.Unlock()
-	assert.Len(t, spy.all, 1, "broadcast attempted even when failure is expected")
+	assert.Len(t, spy.CallsByMethod("tenant"), 1, "broadcast attempted even when failure is expected")
 }
 
 // threshold < 1 is a documented no-op — exercises the early-return branch.
 func TestRunOverdueForTenant_ThresholdZero(t *testing.T) {
 	repo := &fakeInstanceRepo{}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		logger:             slog.Default(),
 		instanceRepo:       repo,
@@ -446,16 +558,14 @@ func TestRunOverdueForTenant_ThresholdZero(t *testing.T) {
 // Exercises the repo error-log branch.
 func TestRunOverdueForTenant_RepoError(t *testing.T) {
 	repo := &fakeInstanceRepo{err: errors.New("db down")}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		logger:             slog.Default(),
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
 	}
 	s.runOverdueForTenant(context.Background(), 1, 5, time.Now())
-	spy.mu.Lock()
-	defer spy.mu.Unlock()
-	assert.Empty(t, spy.all, "repo error must not result in any broadcast")
+	assert.Empty(t, spy.CallsByMethod("tenant"), "repo error must not result in any broadcast")
 }
 
 func TestRunInstanceOverdueTaskPolling_TickerFires(t *testing.T) {
@@ -463,7 +573,7 @@ func TestRunInstanceOverdueTaskPolling_TickerFires(t *testing.T) {
 	// intervals so the ticker.C branch + done-exit branch both execute.
 	synctest.Test(t, func(t *testing.T) {
 		repo := &fakeInstanceRepo{}
-		spy := &spyBroadcaster{}
+		spy := testpkg.NewRecordingBroadcaster()
 		s := &Scheduler{
 			logger:             slog.Default(),
 			tasks:              make(map[string]*ScheduledTask),
@@ -632,6 +742,35 @@ func TestResolveIntSetting_OverrideZeroFallsThrough(t *testing.T) {
 	assert.Equal(t, 11, val)
 }
 
+func TestResolveNonNegativeIntSetting_OverrideZeroHonored(t *testing.T) {
+	// Zero is a meaningful value for settings like
+	// tracking.auto_checkout_grace_minutes (checkout exactly at shift end).
+	s := &Scheduler{
+		settings: &stubSettingsResolver{hasOverride: true, intVal: 0},
+		logger:   slog.Default(),
+	}
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_FFF", 15)
+	assert.Equal(t, 0, val)
+}
+
+func TestResolveNonNegativeIntSetting_NegativeFallsThrough(t *testing.T) {
+	s := &Scheduler{
+		settings: &stubSettingsResolver{hasOverride: true, intVal: -3},
+		logger:   slog.Default(),
+	}
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_GGG", 15)
+	assert.Equal(t, 15, val)
+}
+
+func TestResolveNonNegativeIntSetting_PositiveOverride(t *testing.T) {
+	s := &Scheduler{
+		settings: &stubSettingsResolver{hasOverride: true, intVal: 30},
+		logger:   slog.Default(),
+	}
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_HHH", 15)
+	assert.Equal(t, 30, val)
+}
+
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
 // the setter tests.
 func (f *fakeInstanceRepo) CompleteActiveByActiveGroupIDs(context.Context, []int64, time.Time) (int64, error) {
@@ -650,7 +789,11 @@ func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Dat
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64) (int64, error) {
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
 	return 0, nil
 }
 

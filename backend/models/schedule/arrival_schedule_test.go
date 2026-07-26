@@ -196,11 +196,6 @@ func TestStudentArrivalSchedule_GetWeekdayName(t *testing.T) {
 	}
 }
 
-func TestStudentArrivalSchedule_TableName(t *testing.T) {
-	s := &StudentArrivalSchedule{}
-	assert.Equal(t, "schedule.student_arrival_schedules", s.TableName())
-}
-
 func TestStudentArrivalSchedule_GetID(t *testing.T) {
 	s := &StudentArrivalSchedule{}
 	s.ID = 42
@@ -400,11 +395,6 @@ func TestStudentArrivalException_IsAbsent(t *testing.T) {
 	}
 }
 
-func TestStudentArrivalException_TableName(t *testing.T) {
-	exception := &StudentArrivalException{}
-	assert.Equal(t, "schedule.student_arrival_exceptions", exception.TableName())
-}
-
 func TestStudentArrivalException_GetID(t *testing.T) {
 	exception := &StudentArrivalException{}
 	exception.ID = 42
@@ -567,11 +557,6 @@ func TestStudentArrivalNote_Validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestStudentArrivalNote_TableName(t *testing.T) {
-	note := &StudentArrivalNote{}
-	assert.Equal(t, "schedule.student_arrival_notes", note.TableName())
 }
 
 func TestStudentArrivalNote_GetID(t *testing.T) {

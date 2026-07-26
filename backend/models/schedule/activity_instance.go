@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Activity instance status constants. Stored as TEXT with a CHECK constraint
@@ -18,18 +18,6 @@ const (
 	InstanceStatusCompleted = "completed"
 	InstanceStatusCancelled = "cancelled"
 )
-
-// Sentinel errors for the activity instance domain. Callers should compare via
-// errors.Is rather than matching on error strings.
-var (
-	// ErrActivityInstanceTimeConflict is returned when an attempted create or
-	// update collides with an existing template-backed instance on the same
-	// (tenant, date, activity_group, start_time).
-	ErrActivityInstanceTimeConflict = errors.New("activity instance time conflict")
-)
-
-// tableActivityInstances is the schema-qualified table name.
-const tableActivityInstances = "schedule.activity_instances"
 
 // ActivityInstanceTitleMaxLength is the maximum length of the title field.
 const ActivityInstanceTitleMaxLength = 255
@@ -50,39 +38,35 @@ type ActivityInstance struct {
 	StartTime        time.Time     `bun:"start_time,notnull" json:"start_time"`
 	EndTime          time.Time     `bun:"end_time,notnull" json:"end_time"`
 	RoomID           int64         `bun:"room_id,notnull" json:"room_id"`
-	Status           string        `bun:"status,notnull,default:'planned'" json:"status"`
-	ActiveGroupID    *int64        `bun:"active_group_id" json:"active_group_id,omitempty"`
-	IsSpontaneous    bool          `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
-	Notes            *string       `bun:"notes" json:"notes,omitempty"`
-	CreatedBy        *int64        `bun:"created_by" json:"created_by,omitempty"`
-	StartedBy        *int64        `bun:"started_by" json:"started_by,omitempty"`
-	StartedAt        *time.Time    `bun:"started_at" json:"started_at,omitempty"`
-	CompletedAt      *time.Time    `bun:"completed_at" json:"completed_at,omitempty"`
+	// RequiredStaff is the per-occurrence Personalbedarf pin (issue #1839).
+	// NULL means "inherit": template-backed instances fall back to the
+	// template's override, then to the Betreuungsschlüssel (issue #1869).
+	// Materialization deliberately leaves this NULL; a set value (>= 0) is
+	// always a single-occurrence pin, which is what lets ReplanWeek preserve
+	// it while template edits still propagate. See
+	// services/schedule/capacity_service.go EffectiveRequiredStaff.
+	RequiredStaff *int   `bun:"required_staff" json:"required_staff,omitempty"`
+	Status        string `bun:"status,notnull,default:'planned'" json:"status"`
+	ActiveGroupID *int64 `bun:"active_group_id" json:"active_group_id,omitempty"`
+	// ListKind classifies the instance for printable daily lists (issue #1565).
+	// Copied from the template at materialization time; NULL means no list kind.
+	ListKind      *string `bun:"list_kind" json:"list_kind,omitempty"`
+	IsSpontaneous bool    `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
+	// UnderstaffedAck records that an admin deliberately accepts this block
+	// running with zero staff (Vertretungsplan, issue #1840). When true the gap
+	// detector reports the block as an acknowledged shortfall instead of an open
+	// gap — the staffing hole stays visible, it just stops nagging.
+	UnderstaffedAck  bool    `bun:"understaffed_ack,notnull,default:false" json:"understaffed_ack"`
+	UnderstaffedNote *string `bun:"understaffed_note" json:"understaffed_note,omitempty"`
+	// CancelReason is an optional short "why" captured when a block is cancelled
+	// (Vertretungsplan, issue #1840).
+	CancelReason *string    `bun:"cancel_reason" json:"cancel_reason,omitempty"`
+	Notes        *string    `bun:"notes" json:"notes,omitempty"`
+	CreatedBy    *int64     `bun:"created_by" json:"created_by,omitempty"`
+	StartedBy    *int64     `bun:"started_by" json:"started_by,omitempty"`
+	StartedAt    *time.Time `bun:"started_at" json:"started_at,omitempty"`
+	CompletedAt  *time.Time `bun:"completed_at" json:"completed_at,omitempty"`
 }
-
-func (i *ActivityInstance) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.activity_instances AS "activity_instance"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.activity_instances AS "activity_instance"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (i *ActivityInstance) TableName() string {
-	return tableActivityInstances
-}
-
-// GetID implements the Entity interface.
-func (i *ActivityInstance) GetID() any { return i.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (i *ActivityInstance) GetCreatedAt() time.Time { return i.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (i *ActivityInstance) GetUpdatedAt() time.Time { return i.UpdatedAt }
 
 // Validate ensures activity instance data is valid for persistence.
 func (i *ActivityInstance) Validate() error {
@@ -109,6 +93,19 @@ func (i *ActivityInstance) Validate() error {
 	}
 	if !IsValidInstanceStatus(i.Status) {
 		return errors.New("invalid instance status")
+	}
+	if i.RequiredStaff != nil && *i.RequiredStaff < 0 {
+		return errors.New("required_staff cannot be negative")
+	}
+	// Canonicalize a non-nil pointer to "" to NULL so it satisfies the DB's
+	// `list_kind IS NULL OR list_kind IN (...)` CHECK instead of hitting a
+	// constraint error (IsValidListKind("") stays true for the slot-list
+	// filter, where empty means "any kind").
+	if i.ListKind != nil && *i.ListKind == "" {
+		i.ListKind = nil
+	}
+	if i.ListKind != nil && !activitiesModel.IsValidListKind(*i.ListKind) {
+		return errors.New("invalid list kind")
 	}
 	return nil
 }
@@ -148,10 +145,21 @@ type ActivityInstanceRepository interface {
 	// FindByTenantAndDateRange returns all instances within an inclusive date range.
 	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*ActivityInstance, error)
 
+	// FindByIDs returns the instances matching the given IDs in one
+	// tenant-scoped IN query, ordered by date then start time. Empty input
+	// returns an empty slice without hitting the DB, matching the sibling
+	// bulk helpers. Used by the self-service assignment read (#1844) to load
+	// only the instances a staff member is actually assigned to.
+	FindByIDs(ctx context.Context, ids []int64) ([]*ActivityInstance, error)
+
 	// FindByActivityGroupAndDate returns instances for a specific template on a date.
 	// There can be multiple rows when a template schedule defines several start
 	// times on the same weekday.
 	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) ([]*ActivityInstance, error)
+
+	// FindByActivityGroupAndDateRange returns one template's instances within
+	// an inclusive date range in one tenant-scoped query.
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to timezone.Date) ([]*ActivityInstance, error)
 
 	// FindByActiveGroupID returns the instance that is currently bridged to the
 	// given active.group, or nil if none.
@@ -175,8 +183,20 @@ type ActivityInstanceRepository interface {
 	// effective date regardless of the materialization window.
 	// activityGroupID narrows the delete to one template's instances; nil
 	// deletes across all templates. Used by ReplanWeek and the template
-	// split (WP-B3).
-	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error)
+	// split (WP-B3). preserveDeviations keeps Vertretungsplan overrides
+	// (#1840): true for re-plan, false for the destructive template
+	// split/end series operation — see the implementation for why.
+	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
+
+	// PropagateListKindToFutureInstances re-classifies future template-backed
+	// planned instances of one template whose list_kind still equals the
+	// series' previous value (NULL and '' treated alike), returning the number
+	// of rows changed. It carries a series Listenart edit onto already
+	// materialized future occurrences so the classified daily lists (#1565)
+	// reflect it without a manual re-plan, while leaving today/past rows,
+	// non-planned/spontaneous rows, and per-occurrence classification overrides
+	// untouched. `after` is today; only rows dated strictly after it change.
+	PropagateListKindToFutureInstances(ctx context.Context, activityGroupID int64, previousKind, newKind *string, after timezone.Date) (int64, error)
 
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary

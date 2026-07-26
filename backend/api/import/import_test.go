@@ -7,7 +7,6 @@ package importapi_test
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -26,6 +25,25 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
+// importAPI.Resource.Router) succeeds in CI environments without a populated
+// .env. The student-import tests exercise the production Router() and mint real
+// signed JWTs via testutil.MintTestJWT.
+func init() {
+	testutil.SeedTestJWTConfig()
+}
+
+// adminBearer returns a request option carrying a real signed admin JWT scoped
+// to the given account. It replaces the old testutil.WithClaims context
+// injection now that the student-import tests run through Resource.Router(),
+// where the production JWT middleware chain runs and rejects unsigned requests.
+// Admin claims carry admin:*, which satisfies the users:read / users:create
+// permission gates on the import routes.
+func adminBearer(t *testing.T, accountID int64) testutil.RequestOption {
+	t.Helper()
+	return testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.AdminTestClaims(int(accountID))))
+}
+
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
@@ -38,12 +56,8 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
+	db, svc := testutil.SetupAPITest(t)
 	repos := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repos, db, slog.Default())
-	if err != nil {
-		t.Fatalf("Failed to create services factory: %v", err)
-	}
 
 	// Create import resource
 	resource := importAPI.NewResource(svc.Import, svc.StaffImport, svc.Users, db)
@@ -82,11 +96,10 @@ func TestDownloadTemplate_CSV(t *testing.T) {
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin")
 
-	router := chi.NewRouter()
-	router.Get("/template", ctx.resource.DownloadTemplateHandler())
+	router := ctx.resource.Router()
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=csv", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students/template?format=csv", nil,
+		adminBearer(t, admin.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -103,11 +116,10 @@ func TestDownloadTemplate_XLSX(t *testing.T) {
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin2")
 
-	router := chi.NewRouter()
-	router.Get("/template", ctx.resource.DownloadTemplateHandler())
+	router := ctx.resource.Router()
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=xlsx", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students/template?format=xlsx", nil,
+		adminBearer(t, admin.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -124,12 +136,11 @@ func TestDownloadTemplate_DefaultFormat(t *testing.T) {
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin3")
 
-	router := chi.NewRouter()
-	router.Get("/template", ctx.resource.DownloadTemplateHandler())
+	router := ctx.resource.Router()
 
 	// No format parameter - should default to CSV
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/template", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students/template", nil,
+		adminBearer(t, admin.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -163,12 +174,11 @@ func TestPreviewImport_NoFile(t *testing.T) {
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin4")
 
-	router := chi.NewRouter()
-	router.Post("/preview", ctx.resource.PreviewImportHandler())
+	router := ctx.resource.Router()
 
 	// Request without file upload
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/preview", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/preview", nil,
+		adminBearer(t, admin.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -202,12 +212,11 @@ func TestImportStudents_NoFile(t *testing.T) {
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin5")
 
-	router := chi.NewRouter()
-	router.Post("/import", ctx.resource.ImportStudentsHandler())
+	router := ctx.resource.Router()
 
 	// Request without file upload
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/import", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/import", nil,
+		adminBearer(t, admin.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -226,11 +235,10 @@ func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin6")
 
-	router := chi.NewRouter()
-	router.Get("/template", ctx.resource.DownloadTemplateHandler())
+	router := ctx.resource.Router()
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=csv", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students/template?format=csv", nil,
+		adminBearer(t, admin.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -250,11 +258,10 @@ func TestDownloadTemplate_CSVAdvertisesBirthdayFormats(t *testing.T) {
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "AdminBirthday")
 
-	router := chi.NewRouter()
-	router.Get("/template", ctx.resource.DownloadTemplateHandler())
+	router := ctx.resource.Router()
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=csv", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students/template?format=csv", nil,
+		adminBearer(t, admin.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -276,16 +283,15 @@ func TestPreviewImport_WithValidCSV(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest")
 
-	router := chi.NewRouter()
-	router.Post("/preview", ctx.resource.PreviewImportHandler())
+	router := ctx.resource.Router()
 
 	// Create CSV content with required headers
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a\nErika,Musterfrau,2b"
 
 	// Create multipart form with file — use account ID (not teacher ID) since
 	// the handler resolves account → person → staff for pickup schedule FK
-	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/preview", "file", "students.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -301,14 +307,13 @@ func TestPreviewImport_WithEmptyCSV(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "EmptyCSV")
 
-	router := chi.NewRouter()
-	router.Post("/preview", ctx.resource.PreviewImportHandler())
+	router := ctx.resource.Router()
 
 	// Create empty CSV with headers only
 	csvContent := "Vorname,Nachname,Klasse"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "empty.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/preview", "file", "empty.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -324,14 +329,13 @@ func TestPreviewImport_WithMissingHeaders(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "MissingHeaders")
 
-	router := chi.NewRouter()
-	router.Post("/preview", ctx.resource.PreviewImportHandler())
+	router := ctx.resource.Router()
 
 	// CSV missing required headers
 	csvContent := "Name,Class\nMax,1a"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "invalid.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/preview", "file", "invalid.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -351,14 +355,13 @@ func TestImportStudents_WithValidCSV(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest")
 
-	router := chi.NewRouter()
-	router.Post("/import", ctx.resource.ImportStudentsHandler())
+	router := ctx.resource.Router()
 
 	// Create CSV content with required headers
 	csvContent := "Vorname,Nachname,Klasse\nImport,Student1,1a"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "students.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -373,14 +376,13 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest")
 
-	router := chi.NewRouter()
-	router.Post("/import", ctx.resource.ImportStudentsHandler())
+	router := ctx.resource.Router()
 
 	// CSV with duplicate entries
 	csvContent := "Vorname,Nachname,Klasse\nDupe,Student,1a\nDupe,Student,1a"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "dupes.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "dupes.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -398,14 +400,13 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "BusTest")
 
-	router := chi.NewRouter()
-	router.Post("/import", tc.resource.ImportStudentsHandler())
+	router := tc.resource.Router()
 
 	// CSV with Bus=Ja — the imported student must end up with bus = true.
 	csvContent := "Vorname,Nachname,Klasse,Bus\nBuskind,Phase1Regression,1a,Ja"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "bus.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "bus.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -437,12 +438,11 @@ func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "DepTest")
 
-	router := chi.NewRouter()
-	router.Post("/import", tc.resource.ImportStudentsHandler())
+	router := tc.resource.Router()
 
 	csvContent := "Vorname,Nachname,Klasse,Gehweise.Mo,Gehweise.Mi\nDeparture,GehweiseImport,1a,bus,abholung"
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "dep.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "dep.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -473,13 +473,12 @@ func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "LegacyTest")
 
-	router := chi.NewRouter()
-	router.Post("/import", tc.resource.ImportStudentsHandler())
+	router := tc.resource.Router()
 
 	// Bus=Ja with "Geht alleine" pickup folds to bus on every weekday.
 	csvContent := "Vorname,Nachname,Klasse,Bus,Abholstatus\nLegacy,GehweiseFallback,1a,Ja,Geht alleine nach Hause"
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "legacy.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "legacy.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -511,15 +510,14 @@ func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "EnrollTest")
 
-	router := chi.NewRouter()
-	router.Post("/import", tc.resource.ImportStudentsHandler())
+	router := tc.resource.Router()
 
 	csvContent := "Vorname,Nachname,Klasse,Einschreibung von,Einschreibung bis\n" +
 		"Zukunft,EnrollRegression,1a,01.08.2099,31.07.2100\n" +
 		"Aktiv,EnrollRegression,1a,01.08.2020,01.08.2099"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "enroll.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "enroll.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
@@ -561,14 +559,13 @@ func TestImportStudents_PersistsConsentDates(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "ConsentTest")
 
-	router := chi.NewRouter()
-	router.Post("/import", tc.resource.ImportStudentsHandler())
+	router := tc.resource.Router()
 
 	csvContent := "Vorname,Nachname,Klasse,AGB akzeptiert am,Datenverarbeitung akzeptiert am,E-Mail-Kontakt akzeptiert am,Foto-Einwilligung am\n" +
 		"Consent,Phase2bRegression,1a,01.08.2024,02.08.2024,03.08.2024,04.08.2024"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "consent.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "consent.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
@@ -602,13 +599,12 @@ func TestPreviewImport_NoClaims(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/preview", ctx.resource.PreviewImportHandler())
+	router := ctx.resource.Router()
 
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a"
 
 	// Request without claims — getAccountIDFromContext should fail
-	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "students.csv", csvContent)
+	req := testutil.NewMultipartRequest(t, "POST", "/students/preview", "file", "students.csv", csvContent)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -623,13 +619,12 @@ func TestPreviewImport_AccountWithoutPerson(t *testing.T) {
 	// Create account without person/staff chain
 	account := testpkg.CreateTestAccount(t, ctx.db, "noperson")
 
-	router := chi.NewRouter()
-	router.Post("/preview", ctx.resource.PreviewImportHandler())
+	router := ctx.resource.Router()
 
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/preview", "file", "students.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -645,13 +640,12 @@ func TestPreviewImport_PersonWithoutStaff(t *testing.T) {
 	// Create account + person but no staff record
 	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoStaff", "User")
 
-	router := chi.NewRouter()
-	router.Post("/preview", ctx.resource.PreviewImportHandler())
+	router := ctx.resource.Router()
 
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/preview", "file", "students.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -667,13 +661,12 @@ func TestImportStudents_AccountWithoutPerson(t *testing.T) {
 	// Create account without person/staff chain
 	account := testpkg.CreateTestAccount(t, ctx.db, "noperson-import")
 
-	router := chi.NewRouter()
-	router.Post("/import", ctx.resource.ImportStudentsHandler())
+	router := ctx.resource.Router()
 
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "students.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -690,13 +683,12 @@ func TestImportStudents_PersonWithoutStaff(t *testing.T) {
 	// Create account + person but no staff record
 	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoStaff", "Import")
 
-	router := chi.NewRouter()
-	router.Post("/import", ctx.resource.ImportStudentsHandler())
+	router := ctx.resource.Router()
 
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a"
 
-	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", "students.csv", csvContent,
+		adminBearer(t, account.ID),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

@@ -24,7 +24,7 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 
 // addSupervisorInTx contains the transaction logic for adding a supervisor
 func (s *Service) addSupervisorInTx(ctx context.Context, txService ActivityService, groupID, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error) {
-	if err := s.validateGroupExists(ctx, txService, groupID); err != nil {
+	if _, err := txService.(*Service).findMutableActivityGroup(ctx, groupID); err != nil {
 		return nil, err
 	}
 
@@ -110,12 +110,8 @@ func (s *Service) validateStaffExists(ctx context.Context, staffID int64) error 
 func (s *Service) GetSupervisor(ctx context.Context, id int64) (*activities.SupervisorPlanned, error) {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetSupervisor, Err: ErrSupervisorNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetSupervisor, Err: ErrSupervisorNotFound}
 		}
 		return nil, &ActivityError{Op: opGetSupervisor, Err: err}
@@ -159,6 +155,12 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 	existingSupervisor, err := s.findExistingSupervisor(ctx, s, supervisor.ID)
 	if err != nil {
 		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
+	}
+	if _, err := s.findMutableActivityGroup(ctx, existingSupervisor.GroupID); err != nil {
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
+	}
+	if supervisor.GroupID != existingSupervisor.GroupID {
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: errors.New("cannot change activity group for a supervisor")}
 	}
 
 	if err := supervisor.Validate(); err != nil {
@@ -220,17 +222,6 @@ func (s *Service) handlePrimaryStatusChangeInTx(ctx context.Context, txService A
 	return nil
 }
 
-// GetStaffAssignments gets all supervisor assignments for a staff member
-func (s *Service) GetStaffAssignments(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error) {
-	// Directly use the repository
-	assignments, err := s.supervisorRepo.FindByStaffID(ctx, staffID)
-	if err != nil {
-		return nil, &ActivityError{Op: "get staff assignments", Err: err}
-	}
-
-	return assignments, nil
-}
-
 // DeleteSupervisor deletes a supervisor
 func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
@@ -238,6 +229,9 @@ func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &ActivityError{Op: opDeleteSupervisor, Err: ErrSupervisorNotFound}
 		}
+		return &ActivityError{Op: opDeleteSupervisor, Err: err}
+	}
+	if _, err := s.findMutableActivityGroup(ctx, supervisor.GroupID); err != nil {
 		return &ActivityError{Op: opDeleteSupervisor, Err: err}
 	}
 
@@ -250,6 +244,96 @@ func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 	}
 
 	return nil
+}
+
+// ReplaceSupervisor removes supervisorID from the activity. With no replacement
+// it delegates to DeleteSupervisor (which enforces the only-supervisor rule);
+// with a replacement it recomputes the supervisor roster — promoting/reordering
+// the primary lead and de-duplicating an already-assigned replacement — and
+// persists it via UpdateGroupSupervisors. Run inside a tenant transaction so the
+// read-compute-write commits atomically.
+func (s *Service) ReplaceSupervisor(ctx context.Context, activityID, supervisorID int64, replacementStaffID *int64) error {
+	if replacementStaffID == nil {
+		return s.DeleteSupervisor(ctx, supervisorID)
+	}
+
+	supervisors, err := s.GetGroupSupervisors(ctx, activityID)
+	if err != nil {
+		return err
+	}
+
+	nextSupervisorIDs, err := buildReplacementSupervisorIDs(supervisors, supervisorID, replacementStaffID)
+	if err != nil {
+		return err
+	}
+
+	return s.UpdateGroupSupervisors(ctx, activityID, nextSupervisorIDs)
+}
+
+// buildReplacementSupervisorIDs computes the staff-ID roster after replacing the
+// supervisor identified by supervisorID with replacementStaffID. A primary lead
+// is promoted to the front; an already-assigned replacement is de-duplicated.
+func buildReplacementSupervisorIDs(
+	supervisors []*activities.SupervisorPlanned,
+	supervisorID int64,
+	replacementStaffID *int64,
+) ([]int64, error) {
+	if len(supervisors) == 0 {
+		return nil, ErrSupervisorNotFound
+	}
+
+	var (
+		targetSupervisor  *activities.SupervisorPlanned
+		nextSupervisorIDs []int64
+	)
+	replacementAlreadyAssigned := false
+
+	for _, supervisor := range supervisors {
+		if supervisor == nil {
+			continue
+		}
+
+		if supervisor.ID == supervisorID {
+			targetSupervisor = supervisor
+			continue
+		}
+
+		if replacementStaffID != nil && supervisor.StaffID == *replacementStaffID {
+			replacementAlreadyAssigned = true
+		}
+
+		nextSupervisorIDs = append(nextSupervisorIDs, supervisor.StaffID)
+	}
+
+	if targetSupervisor == nil {
+		return nil, ErrSupervisorNotFound
+	}
+
+	if replacementStaffID == nil {
+		return nextSupervisorIDs, nil
+	}
+
+	if targetSupervisor.IsPrimary {
+		if replacementAlreadyAssigned {
+			reordered := make([]int64, 0, len(nextSupervisorIDs))
+			reordered = append(reordered, *replacementStaffID)
+			for _, staffID := range nextSupervisorIDs {
+				if staffID == *replacementStaffID {
+					continue
+				}
+				reordered = append(reordered, staffID)
+			}
+			return reordered, nil
+		}
+
+		return append([]int64{*replacementStaffID}, nextSupervisorIDs...), nil
+	}
+
+	if replacementAlreadyAssigned {
+		return nextSupervisorIDs, nil
+	}
+
+	return append(nextSupervisorIDs, *replacementStaffID), nil
 }
 
 // handlePrimaryDeletionInTx ensures a new primary is promoted when deleting a primary supervisor
@@ -295,6 +379,9 @@ func (s *Service) SetPrimarySupervisor(ctx context.Context, id int64) error {
 		}
 		return &ActivityError{Op: "set primary supervisor", Err: err}
 	}
+	if _, err := s.findMutableActivityGroup(ctx, supervisor.GroupID); err != nil {
+		return &ActivityError{Op: "set primary supervisor", Err: err}
+	}
 
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
 	if err != nil {
@@ -327,9 +414,9 @@ func (s *Service) updateSupervisorPrimaryStatusInTx(ctx context.Context, txServi
 // UpdateGroupSupervisors updates the supervisors for a group
 // This follows the UpdateGroupEnrollments pattern but for supervisors
 func (s *Service) UpdateGroupSupervisors(ctx context.Context, groupID int64, staffIDs []int64) error {
-	_, err := s.groupRepo.FindByID(ctx, groupID)
+	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "UpdateGroupSupervisors", Err: ErrGroupNotFound}
+		return &ActivityError{Op: "UpdateGroupSupervisors", Err: err}
 	}
 
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, groupID)

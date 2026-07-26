@@ -1,17 +1,8 @@
-import { createPutHandler } from "@/lib/route-wrapper.server";
-import { apiPut } from "@/lib/api-helpers.server";
+import { proxyPut } from "@/lib/route-proxy.server";
+import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // PUT /api/guardians/relationships/[relationshipId] - Update student-guardian relationship
-export const PUT = createPutHandler(async (request, body, token, params) => {
-  const { relationshipId } = params;
-  const relId = String(relationshipId);
-
-  const response = await apiPut(
-    `/api/guardians/relationships/${relId}`,
-    token,
-    body,
-  );
-  // @ts-expect-error - API helper returns unknown type
-
-  return response.data;
-});
+export const PUT = proxyPut(
+  (p) =>
+    `/api/guardians/relationships/${requirePathSegmentParam(p, "relationshipId")}`,
+);

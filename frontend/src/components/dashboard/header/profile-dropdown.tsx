@@ -111,6 +111,7 @@ export function ProfileTrigger({
 }: ProfileTriggerProps) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="flex touch-manipulation items-center space-x-2 rounded-lg p-1.5 transition-colors duration-200 hover:bg-gray-100 active:bg-gray-200"
     >
@@ -137,6 +138,7 @@ interface ProfileDropdownMenuProps {
   readonly onClose: () => void;
   readonly onLogout: () => void;
   readonly profileUrl?: string | null;
+  readonly profileLabel?: string;
 }
 
 export function ProfileDropdownMenu({
@@ -147,6 +149,7 @@ export function ProfileDropdownMenu({
   onClose,
   onLogout,
   profileUrl,
+  profileLabel,
 }: ProfileDropdownMenuProps) {
   // parentNav carries German values in the staff/operator shells (via
   // ShellNavIntlProvider), so those portals render unchanged; only the parents
@@ -206,7 +209,7 @@ export function ProfileDropdownMenu({
               className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
             >
               <ProfileIcon />
-              {t("profile")}
+              {profileLabel ?? t("profile")}
             </Link>
           )}
 
@@ -215,6 +218,7 @@ export function ProfileDropdownMenu({
 
           {/* Logout button */}
           <button
+            type="button"
             onClick={handleLogoutClick}
             className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-all duration-200 ease-out hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
           >

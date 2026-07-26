@@ -66,6 +66,7 @@ const backendHistory = {
   rest_period_warning: null,
   breaks: [backendBreak],
   edit_count: 0,
+  audit_count: 0,
 };
 
 const backendEdit = {
@@ -243,7 +244,9 @@ describe("TimeTrackingService", () => {
       global.fetch = mockFetchResponse({
         success: true,
         message: "",
-        data: { account_start_date: "2026-06-01" },
+        data: {
+          account_start_date: "2026-06-01",
+        },
       });
 
       const result = await timeTrackingService.getConfig();
@@ -297,6 +300,114 @@ describe("TimeTrackingService", () => {
     });
   });
 
+  describe("getHolidays", () => {
+    it("sends the date range and maps holidays by calendar date", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [
+          {
+            date: "2026-12-25T00:00:00Z",
+            name: "Erster Weihnachtsfeiertag",
+          },
+        ],
+      });
+
+      const result = await timeTrackingService.getHolidays(
+        "2026-12-01",
+        "2026-12-31",
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/holidays?from=2026-12-01&to=2026-12-31",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result).toEqual(
+        new Map([["2026-12-25", "Erster Weihnachtsfeiertag"]]),
+      );
+    });
+
+    it("returns an empty map when the backend returns null", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: null,
+      });
+
+      await expect(
+        timeTrackingService.getHolidays("2026-12-01", "2026-12-31"),
+      ).resolves.toEqual(new Map());
+    });
+  });
+
+  describe("getClosingDays", () => {
+    it("sends the date range and expands ranges day-wise", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [
+          {
+            start_date: "2026-12-24",
+            end_date: "2026-12-26",
+            reason: "Weihnachtsschließung",
+          },
+        ],
+      });
+
+      const result = await timeTrackingService.getClosingDays(
+        "2026-12-01",
+        "2026-12-31",
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/closing-days?from=2026-12-01&to=2026-12-31",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result).toEqual(
+        new Map([
+          ["2026-12-24", "Weihnachtsschließung"],
+          ["2026-12-25", "Weihnachtsschließung"],
+          ["2026-12-26", "Weihnachtsschließung"],
+        ]),
+      );
+    });
+
+    it("returns an empty map when the backend returns null", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: null,
+      });
+
+      await expect(
+        timeTrackingService.getClosingDays("2026-12-01", "2026-12-31"),
+      ).resolves.toEqual(new Map());
+    });
+
+    it("maps the visible part of a stored range that starts over 400 days earlier", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [
+          {
+            start_date: "2020-01-01",
+            end_date: "2030-12-31",
+            reason: "Langzeit-Schließung",
+          },
+        ],
+      });
+
+      const result = await timeTrackingService.getClosingDays(
+        "2026-12-01",
+        "2026-12-31",
+      );
+
+      expect(result.size).toBe(31);
+      expect(result.get("2026-12-01")).toBe("Langzeit-Schließung");
+      expect(result.get("2026-12-31")).toBe("Langzeit-Schließung");
+    });
+  });
+
   describe("updateSession", () => {
     it("sends PUT with updates and returns mapped session", async () => {
       global.fetch = mockFetchResponse({
@@ -337,6 +448,24 @@ describe("TimeTrackingService", () => {
       expect(result.id).toBe("5");
       expect(result.sessionId).toBe("1");
       expect(result.endedAt).toBeNull();
+    });
+
+    it("sends planned duration for timed breaks", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "Break started",
+        data: { ...backendBreak, ended_at: null, duration_minutes: 0 },
+      });
+
+      await timeTrackingService.startBreak(90);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/break/start",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ planned_duration_minutes: 90 }),
+        }),
+      );
     });
   });
 
@@ -444,6 +573,24 @@ describe("TimeTrackingService", () => {
         "2025-06-30",
       );
       expect(result).toEqual([]);
+    });
+
+    it("fetches questioned absences without a date range", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [{ ...backendAbsence, status: "question" }],
+      });
+
+      const result = await timeTrackingService.getQuestionedAbsences();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/absences?status=question",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]!.status).toBe("question");
+      expect(result[0]!.id).toBe("7");
     });
   });
 
@@ -563,6 +710,41 @@ describe("TimeTrackingService", () => {
         "/api/time-tracking/absences/7/cancel",
         expect.objectContaining({ method: "POST" }),
       );
+    });
+  });
+
+  describe("resubmitAbsence", () => {
+    it("sends the amended note for another decision round", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "Resubmitted",
+        data: null,
+      });
+
+      await timeTrackingService.resubmitAbsence(
+        "7",
+        "Die Vertretung ist geklärt",
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/absences/7/resubmit",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ note: "Die Vertretung ist geklärt" }),
+        }),
+      );
+    });
+
+    it("surfaces the backend error", async () => {
+      global.fetch = mockFetchResponse(
+        { error: "Nur Rückfragen können erneut eingereicht werden" },
+        false,
+        409,
+      );
+
+      await expect(
+        timeTrackingService.resubmitAbsence("7", "Antwort"),
+      ).rejects.toThrow("Nur Rückfragen können erneut eingereicht werden");
     });
   });
 

@@ -2,7 +2,7 @@
 
 import { EnrollmentFormEditor } from "~/components/enrollment/enrollment-form-editor";
 import { Loading } from "~/components/ui/loading";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 

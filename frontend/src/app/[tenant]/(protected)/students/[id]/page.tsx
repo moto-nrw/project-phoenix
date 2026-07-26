@@ -1,20 +1,22 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import {
   useParams,
   usePathname,
   useRouter,
   useSearchParams,
 } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { useToast } from "~/contexts/ToastContext";
-import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { studentService } from "~/lib/api";
 import { activeService } from "~/lib/active-service";
 import type { ActiveGroup } from "~/lib/active-helpers";
@@ -22,13 +24,17 @@ import {
   useStudentData,
   type ExtendedStudent,
 } from "~/lib/hooks/use-student-data";
+import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
+import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
+  allowedDepartureModesFromDeparture,
+  allowedDepartureToDepartureDays,
   departureDaysFromLegacy,
   normalizeBusDays,
-  normalizeDepartureDays,
+  normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
 import {
   StudentDetailHeader,
@@ -37,7 +43,8 @@ import {
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
-import { ParentNotesCard } from "~/components/students/parent-notes-card";
+import { ParentMessagesCard } from "~/components/students/parent-messages-card";
+import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -49,6 +56,7 @@ import {
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import { createLogger } from "~/lib/logger";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
+import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
 import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
@@ -65,6 +73,7 @@ import {
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import { StudentDetailSkeleton } from "./page-skeleton";
 
 type TodayArrival = {
   time?: string;
@@ -82,27 +91,52 @@ const logger = createLogger({ component: "StudentDetailPage" });
 // criterion: "navigate directly to the relevant section").
 type StudentTabId =
   | "stammdaten"
+  | "nachrichten"
   | "erziehungsberechtigte"
+  | "betreuungsplan"
   | "betreuungszeiten"
+  | "anmeldungen"
   | "historie";
 
 const TAB_LABELS: Record<StudentTabId, string> = {
   stammdaten: "Stammdaten",
+  nachrichten: "Nachrichten",
   erziehungsberechtigte: "Erziehungsberechtigte",
+  betreuungsplan: "Betreuungsplan",
   betreuungszeiten: "Betreuungszeiten",
+  anmeldungen: "Anmeldungen",
   historie: "Historie",
 };
 
 // Limited access has no care-schedule data access, so it skips Betreuungszeiten.
-const FULL_ACCESS_TABS: StudentTabId[] = [
+// The Nachrichten tab is full-access only — limited-access staff don't see the
+// parent-message overview (the backend gates per-child read access anyway).
+const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
+  "nachrichten",
   "erziehungsberechtigte",
+  "betreuungsplan",
   "betreuungszeiten",
   "historie",
 ];
-const LIMITED_ACCESS_TABS: StudentTabId[] = [
+const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
+  "historie",
+];
+const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
+  "stammdaten",
+  "nachrichten",
+  "erziehungsberechtigte",
+  "betreuungsplan",
+  "betreuungszeiten",
+  "anmeldungen",
+  "historie",
+];
+const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
+  "stammdaten",
+  "erziehungsberechtigte",
+  "anmeldungen",
   "historie",
 ];
 
@@ -113,6 +147,48 @@ function resolveActiveTab(
   allowed: StudentTabId[],
 ): StudentTabId {
   return allowed.find((tab) => tab === param) ?? DEFAULT_TAB;
+}
+
+/**
+ * @param hasStudentReadAccess the backend's READ predicate for this child,
+ *   `has_full_access` on the student response. Despite the wire name this is
+ *   NOT the strict supervisor/admin check — that one is `has_write_access`.
+ *   It resolves to `authorize.CanReadStudent`, which honours
+ *   `gdpr.student_data_scope`: under `all_staff` EVERY staff member gets `true`
+ *   here, under `group_supervisors_only` only the child's supervisors (and
+ *   admins) do. See api/students/authorization.go — `checkStudentReadAccess`
+ *   (scope-aware, this flag) vs `checkStudentFullAccess` (scope-ignoring, the
+ *   write flag).
+ */
+function studentTabs(
+  hasStudentReadAccess: boolean,
+  canViewEnrollments: boolean,
+  canViewCarePlan: boolean,
+): StudentTabId[] {
+  const base = hasStudentReadAccess
+    ? canViewEnrollments
+      ? FULL_ACCESS_TABS_WITH_ENROLLMENTS
+      : FULL_ACCESS_BASE_TABS
+    : canViewEnrollments
+      ? LIMITED_ACCESS_TABS_WITH_ENROLLMENTS
+      : LIMITED_ACCESS_BASE_TABS;
+  // The Betreuungsplan tab reads the timetable (backend requires schedules:read
+  // on /timetable/student/{id}/day|week); hide it without that permission so
+  // the user can't open a tab that only returns 403s.
+  //
+  // It is absent from the limited-access sets for the SAME reason, not as an
+  // oversight: those routes gate on read access per student too
+  // (resolveStudentForRead → authorize.CanReadStudent in
+  // api/timetable/student_day.go) — the SAME predicate behind the flag above,
+  // so the two can never disagree. A staff member who may read the child under
+  // `all_staff` therefore lands in the full-access set and DOES get the tab;
+  // one who may not gets 403 from the care-plan endpoints, so widening the tab
+  // would only surface a permanently failing panel, and ?tab=betreuungsplan is
+  // clamped away for the same reason. Widening staff access to a child's plan
+  // is a backend (gdpr.student_data_scope) decision, not a frontend one.
+  return canViewCarePlan
+    ? base
+    : base.filter((tab) => tab !== "betreuungsplan");
 }
 
 // Shared classes for every tab panel. forceMount (below) keeps inactive panels
@@ -203,6 +279,14 @@ function mergeStatusDays(
 // =============================================================================
 
 export default function StudentDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <StudentDetailPageContent />
+    </Suspense>
+  );
+}
+
+function StudentDetailPageContent() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -211,6 +295,7 @@ export default function StudentDetailPage() {
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
   const toast = useToast();
+  const { data: session, status: sessionStatus } = useSession();
 
   // Switch tabs by updating the `?tab=` query param in place (preserves the
   // `from` referrer). We echo the current `usePathname` back verbatim and only
@@ -254,18 +339,33 @@ export default function StudentDetailPage() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  const canViewEnrollments =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "config:manage");
+  const canViewCarePlan =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "schedules:read");
+  const visibleTabs = useMemo(
+    () => studentTabs(hasFullAccess, canViewEnrollments, canViewCarePlan),
+    [canViewEnrollments, canViewCarePlan, hasFullAccess],
+  );
+  const tabResolutionTabs =
+    sessionStatus === "loading"
+      ? hasFullAccess
+        ? FULL_ACCESS_TABS_WITH_ENROLLMENTS
+        : LIMITED_ACCESS_TABS_WITH_ENROLLMENTS
+      : visibleTabs;
 
   // Set breadcrumb data, include group/room name for 3-level breadcrumb
   // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
-  const breadcrumbGroupName =
-    referrer.startsWith("/ogs-groups") && globalThis.window !== undefined
-      ? localStorage.getItem("sidebar-last-group-name")
-      : undefined;
-  const breadcrumbRoomName =
-    referrer.startsWith("/active-supervisions") &&
-    globalThis.window !== undefined
-      ? localStorage.getItem("sidebar-last-room-name")
-      : undefined;
+  const breadcrumbGroupName = useLocalStorageValue(
+    "sidebar-last-group-name",
+    referrer.startsWith("/ogs-groups"),
+  );
+  const breadcrumbRoomName = useLocalStorageValue(
+    "sidebar-last-room-name",
+    referrer.startsWith("/active-supervisions"),
+  );
 
   useSetBreadcrumb({
     studentName: student?.name,
@@ -323,12 +423,17 @@ export default function StudentDetailPage() {
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
   const [loadingActiveGroups, setLoadingActiveGroups] = useState(false);
 
-  // Today's pickup info (for header display)
-  const [todayPickup, setTodayPickup] = useState<{
-    time?: string;
-    note?: string;
-    isException?: boolean;
-  }>({});
+  // Today's pickup info (for header display). SWR-cached under a
+  // "pickup-data-" key like its arrival twin below, so a Gehzeit write
+  // elsewhere in the school reaches this header: the global SSE hook
+  // invalidates that key prefix on pickup_schedule_changed. A plain
+  // fetch-on-mount effect could not be woken that way and left the header
+  // showing the previous pickup time until a manual reload.
+  const { data: pickupData } = useSWRAuth(
+    hasFullAccess && studentId ? `pickup-data-${studentId}` : null,
+    async () => fetchStudentPickupData(studentId),
+    { revalidateOnFocus: false },
+  );
 
   const { data: arrivalData } = useSWRAuth(
     hasFullAccess && studentId ? `arrival-data-${studentId}` : null,
@@ -388,44 +493,34 @@ export default function StudentDetailPage() {
     void loadActiveGroups();
   }, [showConfirmCheckin]);
 
-  // Load today's pickup time for header (requires read access to student data)
-  useEffect(() => {
-    if (!hasFullAccess || !studentId) {
-      setTodayPickup({});
-      return;
+  // Today's pickup slot for the header. Mirrors todayArrival below: a failed
+  // fetch (e.g. permission denied for non-full-access users) leaves pickupData
+  // undefined, which renders the same empty header as "no pickup planned".
+  const todayPickup = useMemo<{
+    time?: string;
+    note?: string;
+    isException?: boolean;
+  }>(() => {
+    if (!hasFullAccess || !pickupData) return {};
+
+    const dayData = getDayData(
+      new Date(),
+      pickupData.schedules,
+      pickupData.exceptions,
+      student?.sick ?? false,
+      pickupData.notes,
+      student?.excused ?? false,
+    );
+
+    if (dayData.effectiveTime) {
+      return {
+        time: formatPickupTime(dayData.effectiveTime),
+        note: dayData.effectiveNotes,
+        isException: dayData.isException,
+      };
     }
-
-    const loadTodayPickup = async () => {
-      try {
-        const data = await fetchStudentPickupData(studentId);
-        const today = new Date();
-
-        const dayData = getDayData(
-          today,
-          data.schedules,
-          data.exceptions,
-          student?.sick ?? false,
-          data.notes,
-          student?.excused ?? false,
-        );
-
-        if (dayData.effectiveTime) {
-          setTodayPickup({
-            time: formatPickupTime(dayData.effectiveTime),
-            note: dayData.effectiveNotes,
-            isException: dayData.isException,
-          });
-        } else {
-          setTodayPickup({});
-        }
-      } catch {
-        // Silently handle errors (e.g., permission denied for non-full-access users)
-        setTodayPickup({});
-      }
-    };
-
-    void loadTodayPickup();
-  }, [hasFullAccess, studentId, student?.sick, student?.excused]);
+    return {};
+  }, [pickupData, hasFullAccess, student?.sick, student?.excused]);
 
   const todayArrival = useMemo<TodayArrival>(() => {
     if (!hasFullAccess || !arrivalData) return {};
@@ -464,7 +559,7 @@ export default function StudentDetailPage() {
   // render (Rules of Hooks) — see the load gate inside the effect.
   const activeTab = resolveActiveTab(
     searchParams.get("tab"),
-    hasFullAccess ? FULL_ACCESS_TABS : LIMITED_ACCESS_TABS,
+    tabResolutionTabs,
   );
 
   // If the URL pins a tab we can't honour — an inaccessible deep-link or an
@@ -477,15 +572,15 @@ export default function StudentDetailPage() {
   // early would wrongly strip a valid full-access deep-link before it resolves.
   const urlTab = searchParams.get("tab");
   useEffect(() => {
-    if (loading || !student) return;
+    if (loading || !student || sessionStatus === "loading") return;
     if (urlTab !== null && urlTab !== activeTab) {
       handleTabChange(activeTab);
     }
-  }, [loading, student, urlTab, activeTab, handleTabChange]);
+  }, [loading, student, sessionStatus, urlTab, activeTab, handleTabChange]);
 
   // Show loading state
   if (loading) {
-    return <Loading message="Laden..." fullPage={false} />;
+    return <StudentDetailSkeleton />;
   }
 
   // Show error state
@@ -494,6 +589,7 @@ export default function StudentDetailPage() {
       <div className="flex min-h-[80vh] flex-col items-center justify-center">
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
         <button
+          type="button"
           onClick={() => router.push(referrer)}
           className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
         >
@@ -508,21 +604,55 @@ export default function StudentDetailPage() {
   // =============================================================================
 
   const handleSavePersonal = async (editedStudent: ExtendedStudent) => {
+    const allowedDepartureModes = normalizeAllowedDepartureModes(
+      editedStudent.allowed_departure_modes ??
+        allowedDepartureModesFromDeparture(
+          editedStudent.departure_days ??
+            departureDaysFromLegacy(
+              editedStudent.bus_days,
+              editedStudent.pickup_days,
+            ),
+        ),
+    );
     await studentService.updateStudent(studentId, {
       first_name: editedStudent.first_name,
       second_name: editedStudent.second_name,
       school_class: editedStudent.school_class,
       birthday: editedStudent.birthday,
-      // The personal-info form now edits bus_days directly via the weekday
-      // picker; bus_days is the single source of truth (#1582).
+      address_street: editedStudent.address_street,
+      address_postal_code: editedStudent.address_postal_code,
+      address_city: editedStudent.address_city,
       bus_days: normalizeBusDays(editedStudent.bus_days),
-      departure_days: normalizeDepartureDays(
-        editedStudent.departure_days ??
-          departureDaysFromLegacy(
-            editedStudent.bus_days,
-            editedStudent.pickup_days,
-          ),
-      ),
+      allowed_departure_modes: allowedDepartureModes,
+      departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
+      departure_companion_note: editedStudent.departure_companion_note,
+      // Laufgemeinschaft travels with the plan it belongs to: a link is only
+      // legal on a day that allows "Anderes Kind", so the backend validates
+      // both in one request instead of racing two.
+      //
+      // Omitted when the modal has no loaded list: the field REPLACES the
+      // stored links, so sending [] for "not loaded" would delete them. The
+      // backend leaves the links alone when the key is absent.
+      //
+      ...(editedStudent.companions
+        ? {
+            companions: editedStudent.companions.map((companion) => ({
+              companion_student_id: companion.companion_student_id,
+              weekdays: companion.weekdays,
+            })),
+          }
+        : {}),
+      // The fingerprint travels on its own, not only with a list: it names the
+      // snapshot this save was built on, and the plan above removes links too
+      // (the backend trims the weekdays it no longer allows). Forwarding it
+      // regardless is what lets the backend refuse a save whose stale plan would
+      // delete links someone else committed in the meantime.
+      companions_fingerprint: editedStudent.companions_fingerprint,
+      extend_companion_plans: editedStudent.extend_companion_plans ?? false,
+      // The confirmation is only worth as much as what it names: the backend
+      // widens a companion's plan only for these children and weekdays.
+      confirmed_companion_extensions:
+        editedStudent.confirmed_companion_extensions ?? [],
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
@@ -812,35 +942,21 @@ export default function StudentDetailPage() {
     }
 
     return (
-      <div className="relative">
-        <select
-          id="room-select"
-          value={selectedActiveGroupId}
-          onChange={(e) => setSelectedActiveGroupId(e.target.value)}
-          className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2 pr-10 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-        >
-          <option value="">Bitte Raum auswählen...</option>
-          {activeGroups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.room?.name ?? "Unbekannter Raum"} (
-              {group.actualGroup?.name ?? "Gruppe"})
-            </option>
-          ))}
-        </select>
-        <svg
-          className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </div>
+      <CustomSelect
+        id="room-select"
+        ariaLabelledBy="room-select-label"
+        value={selectedActiveGroupId}
+        options={[
+          // Selectable like the old native <option value="">, so an already
+          // chosen room can be cleared again before confirming.
+          { value: "", label: "Bitte Raum auswählen..." },
+          ...activeGroups.map((group) => ({
+            value: group.id,
+            label: `${group.room?.name ?? "Unbekannter Raum"} (${group.actualGroup?.name ?? "Gruppe"})`,
+          })),
+        ]}
+        onChange={setSelectedActiveGroupId}
+      />
     );
   };
 
@@ -880,6 +996,9 @@ export default function StudentDetailPage() {
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             activeTab={activeTab}
+            tabs={visibleTabs}
+            canViewEnrollments={canViewEnrollments}
+            canViewCarePlan={canViewCarePlan}
             onTabChange={handleTabChange}
             statusDays={statusDays}
             onDeleteStatusDay={handleDeletePlannedStatus}
@@ -909,6 +1028,8 @@ export default function StudentDetailPage() {
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             activeTab={activeTab}
+            tabs={visibleTabs}
+            canViewEnrollments={canViewEnrollments}
             onTabChange={handleTabChange}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
@@ -950,6 +1071,7 @@ export default function StudentDetailPage() {
           </p>
           <div>
             <label
+              id="room-select-label"
               htmlFor="room-select"
               className="mb-2 block text-sm font-medium text-gray-700"
             >
@@ -1097,6 +1219,8 @@ interface LimitedAccessViewProps {
   showCheckout: boolean;
   showCheckin: boolean;
   activeTab: StudentTabId;
+  tabs: StudentTabId[];
+  canViewEnrollments: boolean;
   onTabChange: (tab: string) => void;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
@@ -1111,6 +1235,8 @@ function LimitedAccessView({
   showCheckout,
   showCheckin,
   activeTab,
+  tabs,
+  canViewEnrollments,
   onTabChange,
   onCheckoutClick,
   onCheckinClick,
@@ -1130,7 +1256,7 @@ function LimitedAccessView({
       )}
 
       <Tabs value={activeTab} onValueChange={onTabChange}>
-        <StudentTabsList tabs={LIMITED_ACCESS_TABS} />
+        <StudentTabsList tabs={tabs} />
 
         <TabsContent
           value="stammdaten"
@@ -1151,6 +1277,16 @@ function LimitedAccessView({
         >
           <StudentGuardianManager studentId={student.id} readOnly={true} />
         </TabsContent>
+
+        {canViewEnrollments ? (
+          <TabsContent
+            value="anmeldungen"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            <StudentEnrollmentsTab studentId={student.id} />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection
@@ -1179,6 +1315,9 @@ interface FullAccessViewProps {
   showCheckout: boolean;
   showCheckin: boolean;
   activeTab: StudentTabId;
+  tabs: StudentTabId[];
+  canViewEnrollments: boolean;
+  canViewCarePlan: boolean;
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
@@ -1208,6 +1347,9 @@ function FullAccessView({
   showCheckout,
   showCheckin,
   activeTab,
+  tabs,
+  canViewEnrollments,
+  canViewCarePlan,
   onTabChange,
   statusDays,
   onDeleteStatusDay,
@@ -1228,6 +1370,21 @@ function FullAccessView({
   plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const { groups: enrollmentExtraGroups } = useStudentEnrollmentExtraFields(
+    studentId,
+    true,
+  );
+  // Lazy-mount the Nachrichten tab: ParentMessagesCard runs the inbox-projection
+  // query (two correlated COUNT subqueries) on mount, and forceMount would fire
+  // it for every student-detail load even when staff never open the tab — paging
+  // 40 profiles = 40 such queries. Defer until the tab is first opened, then keep
+  // it mounted (forceMount) so revisits don't refetch.
+  const [messagesTabSeen, setMessagesTabSeen] = useState(
+    activeTab === "nachrichten",
+  );
+  useEffect(() => {
+    if (activeTab === "nachrichten") setMessagesTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       {(showCheckout || showCheckin || hasWriteAccess) && (
@@ -1266,7 +1423,7 @@ function FullAccessView({
       )}
 
       <Tabs value={activeTab} onValueChange={onTabChange}>
-        <StudentTabsList tabs={FULL_ACCESS_TABS} />
+        <StudentTabsList tabs={tabs} />
 
         <TabsContent
           value="stammdaten"
@@ -1275,13 +1432,22 @@ function FullAccessView({
         >
           <PersonalInfoReadOnly
             student={student}
+            enrollmentExtraGroups={enrollmentExtraGroups}
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
           />
-          {studentId && (
-            <div className="mt-4">
-              <ParentNotesCard studentId={studentId} />
-            </div>
+        </TabsContent>
+
+        <TabsContent
+          value="nachrichten"
+          forceMount
+          className={TAB_CONTENT_CLASS}
+        >
+          {studentId && messagesTabSeen && (
+            <ParentMessagesCard
+              studentId={studentId}
+              studentName={student?.name}
+            />
           )}
         </TabsContent>
 
@@ -1296,6 +1462,27 @@ function FullAccessView({
             onUpdate={hasWriteAccess ? onRefreshData : undefined}
           />
         </TabsContent>
+
+        {canViewCarePlan ? (
+          <TabsContent
+            value="betreuungsplan"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            {/* forceMounted for deep-linking; `active` gates the SWR read so it
+                only fires when the tab is actually open. Only rendered with
+                schedules:read, so the timetable fetch never 403s. */}
+            <CarePlanView
+              studentId={studentId}
+              statusDays={statusDays}
+              isSick={student.sick}
+              isExcused={student.excused}
+              onEditSchedule={() => onTabChange("betreuungszeiten")}
+              onVisibleDateRangeChange={onVisibleDateRangeChange}
+              active={activeTab === "betreuungsplan"}
+            />
+          </TabsContent>
+        ) : null}
 
         <TabsContent
           value="betreuungszeiten"
@@ -1313,6 +1500,16 @@ function FullAccessView({
             onVisibleDateRangeChange={onVisibleDateRangeChange}
           />
         </TabsContent>
+
+        {canViewEnrollments ? (
+          <TabsContent
+            value="anmeldungen"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            <StudentEnrollmentsTab studentId={studentId} />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection

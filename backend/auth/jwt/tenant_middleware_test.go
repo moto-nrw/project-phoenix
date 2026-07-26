@@ -86,7 +86,7 @@ func TestTenantMiddleware_PlatformScope(t *testing.T) {
 	var gotIsPlatform bool
 
 	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotIsPlatform = tenant.IsPlatformScope(r.Context())
+		gotIsPlatform = tenant.ScopeFromContext(r.Context()) == tenant.ScopePlatform
 		w.WriteHeader(http.StatusOK)
 	}))
 

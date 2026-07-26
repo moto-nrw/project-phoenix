@@ -60,6 +60,9 @@ const validInput: CareOfferingInput = {
   includes_lunch: false,
   is_active: true,
   is_required: false,
+  counts_as_care: true,
+  auto_add_grade_levels: [],
+  auto_add_trigger_offering_ids: [],
   sort_order: 0,
 };
 
@@ -123,6 +126,18 @@ describe("createCareOffering", () => {
     expect(seenBody).toContain(`"name":"OGS"`);
   });
 
+  it("keeps explicit counts_as_care=false in the POST body", async () => {
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse({ data: mkOffering("1234") }, { status: 201 });
+    });
+
+    await createCareOffering({ ...validInput, counts_as_care: false });
+
+    expect(JSON.parse(seenBody)).toMatchObject({ counts_as_care: false });
+  });
+
   it("throws on non-OK", async () => {
     mockFetch(async () =>
       jsonResponse(
@@ -166,6 +181,23 @@ describe("updateCareOffering", () => {
     );
     await expect(updateCareOffering("1234", validInput)).rejects.toThrow(
       /Betreuungsangebot konnte nicht gespeichert werden/,
+    );
+  });
+
+  it("maps the template-period mismatch code to a German explanation", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          error:
+            "care offering phase must be within the linked timetable template period",
+          code: "enrollment.care_offering_template_period_mismatch",
+        },
+        { status: 400 },
+      ),
+    );
+
+    await expect(updateCareOffering("1234", validInput)).rejects.toThrow(
+      /Planungszeitraum.*gesamten Betreuungszeitraum/,
     );
   });
 });

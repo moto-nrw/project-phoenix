@@ -40,44 +40,8 @@ func (s *Service) LoginParentWithAudit(
 		return "", "", err
 	}
 
-	// Walk every active tenant mapping and check for the guardian role.
-	// Done inside an admin tx because account_tenants + account_roles
-	// have RLS that requires app.current_tenant_id, which we don't have
-	// during a public login.
-	//
-	// We also capture the first tenant where the role hits — that
-	// tenant becomes the housekeeping tenant_id for the refresh token
-	// row (auth.tokens has a NOT NULL FK to platform.schools, so we
-	// can't store tenant_id=0). The JWT itself carries tenant_id=0 +
-	// scope=parent; the row's tenant is purely for the FK constraint
-	// and RLS bookkeeping. Refresh path keys off scope, not tenant_id.
-	hasGuardianRole := false
-	var firstGuardianTenantID int64
-	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
-		mappings, listErr := txService.repos.AccountTenant.FindActiveByAccountID(adminCtx, account.ID)
-		if listErr != nil {
-			return listErr
-		}
-		for _, m := range mappings {
-			roles, roleErr := txService.repos.AccountRole.FindByAccountIDForTenant(adminCtx, account.ID, m.TenantID)
-			if roleErr != nil {
-				continue
-			}
-			for _, ar := range roles {
-				role, lookupErr := txService.repos.Role.FindByID(adminCtx, ar.RoleID)
-				if lookupErr != nil || role == nil {
-					continue
-				}
-				if strings.EqualFold(role.Name, guardianRoleName) {
-					hasGuardianRole = true
-					firstGuardianTenantID = m.TenantID
-					return nil
-				}
-			}
-		}
-		return nil
-	}); err != nil {
+	hasGuardianRole, firstGuardianTenantID, err := s.findGuardianTenantForAccount(ctx, account.ID)
+	if err != nil {
 		return "", "", &AuthError{Op: "parent login: enumerate tenants", Err: err}
 	}
 
@@ -127,6 +91,61 @@ func (s *Service) buildParentMetadata(account *authModels.Account) *accountMetad
 	}
 }
 
+// findGuardianTenantForAccount checks every active tenant mapping for the
+// guardian role. Done inside an admin tx because account_tenants +
+// account_roles have RLS that requires app.current_tenant_id, which public
+// parent auth flows do not have yet.
+func (s *Service) findGuardianTenantForAccount(ctx context.Context, accountID int64) (bool, int64, error) {
+	hasGuardianRole := false
+	var firstGuardianTenantID int64
+
+	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, tx bun.Tx) error {
+		mappings, listErr := s.repos.AccountTenant.FindActiveByAccountID(adminCtx, accountID)
+		if listErr != nil {
+			return listErr
+		}
+		for _, m := range mappings {
+			roles, roleErr := s.repos.AccountRole.FindByAccountIDForTenant(adminCtx, accountID, m.TenantID)
+			if roleErr != nil {
+				// A genuine "no roles" result comes back as an empty
+				// slice, not an error. Any error here is a real
+				// RLS/config/transient DB failure — propagate it so the
+				// caller fails loudly instead of silently reporting "not a
+				// guardian" (which would skip token + email on a recovery).
+				if isNotFoundError(roleErr) {
+					continue
+				}
+				return roleErr
+			}
+			for _, ar := range roles {
+				role, lookupErr := s.repos.Role.FindByID(adminCtx, ar.RoleID)
+				if lookupErr != nil {
+					// A missing role row for an existing account_role is a
+					// data inconsistency — treat it as "not this role".
+					// Real DB errors must propagate.
+					if isNotFoundError(lookupErr) {
+						continue
+					}
+					return lookupErr
+				}
+				if role == nil {
+					continue
+				}
+				if strings.EqualFold(role.Name, guardianRoleName) {
+					hasGuardianRole = true
+					firstGuardianTenantID = m.TenantID
+					return nil
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return false, 0, err
+	}
+
+	return hasGuardianRole, firstGuardianTenantID, nil
+}
+
 // IsGuardianOnlyForTenant reports whether the account has the guardian
 // role and no other (admin/staff/teacher/etc.) for the given tenant.
 // Used by the standard tenant LoginWithAudit to refuse guardians who
@@ -162,8 +181,7 @@ func (s *Service) isGuardianOnlyAccount(ctx context.Context, account *authModels
 		return false
 	}
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
-		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
 		return nil
 	})
 	if err != nil {

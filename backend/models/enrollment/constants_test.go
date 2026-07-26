@@ -12,10 +12,6 @@ import (
 
 // --- Request -------------------------------------------------------------
 
-func TestRequest_TableName(t *testing.T) {
-	assert.Equal(t, "enrollment.requests", (&Request{}).TableName())
-}
-
 func TestRequestStatus_StableValues(t *testing.T) {
 	// Derived statuses — the request service computes one of these from
 	// the per-child set. The admin list page filters on them by string,
@@ -66,7 +62,7 @@ func TestDaysOfWeekMode_StableValues(t *testing.T) {
 	// "fixed" = admin-pinned days; "parent_choice" = parent picks from
 	// AvailableDays on submission. The frontend submit form branches on
 	// this string to show the day picker; the backend submit service's
-	// resolveSelectedDays enforces it.
+	// resolveManualSelectedDays enforces it.
 	assert.Equal(t, "fixed", DaysOfWeekModeFixed)
 	assert.Equal(t, "parent_choice", DaysOfWeekModeParentChoice)
 }

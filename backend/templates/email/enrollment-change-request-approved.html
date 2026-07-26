@@ -1,0 +1,22 @@
+{{define "enrollment-change-request-approved.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "school-brand" .}}
+    <h1>Änderungsanfrage übernommen</h1>
+
+    <p>Sehr geehrte/r {{.GuardianFirstName}} {{.GuardianLastName}},</p>
+
+    <p>Ihre Änderungsanfrage wurde geprüft und in die Anmeldung übernommen.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.StatusURL}}">Aktuellen Stand ansehen</a>
+    </div>
+
+    <div class="link-box">
+        <a href="{{.StatusURL}}">{{.StatusURL}}</a>
+    </div>
+</div>
+
+{{template "footer" .}}
+{{end}}

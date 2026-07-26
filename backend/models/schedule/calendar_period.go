@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Period type constants
@@ -24,10 +23,33 @@ var (
 	// ErrCalendarPeriodNameConflict is returned when a create or update would
 	// violate the per-tenant name uniqueness rule.
 	ErrCalendarPeriodNameConflict = errors.New("calendar period name already exists")
+	// ErrCalendarPeriodCareOfferingConflict is returned when changing or
+	// deleting a period would invalidate a care offering's linked timetable
+	// series. The caller must keep the period unchanged until the offering is
+	// relinked or removed.
+	ErrCalendarPeriodCareOfferingConflict = errors.New("calendar period is required by a linked care offering")
+	// ErrCalendarPeriodOverlapConflict is returned when creating or updating
+	// an active period would overlap an existing active period of the same
+	// period_type (#1837). Overlaps across different types (e.g. holidays
+	// inside a school year) stay legal and are only surfaced as advisory
+	// warnings.
+	ErrCalendarPeriodOverlapConflict = errors.New("calendar period overlaps an active period of the same type")
 )
 
-// tableCalendarPeriods is the schema-qualified table name.
-const tableCalendarPeriods = "schedule.calendar_periods"
+// CalendarPeriodOverlapError wraps ErrCalendarPeriodOverlapConflict and
+// carries the conflicting periods so handlers can name them in the 409
+// response. errors.Is against the sentinel keeps matching through Unwrap.
+type CalendarPeriodOverlapError struct {
+	Overlaps []*CalendarPeriod
+}
+
+func (e *CalendarPeriodOverlapError) Error() string {
+	return ErrCalendarPeriodOverlapConflict.Error()
+}
+
+func (e *CalendarPeriodOverlapError) Unwrap() error {
+	return ErrCalendarPeriodOverlapConflict
+}
 
 // CalendarPeriodNameMaxLength is the maximum length of the name field.
 const CalendarPeriodNameMaxLength = 255
@@ -44,36 +66,6 @@ type CalendarPeriod struct {
 	WeekCycleLength int            `bun:"week_cycle_length,notnull,default:1" json:"week_cycle_length"`
 	WeekCycleAnchor *timezone.Date `bun:"week_cycle_anchor" json:"week_cycle_anchor,omitempty"`
 	IsActive        bool           `bun:"is_active,notnull,default:false" json:"is_active"`
-}
-
-func (p *CalendarPeriod) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (p *CalendarPeriod) TableName() string {
-	return tableCalendarPeriods
-}
-
-// GetID implements the Entity interface
-func (p *CalendarPeriod) GetID() any {
-	return p.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (p *CalendarPeriod) GetCreatedAt() time.Time {
-	return p.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (p *CalendarPeriod) GetUpdatedAt() time.Time {
-	return p.UpdatedAt
 }
 
 // Validate ensures calendar period data is valid
@@ -132,6 +124,19 @@ func (p *CalendarPeriod) ContainsDate(date time.Time) bool {
 	return p.ContainsDay(timezone.DateFromTime(date))
 }
 
+// CalendarPeriodUsage aggregates how many planning objects reference a
+// calendar period. Most FKs are nullable and get cleared on delete, but roster
+// rows can still make deletion fail when clearing calendar_period_id would
+// collide with an existing unscoped active assignment.
+type CalendarPeriodUsage struct {
+	EnrollmentPhases   int
+	ActivityGroups     int
+	Schedules          int
+	StudentEnrollments int
+	Supervisors        int
+	ActivityInstances  int
+}
+
 // CalendarPeriodRepository defines operations for managing calendar periods
 type CalendarPeriodRepository interface {
 	base.Repository[*CalendarPeriod]
@@ -154,4 +159,14 @@ type CalendarPeriodRepository interface {
 	// whose [start_date, end_date] range overlaps [start, end] (inclusive on
 	// both ends), excluding the period with excludeID.
 	FindActiveOverlapping(ctx context.Context, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
+
+	// FindActiveOverlappingByType behaves like FindActiveOverlapping but only
+	// considers active periods of the given period_type. It backs the hard
+	// same-type overlap rejection; the untyped variant stays advisory.
+	FindActiveOverlappingByType(ctx context.Context, periodType string, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
+
+	// UsageCounts returns, per calendar period of the current tenant, how many
+	// rows reference it through nullable calendar_period_id FKs. Periods without
+	// references are omitted from the map.
+	UsageCounts(ctx context.Context) (map[int64]CalendarPeriodUsage, error)
 }

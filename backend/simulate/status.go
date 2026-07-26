@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
@@ -21,7 +22,7 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := NewClient(state.BaseURL, opts.Verbose)
+	client := newClient(state.BaseURL, opts.Verbose)
 
 	if err := client.CheckHealth(); err != nil {
 		return fmt.Errorf("server health check: %w", err)
@@ -40,7 +41,7 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 
 	// Query active groups/sessions
 	fmt.Println("=== Active Sessions ===")
-	groupsResp, err := client.AdminGet("/api/active/groups")
+	groupsResp, err := client.Get("/api/active/groups")
 	if err != nil {
 		fmt.Printf("  (could not fetch active groups: %v)\n", err)
 	} else {
@@ -49,7 +50,7 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 
 	// Query active visits
 	fmt.Println("\n=== Active Visits ===")
-	visitsResp, err := client.AdminGet("/api/active/visits")
+	visitsResp, err := client.Get("/api/active/visits")
 	if err != nil {
 		fmt.Printf("  (could not fetch active visits: %v)\n", err)
 	} else {
@@ -103,7 +104,7 @@ func printActiveGroups(respBody []byte) {
 		if activity == "" {
 			activity = stringField(g, "name")
 		}
-		fmt.Printf("  %-4s %-20s %-20s %s\n", id, truncate(activity, 20), truncate(room, 20), supervisors)
+		fmt.Printf("  %-4s %-20s %-20s %s\n", id, strutil.TruncateBytes(activity, 20, "..."), strutil.TruncateBytes(room, 20, "..."), supervisors)
 	}
 	fmt.Printf("  Total: %d active sessions\n", len(groups))
 }

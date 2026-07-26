@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { mockUseSession, mockUpdateSession, mockSessionFetch } = vi.hoisted(
-  () => ({
-    mockUseSession: vi.fn(),
-    mockUpdateSession: vi.fn(),
-    mockSessionFetch: vi.fn(),
-  }),
-);
+const {
+  mockUseSession,
+  mockUpdateSession,
+  mockSessionFetch,
+  mockToastSuccess,
+  mockToastError,
+} = vi.hoisted(() => ({
+  mockUseSession: vi.fn(),
+  mockUpdateSession: vi.fn(),
+  mockSessionFetch: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+}));
 
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
@@ -17,21 +23,24 @@ vi.mock("~/lib/session-cache", () => ({
   sessionFetch: (...args: unknown[]) => mockSessionFetch(...args),
 }));
 
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+  }),
+}));
+
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div>Loading...</div>,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title }: { title: string }) => (
     <div data-testid="page-header">{title}</div>
   ),
 }));
 
-vi.mock("~/components/simple/SimpleAlert", () => ({
-  SimpleAlert: () => null,
-}));
-
-vi.mock("~/components/ui", () => ({
+vi.mock("~/components/ui/password-change-modal", () => ({
   PasswordChangeModal: () => null,
 }));
 
@@ -44,6 +53,12 @@ vi.mock("~/components/settings/trusted-devices-section", () => ({
 
 import OperatorSettingsPage from "./page";
 
+const defaultProfile = {
+  id: 1,
+  email: "mail@yannickwenger.de",
+  display_name: "yonnock",
+};
+
 describe("OperatorSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -55,12 +70,40 @@ describe("OperatorSettingsPage", () => {
       status: "authenticated",
       update: mockUpdateSession,
     });
-    mockSessionFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        data: { id: 1, email: "test@example.com", display_name: "Test User" },
-      }),
-    } as Response);
+    mockSessionFetch.mockImplementation(
+      async (url: string, init?: RequestInit) => {
+        if (url === "/api/operator/profile" && init?.method === "GET") {
+          return {
+            ok: true,
+            json: async () => ({ data: defaultProfile }),
+          } as Response;
+        }
+        if (url === "/api/operator/profile" && init?.method === "PUT") {
+          const body = JSON.parse(String(init.body ?? "{}")) as {
+            display_name?: string;
+          };
+          return {
+            ok: true,
+            json: async () => ({
+              data: {
+                ...defaultProfile,
+                display_name: body.display_name ?? defaultProfile.display_name,
+              },
+            }),
+          } as Response;
+        }
+        if (url === "/api/operator/profile/email-change") {
+          return {
+            ok: true,
+            json: async () => ({ message: "Verification email sent" }),
+          } as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({ data: defaultProfile }),
+        } as Response;
+      },
+    );
   });
 
   it("shows loading state when auth is loading", async () => {
@@ -82,17 +125,56 @@ describe("OperatorSettingsPage", () => {
 
     await waitFor(() => {
       const displayNameInput = screen.getByLabelText("Anzeigename");
-      expect(displayNameInput).toHaveValue("John Doe");
+      expect(displayNameInput).toHaveValue("yonnock");
+      expect(screen.getByLabelText("E-Mail")).toHaveValue(
+        "mail@yannickwenger.de",
+      );
     });
+  });
+
+  it("loads canonical backend email instead of a platform token subject", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { name: "yonnock", email: "operator:2" },
+      },
+      status: "authenticated",
+      update: mockUpdateSession,
+    });
+
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("E-Mail")).toHaveValue(
+        "mail@yannickwenger.de",
+      );
+    });
+    expect(screen.getByLabelText("E-Mail")).not.toHaveValue("operator:2");
+  });
+
+  it("does not show a non-email session fallback when profile loading fails", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { name: "yonnock", email: "operator:2" },
+      },
+      status: "authenticated",
+      update: mockUpdateSession,
+    });
+    mockSessionFetch.mockRejectedValueOnce(new Error("Network error"));
+
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      expect(mockSessionFetch).toHaveBeenCalledWith("/api/operator/profile", {
+        method: "GET",
+      });
+    });
+    expect(screen.getByLabelText("E-Mail")).toHaveValue("");
   });
 
   it("updates profile on save", async () => {
     render(<OperatorSettingsPage />);
 
-    await waitFor(() => {
-      const editButton = screen.getByText("Bearbeiten");
-      fireEvent.click(editButton);
-    });
+    fireEvent.click(await screen.findByText("Bearbeiten"));
 
     const displayNameInput = screen.getByLabelText("Anzeigename");
     fireEvent.change(displayNameInput, { target: { value: "Jane Doe" } });
@@ -113,19 +195,31 @@ describe("OperatorSettingsPage", () => {
     await waitFor(() => {
       expect(mockUpdateSession).toHaveBeenCalled();
     });
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Profil erfolgreich aktualisiert",
+      { duration: 3000 },
+    );
   });
 
   it("handles save error gracefully", async () => {
-    mockSessionFetch.mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: "Something went wrong" }),
-    } as Response);
+    mockSessionFetch.mockImplementation(
+      async (url: string, init?: RequestInit) => {
+        if (url === "/api/operator/profile" && init?.method === "GET") {
+          return {
+            ok: true,
+            json: async () => ({ data: defaultProfile }),
+          } as Response;
+        }
+        return {
+          ok: false,
+          json: async () => ({ error: "Something went wrong" }),
+        } as Response;
+      },
+    );
 
     render(<OperatorSettingsPage />);
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Bearbeiten"));
-    });
+    fireEvent.click(await screen.findByText("Bearbeiten"));
 
     const saveButton = screen.getByText("Speichern");
     fireEvent.click(saveButton);
@@ -133,14 +227,16 @@ describe("OperatorSettingsPage", () => {
     await waitFor(() => {
       expect(mockUpdateSession).not.toHaveBeenCalled();
     });
+    expect(mockToastError).toHaveBeenCalledWith(
+      "Fehler beim Speichern des Profils",
+      { duration: 3000 },
+    );
   });
 
   it("cancels editing and restores original values", async () => {
     render(<OperatorSettingsPage />);
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Bearbeiten"));
-    });
+    fireEvent.click(await screen.findByText("Bearbeiten"));
 
     const displayNameInput = screen.getByLabelText("Anzeigename");
     fireEvent.change(displayNameInput, { target: { value: "Changed Name" } });
@@ -148,7 +244,7 @@ describe("OperatorSettingsPage", () => {
     fireEvent.click(screen.getByText("Abbrechen"));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Anzeigename")).toHaveValue("John Doe");
+      expect(screen.getByLabelText("Anzeigename")).toHaveValue("yonnock");
     });
   });
 
@@ -156,7 +252,7 @@ describe("OperatorSettingsPage", () => {
     render(<OperatorSettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("JD")).toBeInTheDocument();
+      expect(screen.getByText("Y")).toBeInTheDocument();
     });
   });
 
@@ -168,6 +264,12 @@ describe("OperatorSettingsPage", () => {
       status: "authenticated",
       update: mockUpdateSession,
     });
+    mockSessionFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        data: { id: 1, email: "admin@example.com", display_name: "Admin" },
+      }),
+    }));
 
     render(<OperatorSettingsPage />);
 
@@ -185,9 +287,7 @@ describe("OperatorSettingsPage", () => {
     it("shows email change button when editing", async () => {
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       expect(screen.getByText("E-Mail ändern")).toBeInTheDocument();
     });
@@ -205,9 +305,7 @@ describe("OperatorSettingsPage", () => {
     it("opens email change dialog with form fields", async () => {
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -224,16 +322,9 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("submits email change request successfully", async () => {
-      mockSessionFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ message: "Verification email sent" }),
-      } as Response);
-
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -264,19 +355,16 @@ describe("OperatorSettingsPage", () => {
           }),
         );
       });
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Eine Bestätigungs-E-Mail wird an new@example.com gesendet. Bitte überprüfe dein Postfach.",
+        { duration: 3000 },
+      );
     });
 
     it("closes dialog after successful submission", async () => {
-      mockSessionFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ message: "OK" }),
-      } as Response);
-
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -303,18 +391,26 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("sends error response without closing dialog on wrong password", async () => {
-      mockSessionFetch.mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({
-          error: "Das aktuelle Passwort ist falsch",
-        }),
-      } as Response);
+      mockSessionFetch.mockImplementation(
+        async (url: string, init?: RequestInit) => {
+          if (url === "/api/operator/profile" && init?.method === "GET") {
+            return {
+              ok: true,
+              json: async () => ({ data: defaultProfile }),
+            } as Response;
+          }
+          return {
+            ok: false,
+            json: async () => ({
+              error: "Das aktuelle Passwort ist falsch",
+            }),
+          } as Response;
+        },
+      );
 
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -351,16 +447,24 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("keeps dialog open on other API errors", async () => {
-      mockSessionFetch.mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ error: "E-Mail bereits verwendet" }),
-      } as Response);
+      mockSessionFetch.mockImplementation(
+        async (url: string, init?: RequestInit) => {
+          if (url === "/api/operator/profile" && init?.method === "GET") {
+            return {
+              ok: true,
+              json: async () => ({ data: defaultProfile }),
+            } as Response;
+          }
+          return {
+            ok: false,
+            json: async () => ({ error: "E-Mail bereits verwendet" }),
+          } as Response;
+        },
+      );
 
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -380,7 +484,10 @@ describe("OperatorSettingsPage", () => {
       fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
 
       await waitFor(() => {
-        expect(mockSessionFetch).toHaveBeenCalledTimes(1);
+        expect(mockSessionFetch).toHaveBeenCalledWith(
+          "/api/operator/profile/email-change",
+          expect.objectContaining({ method: "POST" }),
+        );
       });
 
       // Dialog stays open on error
@@ -388,13 +495,21 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("keeps dialog open on network error", async () => {
-      mockSessionFetch.mockRejectedValueOnce(new Error("Network error"));
+      mockSessionFetch.mockImplementation(
+        async (url: string, init?: RequestInit) => {
+          if (url === "/api/operator/profile" && init?.method === "GET") {
+            return {
+              ok: true,
+              json: async () => ({ data: defaultProfile }),
+            } as Response;
+          }
+          throw new Error("Network error");
+        },
+      );
 
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -414,7 +529,10 @@ describe("OperatorSettingsPage", () => {
       fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
 
       await waitFor(() => {
-        expect(mockSessionFetch).toHaveBeenCalledTimes(1);
+        expect(mockSessionFetch).toHaveBeenCalledWith(
+          "/api/operator/profile/email-change",
+          expect.objectContaining({ method: "POST" }),
+        );
       });
 
       // Dialog stays open on network error
@@ -424,9 +542,7 @@ describe("OperatorSettingsPage", () => {
     it("closes dialog and resets fields on cancel", async () => {
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 

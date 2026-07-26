@@ -3,7 +3,6 @@ import {
   isActiveGroupCurrent,
   isVisitActive,
   isSupervisionActive,
-  isCombinedGroupActive,
   formatDuration,
   getCurrentVisit,
   getActiveSupervisions,
@@ -69,22 +68,6 @@ describe("active-api utility functions", () => {
     it("returns false when endTime is in the past", () => {
       const pastDate = new Date("2024-01-15T08:00:00Z");
       expect(isSupervisionActive(pastDate)).toBe(false);
-    });
-  });
-
-  describe("isCombinedGroupActive", () => {
-    it("returns true when endTime is undefined", () => {
-      expect(isCombinedGroupActive(undefined)).toBe(true);
-    });
-
-    it("returns true when endTime is in the future", () => {
-      const futureDate = new Date("2024-01-15T12:00:00Z");
-      expect(isCombinedGroupActive(futureDate)).toBe(true);
-    });
-
-    it("returns false when endTime is in the past", () => {
-      const pastDate = new Date("2024-01-15T08:00:00Z");
-      expect(isCombinedGroupActive(pastDate)).toBe(false);
     });
   });
 

@@ -235,6 +235,12 @@ func (s *stubGuardianProfileRepo) ListWithOptions(context.Context, *modelsBase.Q
 func (s *stubGuardianProfileRepo) SearchByText(context.Context, string, int) ([]*userModels.GuardianProfile, error) {
 	return nil, nil
 }
+func (s *stubGuardianProfileRepo) FindByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
+	return nil, nil
+}
+func (s *stubGuardianProfileRepo) FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
+	return nil, nil
+}
 func (s *stubGuardianProfileRepo) Count(context.Context) (int, error) { return 0, nil }
 func (s *stubGuardianProfileRepo) Update(context.Context, *userModels.GuardianProfile) error {
 	return nil

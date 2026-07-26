@@ -45,7 +45,6 @@ var (
 	ErrOperatorMFACodeInvalid           = authService.ErrMFACodeInvalid
 	ErrOperatorMFALocked                = authService.ErrMFALocked
 	ErrOperatorMFARateLimited           = authService.ErrMFARateLimited
-	ErrOperatorMFANotEnrolled           = authService.ErrMFANotEnrolled
 	ErrOperatorMFAAlreadyEnrolled       = authService.ErrMFAAlreadyEnrolled
 	ErrOperatorMFAPermissionDenied      = authService.ErrMFAPermissionDenied
 )
@@ -100,14 +99,8 @@ type OperatorMFAServiceConfig struct {
 }
 
 type operatorMFAService struct {
-	repos       *repositories.Factory
-	tokenAuth   *authjwt.TokenAuth
-	dispatcher  *email.Dispatcher
-	defaultFrom email.Email
-	frontendURL string
-	mfaSecret   []byte
-	db          *bun.DB
-	logger      *slog.Logger
+	OperatorMFAServiceConfig
+	mfaSecret []byte
 }
 
 var _ OperatorMFAService = (*operatorMFAService)(nil)
@@ -127,26 +120,20 @@ func NewOperatorMFAService(cfg OperatorMFAServiceConfig) (OperatorMFAService, er
 	if cfg.JWTSecret == "" {
 		return nil, errors.New("OperatorMFAServiceConfig.JWTSecret is required")
 	}
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
+	cfg.Logger = cfg.Logger.With("service", "operator-mfa")
 	return &operatorMFAService{
-		repos:       cfg.Repos,
-		tokenAuth:   cfg.TokenAuth,
-		dispatcher:  cfg.Dispatcher,
-		defaultFrom: cfg.DefaultFrom,
-		frontendURL: cfg.FrontendURL,
-		mfaSecret:   authService.DeriveMFASecret(cfg.JWTSecret),
-		db:          cfg.DB,
-		logger:      logger.With("service", "operator-mfa"),
+		OperatorMFAServiceConfig: cfg,
+		mfaSecret:                authService.DeriveMFASecret(cfg.JWTSecret),
 	}, nil
 }
 
 // ===== Inquiry =====
 
 func (s *operatorMFAService) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {
-	cred, err := s.repos.OperatorMFACredential.FindByOperatorID(ctx, operatorID)
+	cred, err := s.Repos.OperatorMFACredential.FindByOperatorID(ctx, operatorID)
 	if err != nil {
 		// sql.ErrNoRows is the legitimate "not enrolled" signal — every
 		// fresh operator hits it on the first login. Anything else is
@@ -155,7 +142,7 @@ func (s *operatorMFAService) HasEnrollment(ctx context.Context, operatorID int64
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
-		s.logger.Warn("operator mfa enrollment lookup failed; refusing login",
+		s.Logger.Warn("operator mfa enrollment lookup failed; refusing login",
 			slog.Int64("operator_id", operatorID),
 			slog.String("error", err.Error()))
 		return false, authService.ErrMFAStatusUnavailable
@@ -166,7 +153,7 @@ func (s *operatorMFAService) HasEnrollment(ctx context.Context, operatorID int64
 // ===== Challenge / verify =====
 
 func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
-	op, err := s.repos.Operator.FindByID(ctx, operatorID)
+	op, err := s.Repos.Operator.FindByID(ctx, operatorID)
 	if err != nil || op == nil {
 		return "", fmt.Errorf("look up operator: %w", err)
 	}
@@ -175,7 +162,7 @@ func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int6
 	}
 
 	since := time.Now().Add(-OperatorMFARateLimitWindow)
-	count, err := s.repos.OperatorMFAEmailChallenge.CountRecentByOperatorID(ctx, operatorID, since)
+	count, err := s.Repos.OperatorMFAEmailChallenge.CountRecentByOperatorID(ctx, operatorID, since)
 	if err == nil && count >= OperatorMFARateLimitMaxSent {
 		return "", ErrOperatorMFARateLimited
 	}
@@ -195,14 +182,14 @@ func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int6
 		ExpiresAt:  time.Now().Add(OperatorMFAChallengeTTL),
 		IPAddress:  ip,
 	}
-	if err := s.repos.OperatorMFAEmailChallenge.Create(ctx, challenge); err != nil {
+	if err := s.Repos.OperatorMFAEmailChallenge.Create(ctx, challenge); err != nil {
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
 	s.dispatchChallengeEmail(ctx, op, plainCode, ip)
 	s.recordAudit(ctx, operatorID, platform.ActionMFAEmailSent, ip, &challenge.ID, nil)
 
-	tokenString, err := s.tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
+	tokenString, err := s.TokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
 		AccountID: operatorID, // operator id reuses the AccountID slot, scope distinguishes
 		Scope:     authjwt.MFAChallengeScopePlatform,
 	}, OperatorMFAChallengeTTL)
@@ -221,7 +208,7 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 		return nil, ErrOperatorMFAChallengeTokenInvalid
 	}
 
-	op, err := s.repos.Operator.FindByID(ctx, claims.AccountID)
+	op, err := s.Repos.Operator.FindByID(ctx, claims.AccountID)
 	if err != nil || op == nil {
 		return nil, ErrOperatorMFAChallengeTokenInvalid
 	}
@@ -229,7 +216,7 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 		return nil, ErrOperatorMFALocked
 	}
 
-	active, err := s.repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, op.ID)
+	active, err := s.Repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, op.ID)
 	if err != nil || active == nil {
 		s.recordAudit(ctx, op.ID, platform.ActionMFAFailed, nil, nil, map[string]any{"reason": "no active challenge"})
 		return nil, ErrOperatorMFACodeInvalid
@@ -248,8 +235,8 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 	// continued, which let two racing requests both mint a session from a
 	// single-use code. Refuse the loser instead.
 	now := time.Now()
-	if err := s.repos.OperatorMFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
-		s.logger.Warn("failed to mark operator challenge consumed; refusing verify",
+	if err := s.Repos.OperatorMFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
+		s.Logger.Warn("failed to mark operator challenge consumed; refusing verify",
 			slog.Int64("operator_id", op.ID),
 			slog.Int64("challenge_id", active.ID),
 			slog.String("error", err.Error()))
@@ -258,14 +245,14 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 	}
 	// Atomic reset — single UPDATE so a concurrent failed verify's
 	// increment can't be silently overwritten by a stale full-row Update.
-	if err := s.repos.Operator.ResetMFAAttempts(ctx, op.ID); err != nil {
-		s.logger.Warn("failed to reset operator MFA attempts", slog.String("error", err.Error()))
+	if err := s.Repos.Operator.ResetMFAAttempts(ctx, op.ID); err != nil {
+		s.Logger.Warn("failed to reset operator MFA attempts", slog.String("error", err.Error()))
 	}
 	op.MFAAttempts = 0
 	op.MFALockedUntil = nil
-	cred, _ := s.repos.OperatorMFACredential.FindByOperatorID(ctx, op.ID)
+	cred, _ := s.Repos.OperatorMFACredential.FindByOperatorID(ctx, op.ID)
 	if cred != nil && cred.ID > 0 {
-		_ = s.repos.OperatorMFACredential.UpdateLastUsedAt(ctx, cred.ID, now)
+		_ = s.Repos.OperatorMFACredential.UpdateLastUsedAt(ctx, cred.ID, now)
 	}
 	s.recordAudit(ctx, op.ID, platform.ActionMFAVerified, nil, &active.ID, nil)
 	return &OperatorVerifiedChallenge{OperatorID: op.ID}, nil
@@ -287,14 +274,14 @@ func (s *operatorMFAService) ResendChallenge(ctx context.Context, challengeToken
 }
 
 func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operatorID int64, code string) error {
-	op, err := s.repos.Operator.FindByID(ctx, operatorID)
+	op, err := s.Repos.Operator.FindByID(ctx, operatorID)
 	if err != nil || op == nil {
 		return ErrOperatorMFACodeInvalid
 	}
 	if s.isMFALocked(op, time.Now()) {
 		return ErrOperatorMFALocked
 	}
-	active, err := s.repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, operatorID)
+	active, err := s.Repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, operatorID)
 	if err != nil || active == nil {
 		s.recordAudit(ctx, operatorID, platform.ActionMFAFailed, nil, nil, map[string]any{"reason": "no active challenge"})
 		return ErrOperatorMFACodeInvalid
@@ -306,9 +293,9 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 		return ErrOperatorMFACodeInvalid
 	}
 	now := time.Now()
-	if err := s.repos.OperatorMFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
+	if err := s.Repos.OperatorMFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
 		// Same race-loser refusal as VerifyChallenge (operator scope).
-		s.logger.Warn("failed to mark operator challenge consumed; refusing verify",
+		s.Logger.Warn("failed to mark operator challenge consumed; refusing verify",
 			slog.Int64("operator_id", operatorID),
 			slog.Int64("challenge_id", active.ID),
 			slog.String("error", err.Error()))
@@ -317,7 +304,7 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 	}
 	// Atomic reset matches VerifyChallenge — single UPDATE so a concurrent
 	// failed verify's increment isn't silently overwritten.
-	_ = s.repos.Operator.ResetMFAAttempts(ctx, operatorID)
+	_ = s.Repos.Operator.ResetMFAAttempts(ctx, operatorID)
 	op.MFAAttempts = 0
 	op.MFALockedUntil = nil
 	s.recordAudit(ctx, operatorID, platform.ActionMFAVerified, nil, &active.ID, nil)
@@ -337,9 +324,9 @@ func (s *operatorMFAService) isMFALocked(op *platform.Operator, now time.Time) b
 // item #6 — the previous read-modify-write let two concurrent failed
 // verifies collapse into a single counted attempt.
 func (s *operatorMFAService) handleFailedAttempt(ctx context.Context, op *platform.Operator) {
-	result, err := s.repos.Operator.IncrementMFAAttempts(ctx, op.ID, OperatorMFALockoutThreshold, OperatorMFALockoutDuration)
+	result, err := s.Repos.Operator.IncrementMFAAttempts(ctx, op.ID, OperatorMFALockoutThreshold, OperatorMFALockoutDuration)
 	if err != nil {
-		s.logger.Warn("failed to persist operator MFA attempt counter", slog.String("error", err.Error()))
+		s.Logger.Warn("failed to persist operator MFA attempt counter", slog.String("error", err.Error()))
 		return
 	}
 	op.MFAAttempts = result.Attempts
@@ -352,7 +339,7 @@ func (s *operatorMFAService) handleFailedAttempt(ctx context.Context, op *platfo
 // ===== Enrollment =====
 
 func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error {
-	existing, _ := s.repos.OperatorMFACredential.FindByOperatorID(ctx, operatorID)
+	existing, _ := s.Repos.OperatorMFACredential.FindByOperatorID(ctx, operatorID)
 	if existing != nil && existing.ID > 0 {
 		return ErrOperatorMFAAlreadyEnrolled
 	}
@@ -361,7 +348,7 @@ func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error
 		Method:     platform.OperatorMFAMethodEmail,
 		EnrolledAt: time.Now(),
 	}
-	if err := s.repos.OperatorMFACredential.Create(ctx, cred); err != nil {
+	if err := s.Repos.OperatorMFACredential.Create(ctx, cred); err != nil {
 		return fmt.Errorf("persist operator mfa credential: %w", err)
 	}
 	s.recordAudit(ctx, operatorID, platform.ActionMFAEnrolled, nil, nil, nil)
@@ -376,17 +363,17 @@ func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error
 // threshold). Mirrors the tenant-side mfaService.Disable cascade.
 // (#1430 review item #7)
 func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) error {
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		if err := s.repos.OperatorMFACredential.DeleteByOperatorID(txCtx, operatorID); err != nil {
+	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.Repos.OperatorMFACredential.DeleteByOperatorID(txCtx, operatorID); err != nil {
 			return fmt.Errorf("delete operator credential: %w", err)
 		}
-		if err := s.repos.OperatorMFATrustedDevice.RevokeAllByOperatorID(txCtx, operatorID, time.Now()); err != nil {
+		if err := s.Repos.OperatorMFATrustedDevice.RevokeAllByOperatorID(txCtx, operatorID, time.Now()); err != nil {
 			return fmt.Errorf("revoke operator trusted devices: %w", err)
 		}
 		// Atomic reset — replaces the previous fetch + full-row Update with a
 		// single UPDATE so the disable cascade isn't racing concurrent failed
 		// verifies on the same operator.
-		if err := s.repos.Operator.ResetMFAAttempts(txCtx, operatorID); err != nil {
+		if err := s.Repos.Operator.ResetMFAAttempts(txCtx, operatorID); err != nil {
 			return fmt.Errorf("reset operator mfa attempts: %w", err)
 		}
 		return nil
@@ -416,7 +403,7 @@ func (s *operatorMFAService) IssueTrustedDevice(ctx context.Context, operatorID 
 		ua := userAgent
 		device.UserAgent = &ua
 	}
-	if err := s.repos.OperatorMFATrustedDevice.Create(ctx, device); err != nil {
+	if err := s.Repos.OperatorMFATrustedDevice.Create(ctx, device); err != nil {
 		return "", time.Time{}, fmt.Errorf("persist operator trusted device: %w", err)
 	}
 	signed := authService.SignTrustedDeviceToken(rawToken, s.mfaSecret)
@@ -433,22 +420,22 @@ func (s *operatorMFAService) VerifyTrustedDevice(ctx context.Context, operatorID
 		return false, nil
 	}
 	tokenHash := authService.HashTrustedDeviceToken(rawToken)
-	device, err := s.repos.OperatorMFATrustedDevice.FindActiveByOperatorIDAndTokenHash(ctx, operatorID, tokenHash)
+	device, err := s.Repos.OperatorMFATrustedDevice.FindActiveByOperatorIDAndTokenHash(ctx, operatorID, tokenHash)
 	if err != nil || device == nil {
 		return false, nil
 	}
-	_ = s.repos.OperatorMFATrustedDevice.UpdateLastUsedAt(ctx, device.ID, time.Now())
+	_ = s.Repos.OperatorMFATrustedDevice.UpdateLastUsedAt(ctx, device.ID, time.Now())
 	return true, nil
 }
 
 func (s *operatorMFAService) ListTrustedDevices(ctx context.Context, operatorID int64) ([]*platform.OperatorMFATrustedDevice, error) {
-	return s.repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
+	return s.Repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
 }
 
 func (s *operatorMFAService) RevokeTrustedDevice(ctx context.Context, operatorID, deviceID int64) error {
 	// Validate ownership before revoke — a device row can only be revoked
 	// by its own operator account.
-	devices, err := s.repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
+	devices, err := s.Repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
 	if err != nil {
 		return err
 	}
@@ -462,23 +449,23 @@ func (s *operatorMFAService) RevokeTrustedDevice(ctx context.Context, operatorID
 	if !owned {
 		return ErrOperatorMFAPermissionDenied
 	}
-	return s.repos.OperatorMFATrustedDevice.Revoke(ctx, deviceID, time.Now())
+	return s.Repos.OperatorMFATrustedDevice.Revoke(ctx, deviceID, time.Now())
 }
 
 // ===== Internal helpers =====
 
 func (s *operatorMFAService) parseChallengeToken(tokenString string) (*authjwt.MFAChallengeClaims, error) {
-	return s.tokenAuth.ParseMFAChallengeJWT(tokenString)
+	return s.TokenAuth.ParseMFAChallengeJWT(tokenString)
 }
 
 func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *platform.Operator, plainCode string, ip net.IP) {
-	if s.dispatcher == nil {
-		s.logger.Warn("email dispatcher unavailable; operator mfa code not sent",
+	if s.Dispatcher == nil {
+		s.Logger.Warn("email dispatcher unavailable; operator mfa code not sent",
 			slog.Int64("operator_id", op.ID))
 		return
 	}
-	frontendURL := strings.TrimRight(s.frontendURL, "/")
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	frontendURL := strings.TrimRight(s.FrontendURL, "/")
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	requestIP := ""
 	if ip != nil && !ip.IsUnspecified() {
@@ -486,7 +473,7 @@ func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *pla
 	}
 
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail(op.DisplayName, op.Email),
 		Subject:  "Ihr moto-Anmeldecode",
 		Template: "mfa-email-code.html",
@@ -504,7 +491,7 @@ func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *pla
 		ReferenceID: op.ID,
 		Recipient:   op.Email,
 	}
-	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: []time.Duration{time.Second, 5 * time.Second, 15 * time.Second},
@@ -516,21 +503,21 @@ func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *pla
 // an operator sees the same "new device was just added" mail after the
 // remember-device cookie is issued. Fire-and-forget.
 func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context, operatorID int64, userAgent string, ip net.IP, days int) {
-	if s.dispatcher == nil {
-		s.logger.Warn("email dispatcher unavailable; operator trusted-device-added mail skipped",
+	if s.Dispatcher == nil {
+		s.Logger.Warn("email dispatcher unavailable; operator trusted-device-added mail skipped",
 			slog.Int64("operator_id", operatorID))
 		return
 	}
-	op, err := s.repos.Operator.FindByID(ctx, operatorID)
+	op, err := s.Repos.Operator.FindByID(ctx, operatorID)
 	if err != nil || op == nil || strings.TrimSpace(op.Email) == "" {
-		s.logger.Warn("could not load operator for trusted-device-added mail",
+		s.Logger.Warn("could not load operator for trusted-device-added mail",
 			slog.Int64("operator_id", operatorID),
 			slog.Any("error", err))
 		return
 	}
 
-	frontendURL := strings.TrimRight(s.frontendURL, "/")
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	frontendURL := strings.TrimRight(s.FrontendURL, "/")
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	requestIP := ""
 	if ip != nil && !ip.IsUnspecified() {
@@ -543,7 +530,7 @@ func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context
 	// text still works for them. We don't pass a deep-link any more
 	// (tenant-side decision, mirrored here for template parity).
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail(op.DisplayName, op.Email),
 		Subject:  "Neues vertrautes Gerät zu Ihrem moto-Konto hinzugefügt",
 		Template: "trusted-device-added.html",
@@ -560,7 +547,7 @@ func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context
 		ReferenceID: operatorID,
 		Recipient:   op.Email,
 	}
-	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: []time.Duration{time.Second, 5 * time.Second, 15 * time.Second},
@@ -598,7 +585,7 @@ func (s *operatorMFAService) recordAudit(ctx context.Context, operatorID int64, 
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("panic in operator mfa audit logging: %v", r)
-				s.logger.Error("operator audit goroutine panic recovered",
+				s.Logger.Error("operator audit goroutine panic recovered",
 					slog.String("action", action),
 					slog.String("error", err.Error()),
 				)
@@ -608,8 +595,8 @@ func (s *operatorMFAService) recordAudit(ctx context.Context, operatorID int64, 
 		}()
 		logCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := s.repos.OperatorAuditLog.Create(logCtx, entry); err != nil {
-			s.logger.Error("failed to log operator mfa audit event",
+		if err := s.Repos.OperatorAuditLog.Create(logCtx, entry); err != nil {
+			s.Logger.Error("failed to log operator mfa audit event",
 				slog.String("action", action),
 				slog.String("error", err.Error()),
 			)

@@ -16,12 +16,42 @@ const (
 	DepartureBus DepartureMode = "bus"
 	// DeparturePickup — the child is collected by a person ("wird abgeholt").
 	DeparturePickup DepartureMode = "pickup"
+	// DepartureAccompanied — the child leaves together with another child or a
+	// named person ("geht mit anderem Kind/Person"). Who they leave with is
+	// captured separately in the free-text companion note on the student, and
+	// may be formalized into a departure group (#1694).
+	DepartureAccompanied DepartureMode = "accompanied"
 )
 
 var validDepartureModes = map[DepartureMode]bool{
-	DepartureAlone:  true,
-	DepartureBus:    true,
-	DeparturePickup: true,
+	DepartureAlone:       true,
+	DepartureBus:         true,
+	DeparturePickup:      true,
+	DepartureAccompanied: true,
+}
+
+// GermanLabel renders the mode as a standalone, capitalized German label for
+// chat/diff and other parent-facing surfaces ("Fährt Bus" / "Wird abgeholt" /
+// "Geht alleine"). It is the single source of truth for this wording so the
+// parent messaging diff and any other consumer cannot drift. (Staff CSV exports
+// use their own mid-sentence lowercase phrasing in api/enrollment, which is a
+// deliberately different register.)
+func (m DepartureMode) GermanLabel() string {
+	switch m {
+	case DepartureBus:
+		return "Fährt Bus"
+	case DeparturePickup:
+		return "Wird abgeholt"
+	case DepartureAccompanied:
+		// MUST be explicit: an accompanied child leaves WITH another child/person
+		// and must never fall through to "Geht alleine" (safety-sensitive, #1694).
+		// Letting it hit the default mislabels the child as a self-goer on the
+		// staff confirm diff, so staff would approve a schedule change believing
+		// the wrong current state.
+		return "Geht mit anderem Kind/Person"
+	default:
+		return "Geht alleine"
+	}
 }
 
 // DepartureDays stores, per weekday, how the child leaves. A weekday not
@@ -37,7 +67,7 @@ func (d DepartureDays) Validate() error {
 			return fmt.Errorf("departure_days weekday %q must be one of mon/tue/wed/thu/fri", day)
 		}
 		if !validDepartureModes[mode] {
-			return fmt.Errorf("departure_days mode %q must be one of alone/bus/pickup", mode)
+			return fmt.Errorf("departure_days mode %q must be one of alone/bus/pickup/accompanied", mode)
 		}
 	}
 	return nil
@@ -53,24 +83,38 @@ func (d DepartureDays) Normalize() DepartureDays {
 			out[day] = DepartureBus
 		case DeparturePickup:
 			out[day] = DeparturePickup
+		case DepartureAccompanied:
+			out[day] = DepartureAccompanied
 		}
 	}
 	return out
 }
 
 // ModeFor returns the mode for a weekday, defaulting to DepartureAlone for any
-// day not explicitly set to bus/pickup.
+// day not explicitly set to a non-alone mode.
 func (d DepartureDays) ModeFor(day string) DepartureMode {
-	if mode := d[day]; mode == DepartureBus || mode == DeparturePickup {
+	switch mode := d[day]; mode {
+	case DepartureBus, DeparturePickup, DepartureAccompanied:
 		return mode
+	default:
+		return DepartureAlone
 	}
-	return DepartureAlone
 }
 
 // HasAny reports whether any weekday is set to a non-alone mode.
 func (d DepartureDays) HasAny() bool {
 	for _, day := range PickupDayOrder {
 		if d.ModeFor(day) != DepartureAlone {
+			return true
+		}
+	}
+	return false
+}
+
+// HasMode reports whether any weekday is set to the given departure mode.
+func (d DepartureDays) HasMode(mode DepartureMode) bool {
+	for _, m := range d {
+		if m == mode {
 			return true
 		}
 	}
@@ -102,12 +146,20 @@ func (d DepartureDays) PickupDays() PickupDays {
 	return out
 }
 
-// LegacyPickupStatus derives the legacy pickup_status string: any pickup day
-// means "Wird abgeholt"; otherwise the child goes home alone. Bus days do not
-// count as pickup for this legacy field, matching the historical semantics.
+// LegacyPickupStatus derives the legacy pickup_status string from the unified
+// per-day plan. Priority: any pickup day -> "Wird abgeholt"; otherwise any
+// accompanied day -> "Geht mit anderem Kind"; otherwise the child goes home
+// alone. An accompanied child leaves WITH a companion and must never be bucketed
+// as a self-goer, which is safety-sensitive state (#1694); the dedicated
+// non-self value keeps legacy search/list/admin-filter consumers from
+// classifying them as "Geht alleine nach Hause". Bus days do not count as pickup
+// for this legacy field, matching the historical semantics.
 func (d DepartureDays) LegacyPickupStatus() string {
 	if d.PickupDays().HasAny() {
 		return PickupStatusPickedUp
+	}
+	if d.HasMode(DepartureAccompanied) {
+		return PickupStatusAccompanied
 	}
 	return PickupStatusGoesAlone
 }
@@ -128,4 +180,37 @@ func DepartureDaysFromLegacy(bus BusDays, pickup PickupDays) DepartureDays {
 		}
 	}
 	return out
+}
+
+// departureModeStakes ranks the exclusive modes from highest to lowest stakes,
+// used only to merge two exclusive plans for the same weekday. Pickup (collected
+// by a named person) outranks accompanied (leaves with another child/person),
+// which outranks bus, which outranks going alone. Accompanied MUST beat bus so a
+// merge never silently drops the safety-sensitive "Mit anderem Kind" signal in
+// favor of a bus instruction (#1694).
+var departureModeStakes = map[DepartureMode]int{
+	DeparturePickup:      3,
+	DepartureAccompanied: 2,
+	DepartureBus:         1,
+	DepartureAlone:       0,
+}
+
+// Merge returns the per-weekday combination of two exclusive plans, keeping the
+// higher-stakes mode on any day both set (see departureModeStakes). Used when a
+// single enrollment submission carries more than one field targeting the legacy
+// exclusive student.departure target; merging — rather than last-field-wins —
+// stops a later bus/pickup field from dropping an earlier accompanied day. The
+// result is normalized.
+func (d DepartureDays) Merge(other DepartureDays) DepartureDays {
+	out := DepartureDays{}
+	for _, day := range PickupDayOrder {
+		a, b := d.ModeFor(day), other.ModeFor(day)
+		if departureModeStakes[b] > departureModeStakes[a] {
+			a = b
+		}
+		if a != DepartureAlone {
+			out[day] = a
+		}
+	}
+	return out.Normalize()
 }

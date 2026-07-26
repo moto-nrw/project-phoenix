@@ -348,7 +348,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	})
 }
 
-func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
+func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -394,7 +394,7 @@ func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
 			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence2.ID)
 		}()
 
-		absenceMap, err := repo.GetTodayAbsenceMap(ctx)
+		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
 		require.NoError(t, err)
 		assert.Equal(t, active.AbsenceTypeSick, absenceMap[staff1.ID])
 		assert.Equal(t, active.AbsenceTypeVacation, absenceMap[staff2.ID])
@@ -431,81 +431,28 @@ func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
 			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence2.ID)
 		}()
 
-		absenceMap, err := repo.GetTodayAbsenceMap(ctx)
+		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
 		require.NoError(t, err)
 		// Sick should take priority over vacation
 		assert.Equal(t, active.AbsenceTypeSick, absenceMap[staff3.ID])
 	})
-}
 
-func TestStaffAbsenceRepository_GetByDateRange(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
-
-	staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
-	staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID)
-		testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID)
-	}()
-
-	t.Run("finds all absences in date range", func(t *testing.T) {
-		today := timezone.TodayDate()
-		tomorrow := today.AddDays(1)
-		nextWeek := today.AddDays(7)
-
-		absence1 := &active.StaffAbsence{
+	t.Run("uses the requested date", func(t *testing.T) {
+		requestedDate := timezone.TodayDate().AddDays(30)
+		absence := &active.StaffAbsence{
 			StaffID:     staff1.ID,
-			AbsenceType: active.AbsenceTypeSick,
-			DateStart:   today,
-			DateEnd:     tomorrow,
-			Status:      active.AbsenceStatusReported,
+			AbsenceType: active.AbsenceTypeTraining,
+			DateStart:   requestedDate,
+			DateEnd:     requestedDate,
+			Status:      active.AbsenceStatusApproved,
 			CreatedBy:   staff1.ID,
 		}
 
-		absence2 := &active.StaffAbsence{
-			StaffID:     staff2.ID,
-			AbsenceType: active.AbsenceTypeVacation,
-			DateStart:   tomorrow,
-			DateEnd:     nextWeek,
-			Status:      active.AbsenceStatusApproved,
-			CreatedBy:   staff2.ID,
-		}
+		require.NoError(t, repo.Create(ctx, absence))
+		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 
-		err := repo.Create(ctx, absence1)
+		absenceMap, err := repo.GetAbsenceMapForDate(ctx, requestedDate)
 		require.NoError(t, err)
-		err = repo.Create(ctx, absence2)
-		require.NoError(t, err)
-		defer func() {
-			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence1.ID)
-			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence2.ID)
-		}()
-
-		absences, err := repo.GetByDateRange(ctx, today, nextWeek)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(absences), 2)
-
-		// Verify both absences are in the results
-		var found1, found2 bool
-		for _, a := range absences {
-			if a.ID == absence1.ID {
-				found1 = true
-			}
-			if a.ID == absence2.ID {
-				found2 = true
-			}
-		}
-		assert.True(t, found1)
-		assert.True(t, found2)
-	})
-
-	t.Run("returns empty for date range with no absences", func(t *testing.T) {
-		futureDate := timezone.TodayDate().AddDays(730)
-		absences, err := repo.GetByDateRange(ctx, futureDate, futureDate)
-		require.NoError(t, err)
-		assert.Empty(t, absences)
+		assert.Equal(t, active.AbsenceTypeTraining, absenceMap[staff1.ID])
 	})
 }

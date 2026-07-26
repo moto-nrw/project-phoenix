@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
@@ -20,6 +20,14 @@ interface TenantResolveResponse {
   presence_mode?: string;
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
+  parent_messaging_enabled?: boolean;
+  display_enabled?: boolean;
+  care_offerings_enabled?: boolean;
+  attendance_web_enabled?: boolean;
+  group_mode?: string;
+  show_timetable_counts?: boolean;
+  waitlist_enabled?: boolean;
+  grade_level_max: number;
 }
 
 /**
@@ -27,36 +35,43 @@ interface TenantResolveResponse {
  * Uses the backend API to validate the tenant slug.
  */
 async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
-  try {
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const res = await fetch(
-      `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
-      { next: { revalidate: 300, tags: [`tenant-${slug}`] } },
-    );
+  const { getServerApiUrl } = await import("~/lib/server-api-url");
+  const res = await fetch(
+    `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
+    { next: { revalidate: 300, tags: [`tenant-${slug}`] } },
+  );
 
-    if (!res.ok) return null;
-
-    const json = (await res.json()) as {
-      status: string;
-      data: TenantResolveResponse;
-    };
-    const data = json.data;
-    return {
-      tenantId: data.tenant_id,
-      slug: data.slug,
-      name: data.name,
-      subdomain: data.subdomain,
-      organizationId: data.organization_id,
-      organizationName: data.organization_name,
-      hidden: data.hidden === true,
-      settings: data.settings ?? {},
-      presenceMode: normalizePresenceMode(data.presence_mode),
-      studentPhotosEnabled: data.student_photos_enabled === true,
-      nfcEnabled: data.nfc_enabled === true,
-    };
-  } catch {
-    return null;
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Tenant resolution failed with HTTP ${res.status}`);
   }
+
+  const json = (await res.json()) as {
+    status: string;
+    data: TenantResolveResponse;
+  };
+  const data = json.data;
+  return {
+    tenantId: data.tenant_id,
+    slug: data.slug,
+    name: data.name,
+    subdomain: data.subdomain,
+    organizationId: data.organization_id,
+    organizationName: data.organization_name,
+    hidden: data.hidden === true,
+    settings: data.settings ?? {},
+    presenceMode: normalizePresenceMode(data.presence_mode),
+    studentPhotosEnabled: data.student_photos_enabled === true,
+    nfcEnabled: data.nfc_enabled === true,
+    messagingEnabled: data.parent_messaging_enabled === true,
+    displayEnabled: data.display_enabled === true,
+    careOfferingsEnabled: data.care_offerings_enabled !== false,
+    attendanceWebEnabled: data.attendance_web_enabled === true,
+    groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
+    showTimetableCounts: data.show_timetable_counts !== false,
+    waitlistEnabled: data.waitlist_enabled !== false,
+    gradeLevelMax: data.grade_level_max,
+  };
 }
 
 export function bareTenantHost(currentHost: string): string {
@@ -74,10 +89,18 @@ export function bareTenantHost(currentHost: string): string {
   return env.TENANT_DOMAIN;
 }
 
+function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
+  if (!currentHost) return false;
+  const hostname = currentHost.split(":")[0] ?? "";
+  return hostname === `${subdomain}.${env.TENANT_DOMAIN}`;
+}
+
 async function redirectToTenantSelection(): Promise<never> {
   const requestHeaders = await headers();
   const currentHost =
-    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+    requestHeaders.get("x-moto-original-host") ??
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host");
 
   if (!currentHost) {
     throw new Error("Cannot redirect invalid tenant without a Host header");
@@ -115,11 +138,24 @@ export default async function TenantLayout({
 
   if (!tenant) {
     await redirectToTenantSelection();
+    throw new Error("Tenant redirect did not complete");
   }
+  const requestHeaders = await headers();
+  const currentHost =
+    requestHeaders.get("x-moto-original-host") ??
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host");
+  const routingMode = isTenantSubdomainHost(currentHost, tenant.subdomain)
+    ? "subdomain"
+    : "path";
 
   return (
     <TenantProviders>
-      <TenantProvider tenantSlug={tenantSlug} tenant={tenant}>
+      <TenantProvider
+        tenantSlug={tenantSlug}
+        tenant={tenant}
+        routingMode={routingMode}
+      >
         <TenantGuard>{children}</TenantGuard>
       </TenantProvider>
     </TenantProviders>

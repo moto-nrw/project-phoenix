@@ -3,7 +3,9 @@
 package facilities
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -79,12 +81,11 @@ type schulhofService struct {
 	logger          *slog.Logger
 }
 
+var errSchulhofActivityNotFound = errors.New("schulhof activity not found")
+
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *schulhofService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewSchulhofService creates a new Schulhof service.
@@ -111,29 +112,40 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	}
 
 	// Step 1: Find Schulhof room
-	room, err := s.facilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
+	room, err := FindCanonicalSchulhofRoom(ctx, s.facilityService)
 	if err != nil {
-		// Room doesn't exist yet - return status with exists=false
-		s.getLogger().Info("schulhof room not found, infrastructure not yet created",
-			slog.String("component", "schulhof"))
-		return status, nil
+		if errors.Is(err, ErrRoomNotFound) {
+			// Room doesn't exist yet - return status with exists=false.
+			s.getLogger().Info("schulhof room not found, infrastructure not yet created",
+				slog.String("component", "schulhof"))
+			return status, nil
+		}
+		return nil, fmt.Errorf("failed to look up Schulhof room: %w", err)
 	}
 	status.Exists = true
 	status.RoomID = &room.ID
 
 	// Step 2: Find Schulhof activity group
-	activityGroup, err := s.findSchulhofActivity(ctx)
+	activityGroup, err := s.findSchulhofActivity(ctx, room)
 	if err != nil {
-		s.getLogger().Info("schulhof activity not found",
-			slog.String("component", "schulhof"),
-			slog.String("error", err.Error()))
-		return status, nil
+		if errors.Is(err, errSchulhofActivityNotFound) {
+			s.getLogger().Info("schulhof activity not found",
+				slog.String("component", "schulhof"))
+			return status, nil
+		}
+		return nil, fmt.Errorf("failed to look up Schulhof activity: %w", err)
 	}
 	status.ActivityGroupID = &activityGroup.ID
+	if err := ValidateSchulhofActivityRoom(activityGroup, room); err != nil {
+		return nil, fmt.Errorf("invalid Schulhof activity infrastructure: %w", err)
+	}
 
 	// Step 3: Find today's active group for this room
 	activeGroup, err := s.findTodayActiveGroup(ctx, room.ID, activityGroup.ID)
-	if err != nil || activeGroup == nil {
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up today's Schulhof group: %w", err)
+	}
+	if activeGroup == nil {
 		// No active session today - still return status with exists=true
 		return status, nil
 	}
@@ -142,44 +154,38 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	// Step 4: Get supervisors for this active group
 	supervisors, err := s.activeService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
 	if err != nil {
-		s.getLogger().Warn("error fetching schulhof supervisors",
-			slog.String("component", "schulhof"),
-			slog.String("error", err.Error()))
-	} else {
-		status.SupervisorCount = len(supervisors)
-		for _, sup := range supervisors {
-			if sup.EndDate != nil {
-				continue // Skip ended supervisions
-			}
-			info := SupervisorInfo{
-				ID:            sup.ID,
-				StaffID:       sup.StaffID,
-				IsCurrentUser: sup.StaffID == staffID,
-			}
-			// Get supervisor name
-			if sup.Staff != nil && sup.Staff.Person != nil {
-				info.Name = sup.Staff.Person.FirstName + " " + sup.Staff.Person.LastName
-			}
-			status.Supervisors = append(status.Supervisors, info)
-			if info.IsCurrentUser {
-				status.IsUserSupervising = true
-				status.SupervisionID = &sup.ID
-			}
-		}
-		status.SupervisorCount = len(status.Supervisors)
+		return nil, fmt.Errorf("failed to look up Schulhof supervisors: %w", err)
 	}
+	status.SupervisorCount = len(supervisors)
+	for _, sup := range supervisors {
+		if sup.EndDate != nil {
+			continue // Skip ended supervisions
+		}
+		info := SupervisorInfo{
+			ID:            sup.ID,
+			StaffID:       sup.StaffID,
+			IsCurrentUser: sup.StaffID == staffID,
+		}
+		// Get supervisor name
+		if sup.Staff != nil && sup.Staff.Person != nil {
+			info.Name = sup.Staff.Person.FirstName + " " + sup.Staff.Person.LastName
+		}
+		status.Supervisors = append(status.Supervisors, info)
+		if info.IsCurrentUser {
+			status.IsUserSupervising = true
+			status.SupervisionID = &sup.ID
+		}
+	}
+	status.SupervisorCount = len(status.Supervisors)
 
 	// Step 5: Count students in this active group
 	visits, err := s.activeService.FindVisitsByActiveGroupID(ctx, activeGroup.ID)
 	if err != nil {
-		s.getLogger().Warn("error fetching schulhof visits",
-			slog.String("component", "schulhof"),
-			slog.String("error", err.Error()))
-	} else {
-		for _, visit := range visits {
-			if visit.ExitTime == nil {
-				status.StudentCount++
-			}
+		return nil, fmt.Errorf("failed to look up Schulhof visits: %w", err)
+	}
+	for _, visit := range visits {
+		if visit.ExitTime == nil {
+			status.StudentCount++
 		}
 	}
 
@@ -248,34 +254,43 @@ func (s *schulhofService) ToggleSupervision(ctx context.Context, staffID int64, 
 
 // EnsureInfrastructure ensures the Schulhof room, category, and activity group exist.
 func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*activityModels.Group, error) {
-	// Check if activity already exists
-	activityGroup, err := s.findSchulhofActivity(ctx)
-	if err == nil && activityGroup != nil {
-		return activityGroup, nil
-	}
-
-	s.getLogger().Info("schulhof infrastructure not found, auto-creating...",
-		slog.String("component", "schulhof"))
-
-	// Step 1: Ensure Schulhof room exists
+	// Validate or create the canonical room before returning any pre-existing
+	// activity. Older versions could provision an activity against a lowercase
+	// room that FindRoomByName would otherwise adopt case-insensitively.
 	room, err := s.ensureSchulhofRoom(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure Schulhof room: %w", err)
 	}
 
-	// Step 2: Ensure Schulhof category exists
+	// Check if activity already exists
+	activityGroup, err := s.findSchulhofActivity(ctx, room)
+	if err == nil && activityGroup != nil {
+		if validateErr := ValidateSchulhofActivityRoom(activityGroup, room); validateErr != nil {
+			return nil, fmt.Errorf("invalid Schulhof activity infrastructure: %w", validateErr)
+		}
+		return activityGroup, nil
+	}
+	if err != nil && !errors.Is(err, errSchulhofActivityNotFound) {
+		return nil, fmt.Errorf("failed to look up Schulhof activity: %w", err)
+	}
+
+	s.getLogger().Info("schulhof infrastructure not found, auto-creating...",
+		slog.String("component", "schulhof"))
+
+	// Step 1: Ensure Schulhof category exists
 	category, err := s.ensureSchulhofCategory(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure Schulhof category: %w", err)
 	}
 
-	// Step 3: Create the Schulhof activity group
+	// Step 2: Create the Schulhof activity group
 	newActivity := &activityModels.Group{
 		Name:            constants.SchulhofActivityName,
 		MaxParticipants: constants.SchulhofMaxParticipants,
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
+		IsSystem:        true,
 	}
 	// createdBy == 0 means system-created (nil) — avoids FK violation on users.staff
 	if createdBy > 0 {
@@ -305,9 +320,12 @@ func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy 
 	}
 
 	// Get the room
-	room, err := s.facilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
+	room, err := FindCanonicalSchulhofRoom(ctx, s.facilityService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Schulhof room: %w", err)
+	}
+	if err := ValidateSchulhofActivityRoom(activityGroup, room); err != nil {
+		return nil, fmt.Errorf("invalid Schulhof activity infrastructure: %w", err)
 	}
 
 	// Find today's active group
@@ -334,6 +352,18 @@ func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy 
 	}
 
 	if err := s.activeService.CreateActiveGroup(ctx, newActiveGroup); err != nil {
+		if errors.Is(err, activeSvc.ErrRoomConflict) {
+			existingGroup, findErr := s.findTodayActiveGroup(ctx, room.ID, activityGroup.ID)
+			if findErr != nil {
+				return nil, fmt.Errorf("failed to refetch Schulhof active group after room conflict: %w", findErr)
+			}
+			if existingGroup != nil {
+				s.getLogger().Info("reused concurrently created schulhof active group",
+					slog.String("component", "schulhof"),
+					slog.Int64("active_group_id", existingGroup.ID))
+				return existingGroup, nil
+			}
+		}
 		return nil, fmt.Errorf("failed to create Schulhof active group: %w", err)
 	}
 
@@ -344,8 +374,10 @@ func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy 
 	return newActiveGroup, nil
 }
 
-// findSchulhofActivity finds the Schulhof activity group by name.
-func (s *schulhofService) findSchulhofActivity(ctx context.Context) (*activityModels.Group, error) {
+// findSchulhofActivity finds the dedicated system activity for the canonical
+// Schulhof room. Activity names are not unique, so a normal staff activity
+// with the same name must not be adopted or block provisioning.
+func (s *schulhofService) findSchulhofActivity(ctx context.Context, room *facilities.Room) (*activityModels.Group, error) {
 	options := base.NewQueryOptions()
 	filter := base.NewFilter()
 	filter.Equal("name", constants.SchulhofActivityName)
@@ -356,11 +388,13 @@ func (s *schulhofService) findSchulhofActivity(ctx context.Context) (*activityMo
 		return nil, fmt.Errorf("failed to query Schulhof activity: %w", err)
 	}
 
-	if len(groups) == 0 {
-		return nil, fmt.Errorf("schulhof activity not found")
+	for _, group := range groups {
+		if ValidateSchulhofActivityRoom(group, room) == nil {
+			return group, nil
+		}
 	}
 
-	return groups[0], nil
+	return nil, errSchulhofActivityNotFound
 }
 
 // findTodayActiveGroup finds an active group for the Schulhof room that started today.
@@ -418,12 +452,15 @@ func (s *schulhofService) endStaleActiveGroups(ctx context.Context, roomID int64
 // ensureSchulhofRoom finds or creates the Schulhof room.
 func (s *schulhofService) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, error) {
 	// Try to find existing Schulhof room
-	room, err := s.facilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
+	room, err := FindCanonicalSchulhofRoom(ctx, s.facilityService)
 	if err == nil && room != nil {
 		s.getLogger().Info("found existing schulhof room",
 			slog.String("component", "schulhof"),
 			slog.Int64("room_id", room.ID))
 		return room, nil
+	}
+	if err != nil && !errors.Is(err, ErrRoomNotFound) {
+		return nil, fmt.Errorf("failed to look up Schulhof room: %w", err)
 	}
 
 	// Room not found - create it
@@ -439,6 +476,7 @@ func (s *schulhofService) ensureSchulhofRoom(ctx context.Context) (*facilities.R
 		Capacity: &capacity,
 		Category: &category,
 		Color:    &color,
+		IsSystem: true,
 	}
 
 	if err := s.facilityService.CreateRoom(ctx, newRoom); err != nil {
@@ -476,6 +514,7 @@ func (s *schulhofService) ensureSchulhofCategory(ctx context.Context) (*activity
 		Name:        constants.SchulhofCategoryName,
 		Description: constants.SchulhofCategoryDescription,
 		Color:       constants.SchulhofColor,
+		IsSystem:    true,
 	}
 
 	createdCategory, err := s.activityService.CreateCategory(ctx, newCategory)

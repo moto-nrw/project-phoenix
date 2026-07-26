@@ -40,11 +40,6 @@ type GradeTransition struct {
 // JSONMap is a helper type for JSONB columns
 type JSONMap map[string]interface{}
 
-// TableName returns the database table name
-func (t *GradeTransition) TableName() string {
-	return "education.grade_transitions"
-}
-
 // academicYearPattern validates the academic year format (e.g., "2025-2026")
 var academicYearPattern = regexp.MustCompile(`^\d{4}-\d{4}$`)
 
@@ -105,21 +100,6 @@ func (t *GradeTransition) CanApply() bool {
 // CanRevert returns true if the transition can be reverted
 func (t *GradeTransition) CanRevert() bool {
 	return t.IsApplied()
-}
-
-// GetID returns the entity's ID
-func (t *GradeTransition) GetID() interface{} {
-	return t.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (t *GradeTransition) GetCreatedAt() time.Time {
-	return t.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (t *GradeTransition) GetUpdatedAt() time.Time {
-	return t.UpdatedAt
 }
 
 // GradeTransitionRepository defines the interface for grade transition data access

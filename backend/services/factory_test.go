@@ -313,6 +313,8 @@ func seedFactoryRequiredConfig() {
 	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
 	viper.Set("frontend_url", "http://localhost:3000")
 	viper.Set("parents_url", "http://parents.localhost:3000")
+	viper.Set("tenant_domain", "localhost")
+	viper.Set("next_public_operator_hostname", "operator.localhost:3000")
 }
 
 func TestEnableStudentPhotos(t *testing.T) {

@@ -84,7 +84,7 @@ func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 	room := createWCRoomAliasIntegrationRoom(t, ctx.db, constants.WCRoomAliasName)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -92,7 +92,7 @@ func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -142,7 +142,7 @@ func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
 	room := createWCRoomAliasIntegrationRoom(t, ctx.db, constants.WCRoomAliasName)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -150,7 +150,7 @@ func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)

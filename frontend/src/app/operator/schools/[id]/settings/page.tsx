@@ -1,6 +1,13 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -23,6 +30,7 @@ const logger = createLogger({ component: "OperatorSchoolSettingsPage" });
 // Tab labels (match the tenant settings UI mapping)
 const TAB_LABELS: Record<string, string> = {
   operations: "Betrieb",
+  reminders: "Erinnerungen",
   gdpr: "Datenschutz",
   security: "Sicherheit",
   devices: "Geräte",
@@ -35,6 +43,14 @@ interface PageProps {
 }
 
 export default function OperatorSchoolSettingsPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <OperatorSchoolSettingsPageContent params={params} />
+    </Suspense>
+  );
+}
+
+function OperatorSchoolSettingsPageContent({ params }: PageProps) {
   const { id: schoolId } = use(params);
   const { status: sessionStatus } = useSession();
   const searchParams = useSearchParams();

@@ -27,12 +27,91 @@ import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
+import {
+  notifyStudentCompanionDisplayChanged,
+  notifyStudentCompanionsChanged,
+} from "~/lib/student-companion-api";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GlobalSSE" });
 
 const DEBOUNCE_MS = 500;
+
+// Every cache family derived from work sessions, absences, balance
+// adjustments, month-close snapshots, contractual schedules, or planned
+// shifts. Keep this targeted:
+// unrelated time-tracking configuration, holiday, closing-day, and assignment
+// caches do not change when staff_time_tracking_changed fires.
+const STAFF_TIME_TRACKING_CACHE_KEY_PARTS = [
+  "staff-time-accounts-",
+  "staff-dashboard-summary-",
+  "staff-history-",
+  "staff-absences-",
+  "staff-pending-absences-",
+  "staff-month-summary-",
+  "staff-month-close-",
+  "staff-balance-adjustments-",
+  "staff-schedule-",
+  "staff-shifts-visible-",
+  "time-tracking-current",
+  "time-tracking-history-",
+  "time-tracking-absences-",
+  "time-tracking-table-",
+  "time-tracking-month-summary-",
+  "time-tracking-schedule-targets-",
+  "time-tracking-own-schedule-",
+  "time-tracking-own-shifts-today-",
+] as const;
+
+// Per-student SWR keys carry the id as a segment: "student-detail-<id>",
+// "care-plan-day-<id>-<date>", "care-plan-week-<id>-<from>-<to>". useSWRAuth
+// prefixes the whole thing with the tenant slug ("<slug>:student-detail-7").
+const STUDENT_SCOPED_KEY_PREFIXES = [
+  "student-detail-",
+  "care-plan-day-",
+  "care-plan-week-",
+] as const;
+
+/**
+ * Whether an SWR cache key belongs to exactly this student.
+ *
+ * A plain `key.includes("care-plan-day-" + id)` matches every id that merely
+ * STARTS with it, so an event for child 1 also revalidated the cached plans of
+ * children 10, 11 and 100 — silent extra requests that grow with the school,
+ * and worse on a morning check-in burst where several such events land at once.
+ * The id must therefore end the key or be followed by "-", and the prefix must
+ * start the key or sit right after the tenant separator.
+ *
+ * Only usable for events whose audience is ALREADY scoped to the child — the
+ * group-topic check-in/checkout events. A tenant-wide event (pickup) must not
+ * carry a student id at all (GDPR: group_supervisors_only), so it cannot and
+ * does not go through here.
+ */
+function keyTargetsStudent(
+  key: string,
+  studentId: string,
+  prefixes: readonly string[] = STUDENT_SCOPED_KEY_PREFIXES,
+): boolean {
+  return prefixes.some((prefix) => {
+    const needle = `${prefix}${studentId}`;
+    for (
+      let at = key.indexOf(needle);
+      at !== -1;
+      at = key.indexOf(needle, at + 1)
+    ) {
+      const before = at === 0 ? undefined : key[at - 1];
+      const after = key[at + needle.length];
+      if (
+        (before === undefined || before === ":") &&
+        (after === undefined || after === "-")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
 
 /**
  * Global SSE hook that maintains a single connection for the entire app.
@@ -65,15 +144,40 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingActivityEvent = useRef(false);
   const hasPendingActiveSupervisionEvent = useRef(false);
   const hasPendingDashboardEvent = useRef(false);
+  const hasPendingStaffTimeTrackingEvent = useRef(false);
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const hasPendingArrivalScheduleEvent = useRef(false);
+  // Pickup (Gehzeit) writes get their own flag rather than riding the arrival
+  // one: they invalidate a different key set, and merging them would refetch
+  // the arrival caches on every pickup edit. Intentionally a plain flag with no
+  // per-student set: the event is tenant-wide and carries NO student id (GDPR —
+  // see the backend broadcast), so invalidation is broad, exactly like arrival.
+  const hasPendingPickupScheduleEvent = useRef(false);
   const hasPendingStudentUpdateEvent = useRef(false);
+  // Kept apart from the student-update flag on purpose: only a write that can
+  // actually have changed the "läuft mit" links sets it.
+  const hasPendingCompanionEvent = useRef(false);
   const hasPendingTimetableEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
   // All matchers must use includes() instead of startsWith() to match regardless of prefix.
   const flushInvalidations = useCallback(() => {
+    if (hasPendingStaffTimeTrackingEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          STAFF_TIME_TRACKING_CACHE_KEY_PARTS.some((part) =>
+            key.includes(part),
+          ),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "staff_time_tracking",
+        });
+      });
+    }
+
     // Invalidate ALL supervision-visits caches for student/dashboard events.
     // A student checked out of Room A may appear on the Schulhof (catch-all),
     // so we can't limit to just the source group's cache key.
@@ -104,6 +208,9 @@ export function useGlobalSSE(): SSEHookState {
       pendingStudentIds.current.size > 0 ||
       hasPendingDashboardEvent.current ||
       hasPendingArrivalScheduleEvent.current ||
+      // A Gehzeit change moves the pickup time the list rows render (student
+      // list responses carry it for full-access rows).
+      hasPendingPickupScheduleEvent.current ||
       hasPendingStudentUpdateEvent.current
     ) {
       mutate(
@@ -141,12 +248,13 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // Invalidate specific student detail caches
+    // Invalidate specific student detail caches. keyTargetsStudent covers
+    // student-detail-* plus care-plan-* — the per-child Betreuungsplan day/week
+    // view, whose timeline shows the attendance a check-in/out just changed —
+    // and matches the id as a whole segment, never as a prefix of a longer id.
     for (const studentId of pendingStudentIds.current) {
       mutate(
-        (key) =>
-          typeof key === "string" &&
-          key.includes(`student-detail-${studentId}`),
+        (key) => typeof key === "string" && keyTargetsStudent(key, studentId),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -157,11 +265,72 @@ export function useGlobalSSE(): SSEHookState {
 
     if (hasPendingStudentUpdateEvent.current) {
       mutate(
-        (key) => typeof key === "string" && key.includes("student-detail-"),
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("student-detail-") ||
+            key.includes("student-status-days-") ||
+            key.includes("care-plan-day-") ||
+            key.includes("care-plan-week-") ||
+            // The staff detail header's "Heutige Abholung"/arrival slots. Parent
+            // care-exception writes (submit AND delete) change the pickup and
+            // arrival override for a day but announce ONLY student_updated —
+            // no pickup_schedule_changed, no arrival_schedule_changed
+            // (services/parent/parent_write_service.go). An approved care
+            // request is the mirror gap: it emits arrival_schedule_changed but
+            // also rewrites the weekly PICKUP plan. Both keys disable focus
+            // revalidation, so without them an open detail page keeps showing
+            // the superseded time until a manual reload.
+            key.includes("pickup-data-") ||
+            key.includes("arrival-data-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_detail",
+        });
+      });
+
+      // A renamed or reassigned child changes what the OTHER children's
+      // Laufgemeinschaft entries show, without changing a single link — so no
+      // student_companions_changed follows, and the SWR invalidation above does
+      // not reach the links either (own table, fetched outside SWR, keyed on a
+      // student id this write never changes). Read-only cards would keep the
+      // old name indefinitely, and after a group reassignment even one the
+      // backend would now redact for this viewer. Announced on the separate
+      // display bus: forms react to the companion bus by discarding drafts, and
+      // any rename in the school must not cost a user their work.
+      notifyStudentCompanionDisplayChanged();
+    }
+
+    if (hasPendingCompanionEvent.current) {
+      // The Laufgemeinschaft ("läuft mit") lives in its own table and is
+      // fetched outside SWR, so invalidating student-detail-* does not bring
+      // it along — and the fetching card keys its effect on the student id,
+      // which a remote edit never changes. Announcing the change on the same
+      // bus a local save uses gives every mounted card one shared
+      // revalidation path, so a link added in another tab, browser or by
+      // another staff member stops being invisible until remount (#1694).
+      //
+      // Driven by the dedicated student_companions_changed event, NOT by
+      // student_updated: an editing form reacts to this announcement by
+      // discarding its draft or blocking the save, so firing it for every
+      // rename, photo upload or sick flag in the school would cost users
+      // their work for changes that never touched the links.
+      notifyStudentCompanionsChanged();
+
+      // The Kindersuche is the one companion view that does NOT fetch the links
+      // separately: its grouping rides along inside the student list response
+      // (companion_student_ids, only with include_companions=true), so the
+      // announcement above never reaches it. Deleting a linked child announces
+      // ONLY student_companions_changed — no student_updated, no checkin — so
+      // without this the open "Nach Laufgemeinschaft" view keeps listing the
+      // deleted child, and every grouping the delete changed, until something
+      // unrelated revalidates the list.
+      mutate(
+        (key) => typeof key === "string" && key.includes("search-students-"),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "student_companions",
         });
       });
     }
@@ -175,13 +344,65 @@ export function useGlobalSSE(): SSEHookState {
           (key.includes("arrival-search-") ||
             key.includes("arrival-supervisions-") ||
             key.includes("arrival-ogs-groups-") ||
-            key.includes("arrival-data-")),
+            key.includes("arrival-data-") ||
+            // the Betreuungsplan day/week view shows the resolved arrival slot
+            key.includes("care-plan-day-") ||
+            key.includes("care-plan-week-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "arrival_schedule",
         });
       });
+    }
+
+    // Pickup (Gehzeit) plan or exception changed. The per-child Betreuungsplan
+    // renders the resolved pickup slot, the detail header shows "Gehzeit heute",
+    // and the student detail response carries the day-planning pickup time —
+    // all fetched with focus revalidation disabled, so this event is their ONLY
+    // live update path: without it a colleague's Gehzeit edit stays invisible in
+    // an open tab indefinitely.
+    //
+    // Broad by design, exactly like arrival: the event is tenant-wide and
+    // carries no student id (a tenant-wide id would leak pickup activity to
+    // staff outside gdpr.student_data_scope=group_supervisors_only — see the
+    // backend broadcast), so it cannot be narrowed to one child here. The cost
+    // is one re-check per open detail/care-plan page; each refetch is
+    // server-access-filtered, so an out-of-scope staffer gets nothing back.
+    if (hasPendingPickupScheduleEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("care-plan-day-") ||
+            key.includes("care-plan-week-") ||
+            // the detail header's "Gehzeit heute" slot
+            key.includes("pickup-data-") ||
+            key.includes("student-detail-")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "pickup_schedule",
+        });
+      });
+    }
+
+    // The Betreuungszeiten editor (CareScheduleManager) holds its arrival/pickup
+    // data in local state, NOT SWR, and stays force-mounted across tabs — so the
+    // mutate() calls above never reach it and a remote pickup/arrival change (a
+    // colleague's edit, or an approved parent request) leaves it stale until the
+    // page reloads. It owns its correctly-scoped refetch, so mirror the
+    // reminders/tenant-settings decoupling: announce staleness on a window
+    // event and let the mounted editor re-fetch. student_updated is included
+    // because a parent care-exception submit/delete changes the day's
+    // pickup/arrival override under that event alone.
+    if (
+      hasPendingPickupScheduleEvent.current ||
+      hasPendingArrivalScheduleEvent.current ||
+      hasPendingStudentUpdateEvent.current
+    ) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
+      }
     }
 
     // Invalidate dashboard for activity events, explicit dashboard broadcasts,
@@ -252,7 +473,18 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("timetable-") ||
-            key.includes("database-calendar-periods-list")),
+            // "Heute geplant" card on the Zeiterfassung page (#1844): its
+            // assignments come from activity instances, so a same-day cancel/
+            // start/complete — and staffing_deviation_changed, which covers
+            // deviations (absence, substitute, understaffed-ack) plus ordinary
+            // create/edit/delete of still-planned instances — must refetch it.
+            // The card disables focus revalidation, making this its only live
+            // update path.
+            key.includes("time-tracking-own-assignments-") ||
+            key.includes("database-calendar-periods-list") ||
+            // the per-child Betreuungsplan renders these activity instances
+            key.includes("care-plan-day-") ||
+            key.includes("care-plan-week-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -261,15 +493,60 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    // Reminders (issue #1457): the header bell + /reminders page are computed
+    // live from attendance, pickups, activity instances and student data.
+    // Check-ins/outs, activity/instance lifecycle and student edits change
+    // what's due — and student edits also change the name/class each row shows
+    // and which rows fall inside the caller's readable scope — so the reminders
+    // view must revalidate on these events. The 60s poll only catches the
+    // time-based threshold crossings ("in 10 Min" → "überfällig"), not these.
+    // Zero-topic admins (no supervised group / admin_supervision_overview off)
+    // receive check-ins only as the dashboard_counts_changed broadcast, so
+    // include hasPendingDashboardEvent or their bell/list stays stale until poll.
+    //
+    // This hook runs in TenantAuthWrapper, ABOVE TenantProvider, so
+    // useTenantSlugSafe() is null here and it cannot build the real
+    // "{slug}:reminders" SWR key that useReminders() writes under. Rather than
+    // mutate the wrong (unprefixed) key, dispatch a window event and let
+    // useReminders() — which runs under TenantProvider, owns the correctly
+    // tenant-prefixed key, and knows whether the feature is enabled — perform
+    // the revalidation. This mirrors the tenant_settings_changed / parent_message
+    // decoupling above and keeps the idle-poll throttle intact for disabled
+    // tenants (the consumer skips the mutate when the feature is off).
+    if (
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0 ||
+      hasPendingActivityEvent.current ||
+      hasPendingTimetableEvent.current ||
+      hasPendingDashboardEvent.current ||
+      hasPendingDailyCheckoutDashboardEvent.current ||
+      // "Abholung in 10 Min" / "Abholung überfällig" rows are computed from the
+      // EFFECTIVE pickup time (schedule resolved against the day's exception —
+      // services/reminders reads GetBulkEffectivePickupTimesForDate), so a
+      // Gehzeit edit adds, drops or re-times rows. The 60s poll only catches
+      // thresholds crossed by time passing, not the plan changing underneath.
+      // Arrival deliberately stays out: reminders cover pickups and activities
+      // only, so an arrival edit changes no row.
+      hasPendingPickupScheduleEvent.current ||
+      hasPendingStudentUpdateEvent.current
+    ) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("phoenix:reminders-stale"));
+      }
+    }
+
     // Reset pending state
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
     hasPendingActivityEvent.current = false;
     hasPendingActiveSupervisionEvent.current = false;
     hasPendingDashboardEvent.current = false;
+    hasPendingStaffTimeTrackingEvent.current = false;
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
+    hasPendingPickupScheduleEvent.current = false;
     hasPendingStudentUpdateEvent.current = false;
+    hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
   }, []);
 
@@ -324,6 +601,12 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "student_companions_changed": {
+          hasPendingCompanionEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
         case "activity_start":
         case "activity_end":
         case "activity_update": {
@@ -355,9 +638,38 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "staff_time_tracking_changed": {
+          hasPendingStaffTimeTrackingEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
         case "arrival_schedule_changed": {
           hasPendingArrivalScheduleEvent.current = true;
           scheduleFlush();
+          break;
+        }
+
+        case "pickup_schedule_changed": {
+          // Staff-side Gehzeit write (weekly plan or date exception). Parent
+          // submits do NOT emit this — they broadcast student_updated, which
+          // already invalidates the same caches above. Tenant-wide and
+          // deliberately id-less (GDPR), so invalidation stays broad.
+          hasPendingPickupScheduleEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "change_requests_changed": {
+          // A parent change-request queue changed (created/decided/withdrawn).
+          // Re-dispatch the window event the staff review lists and the
+          // "Änderungsanfragen" pending-count badge already listen on, so an open
+          // review page updates in real time without depending on the parent-
+          // messaging pill (the school may have messaging disabled). Fires only on
+          // request transitions, so a plain refetch is fine — no debounce needed.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("change-requests-refresh"));
+          }
           break;
         }
 
@@ -388,9 +700,42 @@ export function useGlobalSSE(): SSEHookState {
         case "instance_started":
         case "instance_completed":
         case "instance_cancelled":
-        case "instance_overdue": {
+        case "instance_overdue":
+        // Staffing deviations (absence/substitute/understaffed-ack, #1844)
+        // change is_absent/is_substitute/understaffed_ack without any
+        // lifecycle transition — same caches go stale, same invalidation.
+        case "staffing_deviation_changed": {
           hasPendingTimetableEvent.current = true;
           scheduleFlush();
+          break;
+        }
+
+        // A counterpart read a conversation. Handled identically to a new
+        // message on the staff side: the sidebar badge must refresh (a staff
+        // member reading in another tab dropped the count) and any open
+        // thread/card refetches to pick up the guardian "Gelesen" receipt. The
+        // backend only emits this when a read cursor actually advanced, so the
+        // refetch it triggers cannot loop back into another read event.
+        case "parent_message_read":
+        case "parent_message": {
+          // A parent sent a message (or staff replied elsewhere). This single
+          // app-wide connection fans the trigger out to the messaging surfaces
+          // via window events, so the inbox/thread/student-card pages do NOT each
+          // open their own EventSource to the same endpoint (mirrors the parents
+          // portal's ParentRealtimeBridge). `messages-unread-refresh` refreshes
+          // the sidebar badge; `messages-activity` carries thread_id/student_id so
+          // an open inbox/thread/card can refetch (or skip) selectively.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+            window.dispatchEvent(
+              new CustomEvent("messages-activity", {
+                detail: {
+                  threadId: event.data?.thread_id ?? null,
+                  studentId: event.data?.student_id ?? null,
+                },
+              }),
+            );
+          }
           break;
         }
       }

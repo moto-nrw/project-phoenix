@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronDown } from "lucide-react";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "DatabaseSelect" });
@@ -34,9 +34,6 @@ interface DatabaseSelectProps {
   readonly helperText?: string;
   readonly className?: string;
   readonly includeEmpty?: boolean;
-
-  // For theme-aware styling
-  readonly focusRingColor?: string;
 }
 
 export function DatabaseSelect({
@@ -56,7 +53,6 @@ export function DatabaseSelect({
   helperText,
   className = "",
   includeEmpty = true,
-  focusRingColor = "focus:ring-blue-500",
 }: DatabaseSelectProps) {
   const [options, setOptions] = useState<readonly SelectOption[]>(
     staticOptions ?? [],
@@ -95,25 +91,27 @@ export function DatabaseSelect({
     }
   }, [staticOptions]);
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      onChange(e.target.value);
-    },
-    [onChange],
-  );
-
   const isLoading = loading || externalLoading;
   const displayError = error ?? externalError;
 
-  // Base input classes matching StudentForm styling
-  const baseClasses = `
-    w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-10 md:px-4 md:pr-10
-    text-sm md:text-base transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none
-    ${isLoading ? "opacity-50 cursor-wait" : ""}
-    ${disabled ? "bg-gray-50 cursor-not-allowed" : ""}
-    ${displayError ? "border-red-300 focus:ring-red-500" : ""}
-    ${className}
-  `.trim();
+  const selectOptions = [
+    ...(includeEmpty
+      ? [
+          {
+            value: "",
+            label: isLoading ? "Lädt..." : (emptyOptionLabel ?? placeholder),
+          },
+        ]
+      : []),
+    ...options.map((option) => ({
+      value: option.value,
+      label: option.label,
+      disabled: option.disabled,
+    })),
+    ...(!isLoading && options.length === 0 && !includeEmpty
+      ? [{ value: "", label: "Keine Optionen verfügbar", disabled: true }]
+      : []),
+  ];
 
   return (
     <div className="w-full">
@@ -127,43 +125,19 @@ export function DatabaseSelect({
         </label>
       )}
 
-      <div className="relative">
-        <select
-          id={id ?? name}
-          name={name}
-          value={value}
-          onChange={handleChange}
-          disabled={disabled || isLoading}
-          required={required}
-          className={baseClasses}
-        >
-          {includeEmpty && (
-            <option value="">
-              {isLoading ? "Lädt..." : (emptyOptionLabel ?? placeholder)}
-            </option>
-          )}
-
-          {options.map((option) => (
-            <option
-              key={option.value}
-              value={option.value}
-              disabled={option.disabled}
-            >
-              {option.label}
-            </option>
-          ))}
-
-          {!isLoading && options.length === 0 && !includeEmpty && (
-            <option value="" disabled>
-              Keine Optionen verfügbar
-            </option>
-          )}
-        </select>
-        <ChevronDown
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-        />
-      </div>
+      <CustomSelect
+        ariaLabel={label ?? name}
+        id={id ?? name}
+        name={name}
+        value={value}
+        options={selectOptions}
+        onChange={onChange}
+        disabled={disabled || isLoading}
+        required={required}
+        invalid={Boolean(displayError)}
+        placeholder={isLoading ? "Lädt..." : (emptyOptionLabel ?? placeholder)}
+        className={`${isLoading ? "cursor-wait opacity-50" : ""} ${className}`}
+      />
 
       {/* Helper text or error message */}
       {displayError && (

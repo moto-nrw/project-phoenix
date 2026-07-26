@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -28,12 +27,12 @@ const (
 
 // GradeTransitionResource handles grade transition API endpoints
 type GradeTransitionResource struct {
-	service educationService.GradeTransitionService
+	service *educationService.GradeTransitionService
 	db      *bun.DB
 }
 
 // NewGradeTransitionResource creates a new grade transition resource
-func NewGradeTransitionResource(service educationService.GradeTransitionService, db *bun.DB) *GradeTransitionResource {
+func NewGradeTransitionResource(service *educationService.GradeTransitionService, db *bun.DB) *GradeTransitionResource {
 	return &GradeTransitionResource{
 		service: service,
 		db:      db,
@@ -45,15 +44,8 @@ func (rs *GradeTransitionResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// All routes require authentication
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations
 		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead), withTx).
@@ -277,9 +269,8 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 
 // getByID returns a single grade transition
 func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -294,9 +285,8 @@ func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Reques
 
 // update updates a grade transition
 func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -341,9 +331,8 @@ func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request
 
 // delete deletes a grade transition
 func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -360,9 +349,8 @@ func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request
 
 // preview returns a preview of what will happen when the transition is applied
 func (rs *GradeTransitionResource) preview(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -377,9 +365,8 @@ func (rs *GradeTransitionResource) preview(w http.ResponseWriter, r *http.Reques
 
 // apply executes the grade transition
 func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -407,9 +394,8 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 
 // revert undoes an applied grade transition
 func (rs *GradeTransitionResource) revert(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -459,9 +445,8 @@ func (rs *GradeTransitionResource) suggestMappings(w http.ResponseWriter, r *htt
 
 // getHistory returns the history records for a transition
 func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -473,42 +458,3 @@ func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Req
 
 	common.Respond(w, r, http.StatusOK, history, "Transition history retrieved successfully")
 }
-
-// Handler accessors for testing (bypass JWT middleware)
-
-// ListHandler returns the list handler for testing
-func (rs *GradeTransitionResource) ListHandler() http.HandlerFunc { return rs.list }
-
-// CreateHandler returns the create handler for testing
-func (rs *GradeTransitionResource) CreateHandler() http.HandlerFunc { return rs.create }
-
-// GetByIDHandler returns the getByID handler for testing
-func (rs *GradeTransitionResource) GetByIDHandler() http.HandlerFunc { return rs.getByID }
-
-// UpdateHandler returns the update handler for testing
-func (rs *GradeTransitionResource) UpdateHandler() http.HandlerFunc { return rs.update }
-
-// DeleteHandler returns the delete handler for testing
-func (rs *GradeTransitionResource) DeleteHandler() http.HandlerFunc { return rs.delete }
-
-// PreviewHandler returns the preview handler for testing
-func (rs *GradeTransitionResource) PreviewHandler() http.HandlerFunc { return rs.preview }
-
-// ApplyHandler returns the apply handler for testing
-func (rs *GradeTransitionResource) ApplyHandler() http.HandlerFunc { return rs.apply }
-
-// RevertHandler returns the revert handler for testing
-func (rs *GradeTransitionResource) RevertHandler() http.HandlerFunc { return rs.revert }
-
-// GetDistinctClassesHandler returns the getDistinctClasses handler for testing
-func (rs *GradeTransitionResource) GetDistinctClassesHandler() http.HandlerFunc {
-	return rs.getDistinctClasses
-}
-
-// SuggestMappingsHandler returns the suggestMappings handler for testing
-func (rs *GradeTransitionResource) SuggestMappingsHandler() http.HandlerFunc {
-	return rs.suggestMappings
-}
-
-// GetHistoryHandler returns the getHistory handler for testing
-func (rs *GradeTransitionResource) GetHistoryHandler() http.HandlerFunc { return rs.getHistory }

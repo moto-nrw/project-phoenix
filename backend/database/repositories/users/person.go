@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
@@ -25,9 +24,7 @@ func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fiel
 		Set(fieldName+" = NULL").
 		Where(`"person".id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -74,7 +71,7 @@ func NewPersonRepository(db *bun.DB) users.PersonRepository {
 // FindByTagID retrieves a person by their RFID tag ID
 func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*users.Person, error) {
 	// Normalize the tag ID to match the stored format
-	normalizedTagID := normalizeTagID(tagID)
+	normalizedTagID := users.NormalizeTagID(tagID)
 
 	person := new(users.Person)
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -82,9 +79,7 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".tag_id = ?`, normalizedTagID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -110,9 +105,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -130,6 +123,26 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 	return person, nil
 }
 
+// FindByIDForUpdate fetches and locks a person row for the current tenant
+// transaction. Staff approval uses this before applying reviewed name/birthday
+// changes so concurrent approvals of different person fields cannot overwrite
+// each other with stale full-row snapshots.
+func (r *PersonRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Person, error) {
+	person := new(users.Person)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(person).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(`"person".id = ?`, id).
+		For("UPDATE")
+
+	query = base.WithTenantFilter(ctx, query, "person")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find person for update", Err: err}
+	}
+	return person, nil
+}
+
 // FindByIDs retrieves multiple persons by their IDs in a single query
 func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error) {
 	if len(ids) == 0 {
@@ -142,9 +155,7 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -172,9 +183,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 		Set("account_id = ?", accountID).
 		Where(`"person".id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	result, err := query.Exec(ctx)
 
@@ -208,24 +217,10 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 	return r.unlinkField(ctx, personID, "account_id", "unlink from account")
 }
 
-// normalizeTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)
-func normalizeTagID(tagID string) string {
-	// Trim spaces
-	tagID = strings.TrimSpace(tagID)
-
-	// Remove common separators
-	tagID = strings.ReplaceAll(tagID, ":", "")
-	tagID = strings.ReplaceAll(tagID, "-", "")
-	tagID = strings.ReplaceAll(tagID, " ", "")
-
-	// Convert to uppercase
-	return strings.ToUpper(tagID)
-}
-
 // LinkToRFIDCard associates a person with an RFID card
 func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	// Normalize the tag ID to match RFID card format
-	normalizedTagID := normalizeTagID(tagID)
+	normalizedTagID := users.NormalizeTagID(tagID)
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).
@@ -233,9 +228,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 		Set("tag_id = ?", normalizedTagID).
 		Where(`"person".id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	result, err := query.Exec(ctx)
 
@@ -269,21 +262,6 @@ func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int6
 	return r.unlinkField(ctx, personID, "tag_id", "unlink from RFID card")
 }
 
-// Create overrides the base Create method to handle validation
-func (r *PersonRepository) Create(ctx context.Context, person *users.Person) error {
-	if person == nil {
-		return fmt.Errorf("person cannot be nil")
-	}
-
-	// Validate person
-	if err := person.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, person)
-}
-
 // Update overrides the base Update method to handle validation
 func (r *PersonRepository) Update(ctx context.Context, person *users.Person) error {
 	if person == nil {
@@ -302,9 +280,7 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 		Column("first_name", "last_name", "birthday", "tag_id", "account_id").
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -312,33 +288,6 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 	}
 
 	return base.AssertRowsAffected(result, 1, "update person")
-}
-
-// ListWithOptions retrieves persons matching the provided query options
-func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Person, error) {
-	var persons []*users.Person
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&persons).
-		ModelTableExpr(`users.persons AS "person"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return persons, nil
 }
 
 // FindWithAccount retrieves a person with their associated account
@@ -373,9 +322,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		Where(`"person".id = ?`, id).
 		Where(`"person".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -423,9 +370,7 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 		Where(`"person".id = ?`, id).
 		Where(`"person".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -508,9 +453,7 @@ func (r *PersonRepository) AnonymizeAndSoftDelete(ctx context.Context, personID 
 		Set(`deleted_at = NOW()`).
 		Where(`"person".id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{

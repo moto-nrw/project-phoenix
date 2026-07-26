@@ -5,10 +5,13 @@ type AlertType = "error" | "success" | "warning" | "info";
 interface AlertProps {
   readonly type: AlertType;
   readonly message: string;
+  readonly announce?: "assertive" | "polite" | "off";
 }
 
-export function Alert({ type, message }: Readonly<AlertProps>) {
+export function Alert({ type, message, announce }: Readonly<AlertProps>) {
   if (!message) return null;
+  const isAssertive = type === "error" || type === "warning";
+  const announcement = announce ?? (isAssertive ? "assertive" : "polite");
 
   const styles = {
     error: "bg-red-50 text-red-700 border-red-100",
@@ -25,6 +28,7 @@ export function Alert({ type, message }: Readonly<AlertProps>) {
         fill="currentColor"
         viewBox="0 0 20 20"
         xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
       >
         <path
           fillRule="evenodd"
@@ -39,6 +43,7 @@ export function Alert({ type, message }: Readonly<AlertProps>) {
         fill="currentColor"
         viewBox="0 0 20 20"
         xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
       >
         <path
           fillRule="evenodd"
@@ -53,6 +58,7 @@ export function Alert({ type, message }: Readonly<AlertProps>) {
         fill="currentColor"
         viewBox="0 0 20 20"
         xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
       >
         <path
           fillRule="evenodd"
@@ -67,6 +73,7 @@ export function Alert({ type, message }: Readonly<AlertProps>) {
         fill="currentColor"
         viewBox="0 0 20 20"
         xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
       >
         <path
           fillRule="evenodd"
@@ -79,7 +86,14 @@ export function Alert({ type, message }: Readonly<AlertProps>) {
 
   return (
     <div
-      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm transition-all duration-200 hover:opacity-95 hover:shadow-md ${styles[type]}`}
+      role={
+        announcement === "off"
+          ? undefined
+          : announcement === "assertive"
+            ? "alert"
+            : "status"
+      }
+      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm transition-[box-shadow,opacity] duration-200 hover:opacity-95 hover:shadow-md ${styles[type]}`}
     >
       {icons[type]}
       <span>{message}</span>

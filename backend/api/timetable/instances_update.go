@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -18,8 +19,13 @@ type updateInstanceRequest struct {
 	Notes           *string `json:"notes,omitempty"`
 	RoomID          int64   `json:"room_id"`
 	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
+	ListKind        *string `json:"list_kind,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
+	// RequiredStaff is the optional per-occurrence Personalbedarf pin (#1839);
+	// omitted/null clears the pin (inherit the template override, else derive
+	// from the Betreuungsschlüssel), a value = pin for this occurrence.
+	RequiredStaff *int `json:"required_staff,omitempty"`
 }
 
 func (req *updateInstanceRequest) Bind(_ *http.Request) error {
@@ -47,7 +53,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil || rs.timetableData == nil {
+	if rs.InstanceService == nil || rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -75,8 +81,13 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_time must be after start_time")))
 		return
 	}
+	listKind, err := normalizeInstanceListKind(req.ListKind)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
-	inst, err := rs.instanceService.UpdatePlanned(r.Context(), id, scheduleSvc.UpdateInstanceInput{
+	inst, err := rs.InstanceService.UpdatePlanned(r.Context(), id, scheduleSvc.UpdateInstanceInput{
 		Date:            date,
 		StartTime:       startTime,
 		EndTime:         endTime,
@@ -85,16 +96,26 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		Notes:           req.Notes,
 		RoomID:          req.RoomID,
 		ActivityGroupID: req.ActivityGroupID,
+		ListKind:        listKind,
 		StaffIDs:        req.StaffIDs,
 		StudentIDs:      req.StudentIDs,
-	})
+		RequiredStaff:   normalizeRequiredStaff(req.RequiredStaff),
+	}, jwt.ActorAccountIDFromCtx(r.Context()))
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
 	}
 	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]string)
-	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache)
+	typeCache := make(map[int64]templateMeta)
+	// A failed care-day derivation fails the response rather than answering with
+	// counts that read every assigned child as expected again (#1747 review) —
+	// the same 500 the rest of the enrichment already returns here.
+	careDays, err := rs.careDaysForInstance(r.Context(), inst)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve care days failed", err))
+		return
+	}
+	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), careDays)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return

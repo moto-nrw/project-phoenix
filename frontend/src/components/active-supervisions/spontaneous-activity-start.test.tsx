@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SpontaneousActivityStart } from "./spontaneous-activity-start";
+import { SpontaneousActivityStart as ProductionSpontaneousActivityStart } from "./spontaneous-activity-start";
 
 const mocks = vi.hoisted(() => ({
   getActivities: vi.fn(),
@@ -21,22 +21,99 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    children,
-    title,
-  }: {
-    isOpen: boolean;
-    children: React.ReactNode;
-    title: string;
-  }) =>
-    isOpen ? (
-      <div data-testid="modal" data-title={title}>
-        {children}
-      </div>
-    ) : null,
-}));
+type TestSubjectProps = Omit<
+  React.ComponentProps<typeof ProductionSpontaneousActivityStart>,
+  "onOpenSchulhofSupervision" | "schulhofSupervisionAvailable"
+> & {
+  onOpenSchulhofSupervision?: () => void;
+  schulhofSupervisionAvailable?: boolean;
+};
+
+const noopOpenSchulhofSupervision = () => undefined;
+
+function SpontaneousActivityStart({
+  onOpenSchulhofSupervision = noopOpenSchulhofSupervision,
+  schulhofSupervisionAvailable = true,
+  ...props
+}: TestSubjectProps) {
+  return (
+    <ProductionSpontaneousActivityStart
+      {...props}
+      schulhofSupervisionAvailable={schulhofSupervisionAvailable}
+      onOpenSchulhofSupervision={onOpenSchulhofSupervision}
+    />
+  );
+}
+
+// The modal renders to a portal with animations in the real kit component;
+// stub it to a plain container so tests stay synchronous. The footer is a
+// separate prop from the body, so render both (the submit/cancel buttons live
+// in the footer). The stub keeps the real kit's document-level Escape handler
+// (form-modal.tsx) so the autocomplete-vs-modal Escape regression is covered.
+vi.mock("~/components/ui/form-modal", async () => {
+  const { useEffect } = await import("react");
+  return {
+    FormModal: ({
+      isOpen,
+      onClose,
+      children,
+      footer,
+      title,
+    }: {
+      isOpen: boolean;
+      onClose: () => void;
+      children: React.ReactNode;
+      footer?: React.ReactNode;
+      title: string;
+    }) => {
+      useEffect(() => {
+        if (!isOpen) return;
+        const handleEscKey = (event: KeyboardEvent) => {
+          if (event.key === "Escape") onClose();
+        };
+        document.addEventListener("keydown", handleEscKey);
+        return () => document.removeEventListener("keydown", handleEscKey);
+      }, [isOpen, onClose]);
+      return isOpen ? (
+        <div data-testid="modal" data-title={title}>
+          {children}
+          {footer}
+        </div>
+      ) : null;
+    },
+  };
+});
+
+// The kit room picker (CustomSelect) is a listbox button, not a native
+// <select>: options only render once the trigger is opened, and the submit
+// button lives outside the <form> (wired via the form="" attribute), so we
+// submit the form element directly.
+function getRoomCombobox(): HTMLElement {
+  return screen.getByRole("combobox", { name: "Raum" });
+}
+
+async function openModalAndWaitForRefs(): Promise<void> {
+  fireEvent.click(
+    screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+  );
+  await screen.findByTestId("modal");
+  // References load asynchronously; the room picker is disabled until then
+  // (and the default room is auto-selected at the same moment).
+  await waitFor(() => expect(getRoomCombobox()).toBeEnabled());
+}
+
+function selectRoom(optionName: string): void {
+  fireEvent.click(getRoomCombobox());
+  fireEvent.click(screen.getByRole("option", { name: optionName }));
+}
+
+function submitForm(): void {
+  const form = screen
+    .getByPlaceholderText("Aktivität suchen oder neu eingeben")
+    .closest("form");
+  if (!form) throw new Error("spontaneous activity form not found");
+  fireEvent.submit(form);
+}
 
 describe("SpontaneousActivityStart", () => {
   beforeEach(() => {
@@ -72,22 +149,16 @@ describe("SpontaneousActivityStart", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
+    await openModalAndWaitForRefs();
     fireEvent.change(
       screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
       {
         target: { value: "Basteln" },
       },
     );
-    fireEvent.change(screen.getByLabelText("Raum"), {
-      target: { value: "3" },
-    });
+    selectRoom("Mensa");
     fireEvent.click(screen.getByLabelText("Ben Staff"));
-    fireEvent.click(screen.getByRole("button", { name: "Aktivität starten" }));
+    submitForm();
 
     await waitFor(() => {
       expect(onStart).toHaveBeenCalledWith({
@@ -118,25 +189,21 @@ describe("SpontaneousActivityStart", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
+    await openModalAndWaitForRefs();
+    fireEvent.click(getRoomCombobox());
     expect(screen.getByRole("option", { name: "Mensa" })).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Haus A - Atelier" }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "Mensa" }));
+
     fireEvent.change(
       screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
       {
         target: { value: "Tennis" },
       },
     );
-    fireEvent.change(screen.getByLabelText("Raum"), {
-      target: { value: "3" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Aktivität starten" }));
+    submitForm();
 
     await waitFor(() => {
       expect(onStart).toHaveBeenCalledWith({
@@ -146,6 +213,96 @@ describe("SpontaneousActivityStart", () => {
         additionalStaffIds: [],
       });
     });
+  });
+
+  it("opens the dedicated Schulhof supervision without a generic start", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: async () => ({
+          data: [
+            { id: 3, name: "Mensa" },
+            { id: 5, name: "Schulhof" },
+          ],
+        }),
+      }),
+    );
+    const onStart = vi.fn();
+    const onOpenSchulhofSupervision = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="5"
+        occupiedRoomIds={["5"]}
+        onStart={onStart}
+        onOpenSchulhofSupervision={onOpenSchulhofSupervision}
+      />,
+    );
+
+    await openModalAndWaitForRefs();
+    expect(getRoomCombobox()).toHaveTextContent("Mensa");
+    expect(
+      screen.getByRole("button", { name: "Aktivität starten" }),
+    ).toBeInTheDocument();
+    fireEvent.click(getRoomCombobox());
+    const schulhofOption = screen.getByRole("option", { name: "Schulhof" });
+    expect(schulhofOption).toBeEnabled();
+    fireEvent.click(schulhofOption);
+
+    expect(
+      screen.getByText(/eigene Schulhof-Aufsicht geführt/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Zur Schulhof-Aufsicht" }),
+    ).toBeEnabled();
+    submitForm();
+
+    expect(onOpenSchulhofSupervision).toHaveBeenCalledTimes(1);
+    expect(onStart).not.toHaveBeenCalled();
+
+    await openModalAndWaitForRefs();
+    expect(getRoomCombobox()).toHaveTextContent("Mensa");
+    expect(
+      screen.getByRole("button", { name: "Aktivität starten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/eigene Schulhof-Aufsicht geführt/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps Schulhof visible but disables it when its supervision status is unavailable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: async () => ({
+          data: [
+            { id: 3, name: "Mensa" },
+            { id: 5, name: "Schulhof" },
+          ],
+        }),
+      }),
+    );
+    const onStart = vi.fn();
+    const onOpenSchulhofSupervision = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        schulhofSupervisionAvailable={false}
+        onStart={onStart}
+        onOpenSchulhofSupervision={onOpenSchulhofSupervision}
+      />,
+    );
+
+    await openModalAndWaitForRefs();
+    fireEvent.click(getRoomCombobox());
+
+    expect(
+      screen.getByRole("option", {
+        name: "Schulhof (Aufsicht nicht verfügbar)",
+      }),
+    ).toBeDisabled();
+    expect(onOpenSchulhofSupervision).not.toHaveBeenCalled();
+    expect(onStart).not.toHaveBeenCalled();
   });
 
   it("allows a custom spontaneous activity title without template binding", async () => {
@@ -158,18 +315,14 @@ describe("SpontaneousActivityStart", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
+    await openModalAndWaitForRefs();
     fireEvent.change(
       screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
       {
         target: { value: " spontane Lego-Werkstatt " },
       },
     );
-    fireEvent.click(screen.getByRole("button", { name: "Aktivität starten" }));
+    submitForm();
 
     await waitFor(() => {
       expect(onStart).toHaveBeenCalledWith({
@@ -192,11 +345,8 @@ describe("SpontaneousActivityStart", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
+    await openModalAndWaitForRefs();
+    fireEvent.click(getRoomCombobox());
     expect(
       screen.getByRole("option", { name: "Mensa (belegt)" }),
     ).toBeDisabled();
@@ -226,15 +376,11 @@ describe("SpontaneousActivityStart", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
+    await openModalAndWaitForRefs();
     fireEvent.click(screen.getByRole("button", { name: "Freispiel" }));
     fireEvent.click(screen.getByLabelText("Ben Staff"));
     fireEvent.click(screen.getByLabelText("Ben Staff"));
-    fireEvent.click(screen.getByRole("button", { name: "Aktivität starten" }));
+    submitForm();
 
     await waitFor(() => {
       expect(onStart).toHaveBeenCalledWith({
@@ -256,23 +402,16 @@ describe("SpontaneousActivityStart", () => {
 
     render(<SpontaneousActivityStart onStart={vi.fn()} />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
-    await waitFor(() => {
-      expect(
-        screen.getByRole("option", { name: "Raum auswählen" }),
-      ).toBeInTheDocument();
-    });
+    await openModalAndWaitForRefs();
+    // No rooms loaded -> the picker shows its placeholder and has no options.
+    expect(screen.getByText("Raum auswählen")).toBeInTheDocument();
     expect(screen.queryByText("Weitere Betreuer")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Aktivität starten" }),
     ).toBeDisabled();
   });
 
-  it("shows an error when submitting an occupied selected room", async () => {
+  it("disables an occupied room so it cannot be selected for a new activity", async () => {
     const onStart = vi.fn();
     render(
       <SpontaneousActivityStart
@@ -282,29 +421,16 @@ describe("SpontaneousActivityStart", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
-    fireEvent.change(
-      screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
-      {
-        target: { value: "Tennis" },
-      },
-    );
-    fireEvent.change(screen.getByLabelText("Raum"), {
-      target: { value: "3" },
-    });
-    fireEvent.submit(
-      screen
-        .getByRole("button", { name: "Aktivität starten" })
-        .closest("form")!,
-    );
-
+    await openModalAndWaitForRefs();
+    fireEvent.click(getRoomCombobox());
+    // The occupied room is rendered but not selectable.
     expect(
-      await screen.findByText("Der Raum ist bereits belegt."),
-    ).toBeInTheDocument();
+      screen.getByRole("option", { name: "Mensa (belegt)" }),
+    ).toBeDisabled();
+    // The remaining free room stays usable.
+    expect(
+      screen.getByRole("option", { name: "Haus A - Atelier" }),
+    ).toBeEnabled();
     expect(onStart).not.toHaveBeenCalled();
   });
 
@@ -317,11 +443,7 @@ describe("SpontaneousActivityStart", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
+    await openModalAndWaitForRefs();
     fireEvent.change(
       screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
       {
@@ -329,13 +451,171 @@ describe("SpontaneousActivityStart", () => {
       },
     );
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-    );
-
-    await screen.findByTestId("modal");
+    await openModalAndWaitForRefs();
     expect(
       screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
     ).toHaveValue("");
+  });
+
+  it("dismisses the activity suggestions on Escape without closing the modal", async () => {
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="3"
+        onStart={onStart}
+      />,
+    );
+
+    await openModalAndWaitForRefs();
+    const activityInput = screen.getByPlaceholderText(
+      "Aktivität suchen oder neu eingeben",
+    );
+    fireEvent.change(activityInput, { target: { value: "Bast" } });
+    // The suggestion list is open (the listbox option, not the chip button).
+    expect(screen.getByRole("option", { name: "Basteln" })).toBeInTheDocument();
+
+    fireEvent.keyDown(activityInput, { key: "Escape" });
+
+    // Escape only closes the suggestion list...
+    expect(
+      screen.queryByRole("option", { name: "Basteln" }),
+    ).not.toBeInTheDocument();
+    // ...the modal stays open and the draft survives (no bubble to the
+    // FormModal document-level Escape handler).
+    expect(screen.getByTestId("modal")).toBeInTheDocument();
+    expect(activityInput).toHaveValue("Bast");
+  });
+
+  it("lets Escape close the modal when no activity suggestions are visible", async () => {
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="3"
+        onStart={onStart}
+      />,
+    );
+
+    await openModalAndWaitForRefs();
+    const activityInput = screen.getByPlaceholderText(
+      "Aktivität suchen oder neu eingeben",
+    );
+    fireEvent.change(activityInput, { target: { value: "ZZZ" } });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(activityInput, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes activity suggestions when keyboard focus leaves the field", async () => {
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="3"
+        onStart={onStart}
+      />,
+    );
+
+    await openModalAndWaitForRefs();
+    const activityInput = screen.getByPlaceholderText(
+      "Aktivität suchen oder neu eingeben",
+    );
+    fireEvent.change(activityInput, { target: { value: "Bast" } });
+    expect(screen.getByRole("option", { name: "Basteln" })).toBeInTheDocument();
+
+    fireEvent.blur(activityInput, { relatedTarget: getRoomCombobox() });
+
+    expect(
+      screen.queryByRole("option", { name: "Basteln" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("modal")).toBeInTheDocument();
+  });
+
+  it("selects the active activity suggestion on Enter before submitting", async () => {
+    mocks.getActivities.mockResolvedValueOnce([
+      { id: "5", name: "Ballspiele" },
+      { id: "9", name: "Basteln" },
+      { id: "7", name: "Freispiel" },
+    ]);
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="3"
+        onStart={onStart}
+      />,
+    );
+
+    await openModalAndWaitForRefs();
+    const activityInput = screen.getByPlaceholderText(
+      "Aktivität suchen oder neu eingeben",
+    );
+    fireEvent.change(activityInput, { target: { value: "Ba" } });
+    expect(screen.getByRole("option", { name: "Ballspiele" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.keyDown(activityInput, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: "Basteln" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    fireEvent.keyDown(activityInput, { key: "Enter" });
+    expect(activityInput).toHaveValue("Basteln");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    submitForm();
+    await waitFor(() => {
+      expect(onStart).toHaveBeenCalledWith({
+        title: "Basteln",
+        roomId: "3",
+        activityGroupId: "9",
+        additionalStaffIds: [],
+      });
+    });
+  });
+
+  it("selects an activity suggestion on pointer-down even when the input blurs with no relatedTarget (Safari/iOS)", async () => {
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="3"
+        onStart={onStart}
+      />,
+    );
+
+    await openModalAndWaitForRefs();
+    const activityInput = screen.getByPlaceholderText(
+      "Aktivität suchen oder neu eingeben",
+    );
+    fireEvent.change(activityInput, { target: { value: "Bast" } });
+    const option = screen.getByRole("option", { name: "Basteln" });
+
+    // Safari/iOS does not focus a clicked button, so the input blurs with a
+    // null relatedTarget. Selection must happen on pointer-down (which the
+    // component preventDefaults to keep focus on the input) BEFORE that blur
+    // can close the menu and unmount the option.
+    fireEvent.pointerDown(option, { button: 0, pointerType: "mouse" });
+    fireEvent.blur(activityInput, { relatedTarget: null });
+
+    expect(activityInput).toHaveValue("Basteln");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    submitForm();
+    await waitFor(() => {
+      expect(onStart).toHaveBeenCalledWith({
+        title: "Basteln",
+        roomId: "3",
+        activityGroupId: "9",
+        additionalStaffIds: [],
+      });
+    });
   });
 });

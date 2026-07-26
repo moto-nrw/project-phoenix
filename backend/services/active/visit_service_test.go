@@ -439,39 +439,6 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 }
 
 // =============================================================================
-// FindVisitsByTimeRange Tests
-// =============================================================================
-
-func TestActiveService_FindVisitsByTimeRange(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns visits in time range", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "time-visits")
-		room := testpkg.CreateTestRoom(t, db, "Time Visits Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "Time", "Range", "1a")
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
-
-		// Use time range that includes the visit
-		start := time.Now().Add(-1 * time.Hour)
-		end := time.Now().Add(1 * time.Hour)
-
-		// ACT
-		result, err := service.FindVisitsByTimeRange(ctx, start, end)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-}
-
-// =============================================================================
 // EndVisit Tests
 // =============================================================================
 

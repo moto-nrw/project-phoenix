@@ -54,6 +54,36 @@ const CSP_HEADER = [
   "form-action 'self'",
 ].join("; ");
 
+const ORIGINAL_HOST_HEADER = "X-Moto-Original-Host";
+const ORIGINAL_PROTO_HEADER = "X-Moto-Original-Proto";
+
+function originalHost(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? ""
+  );
+}
+
+function originalProtocol(request: NextRequest): string {
+  const forwardedProto = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim();
+  if (forwardedProto === "http" || forwardedProto === "https") {
+    return forwardedProto;
+  }
+  return request.nextUrl.protocol.replace(/:$/, "");
+}
+
+function preserveOriginalRequestTarget(
+  headers: Headers,
+  request: NextRequest,
+): Headers {
+  const host = originalHost(request);
+  if (host) headers.set(ORIGINAL_HOST_HEADER, host);
+  headers.set(ORIGINAL_PROTO_HEADER, originalProtocol(request));
+  return headers;
+}
+
 /** Attach security headers (CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy) to a response. */
 function withSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("Content-Security-Policy", CSP_HEADER);
@@ -68,7 +98,7 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 function localizedHeaders(request: NextRequest): Headers {
   const headers = new Headers(request.headers);
   headers.set(LOCALE_SCOPE_HEADER, "1");
-  return headers;
+  return preserveOriginalRequestTarget(headers, request);
 }
 
 /** Like NextResponse.rewrite, but flags the request as a localized surface. */
@@ -95,7 +125,7 @@ function nextLocalized(request: NextRequest): NextResponse {
 function sanitizedHeaders(request: NextRequest): Headers {
   const headers = new Headers(request.headers);
   headers.delete(LOCALE_SCOPE_HEADER);
-  return headers;
+  return preserveOriginalRequestTarget(headers, request);
 }
 
 /** Like NextResponse.next, but strips any client-forged localize header. */
@@ -159,8 +189,8 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   }
 
   // Pass through: operator API routes, static assets, Sentry tunnel
-  // Note: favicon.ico, favicon.png, apple-touch-icon.png, site.webmanifest,
-  // icons/, and images/ are excluded from the proxy matcher entirely.
+  // Note: favicon.ico, favicon.png, apple-touch-icon.png, manifests,
+  // favicons/, icons/, and images/ are excluded from the proxy matcher entirely.
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next") ||
@@ -205,19 +235,48 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
  * /parents/* internally so the App Router routes them under app/parent/.
  *
  * The "/parents" prefix is the path namespace inside the App Router,
- * NOT the URL path the user sees. On parents.{TENANT_DOMAIN} the user
+ * NOT the URL path the user sees. On the configured parents host the user
  * sees /login → internally rewritten to /parents/login.
  */
 const PARENTS_PUBLIC_PATHS = [
   "/login",
+  "/reset-password",
   "/email-confirm",
   "/children",
+  "/messages",
+  "/news",
+  "/meal-plan",
+  "/calendar",
   "/enroll",
   "/accept-guardian-invite",
 ];
 
 function isParentsHost(hostname: string): boolean {
   return hostname === PARENTS_HOSTNAME;
+}
+
+function hostnameWithoutPort(hostname: string): string {
+  const [host = ""] = hostname.split(":");
+  return host;
+}
+
+function isLegacyParentsHost(hostname: string): boolean {
+  if (!PARENTS_HOSTNAME) return false;
+  const legacyParentsHost = `parents.${TENANT_DOMAIN}`;
+  return (
+    hostnameWithoutPort(hostname) === legacyParentsHost &&
+    hostnameWithoutPort(PARENTS_HOSTNAME) !== legacyParentsHost
+  );
+}
+
+function redirectLegacyParentsHost(request: NextRequest): NextResponse {
+  if (!PARENTS_HOSTNAME) {
+    throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
+  }
+  const url = new URL(`${originalProtocol(request)}://${PARENTS_HOSTNAME}`);
+  url.pathname = request.nextUrl.pathname;
+  url.search = request.nextUrl.search;
+  return withSecurityHeaders(NextResponse.redirect(url, 302));
 }
 
 function handleParentsSubdomain(request: NextRequest): NextResponse {
@@ -334,7 +393,14 @@ export function proxy(request: NextRequest): NextResponse {
     return handleOperatorSubdomain(request);
   }
 
-  // 1b. Parents subdomain gets its own routing (mirrors operator)
+  // 1b. Legacy deployed parents host redirects to the configured canonical
+  // parents portal host. Local dev stays on parents.localhost:3000 because it
+  // is already the canonical PARENTS_HOSTNAME there.
+  if (isLegacyParentsHost(hostname)) {
+    return redirectLegacyParentsHost(request);
+  }
+
+  // 1c. Parents subdomain gets its own routing (mirrors operator)
   if (isParentsHost(hostname)) {
     return handleParentsSubdomain(request);
   }
@@ -364,7 +430,7 @@ export function proxy(request: NextRequest): NextResponse {
 
   // 3b. Parents auth guard on non-parents hosts: same pattern as
   // operator. /parents/* hit on a tenant subdomain or the bare domain
-  // gets redirected to parents.{TENANT_DOMAIN}. Defense-in-depth so
+  // gets redirected to the configured parents host. Defense-in-depth so
   // a stray link or bookmark can't accidentally serve parent UI from
   // a tenant context.
   if (pathname.startsWith("/parents")) {
@@ -419,6 +485,6 @@ export function proxy(request: NextRequest): NextResponse {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|icons/|images/).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|favicons/|icons/|images/).*)",
   ],
 };

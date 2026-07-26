@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSWRConfig } from "swr";
 
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -23,6 +25,28 @@ import { formatDuration } from "~/lib/time-tracking-helpers";
 
 const logger = createLogger({ component: "ArbeitszeitmodellTab" });
 
+// A work-time model save rewrites the contractual Soll, so every cache that
+// prices days against it goes stale. Two portals read the same staff member's
+// targets: the admin staff-detail tabs key them by staff id
+// (staff-schedule-targets- / staff-month-summary-), while a manager editing
+// their OWN model also has the own-service portal's caches open, which key
+// WITHOUT an id (time-tracking-schedule-targets- for the daily table and the
+// weekly KPI, time-tracking-month-summary- for the Monatskarte). Both sets must
+// be invalidated, or the self-service daily table keeps showing the old
+// Soll/Saldo while the monthly summary has already updated (#1842). Everything
+// is recomputed live on the server, so a plain invalidation suffices. useSWRAuth
+// prefixes keys with the tenant slug, so we match with includes, not startsWith
+// — the same convention as staff-session-table's handleSaved.
+export function isStaleAfterModelSave(key: unknown): boolean {
+  return (
+    typeof key === "string" &&
+    (key.includes("staff-schedule-targets-") ||
+      key.includes("staff-month-summary-") ||
+      key.includes("time-tracking-schedule-targets-") ||
+      key.includes("time-tracking-month-summary-"))
+  );
+}
+
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
 const WORK_DAYS: readonly number[] = [0, 1, 2, 3, 4];
 const ROTATION_OPTIONS = [
@@ -33,6 +57,13 @@ const ROTATION_OPTIONS = [
 ] as const;
 const WEEK_BADGE_LETTERS = ["A", "B", "C", "D"] as const;
 const PREVIEW_WEEKS = 4;
+
+type EditableScheduleEntry = {
+  weekIndex: number;
+  dayOfWeek: number;
+  targetMinutes: number;
+  startTime?: string;
+};
 
 // Arbeitszeitmodell tab. Shows the staff member's contractual Soll-Stunden,
 // which can either come from a tenant-level template (mode=template) or
@@ -57,6 +88,8 @@ export function ArbeitszeitmodellTab({
     staffScheduleService.getSchedule(staffId),
   );
 
+  const { mutate } = useSWRConfig();
+
   if (isLoading || !schedule) {
     return <Loading fullPage={false} />;
   }
@@ -71,6 +104,7 @@ export function ArbeitszeitmodellTab({
     schedule.rotationLength > 0 ? weeklyTotal / schedule.rotationLength : 0;
   const handleScheduleSaved = () => {
     mutateSchedule();
+    void mutate(isStaleAfterModelSave);
   };
 
   return (
@@ -136,6 +170,11 @@ export function ArbeitszeitmodellTab({
                       >
                         {minutes > 0 ? formatDuration(minutes) : "-"}
                       </div>
+                      {minutes > 0 && entry?.startTime && (
+                        <div className="text-[10px] text-gray-400 tabular-nums">
+                          ab {entry.startTime}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -267,9 +306,9 @@ function EditArbeitszeitmodellModal({
   const [rotationLength, setRotationLength] = useState<number>(
     schedule.rotationLength,
   );
-  const [customEntries, setCustomEntries] = useState<
-    Array<{ weekIndex: number; dayOfWeek: number; targetMinutes: number }>
-  >(initialiseCustomEntries(schedule));
+  const [customEntries, setCustomEntries] = useState<EditableScheduleEntry[]>(
+    initialiseCustomEntries(schedule),
+  );
   const [activeWeekTab, setActiveWeekTab] = useState(0);
   const [saveAsTemplateName, setSaveAsTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -306,6 +345,7 @@ function EditArbeitszeitmodellModal({
             weekIndex: w,
             dayOfWeek: d,
             targetMinutes: existing?.targetMinutes ?? 0,
+            startTime: existing?.startTime,
           });
         }
       }
@@ -362,7 +402,14 @@ function EditArbeitszeitmodellModal({
           : {
               mode: "custom",
               rotationLength,
-              entries: customEntries.filter((e) => e.targetMinutes > 0),
+              entries: customEntries
+                .filter((e) => e.targetMinutes > 0)
+                .map((e) => ({
+                  weekIndex: e.weekIndex,
+                  dayOfWeek: e.dayOfWeek,
+                  targetMinutes: e.targetMinutes,
+                  ...(e.startTime ? { startTime: e.startTime } : {}),
+                })),
               ...(saveAsTemplateName.trim()
                 ? { saveAsTemplate: saveAsTemplateName.trim() }
                 : {}),
@@ -393,6 +440,20 @@ function EditArbeitszeitmodellModal({
       prev.map((e) =>
         e.weekIndex === weekIndex && e.dayOfWeek === dayOfWeek
           ? { ...e, targetMinutes: clamped }
+          : e,
+      ),
+    );
+  };
+
+  const updateEntryStartTime = (
+    weekIndex: number,
+    dayOfWeek: number,
+    startTime: string,
+  ) => {
+    setCustomEntries((prev) =>
+      prev.map((e) =>
+        e.weekIndex === weekIndex && e.dayOfWeek === dayOfWeek
+          ? { ...e, startTime: startTime || undefined }
           : e,
       ),
     );
@@ -450,6 +511,7 @@ function EditArbeitszeitmodellModal({
             onActiveWeekTabChange={setActiveWeekTab}
             entries={customEntries}
             onEntryChange={updateEntry}
+            onStartTimeChange={updateEntryStartTime}
             totalForWeek={totalForWeek}
             saveAsTemplateName={saveAsTemplateName}
             onSaveAsTemplateNameChange={setSaveAsTemplateName}
@@ -539,28 +601,29 @@ function TemplateSelector({
   return (
     <div className="space-y-3">
       <label
+        id="arbeitszeitmodell-template-select-label"
         htmlFor="arbeitszeitmodell-template-select"
         className="block text-xs font-semibold tracking-wider text-gray-500 uppercase"
       >
         Vorlage
       </label>
-      <div className="relative">
-        <select
-          id="arbeitszeitmodell-template-select"
-          value={selectedId}
-          onChange={(e) => onSelect(e.target.value)}
-          className="w-full appearance-none rounded-lg border border-gray-200 py-2 pr-10 pl-3 text-sm focus:border-gray-400 focus:outline-none"
-        >
-          <option value="">Bitte wählen…</option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}{" "}
-              {t.rotationLength > 1 ? `(${t.rotationLength} Wochen)` : ""}
-            </option>
-          ))}
-        </select>
-        <DropdownChevron />
-      </div>
+      <CustomSelect
+        id="arbeitszeitmodell-template-select"
+        ariaLabelledBy="arbeitszeitmodell-template-select-label"
+        value={selectedId}
+        onChange={onSelect}
+        options={[
+          { value: "", label: "Bitte wählen…" },
+          ...templates.map((t) => ({
+            value: t.id,
+            label:
+              t.rotationLength > 1
+                ? `${t.name} (${t.rotationLength} Wochen)`
+                : t.name,
+          })),
+        ]}
+        placeholder="Bitte wählen…"
+      />
       {selected && <TemplatePreviewBlock model={selected} />}
     </div>
   );
@@ -596,7 +659,7 @@ function TemplatePreviewBlock({ model }: { readonly model: WorkTimeModel }) {
                     <span key={d} className="tabular-nums">
                       {dayLabels[d]}{" "}
                       {entry && entry.targetMinutes > 0
-                        ? formatDuration(entry.targetMinutes)
+                        ? `${entry.startTime ? `ab ${entry.startTime} · ` : ""}${formatDuration(entry.targetMinutes)}`
                         : "-"}
                     </span>
                   );
@@ -620,6 +683,7 @@ function CustomEditor({
   onActiveWeekTabChange,
   entries,
   onEntryChange,
+  onStartTimeChange,
   totalForWeek,
   saveAsTemplateName,
   onSaveAsTemplateNameChange,
@@ -632,11 +696,17 @@ function CustomEditor({
     weekIndex: number;
     dayOfWeek: number;
     targetMinutes: number;
+    startTime?: string;
   }>;
   readonly onEntryChange: (
     weekIndex: number,
     dayOfWeek: number,
     minutes: number,
+  ) => void;
+  readonly onStartTimeChange: (
+    weekIndex: number,
+    dayOfWeek: number,
+    startTime: string,
   ) => void;
   readonly totalForWeek: (weekIndex: number) => number;
   readonly saveAsTemplateName: string;
@@ -646,28 +716,22 @@ function CustomEditor({
     <div className="space-y-4">
       <div>
         <label
+          id="arbeitszeitmodell-rotation-select-label"
           htmlFor="arbeitszeitmodell-rotation-select"
           className="mb-2 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
         >
           Rotation
         </label>
-        <div className="relative">
-          <select
-            id="arbeitszeitmodell-rotation-select"
-            value={rotationLength}
-            onChange={(e) =>
-              onRotationChange(Number.parseInt(e.target.value, 10))
-            }
-            className="w-full appearance-none rounded-lg border border-gray-200 py-2 pr-10 pl-3 text-sm focus:border-gray-400 focus:outline-none"
-          >
-            {ROTATION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <DropdownChevron />
-        </div>
+        <CustomSelect
+          id="arbeitszeitmodell-rotation-select"
+          ariaLabelledBy="arbeitszeitmodell-rotation-select-label"
+          value={String(rotationLength)}
+          onChange={(next) => onRotationChange(Number.parseInt(next, 10))}
+          options={ROTATION_OPTIONS.map((opt) => ({
+            value: String(opt.value),
+            label: opt.label,
+          }))}
+        />
       </div>
 
       {rotationLength > 1 && (
@@ -695,6 +759,7 @@ function CustomEditor({
             (e) => e.weekIndex === activeWeekTab && e.dayOfWeek === d,
           );
           const minutes = entry?.targetMinutes ?? 0;
+          const startTime = entry?.startTime ?? "";
           const hours = Math.floor(minutes / 60);
           const mins = minutes % 60;
           return (
@@ -706,6 +771,7 @@ function CustomEditor({
                 {dayLabels[d]}
               </span>
               <input
+                aria-label={`Arbeitsstunden ${dayLabels[d]}`}
                 type="number"
                 min={0}
                 max={12}
@@ -736,24 +802,35 @@ function CustomEditor({
                 className="w-14 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none"
               />
               <span className="text-xs text-gray-400">h</span>
-              <div className="relative">
-                <select
-                  value={mins}
-                  onChange={(e) => {
-                    const m = Number.parseInt(e.target.value, 10) || 0;
-                    onEntryChange(activeWeekTab, d, hours * 60 + m);
-                  }}
-                  disabled={hours >= 12}
-                  className="w-16 appearance-none rounded-lg border border-gray-200 py-1.5 pr-6 pl-2 text-left text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                >
-                  <option value={0}>00</option>
-                  <option value={15}>15</option>
-                  <option value={30}>30</option>
-                  <option value={45}>45</option>
-                </select>
-                <DropdownChevron />
-              </div>
+              <CustomSelect
+                ariaLabel={`Arbeitsminuten ${dayLabels[d]}`}
+                value={String(mins)}
+                onChange={(next) => {
+                  const m = Number.parseInt(next, 10) || 0;
+                  onEntryChange(activeWeekTab, d, hours * 60 + m);
+                }}
+                options={[
+                  { value: "0", label: "00" },
+                  { value: "15", label: "15" },
+                  { value: "30", label: "30" },
+                  { value: "45", label: "45" },
+                ]}
+                disabled={hours >= 12}
+                triggerClassName="h-8 w-16 border-gray-200 bg-white tabular-nums"
+              />
               <span className="text-xs text-gray-400">min</span>
+              <label className="flex items-center gap-1 text-xs text-gray-500">
+                <span>Start</span>
+                <input
+                  type="time"
+                  value={startTime}
+                  disabled={minutes <= 0}
+                  onChange={(e) =>
+                    onStartTimeChange(activeWeekTab, d, e.target.value)
+                  }
+                  className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                />
+              </label>
               <span className="ml-auto text-xs text-gray-500 tabular-nums">
                 {formatDuration(minutes)}
               </span>
@@ -796,13 +873,9 @@ function CustomEditor({
 
 function initialiseCustomEntries(
   schedule: StaffSchedule,
-): Array<{ weekIndex: number; dayOfWeek: number; targetMinutes: number }> {
+): EditableScheduleEntry[] {
   const length = Math.max(1, schedule.rotationLength);
-  const out: Array<{
-    weekIndex: number;
-    dayOfWeek: number;
-    targetMinutes: number;
-  }> = [];
+  const out: EditableScheduleEntry[] = [];
   for (let w = 0; w < length; w++) {
     for (const d of WORK_DAYS) {
       const entry = schedule.entries.find(
@@ -812,29 +885,11 @@ function initialiseCustomEntries(
         weekIndex: w,
         dayOfWeek: d,
         targetMinutes: entry?.targetMinutes ?? 0,
+        startTime: entry?.startTime,
       });
     }
   }
   return out;
-}
-
-function DropdownChevron() {
-  return (
-    <svg
-      className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M19 9l-7 7-7-7"
-      />
-    </svg>
-  );
 }
 
 function getISOWeek(date: Date): number {

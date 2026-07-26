@@ -200,11 +200,13 @@ describe("guardian-helpers", () => {
         accountId: "200",
         relationshipId: "50",
         relationshipType: "parent",
+        guardianRole: "custom",
         isPrimary: true,
         isEmergencyContact: true,
         canPickup: true,
         pickupNotes: "Usually picks up at 15:00",
         emergencyPriority: 1,
+        accountStatus: "active",
       });
     });
 
@@ -306,6 +308,7 @@ describe("guardian-helpers", () => {
       const linkRequest: StudentGuardianLinkRequest = {
         guardianProfileId: "123",
         relationshipType: "parent",
+        guardianRole: "primary_guardian",
         isPrimary: true,
         isEmergencyContact: true,
         canPickup: true,
@@ -318,6 +321,7 @@ describe("guardian-helpers", () => {
       expect(result).toEqual({
         guardian_profile_id: 123,
         relationship_type: "parent",
+        guardian_role: "primary_guardian",
         is_primary: true,
         is_emergency_contact: true,
         can_pickup: true,

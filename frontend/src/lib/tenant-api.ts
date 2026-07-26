@@ -54,7 +54,44 @@ export interface TenantInfo {
    * navigation without needing config:read.
    */
   nfcEnabled: boolean;
+  /**
+   * Whether parent-OGS messaging is enabled for this tenant
+   * (operations.parent_notes_enabled). Surfaced via tenant resolve so non-admin
+   * staff can hide the "Neue Nachricht" compose entry points when messaging is
+   * off, instead of composing into a backend 403.
+   */
+  messagingEnabled: boolean;
+  /**
+   * Whether the Info-Point Dashboard (display.enabled) is enabled for this
+   * tenant. The feature is opt-in and defaults off, so the sidebar entry and
+   * admin page must stay hidden until a school explicitly enables it.
+   */
+  displayEnabled: boolean;
+  /**
+   * Whether staff may correct care offerings on approved enrollments. Missing
+   * metadata is treated as enabled for compatibility with older backends.
+   */
+  careOfferingsEnabled?: boolean;
+  attendanceWebEnabled?: boolean;
+  groupMode?: "fixed_groups" | "open_care";
+  showTimetableCounts?: boolean;
+  waitlistEnabled?: boolean;
+  /** Highest grade offered by this tenant (enrollment.grade_level_max). */
+  gradeLevelMax: number;
 }
+
+/** Identity-only tenant row returned by list/switch endpoints. Feature and
+ * settings metadata is deliberately absent until resolveTenant is called. */
+export type TenantSummary = Pick<
+  TenantInfo,
+  | "tenantId"
+  | "slug"
+  | "name"
+  | "subdomain"
+  | "organizationId"
+  | "organizationName"
+  | "hidden"
+>;
 
 interface TenantResolveResponse {
   tenant_id: number;
@@ -68,6 +105,14 @@ interface TenantResolveResponse {
   presence_mode?: string;
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
+  parent_messaging_enabled?: boolean;
+  display_enabled?: boolean;
+  care_offerings_enabled?: boolean;
+  attendance_web_enabled?: boolean;
+  group_mode?: string;
+  show_timetable_counts?: boolean;
+  waitlist_enabled?: boolean;
+  grade_level_max: number;
 }
 
 /**
@@ -110,6 +155,14 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,
       nfcEnabled: data.nfc_enabled === true,
+      messagingEnabled: data.parent_messaging_enabled === true,
+      displayEnabled: data.display_enabled === true,
+      careOfferingsEnabled: data.care_offerings_enabled !== false,
+      attendanceWebEnabled: data.attendance_web_enabled === true,
+      groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
+      showTimetableCounts: data.show_timetable_counts !== false,
+      waitlistEnabled: data.waitlist_enabled !== false,
+      gradeLevelMax: data.grade_level_max,
     };
   } catch {
     return null;
@@ -125,7 +178,7 @@ interface PublicTenantBackend {
 }
 
 export interface TenantListResult {
-  tenants: TenantInfo[];
+  tenants: TenantSummary[];
   /** "ok" = backend responded successfully, "error" = network or server failure */
   status: "ok" | "error";
 }
@@ -168,13 +221,6 @@ export async function listAllTenants(
           organizationId: 0,
           organizationName: t.organization_name,
           hidden: false,
-          settings: {},
-          // list endpoints don't carry per-tenant presence mode; consumers
-          // that need it call resolveTenant() on the selected slug.
-          presenceMode: "detailed",
-          // Same story for the photo flag — re-resolved on tenant landing.
-          studentPhotosEnabled: false,
-          nfcEnabled: false,
         })),
         status: "ok",
       };
@@ -210,7 +256,7 @@ interface AccountTenantBackend {
  * List tenants the current user has access to.
  * Requires an authenticated session.
  */
-export async function listAvailableTenants(): Promise<TenantInfo[]> {
+export async function listAvailableTenants(): Promise<TenantSummary[]> {
   const response = await sessionFetch("/api/auth/account-tenants");
   if (!response.ok) {
     return [];
@@ -224,12 +270,6 @@ export async function listAvailableTenants(): Promise<TenantInfo[]> {
     subdomain: t.subdomain,
     organizationId: t.organization_id,
     organizationName: t.organization_name,
-    settings: {},
-    // account-tenants endpoint is pre-switch listing; presenceMode is re-resolved
-    // after the switch when the new tenant's layout mounts and calls resolveTenant.
-    presenceMode: "detailed",
-    studentPhotosEnabled: false,
-    nfcEnabled: false,
   }));
 }
 
@@ -285,7 +325,7 @@ async function parseErrorMessage(response: Response): Promise<string> {
  * 4. Clear session cache for fresh token resolution
  */
 export async function performTenantSwitch(
-  slug: string,
+  subdomain: string,
   signIn: (
     provider: string,
     options: Record<string, unknown>,
@@ -296,7 +336,7 @@ export async function performTenantSwitch(
     opts: { revalidate: boolean },
   ) => Promise<unknown>,
 ): Promise<SwitchTenantResponse> {
-  const tokens = await switchTenant(slug);
+  const tokens = await switchTenant(subdomain);
 
   await signIn("credentials", {
     redirect: false,
@@ -315,13 +355,17 @@ export async function performTenantSwitch(
 /**
  * Switch the current session to a different tenant.
  * Returns new JWT tokens scoped to the target tenant.
+ *
+ * Takes the tenant SUBDOMAIN, not the slug column: the backend resolves the
+ * wire field `tenant_slug` via FindBySubdomain (same as login), so passing
+ * the slug 404s for schools where slug != subdomain (#1975).
  */
 export async function switchTenant(
-  slug: string,
+  subdomain: string,
 ): Promise<SwitchTenantResponse> {
   const response = await sessionFetch("/api/auth/switch-tenant", {
     method: "POST",
-    body: JSON.stringify({ tenant_slug: slug }),
+    body: JSON.stringify({ tenant_slug: subdomain }),
   });
   if (!response.ok) {
     const message = await parseErrorMessage(response);

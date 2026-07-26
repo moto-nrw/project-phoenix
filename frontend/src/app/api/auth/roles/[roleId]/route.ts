@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -34,7 +35,7 @@ interface ErrorResponse {
   error: string;
 }
 
-export async function GET(
+async function GETHandler(
   request: NextRequest,
   { params }: { params: Promise<{ roleId: string }> },
 ) {
@@ -88,7 +89,9 @@ export async function GET(
   }
 }
 
-export async function PUT(
+export const GET = withTenantAuth(GETHandler);
+
+async function PUTHandler(
   request: NextRequest,
   { params }: { params: Promise<{ roleId: string }> },
 ) {
@@ -144,7 +147,9 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
+export const PUT = withTenantAuth(PUTHandler);
+
+async function DELETEHandler(
   request: NextRequest,
   { params }: { params: Promise<{ roleId: string }> },
 ) {
@@ -197,3 +202,5 @@ export async function DELETE(
     );
   }
 }
+
+export const DELETE = withTenantAuth(DELETEHandler);

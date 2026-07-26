@@ -33,9 +33,13 @@ function TeacherSpecificHooks() {
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.id) {
-      posthog.identify(session.user.id, {
-        email: session.user.email,
-      });
+      // GDPR: identify with the pseudonymous account ID only — never attach
+      // person properties like email.
+      posthog.identify(session.user.id);
+      if (session.user.tenantId != null) {
+        posthog.group("school", String(session.user.tenantId));
+        posthog.register({ school_id: session.user.tenantId });
+      }
     } else if (status === "unauthenticated") {
       posthog.reset();
     }

@@ -16,11 +16,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// strPtr returns a pointer to the given string
-func strPtr(s string) *string {
-	return &s
-}
-
 // =============================================================================
 // StudentPickupScheduleRepository Tests
 // =============================================================================
@@ -425,7 +420,7 @@ func TestStudentPickupExceptionRepository_Create(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 2, 14),
-			Reason:        strPtr("Doctor appointment"),
+			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 
@@ -463,7 +458,7 @@ func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: date,
-				Reason:        strPtr("Test reason"),
+				Reason:        testpkg.StrPtr("Test reason"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
@@ -492,7 +487,7 @@ func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) 
 		pastException := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.TodayDate().AddDays(-7),
-			Reason:        strPtr("Past exception"),
+			Reason:        testpkg.StrPtr("Past exception"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, pastException)
@@ -501,7 +496,7 @@ func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) 
 		futureException := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.TodayDate().AddDays(7),
-			Reason:        strPtr("Future exception"),
+			Reason:        testpkg.StrPtr("Future exception"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err = repo.Create(ctx, futureException)
@@ -531,7 +526,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
-			Reason:        strPtr("Specific date exception"),
+			Reason:        testpkg.StrPtr("Specific date exception"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, exception)
@@ -580,7 +575,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     studentID,
 				ExceptionDate: exceptionDate,
-				Reason:        strPtr("Group exception"),
+				Reason:        testpkg.StrPtr("Group exception"),
 				CreatedBy:     staff.ID,
 			}
 			err := repo.Create(ctx, exception)
@@ -630,7 +625,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: day,
-			Reason:        strPtr("Berlin session regression"),
+			Reason:        testpkg.StrPtr("Berlin session regression"),
 			CreatedBy:     staff.ID,
 		}
 		if err := repo.Create(txCtx, exception); err != nil {
@@ -679,7 +674,7 @@ func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 5, 20),
-			Reason:        strPtr("Test reason"),
+			Reason:        testpkg.StrPtr("Test reason"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, exception)
@@ -716,13 +711,13 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 6, 15),
 			PickupTime:    &pickupTime,
-			Reason:        strPtr("Original reason"),
+			Reason:        testpkg.StrPtr("Original reason"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, exception)
 		require.NoError(t, err)
 
-		exception.Reason = strPtr("Updated reason")
+		exception.Reason = testpkg.StrPtr("Updated reason")
 		newPickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
 		exception.PickupTime = &newPickupTime
 
@@ -747,7 +742,7 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     0, // Invalid
 			ExceptionDate: timezone.NewDate(2024, 6, 15),
-			Reason:        strPtr("Test"),
+			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 
@@ -772,7 +767,7 @@ func TestStudentPickupExceptionRepository_List(t *testing.T) {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: timezone.TodayDate().AddDays(i + 100), // Far future to avoid conflicts
-				Reason:        strPtr("Test exception"),
+				Reason:        testpkg.StrPtr("Test exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
@@ -809,7 +804,7 @@ func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: timezone.TodayDate().AddDays(i),
-				Reason:        strPtr("Exception"),
+				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
@@ -843,7 +838,7 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: timezone.TodayDate().AddDays(i),
-				Reason:        strPtr("Past exception"),
+				Reason:        testpkg.StrPtr("Past exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
@@ -857,7 +852,7 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: timezone.TodayDate().AddDays(i),
-				Reason:        strPtr("Future exception"),
+				Reason:        testpkg.StrPtr("Future exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)

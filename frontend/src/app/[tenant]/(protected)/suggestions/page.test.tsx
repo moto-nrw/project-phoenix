@@ -77,7 +77,7 @@ vi.mock("~/components/ui/skeleton", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     title,
     search,
@@ -149,10 +149,10 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal">
         <h2>{title}</h2>
         {children}
-        <button onClick={onConfirm} data-testid="confirm-delete">
+        <button type="button" onClick={onConfirm} data-testid="confirm-delete">
           Löschen
         </button>
-        <button onClick={onClose} data-testid="cancel-delete">
+        <button type="button" onClick={onClose} data-testid="cancel-delete">
           Abbrechen
         </button>
       </div>

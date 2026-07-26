@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -21,59 +22,40 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type stubAuthLoginSchoolRepo struct {
-	findByIDFn        func(context.Context, int64) (*platformModels.School, error)
-	findBySubdomainFn func(context.Context, string) (*platformModels.School, error)
-}
+func TestRefreshSingleflightKeyBindsIndependentProof(t *testing.T) {
+	refreshToken := "same-predecessor-refresh-handle"
+	legitimateProof := rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "legitimate-recovery-secret"))
+	wrongProof := rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "wrong-recovery-secret"))
 
-func (s stubAuthLoginSchoolRepo) Create(context.Context, *platformModels.School) error {
-	panic("unexpected Create")
-}
-func (s stubAuthLoginSchoolRepo) FindByID(ctx context.Context, id int64) (*platformModels.School, error) {
-	return s.findByIDFn(ctx, id)
-}
-func (s stubAuthLoginSchoolRepo) FindBySlug(context.Context, string) (*platformModels.School, error) {
-	panic("unexpected FindBySlug")
-}
-func (s stubAuthLoginSchoolRepo) FindByOrganizationAndSlug(context.Context, int64, string) (*platformModels.School, error) {
-	panic("unexpected FindByOrganizationAndSlug")
-}
-func (s stubAuthLoginSchoolRepo) FindBySubdomain(ctx context.Context, subdomain string) (*platformModels.School, error) {
-	return s.findBySubdomainFn(ctx, subdomain)
-}
-func (s stubAuthLoginSchoolRepo) List(context.Context) ([]*platformModels.School, error) {
-	panic("unexpected List")
-}
-func (s stubAuthLoginSchoolRepo) ListActive(context.Context) ([]platformModels.School, error) {
-	panic("unexpected ListActive")
-}
-func (s stubAuthLoginSchoolRepo) ListPublic(context.Context) ([]platformModels.School, error) {
-	return nil, nil
-}
-func (s stubAuthLoginSchoolRepo) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
-	panic("unexpected FindActiveByAccountID")
-}
-func (s stubAuthLoginSchoolRepo) Update(context.Context, *platformModels.School) error {
-	panic("unexpected Update")
-}
-func (s stubAuthLoginSchoolRepo) CountByIDs(context.Context, []int64) (int, error) {
-	panic("unexpected CountByIDs")
-}
-func (s stubAuthLoginSchoolRepo) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
-	return s.FindByID(ctx, id)
-}
-func (s stubAuthLoginSchoolRepo) FindByIDForUpdate(ctx context.Context, id int64) (*platformModels.School, error) {
-	return s.FindByID(ctx, id)
-}
-func (r stubAuthLoginSchoolRepo) SoftDelete(context.Context, int64) error { return nil }
-func (r stubAuthLoginSchoolRepo) Restore(context.Context, int64) error    { return nil }
-func (r stubAuthLoginSchoolRepo) CountNonDeletedByOrganizationID(context.Context, int64) (int, error) {
-	return 0, nil
+	legitimateKey := refreshSingleflightKey(refreshToken, legitimateProof)
+	assert.Equal(t, legitimateKey, refreshSingleflightKey(refreshToken, legitimateProof))
+	assert.NotEqual(t, legitimateKey, refreshSingleflightKey(refreshToken, wrongProof))
+	assert.NotEqual(t, legitimateKey, refreshSingleflightKey(refreshToken, nil))
+	assert.NotContains(t, legitimateKey, "legitimate-recovery-secret")
 }
 
 type stubAuthLoginAccountTenantRepo struct {
 	findActiveFn func(context.Context, int64) ([]authModels.AccountTenant, error)
 	existsFn     func(context.Context, int64, int64) (bool, error)
+}
+
+type stubRefreshAccountRepo struct {
+	noopAccountRepository
+	findByIDFn func(context.Context, interface{}) (*authModels.Account, error)
+}
+
+type signalingAccountLockRepo struct {
+	authModels.AccountRepository
+	beforeLock chan<- struct{}
+}
+
+func (r signalingAccountLockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Account, error) {
+	r.beforeLock <- struct{}{}
+	return r.AccountRepository.FindByIDForUpdate(ctx, id)
+}
+
+func (s stubRefreshAccountRepo) FindByID(ctx context.Context, id interface{}) (*authModels.Account, error) {
+	return s.findByIDFn(ctx, id)
 }
 
 func (s stubAuthLoginAccountTenantRepo) Create(context.Context, *authModels.AccountTenant) error {
@@ -111,11 +93,117 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	return service
 }
 
+func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := setupInternalAuthService(t, db)
+	email := fmt.Sprintf("refresh-lock-order-%d@test.local", time.Now().UnixNano())
+	username := fmt.Sprintf("refresh-lock-order-%d", time.Now().UnixNano())
+	account, err := service.Register(ctx, email, username, "Test1234%", nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, refreshJWT, err := service.Login(ctx, email, "Test1234%")
+	require.NoError(t, err)
+	tokens, err := service.repos.Token.FindByAccountID(ctx, account.ID)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+
+	// Model a concurrent login that already owns the account row lock.
+	accountLockTx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = accountLockTx.Rollback() }()
+	_, err = accountLockTx.ExecContext(ctx, `UPDATE auth.accounts SET updated_at = updated_at WHERE id = ?`, account.ID)
+	require.NoError(t, err)
+
+	beforeAccountLock := make(chan struct{}, 1)
+	service.repos.Account = signalingAccountLockRepo{
+		AccountRepository: service.repos.Account,
+		beforeLock:        beforeAccountLock,
+	}
+	type refreshOutcome struct {
+		err error
+	}
+	refreshDone := make(chan refreshOutcome, 1)
+	go func() {
+		_, _, refreshErr := service.RefreshToken(rotation.WithRecoveryProof(ctx, "lock-order-proof"), refreshJWT)
+		refreshDone <- refreshOutcome{err: refreshErr}
+	}()
+
+	select {
+	case <-beforeAccountLock:
+	case <-time.After(2 * time.Second):
+		t.Fatal("refresh did not try to acquire the account lock before the token lock")
+	}
+
+	// While refresh waits for the account, the token row must still be free.
+	// A short lock timeout makes a future token-first regression fail instead of
+	// hanging the test.
+	probeTx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	_, err = probeTx.ExecContext(ctx, `SET LOCAL lock_timeout = '500ms'`)
+	require.NoError(t, err)
+	probeCtx := modelBase.ContextWithTx(ctx, &probeTx)
+	lockedToken, err := service.repos.Token.FindByTokenForUpdate(probeCtx, tokens[0].Token)
+	require.NoError(t, err)
+	require.NotNil(t, lockedToken)
+	require.NoError(t, probeTx.Rollback())
+
+	require.NoError(t, accountLockTx.Commit())
+	select {
+	case outcome := <-refreshDone:
+		require.NoError(t, outcome.err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("refresh did not complete after the account lock was released")
+	}
+}
+
+func TestFetchAndValidateAccount_TransientLookupErrorRemainsRetryable(t *testing.T) {
+	dbErr := errors.New("connection reset")
+	service := &Service{
+		repos: &repositories.Factory{
+			Account: stubRefreshAccountRepo{
+				findByIDFn: func(context.Context, interface{}) (*authModels.Account, error) {
+					return nil, dbErr
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	account, err := service.fetchAndValidateAccount(context.Background(), 42, "", "")
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	assert.NotErrorIs(t, err, ErrAccountNotFound)
+}
+
+func TestFetchAndValidateAccount_MissingAccountRemainsTerminal(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			Account: stubRefreshAccountRepo{
+				findByIDFn: func(context.Context, interface{}) (*authModels.Account, error) {
+					return nil, sql.ErrNoRows
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	account, err := service.fetchAndValidateAccount(context.Background(), 42, "", "")
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrAccountNotFound)
+}
+
 func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturnsNil(t *testing.T) {
 	service := &Service{
 		repos: &repositories.Factory{
-			School: stubAuthLoginSchoolRepo{
-				findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) { return nil, nil },
+			School: &testpkg.SchoolRepoMock{
+				FindBySubdomainFn: func(context.Context, string) (*platformModels.School, error) { return nil, nil },
 			},
 			AccountTenant: stubAuthLoginAccountTenantRepo{
 				existsFn: func(context.Context, int64, int64) (bool, error) { return false, nil },
@@ -139,8 +227,8 @@ func TestResolveAccountTenantBySlug_PropagatesDBErrors(t *testing.T) {
 	dbErr := errors.New("connection timed out")
 	service := &Service{
 		repos: &repositories.Factory{
-			School: stubAuthLoginSchoolRepo{
-				findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) { return nil, dbErr },
+			School: &testpkg.SchoolRepoMock{
+				FindBySubdomainFn: func(context.Context, string) (*platformModels.School, error) { return nil, dbErr },
 			},
 		},
 		logger: slog.Default(),
@@ -170,8 +258,8 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenSchoolLookupReturnsNil(t *tes
 					return []authModels.AccountTenant{{TenantID: 99, Status: authModels.AccountTenantStatusActive}}, nil
 				},
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(context.Context, int64) (*platformModels.School, error) { return nil, nil },
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) { return nil, nil },
 			},
 		},
 		logger: slog.Default(),
@@ -196,8 +284,8 @@ func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testin
 					}, nil
 				},
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
 					if id == 900 {
 						return &platformModels.School{DeletedAt: &now, Active: true, OrganizationID: 10}, nil
 					}
@@ -225,8 +313,8 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.
 					}, nil
 				},
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 					return &platformModels.School{DeletedAt: &now, Active: true, OrganizationID: 10}, nil
 				},
 			},
@@ -279,8 +367,8 @@ func TestResolveAccountTenantBySlug_DeletedSchool_ReturnsTenantNotFound(t *testi
 	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
-			School: stubAuthLoginSchoolRepo{
-				findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
 					return &platformModels.School{
 						DeletedAt:      &now,
 						Active:         true,
@@ -309,8 +397,8 @@ func TestResolveAccountTenantBySlug_DeletedSchool_ReturnsTenantNotFound(t *testi
 func TestResolveAccountTenantBySlug_InactiveSchool_ReturnsTenantNotFound(t *testing.T) {
 	service := &Service{
 		repos: &repositories.Factory{
-			School: stubAuthLoginSchoolRepo{
-				findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
 					return &platformModels.School{
 						Active:         false,
 						OrganizationID: 10,
@@ -489,8 +577,8 @@ func TestResolveAccountTenantDefault_SkipsInactiveSchool(t *testing.T) {
 					}, nil
 				},
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
 					if id == 800 {
 						return &platformModels.School{Active: false, OrganizationID: 10}, nil
 					}
@@ -522,8 +610,8 @@ func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *test
 					}, nil
 				},
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 					return nil, dbErr
 				},
 			},
@@ -545,6 +633,43 @@ func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *test
 // validateTenantAccess coverage (stub-based)
 // ---------------------------------------------------------------------------
 
+func TestValidateTenantAccess_MappingLookupDBErrorIsRetryable(t *testing.T) {
+	dbErr := fmt.Errorf("temporary connection reset")
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				existsFn: func(context.Context, int64, int64) (bool, error) { return false, dbErr },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	err := service.validateTenantAccess(context.Background(), &jwt.RefreshClaims{ID: 99, TenantID: 49})
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, dbErr)
+	assert.NotErrorIs(t, authErr.Err, ErrAccountInactive,
+		"transient tenant lookup failures must not force a visible logout")
+}
+
+func TestValidateTenantAccess_MissingMappingIsTerminal(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				existsFn: func(context.Context, int64, int64) (bool, error) { return false, nil },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	err := service.validateTenantAccess(context.Background(), &jwt.RefreshClaims{ID: 98, TenantID: 48})
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrTenantAccessDenied)
+}
+
 // TestValidateTenantAccess_SchoolDeletedReturnsErrTenantNotFound verifies that a
 // soft-deleted school (IsDeleted() true) causes validateTenantAccess to return
 // ErrTenantNotFound even though the account_tenant mapping exists.
@@ -555,8 +680,8 @@ func TestValidateTenantAccess_SchoolDeletedReturnsErrTenantNotFound(t *testing.T
 			AccountTenant: stubAuthLoginAccountTenantRepo{
 				existsFn: func(context.Context, int64, int64) (bool, error) { return true, nil },
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 					return &platformModels.School{
 						DeletedAt:      &now,
 						Active:         true,
@@ -585,8 +710,8 @@ func TestValidateTenantAccess_SchoolNotFoundReturnsErrTenantNotFound(t *testing.
 			AccountTenant: stubAuthLoginAccountTenantRepo{
 				existsFn: func(context.Context, int64, int64) (bool, error) { return true, nil },
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 					return nil, sql.ErrNoRows
 				},
 			},
@@ -612,8 +737,8 @@ func TestValidateTenantAccess_SchoolLookupDBError(t *testing.T) {
 			AccountTenant: stubAuthLoginAccountTenantRepo{
 				existsFn: func(context.Context, int64, int64) (bool, error) { return true, nil },
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 					return nil, dbErr
 				},
 			},
@@ -640,8 +765,8 @@ func TestValidateTenantAccess_SchoolNilReturnsErrTenantNotFound(t *testing.T) {
 			AccountTenant: stubAuthLoginAccountTenantRepo{
 				existsFn: func(context.Context, int64, int64) (bool, error) { return true, nil },
 			},
-			School: stubAuthLoginSchoolRepo{
-				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+			School: &testpkg.SchoolRepoMock{
+				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 					return nil, nil
 				},
 			},

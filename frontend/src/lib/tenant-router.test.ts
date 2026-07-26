@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 
 // ============================================================================
@@ -7,6 +7,9 @@ import { renderHook } from "@testing-library/react";
 
 const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
   mockUseTenantSlugSafe: vi.fn((): string | null => null),
+}));
+const { mockUseTenantRoutingModeSafe } = vi.hoisted(() => ({
+  mockUseTenantRoutingModeSafe: vi.fn((): "path" | "subdomain" => "path"),
 }));
 
 const {
@@ -25,8 +28,9 @@ const {
   mockPrefetch: vi.fn(),
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: mockUseTenantSlugSafe,
+  useTenantRoutingModeSafe: mockUseTenantRoutingModeSafe,
   useNFCEnabled: vi.fn(() => true),
 }));
 
@@ -48,31 +52,15 @@ import { useTenantRouter } from "./tenant-router";
 // ============================================================================
 
 describe("useTenantRouter", () => {
-  let originalWindow: typeof globalThis.window;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    originalWindow = globalThis.window;
-  });
-
-  afterEach(() => {
-    // Restore window if overridden
-    if (globalThis.window !== originalWindow) {
-      Object.defineProperty(globalThis, "window", {
-        value: originalWindow,
-        writable: true,
-      });
-    }
+    mockUseTenantRoutingModeSafe.mockReturnValue("path");
   });
 
   describe("path mode (no subdomain)", () => {
     beforeEach(() => {
       mockUseTenantSlugSafe.mockReturnValue("school-a");
-      // Hostname does NOT start with the slug — path mode
-      Object.defineProperty(window, "location", {
-        value: { ...window.location, hostname: "localhost" },
-        writable: true,
-      });
+      mockUseTenantRoutingModeSafe.mockReturnValue("path");
     });
 
     it("prefixes push with tenant slug", () => {
@@ -115,11 +103,7 @@ describe("useTenantRouter", () => {
   describe("subdomain mode", () => {
     beforeEach(() => {
       mockUseTenantSlugSafe.mockReturnValue("school-a");
-      // Hostname starts with the slug — subdomain mode
-      Object.defineProperty(window, "location", {
-        value: { ...window.location, hostname: "school-a.localhost" },
-        writable: true,
-      });
+      mockUseTenantRoutingModeSafe.mockReturnValue("subdomain");
     });
 
     it("push uses bare path without slug prefix", () => {

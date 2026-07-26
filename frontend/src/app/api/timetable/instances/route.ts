@@ -7,31 +7,11 @@
 //   Creates a planned (spontaneous or template-bound) instance.
 //   Backend handler: instances_create.go. Body shape mirrors
 //   CreateInstanceBody in lib/timetable-types.ts.
-import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
-import {
-  createGetHandler,
-  createPostHandler,
-} from "~/lib/route-wrapper.server";
+//
+// The Go backend returns { status, data, message }; the proxies strip that
+// envelope so route-wrapper does not double-wrap the payload.
+import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
 
-// The Go backend returns { status, data, message }; strip that envelope
-// here so route-wrapper does not double-wrap the payload.
-export const GET = createGetHandler(
-  async (request: NextRequest, token: string) => {
-    const search = request.nextUrl.searchParams.toString();
-    const path = `/api/timetable/instances${search ? `?${search}` : ""}`;
-    const response = await apiGet<{ data: unknown }>(path, token);
-    return response.data;
-  },
-);
+export const GET = proxyGet("/api/timetable/instances");
 
-export const POST = createPostHandler(
-  async (_request: NextRequest, body: unknown, token: string) => {
-    const response = await apiPost<{ data: unknown }>(
-      "/api/timetable/instances",
-      token,
-      body ?? {},
-    );
-    return response.data;
-  },
-);
+export const POST = proxyPost("/api/timetable/instances");

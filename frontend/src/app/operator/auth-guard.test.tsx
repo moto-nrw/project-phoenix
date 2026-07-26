@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
-const { mockPush, mockUseSession, mockUsePathname } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
+const { mockRedirect, mockUseSession, mockUsePathname } = vi.hoisted(() => ({
+  mockRedirect: vi.fn(),
   mockUseSession: vi.fn(),
   mockUsePathname: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  redirect: mockRedirect,
   usePathname: mockUsePathname,
 }));
 
@@ -60,7 +60,7 @@ describe("OperatorAuthGuard", () => {
     );
 
     expect(screen.getByText("Child")).toBeInTheDocument();
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("renders children directly on /operator/email-confirm", () => {
@@ -74,7 +74,7 @@ describe("OperatorAuthGuard", () => {
     );
 
     expect(screen.getByText("Child")).toBeInTheDocument();
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("redirects unauthenticated users to login on protected pages", async () => {
@@ -88,11 +88,8 @@ describe("OperatorAuthGuard", () => {
     );
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/operator/login");
+      expect(mockRedirect).toHaveBeenCalledWith("/operator/login");
     });
-
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
-    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
   });
 
   it("redirects non-platform users to root", async () => {
@@ -109,11 +106,8 @@ describe("OperatorAuthGuard", () => {
     );
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockRedirect).toHaveBeenCalledWith("/");
     });
-
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
-    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
   });
 
   it("renders full shell for authenticated platform users", () => {
@@ -146,7 +140,7 @@ describe("OperatorAuthGuard", () => {
     );
 
     expect(screen.getByTestId("loading")).toBeInTheDocument();
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
   });
 });

@@ -4,6 +4,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CreateDeviceModal } from "./create-device-modal";
 import { OperatorApiError } from "~/lib/operator/api-helpers";
 
+function selectCustomOption(
+  labelMatcher: RegExp | string,
+  optionName: RegExp | string,
+) {
+  fireEvent.click(screen.getByLabelText(labelMatcher));
+  fireEvent.click(screen.getByRole("option", { name: optionName }));
+}
+
 const { mockCreateDevice, mockLoggerError } = vi.hoisted(() => ({
   mockCreateDevice: vi.fn(),
   mockLoggerError: vi.fn(),
@@ -99,9 +107,7 @@ describe("CreateDeviceModal", () => {
     fireEvent.change(screen.getByLabelText(/Geräte-ID/), {
       target: { value: "  DEV-001  " },
     });
-    fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "terminal" },
-    });
+    selectCustomOption(/Typ/, "Terminal");
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "  Eingang  " },
     });
@@ -146,9 +152,7 @@ describe("CreateDeviceModal", () => {
     fireEvent.change(screen.getByLabelText(/Geräte-ID/), {
       target: { value: "DEV-001" },
     });
-    fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "terminal" },
-    });
+    selectCustomOption(/Typ/, "Terminal");
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -175,9 +179,7 @@ describe("CreateDeviceModal", () => {
     fireEvent.change(screen.getByLabelText(/Geräte-ID/), {
       target: { value: "DEV-001" },
     });
-    fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "terminal" },
-    });
+    selectCustomOption(/Typ/, "Terminal");
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -204,9 +206,7 @@ describe("CreateDeviceModal", () => {
     fireEvent.change(screen.getByLabelText(/Geräte-ID/), {
       target: { value: "DEV-001" },
     });
-    fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "terminal" },
-    });
+    selectCustomOption(/Typ/, "Terminal");
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -246,15 +246,11 @@ describe("CreateDeviceModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/Schule/), {
-      target: { value: "11" },
-    });
+    selectCustomOption(/Schule/, "Other School");
     fireEvent.change(screen.getByLabelText(/Geräte-ID/), {
       target: { value: "DEV-001" },
     });
-    fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "terminal" },
-    });
+    selectCustomOption(/Typ/, "Terminal");
 
     fireEvent.submit(container.querySelector("#create-device-form")!);
 
@@ -302,9 +298,7 @@ describe("CreateDeviceModal", () => {
     fireEvent.change(screen.getByLabelText(/Geräte-ID/), {
       target: { value: "DEV-001" },
     });
-    fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "terminal" },
-    });
+    selectCustomOption(/Typ/, "Terminal");
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -356,9 +350,7 @@ describe("CreateDeviceModal", () => {
     fireEvent.change(screen.getByLabelText(/Geräte-ID/), {
       target: { value: "DEV-001" },
     });
-    fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "terminal" },
-    });
+    selectCustomOption(/Typ/, "Terminal");
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {

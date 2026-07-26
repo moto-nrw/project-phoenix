@@ -9,12 +9,12 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 
 interface BreadcrumbData {
   studentName?: string;
   staffName?: string;
   roomName?: string;
-  activityName?: string;
   referrerPage?: string;
   activeSupervisionName?: string;
   ogsGroupName?: string;
@@ -65,15 +65,14 @@ export function useStudentHistoryBreadcrumb(opts: {
   studentName?: string;
   referrer: string;
 }): void {
-  const breadcrumbGroupName =
-    opts.referrer.startsWith("/ogs-groups") && globalThis.window !== undefined
-      ? localStorage.getItem("sidebar-last-group-name")
-      : undefined;
-  const breadcrumbRoomName =
-    opts.referrer.startsWith("/active-supervisions") &&
-    globalThis.window !== undefined
-      ? localStorage.getItem("sidebar-last-room-name")
-      : undefined;
+  const breadcrumbGroupName = useLocalStorageValue(
+    "sidebar-last-group-name",
+    opts.referrer.startsWith("/ogs-groups"),
+  );
+  const breadcrumbRoomName = useLocalStorageValue(
+    "sidebar-last-room-name",
+    opts.referrer.startsWith("/active-supervisions"),
+  );
 
   useSetBreadcrumb({
     studentName: opts.studentName,

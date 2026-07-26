@@ -10,10 +10,9 @@ import (
 )
 
 const (
-	tableWorkTimeModels        = "config.work_time_models"
-	tableWorkTimeModelEntries  = "config.work_time_model_entries"
-	WorkTimeModelMaxRotation   = 4
-	WorkTimeModelDefaultRotate = 1
+	tableWorkTimeModels       = "config.work_time_models"
+	tableWorkTimeModelEntries = "config.work_time_model_entries"
+	WorkTimeModelMaxRotation  = 4
 	// WorkTimeModelMaxDailyMinutes caps a single day's target working time at
 	// 12 hours (720 minutes). Shared with StaffWorkSchedule validation.
 	WorkTimeModelMaxDailyMinutes = 720
@@ -36,21 +35,6 @@ type WorkTimeModel struct {
 	Entries []*WorkTimeModelEntry `bun:"rel:has-many,join:id=model_id" json:"entries,omitempty"`
 }
 
-func (m *WorkTimeModel) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModels)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModels)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModels)
-	}
-	return nil
-}
-
-func (m *WorkTimeModel) TableName() string { return tableWorkTimeModels }
-
 func (m *WorkTimeModel) SetTenantID(tenantID int64) { m.TenantID = tenantID }
 
 func (m *WorkTimeModel) Validate() error {
@@ -72,29 +56,15 @@ func (m *WorkTimeModel) Validate() error {
 type WorkTimeModelEntry struct {
 	bun.BaseModel `bun:"schema:config,table:work_time_model_entries"`
 
-	ID            int64     `bun:"id,pk,autoincrement" json:"id"`
-	ModelID       int64     `bun:"model_id,notnull" json:"model_id"`
-	WeekIndex     int       `bun:"week_index,notnull" json:"week_index"`
-	DayOfWeek     int       `bun:"day_of_week,notnull" json:"day_of_week"`
-	TargetMinutes int       `bun:"target_minutes,notnull" json:"target_minutes"`
-	CreatedAt     time.Time `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt     time.Time `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	ID            int64      `bun:"id,pk,autoincrement" json:"id"`
+	ModelID       int64      `bun:"model_id,notnull" json:"model_id"`
+	WeekIndex     int        `bun:"week_index,notnull" json:"week_index"`
+	DayOfWeek     int        `bun:"day_of_week,notnull" json:"day_of_week"`
+	TargetMinutes int        `bun:"target_minutes,notnull" json:"target_minutes"`
+	StartTime     *time.Time `bun:"start_time" json:"start_time,omitempty"`
+	CreatedAt     time.Time  `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt     time.Time  `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 }
-
-func (e *WorkTimeModelEntry) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModelEntries)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModelEntries)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModelEntries)
-	}
-	return nil
-}
-
-func (e *WorkTimeModelEntry) TableName() string { return tableWorkTimeModelEntries }
 
 func (e *WorkTimeModelEntry) Validate() error {
 	// model_id is set right before insert by the repository, so validating
@@ -133,6 +103,9 @@ func ResolveWeekIndex(rotationLength int, anchor, date timezone.Date) int {
 type WorkTimeModelRepository interface {
 	List(ctx context.Context) ([]*WorkTimeModel, error)
 	FindByID(ctx context.Context, id int64) (*WorkTimeModel, error)
+	// FindByIDs resolves the given templates with their entries in one batched
+	// read (missing IDs are simply absent from the result).
+	FindByIDs(ctx context.Context, ids []int64) ([]*WorkTimeModel, error)
 	Create(ctx context.Context, model *WorkTimeModel, entries []*WorkTimeModelEntry) error
 	Update(ctx context.Context, model *WorkTimeModel, entries []*WorkTimeModelEntry) error
 	RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error

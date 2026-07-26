@@ -3,10 +3,8 @@ package auth
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Permission represents a system permission
@@ -16,21 +14,6 @@ type Permission struct {
 	Description string `bun:"description" json:"description"`
 	Resource    string `bun:"resource,notnull" json:"resource"`
 	Action      string `bun:"action,notnull" json:"action"`
-}
-
-// TableName returns the database table name
-func (p *Permission) TableName() string {
-	return "auth.permissions"
-}
-
-func (p *Permission) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.permissions AS "permission"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.permissions AS "permission"`)
-	}
-	return nil
 }
 
 // Validate ensures permission data is valid
@@ -62,10 +45,6 @@ func (p *Permission) GetFullName() string {
 	return p.Resource + ":" + p.Action
 }
 
-// Note: the admin-level classification (formerly Permission.IsAdminPermission)
-// moved out of the model in issue #586 (Rule 12) to:
-//   - auth/authorize/role_permission.go (PermissionIsAdmin)
-
 // Clone creates a copy of the permission
 func (p *Permission) Clone() *Permission {
 	return &Permission{
@@ -79,19 +58,4 @@ func (p *Permission) Clone() *Permission {
 		Resource:    p.Resource,
 		Action:      p.Action,
 	}
-}
-
-// GetID returns the entity's ID
-func (m *Permission) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Permission) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Permission) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

@@ -8,11 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDataAccessLog_TableName(t *testing.T) {
-	d := &audit.DataAccessLog{}
-	assert.Equal(t, "audit.data_access_log", d.TableName())
-}
-
 func TestDataAccessLog_GetID(t *testing.T) {
 	d := &audit.DataAccessLog{ID: 42}
 	assert.Equal(t, int64(42), d.GetID())

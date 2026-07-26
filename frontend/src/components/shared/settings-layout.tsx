@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
 interface Tab {
@@ -24,6 +24,7 @@ function MobileBackHeader({
   return (
     <div className="mb-4 flex items-center gap-2 pb-4">
       <button
+        type="button"
         onClick={onBack}
         className="-ml-2 rounded-xl p-2 transition-all active:bg-gray-100"
         aria-label="Zurück"
@@ -61,6 +62,7 @@ function MobileTabList({
     <div className="mx-4 overflow-hidden rounded-xl bg-white shadow-sm">
       {tabs.map((tab, idx) => (
         <button
+          type="button"
           key={tab.id}
           onClick={() => onSelect(tab.id)}
           className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-gray-50 ${

@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,13 +16,18 @@ import (
 
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+func init() {
+	// Router() calls jwt.MustNewTokenAuth(); MintTestJWT signs with the same
+	// secret. Seed the deterministic JWT config before any Router construction.
+	testutil.SeedTestJWTConfig()
+}
 
 // testContext holds shared test resources
 type testContext struct {
@@ -53,67 +56,6 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-// createTestRouter creates a test router with handlers attached directly (bypassing JWT middleware)
-func createTestRouter(tc *testContext) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-
-	// List and collection endpoints
-	router.Get("/", tc.resource.ListHandler())
-	router.Get("/classes", tc.resource.GetDistinctClassesHandler())
-	router.Get("/suggest", tc.resource.SuggestMappingsHandler())
-	router.Post("/", tc.resource.CreateHandler())
-
-	// Individual transition routes
-	router.Route("/{id}", func(r chi.Router) {
-		r.Get("/", tc.resource.GetByIDHandler())
-		r.Get("/preview", tc.resource.PreviewHandler())
-		r.Get("/history", tc.resource.GetHistoryHandler())
-		r.Put("/", tc.resource.UpdateHandler())
-		r.Delete("/", tc.resource.DeleteHandler())
-		r.Post("/apply", tc.resource.ApplyHandler())
-		r.Post("/revert", tc.resource.RevertHandler())
-	})
-
-	return router
-}
-
-// createTestRouterWithPermissions creates a test router with permission middleware
-func createTestRouterWithPermissions(tc *testContext) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-
-	// List and collection endpoints with permission checks
-	router.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-		Get("/", tc.resource.ListHandler())
-	router.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-		Get("/classes", tc.resource.GetDistinctClassesHandler())
-	router.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-		Get("/suggest", tc.resource.SuggestMappingsHandler())
-	router.With(authorize.RequiresPermission(permissions.GradeTransitionsCreate)).
-		Post("/", tc.resource.CreateHandler())
-
-	// Individual transition routes
-	router.Route("/{id}", func(r chi.Router) {
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-			Get("/", tc.resource.GetByIDHandler())
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-			Get("/preview", tc.resource.PreviewHandler())
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-			Get("/history", tc.resource.GetHistoryHandler())
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsUpdate)).
-			Put("/", tc.resource.UpdateHandler())
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsDelete)).
-			Delete("/", tc.resource.DeleteHandler())
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsApply)).
-			Post("/apply", tc.resource.ApplyHandler())
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsApply)).
-			Post("/revert", tc.resource.RevertHandler())
-	})
-
-	return router
-}
-
 // createAdminClaims creates admin JWT claims for testing
 func createAdminClaims(accountID int) jwt.AppClaims {
 	return jwt.AppClaims{
@@ -127,6 +69,25 @@ func createAdminClaims(accountID int) jwt.AppClaims {
 		Permissions: []string{"admin:*", permissions.GradeTransitionsRead, permissions.GradeTransitionsCreate, permissions.GradeTransitionsUpdate, permissions.GradeTransitionsDelete, permissions.GradeTransitionsApply},
 		IsAdmin:     true,
 	}
+}
+
+// mintAdminToken signs a real JWT carrying admin claims (tenant 1, full grade
+// transition permissions) so requests pass the production auth chain in Router().
+func mintAdminToken(t *testing.T, accountID int64) string {
+	t.Helper()
+	return testutil.MintTestJWT(t, createAdminClaims(int(accountID)))
+}
+
+// mintNoPermissionToken signs a real JWT for the same authenticated account but
+// without any grade transition permissions, exercising the RequiresPermission
+// middleware's 403 path.
+func mintNoPermissionToken(t *testing.T, accountID int64) string {
+	t.Helper()
+	claims := createAdminClaims(int(accountID))
+	claims.Permissions = nil
+	claims.Roles = []string{"user"}
+	claims.IsAdmin = false
+	return testutil.MintTestJWT(t, claims)
 }
 
 // ============================================================================
@@ -144,11 +105,12 @@ func TestGradeTransitionResource_List(t *testing.T) {
 	t2 := testpkg.CreateTestGradeTransition(t, tc.db, "2026-2027", account.ID)
 	defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, t1.ID, t2.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("list returns transitions", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -160,7 +122,7 @@ func TestGradeTransitionResource_List(t *testing.T) {
 
 	t.Run("list with status filter", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/?status=draft", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -169,7 +131,7 @@ func TestGradeTransitionResource_List(t *testing.T) {
 
 	t.Run("list with academic_year filter", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/?academic_year=2025-2026", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -178,7 +140,7 @@ func TestGradeTransitionResource_List(t *testing.T) {
 
 	t.Run("list with pagination", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/?page=1&page_size=1", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -186,13 +148,11 @@ func TestGradeTransitionResource_List(t *testing.T) {
 	})
 
 	t.Run("list requires permission", func(t *testing.T) {
-		permRouter := createTestRouterWithPermissions(tc)
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
-			testutil.WithPermissions(), // No permissions
+			testutil.WithJWTBearer(mintNoPermissionToken(t, account.ID)),
 		)
 
-		rr := testutil.ExecuteRequest(permRouter, req)
+		rr := testutil.ExecuteRequest(router, req)
 		testutil.AssertForbidden(t, rr)
 	})
 }
@@ -207,7 +167,8 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "create-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("create transition without mappings", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -215,7 +176,7 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 		}
 
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -241,7 +202,7 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 		}
 
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -264,7 +225,7 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 		}
 
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -286,7 +247,7 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 		}
 
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -294,17 +255,15 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 	})
 
 	t.Run("create requires permission", func(t *testing.T) {
-		permRouter := createTestRouterWithPermissions(tc)
 		body := map[string]interface{}{
 			"academic_year": "2033-2034",
 		}
 
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
-			testutil.WithPermissions(), // No permissions
+			testutil.WithJWTBearer(mintNoPermissionToken(t, account.ID)),
 		)
 
-		rr := testutil.ExecuteRequest(permRouter, req)
+		rr := testutil.ExecuteRequest(router, req)
 		testutil.AssertForbidden(t, rr)
 	})
 }
@@ -320,15 +279,16 @@ func TestGradeTransitionResource_GetByID(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1a", strPtr("2a"))
+	testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1a", testpkg.StrPtr("2a"))
 	defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("get transition by ID", func(t *testing.T) {
 		url := fmt.Sprintf("/%d", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "GET", url, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -342,7 +302,7 @@ func TestGradeTransitionResource_GetByID(t *testing.T) {
 
 	t.Run("get non-existent transition returns 404", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/999999", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -351,7 +311,7 @@ func TestGradeTransitionResource_GetByID(t *testing.T) {
 
 	t.Run("get with invalid ID returns 400", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/invalid", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -369,7 +329,8 @@ func TestGradeTransitionResource_Update(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "update-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("update transition notes", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
@@ -383,7 +344,7 @@ func TestGradeTransitionResource_Update(t *testing.T) {
 
 		url := fmt.Sprintf("/%d", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "PUT", url, body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -407,7 +368,7 @@ func TestGradeTransitionResource_Update(t *testing.T) {
 
 		url := fmt.Sprintf("/%d", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "PUT", url, body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -420,7 +381,7 @@ func TestGradeTransitionResource_Update(t *testing.T) {
 		}
 
 		req := testutil.NewAuthenticatedRequest(t, "PUT", "/999999", body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -438,7 +399,8 @@ func TestGradeTransitionResource_Delete(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "delete-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("delete draft transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
@@ -446,7 +408,7 @@ func TestGradeTransitionResource_Delete(t *testing.T) {
 
 		url := fmt.Sprintf("/%d", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "DELETE", url, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -455,7 +417,7 @@ func TestGradeTransitionResource_Delete(t *testing.T) {
 
 	t.Run("delete non-existent transition returns error", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "DELETE", "/999999", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -463,17 +425,15 @@ func TestGradeTransitionResource_Delete(t *testing.T) {
 	})
 
 	t.Run("delete requires permission", func(t *testing.T) {
-		permRouter := createTestRouterWithPermissions(tc)
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 		url := fmt.Sprintf("/%d", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "DELETE", url, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
-			testutil.WithPermissions(), // No permissions
+			testutil.WithJWTBearer(mintNoPermissionToken(t, account.ID)),
 		)
 
-		rr := testutil.ExecuteRequest(permRouter, req)
+		rr := testutil.ExecuteRequest(router, req)
 		testutil.AssertForbidden(t, rr)
 	})
 }
@@ -488,7 +448,8 @@ func TestGradeTransitionResource_Preview(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "preview-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("preview transition", func(t *testing.T) {
 		// Create unique class names for test isolation
@@ -506,7 +467,7 @@ func TestGradeTransitionResource_Preview(t *testing.T) {
 
 		url := fmt.Sprintf("/%d/preview", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "GET", url, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -520,7 +481,7 @@ func TestGradeTransitionResource_Preview(t *testing.T) {
 
 	t.Run("preview non-existent transition returns error", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/999999/preview", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -538,7 +499,8 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "apply-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("apply transition", func(t *testing.T) {
 		// Create unique class names for test isolation
@@ -556,7 +518,7 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 
 		url := fmt.Sprintf("/%d/apply", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "POST", url, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -568,24 +530,22 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 	})
 
 	t.Run("apply requires permission", func(t *testing.T) {
-		permRouter := createTestRouterWithPermissions(tc)
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "9x", strPtr("10x"))
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "9x", testpkg.StrPtr("10x"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 		url := fmt.Sprintf("/%d/apply", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "POST", url, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
-			testutil.WithPermissions(), // No permissions
+			testutil.WithJWTBearer(mintNoPermissionToken(t, account.ID)),
 		)
 
-		rr := testutil.ExecuteRequest(permRouter, req)
+		rr := testutil.ExecuteRequest(router, req)
 		testutil.AssertForbidden(t, rr)
 	})
 
 	t.Run("apply non-existent transition returns error", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/999999/apply", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -603,7 +563,8 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "revert-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("revert applied transition", func(t *testing.T) {
 		// Create unique class names for test isolation
@@ -623,7 +584,7 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 		// Apply first
 		applyURL := fmt.Sprintf("/%d/apply", transition.ID)
 		applyReq := testutil.NewAuthenticatedRequest(t, "POST", applyURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 		applyRR := testutil.ExecuteRequest(router, applyReq)
 		require.Equal(t, http.StatusOK, applyRR.Code)
@@ -631,7 +592,7 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 		// Now revert
 		revertURL := fmt.Sprintf("/%d/revert", transition.ID)
 		revertReq := testutil.NewAuthenticatedRequest(t, "POST", revertURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		revertRR := testutil.ExecuteRequest(router, revertReq)
@@ -644,12 +605,12 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 
 	t.Run("revert draft transition fails", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "8x", strPtr("9x"))
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "8x", testpkg.StrPtr("9x"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 		url := fmt.Sprintf("/%d/revert", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "POST", url, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -672,11 +633,12 @@ func TestGradeTransitionResource_GetDistinctClasses(t *testing.T) {
 	s2 := testpkg.CreateTestStudent(t, tc.db, "Class", "Test2", "ClassY")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, s1.ID, s2.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("get distinct classes", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/classes", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -703,11 +665,12 @@ func TestGradeTransitionResource_SuggestMappings(t *testing.T) {
 	s2 := testpkg.CreateTestStudent(t, tc.db, "Suggest", "Test2", "4a")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, s1.ID, s2.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("suggest mappings", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/suggest", nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -729,7 +692,8 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "history-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("get history for applied transition", func(t *testing.T) {
 		// Create unique class names
@@ -748,7 +712,7 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 		// Apply transition
 		applyURL := fmt.Sprintf("/%d/apply", transition.ID)
 		applyReq := testutil.NewAuthenticatedRequest(t, "POST", applyURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 		applyRR := testutil.ExecuteRequest(router, applyReq)
 		require.Equal(t, http.StatusOK, applyRR.Code)
@@ -756,7 +720,7 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 		// Get history
 		historyURL := fmt.Sprintf("/%d/history", transition.ID)
 		historyReq := testutil.NewAuthenticatedRequest(t, "GET", historyURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		historyRR := testutil.ExecuteRequest(router, historyReq)
@@ -773,7 +737,7 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 
 		url := fmt.Sprintf("/%d/history", transition.ID)
 		req := testutil.NewAuthenticatedRequest(t, "GET", url, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -799,7 +763,8 @@ func TestTransitionRequest_Bind(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "bind-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("bind fails with missing academic_year", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -807,7 +772,7 @@ func TestTransitionRequest_Bind(t *testing.T) {
 		}
 
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
@@ -825,7 +790,8 @@ func TestToTransitionResponse(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "response-test@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
-	router := createTestRouter(tc)
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
 
 	t.Run("response includes applied_at and applied_by", func(t *testing.T) {
 		// Create unique class names
@@ -840,7 +806,7 @@ func TestToTransitionResponse(t *testing.T) {
 		// Apply transition
 		applyURL := fmt.Sprintf("/%d/apply", transition.ID)
 		applyReq := testutil.NewAuthenticatedRequest(t, "POST", applyURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 		applyRR := testutil.ExecuteRequest(router, applyReq)
 		require.Equal(t, http.StatusOK, applyRR.Code)
@@ -848,7 +814,7 @@ func TestToTransitionResponse(t *testing.T) {
 		// Get the transition
 		getURL := fmt.Sprintf("/%d", transition.ID)
 		getReq := testutil.NewAuthenticatedRequest(t, "GET", getURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		getRR := testutil.ExecuteRequest(router, getReq)
@@ -873,20 +839,20 @@ func TestToTransitionResponse(t *testing.T) {
 		// Apply then revert
 		applyURL := fmt.Sprintf("/%d/apply", transition.ID)
 		applyReq := testutil.NewAuthenticatedRequest(t, "POST", applyURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 		testutil.ExecuteRequest(router, applyReq)
 
 		revertURL := fmt.Sprintf("/%d/revert", transition.ID)
 		revertReq := testutil.NewAuthenticatedRequest(t, "POST", revertURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 		testutil.ExecuteRequest(router, revertReq)
 
 		// Get the transition
 		getURL := fmt.Sprintf("/%d", transition.ID)
 		getReq := testutil.NewAuthenticatedRequest(t, "GET", getURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		getRR := testutil.ExecuteRequest(router, getReq)
@@ -900,13 +866,13 @@ func TestToTransitionResponse(t *testing.T) {
 
 	t.Run("response includes mappings with action", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1g", strPtr("2g"))
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1g", testpkg.StrPtr("2g"))
 		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "4g", nil) // Graduate
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 		getURL := fmt.Sprintf("/%d", transition.ID)
 		getReq := testutil.NewAuthenticatedRequest(t, "GET", getURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		getRR := testutil.ExecuteRequest(router, getReq)
@@ -937,12 +903,12 @@ func TestToTransitionResponse(t *testing.T) {
 
 	t.Run("response includes can_modify, can_apply, can_revert", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1h", strPtr("2h"))
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1h", testpkg.StrPtr("2h"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 		getURL := fmt.Sprintf("/%d", transition.ID)
 		getReq := testutil.NewAuthenticatedRequest(t, "GET", getURL, nil,
-			testutil.WithClaims(createAdminClaims(int(account.ID))),
+			testutil.WithJWTBearer(token),
 		)
 
 		getRR := testutil.ExecuteRequest(router, getReq)
@@ -961,8 +927,3 @@ func TestToTransitionResponse(t *testing.T) {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-// strPtr returns a pointer to a string
-func strPtr(s string) *string {
-	return &s
-}

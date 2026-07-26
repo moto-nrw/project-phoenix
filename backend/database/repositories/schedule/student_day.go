@@ -17,17 +17,22 @@ import (
 // FindByStudentAndTimeRange, where an ad-hoc struct works around the tag).
 type scheduledInstanceScan struct {
 	// instance_students columns
-	IsID          int64      `bun:"is_id"`
-	IsTenantID    int64      `bun:"is_tenant_id"`
-	IsInstanceID  int64      `bun:"is_instance_id"`
-	IsStudentID   int64      `bun:"is_student_id"`
-	IsRoomID      *int64     `bun:"is_room_id"`
-	IsStatus      string     `bun:"is_status"`
-	IsSubstatus   *string    `bun:"is_substatus"`
-	IsNote        *string    `bun:"is_note"`
-	IsCheckedInAt *time.Time `bun:"is_checked_in_at"`
-	IsCreatedAt   time.Time  `bun:"is_created_at"`
-	IsUpdatedAt   time.Time  `bun:"is_updated_at"`
+	IsID                 int64      `bun:"is_id"`
+	IsTenantID           int64      `bun:"is_tenant_id"`
+	IsInstanceID         int64      `bun:"is_instance_id"`
+	IsStudentID          int64      `bun:"is_student_id"`
+	IsRoomID             *int64     `bun:"is_room_id"`
+	IsStatus             string     `bun:"is_status"`
+	IsSubstatus          *string    `bun:"is_substatus"`
+	IsNote               *string    `bun:"is_note"`
+	IsCheckedInAt        *time.Time `bun:"is_checked_in_at"`
+	IsCheckedOutAt       *time.Time `bun:"is_checked_out_at"`
+	IsUnplanned          bool       `bun:"is_unplanned"`
+	IsNotScheduled       bool       `bun:"is_not_scheduled"`
+	IsManualStatusAt     *time.Time `bun:"is_manual_status_at"`
+	IsStudentStatusDayID *int64     `bun:"is_student_status_day_id"`
+	IsCreatedAt          time.Time  `bun:"is_created_at"`
+	IsUpdatedAt          time.Time  `bun:"is_updated_at"`
 
 	// activity_instances columns
 	AiID              int64         `bun:"ai_id"`
@@ -71,6 +76,11 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		ColumnExpr(`"instance_student".substatus AS is_substatus`).
 		ColumnExpr(`"instance_student".note AS is_note`).
 		ColumnExpr(`"instance_student".checked_in_at AS is_checked_in_at`).
+		ColumnExpr(`"instance_student".checked_out_at AS is_checked_out_at`).
+		ColumnExpr(`"instance_student".is_unplanned AS is_unplanned`).
+		ColumnExpr(`"instance_student".not_scheduled AS is_not_scheduled`).
+		ColumnExpr(`"instance_student".manual_status_at AS is_manual_status_at`).
+		ColumnExpr(`"instance_student".student_status_day_id AS is_student_status_day_id`).
 		ColumnExpr(`"instance_student".created_at AS is_created_at`).
 		ColumnExpr(`"instance_student".updated_at AS is_updated_at`).
 		ColumnExpr(`"activity_instance".id AS ai_id`).
@@ -96,11 +106,34 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		Where(`"instance_student".student_id = ?`, studentID).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".date <= ?`, to).
+		// Ending a block writes an absence for every genuinely expected child —
+		// including the days somebody cancelled, which belong in the history as
+		// absences — and stamps not_scheduled on the children the care plan did
+		// not book at all that day (#1747). That frozen marker must not
+		// resurface as expected attendance in the history, the export, or the
+		// week view.
+		//
+		// The status half of the predicate is what lets a human override it: a
+		// marked child who turned up anyway is 'present', a marked slot somebody
+		// decided by hand is 'absent', and both stay visible. Only the untouched
+		// marker is hidden. Reading the marker from its own column (rather than
+		// inferring it from 'expected' on a completed instance) is what keeps
+		// the other writers of `status` — the attendance PATCH, ApplyStatusDay —
+		// from creating or destroying it by accident.
+		//
+		// manual_status_at is the third guard, and it is not redundant with the
+		// status half: staff can set an unbooked slot back to 'expected' ("the
+		// plan is wrong, this child is coming"), which lands on the exact shape
+		// the marker claims. The PATCH clears not_scheduled on that write, so
+		// live rows never reach here as both — but the day this predicate is the
+		// only thing standing between a deliberate decision and an invisible row
+		// is the day some other writer forgets that pairing. A hand-decided row
+		// stays visible on its own evidence (#1747 review).
+		Where(`NOT ("instance_student".not_scheduled AND "instance_student".status = ? AND "instance_student".manual_status_at IS NULL)`,
+			schedule.AttendanceStatusExpected).
 		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	if err := query.Scan(ctx, &scans); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -136,13 +169,18 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		inst.SetTenantID(s.AiTenantID)
 
 		att := &schedule.InstanceStudent{
-			InstanceID:  s.IsInstanceID,
-			StudentID:   s.IsStudentID,
-			RoomID:      s.IsRoomID,
-			Status:      s.IsStatus,
-			Substatus:   s.IsSubstatus,
-			Note:        s.IsNote,
-			CheckedInAt: s.IsCheckedInAt,
+			InstanceID:         s.IsInstanceID,
+			StudentID:          s.IsStudentID,
+			RoomID:             s.IsRoomID,
+			Status:             s.IsStatus,
+			Substatus:          s.IsSubstatus,
+			Note:               s.IsNote,
+			CheckedInAt:        s.IsCheckedInAt,
+			CheckedOutAt:       s.IsCheckedOutAt,
+			IsUnplanned:        s.IsUnplanned,
+			NotScheduled:       s.IsNotScheduled,
+			ManualStatusAt:     s.IsManualStatusAt,
+			StudentStatusDayID: s.IsStudentStatusDayID,
 		}
 		att.ID = s.IsID
 		att.CreatedAt = s.IsCreatedAt
@@ -152,6 +190,36 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		out = append(out, &schedule.ScheduledInstanceRow{Instance: inst, Attendance: att})
 	}
 	return out, nil
+}
+
+// HasPlannedSlotsInRange implements schedule.InstanceStudentRepository.
+//
+// Deliberately NOT filtered by student: the attendance history needs the
+// tenant-wide answer, and the walk-in exclusion keeps spontaneous drop-ins
+// from counting as care-plan usage. Cancelled instances are excluded as well —
+// instance_students rows survive a cancellation, and a booking on a
+// cancelled-only occurrence is no evidence of a usable care plan.
+func (r *InstanceStudentRepository) HasPlannedSlotsInRange(
+	ctx context.Context, from, to timezone.Date,
+) (bool, error) {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(modelTblInstanceStudent).
+		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
+		Where(`"instance_student".is_unplanned = FALSE`).
+		Where(`"activity_instance".status <> ?`, schedule.InstanceStatusCancelled).
+		Where(`"activity_instance".date >= ?`, from).
+		Where(`"activity_instance".date <= ?`, to)
+
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
+
+	exists, err := query.Exists(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "check planned slots in range",
+			Err: err,
+		}
+	}
+	return exists, nil
 }
 
 func (r *InstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error) {
@@ -169,9 +237,7 @@ func (r *InstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Cont
 		Where(`"activity_instance".status <> ?`, schedule.InstanceStatusCancelled).
 		OrderExpr(`"instance_student".student_id ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	if err := query.Scan(ctx, &ids); err != nil {
 		return nil, &modelBase.DatabaseError{

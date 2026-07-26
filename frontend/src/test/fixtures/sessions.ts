@@ -92,10 +92,3 @@ export function buildBackendSupervisor(
     ...overrides,
   };
 }
-
-/** Reset auto-increment counters. */
-export function resetSessionIds() {
-  activeGroupIdCounter = 0;
-  visitIdCounter = 0;
-  supervisorIdCounter = 0;
-}

@@ -83,6 +83,31 @@ describe("useSchoolCheckinMode", () => {
     expect(result.current.isActive).toBe(false);
   });
 
+  it("applies batched toggles in order and resets on re-entry", async () => {
+    mockSchoolCheckinStudent.mockResolvedValueOnce({
+      studentId: 42,
+      status: "checked_in",
+      location: "Anwesend",
+      changed: true,
+    });
+    const { result } = renderHook(() => useSchoolCheckinMode());
+
+    act(() => result.current.toggleActive());
+    await act(async () => {
+      await result.current.toggle("42", "abwesend");
+    });
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.successCount).toBe(1);
+
+    act(() => {
+      result.current.toggleActive();
+      result.current.toggleActive();
+    });
+
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.successCount).toBe(0);
+  });
+
   it("deactivate forces isActive false", () => {
     const { result } = renderHook(() => useSchoolCheckinMode());
     act(() => result.current.toggleActive());

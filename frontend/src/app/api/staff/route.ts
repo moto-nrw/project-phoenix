@@ -114,9 +114,16 @@ function mapBackendStaff(staff: BackendStaffResponse) {
  */
 export const GET = createGetHandler(
   async (request: NextRequest, token: string) => {
+    // `strict=1` is an internal opt-out of the graceful empty-list fallback
+    // below: with it a backend failure propagates as a real error response so
+    // callers can distinguish a failed fetch from a genuinely empty staff list
+    // (#1840). It is NOT a backend filter, so it is stripped before forwarding.
+    const strict = request.nextUrl.searchParams.get("strict") === "1";
+
     // Build URL with any query parameters
     const queryParams = new URLSearchParams();
     request.nextUrl.searchParams.forEach((value, key) => {
+      if (key === "strict") return;
       queryParams.append(key, value);
     });
 
@@ -156,7 +163,10 @@ export const GET = createGetHandler(
       logger.error("staff fetch failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // Return empty array instead of throwing error
+      // In strict mode surface the failure to the caller (createGetHandler maps
+      // it to a non-2xx response); the lenient default returns [] so existing
+      // consumers keep degrading gracefully.
+      if (strict) throw error;
       return [];
     }
   },

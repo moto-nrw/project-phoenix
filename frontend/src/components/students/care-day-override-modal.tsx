@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CalendarDays, Clock, Loader2, StickyNote, Trash2 } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import {
+  CalendarDays,
+  Clock,
+  Loader2,
+  StickyNote,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { FormModal } from "~/components/ui/form-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useToast } from "~/contexts/ToastContext";
 import {
   type ArrivalDayData,
@@ -70,6 +79,12 @@ export function CareDayOverrideModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingNoteKey, setDeletingNoteKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  // The edit form hides while the overwrite confirmation is shown, so the two
+  // dialogs never stack. Kept separate from the `isOpen` prop on purpose: the
+  // reset effect keys on `isOpen`, so toggling this preserves the form's state.
+  const [formVisible, setFormVisible] = useState(true);
+  const noteTargetId = useId();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -104,6 +119,8 @@ export function CareDayOverrideModal({
     setNoteTarget("pickup");
     setNoteContent("");
     setError(null);
+    setShowOverwriteConfirm(false);
+    setFormVisible(true);
   }, [isOpen, arrivalDay, pickupDay]);
 
   if (!arrivalDay || !pickupDay) return null;
@@ -117,7 +134,50 @@ export function CareDayOverrideModal({
     : "nicht geplant";
   const notes = getDayNotes(arrivalDay.notes, pickupDay.notes);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  // A guardian-sourced exception was set by a parent in the parents portal.
+  // `undefined` = not parent-authored, `null` = parent set "no pickup/arrival",
+  // a string = the parent's HH:MM time. Used to surface the origin to staff.
+  const arrivalParentTime =
+    arrivalDay.exception?.source === "guardian"
+      ? (arrivalDay.exception.expected_arrival?.slice(0, 5) ?? null)
+      : undefined;
+  const pickupParentTime =
+    pickupDay.exception?.source === "guardian"
+      ? pickupDay.exception.pickupTime
+        ? formatPickupTime(pickupDay.exception.pickupTime)
+        : null
+      : undefined;
+  const isParentAuthored =
+    arrivalParentTime !== undefined || pickupParentTime !== undefined;
+
+  // Whether each leg's form differs from the values loaded into it. An unchanged
+  // leg is NOT re-saved on submit: re-saving routes through the staff override
+  // endpoint, which reclaims a guardian-authored row to staff and drops the
+  // parent's editability. So a note-only edit, or re-saving the same time, must
+  // leave the parent's row untouched.
+  const arrivalInit = arrivalInitialState(arrivalDay);
+  const pickupInit = pickupInitialState(pickupDay);
+  const arrivalChanged =
+    arrivalMode !== arrivalInit.mode ||
+    (arrivalMode === "time" && arrivalTime !== arrivalInit.time) ||
+    (arrivalMode !== "regular" &&
+      arrivalReason.trim() !== arrivalInit.reason.trim());
+  const pickupChanged =
+    pickupMode !== pickupInit.mode ||
+    (pickupMode === "time" && pickupTime !== pickupInit.time) ||
+    (pickupMode !== "regular" &&
+      pickupReason.trim() !== pickupInit.reason.trim());
+
+  // Overwriting a parent value = a guardian-authored leg that staff actually
+  // changed (time, mode, or reason). Gated behind the confirmation below; notes
+  // and no-op re-saves never reach it.
+  const arrivalOverwritesParent =
+    arrivalParentTime !== undefined && arrivalChanged;
+  const pickupOverwritesParent =
+    pickupParentTime !== undefined && pickupChanged;
+  const willOverwriteParent = arrivalOverwritesParent || pickupOverwritesParent;
+
+  const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
@@ -130,11 +190,30 @@ export function CareDayOverrideModal({
       return;
     }
 
+    // Changing or removing a parent-set time is gated behind a confirmation so
+    // staff don't silently overwrite what a guardian entered in the portal. The
+    // form steps aside so the confirmation isn't stacked on top of it.
+    if (willOverwriteParent) {
+      setFormVisible(false);
+      setShowOverwriteConfirm(true);
+      return;
+    }
+
+    void performSave();
+  };
+
+  const cancelOverwrite = () => {
+    setShowOverwriteConfirm(false);
+    setFormVisible(true);
+  };
+
+  const performSave = async () => {
+    setError(null);
     setIsSubmitting(true);
     try {
       if (arrivalMode === "regular") {
         if (arrivalDay.exception) await onDeleteArrivalException();
-      } else {
+      } else if (arrivalChanged) {
         await onSaveArrivalException({
           expectedArrival: arrivalMode === "absent" ? null : arrivalTime,
           reason: arrivalReason.trim() ? arrivalReason.trim() : null,
@@ -143,7 +222,7 @@ export function CareDayOverrideModal({
 
       if (pickupMode === "regular") {
         if (pickupDay.exception) await onDeletePickupException();
-      } else {
+      } else if (pickupChanged) {
         await onSavePickupException({
           pickupTime: pickupMode === "none" ? undefined : pickupTime,
           reason: pickupReason.trim() ? pickupReason.trim() : undefined,
@@ -161,12 +240,22 @@ export function CareDayOverrideModal({
       toast.success("Tagesänderung wurde gespeichert");
       onClose();
     } catch (err) {
-      const message =
+      const raw =
         err instanceof Error
           ? err.message
           : "Tagesänderung konnte nicht gespeichert werden";
+      // The backend refuses to let an account without a staff profile overwrite
+      // a parent-set time (it would have to become the staff author of the day).
+      // Surface that as a readable reason instead of the raw 403 payload.
+      const message = raw.includes("staff_profile_required")
+        ? "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden."
+        : raw;
       setError(message);
       toast.error(message);
+      // Bring the form back so the error is visible (it may have been hidden
+      // behind the overwrite confirmation).
+      setShowOverwriteConfirm(false);
+      setFormVisible(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -216,9 +305,9 @@ export function CareDayOverrideModal({
     </>
   );
 
-  return (
+  const modal = (
     <FormModal
-      isOpen={isOpen}
+      isOpen={isOpen && formVisible}
       onClose={onClose}
       title={title}
       footer={footer}
@@ -233,6 +322,17 @@ export function CareDayOverrideModal({
         {error ? (
           <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-3 text-sm text-[#CC2626]">
             {error}
+          </div>
+        ) : null}
+
+        {isParentAuthored ? (
+          <div className="flex items-start gap-2.5 rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/10 px-4 py-3 text-sm text-[#3a63b0]">
+            <Users className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              Diese Zeiten wurden von den Eltern über das Elternportal gesetzt.
+              Wenn du sie änderst oder entfernst, ersetzt deine Eingabe die
+              Angabe der Eltern.
+            </span>
           </div>
         ) : null}
 
@@ -313,20 +413,20 @@ export function CareDayOverrideModal({
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-            <label className="block">
+            <label htmlFor={noteTargetId} className="block">
               <span className="mb-1 block text-xs font-medium text-gray-500">
                 Bereich
               </span>
-              <select
+              <CustomSelect
+                id={noteTargetId}
                 value={noteTarget}
-                onChange={(event) =>
-                  setNoteTarget(event.target.value as NoteTarget)
-                }
-                className="moto-select h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
-              >
-                <option value="arrival">Ankunft</option>
-                <option value="pickup">Abholung</option>
-              </select>
+                options={[
+                  { value: "arrival", label: "Ankunft" },
+                  { value: "pickup", label: "Abholung" },
+                ]}
+                onChange={(next) => setNoteTarget(next as NoteTarget)}
+                ariaLabel="Bereich"
+              />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-gray-500">
@@ -345,6 +445,35 @@ export function CareDayOverrideModal({
         </section>
       </form>
     </FormModal>
+  );
+
+  const overwriteScope =
+    arrivalOverwritesParent && pickupOverwritesParent
+      ? "die von den Eltern gesetzte Ankunfts- und Abholzeit"
+      : arrivalOverwritesParent
+        ? "die von den Eltern gesetzte Ankunftszeit"
+        : "die von den Eltern gesetzte Abholzeit";
+
+  return (
+    <>
+      {modal}
+      <ConfirmationModal
+        isOpen={showOverwriteConfirm}
+        onClose={cancelOverwrite}
+        onConfirm={() => void performSave()}
+        title="Eltern-Angabe überschreiben?"
+        confirmText="Trotzdem überschreiben"
+        cancelText="Abbrechen"
+        isConfirmLoading={isSubmitting}
+        confirmButtonClass="bg-[#CC2626] hover:bg-[#B91C1C]"
+      >
+        <p className="text-sm leading-6 text-gray-600">
+          Du überschreibst {overwriteScope}. Die ursprüngliche Angabe der Eltern
+          wird ersetzt und der Tag gilt anschließend als von der Einrichtung
+          geändert.
+        </p>
+      </ConfirmationModal>
+    </>
   );
 }
 
@@ -440,6 +569,46 @@ function DayOverrideSection({
       ) : null}
     </section>
   );
+}
+
+// The form values the modal loads for a day, derived the same way the reset
+// effect seeds state. Comparing live state against this tells us whether a leg
+// was actually edited, so an unchanged guardian leg is never re-saved (which
+// would reclaim it from the parent).
+function arrivalInitialState(day: ArrivalDayData): {
+  mode: ArrivalMode;
+  time: string;
+  reason: string;
+} {
+  if (day.exception) {
+    return {
+      mode: day.exception.expected_arrival ? "time" : "absent",
+      time: day.exception.expected_arrival?.slice(0, 5) ?? "",
+      reason: day.exception.reason ?? "",
+    };
+  }
+  return { mode: "regular", time: day.effectiveTime ?? "", reason: "" };
+}
+
+function pickupInitialState(day: PickupDayData): {
+  mode: PickupMode;
+  time: string;
+  reason: string;
+} {
+  if (day.exception) {
+    return {
+      mode: day.exception.pickupTime ? "time" : "none",
+      time: day.exception.pickupTime
+        ? formatPickupTime(day.exception.pickupTime)
+        : "",
+      reason: day.exception.reason ?? "",
+    };
+  }
+  return {
+    mode: "regular",
+    time: day.effectiveTime ? formatPickupTime(day.effectiveTime) : "",
+    reason: "",
+  };
 }
 
 interface CareDayNote {

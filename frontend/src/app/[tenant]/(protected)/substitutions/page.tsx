@@ -4,10 +4,14 @@ import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type {
+  FilterConfig,
+  ActiveFilter,
+} from "~/components/ui/page-header/types";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { substitutionService } from "~/lib/substitution-api";
 import { groupService } from "~/lib/api";
 import type { Group } from "~/lib/api";
@@ -21,6 +25,7 @@ import {
   getSubstitutionCounts,
 } from "~/lib/substitution-helpers";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
+import { useOpenCareGroupMode } from "~/lib/tenant-context";
 
 import { Loading } from "~/components/ui/loading";
 import { useToast } from "~/contexts/ToastContext";
@@ -116,6 +121,11 @@ function SubstitutionPageContent() {
       router.push("/");
     },
   });
+
+  // Gruppenzugriff ist nur bei festen Gruppen sinnvoll (#1940); bei offener
+  // Betreuung arbeiten ohnehin alle Berechtigten mit allen Kindern. Die
+  // Navigation blendet den Eintrag aus, das hier fängt Direktaufrufe ab.
+  const openCareGroupMode = useOpenCareGroupMode();
 
   const { success: showSuccessToast } = useToast();
 
@@ -254,8 +264,8 @@ function SubstitutionPageContent() {
         selectedTeacher.id,
         startDate,
         endDate,
-        "Vertretung", // reason
-        `Vertretung für ${substitutionDays} Tag(e)`, // notes
+        "Gruppenzugriff", // reason
+        `Gruppenzugriff für ${substitutionDays} Tag(e)`, // notes
       );
 
       // Invalidate SWR cache to trigger refetch
@@ -265,7 +275,7 @@ function SubstitutionPageContent() {
       const teacherName = formatTeacherName(selectedTeacher);
       const days = substitutionDays > 1 ? `${substitutionDays} Tage` : "1 Tag";
       showSuccessToast(
-        `Vertretung für "${group.name}" an ${teacherName} zugewiesen (${days})`,
+        `Zugriff auf "${group.name}" für ${teacherName} gewährt (${days})`,
       );
 
       closePopup();
@@ -273,7 +283,7 @@ function SubstitutionPageContent() {
       logger.error("failed to create substitution", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setMutationError("Fehler beim Zuweisen der Vertretung.");
+      setMutationError("Fehler beim Gewähren des Zugriffs.");
     } finally {
       setIsMutating(false);
     }
@@ -302,9 +312,7 @@ function SubstitutionPageContent() {
       await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
 
       // Show success message
-      showSuccessToast(
-        `Vertretung für "${substitutionToEnd.groupName}" beendet`,
-      );
+      showSuccessToast(`Zugriff auf "${substitutionToEnd.groupName}" beendet`);
 
       setShowEndConfirmation(false);
       setSubstitutionToEnd(null);
@@ -312,7 +320,7 @@ function SubstitutionPageContent() {
       logger.error("failed to end substitution", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setMutationError("Fehler beim Beenden der Vertretung.");
+      setMutationError("Fehler beim Beenden des Zugriffs.");
     } finally {
       setIsMutating(false);
     }
@@ -330,7 +338,7 @@ function SubstitutionPageContent() {
         options: [
           { value: "all", label: "Alle" },
           { value: "available", label: "Verfügbar" },
-          { value: "substitution", label: "In Vertretung" },
+          { value: "substitution", label: "Hat Zugriff" },
         ],
       },
     ],
@@ -352,7 +360,7 @@ function SubstitutionPageContent() {
     if (statusFilter !== "all") {
       const statusLabels = {
         available: "Verfügbar",
-        substitution: "In Vertretung",
+        substitution: "Hat Zugriff",
       };
       filters.push({
         id: "status",
@@ -368,6 +376,22 @@ function SubstitutionPageContent() {
 
   if (status === "loading") {
     return <Loading fullPage={false} />;
+  }
+
+  if (openCareGroupMode) {
+    return (
+      <div className="moto-content-surface mx-auto mt-8 max-w-lg rounded-2xl border p-6 text-center shadow-sm">
+        <h2 className="text-lg font-semibold text-gray-900">
+          Gruppenzugriff nicht verfügbar
+        </h2>
+        <p className="mt-2 text-sm text-gray-600">
+          Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle
+          berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein
+          temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen
+          Gruppen“ kann in den Einstellungen geändert werden.
+        </p>
+      </div>
+    );
   }
 
   // Helper to render teacher list content (extracted from nested ternary - S3358)
@@ -392,7 +416,7 @@ function SubstitutionPageContent() {
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md md:h-12 md:w-12 md:text-lg">
                       {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
                     </div>
-                    {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen */}
+                    {/* Dual badges: Orange für Tagesübergaben, Lila für längerfristige Zugriffe */}
                     <SubstitutionBadges teacher={teacher} />
                   </div>
 
@@ -485,7 +509,7 @@ function SubstitutionPageContent() {
       <div className="-mt-1.5 w-full">
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
-          title={isMobile ? "Vertretungen" : ""}
+          title={isMobile ? "Gruppenzugriff" : ""}
           badge={{
             icon: (
               <svg
@@ -608,6 +632,7 @@ function SubstitutionPageContent() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -643,6 +668,7 @@ function SubstitutionPageContent() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -672,7 +698,7 @@ function SubstitutionPageContent() {
             );
           })()}
 
-          {/* Regular Substitutions Section (Vertretungen) */}
+          {/* Regular Substitutions Section (längerfristige Zugriffe) */}
           {(() => {
             const regularSubs = activeSubstitutions.filter(
               (s) => !s.isTransfer,
@@ -694,7 +720,7 @@ function SubstitutionPageContent() {
                     />
                   </svg>
                   <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-                    Vertretungen
+                    Längerfristige Zugriffe
                   </h2>
                   <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
                     {regularSubs.length}
@@ -718,6 +744,7 @@ function SubstitutionPageContent() {
                       // Format end date
                       const endDateStr =
                         substitution.endDate.toLocaleDateString("de-DE", {
+                          timeZone: "Europe/Berlin",
                           day: "2-digit",
                           month: "2-digit",
                         });
@@ -739,9 +766,7 @@ function SubstitutionPageContent() {
                                     {group.name}
                                   </h3>
                                   <p className="mt-1 text-sm text-gray-500">
-                                    <span className="text-gray-400">
-                                      durch:
-                                    </span>{" "}
+                                    <span className="text-gray-400">für:</span>{" "}
                                     <span className="font-medium text-gray-700">
                                       {substituteName}
                                     </span>
@@ -752,6 +777,7 @@ function SubstitutionPageContent() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -783,7 +809,7 @@ function SubstitutionPageContent() {
                                   </div>
                                   <p className="mt-1 text-sm text-gray-500">
                                     <span className="text-gray-400">
-                                      Vertretung durch:
+                                      Zugriff für:
                                     </span>{" "}
                                     <span className="font-medium text-gray-700">
                                       {substituteName}
@@ -792,6 +818,7 @@ function SubstitutionPageContent() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -813,7 +840,7 @@ function SubstitutionPageContent() {
                 ) : (
                   <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-6 text-center">
                     <p className="text-sm text-gray-500">
-                      Keine aktiven Vertretungen
+                      Keine aktiven längerfristigen Zugriffe
                     </p>
                   </div>
                 )}
@@ -824,11 +851,7 @@ function SubstitutionPageContent() {
       </div>
 
       {/* Substitution Assignment Modal */}
-      <Modal
-        isOpen={showPopup}
-        onClose={closePopup}
-        title="Vertretung zuweisen"
-      >
+      <Modal isOpen={showPopup} onClose={closePopup} title="Zugriff gewähren">
         {error && <Alert type="error" message={error} />}
 
         <div className="space-y-4">
@@ -844,40 +867,26 @@ function SubstitutionPageContent() {
           {/* Group selection */}
           <div>
             <label
+              id="substitution-group-select-label"
               htmlFor="substitution-group-select"
               className="mb-2 block text-sm font-medium text-gray-700"
             >
               OGS-Gruppe auswählen
             </label>
-            <div className="relative">
-              <select
-                id="substitution-group-select"
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                className="moto-content-surface block w-full cursor-pointer appearance-none rounded-lg border py-3 pr-10 pl-4 text-lg text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-              >
-                <option value="">Gruppe auswählen...</option>
-                {groups.map((group) => (
-                  <option key={group.id} value={group.name}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-              {/* Custom dropdown arrow */}
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              id="substitution-group-select"
+              ariaLabelledBy="substitution-group-select-label"
+              value={selectedGroup}
+              onChange={setSelectedGroup}
+              placeholder="Gruppe auswählen..."
+              options={[
+                { value: "", label: "Gruppe auswählen..." },
+                ...groups.map((group) => ({
+                  value: group.name,
+                  label: group.name,
+                })),
+              ]}
+            />
           </div>
 
           {/* Days selection with stepper */}
@@ -967,8 +976,8 @@ function SubstitutionPageContent() {
             </div>
             <p className="mt-2 text-center text-xs text-gray-500">
               {substitutionDays === 1
-                ? "Vertretung für heute"
-                : `Vertretung für ${substitutionDays} Tage`}
+                ? "Zugriff für heute"
+                : `Zugriff für ${substitutionDays} Tage`}
             </p>
           </div>
 
@@ -1027,7 +1036,7 @@ function SubstitutionPageContent() {
           setSubstitutionToEnd(null);
         }}
         onConfirm={confirmEndSubstitution}
-        title="Vertretung beenden?"
+        title="Zugriff beenden?"
         confirmText="Beenden"
         cancelText="Abbrechen"
         isConfirmLoading={isMutating}
@@ -1036,7 +1045,7 @@ function SubstitutionPageContent() {
         {substitutionToEnd && (
           <div className="space-y-2">
             <p className="text-gray-700">
-              Möchtest du die Vertretung wirklich beenden?
+              Möchtest du den Zugriff wirklich beenden?
             </p>
             <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
               <p className="mb-1 text-sm text-gray-600">
@@ -1044,9 +1053,7 @@ function SubstitutionPageContent() {
                 {substitutionToEnd.groupName}
               </p>
               <p className="text-sm text-gray-600">
-                <span className="font-medium text-gray-900">
-                  Vertretung durch:
-                </span>{" "}
+                <span className="font-medium text-gray-900">Zugriff für:</span>{" "}
                 {substitutionToEnd.teacherName}
               </p>
             </div>

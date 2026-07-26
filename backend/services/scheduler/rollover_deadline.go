@@ -2,11 +2,8 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
-
-	"github.com/getsentry/sentry-go"
 )
 
 // RolloverDeadlineRunner is the narrow contract the scheduler needs
@@ -53,53 +50,17 @@ func (s *Scheduler) scheduleRolloverDeadlineTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "rollover-deadline",
-		Schedule: "interval-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runRolloverDeadlineTaskPolling(task)
+	s.registerTask("rollover-deadline", "interval-poll", s.runRolloverDeadlineTaskPolling)
 }
 
 const rolloverDeadlineInterval = 1 * time.Hour
 
 func (s *Scheduler) runRolloverDeadlineTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in rollover-deadline task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("rollover-deadline task started",
-		slog.String("interval", rolloverDeadlineInterval.String()),
-	)
-
-	// Brief startup delay so the rest of the services finish booting
-	// before the first tick. Honor s.done so shutdown stays responsive.
-	select {
-	case <-time.After(30 * time.Second):
-	case <-s.done:
-		return
-	}
-	s.checkAndRunRolloverDeadline(task)
-
-	for {
-		select {
-		case <-time.After(rolloverDeadlineInterval):
-			s.checkAndRunRolloverDeadline(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runIntervalPolling(task, "panic in rollover-deadline task",
+		"rollover-deadline task started",
+		30*time.Second, func() time.Duration { return rolloverDeadlineInterval },
+		s.checkAndRunRolloverDeadline,
+		slog.String("interval", rolloverDeadlineInterval.String()))
 }
 
 func (s *Scheduler) checkAndRunRolloverDeadline(task *ScheduledTask) {
@@ -128,6 +89,9 @@ func (s *Scheduler) checkAndRunRolloverDeadline(task *ScheduledTask) {
 				slog.String("error", err.Error()),
 			)
 		}
-		return nil
+		// Returning the worker error is what makes tenant.ForEachActive roll
+		// back this tenant's transaction. Swallowing it here can commit writes
+		// made before a fatal transaction/savepoint failure.
+		return err
 	})
 }

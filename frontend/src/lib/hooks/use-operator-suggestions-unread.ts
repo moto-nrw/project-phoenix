@@ -7,7 +7,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "useOperatorSuggestionsUnread" });
 
-const CACHE_KEY = "operator_suggestions_unread_count";
+const CACHE_KEY = "operator_suggestions_unread_count:v1";
 const CACHE_DURATION_MS = 60 * 1000; // 1 minute cache
 const UNREAD_REFRESH_EVENT = "operator-suggestions-unread-refresh";
 const UNVIEWED_REFRESH_EVENT = "operator-suggestions-unviewed-refresh";

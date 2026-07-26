@@ -10,6 +10,7 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
@@ -132,19 +133,19 @@ func TestValidateCreateRequest_RejectsEmptyRolloverMode(t *testing.T) {
 // pgdriver.Error at all.
 
 func TestIsUniqueViolationOn_NilError(t *testing.T) {
-	assert.False(t, isUniqueViolationOn(nil, "anything"))
+	assert.False(t, base.IsUniqueViolationOn(nil, "anything"))
 }
 
 func TestIsUniqueViolationOn_NonPGError(t *testing.T) {
 	// errors.As against a plain error must fail cleanly — no panic, no
 	// false positive.
-	assert.False(t, isUniqueViolationOn(errors.New("synthetic"), "anything"))
+	assert.False(t, base.IsUniqueViolationOn(errors.New("synthetic"), "anything"))
 }
 
 func TestIsUniqueViolationOn_WrappedNonPGError(t *testing.T) {
 	wrapped := errors.New("synthetic")
 	wrapped2 := errors.Join(wrapped, errors.New("layer"))
-	assert.False(t, isUniqueViolationOn(wrapped2, "anything"))
+	assert.False(t, base.IsUniqueViolationOn(wrapped2, "anything"))
 }
 
 // Composite test for the two named-constraint helpers — they're
@@ -176,5 +177,5 @@ func TestIsUniqueViolationOn_PgErrorAsTypeAssertHandled(t *testing.T) {
 	// fail the "23505" check even though errors.As succeeds.
 	zeroPG := pgdriver.Error{}
 	wrapped := errors.Join(errors.New("outer"), zeroPG)
-	assert.False(t, isUniqueViolationOn(wrapped, phaseNameUniqueConstraint))
+	assert.False(t, base.IsUniqueViolationOn(wrapped, phaseNameUniqueConstraint))
 }

@@ -1,0 +1,60 @@
+"use client";
+
+import { Skeleton } from "~/components/ui/skeleton";
+
+function StaffCardSkeleton() {
+  // Mirrors the staff card: avatar-less header (name lines + status badge),
+  // supervision/qualification rows, footer hint — same p-5 pb-4 surface.
+  return (
+    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="p-5 pb-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-5 w-2/3 rounded" />
+            <Skeleton className="h-4 w-1/2 rounded" />
+            <Skeleton className="h-3 w-2/5 rounded" />
+          </div>
+          <Skeleton className="h-6 w-20 flex-shrink-0 rounded-full" />
+        </div>
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-3.5 w-4/5 rounded" />
+          <div className="flex flex-wrap gap-2">
+            <Skeleton className="h-5 w-16 rounded" />
+            <Skeleton className="h-5 w-20 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function StaffPageSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Mitarbeitende werden geladen"
+      data-testid="staff-page-skeleton"
+      className="-mt-1.5 w-full"
+    >
+      {/* PageHeaderWithSearch placeholder: title + search field + filter chips */}
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-6 w-32 rounded" />
+          <Skeleton className="h-10 w-full max-w-sm flex-1 rounded-lg sm:max-w-md" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 5 }, (_, i) => (
+            <Skeleton key={i} className="h-8 w-24 rounded-full" />
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+        {Array.from({ length: 6 }, (_, i) => (
+          <StaffCardSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}

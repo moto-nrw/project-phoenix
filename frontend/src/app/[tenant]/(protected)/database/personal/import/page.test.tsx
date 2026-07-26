@@ -46,7 +46,7 @@ vi.mock("~/lib/database/service-factory", () => ({
     ),
   }),
 }));
-vi.mock("~/lib/database/configs/roles.config", () => ({
+vi.mock("~/components/database/configs/roles.config", () => ({
   rolesConfig: {},
 }));
 vi.mock("~/lib/auth-helpers", () => ({
@@ -68,7 +68,7 @@ vi.mock("~/components/ui/button", () => ({
     children: React.ReactNode;
     onClick?: () => void;
   }) => (
-    <button onClick={onClick} {...props}>
+    <button type="button" onClick={onClick} {...props}>
       {children}
     </button>
   ),
@@ -82,7 +82,7 @@ vi.mock("~/components/ui/alert", () => ({
 }));
 
 // Mock import components (staff page uses UploadSection + StatsCards)
-vi.mock("~/components/import", () => ({
+vi.mock("~/components/import/upload-section", () => ({
   UploadSection: ({
     onFileSelect,
     isDragging,
@@ -110,6 +110,7 @@ vi.mock("~/components/import", () => ({
       <span data-testid="is-dragging">{isDragging.toString()}</span>
       <span data-testid="is-loading">{isLoading.toString()}</span>
       <button
+        type="button"
         data-testid="file-select-trigger"
         onClick={() =>
           onFileSelect(new File(["test"], "test.csv", { type: "text/csv" }))
@@ -119,6 +120,9 @@ vi.mock("~/components/import", () => ({
       </button>
     </div>
   ),
+}));
+
+vi.mock("~/components/import/stats-cards", () => ({
   StatsCards: ({
     total,
     newCount,
@@ -207,9 +211,12 @@ describe("StaffImportPage", () => {
     render(<StaffImportPage />);
 
     const select = screen.getByRole("combobox");
-    expect(select).toHaveValue("xlsx");
-    fireEvent.change(select, { target: { value: "csv" } });
-    expect(select).toHaveValue("csv");
+    expect(select).toHaveTextContent("Excel (.xlsx)");
+    fireEvent.click(select);
+    fireEvent.click(
+      screen.getByRole("option", { name: "CSV (Komma-getrennt)" }),
+    );
+    expect(select).toHaveTextContent("CSV (Komma-getrennt)");
   });
 
   it("calls the teacher template endpoint on download", async () => {

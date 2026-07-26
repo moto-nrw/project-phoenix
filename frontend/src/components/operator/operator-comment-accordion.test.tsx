@@ -31,10 +31,15 @@ const { MockBaseCommentAccordion } = vi.hoisted(() => ({
     ({ postId, onOpen, onAfterCreate }: MockBaseCommentAccordionProps) => {
       return (
         <div data-testid="base-comment-accordion">
-          <button onClick={() => onOpen?.(postId)} data-testid="open-accordion">
+          <button
+            type="button"
+            onClick={() => onOpen?.(postId)}
+            data-testid="open-accordion"
+          >
             Open
           </button>
           <button
+            type="button"
             onClick={() =>
               onAfterCreate?.(postId, async () => {
                 /* mock reload */

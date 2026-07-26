@@ -1,19 +1,14 @@
 package sse
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -37,10 +32,7 @@ type sseTopics struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (conn *sseConnection) getLogger() *slog.Logger {
-	if conn.logger != nil {
-		return conn.logger
-	}
-	return slog.Default()
+	return cmp.Or(conn.logger, slog.Default())
 }
 
 // connectedEvent is the initial event sent when SSE connection is established
@@ -73,83 +65,6 @@ func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, i
 		flusher: flusher,
 		logger:  rs.getLogger(),
 	}, 0
-}
-
-// resolveStaff extracts JWT claims and resolves the staff member
-// Returns error message and HTTP status code on failure
-func (rs *Resource) resolveStaff(ctx context.Context) (*users.Staff, string, int) {
-	claims := jwt.ClaimsFromCtx(ctx)
-
-	// Get person from account ID
-	person, err := rs.personSvc.FindByAccountID(ctx, int64(claims.ID))
-	if err != nil || person == nil {
-		return nil, "Account not found", http.StatusUnauthorized
-	}
-
-	// Get staff from person ID
-	staff, err := rs.personSvc.GetStaffByPersonID(ctx, person.ID)
-	if err != nil || staff == nil {
-		return nil, "User is not a staff member", http.StatusForbidden
-	}
-
-	return staff, "", 0
-}
-
-// buildSubscriptionTopics builds the list of topics to subscribe to.
-// For admins with admin_supervision_overview enabled, subscribes to all active groups.
-func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID int64) (*sseTopics, error) {
-	// Check if user is admin with supervision overview enabled
-	supervisions, err := rs.resolveSupervisions(ctx, staffID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Prepare subscription topics (active groups + derived educational groups)
-	activeGroupIDs := make([]string, 0, len(supervisions))
-	eduTopics := make([]string, 0)
-	allTopics := make([]string, 0)
-	topicSet := make(map[string]struct{})
-
-	addTopic := func(topic string) {
-		if topic == "" {
-			return
-		}
-		if _, exists := topicSet[topic]; exists {
-			return
-		}
-		topicSet[topic] = struct{}{}
-		allTopics = append(allTopics, topic)
-	}
-
-	for _, supervision := range supervisions {
-		groupTopic := strconv.FormatInt(supervision.GroupID, 10)
-		activeGroupIDs = append(activeGroupIDs, groupTopic)
-		addTopic(groupTopic)
-	}
-
-	// Load educational groups if usercontext service is available
-	if rs.userCtx != nil {
-		eduGroups, err := rs.userCtx.GetMyGroups(ctx)
-		if err != nil {
-			rs.getLogger().Warn("failed to load educational groups for SSE subscription",
-				slog.String("error", err.Error()),
-				slog.Int64("staff_id", staffID),
-			)
-		} else {
-			eduTopics = make([]string, 0, len(eduGroups))
-			for _, group := range eduGroups {
-				topic := fmt.Sprintf("edu:%d", group.ID)
-				eduTopics = append(eduTopics, topic)
-				addTopic(topic)
-			}
-		}
-	}
-
-	return &sseTopics{
-		activeGroupIDs: activeGroupIDs,
-		eduTopics:      eduTopics,
-		allTopics:      allTopics,
-	}, nil
 }
 
 // sendConnectedEvent sends the initial "connected" event to the client
@@ -245,58 +160,4 @@ func (conn *sseConnection) sendEvent(event realtime.Event) error {
 	}
 
 	return conn.writeSSEMessage(string(event.Type), eventData)
-}
-
-// resolveSupervisions returns the supervisions to subscribe to.
-// For admins with admin_supervision_overview enabled, returns a synthetic
-// entry for every currently active group — aligned with the HTTP endpoint
-// /api/active/supervisors/all which also enumerates active.groups directly.
-// Using ListActiveGroups (rather than FindAllActive on group_supervisors)
-// ensures unclaimed active groups (e.g. Schulhof without a current supervisor)
-// still receive live events.
-// For regular staff, returns only their own supervised groups.
-func (rs *Resource) resolveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
-	claims := jwt.ClaimsFromCtx(ctx)
-
-	// Check if admin with supervision overview setting enabled
-	if claims.IsAdmin && rs.settingsSvc != nil {
-		enabled, err := rs.settingsSvc.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
-		if err != nil {
-			rs.getLogger().Warn("admin_supervision_overview setting check failed for SSE, falling back to staff supervisions",
-				slog.String("error", err.Error()),
-				slog.Int64("staff_id", staffID),
-			)
-		} else if enabled {
-			groups, err := rs.activeSvc.ListActiveGroups(ctx, base.NewQueryOptions())
-			if err != nil {
-				rs.getLogger().Error("failed to list active groups for admin SSE",
-					slog.String("error", err.Error()),
-					slog.Int64("staff_id", staffID),
-				)
-				return nil, err
-			}
-			// Synthesise GroupSupervisor records so the existing topic-building
-			// loop can reuse GroupID without special-casing admin paths.
-			synthetic := make([]*activeModel.GroupSupervisor, 0, len(groups))
-			for _, g := range groups {
-				if g.IsActive() {
-					synthetic = append(synthetic, &activeModel.GroupSupervisor{
-						GroupID: g.ID,
-					})
-				}
-			}
-			return synthetic, nil
-		}
-	}
-
-	// Default: get only this staff member's supervised groups
-	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(ctx, staffID)
-	if err != nil {
-		rs.getLogger().Error("failed to get staff active supervisions for SSE",
-			slog.String("error", err.Error()),
-			slog.Int64("staff_id", staffID),
-		)
-		return nil, err
-	}
-	return supervisions, nil
 }

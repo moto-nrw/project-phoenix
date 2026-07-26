@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -17,6 +18,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -29,6 +31,16 @@ const (
 	// so files at exactly the advertised limit are not rejected.
 	maxLoginImageBody = maxLoginImageSize + 1024
 	loginImageDir     = "public/uploads/login-images"
+
+	maxLegalAGBDocumentSize = 10 * 1024 * 1024 // 10MB — legal PDFs can be longer than image assets
+	maxLegalAGBDocumentBody = maxLegalAGBDocumentSize + 4096
+	legalAGBDocumentDir     = "public/uploads/enrollment-legal-documents"
+	legalAGBDocumentPrefix  = "/uploads/enrollment-legal-documents/"
+)
+
+var (
+	errLegalAGBDocumentManagedByUpload = errors.New("AGB document URL is managed by the file upload endpoint")
+	errCannotDeleteActiveLegalAGBPDF   = errors.New("AGB-PDF kann nicht entfernt werden, solange die AGB aktiv sind und als PDF angezeigt werden")
 )
 
 // errOperatorOnlyForTenant explains why a tenant admin may not read/write an
@@ -51,6 +63,14 @@ func guardTenantAccess(w http.ResponseWriter, r *http.Request, key string) bool 
 	return false
 }
 
+func guardDirectManagedSettingWrite(w http.ResponseWriter, r *http.Request, key string) bool {
+	if key != configModel.KeyEnrollmentLegalAGBDocumentURL {
+		return false
+	}
+	common.RenderError(w, r, common.ErrorForbidden(errLegalAGBDocumentManagedByUpload))
+	return true
+}
+
 // ValueSetCallback runs in the same tenant transaction as the setting
 // write. Returning an error aborts the request and rolls back the update.
 //
@@ -63,10 +83,11 @@ type ValueSetCallback func(ctx context.Context, tenantID int64, key string, valu
 
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
-	settingsService configSvc.SettingsService
-	db              *bun.DB
-	broadcaster     realtime.Broadcaster
-	onValueSet      ValueSetCallback
+	settingsService   configSvc.SettingsService
+	legalDocumentRefs legalAGBDocumentReferenceRepository
+	db                *bun.DB
+	broadcaster       realtime.Broadcaster
+	onValueSet        ValueSetCallback
 }
 
 // OnValueSet registers a callback that runs after a setting value change is
@@ -76,23 +97,10 @@ func (rs *SettingsResource) OnValueSet(fn ValueSetCallback) {
 	rs.onValueSet = fn
 }
 
-// scheduleSettingsBroadcast queues a tenant_settings_changed SSE event to fire
-// after the OUTERMOST tenant tx commits. Cross-origin tabs (e.g. operator
-// changing a tenant setting from operator.<domain>) only receive change
-// notifications via SSE; same-origin tabs are covered by the
-// BroadcastChannel ping the frontend fires. Source carries the setting key
-// so the receiving tab can scope future selective invalidations and so log
-// review can attribute writes.
+// scheduleSettingsBroadcast delegates to the shared cross-portal helper; see
+// common.ScheduleTenantSettingsBroadcast for the SSE contract.
 func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenantID int64, key string) {
-	if rs.broadcaster == nil || tenantID == 0 {
-		return
-	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
-			Source: &key,
-		})
-		_ = rs.broadcaster.BroadcastToTenant(tenantID, event)
-	})
+	common.ScheduleTenantSettingsBroadcast(ctx, rs.broadcaster, tenantID, key)
 }
 
 // NewSettingsResource creates a new settings resource. broadcaster is
@@ -101,12 +109,16 @@ func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenan
 // cross-origin operator/tenant pairs) invalidate their settings caches.
 // Same-origin tabs are already covered by the BroadcastChannel ping the
 // frontend fires; this closes the cross-origin loop.
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster) *SettingsResource {
-	return &SettingsResource{
+func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, legalDocumentRefs ...legalAGBDocumentReferenceRepository) *SettingsResource {
+	rs := &SettingsResource{
 		settingsService: svc,
 		db:              db,
 		broadcaster:     broadcaster,
 	}
+	if len(legalDocumentRefs) > 0 {
+		rs.legalDocumentRefs = legalDocumentRefs[0]
+	}
+	return rs
 }
 
 // SettingsRouter returns a configured router for settings endpoints.
@@ -114,13 +126,7 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth := jwt.MustNewTokenAuth()
-
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		settingsWrite := authorize.RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
 
@@ -138,6 +144,12 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		r.With(settingsReadOrWrite, withTx).Get("/login-image", rs.getLoginImage)
 		r.With(settingsWrite).Post("/login-image", rs.uploadLoginImage)
 		r.With(settingsWrite).Delete("/login-image", rs.deleteLoginImage)
+
+		// AGB document writes manage a file-system side effect. Like login-image
+		// writes, they open their own tenant tx so file cleanup only runs after
+		// the DB write has committed.
+		r.With(settingsWrite).Post("/enrollment/legal-agb-document", rs.uploadEnrollmentLegalAGBDocument)
+		r.With(settingsWrite).Delete("/enrollment/legal-agb-document", rs.deleteEnrollmentLegalAGBDocument)
 	})
 
 	return r
@@ -200,6 +212,9 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 	if guardTenantAccess(w, r, key) {
 		return
 	}
+	if guardDirectManagedSettingWrite(w, r, key) {
+		return
+	}
 
 	var req setValueRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -243,6 +258,9 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	if guardTenantAccess(w, r, key) {
+		return
+	}
+	if guardDirectManagedSettingWrite(w, r, key) {
 		return
 	}
 
@@ -386,28 +404,199 @@ func (rs *SettingsResource) deleteLoginImage(w http.ResponseWriter, r *http.Requ
 	common.RespondNoContent(w, r)
 }
 
-// --- Handler accessors for testing ---
+// --- Enrollment legal document handlers ---
 
-// GetSchema returns the getSchema handler for external test access.
-func (rs *SettingsResource) GetSchema() http.HandlerFunc { return rs.getSchema }
+type legalAGBDocumentResponse struct {
+	DocumentURL string `json:"document_url"`
+}
 
-// RevealValue returns the revealValue handler for external test access.
-func (rs *SettingsResource) RevealValue() http.HandlerFunc { return rs.revealValue }
+type enrollmentLegalAGBDeleteSettings interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
 
-// SetValue returns the setValue handler for external test access.
-func (rs *SettingsResource) SetValue() http.HandlerFunc { return rs.setValue }
+type legalAGBDocumentReferenceRepository interface {
+	HasLegalDocumentReference(ctx context.Context, storedURL, publicURL string) (bool, error)
+}
 
-// ResetValue returns the resetValue handler for external test access.
-func (rs *SettingsResource) ResetValue() http.HandlerFunc { return rs.resetValue }
+type legalAGBDocumentReferenceFunc func(context.Context, string) (bool, error)
+type legalAGBDocumentPathResolver func(string, string, string) (string, error)
+type legalAGBDocumentRemover func(string)
 
-// GetLoginImage returns the getLoginImage handler for external test access.
-func (rs *SettingsResource) GetLoginImage() http.HandlerFunc { return rs.getLoginImage }
+func (rs *SettingsResource) uploadEnrollmentLegalAGBDocument(w http.ResponseWriter, r *http.Request) {
+	uploaded, err := common.ParsePDFWithLimits(w, r, "document", maxLegalAGBDocumentSize, maxLegalAGBDocumentBody)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	defer common.CloseFile(uploaded.File)
 
-// UploadLoginImage returns the uploadLoginImage handler for external test access.
-func (rs *SettingsResource) UploadLoginImage() http.HandlerFunc { return rs.uploadLoginImage }
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
+		return
+	}
 
-// DeleteLoginImage returns the deleteLoginImage handler for external test access.
-func (rs *SettingsResource) DeleteLoginImage() http.HandlerFunc { return rs.deleteLoginImage }
+	filePath, err := common.SavePDF(uploaded.File, legalAGBDocumentDir, fmt.Sprintf("%d", tenantID))
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	documentURL := legalAGBDocumentPrefix + filepath.Base(filePath)
+	claims := jwt.ClaimsFromCtx(r.Context())
+	changedBy := int64(claims.ID)
+
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		oldURL, resolveErr := rs.settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if setErr := rs.settingsService.SetValue(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL, documentURL, &changedBy, claims.Permissions); setErr != nil {
+			return setErr
+		}
+		if cleanupErr := rs.scheduleEnrollmentLegalAGBDocumentCleanup(ctx, oldURL, documentURL); cleanupErr != nil {
+			return cleanupErr
+		}
+		rs.scheduleSettingsBroadcast(ctx, tenantID, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		return nil
+	})
+	if err != nil {
+		common.RemoveImage(filePath)
+		renderSettingsError(w, r, err)
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, legalAGBDocumentResponse{DocumentURL: documentURL}, "AGB document uploaded successfully")
+}
+
+func (rs *SettingsResource) deleteEnrollmentLegalAGBDocument(w http.ResponseWriter, r *http.Request) {
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	changedBy := int64(claims.ID)
+
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if guardErr := canDeleteEnrollmentLegalAGBDocument(ctx, rs.settingsService); guardErr != nil {
+			return guardErr
+		}
+		oldURL, resolveErr := rs.settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if resetErr := rs.settingsService.ResetValue(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL, &changedBy, claims.Permissions); resetErr != nil {
+			return resetErr
+		}
+		if cleanupErr := rs.scheduleEnrollmentLegalAGBDocumentCleanup(ctx, oldURL, ""); cleanupErr != nil {
+			return cleanupErr
+		}
+		rs.scheduleSettingsBroadcast(ctx, tenantID, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, errCannotDeleteActiveLegalAGBPDF) {
+			render.Status(r, http.StatusBadRequest)
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		renderSettingsError(w, r, err)
+		return
+	}
+
+	common.RespondNoContent(w, r)
+}
+
+func canDeleteEnrollmentLegalAGBDocument(ctx context.Context, settingsService enrollmentLegalAGBDeleteSettings) error {
+	termsEnabled, err := settingsService.ResolveBool(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
+	if err != nil {
+		return err
+	}
+	displayMode, err := settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDisplayMode)
+	if err != nil {
+		return err
+	}
+	if termsEnabled && displayMode == configModel.EnrollmentLegalAGBDisplayModePDF {
+		return errCannotDeleteActiveLegalAGBPDF
+	}
+	return nil
+}
+
+func (rs *SettingsResource) scheduleEnrollmentLegalAGBDocumentCleanup(ctx context.Context, oldURL, newURL string) error {
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		ctx,
+		tenant.FromContext(ctx),
+		oldURL,
+		newURL,
+		rs.enrollmentLegalAGBDocumentReferenced,
+		common.ResolveStoredPath,
+		common.RemoveImage,
+	)
+	if err != nil {
+		return err
+	}
+	tenant.RegisterAfterCommit(ctx, cleanup)
+	return nil
+}
+
+func prepareEnrollmentLegalAGBDocumentCleanup(
+	ctx context.Context,
+	tenantID int64,
+	oldURL string,
+	newURL string,
+	isReferenced legalAGBDocumentReferenceFunc,
+	resolvePath legalAGBDocumentPathResolver,
+	removeFile legalAGBDocumentRemover,
+) (func(), error) {
+	if oldURL == "" || oldURL == newURL {
+		return nil, nil
+	}
+	if !legalAGBDocumentBelongsToTenant(oldURL, tenantID) {
+		return nil, nil
+	}
+	oldPath, err := resolvePath("public", oldURL, legalAGBDocumentPrefix)
+	if err != nil {
+		return nil, nil
+	}
+	referenced, err := isReferenced(ctx, oldURL)
+	if err != nil {
+		return nil, err
+	}
+	if referenced {
+		return nil, nil
+	}
+	return func() {
+		removeFile(oldPath)
+	}, nil
+}
+
+func legalAGBDocumentBelongsToTenant(storedURL string, tenantID int64) bool {
+	if tenantID <= 0 || !strings.HasPrefix(storedURL, legalAGBDocumentPrefix) {
+		return false
+	}
+	filename := strings.TrimPrefix(storedURL, legalAGBDocumentPrefix)
+	return strings.HasPrefix(filename, fmt.Sprintf("%d_", tenantID))
+}
+
+func (rs *SettingsResource) enrollmentLegalAGBDocumentReferenced(ctx context.Context, storedURL string) (bool, error) {
+	if rs.legalDocumentRefs == nil {
+		return false, errors.New("legal document reference repository is not configured")
+	}
+	publicURL := enrollmentSvc.PublicEnrollmentLegalDocumentURL(storedURL)
+
+	referenced, err := rs.legalDocumentRefs.HasLegalDocumentReference(ctx, storedURL, publicURL)
+	if err != nil {
+		return false, fmt.Errorf("check AGB document references: %w", err)
+	}
+	return referenced, nil
+}
 
 // --- Error rendering ---
 

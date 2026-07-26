@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Eye, Info, ShieldCheck } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
@@ -12,7 +12,8 @@ import {
   PublicEnrollmentSteps,
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   fetchEnrollmentPreviewBootstrap,
   schemaToPublicFormSchema,
@@ -21,10 +22,22 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 
 export default function EnrollmentPreviewPage() {
+  return (
+    <Suspense fallback={null}>
+      <EnrollmentPreviewPageContent />
+    </Suspense>
+  );
+}
+
+function EnrollmentPreviewPageContent() {
   const searchParams = useSearchParams();
   const schemaId = searchParams.get("schemaId");
   const isBasePreview = searchParams.get("base") === "1";
   const { tenant } = useTenant();
+  const resolvedGradeLevelMax = tenant?.gradeLevelMax;
+  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
+    ? resolvedGradeLevelMax
+    : null;
   const [schema, setSchema] = useState<FormSchema | null>(null);
   const [assignedPhaseCount, setAssignedPhaseCount] = useState(0);
   const [activeAssignedPhaseCount, setActiveAssignedPhaseCount] = useState(0);
@@ -148,13 +161,13 @@ export default function EnrollmentPreviewPage() {
             <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
               Vorschau wird geladen…
             </div>
-          ) : error ? (
+          ) : error || gradeLevelMax === null ? (
             <div className="moto-content-surface rounded-3xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-6 text-sm font-medium text-[#9F1F1E] shadow-sm">
-              {error}
+              {error ?? "Die Klassenstufen-Konfiguration ist nicht verfügbar."}
             </div>
           ) : (
             <EnrollmentForm
-              gradeLevelMax={4}
+              gradeLevelMax={gradeLevelMax}
               localizedCopy
               onSubmitted={() => undefined}
               profileFetcher={previewProfileFetcher}

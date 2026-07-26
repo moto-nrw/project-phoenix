@@ -19,29 +19,6 @@ func adminAccess() *common.StudentAccessContext {
 	return &common.StudentAccessContext{IsAdmin: true}
 }
 
-func TestCollectVisitStudentIDs_DedupesAndPreservesOrder(t *testing.T) {
-	results := []visitWithStudent{
-		{StudentID: 11},
-		{StudentID: 22},
-		{StudentID: 11}, // duplicate — second visit for the same student today
-		{StudentID: 33},
-		{StudentID: 22}, // duplicate
-	}
-
-	ids := collectVisitStudentIDs(results)
-
-	assert.Equal(t, []int64{11, 22, 33}, ids,
-		"deduped IDs should preserve first-seen order")
-}
-
-func TestCollectVisitStudentIDs_Empty(t *testing.T) {
-	ids := collectVisitStudentIDs(nil)
-	assert.Empty(t, ids)
-
-	ids = collectVisitStudentIDs([]visitWithStudent{})
-	assert.Empty(t, ids)
-}
-
 func TestCollectAuthorizedVisitStudentIDs_FiltersByAccess(t *testing.T) {
 	groupA := int64(100)
 	groupB := int64(200)

@@ -1,0 +1,455 @@
+package schedule
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
+)
+
+// Edited-field categories. These are the fields a "Nur diesen Termin" edit can
+// change that a series re-plan (ReplanWeek / template split) does NOT preserve:
+// the deviation snapshot only carries Vertretungsplan overrides + the
+// required_staff pin (#1840/#1839), so anything below is silently discarded
+// when the series is edited (#1875). Stable machine-readable strings — the
+// frontend maps them to German labels.
+const (
+	EditedChangeTitle       = "title"
+	EditedChangeDescription = "description"
+	EditedChangeNotes       = "notes"
+	EditedChangeRoom        = "room"
+	EditedChangeTime        = "time"
+	EditedChangeStaff       = "staff"
+	EditedChangeStudents    = "students"
+	// EditedChangeListKind marks a per-occurrence Listenart override (#1565): the
+	// occurrence's list_kind diverges from what the template would materialize. A
+	// series re-plan copies list_kind from the template, so this single-occurrence
+	// classification is discarded exactly like a title or room edit — it must be
+	// reported so the lost-edits warning covers it.
+	EditedChangeListKind = "list_kind"
+	// EditedChangeDeleted marks a date whose occurrence was individually deleted
+	// (a cancelled exception). A same-template re-plan preserves it, but a
+	// following-series split rematerializes it under the successor template, so
+	// it is only reported when the caller asks for deletions (#1875 review).
+	EditedChangeDeleted = "deleted"
+)
+
+// EditedOccurrence describes one planned, template-backed occurrence that was
+// individually adjusted relative to its template — i.e. a single-occurrence
+// edit a series re-plan would discard (#1875). Changes is the non-empty, sorted
+// set of diverging field categories (see the EditedChange* constants).
+type EditedOccurrence struct {
+	InstanceID int64
+	Date       timezone.Date
+	StartTime  string // "15:04:05" wall clock, for display
+	Title      string // the occurrence's current (possibly edited) title
+	Changes    []string
+}
+
+// DetectEditedInWindow returns the planned, template-backed occurrences of one
+// template in [from, to] whose content diverges from what the current template
+// would materialize — the single-occurrence edits a series re-plan (#1875)
+// would silently discard. Read-only; runs under the caller's ambient tenant
+// (RLS) transaction. Deviation-only rows (absences, substitutes, understaffed
+// ack, required_staff pin) are intentionally NOT reported: ReplanWeek preserves
+// those, so they are not "lost".
+func (s *materializationService) DetectEditedInWindow(
+	ctx context.Context,
+	activityGroupID int64,
+	from, to timezone.Date,
+	includeDeletions bool,
+) ([]EditedOccurrence, error) {
+	if to.Before(from) {
+		return nil, &ScheduleError{Op: "detect edited: validate window", Err: errors.New("to must not be before from")}
+	}
+
+	tmpl, err := s.groupRepo.FindByID(ctx, activityGroupID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Template not visible to this tenant (or deleted) — nothing to
+			// compare against; report no edits rather than blocking the caller.
+			return nil, nil
+		}
+		return nil, &ScheduleError{Op: "detect edited: load template", Err: err}
+	}
+	if tmpl == nil {
+		return nil, nil
+	}
+
+	instances, err := s.instanceRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
+	if err != nil {
+		return nil, &ScheduleError{Op: "detect edited: load instances", Err: err}
+	}
+	// Keep only the rows a re-plan would delete-and-regenerate: planned,
+	// template-backed, non-spontaneous.
+	planned := make([]*schedule.ActivityInstance, 0, len(instances))
+	ids := make([]int64, 0, len(instances))
+	for _, inst := range instances {
+		if inst == nil || inst.IsSpontaneous || inst.ActivityGroupID == nil {
+			continue
+		}
+		if inst.Status != schedule.InstanceStatusPlanned {
+			continue
+		}
+		planned = append(planned, inst)
+		ids = append(ids, inst.ID)
+	}
+	// No surviving instances to diff and (for a same-template re-plan) no
+	// deletions to report either — short-circuit before the heavier loads.
+	if len(planned) == 0 && !includeDeletions {
+		return nil, nil
+	}
+
+	// Exceptions in the window: modified ones shape expectedSlotsOn; cancelled
+	// ones are individually-deleted occurrences that a following-series split
+	// would rematerialize under the successor template — reported only when the
+	// caller asks for deletions (#1875 review).
+	exceptions, err := s.exceptionRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
+	if err != nil {
+		return nil, &ScheduleError{Op: "detect edited: load exceptions", Err: err}
+	}
+	exceptionIdx := buildExceptionIndex(exceptions)
+
+	edited := make([]EditedOccurrence, 0)
+
+	if len(planned) > 0 {
+		// Load everything the materializer's per-date rules need. Expected
+		// start/end/room depend on the date (schedule validity, A/B week pattern,
+		// active period, modified/cancelled exception) — see expectedSlotsOn.
+		schedules, err := s.scheduleRepo.FindByGroupID(ctx, activityGroupID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load schedules", Err: err}
+		}
+		timeframes, err := s.timeframeRepo.List(ctx, nil)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load timeframes", Err: err}
+		}
+		timeframeByID := make(map[int64]*schedule.Timeframe, len(timeframes))
+		for _, tf := range timeframes {
+			timeframeByID[tf.ID] = tf
+		}
+		periods, err := s.periodRepo.FindActiveByTenantID(ctx)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load periods", Err: err}
+		}
+		enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, activityGroupID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load enrollments", Err: err}
+		}
+		supervisors, err := s.supervisorRepo.FindByGroupID(ctx, activityGroupID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load supervisors", Err: err}
+		}
+		staffByInstance, err := s.staffRosterByInstance(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		studentsByInstance, err := s.studentRosterByInstance(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, inst := range planned {
+			expected := s.expectedSlotsOn(
+				tmpl,
+				schedules,
+				timeframeByID,
+				periods,
+				exceptionIdx[exceptionKey{tmpl.ID, inst.Date}],
+				inst.Date,
+			)
+			changes := diffOccurrence(
+				inst,
+				tmpl.Name,
+				enrollments,
+				supervisors,
+				staffByInstance[inst.ID],
+				studentsByInstance[inst.ID],
+				expected,
+			)
+			// Listenart is a template-level field materialization copies verbatim
+			// onto every occurrence, so it is compared here (template vs occurrence)
+			// rather than per-slot inside diffOccurrence (#1565 review).
+			if !sameListKind(inst.ListKind, tmpl.ListKind) {
+				changes = append(changes, EditedChangeListKind)
+				sort.Strings(changes)
+			}
+			if len(changes) == 0 {
+				continue
+			}
+			edited = append(edited, EditedOccurrence{
+				InstanceID: inst.ID,
+				Date:       inst.Date,
+				StartTime:  formatTimeOfDay(inst.StartTime),
+				Title:      inst.Title,
+				Changes:    changes,
+			})
+		}
+	}
+
+	if includeDeletions {
+		for _, exc := range exceptions {
+			if exc == nil || exc.ExceptionType != schedule.ActivityExceptionCancelled {
+				continue
+			}
+			// No instance row (it was deleted); InstanceID 0 signals a deletion.
+			edited = append(edited, EditedOccurrence{
+				InstanceID: 0,
+				Date:       exc.ExceptionDate,
+				StartTime:  "",
+				Title:      tmpl.Name,
+				Changes:    []string{EditedChangeDeleted},
+			})
+		}
+	}
+
+	sort.Slice(edited, func(i, j int) bool {
+		if edited[i].Date != edited[j].Date {
+			return edited[i].Date.Before(edited[j].Date)
+		}
+		return edited[i].StartTime < edited[j].StartTime
+	})
+	return edited, nil
+}
+
+// expectedSlotsOn returns the start/end/room parameters the template would
+// materialize on `date`, replaying materializeTemplate's exact per-date rules:
+// weekday match, schedule valid_from/valid_until, active-period selection, the
+// A/B week_pattern predicate, timeframe resolution, and finally the per-date
+// modified/cancelled exception. A cancelled date (or an off-cycle / out-of-range
+// date) yields no slots — an occurrence there has no template match and so is
+// reported as a lost `time` edit, exactly as ReplanWeek would drop it. This is
+// the date-aware, exception-aware replacement for the old (weekday, start) map:
+// it neither misses off-cycle moves nor falsely flags exception-shifted starts.
+func (s *materializationService) expectedSlotsOn(
+	tmpl *activities.Group,
+	schedules []*activities.Schedule,
+	timeframeByID map[int64]*schedule.Timeframe,
+	periods []*schedule.CalendarPeriod,
+	exc *schedule.ActivityException,
+	date timezone.Date,
+) []materialParams {
+	isoWd := isoWeekday(date)
+	out := make([]materialParams, 0, 1)
+	for _, sch := range schedules {
+		if sch.Weekday != isoWd {
+			continue
+		}
+		if scheduleEndedOn(sch, date) || scheduleNotStartedOn(sch, date) {
+			continue
+		}
+		period := selectPeriod(tmpl, sch, date, periods, s.getLogger())
+		if period == nil {
+			continue
+		}
+		if !s.calendarService.ShouldMaterialize(sch.WeekPattern, date, period) {
+			continue
+		}
+		tfID := int64(0)
+		if sch.TimeframeID != nil {
+			tfID = *sch.TimeframeID
+		}
+		tf, ok := timeframeByID[tfID]
+		if !ok || tf.EndTime == nil {
+			continue
+		}
+		base := materialParams{
+			StartTime: extractTimeOfDay(tf.StartTime),
+			EndTime:   extractTimeOfDay(*tf.EndTime),
+			RoomID:    0,
+		}
+		if tmpl.PlannedRoomID != nil {
+			base.RoomID = *tmpl.PlannedRoomID
+		}
+		effective, skip := applyException(base, exc)
+		if skip {
+			continue // cancelled exception → nothing materializes on this date
+		}
+		if effective.RoomID <= 0 {
+			continue // no room the materializer could satisfy the NOT NULL with
+		}
+		out = append(out, effective)
+	}
+	return out
+}
+
+// staffRosterByInstance batch-loads instance_staff rows grouped by instance.
+func (s *materializationService) staffRosterByInstance(ctx context.Context, ids []int64) (map[int64][]*schedule.InstanceStaff, error) {
+	rows, err := s.staffRepo.FindByInstanceIDs(ctx, ids)
+	if err != nil {
+		return nil, &ScheduleError{Op: "detect edited: load staff rosters", Err: err}
+	}
+	byInstance := make(map[int64][]*schedule.InstanceStaff, len(ids))
+	for _, row := range rows {
+		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
+	}
+	return byInstance, nil
+}
+
+// studentRosterByInstance batch-loads expected instance_students grouped by
+// instance. Planned occurrences have not started, so every roster row is
+// status='expected' — FindExpectedByInstanceIDs captures the full roster.
+func (s *materializationService) studentRosterByInstance(ctx context.Context, ids []int64) (map[int64]map[int64]struct{}, error) {
+	rows, err := s.studentRepo.FindExpectedByInstanceIDs(ctx, ids)
+	if err != nil {
+		return nil, &ScheduleError{Op: "detect edited: load student rosters", Err: err}
+	}
+	byInstance := make(map[int64]map[int64]struct{}, len(ids))
+	for _, row := range rows {
+		set := byInstance[row.InstanceID]
+		if set == nil {
+			set = make(map[int64]struct{})
+			byInstance[row.InstanceID] = set
+		}
+		set[row.StudentID] = struct{}{}
+	}
+	return byInstance, nil
+}
+
+// diffOccurrence returns the field categories on which one planned occurrence
+// diverges from its template projection. Pure (no DB) so the truth table is
+// unit-testable. `expected` is what the template would materialize on the
+// occurrence's date (see expectedSlotsOn) — already date- and exception-aware.
+func diffOccurrence(
+	inst *schedule.ActivityInstance,
+	templateTitle string,
+	enrollments []*activities.StudentEnrollment,
+	supervisors []*activities.SupervisorPlanned,
+	staffRows []*schedule.InstanceStaff,
+	studentSet map[int64]struct{},
+	expected []materialParams,
+) []string {
+	var changes []string
+
+	// Title — materialization copies the template name verbatim.
+	if inst.Title != templateTitle {
+		changes = append(changes, EditedChangeTitle)
+	}
+	// Description & notes — materialization writes neither, so any non-empty
+	// value is a deliberate per-occurrence edit (description is settable via the
+	// instance PUT and would otherwise be discarded silently on re-plan).
+	if inst.Description != nil && strings.TrimSpace(*inst.Description) != "" {
+		changes = append(changes, EditedChangeDescription)
+	}
+	if inst.Notes != nil && strings.TrimSpace(*inst.Notes) != "" {
+		changes = append(changes, EditedChangeNotes)
+	}
+
+	periodID := int64(0)
+	if inst.CalendarPeriodID != nil {
+		periodID = *inst.CalendarPeriodID
+	}
+
+	// Room + time. Match the occurrence to the template slot the materializer
+	// would produce on THIS date at the occurrence's start time. No match means
+	// the day/start was moved (or the date is off-cycle/out-of-range) and
+	// ReplanWeek would delete it without recreating it → a lost `time` edit.
+	var match *materialParams
+	instStart := formatTimeOfDay(inst.StartTime)
+	for i := range expected {
+		if formatTimeOfDay(expected[i].StartTime) == instStart {
+			match = &expected[i]
+			break
+		}
+	}
+	if match == nil {
+		changes = append(changes, EditedChangeTime)
+	} else {
+		if match.RoomID > 0 && inst.RoomID != match.RoomID {
+			changes = append(changes, EditedChangeRoom)
+		}
+		if !sameClock(inst.EndTime, match.EndTime) {
+			changes = append(changes, EditedChangeTime)
+		}
+	}
+
+	// Staff. Expected = template supervisors valid on this date (with their
+	// primary flag). Actual = planned (non-substitute) instance_staff rows.
+	// Substitutes and is_absent flags are Vertretungsplan deviations ReplanWeek
+	// preserves, so they must not count as edits (an absent planned staff still
+	// counts as planned).
+	expectedStaff := make(map[int64]bool)
+	for _, sup := range supervisors {
+		if isSupervisorValidOn(sup, inst.Date, periodID) {
+			expectedStaff[sup.StaffID] = sup.IsPrimary
+		}
+	}
+	actualStaff := make(map[int64]bool)
+	for _, row := range staffRows {
+		if row.IsSubstitute {
+			continue
+		}
+		actualStaff[row.StaffID] = row.IsPrimary
+	}
+	if !sameStaffSet(expectedStaff, actualStaff) {
+		changes = append(changes, EditedChangeStaff)
+	}
+
+	// Students. Expected = template enrollments valid on this date; actual =
+	// instance_students membership.
+	expectedStudents := make(map[int64]struct{})
+	for _, e := range enrollments {
+		if isEnrollmentValidOn(e, inst.Date, periodID) {
+			expectedStudents[e.StudentID] = struct{}{}
+		}
+	}
+	if !sameIDSet(expectedStudents, studentSet) {
+		changes = append(changes, EditedChangeStudents)
+	}
+
+	sort.Strings(changes)
+	return changes
+}
+
+// sameListKind reports whether two optional list_kind values are equivalent,
+// treating nil and the empty string as the same "no classification" so an
+// occurrence that merely omits the field is not flagged against a template that
+// stores "".
+func sameListKind(a, b *string) bool {
+	av, bv := "", ""
+	if a != nil {
+		av = *a
+	}
+	if b != nil {
+		bv = *b
+	}
+	return av == bv
+}
+
+// sameClock compares two times on their wall-clock components only.
+func sameClock(a, b time.Time) bool {
+	return a.Hour() == b.Hour() && a.Minute() == b.Minute() && a.Second() == b.Second()
+}
+
+// sameStaffSet reports whether two staffID→isPrimary maps are identical in both
+// membership and primary flag.
+func sameStaffSet(a, b map[int64]bool) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for id, primary := range a {
+		if bp, ok := b[id]; !ok || bp != primary {
+			return false
+		}
+	}
+	return true
+}
+
+// sameIDSet reports whether two ID sets have identical membership.
+func sameIDSet(a, b map[int64]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for id := range a {
+		if _, ok := b[id]; !ok {
+			return false
+		}
+	}
+	return true
+}

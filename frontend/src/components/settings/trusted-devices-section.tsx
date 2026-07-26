@@ -6,6 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useToast } from "~/contexts/ToastContext";
+import { formatDeviceLabelFromUserAgent } from "~/lib/device-label";
 import { createLogger } from "~/lib/logger";
 import {
   listTrustedDevices,
@@ -29,29 +30,6 @@ function formatGermanDate(iso: string): string {
   } catch {
     return iso;
   }
-}
-
-// shortenUA collapses the full User-Agent header to a readable summary —
-// "Chrome auf macOS" / "Safari auf iPhone" — so the list stays scannable.
-// Falls back to the raw header for unknown agents.
-function shortenUA(ua?: string): string {
-  if (!ua) return "Unbekanntes Gerät";
-  const lower = ua.toLowerCase();
-  let browser = "Browser";
-  if (lower.includes("edg/")) browser = "Edge";
-  else if (lower.includes("firefox")) browser = "Firefox";
-  else if (lower.includes("chrome") && !lower.includes("edg/"))
-    browser = "Chrome";
-  else if (lower.includes("safari") && !lower.includes("chrome"))
-    browser = "Safari";
-  let os = "";
-  if (lower.includes("iphone")) os = "iPhone";
-  else if (lower.includes("ipad")) os = "iPad";
-  else if (lower.includes("android")) os = "Android";
-  else if (lower.includes("mac os")) os = "macOS";
-  else if (lower.includes("windows")) os = "Windows";
-  else if (lower.includes("linux")) os = "Linux";
-  return os ? `${browser} auf ${os}` : browser;
 }
 
 interface TrustedDevicesSectionProps {
@@ -160,7 +138,7 @@ export function TrustedDevicesSection({
             >
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-gray-900">
-                  {shortenUA(d.user_agent)}
+                  {formatDeviceLabelFromUserAgent(d.user_agent)}
                 </div>
                 <div className="mt-1 text-xs text-gray-500">
                   Hinzugefügt: {formatGermanDate(d.created_at)} · Gültig bis:{" "}

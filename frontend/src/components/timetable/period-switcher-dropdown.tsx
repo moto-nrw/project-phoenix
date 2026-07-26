@@ -17,26 +17,34 @@
  * 3. A "Neuen Zeitraum anlegen" footer.
  */
 
-import { useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
-import { timetablePopoverSurface } from "./timetable-style";
+import {
+  timetablePopoverSurface,
+  timetableWarningText,
+} from "./timetable-style";
 
 import {
   type CalendarPeriod,
   formatPeriodRange,
   mapPeriodsForDates,
   uniqueAssignedPeriods,
+  weekCycleLabel,
+  weekCycleSlotForDate,
+  weekCycleSlotLetter,
 } from "~/lib/calendar-period-helpers";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
 
 interface PeriodSwitcherDropdownProps {
   periods: CalendarPeriod[];
   weekDays: Date[];
-  view?: "week" | "month" | "year" | "series";
+  view?: "week" | "month" | "series";
   selectedPeriodId?: string | null;
   isLoading?: boolean;
   /** Open the create modal. */
@@ -64,6 +72,7 @@ export function PeriodSwitcherDropdown({
 }: PeriodSwitcherDropdownProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const tenantPath = useTenantAwarePath();
 
   const isoDays = useMemo(() => weekDays.map(toISODate), [weekDays]);
   const assignments = useMemo(
@@ -75,7 +84,7 @@ export function PeriodSwitcherDropdown({
     [assignments],
   );
   const hasMissingDays = assignments.some((a) => a.period === null);
-  const showContextAssignments = view !== "year" && view !== "series";
+  const showContextAssignments = view !== "series";
   const contextLabel = view === "month" ? "Dieser Monat" : "Diese Woche";
   const selectedPeriod = selectedPeriodId
     ? (periods.find((period) => period.id === selectedPeriodId) ?? null)
@@ -83,19 +92,17 @@ export function PeriodSwitcherDropdown({
 
   // Headline label on the trigger pill.
   const triggerLabel =
-    view === "year"
-      ? "Zeiträume"
-      : view === "series" && selectedPeriod
-        ? selectedPeriod.name
-        : view === "series"
-          ? "Zeiträume"
-          : assignedPeriods.length === 0
-            ? "Zeitraum anlegen"
-            : assignedPeriods.length === 1 && !hasMissingDays
-              ? assignedPeriods[0]!.name
-              : view === "week"
-                ? "Übergangswoche"
-                : "Mehrere Zeiträume";
+    view === "series" && selectedPeriod
+      ? selectedPeriod.name
+      : view === "series"
+        ? "Zeiträume"
+        : assignedPeriods.length === 0
+          ? "Zeitraum anlegen"
+          : assignedPeriods.length === 1 && !hasMissingDays
+            ? assignedPeriods[0]!.name
+            : view === "week"
+              ? "Übergangswoche"
+              : "Mehrere Zeiträume";
 
   // Group all periods for the list section.
   const grouped = useMemo<PeriodGroup[]>(() => {
@@ -125,7 +132,8 @@ export function PeriodSwitcherDropdown({
   }, [periods]);
 
   // Click-outside / Escape to close.
-  useClickOutside(containerRef, () => setOpen(false), open);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useClickOutside(containerRef, closeMenu, open);
 
   // While loading, render a skeleton sized like the trigger pill so the
   // header keeps its place instead of popping in when periods resolve.
@@ -141,7 +149,6 @@ export function PeriodSwitcherDropdown({
         variant="primary"
         size="compact"
         onClick={onCreate}
-        className="rounded-lg"
         title="Ohne aktiven Zeitraum können keine regelmäßigen Termine eingetragen werden."
       >
         Zeitraum anlegen
@@ -151,12 +158,14 @@ export function PeriodSwitcherDropdown({
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="compact"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className="max-w-[240px]"
         title="Planungszeitraum wechseln"
       >
         <span
@@ -165,7 +174,7 @@ export function PeriodSwitcherDropdown({
         />
         <span className="truncate">{triggerLabel}</span>
         <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden />
-      </button>
+      </Button>
 
       {open && (
         <div
@@ -206,8 +215,27 @@ export function PeriodSwitcherDropdown({
                         {getGermanWeekdayShort(day)}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-right text-gray-700">
-                        {a.period?.name ?? (
-                          <span className="text-[#92400E]">
+                        {a.period ? (
+                          <>
+                            {a.period.name}
+                            {/* Wochen-Rhythmus sichtbar machen (#1946):
+                                weekCycleSlotForDate liefert den 1-basierten
+                                Slot auch für 3-/4-Wochen-Zyklen (C, D, …). */}
+                            {(() => {
+                              const slot = weekCycleSlotForDate(
+                                a.period,
+                                a.date,
+                              );
+                              return slot ? (
+                                <span className="text-gray-400">
+                                  {" "}
+                                  · Woche {weekCycleSlotLetter(slot)}
+                                </span>
+                              ) : null;
+                            })()}
+                          </>
+                        ) : (
+                          <span className={timetableWarningText}>
                             Kein aktiver Zeitraum
                           </span>
                         )}
@@ -249,6 +277,10 @@ export function PeriodSwitcherDropdown({
                         </div>
                         <p className="text-[10px] text-gray-500 tabular-nums">
                           {formatPeriodRange(p)}
+                          {(() => {
+                            const label = weekCycleLabel(p.weekCycleLength);
+                            return label ? ` · ${label}` : null;
+                          })()}
                         </p>
                         {isSelected && (
                           <Check
@@ -278,16 +310,30 @@ export function PeriodSwitcherDropdown({
           </div>
 
           {/* Footer: create new */}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={() => {
               setOpen(false);
               onCreate();
             }}
-            className="flex w-full items-center gap-1.5 border-t border-gray-100 px-4 py-2.5 text-left text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            className="w-full justify-start rounded-none border-t border-gray-100 px-4"
           >
             <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
-          </button>
+          </Button>
+          {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
+              Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt
+              als direkter Weg aus dem Planungskontext. tenantPath hält den
+              Link im Path-Routing-Modus innerhalb des Tenant-Segments. */}
+          <Link
+            href={tenantPath("/calendar-periods")}
+            onClick={() => setOpen(false)}
+            className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+          >
+            <SlidersHorizontal className="h-4 w-4" aria-hidden /> Zeiträume
+            verwalten
+          </Link>
         </div>
       )}
     </div>
@@ -322,7 +368,7 @@ function MonthPeriodSummary({
         <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
           Dieser Monat
         </p>
-        <p className="text-xs text-[#92400E]">
+        <p className={`text-xs ${timetableWarningText}`}>
           Für diesen Monat ist kein aktiver Zeitraum hinterlegt.
         </p>
       </div>
@@ -346,7 +392,7 @@ function MonthPeriodSummary({
           </p>
         ))}
         {hasMissingDays && (
-          <p className="text-[11px] text-[#92400E]">
+          <p className={`text-[11px] ${timetableWarningText}`}>
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}

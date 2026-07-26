@@ -92,26 +92,32 @@ func (r *GuardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, gu
 	return phones, nil
 }
 
-// GetPrimary retrieves the primary phone number for a guardian
-func (r *GuardianPhoneNumberRepository) GetPrimary(ctx context.Context, guardianProfileID int64) (*users.GuardianPhoneNumber, error) {
-	phone := new(users.GuardianPhoneNumber)
-
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model(phone).
-		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
-		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
-		Where(`"guardian_phone_number".is_primary = ?`, true).
-		Limit(1).
-		Scan(ctx)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errGuardianPhoneNotFound)
-		}
-		return nil, fmt.Errorf("failed to get primary phone number: %w", err)
+// FindByGuardianIDs retrieves every phone number for the given guardian profile
+// ids in a single query, grouped by profile id. Each group is ordered the same
+// way FindByGuardianID orders a single guardian's phones (primary first), so
+// callers can treat the two interchangeably. Profiles with no phones are absent
+// from the map.
+func (r *GuardianPhoneNumberRepository) FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*users.GuardianPhoneNumber, error) {
+	if len(guardianProfileIDs) == 0 {
+		return make(map[int64][]*users.GuardianPhoneNumber), nil
 	}
 
-	return phone, nil
+	var phones []*users.GuardianPhoneNumber
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&phones).
+		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
+		Where(`"guardian_phone_number".guardian_profile_id IN (?)`, bun.List(guardianProfileIDs)).
+		OrderExpr("guardian_profile_id ASC, is_primary DESC, priority ASC, created_at ASC").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find guardian phone numbers by ids: %w", err)
+	}
+
+	result := make(map[int64][]*users.GuardianPhoneNumber, len(guardianProfileIDs))
+	for _, phone := range phones {
+		result[phone.GuardianProfileID] = append(result[phone.GuardianProfileID], phone)
+	}
+	return result, nil
 }
 
 // Update updates an existing phone number

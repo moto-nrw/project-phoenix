@@ -35,9 +35,10 @@ vi.mock("next/image", () => ({
 }));
 
 const mockUseTenant = vi.fn();
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSafe: () => mockUseTenant(),
   useTenantSlugSafe: () => "demo-school",
+  useTenantRoutingModeSafe: vi.fn(() => "path"),
   useNFCEnabled: vi.fn(() => true),
 }));
 

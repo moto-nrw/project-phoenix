@@ -2,13 +2,11 @@ package active
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // GroupSupervisor represents a staff member assigned to supervise an active group
@@ -27,43 +25,7 @@ type GroupSupervisor struct {
 }
 
 // Table name constants for BUN ORM schema qualification
-const (
-	tableGroupSupervisors = "active.group_supervisors"
-)
-
-// BeforeAppendModel ensures schema-qualified table names for all query types
-func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableGroupSupervisors)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableGroupSupervisors)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableGroupSupervisors)
-	}
-	return nil
-}
-
-// GetID returns the entity's ID
-func (gs *GroupSupervisor) GetID() interface{} {
-	return gs.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (gs *GroupSupervisor) GetCreatedAt() time.Time {
-	return gs.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (gs *GroupSupervisor) GetUpdatedAt() time.Time {
-	return gs.UpdatedAt
-}
-
-// TableName returns the database table name
-func (gs *GroupSupervisor) TableName() string {
-	return "active.group_supervisors"
-}
+const ()
 
 // Validate ensures group supervisor data is valid
 func (gs *GroupSupervisor) Validate() error {

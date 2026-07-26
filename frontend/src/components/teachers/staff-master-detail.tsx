@@ -38,6 +38,7 @@ interface StaffMasterDetailProps {
   onUpdateNotes: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
+  onManageRole?: () => void;
 }
 
 function keyForTeacher(teacher: Teacher): string {
@@ -98,6 +99,7 @@ export function StaffMasterDetail({
   onUpdateNotes,
   onManageCaregiver,
   onManageMFA,
+  onManageRole,
 }: StaffMasterDetailProps) {
   const renderItem = (teacher: Teacher) => (
     <DatabaseListItem
@@ -129,6 +131,7 @@ export function StaffMasterDetail({
       onUpdateNotes={onUpdateNotes}
       onManageCaregiver={onManageCaregiver}
       onManageMFA={onManageMFA}
+      onManageRole={onManageRole}
     />
   ) : (
     <EmptyDetailState
@@ -158,6 +161,7 @@ interface StaffDetailContentProps {
   onUpdateNotes: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
+  onManageRole?: () => void;
 }
 
 function StaffDetailContent({
@@ -167,6 +171,7 @@ function StaffDetailContent({
   onUpdateNotes,
   onManageCaregiver,
   onManageMFA,
+  onManageRole,
 }: StaffDetailContentProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
 
@@ -194,6 +199,7 @@ function StaffDetailContent({
           onUpdateNotes={onUpdateNotes}
           onManageCaregiver={onManageCaregiver}
           onManageMFA={onManageMFA}
+          onManageRole={onManageRole}
         />
       ),
     },
@@ -221,6 +227,7 @@ interface StaffStammdatenTabProps {
   onUpdateNotes: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
+  onManageRole?: () => void;
 }
 
 function StaffStammdatenTab({
@@ -228,6 +235,7 @@ function StaffStammdatenTab({
   onUpdateNotes,
   onManageCaregiver,
   onManageMFA,
+  onManageRole,
 }: StaffStammdatenTabProps) {
   const trimmedQualifications = teacher.qualifications?.trim() ?? "";
 
@@ -301,6 +309,7 @@ function StaffStammdatenTab({
             {teacher.created_at && (
               <DataField label="Erstellt am">
                 {new Date(teacher.created_at).toLocaleDateString("de-DE", {
+                  timeZone: "Europe/Berlin",
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",
@@ -312,6 +321,7 @@ function StaffStammdatenTab({
             {teacher.updated_at && (
               <DataField label="Aktualisiert am">
                 {new Date(teacher.updated_at).toLocaleDateString("de-DE", {
+                  timeZone: "Europe/Berlin",
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",
@@ -324,8 +334,17 @@ function StaffStammdatenTab({
         </InfoSection>
       ) : null}
 
-      {(onManageCaregiver || onManageMFA) && (
+      {(onManageCaregiver || onManageMFA || onManageRole) && (
         <div className="flex flex-wrap justify-end gap-2">
+          {onManageRole ? (
+            <button
+              type="button"
+              onClick={onManageRole}
+              className="rounded-lg border border-[#7C3AED]/30 px-3 py-2 text-xs font-medium text-[#7C3AED] transition-all duration-200 hover:bg-[#7C3AED]/10 md:text-sm"
+            >
+              Rolle verwalten
+            </button>
+          ) : null}
           {onManageMFA ? (
             <button
               type="button"

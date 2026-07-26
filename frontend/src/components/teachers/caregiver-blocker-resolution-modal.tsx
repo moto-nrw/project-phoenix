@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FormModal } from "~/components/ui";
+import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
 import {
   DetailIcons,
   InfoSection,
@@ -474,24 +475,24 @@ export function CaregiverBlockerResolutionModal({
                       ) : null}
                     </div>
                     <div className="flex items-center gap-2">
-                      <select
+                      <CustomSelect
+                        ariaLabel={`Ersatz für ${item.activityName}`}
                         value={activityReplacements[item.id] ?? ""}
-                        onChange={(e) =>
+                        onChange={(next) =>
                           setActivityReplacements((prev) => ({
                             ...prev,
-                            [item.id]: e.target.value,
+                            [item.id]: next,
                           }))
                         }
+                        options={[
+                          { value: "", label: "Ohne Ersatz entfernen" },
+                          ...availableStaff.map((staff) => ({
+                            value: staff.id,
+                            label: staff.fullName,
+                          })),
+                        ]}
                         disabled={loadingStaff || processing[key]}
-                        className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:border-gray-400 focus:outline-none"
-                      >
-                        <option value="">Ohne Ersatz entfernen</option>
-                        {availableStaff.map((staff) => (
-                          <option key={staff.id} value={staff.id}>
-                            {staff.fullName}
-                          </option>
-                        ))}
-                      </select>
+                      />
                       <button
                         type="button"
                         onClick={() => void handleResolveActivity(item)}
@@ -531,24 +532,24 @@ export function CaregiverBlockerResolutionModal({
                       {item.groupName}
                     </span>
                     <div className="flex items-center gap-2">
-                      <select
+                      <CustomSelect
+                        ariaLabel={`Ersatz für ${item.groupName}`}
                         value={groupReplacements[item.id] ?? ""}
-                        onChange={(e) =>
+                        onChange={(next) =>
                           setGroupReplacements((prev) => ({
                             ...prev,
-                            [item.id]: e.target.value,
+                            [item.id]: next,
                           }))
                         }
+                        options={[
+                          { value: "", label: "Ohne Ersatz entfernen" },
+                          ...availableStaff.map((staff) => ({
+                            value: staff.id,
+                            label: staff.fullName,
+                          })),
+                        ]}
                         disabled={loadingStaff || processing[key]}
-                        className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:border-gray-400 focus:outline-none"
-                      >
-                        <option value="">Ohne Ersatz entfernen</option>
-                        {availableStaff.map((staff) => (
-                          <option key={staff.id} value={staff.id}>
-                            {staff.fullName}
-                          </option>
-                        ))}
-                      </select>
+                      />
                       <button
                         type="button"
                         onClick={() => void handleResolveGroup(item)}

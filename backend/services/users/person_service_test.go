@@ -11,11 +11,9 @@ package users_test
 import (
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -735,171 +733,6 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 }
 
 // =============================================================================
-// GetFullProfile Tests
-// =============================================================================
-
-func TestPersonService_GetFullProfile(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns full profile with account", func(t *testing.T) {
-		// ARRANGE
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Full", "Profile")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
-		// ACT
-		result, err := service.GetFullProfile(ctx, person.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, person.ID, result.ID)
-		assert.NotNil(t, result.Account)
-		assert.Equal(t, account.ID, result.Account.ID)
-	})
-
-	t.Run("returns full profile with RFID card", func(t *testing.T) {
-		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "RFID", "Profile")
-		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PROFILE")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
-
-		err := service.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetFullProfile(ctx, person.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.NotNil(t, result.RFIDCard)
-		assert.Equal(t, rfidCard.ID, result.RFIDCard.ID)
-	})
-
-	t.Run("returns profile without relations", func(t *testing.T) {
-		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "Minimal", "Profile")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-
-		// ACT
-		result, err := service.GetFullProfile(ctx, person.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, person.ID, result.ID)
-		assert.Nil(t, result.Account)
-		assert.Nil(t, result.RFIDCard)
-	})
-}
-
-// =============================================================================
-// ListAvailableRFIDCards Tests
-// =============================================================================
-
-func TestPersonService_ListAvailableRFIDCards(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns unassigned cards", func(t *testing.T) {
-		// ARRANGE
-		availableCard := testpkg.CreateTestRFIDCard(t, db, "AVAILABLE")
-		assignedCard := testpkg.CreateTestRFIDCard(t, db, "ASSIGNED")
-		person := testpkg.CreateTestPerson(t, db, "Card", "Holder")
-		defer testpkg.CleanupRFIDCards(t, db, availableCard.ID, assignedCard.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-
-		// Assign one card
-		err := service.LinkToRFIDCard(ctx, person.ID, assignedCard.ID)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.ListAvailableRFIDCards(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		// Available card should be in the list
-		foundAvailable := false
-		foundAssigned := false
-		for _, card := range result {
-			if card.ID == availableCard.ID {
-				foundAvailable = true
-			}
-			if card.ID == assignedCard.ID {
-				foundAssigned = true
-			}
-		}
-		assert.True(t, foundAvailable, "Available card should be in list")
-		assert.False(t, foundAssigned, "Assigned card should not be in list")
-	})
-}
-
-// =============================================================================
-// GetStudentsByTeacher Tests
-// =============================================================================
-
-func TestPersonService_GetStudentsByTeacher(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns students for valid teacher", func(t *testing.T) {
-		// ARRANGE
-		teacher := testpkg.CreateTestTeacher(t, db, "Teacher", "Test")
-		educationGroup := testpkg.CreateTestEducationGroup(t, db, "TestClass")
-		student := testpkg.CreateTestStudent(t, db, "Student", "Test", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, student.ID, educationGroup.ID)
-
-		// Assign teacher to group
-		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
-		// Assign student to group
-		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
-
-		// ACT
-		result, err := service.GetStudentsByTeacher(ctx, teacher.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-	})
-
-	t.Run("returns error for non-existent teacher", func(t *testing.T) {
-		// ACT
-		result, err := service.GetStudentsByTeacher(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Error(t, err) // Teacher lookup error
-	})
-
-	t.Run("returns empty list when teacher has no students", func(t *testing.T) {
-		// ARRANGE
-		teacher := testpkg.CreateTestTeacher(t, db, "Lonely", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID)
-
-		// ACT
-		result, err := service.GetStudentsByTeacher(ctx, teacher.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Empty(t, result)
-	})
-}
-
-// =============================================================================
 // GetStudentsWithGroupsByTeacher Tests
 // =============================================================================
 
@@ -995,10 +828,7 @@ func TestUsersErrorTypes(t *testing.T) {
 			users.ErrAccountNotFound,
 			users.ErrRFIDCardNotFound,
 			users.ErrAccountAlreadyLinked,
-			users.ErrGuardianNotFound,
-			users.ErrStaffNotFound,
 			users.ErrTeacherNotFound,
-			users.ErrInvalidPIN,
 		}
 
 		for _, err := range errors {
@@ -1009,101 +839,6 @@ func TestUsersErrorTypes(t *testing.T) {
 }
 
 // ======== Additional Tests for Higher Coverage ========
-
-func TestPersonService_ValidateStaffPIN_EmptyPIN(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for empty PIN", func(t *testing.T) {
-		// ACT
-		result, err := service.ValidateStaffPIN(ctx, "")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "PIN cannot be empty")
-	})
-}
-
-func TestPersonService_ValidateStaffPINForSpecificStaff_EmptyPIN(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for empty PIN", func(t *testing.T) {
-		// ACT
-		result, err := service.ValidateStaffPINForSpecificStaff(ctx, 1, "")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "PIN cannot be empty")
-	})
-}
-
-func TestPersonService_ValidateStaffPINForSpecificStaff_StaffNotFound(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for nonexistent staff", func(t *testing.T) {
-		// ACT
-		result, err := service.ValidateStaffPINForSpecificStaff(ctx, 99999999, "1234")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestPersonService_FindByGuardianID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns empty list for nonexistent guardian", func(t *testing.T) {
-		// ACT
-		persons, err := service.FindByGuardianID(ctx, 99999999)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Empty(t, persons)
-	})
-
-	t.Run("returns persons linked to guardian", func(t *testing.T) {
-		// ARRANGE
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "guardian-test")
-		person := testpkg.CreateTestPerson(t, db, "GuardChild", "PersonTest")
-		testpkg.CreateTestPersonGuardian(t, db, person.ID, parentAccount.ID, "parent")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID, parentAccount.ID)
-		defer testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
-
-		// ACT
-		persons, err := service.FindByGuardianID(ctx, parentAccount.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotEmpty(t, persons, "Should return persons linked to guardian")
-		// Find our specific person in the results
-		found := false
-		for _, p := range persons {
-			if p.ID == person.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Expected to find person with ID %d in results", person.ID)
-	})
-}
 
 func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
@@ -1208,174 +943,6 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 }
 
 // ======== PIN Validation Flow Tests ========
-
-func TestPersonService_ValidateStaffPIN_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("validates correct PIN and returns staff", func(t *testing.T) {
-		// ARRANGE - create staff with UNIQUE PIN (avoid collision with seed data)
-		testPIN := "9876"
-		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "PIN", "Test", testPIN)
-		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
-
-		// ACT
-		result, err := service.ValidateStaffPIN(ctx, testPIN)
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		// ValidateStaffPIN returns the first matching staff - verify it's a valid staff
-		assert.Greater(t, result.ID, int64(0))
-	})
-}
-
-func TestPersonService_ValidateStaffPIN_WrongPIN(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for incorrect PIN", func(t *testing.T) {
-		// ARRANGE - create staff with known PIN
-		testPIN := "1234"
-		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "WrongPIN", "Test", testPIN)
-		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
-
-		// ACT - try with wrong PIN
-		result, err := service.ValidateStaffPIN(ctx, "9999")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestPersonService_ValidateStaffPIN_NoPINSet(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error when trying unique PIN that doesn't exist", func(t *testing.T) {
-		// ARRANGE - create staff without PIN (default from CreateTestStaffWithAccount)
-		staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "NoPIN", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
-
-		// ACT - try a unique PIN that no account should have
-		result, err := service.ValidateStaffPIN(ctx, "0000")
-
-		// ASSERT - should fail since no account has this PIN
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestPersonService_ValidateStaffPINForSpecificStaff_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("validates correct PIN for specific staff", func(t *testing.T) {
-		// ARRANGE
-		testPIN := "5678"
-		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "Specific", "PIN", testPIN)
-		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
-
-		// ACT
-		result, err := service.ValidateStaffPINForSpecificStaff(ctx, staff.ID, testPIN)
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		assert.Equal(t, staff.ID, result.ID)
-	})
-}
-
-func TestPersonService_ValidateStaffPINForSpecificStaff_WrongPIN(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for incorrect PIN on specific staff", func(t *testing.T) {
-		// ARRANGE
-		testPIN := "5678"
-		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "SpecificWrong", "PIN", testPIN)
-		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
-
-		// ACT - wrong PIN
-		result, err := service.ValidateStaffPINForSpecificStaff(ctx, staff.ID, "0000")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestPersonService_ValidateStaffPINForSpecificStaff_UsesConfiguredLockoutPolicy(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err)
-
-	ctx := testpkg.TenantContext(1)
-	require.NoError(t, serviceFactory.Settings.SetValue(ctx, configModel.KeyAccountLockoutThreshold, 2, nil, nil))
-	require.NoError(t, serviceFactory.Settings.SetValue(ctx, configModel.KeyAccountLockoutDurationMinutes, 37, nil, nil))
-
-	testPIN := "2468"
-	staff, account := testpkg.CreateTestStaffWithPIN(t, db, "Configured", "PINLockout", testPIN)
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
-
-	result, err := serviceFactory.Users.ValidateStaffPINForSpecificStaff(ctx, staff.ID, "1357")
-	require.Error(t, err)
-	assert.Nil(t, result)
-
-	result, err = serviceFactory.Users.ValidateStaffPINForSpecificStaff(ctx, staff.ID, "1357")
-	require.Error(t, err)
-	assert.Nil(t, result)
-
-	updated, err := repoFactory.Account.FindByID(ctx, account.ID)
-	require.NoError(t, err)
-	require.NotNil(t, updated)
-	assert.Equal(t, 2, updated.PINAttempts)
-	require.NotNil(t, updated.PINLockedUntil)
-
-	lockoutRemaining := time.Until(*updated.PINLockedUntil)
-	assert.Greater(t, lockoutRemaining, 30*time.Minute)
-	assert.Less(t, lockoutRemaining, 40*time.Minute)
-}
-
-func TestPersonService_ValidateStaffPINForSpecificStaff_NoPINSet(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error when specific staff has no PIN", func(t *testing.T) {
-		// ARRANGE - staff without PIN
-		staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "NoSpecific", "PIN")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
-
-		// ACT
-		result, err := service.ValidateStaffPINForSpecificStaff(ctx, staff.ID, "1234")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
 
 // =============================================================================
 // Additional Coverage Tests (Push to 80%+)
@@ -1601,86 +1168,6 @@ func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 	})
 }
 
-func TestPersonService_GetFullProfile_WithBothRelations(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns profile with both account and RFID", func(t *testing.T) {
-		// ARRANGE - person with both account and RFID
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Both", "Relations")
-		rfidCard := testpkg.CreateTestRFIDCard(t, db, "BOTHPROFILE")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
-
-		// Link RFID card
-		err := service.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetFullProfile(ctx, person.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, person.ID, result.ID)
-		assert.NotNil(t, result.Account, "Should have account")
-		assert.Equal(t, account.ID, result.Account.ID)
-		assert.NotNil(t, result.RFIDCard, "Should have RFID card")
-		assert.Equal(t, rfidCard.ID, result.RFIDCard.ID)
-	})
-
-	t.Run("returns error for non-existent person", func(t *testing.T) {
-		// ACT
-		result, err := service.GetFullProfile(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestPersonService_ListAvailableRFIDCards_Extended(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns empty list when all cards assigned", func(t *testing.T) {
-		// ARRANGE - create card and assign it
-		card := testpkg.CreateTestRFIDCard(t, db, "ALLASSIGNED")
-		person := testpkg.CreateTestPerson(t, db, "All", "Assigned")
-		defer testpkg.CleanupRFIDCards(t, db, card.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-
-		err := service.LinkToRFIDCard(ctx, person.ID, card.ID)
-		require.NoError(t, err)
-
-		// ACT
-		available, err := service.ListAvailableRFIDCards(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		// Our card should NOT be in the available list
-		for _, c := range available {
-			assert.NotEqual(t, card.ID, c.ID, "Assigned card should not be in available list")
-		}
-	})
-
-	t.Run("includes inactive cards based on filter", func(t *testing.T) {
-		// ACT - list available cards (uses active=true filter)
-		available, err := service.ListAvailableRFIDCards(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, available)
-	})
-}
-
 func TestPersonService_List_WithPagination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -1782,7 +1269,7 @@ func TestUsersError_Unwrap(t *testing.T) {
 		// ARRANGE
 		err := &users.UsersError{
 			Op:  "TestOperation",
-			Err: users.ErrStaffNotFound,
+			Err: users.ErrTeacherNotFound,
 		}
 
 		// ACT
@@ -1790,6 +1277,6 @@ func TestUsersError_Unwrap(t *testing.T) {
 
 		// ASSERT
 		assert.Contains(t, msg, "TestOperation")
-		assert.Contains(t, msg, "staff")
+		assert.Contains(t, msg, "teacher")
 	})
 }

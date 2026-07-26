@@ -22,6 +22,12 @@ type WorkSessionEdit struct {
 	CreatedAt time.Time `bun:"created_at,notnull,default:now()" json:"created_at"`
 }
 
+// SystemEditorID is the sentinel edited_by value for changes performed by
+// the system itself (e.g. the automatic checkout at planned shift end,
+// #1798). The column has no FK, so 0 is storable; display code renders it
+// as "System".
+const SystemEditorID int64 = 0
+
 // Valid field names for audit entries
 const (
 	FieldDate          = "date"
@@ -31,12 +37,12 @@ const (
 	FieldBreakDuration = "break_duration"
 	FieldStatus        = "status"
 	FieldNotes         = "notes"
+	// FieldDeviationReason records the mandatory reason for stamping outside
+	// the tolerance window around the planned shift window (F9). OldValue
+	// holds the planned wall-clock time, NewValue the actual one, Notes the
+	// reason given by the staff member.
+	FieldDeviationReason = "deviation_reason"
 )
-
-// TableName returns the database table name
-func (e *WorkSessionEdit) TableName() string {
-	return "audit.work_session_edits"
-}
 
 // Validate ensures the edit record is valid
 func (e *WorkSessionEdit) Validate() error {
@@ -46,7 +52,8 @@ func (e *WorkSessionEdit) Validate() error {
 	if e.StaffID <= 0 {
 		return errors.New("staff ID is required")
 	}
-	if e.EditedBy <= 0 {
+	// SystemEditorID (0) marks system actions (#1798); negative IDs stay invalid.
+	if e.EditedBy < 0 {
 		return errors.New("edited by is required")
 	}
 	if e.FieldName == "" {
@@ -54,7 +61,7 @@ func (e *WorkSessionEdit) Validate() error {
 	}
 
 	switch e.FieldName {
-	case FieldDate, FieldCheckInTime, FieldCheckOutTime, FieldBreakMinutes, FieldBreakDuration, FieldStatus, FieldNotes:
+	case FieldDate, FieldCheckInTime, FieldCheckOutTime, FieldBreakMinutes, FieldBreakDuration, FieldStatus, FieldNotes, FieldDeviationReason:
 		// Valid field names
 	default:
 		return errors.New("invalid field name")
@@ -73,4 +80,8 @@ type WorkSessionEditRepository interface {
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionEdit, error)
 	CountBySessionID(ctx context.Context, sessionID int64) (int, error)
 	CountBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	// CountManualBySessionIDs excludes system-authored edits (edited_by =
+	// SystemEditorID) and FieldDeviationReason rows — a stamp-time deviation
+	// reason is audit trail, not a manual correction (#1844).
+	CountManualBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 }

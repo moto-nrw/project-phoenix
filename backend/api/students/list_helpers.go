@@ -1,10 +1,15 @@
 package students
 
 import (
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -23,8 +28,19 @@ type studentListParams struct {
 	page                int
 	pageSize            int
 	includePickupTimes  bool
+	includeCompanions   bool
 	includeArrivalTimes bool
 	dayStatus           string
+	// date is the optional planning day (YYYY-MM-DD) the day-planning fields,
+	// status days, and planned arrival/pickup times are evaluated for (#1939).
+	// Empty means the school-local today. Parsed and validated in the handler
+	// via resolvePlanningDate so an invalid value is a 400, not a silent today.
+	date string
+	// gradeLevel filters by the first numeric run in school_class (issue #1838,
+	// Zielgruppe "Jahrgang"). Resolved in-memory via schoolclass.GradePrefix —
+	// a SQL LIKE 'N%' would incorrectly match e.g. grade 1 against "13a".
+	// 0 = off.
+	gradeLevel int
 	// Administrative filters (#1492). Resolved against the enriched response
 	// objects in the same in-memory pass as dayStatus so pagination and counts
 	// stay correct. bus/photoConsent are "yes"/"no"; pickupStatus is one of the
@@ -37,6 +53,11 @@ type studentListParams struct {
 	// set, buildBaseFilter adds `student.id IN (...)` so the standard
 	// school_class / guardian_name / pagination pipeline still applies.
 	studentIDs []int64
+	// fetchAll disables SQL pagination so the query returns every row matching
+	// the SQL-level filters. Exports set this: the birthday-month and search
+	// filters run in memory after the fetch, so a paginated page would hide
+	// matching children past the page boundary and silently shorten the list.
+	fetchAll bool
 }
 
 // studentAccessContext is an alias for the shared common.StudentAccessContext
@@ -72,10 +93,19 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		}
 	}
 
+	// Parse grade level if provided (issue #1838, Zielgruppe "Jahrgang").
+	if gradeLevelStr := r.URL.Query().Get("grade_level"); gradeLevelStr != "" {
+		if gradeLevel, err := strconv.Atoi(gradeLevelStr); err == nil && gradeLevel > 0 {
+			params.gradeLevel = gradeLevel
+		}
+	}
+
 	// Parse optional includes
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
+	params.includeCompanions = r.URL.Query().Get("include_companions") == "true"
 	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
 	params.dayStatus = parseDayStatusParam(r.URL.Query().Get("day_status"))
+	params.date = r.URL.Query().Get("date")
 
 	// Administrative filters (#1492). Applied in-memory against the enriched
 	// responses, mirroring the student list export filter semantics.
@@ -97,6 +127,7 @@ func (p *studentListParams) hasPersonFilters() bool {
 func (p *studentListParams) hasInMemoryFilters() bool {
 	return p.hasPersonFilters() ||
 		p.dayStatus != "" && p.dayStatus != DayPlanningStatusAll ||
+		p.gradeLevel > 0 ||
 		p.hasAdministrativeFilters()
 }
 
@@ -106,6 +137,14 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 	return isActiveFilterValue(p.bus) ||
 		isActiveFilterValue(p.photoConsent) ||
 		isActiveFilterValue(p.pickupStatus)
+}
+
+func (p *studentListParams) canUseGroupOnlyShortcut() bool {
+	return p.schoolClass == "" &&
+		p.guardianName == "" &&
+		p.roomID == 0 &&
+		len(p.studentIDs) == 0 &&
+		!p.hasInMemoryFilters()
 }
 
 // isActiveFilterValue treats both empty and the neutral "all" sentinel as "off".
@@ -122,11 +161,13 @@ func parseDayStatusParam(value string) string {
 	}
 }
 
-// buildBaseFilter creates the shared filter for school_class and guardian_name
+// buildBaseFilter creates the shared filter for school_class and guardian_name.
+// school_class is an exact class selector for class rosters; free text class
+// search still belongs in the broader `search` parameter.
 func (p *studentListParams) buildBaseFilter() *base.Filter {
 	filter := base.NewFilter()
-	if p.schoolClass != "" {
-		filter.ILike("school_class", "%"+p.schoolClass+"%")
+	if schoolClass := strings.TrimSpace(p.schoolClass); schoolClass != "" {
+		filter.TrimEqual("school_class", schoolClass)
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")
@@ -146,8 +187,10 @@ func (p *studentListParams) buildQueryOptions() *base.QueryOptions {
 	queryOptions := base.NewQueryOptions()
 	queryOptions.Filter = p.buildBaseFilter()
 
-	// Add pagination only if no person-based filters
-	if !p.hasInMemoryFilters() {
+	// Add pagination only if no person-based filters and the caller wants a
+	// page. Exports (fetchAll) take every row so their in-memory filters see
+	// the whole set.
+	if !p.fetchAll && !p.hasInMemoryFilters() {
 		queryOptions.WithPagination(p.page, p.pageSize)
 	}
 
@@ -182,10 +225,7 @@ func collectIDsFromStudents(students []*users.Student) (studentIDs, personIDs, g
 		}
 	}
 
-	groupIDs = make([]int64, 0, len(groupIDSet))
-	for groupID := range groupIDSet {
-		groupIDs = append(groupIDs, groupID)
-	}
+	groupIDs = slices.Collect(maps.Keys(groupIDSet))
 
 	return studentIDs, personIDs, groupIDs
 }
@@ -199,18 +239,18 @@ func matchesSearchFilter(person *users.Person, studentID int64, search string) b
 	studentIDStr := strconv.FormatInt(studentID, 10)
 	fullName := person.FirstName + " " + person.LastName
 
-	return containsIgnoreCase(person.FirstName, search) ||
-		containsIgnoreCase(person.LastName, search) ||
-		containsIgnoreCase(studentIDStr, search) ||
-		containsIgnoreCase(fullName, search)
+	return strutil.ContainsFold(person.FirstName, search) ||
+		strutil.ContainsFold(person.LastName, search) ||
+		strutil.ContainsFold(studentIDStr, search) ||
+		strutil.ContainsFold(fullName, search)
 }
 
 // matchesNameFilters checks if a student matches the name filters
 func matchesNameFilters(person *users.Person, firstName, lastName string) bool {
-	if firstName != "" && !containsIgnoreCase(person.FirstName, firstName) {
+	if firstName != "" && !strutil.ContainsFold(person.FirstName, firstName) {
 		return false
 	}
-	if lastName != "" && !containsIgnoreCase(person.LastName, lastName) {
+	if lastName != "" && !strutil.ContainsFold(person.LastName, lastName) {
 		return false
 	}
 	return true
@@ -228,6 +268,17 @@ func matchesLocationFilter(location, studentLocation string, hasFullAccess bool)
 		return true
 	}
 	return studentLocation == location
+}
+
+// matchesGradeLevel reports whether schoolClass's first numeric run equals
+// gradeLevel. gradeLevel <= 0 means the filter is off (matches everything).
+// Uses schoolclass.GradePrefix rather than a naive string-prefix/LIKE check
+// so e.g. grade 1 does not also match "13a".
+func matchesGradeLevel(schoolClass string, gradeLevel int) bool {
+	if gradeLevel <= 0 {
+		return true
+	}
+	return schoolclass.GradePrefix(schoolClass) == strconv.Itoa(gradeLevel)
 }
 
 // applyInMemoryPagination applies pagination to an already-filtered slice

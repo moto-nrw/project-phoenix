@@ -25,7 +25,7 @@ type MFATrustedDeviceRepository struct {
 // NewMFATrustedDeviceRepository creates a new repository for trusted-device records.
 func NewMFATrustedDeviceRepository(db *bun.DB) auth.MFATrustedDeviceRepository {
 	return &MFATrustedDeviceRepository{
-		Repository: base.NewRepository[*auth.MFATrustedDevice](db, mfaTrustedDeviceTable, "MFATrustedDevice"),
+		Repository: base.NewRepository[*auth.MFATrustedDevice](db, mfaTrustedDeviceTable, "MfaTrustedDevice"),
 		db:         db,
 	}
 }
@@ -96,16 +96,9 @@ func (r *MFATrustedDeviceRepository) ListActiveByAccountTenant(ctx context.Conte
 
 // UpdateLastUsedAt stamps a device row when a login was waved through with its cookie.
 func (r *MFATrustedDeviceRepository) UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.MFATrustedDevice)(nil)).
-		ModelTableExpr(mfaTrustedDeviceTable).
-		Set("last_used_at = ?", when).
-		Where(whereID, id).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "update mfa trusted device last_used_at", Err: err}
-	}
-	return nil
+	device := &auth.MFATrustedDevice{Model: modelBase.Model{ID: id}, LastUsedAt: &when}
+	_, err := r.UpdateColumns(ctx, device, "last_used_at")
+	return err
 }
 
 // Revoke marks a single device as revoked (user clicked "remove" in settings).
@@ -161,17 +154,6 @@ func (r *MFATrustedDeviceRepository) RevokeAllByAccountTenant(ctx context.Contex
 
 // DeleteExpired prunes devices past their TTL.
 func (r *MFATrustedDeviceRepository) DeleteExpired(ctx context.Context) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.MFATrustedDevice)(nil)).
-		ModelTableExpr(mfaTrustedDeviceTable).
-		Where("expires_at < ?", time.Now()).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired mfa trusted devices", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired mfa trusted devices", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expires_at", time.Now(), "delete expired mfa trusted devices")
+	return int(deleted), err
 }

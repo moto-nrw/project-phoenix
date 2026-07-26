@@ -29,14 +29,16 @@ type Request struct {
 	GuardianAccountID  *int64         `bun:"guardian_account_id" json:"guardian_account_id,omitempty"`
 	ConsentFlags       map[string]any `bun:"consent_flags,type:jsonb,notnull,default:'{}'" json:"consent_flags"`
 	CustomData         map[string]any `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
+	SubmissionSource   string         `bun:"submission_source,notnull,default:'public'" json:"submission_source"`
+	SourceMetadata     map[string]any `bun:"source_metadata,type:jsonb,notnull,default:'{}'" json:"source_metadata"`
 	StatusToken        string         `bun:"status_token,notnull,unique" json:"status_token"`
 	StatusTokenExpires *time.Time     `bun:"status_token_expires" json:"status_token_expires,omitempty"`
 	SubmittedAt        time.Time      `bun:"submitted_at,notnull,default:current_timestamp" json:"submitted_at"`
 	WithdrawnAt        *time.Time     `bun:"withdrawn_at" json:"withdrawn_at,omitempty"`
-}
 
-func (r *Request) TableName() string {
-	return "enrollment.requests"
+	// DecisionNotificationMode is pinned when the first parent-notifiable
+	// decision is made. It is internal state, not part of the request API.
+	DecisionNotificationMode *string `bun:"decision_notification_mode" json:"-"`
 }
 
 // Consent-flag keys stored in Request.ConsentFlags. These are the
@@ -63,13 +65,21 @@ const (
 	RequestStatusWithdrawn   = "withdrawn"    // request withdrawn (withdrawn_at set)
 )
 
+const (
+	RequestSourcePublic      = "public"
+	RequestSourceLateInvite  = "late_invite"
+	RequestSourceAdminManual = "admin_manual"
+)
+
 // RequestListFilters narrows the admin list query. Zero-value fields
 // are ignored. ChildStatus matches when ANY child of the request
 // carries the given status - handy for "show me everything still
 // awaiting a decision".
 type RequestListFilters struct {
-	PhaseID     int64
-	ChildStatus string
+	PhaseID           int64
+	ChildStatus       string
+	CreatedStudentID  int64
+	CreatedStudentIDs []int64
 }
 
 // DuplicateChildKey identifies one (first_name, last_name) pair the
@@ -85,7 +95,13 @@ type DuplicateChildKey struct {
 type RequestRepository interface {
 	Create(ctx context.Context, req *Request) error
 	FindByID(ctx context.Context, id int64) (*Request, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*Request, error)
 	FindByStatusToken(ctx context.Context, token string) (*Request, error)
+	FindByStatusTokenForUpdate(ctx context.Context, token string) (*Request, error)
+	AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error
+	// PinDecisionNotificationMode atomically stores proposed only while the
+	// request is still unpinned and always returns the effective stored mode.
+	PinDecisionNotificationMode(ctx context.Context, requestID int64, proposed string) (string, error)
 
 	// ListAdmin returns every request matching the filters, newest
 	// first. PR 8's admin review UI consumes this; the parent-facing
@@ -95,6 +111,7 @@ type RequestRepository interface {
 	// UpdateGuardianData writes the guardian-editable fields (names, phone,
 	// consent flags, custom answers) and bumps updated_at.
 	UpdateGuardianData(ctx context.Context, req *Request) error
+	UpdateGuardianDataWithEmail(ctx context.Context, req *Request) error
 
 	// MarkWithdrawn stamps withdrawn_at and bumps updated_at.
 	MarkWithdrawn(ctx context.Context, requestID int64, withdrawnAt time.Time) error
@@ -106,6 +123,7 @@ type RequestRepository interface {
 	// double-submits without affecting different parents or different
 	// child names.
 	FindActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey) ([]DuplicateChildKey, error)
+	FindActiveDuplicateExcludingRequest(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey, excludedRequestID int64) ([]DuplicateChildKey, error)
 
 	// ExistsByPhaseID reports whether any request row references the
 	// given phase.
@@ -122,6 +140,8 @@ type RequestRepository interface {
 	// phase's care offerings are deleted because of the
 	// request_child_offerings.care_offering_id RESTRICT FK.
 	DeleteByPhaseID(ctx context.Context, phaseID int64) (int, error)
+	ListFullyRejectedBefore(ctx context.Context, cutoff time.Time) ([]int64, error)
+	DeleteByID(ctx context.Context, requestID int64) error
 
 	// ExistsBySchemaID reports whether any request row references the
 	// given schema version. The schema delete path uses this to preserve

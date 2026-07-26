@@ -56,11 +56,6 @@ func TestSettingValue_GetID(t *testing.T) {
 	assert.Equal(t, int64(42), sv.GetID())
 }
 
-func TestSettingValue_TableName(t *testing.T) {
-	sv := &config.SettingValue{}
-	assert.Equal(t, "config.setting_values", sv.TableName())
-}
-
 func TestSettingValue_GetCreatedAt(t *testing.T) {
 	sv := &config.SettingValue{}
 	assert.True(t, sv.GetCreatedAt().IsZero())

@@ -2,6 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
+import { canonicalForwardedFor } from "./client-headers.server";
 import { createLogger } from "~/lib/logger";
 
 // Logger instance for API helpers
@@ -27,6 +28,11 @@ export interface ApiErrorResponse {
   // Forwarded through the proxy so codes like reopen_status_conflict can
   // carry identifying fields (session_id, existing_status, …) to the UI.
   details?: Record<string, unknown>;
+  // Top-level conflict list of the companion-plan 409 (student PUT). The
+  // browser's CompanionPlanConflictError reads it to build the confirmation it
+  // re-sends as confirmed_companion_extensions — dropping it here would make
+  // "Ergänzen und speichern" loop on the same 409 forever.
+  conflicts?: unknown[];
 }
 
 /**
@@ -41,6 +47,7 @@ interface BackendErrorPayload {
   message?: string;
   code?: string;
   details?: Record<string, unknown>;
+  conflicts?: unknown[];
 }
 
 /**
@@ -96,15 +103,12 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
   try {
     const { headers } = await import("next/headers");
     const incomingHeaders = await headers();
-    const forwardedFor = incomingHeaders.get("x-forwarded-for");
-    const realIp = incomingHeaders.get("x-real-ip");
     const userAgent = incomingHeaders.get("user-agent");
-    const ip = forwardedFor?.split(",")[0]?.trim() ?? realIp;
+    const forwardedFor = canonicalForwardedFor(incomingHeaders);
 
     return {
-      ...(ip && {
-        "X-Forwarded-For": ip,
-        "X-Real-IP": ip,
+      ...(forwardedFor && {
+        "X-Forwarded-For": forwardedFor,
       }),
       ...(userAgent && { "User-Agent": userAgent }),
     };
@@ -114,8 +118,12 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
 }
 
 /**
- * Check if the current session is authenticated
- * @returns Response with error if not authenticated, null if authenticated
+ * Check authentication from inside a response-aware route wrapper.
+ *
+ * New route handlers should normally use the shared route factories instead;
+ * those factories guarantee that a refreshed session cookie reaches the
+ * browser. This helper remains for compatibility with existing callers and
+ * must not be used by an unwrapped route handler.
  */
 export async function checkAuth(): Promise<Response | null> {
   const { auth } = await import("../server/auth");
@@ -423,6 +431,9 @@ function buildApiErrorResponse(errorMessage: string): ApiErrorResponse {
   }
   if (parsed?.details) {
     response.details = parsed.details;
+  }
+  if (Array.isArray(parsed?.conflicts)) {
+    response.conflicts = parsed.conflicts;
   }
 
   return response;

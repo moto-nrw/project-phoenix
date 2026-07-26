@@ -1,0 +1,224 @@
+package parent_test
+
+// Integration tests for the parent-side messaging READ/LIST/COUNT paths
+// (parent_messaging_service.go): the cross-tenant inbox, the per-child thread
+// list, the unread badge, and the single-conversation view that marks read. The
+// write-path guards (empty/too-long/ownership/permission/disabled) are covered in
+// parent_write_service_test.go; this file pins the happy paths, the empty view,
+// the disabled-school unread suppression, and guardian-name resolution.
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// buildReadService wires the full parent messaging stack including the guardian
+// profile repo (so resolveGuardianName resolves a real name) and returns the
+// service, broadcaster, db, and repo factory.
+func buildReadService(t *testing.T, enabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+	bc := testpkg.NewRecordingBroadcaster()
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		GuardianProfileRepo: repos.GuardianProfile,
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: true,
+				configModels.KeyParentNotesEnabled:    enabled,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster:       bc,
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		DB:                db,
+		Logger:            slog.Default(),
+	})
+	return svc, bc, db, repos
+}
+
+// seedStaffReply inserts a staff-authored message into the guardian's child
+// thread (creating the thread), simulating an OGS reply that is unread to the
+// guardian. Returns the thread id and the staff account id (caller cleans it up).
+func seedStaffReply(t *testing.T, db *bun.DB, repos *repositories.Factory, chain testpkg.ParentChain, body string) (int64, int64) {
+	t.Helper()
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
+	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
+
+	ctx := tenant.WithTenantID(context.Background(), 1)
+	thread, err := repos.ParentMessageThread.GetOrCreate(ctx, chain.TenantID, chain.StudentID, chain.AccountID)
+	require.NoError(t, err)
+	m := &usersModels.ParentMessage{
+		ThreadID:        thread.ID,
+		StudentID:       chain.StudentID,
+		SenderAccountID: staffAccount.ID,
+		SenderKind:      usersModels.ParentMessageSenderStaff,
+		SenderName:      "Olivia Berg",
+		Body:            body,
+	}
+	m.SetTenantID(chain.TenantID)
+	// AppendMessage also touches the thread's last-activity, so it surfaces in the
+	// guardian's thread list (empty conversations stay hidden).
+	require.NoError(t, parentmessaging.AppendMessage(ctx, repos.ParentMessage, repos.ParentMessageThread, m))
+	return thread.ID, staffAccount.ID
+}
+
+// --- GetChildConversation -----------------------------------------------
+
+func TestGetChildConversation_EmptyViewWhenNoThread(t *testing.T) {
+	svc, _, db, _ := buildReadService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	view, err := svc.GetChildConversation(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	assert.Zero(t, view.ThreadID, "no conversation yet → ThreadID 0 so the chat opens ready to write")
+	assert.Empty(t, view.Messages)
+	assert.Equal(t, chain.StudentID, view.StudentID)
+	assert.Equal(t, "Felix Schneider", view.StudentName)
+	assert.NotEmpty(t, view.SchoolName, "the header still carries the school name")
+}
+
+func TestGetChildConversation_ReturnsHistoryMarksReadAndBroadcasts(t *testing.T) {
+	svc, bc, db, repos := buildReadService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, _ = seedStaffReply(t, db, repos, chain, "Bitte Jacke mitgeben")
+
+	// Before reading, the staff reply is unread to the guardian.
+	before, err := svc.UnreadMessageCount(context.Background(), chain.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, before)
+
+	bc.Reset()
+	view, err := svc.GetChildConversation(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, view.Messages, 1)
+	assert.Equal(t, "Bitte Jacke mitgeben", view.Messages[0].Body)
+	assert.Positive(t, view.ThreadID)
+
+	// Reading it advances the guardian cursor → unread clears.
+	after, err := svc.UnreadMessageCount(context.Background(), chain.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, after, "GetChildConversation marks the staff reply read")
+}
+
+// --- ListMessageThreads / ListChildThreads ------------------------------
+
+func TestListMessageThreads_ReturnsConversationAfterFirstMessage(t *testing.T) {
+	svc, _, db, _ := buildReadService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// No message yet → no thread in the list (empty conversations stay hidden).
+	threads, err := svc.ListMessageThreads(context.Background(), chain.AccountID)
+	require.NoError(t, err)
+	assert.Empty(t, threads)
+
+	// Guardian writes → the conversation appears with the child + school header.
+	_, err = svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "Hallo OGS")
+	require.NoError(t, err)
+
+	threads, err = svc.ListMessageThreads(context.Background(), chain.AccountID)
+	require.NoError(t, err)
+	require.Len(t, threads, 1)
+	assert.Equal(t, chain.StudentID, threads[0].StudentID)
+	assert.Equal(t, "Felix Schneider", threads[0].StudentName)
+	assert.NotEmpty(t, threads[0].SchoolName)
+}
+
+func TestListChildThreads_FiltersToOneChild(t *testing.T) {
+	svc, _, db, repos := buildReadService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	seedStaffReply(t, db, repos, chain, "Hallo")
+
+	rows, err := svc.ListChildThreads(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, chain.StudentID, rows[0].StudentID)
+	assert.Equal(t, 1, rows[0].UnreadCount, "the staff reply is unread to the guardian")
+}
+
+func TestListChildThreads_NotOwnedDenied(t *testing.T) {
+	svc, _, db, _ := buildReadService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
+	}()
+
+	_, err := svc.ListChildThreads(context.Background(), chain.AccountID, other.ID)
+	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
+}
+
+// --- UnreadMessageCount -------------------------------------------------
+
+func TestUnreadMessageCount_ZeroWhenSchoolDisabled(t *testing.T) {
+	// Feature OFF: the guardian can still read history, but the badge goes dark.
+	svc, _, db, repos := buildReadService(t, false)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	seedStaffReply(t, db, repos, chain, "Hallo")
+
+	count, err := svc.UnreadMessageCount(context.Background(), chain.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "a disabled school's unread badge is suppressed")
+
+	// The per-row pill is suppressed too, so the child-thread row agrees with the badge.
+	rows, err := svc.ListChildThreads(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, 0, rows[0].UnreadCount, "disabled school suppresses the per-row unread pill")
+}
+
+func TestParentMessaging_AccountIDMustBePositive(t *testing.T) {
+	svc, _, _, _ := buildReadService(t, true)
+	_, err := svc.ListMessageThreads(context.Background(), 0)
+	require.Error(t, err)
+	_, err = svc.UnreadMessageCount(context.Background(), -1)
+	require.Error(t, err)
+}
+
+// TestPostChildMessage_DenormalizesGuardianName: with the guardian profile repo
+// wired, the persisted message carries the guardian's real display name (resolved
+// inside the child's tenant tx), not the "Elternteil" fallback.
+func TestPostChildMessage_DenormalizesGuardianName(t *testing.T) {
+	svc, _, db, _ := buildReadService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "Hallo OGS")
+	require.NoError(t, err)
+	require.Len(t, view.Messages, 1)
+	assert.Equal(t, "Sabine Schneider", view.Messages[0].SenderName,
+		"the guardian's tenant-scoped profile name is denormalized onto the message")
+}

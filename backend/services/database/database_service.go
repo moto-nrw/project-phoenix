@@ -1,6 +1,7 @@
 package database
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 
@@ -17,10 +18,7 @@ type databaseService struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *databaseService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewService creates a new DatabaseService instance
@@ -38,15 +36,46 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 		Permissions: StatsPermissions{},
 	}
 
-	// Collect stats for each entity type
-	collectStudentStats(ctx, s, claims, response)
-	collectTeacherStats(ctx, s, claims, response)
-	collectRoomStats(ctx, s, claims, response)
-	collectActivityStats(ctx, s, claims, response)
-	collectGroupStats(ctx, s, claims, response)
-	collectRoleStats(ctx, s, claims, response)
-	collectDeviceStats(ctx, s, claims, response)
-	collectPermissionStats(ctx, s, claims, response)
+	// One collector per entity type: permission gate -> CanViewX flag ->
+	// count via repo List. The flag flips even when counting fails, so a
+	// transient List error still renders the card (with count 0).
+	// collectTeacherStats historically counts Staff (not Teacher) to match
+	// what the personal page actually shows.
+	collectors := []struct {
+		perms   []string
+		canView *bool
+		label   string
+		count   func() (int, error)
+		target  *int
+	}{
+		{[]string{permissions.UsersRead, permissions.UsersList}, &response.Permissions.CanViewStudents, "students",
+			func() (int, error) { xs, err := s.repos.Student.List(ctx, nil); return len(xs), err }, &response.Students},
+		{[]string{permissions.UsersRead, permissions.UsersList}, &response.Permissions.CanViewTeachers, "staff",
+			func() (int, error) { xs, err := s.repos.Staff.List(ctx, nil); return len(xs), err }, &response.Teachers},
+		{[]string{permissions.RoomsRead, permissions.RoomsList}, &response.Permissions.CanViewRooms, "rooms",
+			func() (int, error) { xs, err := s.repos.Room.List(ctx, nil); return len(xs), err }, &response.Rooms},
+		{[]string{permissions.ActivitiesRead, permissions.ActivitiesList}, &response.Permissions.CanViewActivities, "activities",
+			func() (int, error) { xs, err := s.repos.ActivityGroup.List(ctx, nil); return len(xs), err }, &response.Activities},
+		{[]string{permissions.GroupsRead, permissions.GroupsList}, &response.Permissions.CanViewGroups, "groups",
+			func() (int, error) { xs, err := s.repos.Group.List(ctx, nil); return len(xs), err }, &response.Groups},
+		{[]string{permissions.AuthManage}, &response.Permissions.CanViewRoles, "roles",
+			func() (int, error) { xs, err := s.repos.Role.List(ctx, nil); return len(xs), err }, &response.Roles},
+		{[]string{permissions.IOTRead, permissions.IOTManage}, &response.Permissions.CanViewDevices, "devices",
+			func() (int, error) { xs, err := s.repos.Device.List(ctx, nil); return len(xs), err }, &response.Devices},
+		{[]string{permissions.AuthManage}, &response.Permissions.CanViewPermissions, "permissions",
+			func() (int, error) { xs, err := s.repos.Permission.List(ctx, nil); return len(xs), err }, &response.PermissionCount},
+	}
+	for _, c := range collectors {
+		if !checkUserPermission(claims, c.perms...) {
+			continue
+		}
+		*c.canView = true
+		if n, err := c.count(); err != nil {
+			s.getLogger().ErrorContext(ctx, "Error counting "+c.label, slog.String("error", err.Error()))
+		} else {
+			*c.target = n
+		}
+	}
 	collectTimetableStats(claims, response)
 
 	return response, nil
@@ -75,117 +104,4 @@ func checkUserPermission(claims jwt.AppClaims, requiredPerms ...string) bool {
 		}
 	}
 	return false
-}
-
-// collectStudentStats collects student statistics
-func collectStudentStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.UsersRead, permissions.UsersList) {
-		return
-	}
-
-	response.Permissions.CanViewStudents = true
-	if students, err := s.repos.Student.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting students", slog.String("error", err.Error()))
-	} else {
-		response.Students = len(students)
-	}
-}
-
-// collectTeacherStats collects staff/personal statistics
-// Uses Staff.List (not Teacher.List) to match what the personal page actually shows
-func collectTeacherStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.UsersRead, permissions.UsersList) {
-		return
-	}
-
-	response.Permissions.CanViewTeachers = true
-	if staff, err := s.repos.Staff.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting staff", slog.String("error", err.Error()))
-	} else {
-		response.Teachers = len(staff)
-	}
-}
-
-// collectRoomStats collects room statistics
-func collectRoomStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.RoomsRead, permissions.RoomsList) {
-		return
-	}
-
-	response.Permissions.CanViewRooms = true
-	if rooms, err := s.repos.Room.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting rooms", slog.String("error", err.Error()))
-	} else {
-		response.Rooms = len(rooms)
-	}
-}
-
-// collectActivityStats collects activity statistics
-func collectActivityStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.ActivitiesRead, permissions.ActivitiesList) {
-		return
-	}
-
-	response.Permissions.CanViewActivities = true
-	if activities, err := s.repos.ActivityGroup.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting activities", slog.String("error", err.Error()))
-	} else {
-		response.Activities = len(activities)
-	}
-}
-
-// collectGroupStats collects group statistics
-func collectGroupStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.GroupsRead, permissions.GroupsList) {
-		return
-	}
-
-	response.Permissions.CanViewGroups = true
-	if groups, err := s.repos.Group.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting groups", slog.String("error", err.Error()))
-	} else {
-		response.Groups = len(groups)
-	}
-}
-
-// collectRoleStats collects role statistics
-func collectRoleStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.AuthManage) {
-		return
-	}
-
-	response.Permissions.CanViewRoles = true
-	if roles, err := s.repos.Role.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting roles", slog.String("error", err.Error()))
-	} else {
-		response.Roles = len(roles)
-	}
-}
-
-// collectDeviceStats collects device statistics
-func collectDeviceStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.IOTRead, permissions.IOTManage) {
-		return
-	}
-
-	response.Permissions.CanViewDevices = true
-	if devices, err := s.repos.Device.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting devices", slog.String("error", err.Error()))
-	} else {
-		response.Devices = len(devices)
-	}
-}
-
-// collectPermissionStats collects permission statistics
-func collectPermissionStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.AuthManage) {
-		return
-	}
-
-	response.Permissions.CanViewPermissions = true
-	if perms, err := s.repos.Permission.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting permissions", slog.String("error", err.Error()))
-	} else {
-		response.PermissionCount = len(perms)
-	}
 }

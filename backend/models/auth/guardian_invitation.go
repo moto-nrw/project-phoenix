@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // GuardianInvitation represents an invitation sent to create a guardian account
@@ -23,28 +22,36 @@ type GuardianInvitation struct {
 	EmailError        *string    `bun:"email_error" json:"email_error,omitempty"`
 	EmailRetryCount   int        `bun:"email_retry_count,default:0" json:"email_retry_count"`
 
+	// Parent-initiated invites + staff approval (migration 1.15.120).
+	// StudentID names the child this invite grants access to; lets the accept
+	// flow link an existing account to an additional child (sibling case).
+	StudentID *int64 `bun:"student_id" json:"student_id,omitempty"`
+	// RequestedByAccountID is set when a parent (not staff) initiated the
+	// invite; NULL for staff-initiated invites.
+	RequestedByAccountID *int64 `bun:"requested_by_account_id" json:"requested_by_account_id,omitempty"`
+	// ApprovalStatus is one of the GuardianInvitationApproval* constants.
+	ApprovalStatus string     `bun:"approval_status,notnull,default:'not_required'" json:"approval_status"`
+	ApprovedBy     *int64     `bun:"approved_by" json:"approved_by,omitempty"`
+	ApprovedAt     *time.Time `bun:"approved_at" json:"approved_at,omitempty"`
+	// ProfileCreatedForInvitation is true only when this invite flow created
+	// the guardian profile specifically to back this invitation.
+	ProfileCreatedForInvitation bool `bun:"profile_created_for_invitation,notnull,default:false" json:"profile_created_for_invitation"`
+
 	// Relations (not stored in database)
-	Creator *Account `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
 }
 
-// TableName returns the fully-qualified table name
-func (i *GuardianInvitation) TableName() string {
-	return "auth.guardian_invitations"
-}
+// Approval-status values for GuardianInvitation.ApprovalStatus.
+const (
+	GuardianInvitationApprovalNotRequired = "not_required" // staff invites + parent direct mode
+	GuardianInvitationApprovalPending     = "pending"      // parent invite awaiting staff approval
+	GuardianInvitationApprovalApproved    = "approved"     // staff approved; email dispatched
+	GuardianInvitationApprovalRejected    = "rejected"     // staff rejected; no access granted
+)
 
-// BeforeAppendModel ensures the schema-qualified table expression is used with an alias
-func (i *GuardianInvitation) BeforeAppendModel(query any) error {
-	const tableExpr = `auth.guardian_invitations AS "guardian_invitation"`
-
-	switch q := query.(type) {
-	case *bun.InsertQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.UpdateQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.DeleteQuery:
-		q.ModelTableExpr(tableExpr)
-	}
-	return nil
+// IsPendingApproval reports whether this invite is a parent-initiated request
+// still awaiting staff approval (pure field accessor).
+func (i *GuardianInvitation) IsPendingApproval() bool {
+	return i.ApprovalStatus == GuardianInvitationApprovalPending
 }
 
 // Validate ensures core fields are present and sensible
@@ -75,19 +82,4 @@ func (i *GuardianInvitation) IsAccepted() bool {
 // SetExpiry assigns a duration from now as the expiry
 func (i *GuardianInvitation) SetExpiry(duration time.Duration) {
 	i.ExpiresAt = time.Now().Add(duration)
-}
-
-// GetID returns the primary key
-func (i *GuardianInvitation) GetID() interface{} {
-	return i.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (i *GuardianInvitation) GetCreatedAt() time.Time {
-	return i.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (i *GuardianInvitation) GetUpdatedAt() time.Time {
-	return i.UpdatedAt
 }

@@ -3,7 +3,9 @@ import {
   refreshToken,
   handleAuthFailure,
   requestPasswordReset,
+  requestParentPasswordReset,
   confirmPasswordReset,
+  confirmParentPasswordReset,
   type ApiError,
 } from "./auth-api";
 
@@ -17,11 +19,6 @@ vi.mock("./auth-service", () => ({
   authService: {
     resetPassword: vi.fn(),
   },
-}));
-
-// Mock server-side token refresh module
-vi.mock("~/server/auth/token-refresh", () => ({
-  refreshSessionTokensOnServer: vi.fn(),
 }));
 
 // Helper to setup browser environment
@@ -201,56 +198,12 @@ describe("auth-api", () => {
   });
 
   describe("handleAuthFailure", () => {
-    it("returns false in server context without importing server refresh", async () => {
+    it("returns false in server context", async () => {
       const restore = setupServerEnv();
       try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockResolvedValue({
-          accessToken: "new-token",
-          refreshToken: "new-refresh",
-        });
-
         const result = await handleAuthFailure();
 
         expect(result).toBe(false);
-        expect(refreshSessionTokensOnServer).not.toHaveBeenCalled();
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns false when server-side refresh fails", async () => {
-      const restore = setupServerEnv();
-      try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockResolvedValue(null);
-
-        const result = await handleAuthFailure();
-
-        expect(result).toBe(false);
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns false when server-side refresh throws", async () => {
-      const restore = setupServerEnv();
-      try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockRejectedValue(
-          new Error("Server error"),
-        );
-
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(/* noop */ () => undefined);
-        const result = await handleAuthFailure();
-
-        expect(result).toBe(false);
-        expect(consoleSpy).toHaveBeenCalled();
       } finally {
         restore();
       }
@@ -599,6 +552,31 @@ describe("auth-api", () => {
     });
   });
 
+  describe("requestParentPasswordReset", () => {
+    it("posts to the parent password reset endpoint", async () => {
+      const mockResponse = { message: "Password reset email sent" };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await requestParentPasswordReset("parent@example.com");
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/parent/auth/password-reset",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: "parent@example.com" }),
+        },
+      );
+    });
+  });
+
   describe("confirmPasswordReset", () => {
     it("calls authService.resetPassword with correct params", async () => {
       const { authService } = await import("./auth-service");
@@ -635,6 +613,66 @@ describe("auth-api", () => {
           "newPassword123",
         ),
       ).rejects.toThrow("Invalid token");
+    });
+  });
+
+  describe("confirmParentPasswordReset", () => {
+    it("posts reset confirmation to the parent endpoint", async () => {
+      const mockResponse = { message: "Password reset successful" };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await confirmParentPasswordReset(
+        "reset-token",
+        "newPassword123!",
+        "newPassword123!",
+      );
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/parent/auth/password-reset/confirm",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            token: "reset-token",
+            new_password: "newPassword123!",
+            confirm_password: "newPassword123!",
+          }),
+        },
+      );
+    });
+
+    it("throws a typed ApiError carrying the backend status on failure", async () => {
+      // The reset page branches on status (410 expired / 404 not found / 400
+      // invalid) to pick its German error copy. If this client swallowed the
+      // status, every failure would collapse into the generic message.
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 410,
+        headers: new Headers({ "Content-Type": "application/json" }),
+        json: () => Promise.resolve({ error: "Token expired" }),
+      });
+
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      try {
+        await confirmParentPasswordReset(
+          "expired",
+          "Str0ngP@ss1",
+          "Str0ngP@ss1",
+        );
+        expect.fail("expected confirmParentPasswordReset to reject");
+      } catch (error) {
+        const apiError = error as ApiError;
+        expect(apiError.status).toBe(410);
+        expect(apiError.message).toBe("Token expired");
+      }
     });
   });
 

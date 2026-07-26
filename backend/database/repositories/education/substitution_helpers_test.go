@@ -115,62 +115,6 @@ func TestCollectSubstitutionRelatedIDs_MultipleWithOverlappingIDs(t *testing.T) 
 	assert.True(t, staffIDs[3])
 }
 
-// Tests for mapKeysToSlice
-
-func TestMapKeysToSlice_NilMap(t *testing.T) {
-	result := mapKeysToSlice(nil)
-	assert.NotNil(t, result)
-	assert.Empty(t, result)
-}
-
-func TestMapKeysToSlice_EmptyMap(t *testing.T) {
-	m := make(map[int64]bool)
-	result := mapKeysToSlice(m)
-	assert.NotNil(t, result)
-	assert.Empty(t, result)
-}
-
-func TestMapKeysToSlice_SingleEntry(t *testing.T) {
-	m := map[int64]bool{
-		42: true,
-	}
-	result := mapKeysToSlice(m)
-	assert.Len(t, result, 1)
-	assert.Contains(t, result, int64(42))
-}
-
-func TestMapKeysToSlice_MultipleEntries(t *testing.T) {
-	m := map[int64]bool{
-		10: true,
-		20: true,
-		30: true,
-		40: true,
-		50: true,
-	}
-	result := mapKeysToSlice(m)
-	assert.Len(t, result, 5)
-	// Don't check order since map iteration is random
-	assert.Contains(t, result, int64(10))
-	assert.Contains(t, result, int64(20))
-	assert.Contains(t, result, int64(30))
-	assert.Contains(t, result, int64(40))
-	assert.Contains(t, result, int64(50))
-}
-
-func TestMapKeysToSlice_FalseValues(t *testing.T) {
-	// Even with false values, keys should be included
-	m := map[int64]bool{
-		11: false,
-		22: true,
-		33: false,
-	}
-	result := mapKeysToSlice(m)
-	assert.Len(t, result, 3)
-	assert.Contains(t, result, int64(11))
-	assert.Contains(t, result, int64(22))
-	assert.Contains(t, result, int64(33))
-}
-
 // Tests for assignRelationsToSubstitutions
 
 func TestAssignRelationsToSubstitutions_NilSubstitutions(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // testRateLimitRepo provides an in-memory implementation of the password reset rate limiter.
@@ -87,62 +88,6 @@ func (r *testRateLimitRepo) RetryAt() time.Time {
 	return r.windowStart.Add(time.Hour)
 }
 
-// capturingMailer records messages sent during tests.
-type capturingMailer struct {
-	mu       sync.Mutex
-	messages []email.Message
-	ch       chan struct{}
-}
-
-func newCapturingMailer() *capturingMailer {
-	return &capturingMailer{
-		ch: make(chan struct{}, 16),
-	}
-}
-
-func (m *capturingMailer) Send(msg email.Message) error {
-	m.mu.Lock()
-	m.messages = append(m.messages, msg)
-	m.mu.Unlock()
-
-	select {
-	case m.ch <- struct{}{}:
-	default:
-	}
-	return nil
-}
-
-func (m *capturingMailer) Messages() []email.Message {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]email.Message, len(m.messages))
-	copy(out, m.messages)
-	return out
-}
-
-func (m *capturingMailer) WaitForMessages(count int, timeout time.Duration) bool {
-	if count <= 0 {
-		return true
-	}
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	for {
-		if len(m.Messages()) >= count {
-			return true
-		}
-		select {
-		case <-m.ch:
-			if len(m.Messages()) >= count {
-				return true
-			}
-		case <-timer.C:
-			return len(m.Messages()) >= count
-		}
-	}
-}
-
 // flakyMailer fails a configurable number of initial attempts before succeeding.
 type flakyMailer struct {
 	mu        sync.Mutex
@@ -198,12 +143,28 @@ func (noopAccountRepository) FindByID(context.Context, interface{}) (*authModel.
 	panic("FindByID not implemented")
 }
 
+func (noopAccountRepository) FindByIDForUpdate(context.Context, int64) (*authModel.Account, error) {
+	panic("FindByIDForUpdate not implemented")
+}
+
 func (noopAccountRepository) FindByEmail(context.Context, string) (*authModel.Account, error) {
 	panic("FindByEmail not implemented")
 }
 
 func (noopAccountRepository) FindByUsername(context.Context, string) (*authModel.Account, error) {
 	panic("FindByUsername not implemented")
+}
+
+func (noopAccountRepository) FindByCalendarFeedToken(context.Context, string) (*authModel.Account, error) {
+	panic("FindByCalendarFeedToken not implemented")
+}
+
+func (noopAccountRepository) SetCalendarFeedToken(context.Context, int64, string) error {
+	panic("SetCalendarFeedToken not implemented")
+}
+
+func (noopAccountRepository) EnsureCalendarFeedToken(context.Context, int64, string) (string, error) {
+	panic("EnsureCalendarFeedToken not implemented")
 }
 
 func (noopAccountRepository) Update(context.Context, *authModel.Account) error {
@@ -327,6 +288,18 @@ func (r *stubAccountRepository) FindByEmail(_ context.Context, email string) (*a
 		return &clone, nil
 	}
 	return nil, sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) FindByCalendarFeedToken(context.Context, string) (*authModel.Account, error) {
+	return nil, sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) EnsureCalendarFeedToken(context.Context, int64, string) (string, error) {
+	return "", nil
+}
+
+func (r *stubAccountRepository) SetCalendarFeedToken(context.Context, int64, string) error {
+	return nil
 }
 
 func (r *stubAccountRepository) FindByID(_ context.Context, id interface{}) (*authModel.Account, error) {
@@ -459,10 +432,6 @@ func (noopPasswordResetTokenRepository) DeleteExpiredTokens(context.Context) (in
 
 func (noopPasswordResetTokenRepository) InvalidateTokensByAccountID(context.Context, int64) error {
 	panic("InvalidateTokensByAccountID not implemented")
-}
-
-func (noopPasswordResetTokenRepository) FindTokensWithAccount(context.Context, map[string]interface{}) ([]*authModel.PasswordResetToken, error) {
-	panic("FindTokensWithAccount not implemented")
 }
 
 // stubPasswordResetTokenRepository stores tokens in memory.
@@ -928,8 +897,9 @@ func (noopAccountRoleRepository) FindAccountRolesWithDetails(context.Context, ma
 type stubAccountRoleRepository struct {
 	noopAccountRoleRepository
 
-	mu          sync.Mutex
-	assignments []*authModel.AccountRole
+	mu              sync.Mutex
+	assignments     []*authModel.AccountRole
+	findByTenantErr error
 }
 
 func newStubAccountRoleRepository() *stubAccountRoleRepository {
@@ -954,6 +924,21 @@ func (r *stubAccountRoleRepository) FindByAccountAndRole(_ context.Context, acco
 	return nil, sql.ErrNoRows
 }
 
+func (r *stubAccountRoleRepository) FindByAccountIDForTenant(_ context.Context, accountID, tenantID int64) ([]*authModel.AccountRole, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.findByTenantErr != nil {
+		return nil, r.findByTenantErr
+	}
+	var roles []*authModel.AccountRole
+	for _, assignment := range r.assignments {
+		if assignment.AccountID == accountID && assignment.TenantID == tenantID {
+			roles = append(roles, assignment)
+		}
+	}
+	return roles, nil
+}
+
 func (r *stubAccountRoleRepository) Assignments() []*authModel.AccountRole {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -971,6 +956,10 @@ func (noopPersonRepository) Create(context.Context, *userModel.Person) error {
 
 func (noopPersonRepository) FindByID(context.Context, interface{}) (*userModel.Person, error) {
 	panic("FindByID not implemented")
+}
+
+func (noopPersonRepository) FindByIDForUpdate(context.Context, int64) (*userModel.Person, error) {
+	panic("FindByIDForUpdate not implemented")
 }
 
 func (noopPersonRepository) FindByTagID(context.Context, string) (*userModel.Person, error) {
@@ -1104,6 +1093,14 @@ func (noopTokenRepository) FindByTokenForUpdate(context.Context, string) (*authM
 	panic("FindByTokenForUpdate not implemented")
 }
 
+func (noopTokenRepository) MarkRotated(context.Context, int64, string, []byte, time.Time) error {
+	panic("MarkRotated not implemented")
+}
+
+func (noopTokenRepository) DeleteExpiredRotatedForAccount(context.Context, int64, time.Time) error {
+	panic("DeleteExpiredRotatedForAccount not implemented")
+}
+
 func (noopTokenRepository) FindByAccountID(context.Context, int64) ([]*authModel.Token, error) {
 	panic("FindByAccountID not implemented")
 }
@@ -1126,10 +1123,6 @@ func (noopTokenRepository) DeleteByAccountIDAndIdentifier(context.Context, int64
 
 func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface{}) ([]*authModel.Token, error) {
 	panic("FindValidTokens not implemented")
-}
-
-func (noopTokenRepository) FindTokensWithAccount(context.Context, map[string]interface{}) ([]*authModel.Token, error) {
-	panic("FindTokensWithAccount not implemented")
 }
 
 func (noopTokenRepository) CleanupOldTokensForAccount(context.Context, int64, int) error {
@@ -1268,86 +1261,66 @@ func (r *stubTokenRepository) DeletedAccountIDs() []int64 {
 	return out
 }
 
-// stubStaffRepository provides a minimal test implementation.
-type stubStaffRepository struct {
-	mu     sync.Mutex
-	staff  map[int64]*userModel.Staff
-	nextID int64
-}
+// newStubStaffRepository returns a testpkg.StaffRepoMock configured to behave
+// like the former hand-rolled stubStaffRepository: Create assigns sequential
+// IDs and records the entry in-memory. The returned accessor function replaces
+// the old *stubStaffRepository.All() method for tests that need to inspect
+// everything created so far. Every other method panics on unset Fn, matching
+// the original's un-implemented methods.
+func newStubStaffRepository() (*testpkg.StaffRepoMock, func() []*userModel.Staff) {
+	var mu sync.Mutex
+	staff := make(map[int64]*userModel.Staff)
+	var nextID int64
 
-func newStubStaffRepository() *stubStaffRepository {
-	return &stubStaffRepository{
-		staff: make(map[int64]*userModel.Staff),
+	mock := &testpkg.StaffRepoMock{
+		CreateFn: func(_ context.Context, s *userModel.Staff) error {
+			mu.Lock()
+			defer mu.Unlock()
+			if s.ID == 0 {
+				nextID++
+				s.ID = nextID
+			}
+			staff[s.ID] = s
+			return nil
+		},
+		FindByIDFn:       func(context.Context, any) (*userModel.Staff, error) { panic("FindByID not implemented") },
+		FindByPersonIDFn: func(context.Context, int64) (*userModel.Staff, error) { panic("FindByPersonID not implemented") },
+		UpdateFn:         func(context.Context, *userModel.Staff) error { panic("Update not implemented") },
+		DeleteFn:         func(context.Context, any) error { panic("Delete not implemented") },
+		ListFn: func(context.Context, map[string]any) ([]*userModel.Staff, error) {
+			panic("List not implemented")
+		},
+		ClearWorkTimeModelFn: func(context.Context, int64) error { panic("ClearWorkTimeModel not implemented") },
+		FindWithPersonFn:     func(context.Context, int64) (*userModel.Staff, error) { panic("FindWithPerson not implemented") },
+		FindByIDsFn: func(context.Context, []int64) (map[int64]*userModel.Staff, error) {
+			panic("FindByIDs not implemented")
+		},
+		FindWithPersonByIDsFn: func(context.Context, []int64) (map[int64]*userModel.Staff, error) {
+			panic("FindWithPersonByIDs not implemented")
+		},
+		ListStaffByRolesFn: func(context.Context, []string) ([]*userModel.StaffWithRoleInfo, error) {
+			panic("ListStaffByRoles not implemented")
+		},
 	}
-}
 
-func (r *stubStaffRepository) Create(_ context.Context, staff *userModel.Staff) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if staff.ID == 0 {
-		r.nextID++
-		staff.ID = r.nextID
+	all := func() []*userModel.Staff {
+		mu.Lock()
+		defer mu.Unlock()
+		out := make([]*userModel.Staff, 0, len(staff))
+		for _, s := range staff {
+			out = append(out, s)
+		}
+		return out
 	}
-	r.staff[staff.ID] = staff
-	return nil
+
+	return mock, all
 }
 
-func (r *stubStaffRepository) All() []*userModel.Staff {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]*userModel.Staff, 0, len(r.staff))
-	for _, staff := range r.staff {
-		out = append(out, staff)
-	}
-	return out
-}
-
-func (r *stubStaffRepository) FindByID(context.Context, interface{}) (*userModel.Staff, error) {
-	panic("FindByID not implemented")
-}
-
-func (r *stubStaffRepository) FindByPersonID(context.Context, int64) (*userModel.Staff, error) {
-	panic("FindByPersonID not implemented")
-}
-
-func (r *stubStaffRepository) Update(context.Context, *userModel.Staff) error {
-	panic("Update not implemented")
-}
-
-func (r *stubStaffRepository) Delete(context.Context, interface{}) error {
-	panic("Delete not implemented")
-}
-
-func (r *stubStaffRepository) List(context.Context, map[string]interface{}) ([]*userModel.Staff, error) {
-	panic("List not implemented")
-}
-
-func (r *stubStaffRepository) UpdateNotes(context.Context, int64, string) error {
-	panic("UpdateNotes not implemented")
-}
-
-func (r *stubStaffRepository) ClearWorkTimeModel(context.Context, int64) error {
-	panic("ClearWorkTimeModel not implemented")
-}
-
-func (r *stubStaffRepository) FindWithPerson(context.Context, int64) (*userModel.Staff, error) {
-	panic("FindWithPerson not implemented")
-}
-
-func (r *stubStaffRepository) ListAllWithPerson(context.Context) ([]*userModel.Staff, error) {
-	panic("ListAllWithPerson not implemented")
-}
-
-func (r *stubStaffRepository) FindByIDs(context.Context, []int64) (map[int64]*userModel.Staff, error) {
-	panic("FindByIDs not implemented")
-}
-
-func (r *stubStaffRepository) FindWithPersonByIDs(context.Context, []int64) (map[int64]*userModel.Staff, error) {
-	panic("FindWithPersonByIDs not implemented")
-}
-
-func (r *stubStaffRepository) ListStaffByRoles(context.Context, []string) ([]*userModel.StaffWithRoleInfo, error) {
-	panic("ListStaffByRoles not implemented")
+// staffRepoOnly discards the accessor from newStubStaffRepository for call
+// sites (e.g. struct literal fields) that only need the repository.
+func staffRepoOnly() *testpkg.StaffRepoMock {
+	mock, _ := newStubStaffRepository()
+	return mock
 }
 
 // stubTeacherRepository provides a minimal test implementation.
@@ -1436,73 +1409,43 @@ func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []i
 	panic("FindWithStaffAndPersonByIDs not implemented")
 }
 
-// stubSchoolRepository is a minimal stub for SchoolRepository in tests.
-// Set deletedTenantIDs to simulate soft-deleted schools.
-type stubSchoolRepository struct {
-	deletedTenantIDs map[int64]bool
-}
-
-func (r *stubSchoolRepository) Create(context.Context, *platformModel.School) error {
-	return fmt.Errorf("not implemented")
-}
-
-func (r *stubSchoolRepository) FindByID(_ context.Context, id int64) (*platformModel.School, error) {
-	school := &platformModel.School{
-		Model:          base.Model{ID: id},
-		Active:         true,
-		OrganizationID: 1,
+// newStubSchoolRepository returns a testpkg.SchoolRepoMock configured like the
+// former hand-rolled stubSchoolRepository: FindByID (and the ForShare/ForUpdate
+// variants) return an active school in organization 1, soft-deleted when its ID
+// is in deletedTenantIDs. Pass nil for no soft-deleted schools.
+func newStubSchoolRepository(deletedTenantIDs map[int64]bool) *testpkg.SchoolRepoMock {
+	findByID := func(_ context.Context, id int64) (*platformModel.School, error) {
+		school := &platformModel.School{
+			Model:          base.Model{ID: id},
+			Active:         true,
+			OrganizationID: 1,
+		}
+		if deletedTenantIDs[id] {
+			now := time.Now()
+			school.DeletedAt = &now
+		}
+		return school, nil
 	}
-	if r.deletedTenantIDs[id] {
-		now := time.Now()
-		school.DeletedAt = &now
+	return &testpkg.SchoolRepoMock{
+		CreateFn:   func(context.Context, *platformModel.School) error { return fmt.Errorf("not implemented") },
+		FindByIDFn: findByID,
+		FindByIDForShareFn: func(ctx context.Context, id int64) (*platformModel.School, error) {
+			return findByID(ctx, id)
+		},
+		FindByIDForUpdateFn: func(ctx context.Context, id int64) (*platformModel.School, error) {
+			return findByID(ctx, id)
+		},
+		FindBySlugFn: func(context.Context, string) (*platformModel.School, error) {
+			return nil, fmt.Errorf("not found")
+		},
+		FindByOrganizationAndSlugFn: func(context.Context, int64, string) (*platformModel.School, error) {
+			return nil, fmt.Errorf("not found")
+		},
+		FindBySubdomainFn: func(context.Context, string) (*platformModel.School, error) {
+			return nil, fmt.Errorf("not found")
+		},
+		UpdateFn: func(context.Context, *platformModel.School) error { return fmt.Errorf("not implemented") },
 	}
-	return school, nil
-}
-
-func (r *stubSchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platformModel.School, error) {
-	return r.FindByID(ctx, id)
-}
-
-func (r *stubSchoolRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platformModel.School, error) {
-	return r.FindByID(ctx, id)
-}
-
-func (r *stubSchoolRepository) FindBySlug(context.Context, string) (*platformModel.School, error) {
-	return nil, fmt.Errorf("not found")
-}
-
-func (r *stubSchoolRepository) FindByOrganizationAndSlug(context.Context, int64, string) (*platformModel.School, error) {
-	return nil, fmt.Errorf("not found")
-}
-
-func (r *stubSchoolRepository) FindBySubdomain(context.Context, string) (*platformModel.School, error) {
-	return nil, fmt.Errorf("not found")
-}
-
-func (r *stubSchoolRepository) List(context.Context) ([]*platformModel.School, error) {
-	return nil, nil
-}
-
-func (r *stubSchoolRepository) ListActive(context.Context) ([]platformModel.School, error) {
-	return nil, nil
-}
-
-func (r *stubSchoolRepository) ListPublic(context.Context) ([]platformModel.School, error) {
-	return nil, nil
-}
-
-func (r *stubSchoolRepository) FindActiveByAccountID(context.Context, int64) ([]platformModel.School, error) {
-	return nil, nil
-}
-
-func (r *stubSchoolRepository) Update(context.Context, *platformModel.School) error {
-	return fmt.Errorf("not implemented")
-}
-func (r *stubSchoolRepository) SoftDelete(context.Context, int64) error          { return nil }
-func (r *stubSchoolRepository) Restore(context.Context, int64) error             { return nil }
-func (r *stubSchoolRepository) CountByIDs(context.Context, []int64) (int, error) { return 0, nil }
-func (r *stubSchoolRepository) CountNonDeletedByOrganizationID(context.Context, int64) (int, error) {
-	return 0, nil
 }
 
 // helper to build default email used in tests.

@@ -8,12 +8,13 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
+import { useSession } from "next-auth/react";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", permissions: ["config:manage"] } },
     status: "authenticated",
   })),
 }));
@@ -42,13 +43,6 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ message }: { message?: string }) => (
-    <div data-testid="loading">{message ?? "Loading..."}</div>
-  ),
-}));
-
 // Mock Alert component
 vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message, type }: { message: string; type: string }) => (
@@ -59,7 +53,7 @@ vi.mock("~/components/ui/alert", () => ({
 // Mock BackButton component
 vi.mock("~/components/ui/back-button", () => ({
   BackButton: ({ referrer }: { referrer: string }) => (
-    <button data-testid="back-button" data-referrer={referrer}>
+    <button type="button" data-testid="back-button" data-referrer={referrer}>
       Zurück
     </button>
   ),
@@ -88,10 +82,11 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid={`modal-${title.toLowerCase().replace(/\s+/g, "-")}`}>
         <h2>{title}</h2>
         <div data-testid="modal-content">{children}</div>
-        <button data-testid="modal-cancel" onClick={onClose}>
+        <button type="button" data-testid="modal-cancel" onClick={onClose}>
           Abbrechen
         </button>
         <button
+          type="button"
           data-testid="modal-confirm"
           onClick={onConfirm}
           disabled={isConfirmDisabled}
@@ -129,10 +124,14 @@ vi.mock("~/components/students/student-detail-components", () => ({
   ),
   PersonalInfoReadOnly: ({
     student,
+    enrollmentExtraGroups,
     showEditButton,
     onEditClick,
   }: {
     student: { name: string; school_class: string };
+    enrollmentExtraGroups?: Array<{
+      fields: Array<{ label: string; value: unknown }>;
+    }>;
     showEditButton?: boolean;
     onEditClick?: () => void;
   }) => (
@@ -145,8 +144,15 @@ vi.mock("~/components/students/student-detail-components", () => ({
         {student.name}
       </span>
       <span data-testid="readonly-class">{student.school_class}</span>
+      <span data-testid="enrollment-extra-count">
+        {enrollmentExtraGroups?.flatMap((group) => group.fields).length ?? 0}
+      </span>
       {showEditButton && onEditClick && (
-        <button data-testid="edit-personal-info" onClick={onEditClick}>
+        <button
+          type="button"
+          data-testid="edit-personal-info"
+          onClick={onEditClick}
+        >
           Bearbeiten
         </button>
       )}
@@ -182,12 +188,13 @@ vi.mock("~/components/students/personal-info-form-modal", () => ({
       <div data-testid="personal-info-modal">
         <span data-testid="modal-student-name">{student.name}</span>
         <button
+          type="button"
           data-testid="save-personal-info"
           onClick={() => void handleSave()}
         >
           Speichern
         </button>
-        <button data-testid="cancel-edit" onClick={onClose}>
+        <button type="button" data-testid="cancel-edit" onClick={onClose}>
           Abbrechen
         </button>
       </div>
@@ -210,12 +217,17 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
     isOpen ? (
       <div data-testid={`planned-status-modal-${status}`}>
         <button
+          type="button"
           data-testid="planned-status-submit"
           onClick={() => void onSubmit(["2026-05-25"])}
         >
           Speichern
         </button>
-        <button data-testid="planned-status-cancel" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="planned-status-cancel"
+          onClick={onClose}
+        >
           Abbrechen
         </button>
       </div>
@@ -233,7 +245,11 @@ vi.mock("~/components/students/student-checkout-section", () => ({
     onCheckoutClick: () => void;
   }) => (
     <div data-testid="checkout-section">
-      <button data-testid="checkout-button" onClick={onCheckoutClick}>
+      <button
+        type="button"
+        data-testid="checkout-button"
+        onClick={onCheckoutClick}
+      >
         Kind abmelden
       </button>
     </div>
@@ -244,7 +260,11 @@ vi.mock("~/components/students/student-checkout-section", () => ({
     onCheckinClick: () => void;
   }) => (
     <div data-testid="checkin-section">
-      <button data-testid="checkin-button" onClick={onCheckinClick}>
+      <button
+        type="button"
+        data-testid="checkin-button"
+        onClick={onCheckinClick}
+      >
         Kind anmelden
       </button>
     </div>
@@ -258,7 +278,11 @@ vi.mock("~/components/students/student-checkout-section", () => ({
     isLoading: boolean;
   }) => (
     <div data-testid="status-actions-menu">
-      <button data-testid="class-trip-action" onClick={onPlanClassTrip}>
+      <button
+        type="button"
+        data-testid="class-trip-action"
+        onClick={onPlanClassTrip}
+      >
         Klassenfahrt planen
       </button>
     </div>
@@ -275,6 +299,7 @@ vi.mock("~/components/students/student-checkout-section", () => ({
   }) => (
     <div data-testid="sick-report-section">
       <button
+        type="button"
         data-testid="sick-toggle-button"
         onClick={onToggle}
         disabled={isLoading}
@@ -295,6 +320,7 @@ vi.mock("~/components/students/student-checkout-section", () => ({
   }) => (
     <div data-testid="excused-report-section">
       <button
+        type="button"
         data-testid="excused-toggle-button"
         onClick={onToggle}
         disabled={isLoading}
@@ -316,7 +342,7 @@ vi.mock("~/components/guardians/student-guardian-manager", () => ({
     onUpdate: () => void;
   }) => (
     <div data-testid="guardian-manager" data-student-id={studentId}>
-      <button data-testid="update-guardians" onClick={onUpdate}>
+      <button type="button" data-testid="update-guardians" onClick={onUpdate}>
         Update
       </button>
     </div>
@@ -332,7 +358,11 @@ vi.mock("~/components/students/care-schedule-manager", () => ({
     onUpdate?: () => void;
   }) => (
     <div data-testid="care-schedule-manager" data-student-id={studentId}>
-      <button data-testid="update-care-schedule" onClick={() => onUpdate?.()}>
+      <button
+        type="button"
+        data-testid="update-care-schedule"
+        onClick={() => onUpdate?.()}
+      >
         Update Care
       </button>
     </div>
@@ -404,6 +434,14 @@ vi.mock("~/lib/hooks/use-student-data", () => ({
     mockUseStudentData(studentId) as MockStudentDataResult,
 }));
 
+const mockUseStudentEnrollmentExtraFields = vi.fn();
+vi.mock("~/lib/hooks/use-student-enrollment-extra-fields", () => ({
+  useStudentEnrollmentExtraFields: (
+    studentId: string,
+    hasFullAccess: boolean,
+  ) => mockUseStudentEnrollmentExtraFields(studentId, hasFullAccess),
+}));
+
 // Mock active service
 const mockCheckoutStudent = vi.fn();
 interface MockActiveGroup {
@@ -473,6 +511,9 @@ const mockStudent = {
   bus: false,
   buskind: false,
   birthday: "2015-05-15",
+  address_street: "Musterstraße 12",
+  address_postal_code: "50667",
+  address_city: "Köln",
   health_info: "",
   supervisor_notes: "",
   extra_info: "",
@@ -491,6 +532,10 @@ describe("StudentDetailPage", () => {
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     mockActionType = "none";
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", permissions: ["config:manage"] } },
+      status: "authenticated",
+    } as ReturnType<typeof useSession>);
 
     // Default mock implementations
     mockUseStudentData.mockReturnValue({
@@ -504,6 +549,11 @@ describe("StudentDetailPage", () => {
       myGroupRooms: ["Raum 101"],
       mySupervisedRooms: ["Raum 101"],
       refreshData: mockRefreshData,
+    });
+    mockUseStudentEnrollmentExtraFields.mockReturnValue({
+      groups: [],
+      loading: false,
+      hasError: false,
     });
 
     mockGetActiveGroups.mockResolvedValue([
@@ -538,8 +588,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
-      expect(screen.getByText("Laden...")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-skeleton")).toBeInTheDocument();
+      expect(screen.getByLabelText("Kind wird geladen")).toBeInTheDocument();
     });
   });
 
@@ -624,6 +674,38 @@ describe("StudentDetailPage", () => {
       ).toBeInTheDocument();
     });
 
+    it("passes enrollment extra fields into full access personal info", () => {
+      mockUseStudentEnrollmentExtraFields.mockReturnValue({
+        groups: [
+          {
+            request_id: "77",
+            phase_name: "Anmeldung 2026",
+            submitted_at: "2026-06-01T12:00:00Z",
+            fields: [
+              {
+                key: "swimming_level",
+                label: "Schwimmfähigkeit",
+                type: "text",
+                value: "Kann sicher schwimmen",
+              },
+            ],
+          },
+        ],
+        loading: false,
+        hasError: false,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(mockUseStudentEnrollmentExtraFields).toHaveBeenCalledWith(
+        "1",
+        true,
+      );
+      expect(screen.getByTestId("enrollment-extra-count")).toHaveTextContent(
+        "1",
+      );
+    });
+
     it("renders student history section", () => {
       render(<StudentDetailPage />);
 
@@ -667,6 +749,10 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(screen.getByTestId("personal-info-readonly")).toBeInTheDocument();
+      expect(mockUseStudentEnrollmentExtraFields).not.toHaveBeenCalled();
+      expect(screen.getByTestId("enrollment-extra-count")).toHaveTextContent(
+        "0",
+      );
     });
 
     it("renders guardian manager in read-only mode in limited view", () => {
@@ -730,7 +816,14 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(mockUpdateStudent).toHaveBeenCalledWith("1", expect.any(Object));
+        expect(mockUpdateStudent).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            address_street: "Musterstraße 12",
+            address_postal_code: "50667",
+            address_city: "Köln",
+          }),
+        );
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
@@ -939,10 +1032,11 @@ describe("StudentDetailPage", () => {
       });
 
       // Wait for active groups to load and select one
-      await waitFor(() => {
-        const select = screen.getByRole("combobox");
-        fireEvent.change(select, { target: { value: "1" } });
-      });
+      const select = await screen.findByRole("combobox");
+      fireEvent.click(select);
+      fireEvent.click(
+        screen.getByRole("option", { name: "Raum 101 (Gruppe A)" }),
+      );
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {
@@ -971,10 +1065,11 @@ describe("StudentDetailPage", () => {
       });
 
       // Select a room first
-      await waitFor(() => {
-        const select = screen.getByRole("combobox");
-        fireEvent.change(select, { target: { value: "1" } });
-      });
+      const select = await screen.findByRole("combobox");
+      fireEvent.click(select);
+      fireEvent.click(
+        screen.getByRole("option", { name: "Raum 101 (Gruppe A)" }),
+      );
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {
@@ -1589,7 +1684,107 @@ describe("StudentDetailPage", () => {
       expect(
         screen.getByRole("tab", { name: "Betreuungszeiten" }),
       ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Anmeldungen" }),
+      ).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+    });
+
+    it("hides the enrollment tab without config:manage", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { token: "test-token", permissions: ["config:read"] } },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Anmeldungen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("hides the Betreuungsplan tab without schedules:read", () => {
+      // Default mock session is config:manage only -> no schedules:read.
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Betreuungsplan tab with schedules:read", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the Betreuungsplan tab in the limited-access view despite schedules:read", () => {
+      // Deliberate, not an oversight: has_full_access on the student response is
+      // authorize.CanReadStudent, the SAME predicate the backend applies inside
+      // GET /timetable/student/{id}/{day,week} (api/timetable/api.go gates the
+      // route on schedules:read, resolveStudentForRead then runs CanReadStudent).
+      // A limited-access viewer therefore gets 403 from the care-plan endpoints,
+      // so showing the tab would only offer a permanently failing panel.
+      mockUseStudentData.mockReturnValue(limitedAccess);
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Betreuungsplan tab to a non-supervisor under gdpr.student_data_scope=all_staff", () => {
+      // The complement of the test above, and the case worth pinning: under
+      // `all_staff` the backend's read predicate (authorize.CanReadStudent)
+      // returns true for EVERY staff member, so has_full_access arrives true
+      // even for someone who supervises none of this child's groups — and the
+      // care-plan endpoints, gated on that same predicate, will serve them.
+      // The tab must therefore appear. It is gated on read access, never on the
+      // stricter supervisor/admin write predicate (has_write_access).
+      mockUseStudentData.mockReturnValue({
+        ...limitedAccess,
+        hasFullAccess: true, // all_staff scope grants read access…
+        hasWriteAccess: false, // …while writes stay supervisor-only
+        myGroups: [],
+        mySupervisedRooms: [],
+      });
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toBeInTheDocument();
     });
 
     it("defaults to the Stammdaten tab when no tab param is set", () => {
@@ -1738,7 +1933,7 @@ describe("StudentDetailPage", () => {
       });
 
       const { rerender } = render(<StudentDetailPage />);
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-skeleton")).toBeInTheDocument();
 
       // Same component instance now finishes loading with full access.
       mockUseStudentData.mockReturnValue({

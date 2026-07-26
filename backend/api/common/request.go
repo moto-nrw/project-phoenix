@@ -70,3 +70,15 @@ func ParseInt64IDWithError(w http.ResponseWriter, r *http.Request, param string,
 	}
 	return id, true
 }
+
+// ParsePositiveInt64IDWithError is ParseInt64IDWithError plus a positivity
+// check — a non-numeric value and id <= 0 both render errMsg as a 400. Use it
+// for handlers that reject zero/negative IDs.
+func ParsePositiveInt64IDWithError(w http.ResponseWriter, r *http.Request, param string, errMsg string) (int64, bool) {
+	id, err := ParseIDParam(r, param)
+	if err != nil || id <= 0 {
+		RenderError(w, r, ErrorInvalidRequest(errors.New(errMsg)))
+		return 0, false
+	}
+	return id, true
+}

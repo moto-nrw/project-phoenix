@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -53,7 +54,7 @@ func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, 
 
 func (s *unregisteredTagScanService) ListForOperator(ctx context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {
 	var scans []*auditModels.UnregisteredTagScan
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		var err error
 		scans, err = s.repo.ListForOperator(adminCtx, filter)
 		return err
@@ -69,9 +70,9 @@ func (s *unregisteredTagScanService) Resolve(ctx context.Context, id, operatorID
 		return nil, fmt.Errorf("operator ID is required")
 	}
 	var scan *auditModels.UnregisteredTagScan
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		var err error
-		scan, err = s.repo.Resolve(adminCtx, id, operatorID, normalizeNote(note))
+		scan, err = s.repo.Resolve(adminCtx, id, operatorID, strutil.TrimPtrToNil(note))
 		return err
 	})
 	return scan, err
@@ -84,25 +85,12 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 	return s.repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -days))
 }
 
-func normalizeNote(note *string) *string {
-	if note == nil {
+// adminDB returns the underlying *bun.DB, or nil when no tx handler is wired
+// (unit-test construction). Passing nil to WithAdminTxOrDirect makes it run
+// fn directly, preserving the old shim's nil guard.
+func (s *unregisteredTagScanService) adminDB() *bun.DB {
+	if s.txHandler == nil {
 		return nil
 	}
-	cleaned := strings.TrimSpace(*note)
-	if cleaned == "" {
-		return nil
-	}
-	return &cleaned
-}
-
-func (s *unregisteredTagScanService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		return fn(ctx)
-	}
-	if s.txHandler == nil || s.txHandler.DB == nil {
-		return fn(ctx)
-	}
-	return tenant.WithAdminTx(ctx, s.txHandler.DB, func(adminCtx context.Context, _ bun.Tx) error {
-		return fn(adminCtx)
-	})
+	return s.txHandler.DB
 }

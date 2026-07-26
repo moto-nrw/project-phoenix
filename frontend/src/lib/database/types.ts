@@ -1,7 +1,7 @@
 // Database Entity Configuration Types
 
 import type { ReactNode } from "react";
-import type { DatabaseTheme } from "@/components/ui/database/themes";
+import type { DatabaseTheme } from "@/lib/database/themes";
 
 // Field types supported by the database forms
 type FieldType =
@@ -279,8 +279,10 @@ export interface EntityConfig<T = Record<string, unknown>> {
     afterDelete?: (id: string) => Promise<void>;
   };
 
-  // Labels and messages
-  labels?: {
+  // Labels and messages. The modal titles are optional because not every
+  // entity renders DatabaseFormModal; the modal itself fails loudly when the
+  // title for its mode is missing.
+  labels: {
     createButton?: string;
     createModalTitle?: string;
     editModalTitle?: string;

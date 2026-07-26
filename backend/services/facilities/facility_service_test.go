@@ -1,12 +1,16 @@
 package facilities_test
 
 import (
+	"context"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -225,6 +229,17 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
 
+	for _, name := range []string{constants.SchulhofRoomName, "schulhof", "SCHULHOF"} {
+		t.Run("rejects reserved Schulhof room name "+name, func(t *testing.T) {
+			room := &facilities.Room{Name: name, Building: "Außengelände"}
+
+			err := service.CreateRoom(ctx, room)
+
+			require.ErrorIs(t, err, facilitiesSvc.ErrSystemRoomNameReserved)
+			assert.Zero(t, room.ID)
+		})
+	}
+
 	t.Run("creates room successfully", func(t *testing.T) {
 		// ARRANGE
 		capacity := 25
@@ -232,7 +247,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 		room := &facilities.Room{
 			Name:     "CreateRoom-Success-" + time.Now().Format("20060102150405.000"),
 			Building: "Building A",
-			Floor:    intPtr(1),
+			Floor:    testpkg.IntPtr(1),
 			Capacity: &capacity,
 			Category: &category,
 		}
@@ -406,6 +421,22 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		assert.Contains(t, err.Error(), "Systemraum")
 	})
 
+	for _, reservedName := range []string{constants.SchulhofRoomName, "schulhof"} {
+		t.Run("blocks renaming a normal room to "+reservedName, func(t *testing.T) {
+			room := testpkg.CreateTestRoom(t, db, "UpdateToSchulhof")
+			defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+			originalName := room.Name
+			room.Name = reservedName
+
+			err := service.UpdateRoom(ctx, room)
+
+			require.ErrorIs(t, err, facilitiesSvc.ErrSystemRoomNameReserved)
+			persisted, findErr := service.GetRoom(ctx, room.ID)
+			require.NoError(t, findErr)
+			assert.Equal(t, originalName, persisted.Name)
+		})
+	}
+
 	t.Run("allows updating other properties of system room", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.WCRoomName
 		tenantID := createFacilityTestTenant(t, db)
@@ -538,6 +569,60 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 	})
 }
 
+func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("locks then maps materializability conflict", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-CareOffering")
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+		locked := false
+		validated := false
+		service := facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
+			RoomRepo:        repos.Room,
+			ActiveGroupRepo: repos.ActiveGroup,
+			LockTemplateRecurrence: func(context.Context) error {
+				locked = true
+				return nil
+			},
+			ValidateCareOfferingRoomDeletion: func(_ context.Context, gotRoomID int64) error {
+				validated = true
+				assert.True(t, locked, "validation must run only after acquiring the recurrence lock")
+				assert.Equal(t, room.ID, gotRoomID)
+				return fmt.Errorf("%w: no effective room", enrollmentModels.ErrCareOfferingInvalid)
+			},
+		})
+
+		err := service.DeleteRoom(ctx, room.ID)
+		require.ErrorIs(t, err, facilitiesSvc.ErrRoomRequiredByCareOffering)
+		assert.True(t, validated)
+		_, findErr := repos.Room.FindByID(ctx, room.ID)
+		require.NoError(t, findErr, "rejected deletion must leave the room intact")
+	})
+
+	t.Run("configured validator fails closed without lock", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-MissingLock")
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+		validated := false
+		service := facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
+			RoomRepo:        repos.Room,
+			ActiveGroupRepo: repos.ActiveGroup,
+			ValidateCareOfferingRoomDeletion: func(context.Context, int64) error {
+				validated = true
+				return nil
+			},
+		})
+
+		err := service.DeleteRoom(ctx, room.ID)
+		require.ErrorContains(t, err, "recurrence lock is not configured")
+		assert.False(t, validated)
+		_, findErr := repos.Room.FindByID(ctx, room.ID)
+		require.NoError(t, findErr)
+	})
+}
+
 // ============================================================================
 // ListRooms Tests
 // ============================================================================
@@ -661,54 +746,6 @@ func TestFacilitiesService_FindRoomByName(t *testing.T) {
 }
 
 // ============================================================================
-// FindRoomsByBuilding Tests
-// ============================================================================
-
-func TestFacilitiesService_FindRoomsByBuilding(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds rooms in building", func(t *testing.T) {
-		// ARRANGE - rooms are created with "Test Building" by default
-		room1 := testpkg.CreateTestRoom(t, db, "Building-Room1")
-		room2 := testpkg.CreateTestRoom(t, db, "Building-Room2")
-		defer testpkg.CleanupActivityFixtures(t, db, room1.ID, room2.ID)
-
-		// ACT
-		rooms, err := service.FindRoomsByBuilding(ctx, "Test Building")
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(rooms), 2)
-
-		// Verify our rooms are in the list
-		foundRoom1, foundRoom2 := false, false
-		for _, r := range rooms {
-			if r.ID == room1.ID {
-				foundRoom1 = true
-			}
-			if r.ID == room2.ID {
-				foundRoom2 = true
-			}
-		}
-		assert.True(t, foundRoom1)
-		assert.True(t, foundRoom2)
-	})
-
-	t.Run("returns empty for non-existent building", func(t *testing.T) {
-		// ACT
-		rooms, err := service.FindRoomsByBuilding(ctx, "NonExistent Building XYZ")
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Empty(t, rooms)
-	})
-}
-
-// ============================================================================
 // FindRoomsByCategory Tests
 // ============================================================================
 
@@ -749,132 +786,6 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Empty(t, rooms)
-	})
-}
-
-// ============================================================================
-// FindRoomsByFloor Tests
-// ============================================================================
-
-func TestFacilitiesService_FindRoomsByFloor(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds rooms by building and floor", func(t *testing.T) {
-		// ARRANGE
-		building := "FloorTestBuilding-" + time.Now().Format("20060102150405")
-		floor := 2
-		capacity := 20
-		room := &facilities.Room{
-			Name:     "FloorRoom-" + time.Now().Format("20060102150405.000"),
-			Building: building,
-			Floor:    &floor,
-			Capacity: &capacity,
-		}
-		err := service.CreateRoom(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-
-		// ACT
-		rooms, err := service.FindRoomsByFloor(ctx, building, floor)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Len(t, rooms, 1)
-		assert.Equal(t, room.ID, rooms[0].ID)
-	})
-
-	t.Run("returns empty for non-existent floor", func(t *testing.T) {
-		// ACT
-		rooms, err := service.FindRoomsByFloor(ctx, "Test Building", 999)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Empty(t, rooms)
-	})
-}
-
-// ============================================================================
-// CheckRoomAvailability Tests
-// ============================================================================
-
-func TestFacilitiesService_CheckRoomAvailability(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns true when capacity is sufficient", func(t *testing.T) {
-		// ARRANGE
-		capacity := 30
-		room := &facilities.Room{
-			Name:     "AvailCapacity-" + time.Now().Format("20060102150405.000"),
-			Building: "Test Building",
-			Capacity: &capacity,
-		}
-		err := service.CreateRoom(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-
-		// ACT
-		available, err := service.CheckRoomAvailability(ctx, room.ID, 25)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.True(t, available)
-	})
-
-	t.Run("returns false when capacity is insufficient", func(t *testing.T) {
-		// ARRANGE
-		capacity := 10
-		room := &facilities.Room{
-			Name:     "InsufficientCapacity-" + time.Now().Format("20060102150405.000"),
-			Building: "Test Building",
-			Capacity: &capacity,
-		}
-		err := service.CreateRoom(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-
-		// ACT
-		available, err := service.CheckRoomAvailability(ctx, room.ID, 25)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.False(t, available)
-	})
-
-	t.Run("returns error for non-existent room", func(t *testing.T) {
-		// ACT
-		_, err := service.CheckRoomAvailability(ctx, 999999999, 10)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
-	})
-
-	t.Run("handles room with no capacity set", func(t *testing.T) {
-		// ARRANGE
-		room := &facilities.Room{
-			Name:     "NoCapacity-" + time.Now().Format("20060102150405.000"),
-			Building: "Test Building",
-			Capacity: nil, // No capacity set
-		}
-		err := service.CreateRoom(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-
-		// ACT
-		available, err := service.CheckRoomAvailability(ctx, room.ID, 10)
-
-		// ASSERT
-		require.NoError(t, err)
-		// No capacity means it cannot accommodate the required capacity
-		assert.False(t, available)
 	})
 }
 
@@ -1012,61 +923,6 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 		rooms, err := service.GetAvailableRoomsWithOccupancy(ctx, 20)
 		require.NoError(t, err)
 		assert.NotEmpty(t, rooms, "Should return available rooms")
-	})
-}
-
-// ============================================================================
-// GetRoomUtilization Tests
-// ============================================================================
-
-func TestFacilitiesService_GetRoomUtilization(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns utilization for valid room", func(t *testing.T) {
-		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "Utilization-Test")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-
-		// ACT
-		utilization, err := service.GetRoomUtilization(ctx, room.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		// Current implementation returns 0.0 as placeholder
-		assert.GreaterOrEqual(t, utilization, 0.0)
-		assert.LessOrEqual(t, utilization, 1.0)
-	})
-
-	t.Run("returns error for non-existent room", func(t *testing.T) {
-		// ACT
-		_, err := service.GetRoomUtilization(ctx, 999999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
-	})
-
-	t.Run("handles room with no capacity", func(t *testing.T) {
-		// ARRANGE
-		room := &facilities.Room{
-			Name:     "NoCapUtil-" + time.Now().Format("20060102150405.000"),
-			Building: "Test Building",
-			Capacity: nil,
-		}
-		err := service.CreateRoom(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-
-		// ACT
-		utilization, err := service.GetRoomUtilization(ctx, room.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Equal(t, 0.0, utilization)
 	})
 }
 
@@ -1286,9 +1142,4 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 		assert.Equal(t, "HistoryGroup", entry.ActivityName)
 		assert.Equal(t, 1, entry.StudentCount, "distinct student count must only include visits overlapping the requested window")
 	})
-}
-
-// Helper function to create int pointer
-func intPtr(i int) *int {
-	return &i
 }

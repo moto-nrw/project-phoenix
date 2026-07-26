@@ -5,13 +5,12 @@ import type {
   PublicFormSchema,
   PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
+import type { CareOfferingAvailabilityRule } from "~/lib/care-offering-api";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
 
 export type CareOfferingSelectionMode =
-  | "optional"
-  | "at_least_one"
-  | "exactly_one";
+  "optional" | "at_least_one" | "exactly_one";
 
 export interface PublicCareOffering {
   id: string;
@@ -26,6 +25,10 @@ export interface PublicCareOffering {
   price_cents?: number | null;
   is_active: boolean;
   is_required: boolean;
+  counts_as_care?: boolean;
+  auto_add_grade_levels?: number[];
+  availability_rule?: CareOfferingAvailabilityRule | null;
+  auto_add_trigger_offering_ids?: string[];
   /**
    * Offerings sharing a non-empty selection_group are constrained
    * together by selection_rule (exactly_one / at_least_one /
@@ -41,10 +44,17 @@ interface SubmitOfferingDays {
 }
 
 export interface SubmitChildPayload {
+  id?: string;
   first_name: string;
   last_name: string;
   date_of_birth: string; // YYYY-MM-DD
-  target_grade_level: number;
+  target_grade_level?: number;
+  /**
+   * Concrete future class (e.g. "2a"), collected from grade 2 upwards
+   * when the tenant enables it (#1833). Omitted for grade 1 or when the
+   * parent leaves it open ("Klasse offen").
+   */
+  target_school_class?: string;
   custom_data?: Record<string, unknown>;
   offering_ids?: number[];
   /**
@@ -55,21 +65,138 @@ export interface SubmitChildPayload {
   offering_days?: SubmitOfferingDays[];
 }
 
+/**
+ * One additional guardian (co-guardian) the parent added beyond the
+ * primary guardian. Names are required; email and phone are optional —
+ * a co-guardian (e.g. a grandparent) may be a contact-only record.
+ */
+export interface SubmitGuardianPayload {
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface SubmitEnrollmentPayload {
   phase_id: number;
   guardian_first_name: string;
   guardian_last_name: string;
   guardian_email: string;
   guardian_phone?: string;
+  /**
+   * Co-guardians beyond the primary guardian. Omitted (or empty) when
+   * the parent added none. On approval each becomes an additional
+   * users.students_guardians link to every enrolled child.
+   */
+  additional_guardians?: SubmitGuardianPayload[];
   consent_flags?: Record<string, unknown>;
   custom_data?: Record<string, unknown>;
   children: SubmitChildPayload[];
   captcha_token?: string;
+  late_invite_token?: string;
 }
 
 export interface SubmitEnrollmentResult {
   request_id: string;
   status_url: string;
+  warnings?: Array<{ code: string }>;
+}
+
+interface EnrollmentEditDraftOfferingDays {
+  offering_id: string;
+  selected_days: string[];
+  manual_selected_days?: string[];
+  automatic_selected_days?: string[];
+}
+
+interface EnrollmentEditDraftChild {
+  id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  target_grade_level?: number;
+  target_school_class?: string;
+  custom_data?: Record<string, unknown>;
+  offering_ids: string[];
+  offering_days?: EnrollmentEditDraftOfferingDays[];
+}
+
+interface EnrollmentEditDraftGuardian {
+  first_name: string;
+  last_name: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
+export interface EnrollmentEditDraft {
+  request_id: string;
+  status_token: string;
+  tenant_id: string;
+  tenant_subdomain: string;
+  phase_id: string;
+  guardian_first_name: string;
+  guardian_last_name: string;
+  guardian_email: string;
+  guardian_phone?: string | null;
+  consent_flags: Record<string, unknown>;
+  custom_data: Record<string, unknown>;
+  additional_guardians?: EnrollmentEditDraftGuardian[];
+  children: EnrollmentEditDraftChild[];
+}
+
+type EnrollmentEditMode = "direct_edit" | "change_request";
+type EnrollmentStatusEditMode = EnrollmentEditMode | "none";
+
+export interface EnrollmentEditBootstrap {
+  edit_mode: EnrollmentEditMode;
+  phase: PublicPhase;
+  schema: PublicFormSchema | null;
+  offerings: PublicCareOffering[];
+  care_offering_selection_mode: CareOfferingSelectionMode;
+  care_required: boolean;
+  /** Concrete-class config (#1833) so reopened edits keep the class field. */
+  school_class?: PublicSchoolClassConfig;
+  collect_grade_level: boolean;
+  care_offerings_enabled: boolean;
+  /** Server-authoritative tenant cap (`enrollment.grade_level_max`). */
+  grade_level_max: number;
+  legal_texts: PublicLegalTexts;
+  draft: EnrollmentEditDraft;
+}
+
+type EnrollmentChangeRequestStatus =
+  | "pending_review"
+  | "needs_parent_response"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+
+type EnrollmentChangeRequestMessageAuthor = "parent" | "staff" | "system";
+
+interface EnrollmentChangeRequestMessage {
+  id: string;
+  author_type: EnrollmentChangeRequestMessageAuthor;
+  author_account_id?: number | null;
+  body: string;
+  internal_only: boolean;
+  created_at: string;
+}
+
+export interface EnrollmentChangeRequest {
+  id: string;
+  request_id: string;
+  origin: "parent" | "admin";
+  status: EnrollmentChangeRequestStatus;
+  parent_note?: string | null;
+  admin_decision_note?: string | null;
+  base_snapshot: Record<string, unknown>;
+  proposed_snapshot: Record<string, unknown>;
+  diff: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  reviewed_at?: string | null;
+  reviewed_by_account_id?: number | null;
+  messages?: EnrollmentChangeRequestMessage[];
 }
 
 interface BackendEnvelope<T> {
@@ -101,10 +228,66 @@ async function readError(response: Response, fallback: string): Promise<Error> {
   );
 }
 
+/**
+ * Concrete-class config for a phase (#1833): whether the tenant collects
+ * a concrete class at all, the phase's pick list, and whether it is
+ * mandatory from grade 2. Mirrors the backend PublicSchoolClassConfig
+ * (`school_class` on the bootstrap + care-offerings responses).
+ */
+export interface PublicSchoolClassConfig {
+  collect: boolean;
+  available_classes: string[];
+  require: boolean;
+}
+
+export const EMPTY_SCHOOL_CLASS_CONFIG: PublicSchoolClassConfig = {
+  collect: false,
+  available_classes: [],
+  require: false,
+};
+
+function parseSchoolClassConfig(raw: unknown): PublicSchoolClassConfig {
+  const obj = (raw ?? {}) as Partial<PublicSchoolClassConfig>;
+  return {
+    collect: obj.collect === true,
+    available_classes: Array.isArray(obj.available_classes)
+      ? obj.available_classes.filter((c): c is string => typeof c === "string")
+      : [],
+    require: obj.require === true,
+  };
+}
+
 export interface PublicCareOfferingsResult {
   offerings: PublicCareOffering[];
   careOfferingSelectionMode: CareOfferingSelectionMode;
   careRequired: boolean;
+  /**
+   * Concrete-class config (#1833). Present only when the backend
+   * includes `school_class` in the response; consumers coalesce to
+   * EMPTY_SCHOOL_CLASS_CONFIG when absent.
+   */
+  schoolClass?: PublicSchoolClassConfig;
+  collectGradeLevel: boolean;
+  careOfferingsEnabled: boolean;
+}
+
+export interface LateInviteFetchOptions {
+  lateInviteToken?: string;
+}
+
+export interface PublicEnrollmentBootstrapFetchOptions extends LateInviteFetchOptions {
+  /**
+   * Omits browser credentials from this request. This is transport hardening
+   * for parent-portal callers, not the server-side portal boundary; the route
+   * decides profile enrichment from the proxy-preserved original host.
+   */
+  omitCredentials?: boolean;
+}
+
+function withLateInviteQuery(path: string, token?: string): string {
+  const trimmed = token?.trim();
+  if (!trimmed) return path;
+  return `${path}?late_invite=${encodeURIComponent(trimmed)}`;
 }
 
 /**
@@ -116,11 +299,13 @@ export interface PublicCareOfferingsResult {
 export async function fetchPublicCareOfferings(
   tenantSlug: string,
   phaseId: string,
+  options: LateInviteFetchOptions = {},
 ): Promise<PublicCareOfferingsResult> {
+  const path = `/api/enrollment/care-offerings/public/${encodeURIComponent(
+    tenantSlug,
+  )}/${encodeURIComponent(phaseId)}`;
   const response = await fetch(
-    `/api/enrollment/care-offerings/public/${encodeURIComponent(
-      tenantSlug,
-    )}/${encodeURIComponent(phaseId)}`,
+    withLateInviteQuery(path, options.lateInviteToken),
     { cache: "no-store" },
   );
   if (!response.ok) {
@@ -133,6 +318,9 @@ export async function fetchPublicCareOfferings(
     offerings?: PublicCareOffering[];
     care_offering_selection_mode?: CareOfferingSelectionMode;
     care_required?: boolean;
+    school_class?: unknown;
+    collect_grade_level?: boolean;
+    care_offerings_enabled?: boolean;
   }>(response);
   const mode =
     payload?.care_offering_selection_mode ??
@@ -141,6 +329,14 @@ export async function fetchPublicCareOfferings(
     offerings: Array.isArray(payload?.offerings) ? payload.offerings : [],
     careOfferingSelectionMode: mode,
     careRequired: mode !== "optional",
+    collectGradeLevel: payload?.collect_grade_level !== false,
+    careOfferingsEnabled: payload?.care_offerings_enabled !== false,
+    // Attach the config only when the backend actually sent it, so the
+    // normalized shape for a payload without `school_class` is unchanged.
+    schoolClass:
+      payload?.school_class == null
+        ? undefined
+        : parseSchoolClassConfig(payload.school_class),
   };
 }
 
@@ -199,6 +395,9 @@ export interface PublicEnrollmentBootstrap {
   offerings: PublicCareOffering[];
   care_offering_selection_mode: CareOfferingSelectionMode;
   care_required: boolean;
+  school_class?: PublicSchoolClassConfig;
+  collect_grade_level: boolean;
+  care_offerings_enabled: boolean;
   captcha_config: PublicCaptchaConfig | null;
   legal_texts: PublicLegalTexts;
   profile?: MeProfileResponse | null;
@@ -207,12 +406,17 @@ export interface PublicEnrollmentBootstrap {
 export async function fetchPublicEnrollmentBootstrap(
   tenantSlug: string,
   phaseId: string,
+  options: PublicEnrollmentBootstrapFetchOptions = {},
 ): Promise<PublicEnrollmentBootstrap> {
+  let path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+    tenantSlug,
+  )}/${encodeURIComponent(phaseId)}`;
+  path = withLateInviteQuery(path, options.lateInviteToken);
   const response = await fetch(
-    `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
-      tenantSlug,
-    )}/${encodeURIComponent(phaseId)}`,
-    { cache: "no-store" },
+    path,
+    options.omitCredentials
+      ? { cache: "no-store", credentials: "omit" }
+      : { cache: "no-store" },
   );
   if (!response.ok) {
     throw await readError(
@@ -288,6 +492,14 @@ export interface StatusChild {
   status_reason?: string | null;
 }
 
+/** One additional guardian (co-guardian) on the public status page. */
+export interface StatusGuardian {
+  first_name: string;
+  last_name: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
 export interface StatusResponse {
   request_id: string;
   guardian_first_name: string;
@@ -296,7 +508,10 @@ export interface StatusResponse {
   guardian_phone?: string | null;
   submitted_at: string;
   withdrawn_at?: string | null;
+  edit_mode: EnrollmentStatusEditMode;
   children: StatusChild[];
+  /** Co-guardians the parent added beyond the primary guardian. */
+  additional_guardians?: StatusGuardian[];
 }
 
 /**
@@ -315,6 +530,100 @@ export async function fetchStatus(
     throw await readError(response, "Status konnte nicht geladen werden");
   }
   return readJSON<StatusResponse>(response);
+}
+
+export async function fetchEnrollmentEditBootstrap(
+  token: string,
+  fallback = "Anmeldung kann nicht bearbeitet werden",
+): Promise<EnrollmentEditBootstrap> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/edit-bootstrap`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, fallback);
+  }
+  return readJSON<EnrollmentEditBootstrap>(response);
+}
+
+export async function updateEnrollmentRequest(
+  token: string,
+  payload: SubmitEnrollmentPayload,
+  fallback = "Änderungen konnten nicht gespeichert werden",
+): Promise<SubmitEnrollmentResult> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, fallback);
+  }
+  return readJSON<SubmitEnrollmentResult>(response);
+}
+
+export async function createEnrollmentChangeRequest(
+  token: string,
+  payload: SubmitEnrollmentPayload,
+  parentNote = "",
+  fallback = "Änderungsanfrage konnte nicht gespeichert werden",
+): Promise<EnrollmentChangeRequest> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        parent_note: parentNote,
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, fallback);
+  }
+  return readJSON<EnrollmentChangeRequest>(response);
+}
+
+export async function listEnrollmentChangeRequests(
+  token: string,
+): Promise<EnrollmentChangeRequest[]> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Änderungsanfragen konnten nicht geladen werden",
+    );
+  }
+  const list = await readJSON<EnrollmentChangeRequest[]>(response);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function replyEnrollmentChangeRequest(
+  token: string,
+  changeRequestId: string,
+  body: string,
+): Promise<EnrollmentChangeRequest> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(
+      token,
+    )}/change-requests/${encodeURIComponent(changeRequestId)}/messages`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Antwort konnte nicht gesendet werden");
+  }
+  return readJSON<EnrollmentChangeRequest>(response);
 }
 
 export async function patchStatus(

@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Account represents an authentication account
@@ -26,6 +25,11 @@ type Account struct {
 	PINLockedUntil *time.Time `bun:"pin_locked_until" json:"-"`
 	MFAAttempts    int        `bun:"mfa_attempts,default:0" json:"-"`
 	MFALockedUntil *time.Time `bun:"mfa_locked_until" json:"-"`
+	// CalendarFeedToken stores the SHA-256 HASH of the secret capability token in
+	// the parent's iCalendar subscription URL — never the raw token, so a DB read
+	// exposes no replayable /api/calendar-feed/{token} URL. The service hashes on
+	// write and before lookup. Unset until the parent first requests their feed.
+	CalendarFeedToken *string `bun:"calendar_feed_token" json:"-"`
 	// The per-account MFA admin override no longer lives on this row.
 	// Tenant-scoped overrides + the operator's account-wide emergency
 	// override are stored in auth.mfa_overrides — see
@@ -38,36 +42,25 @@ type Account struct {
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
 }
 
-// TableName returns the database table name
-func (a *Account) TableName() string {
-	return "auth.accounts"
-}
-
-// BeforeAppendModel lets us modify query before it's executed
-func (a *Account) BeforeAppendModel(query any) error {
-	// INSERT queries should not use aliases
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.accounts AS "account"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.accounts AS "account"`)
-	}
-	return nil
-}
-
 // Validate ensures account data is valid
 func (a *Account) Validate() error {
-	if a.Email == "" {
+	return validateAccountEmail(&a.Email)
+}
+
+// validateAccountEmail is the shared required/format/lowercase email rule
+// of Account and AccountParent. It normalizes the address in place.
+func validateAccountEmail(email *string) error {
+	if *email == "" {
 		return errors.New("email is required")
 	}
 
 	// Validate email format
-	if _, err := mail.ParseAddress(a.Email); err != nil {
+	if _, err := mail.ParseAddress(*email); err != nil {
 		return errors.New("invalid email format")
 	}
 
 	// Convert email to lowercase for consistency
-	a.Email = strings.ToLower(a.Email)
+	*email = strings.ToLower(*email)
 
 	return nil
 }
@@ -80,21 +73,6 @@ func (a *Account) IsActive() bool {
 // SetLastLogin updates the last login timestamp
 func (a *Account) SetLastLogin(time time.Time) {
 	a.LastLogin = &time
-}
-
-// GetID returns the entity's ID
-func (a *Account) GetID() interface{} {
-	return a.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (a *Account) GetCreatedAt() time.Time {
-	return a.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (a *Account) GetUpdatedAt() time.Time {
-	return a.UpdatedAt
 }
 
 // PIN-related methods

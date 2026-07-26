@@ -3,7 +3,8 @@ package enrollment
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -54,6 +55,18 @@ func gradeLabel(grade *int16) string {
 		return ""
 	}
 	return strconv.Itoa(int(*grade)) + ". Klasse"
+}
+
+// schoolClassLabel is what the "Klasse"/"Zielklasse" export cell shows:
+// the concrete class (e.g. "2a") when the parent picked one, otherwise
+// the grade-level label ("N. Klasse") as a fallback (issue #1833).
+func schoolClassLabel(concrete *string, grade *int16) string {
+	if concrete != nil {
+		if t := strings.TrimSpace(*concrete); t != "" {
+			return t
+		}
+	}
+	return gradeLabel(grade)
 }
 
 var consentLabelsDE = []struct {
@@ -144,6 +157,8 @@ func formatCustomValue(field enrollmentModels.FormField, raw any) string {
 		return formatWeekdayBoolean(raw)
 	case enrollmentModels.FormFieldWeekdayMode:
 		return formatWeekdayMode(raw)
+	case enrollmentModels.FormFieldWeekdayMultiMode:
+		return formatWeekdayMultiMode(raw)
 	case enrollmentModels.FormFieldPhoneList:
 		return formatPhoneList(raw)
 	case enrollmentModels.FormFieldContactList:
@@ -171,11 +186,40 @@ func formatWeekdayBoolean(raw any) string {
 	return strings.Join(parts, ", ")
 }
 
+func formatWeekdayMultiMode(raw any) string {
+	var modes enrollmentModels.WeekdayMultiMode
+	if !decodeComposite(raw, &modes) {
+		return stringifyValue(raw)
+	}
+	parts := make([]string, 0, len(weekdayOrder))
+	for _, day := range weekdayOrder {
+		rawModes := modes[day]
+		if len(rawModes) == 0 {
+			continue
+		}
+		modeParts := make([]string, 0, len(rawModes))
+		for _, mode := range rawModes {
+			modeLabel := departureModeLabelsDE[mode]
+			if modeLabel == "" {
+				modeLabel = mode
+			}
+			modeParts = append(modeParts, modeLabel)
+		}
+		label := dayLabelsDE[day]
+		if label == "" {
+			label = day
+		}
+		parts = append(parts, label+": "+strings.Join(modeParts, ", "))
+	}
+	return strings.Join(parts, "; ")
+}
+
 // departureModeLabelsDE renders a per-day departure mode for staff exports.
 var departureModeLabelsDE = map[string]string{
-	enrollmentModels.WeekdayModeAlone:  "geht alleine",
-	enrollmentModels.WeekdayModeBus:    "fährt Bus",
-	enrollmentModels.WeekdayModePickup: "wird abgeholt",
+	enrollmentModels.WeekdayModeAlone:       "geht zu Fuß",
+	enrollmentModels.WeekdayModeBus:         "fährt Bus",
+	enrollmentModels.WeekdayModePickup:      "wird abgeholt",
+	enrollmentModels.WeekdayModeAccompanied: "geht mit anderem Kind",
 }
 
 // formatWeekdayMode renders mon..fri → alone/bus/pickup as
@@ -311,41 +355,47 @@ func formatContactList(raw any) string {
 	}
 	parts := make([]string, 0, len(contacts))
 	for _, c := range contacts {
-		name := strings.TrimSpace(c.FirstName + " " + c.LastName)
-		if name == "" {
-			name = "Kontakt"
-		}
-		extras := make([]string, 0, 4)
-		if rel := strings.TrimSpace(c.RelationshipType); rel != "" {
-			extras = append(extras, rel)
-		}
-		if phones := formatPhoneEntries(c.PhoneNumbers); phones != "" {
-			extras = append(extras, "Tel: "+phones)
-		}
-		// ContactEntry.Validate accepts email OR phone, so an authorised
-		// pickup/emergency contact may carry only an email address. Phone is
-		// the priority channel in an outage, so email follows it — but it must
-		// never be dropped: for an email-only contact it is the sole way to
-		// reach them.
-		if email := strings.TrimSpace(c.Email); email != "" {
-			extras = append(extras, "E-Mail: "+email)
-		}
-		flags := make([]string, 0, 2)
-		if c.CanPickup {
-			flags = append(flags, "abholberechtigt")
-		}
-		if c.IsEmergencyContact {
-			flags = append(flags, "Notfallkontakt")
-		}
-		if len(flags) > 0 {
-			extras = append(extras, strings.Join(flags, ", "))
-		}
-		if len(extras) > 0 {
-			name += " (" + strings.Join(extras, "; ") + ")"
-		}
-		parts = append(parts, name)
+		parts = append(parts, formatContactEntry(c))
 	}
 	return strings.Join(parts, " | ")
+}
+
+// formatContactEntry renders one contact as "Vorname Nachname (Beziehung;
+// Tel: …; E-Mail: …; abholberechtigt, Notfallkontakt)".
+func formatContactEntry(c enrollmentModels.ContactEntry) string {
+	name := strings.TrimSpace(c.FirstName + " " + c.LastName)
+	if name == "" {
+		name = "Kontakt"
+	}
+	extras := make([]string, 0, 4)
+	if rel := strings.TrimSpace(c.RelationshipType); rel != "" {
+		extras = append(extras, rel)
+	}
+	if phones := formatPhoneEntries(c.PhoneNumbers); phones != "" {
+		extras = append(extras, "Tel: "+phones)
+	}
+	// ContactEntry.Validate accepts email OR phone, so an authorised
+	// pickup/emergency contact may carry only an email address. Phone is
+	// the priority channel in an outage, so email follows it — but it must
+	// never be dropped: for an email-only contact it is the sole way to
+	// reach them.
+	if email := strings.TrimSpace(c.Email); email != "" {
+		extras = append(extras, "E-Mail: "+email)
+	}
+	flags := make([]string, 0, 2)
+	if c.CanPickup {
+		flags = append(flags, "abholberechtigt")
+	}
+	if c.IsEmergencyContact {
+		flags = append(flags, "Notfallkontakt")
+	}
+	if len(flags) > 0 {
+		extras = append(extras, strings.Join(flags, ", "))
+	}
+	if len(extras) > 0 {
+		name += " (" + strings.Join(extras, "; ") + ")"
+	}
+	return name
 }
 
 // stringifyValue renders an arbitrary JSON value (from a jsonb column)
@@ -373,11 +423,7 @@ func stringifyValue(raw any) string {
 		}
 		return strings.Join(parts, ", ")
 	case map[string]any:
-		keys := make([]string, 0, len(v))
-		for k := range v {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(v))
 		parts := make([]string, 0, len(keys))
 		for _, k := range keys {
 			parts = append(parts, k+": "+stringifyValue(v[k]))
@@ -400,13 +446,6 @@ func isTruthy(raw any) bool {
 	default:
 		return false
 	}
-}
-
-func strOrEmpty(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 func timeOrEmpty(t *time.Time) string {

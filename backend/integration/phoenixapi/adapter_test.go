@@ -706,7 +706,7 @@ func TestAuthModeLabel_DeviceNoLabel(t *testing.T) {
 }
 
 func TestAuthModeLabel_None(t *testing.T) {
-	assert.Equal(t, "public", authModeLabel(AuthRef{Kind: AuthNone}))
+	assert.Equal(t, "public", authModeLabel(AuthRef{Kind: AuthKind("none")}))
 }
 
 func TestAuthModeLabel_Default(t *testing.T) {
@@ -752,7 +752,7 @@ func TestApplyAuth_DeviceEmptyPIN(t *testing.T) {
 
 func TestApplyAuth_None(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "http://test", nil)
-	applyAuth(req, AuthRef{Kind: AuthNone})
+	applyAuth(req, AuthRef{Kind: AuthKind("none")})
 	assert.Empty(t, req.Header.Get("Authorization"))
 	assert.Empty(t, req.Header.Get("X-Staff-PIN"))
 }

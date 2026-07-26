@@ -2,7 +2,8 @@ package enrollment
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -29,11 +30,7 @@ func validateOfferingGroupRules(children []SubmitChild, openByID map[int64]*enro
 	// diverge from the frontend. Offerings in one group MUST share a single
 	// non-optional rule; a group with conflicting rules is an admin
 	// misconfiguration we reject rather than silently resolve.
-	ids := make([]int64, 0, len(openByID))
-	for id := range openByID {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	ids := slices.Sorted(maps.Keys(openByID))
 
 	groupRule := map[string]string{}
 	for _, id := range ids {
@@ -55,11 +52,7 @@ func validateOfferingGroupRules(children []SubmitChild, openByID map[int64]*enro
 	}
 
 	// Stable group order so the first reported violation is deterministic.
-	groups := make([]string, 0, len(groupRule))
-	for group := range groupRule {
-		groups = append(groups, group)
-	}
-	sort.Strings(groups)
+	groups := slices.Sorted(maps.Keys(groupRule))
 
 	for idx := range children {
 		counts := offeringGroupCounts(children[idx], openByID)

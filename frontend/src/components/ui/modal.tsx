@@ -1,11 +1,26 @@
 "use client";
 
-import React, { useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
-import { useScrollLock } from "~/hooks/useScrollLock";
-import { dialogAriaProps, getModalAnimationClass } from "./modal-utils";
+import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
+import { useLatest } from "~/lib/hooks/use-latest";
+
+// Shared a11y contract for all modal dialogs (also consumed by form-modal).
+export const dialogAriaProps = {
+  role: "dialog" as const,
+  "aria-modal": true,
+};
+
+function getModalAnimationClass(
+  isAnimating: boolean,
+  isExiting: boolean,
+): string {
+  if (isAnimating && !isExiting) return "animate-modalEnter";
+  if (isExiting) return "animate-modalExit";
+  return "translate-y-8 scale-75 -rotate-1 opacity-0";
+}
 
 interface ModalProps {
   readonly isOpen: boolean;
@@ -20,6 +35,18 @@ interface ModalProps {
    * views that need more horizontal space.
    */
   readonly widthClass?: string;
+  /**
+   * Accessible label for the close button. Defaults to German; pass a
+   * translated string on localized surfaces (e.g. the parents portal).
+   */
+  readonly closeLabel?: string;
+  /**
+   * Accessible label for the dismiss-on-tap backdrop. Defaults to German;
+   * pass a translated string on localized surfaces.
+   */
+  readonly backdropLabel?: string;
+  /** Prevent every dismissal path while an operation must finish in place. */
+  readonly isDismissDisabled?: boolean;
 }
 
 export function Modal({
@@ -29,26 +56,31 @@ export function Modal({
   children,
   footer,
   widthClass = "mx-4 w-[calc(100%-2rem)] max-w-lg",
+  closeLabel = "Modal schließen",
+  backdropLabel = "Hintergrund - Klicken zum Schließen",
+  isDismissDisabled = false,
 }: ModalProps) {
+  // Stable id so the dialog can reference its heading via aria-labelledby,
+  // giving the dialog an accessible name (role="dialog" alone has none).
+  const titleId = React.useId();
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
 
   // Store functions in refs to avoid effect re-runs
-  const openModalRef = useRef(openModal);
-  const closeModalRef = useRef(closeModal);
-  openModalRef.current = openModal;
-  closeModalRef.current = closeModal;
+  const openModalRef = useLatest(openModal);
+  const closeModalRef = useLatest(closeModal);
 
   // Use scroll lock hook
   useScrollLock(isOpen);
 
   // Store onClose in a ref so handleClose never changes identity
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  const onCloseRef = useLatest(onClose);
+  const isDismissDisabledRef = useLatest(isDismissDisabled);
 
   // Enhanced close handler with exit animation (stable — no deps on onClose)
   const handleClose = useCallback(() => {
+    if (isDismissDisabledRef.current) return;
     setIsExiting(true);
     setIsAnimating(false);
 
@@ -56,17 +88,19 @@ export function Modal({
     setTimeout(() => {
       onCloseRef.current();
     }, 250);
-  }, []);
+  }, [isDismissDisabledRef, onCloseRef]);
 
   // Handle modal context state for blur overlay
   useEffect(() => {
     if (isOpen) {
-      openModalRef.current();
+      const openModal = openModalRef.current;
+      const closeModal = closeModalRef.current;
+      openModal();
       return () => {
-        closeModalRef.current();
+        closeModal();
       };
     }
-  }, [isOpen]);
+  }, [closeModalRef, isOpen, openModalRef]);
 
   // Handle escape key and animations
   useEffect(() => {
@@ -76,8 +110,19 @@ export function Modal({
       return;
     }
 
+    // Ignore the Escape that is already dispatching when this listener is
+    // attached: a Vaul drawer closes synchronously DURING the keydown, so a
+    // modal that remounts in that same dispatch (e.g. the Betreuungsplan
+    // detail modal resuming after the Termin-Editor, #1956) would receive
+    // the very same event and immediately close itself. Deliberately NOT a
+    // timestamp comparison — WebKit reports event.timeStamp on a wall-clock
+    // basis (not time-origin relative, webkit.org/b/211101), so it cannot
+    // be compared against performance.now(). window.event is deprecated but
+    // exactly identifies the in-flight event; outside a dispatch it is
+    // undefined and the guard never triggers.
+    const inFlightEvent = window.event;
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && event !== inFlightEvent) {
         handleClose();
       }
     };
@@ -126,7 +171,8 @@ export function Modal({
           type="button"
           tabIndex={-1}
           onClick={handleClose}
-          aria-label="Hintergrund - Klicken zum Schließen"
+          disabled={isDismissDisabled}
+          aria-label={backdropLabel}
           className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
             isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
           }`}
@@ -139,8 +185,9 @@ export function Modal({
         />
         {/* Dialog container */}
         <div
-          className={`relative ${widthClass} transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
+          className={`relative ${widthClass} flex max-h-[calc(100dvh-2rem)] transform flex-col overflow-hidden overscroll-contain rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
+          aria-labelledby={title ? titleId : undefined}
           style={{
             background:
               "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
@@ -152,14 +199,19 @@ export function Modal({
         >
           {/* Header with close button - only show border if title exists */}
           {title ? (
-            <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6">
-              <h3 className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 p-4 sm:p-6">
+              <h3
+                id={titleId}
+                className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl"
+              >
                 {title}
               </h3>
               <button
+                type="button"
                 onClick={handleClose}
+                disabled={isDismissDisabled}
                 className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-                aria-label="Modal schließen"
+                aria-label={closeLabel}
               >
                 {/* Animated X icon */}
                 <svg
@@ -188,9 +240,11 @@ export function Modal({
           ) : (
             /* X button positioned absolutely in top-right when no title */
             <button
+              type="button"
               onClick={handleClose}
+              disabled={isDismissDisabled}
               className="group absolute top-4 right-4 z-10 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-              aria-label="Modal schließen"
+              aria-label={closeLabel}
             >
               {/* Animated X icon */}
               <svg
@@ -219,7 +273,7 @@ export function Modal({
 
           {/* Content area with hidden scrollbar and reveal animation */}
           <div
-            className="scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
+            className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
             data-modal-content="true"
           >
             <div
@@ -235,7 +289,7 @@ export function Modal({
 
           {/* Footer if provided */}
           {footer && (
-            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6">
+            <div className="flex shrink-0 justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6">
               {footer}
             </div>
           )}
@@ -263,6 +317,13 @@ interface ConfirmationModalProps {
   readonly cancelText?: string;
   readonly isConfirmLoading?: boolean;
   readonly isConfirmDisabled?: boolean;
+  /**
+   * Lock every dismissal path (Escape, backdrop, X, Abbrechen) while the
+   * confirm operation runs — opt-in, off by default so a stalled request can
+   * still be cancelled. Use only when abandoning mid-flight would leave
+   * inconsistent state (e.g. a multi-request operation).
+   */
+  readonly isDismissDisabled?: boolean;
   readonly confirmButtonClass?: string;
 }
 
@@ -276,6 +337,7 @@ export function ConfirmationModal({
   cancelText = "Abbrechen",
   isConfirmLoading = false,
   isConfirmDisabled = false,
+  isDismissDisabled = false,
   confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
 }: ConfirmationModalProps) {
   const modalFooter = (
@@ -283,7 +345,8 @@ export function ConfirmationModal({
       <button
         type="button"
         onClick={onClose}
-        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
+        disabled={isDismissDisabled}
+        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:shadow-none"
       >
         {cancelText}
       </button>
@@ -325,7 +388,13 @@ export function ConfirmationModal({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} footer={modalFooter}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      footer={modalFooter}
+      isDismissDisabled={isDismissDisabled}
+    >
       {children}
     </Modal>
   );

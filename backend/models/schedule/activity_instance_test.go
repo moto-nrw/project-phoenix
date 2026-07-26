@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func validActivityInstance() *ActivityInstance {
@@ -95,6 +94,21 @@ func TestActivityInstance_Validate(t *testing.T) {
 			mutate:  func(i *ActivityInstance) { i.Status = "unknown" },
 			wantErr: "invalid instance status",
 		},
+		{
+			name:    "negative required_staff override (#1839)",
+			mutate:  func(i *ActivityInstance) { rs := -1; i.RequiredStaff = &rs },
+			wantErr: "required_staff cannot be negative",
+		},
+		{
+			name:    "zero required_staff override is valid (#1839)",
+			mutate:  func(i *ActivityInstance) { rs := 0; i.RequiredStaff = &rs },
+			wantErr: "",
+		},
+		{
+			name:    "positive required_staff override is valid (#1839)",
+			mutate:  func(i *ActivityInstance) { rs := 3; i.RequiredStaff = &rs },
+			wantErr: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -141,10 +155,6 @@ func TestActivityInstance_IsLive(t *testing.T) {
 	assert.False(t, inst.IsLive())
 }
 
-func TestActivityInstance_TableName(t *testing.T) {
-	assert.Equal(t, "schedule.activity_instances", (&ActivityInstance{}).TableName())
-}
-
 func TestActivityInstance_AccessorContract(t *testing.T) {
 	now := time.Now()
 	inst := &ActivityInstance{}
@@ -155,11 +165,4 @@ func TestActivityInstance_AccessorContract(t *testing.T) {
 	assert.Equal(t, int64(17), inst.GetID())
 	assert.Equal(t, now, inst.GetCreatedAt())
 	assert.Equal(t, now.Add(time.Minute), inst.GetUpdatedAt())
-}
-
-func TestActivityInstance_BeforeAppendModel(t *testing.T) {
-	inst := &ActivityInstance{}
-	for _, q := range []any{&bun.SelectQuery{}, &bun.UpdateQuery{}, &bun.DeleteQuery{}, "unknown"} {
-		require.NoError(t, inst.BeforeAppendModel(q))
-	}
 }

@@ -16,6 +16,7 @@ export type FormFieldType =
   | "weekday_schedule"
   | "weekday_boolean"
   | "weekday_mode"
+  | "weekday_multi_mode"
   | "contact_list";
 
 /**
@@ -62,6 +63,7 @@ export type FormFieldTarget =
   // the child leaves (alone/bus/pickup). student.bus_days / student.bus /
   // student.pickup_status are legacy aliases kept so older saved schemas still
   // resolve; they are not offered in the picker for new fields.
+  | "student.allowed_departure_modes"
   | "student.departure"
   | "student.bus_days"
   | "student.bus"
@@ -90,6 +92,11 @@ export const RESERVED_TARGETS: Record<
     type: "textarea",
     appliesToChild: true,
     label: "Hinweise an die Betreuung",
+  },
+  "student.allowed_departure_modes": {
+    type: "weekday_multi_mode",
+    appliesToChild: true,
+    label: "Erlaubte Heimwege",
   },
   "student.departure": {
     type: "weekday_mode",
@@ -151,6 +158,13 @@ export interface FormField {
    */
   content?: string;
   options?: FormFieldOption[];
+  /**
+   * Fixed pickup times for a `weekday_schedule` field. When non-empty,
+   * the public form renders a dropdown limited to these `HH:MM` values
+   * per weekday instead of a free time input, and the backend rejects
+   * any off-list time. Empty/undefined = free time entry.
+   */
+  allowed_times?: string[];
   validation?: FormFieldValidation | null;
   sort_order: number;
   applies_to_child?: boolean;
@@ -177,6 +191,8 @@ type LegalBlockKind = "terms" | "privacy_notice" | "notice" | "consent";
 
 type LegalBlockSource = "standard" | "custom";
 
+export type LegalBlockDisplayMode = "text" | "pdf";
+
 export interface FormLegalBlock {
   key: string;
   kind: LegalBlockKind;
@@ -187,6 +203,8 @@ export interface FormLegalBlock {
   enabled: boolean;
   sort_order: number;
   source?: LegalBlockSource;
+  display_mode?: LegalBlockDisplayMode;
+  document_url?: string;
 }
 
 export interface FormSchema {
@@ -380,6 +398,8 @@ export interface PublicLegalBlock {
  */
 export interface PublicLegalTexts {
   agb: string;
+  agb_document_url?: string;
+  agb_display_mode?: "text" | "pdf";
   dsgvo: string;
   email_contact: string;
   photo: string;
@@ -399,9 +419,16 @@ export interface PublicLegalTexts {
 export async function fetchPublicLegalTexts(
   tenantSlug: string,
   phaseId?: string,
+  options: { lateInviteToken?: string } = {},
 ): Promise<PublicLegalTexts> {
   const path = `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
-  const url = phaseId ? `${path}?phaseId=${encodeURIComponent(phaseId)}` : path;
+  const params = new URLSearchParams();
+  if (phaseId) params.set("phaseId", phaseId);
+  if (options.lateInviteToken?.trim()) {
+    params.set("late_invite", options.lateInviteToken.trim());
+  }
+  const query = params.toString();
+  const url = query ? `${path}?${query}` : path;
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw await readEnrollmentError(
@@ -417,13 +444,16 @@ export async function fetchPublicLegalTexts(
 export async function fetchPublicActiveSchema(
   tenantSlug: string,
   phaseId: string,
+  options: { lateInviteToken?: string } = {},
 ): Promise<PublicFormSchema | null> {
-  const response = await fetch(
-    `/api/enrollment/schema/public/${encodeURIComponent(
-      tenantSlug,
-    )}/${encodeURIComponent(phaseId)}`,
-    { cache: "no-store" },
-  );
+  const path = `/api/enrollment/schema/public/${encodeURIComponent(
+    tenantSlug,
+  )}/${encodeURIComponent(phaseId)}`;
+  const trimmedToken = options.lateInviteToken?.trim();
+  const url = trimmedToken
+    ? `${path}?late_invite=${encodeURIComponent(trimmedToken)}`
+    : path;
+  const response = await fetch(url, { cache: "no-store" });
   if (response.status === 404) {
     return null;
   }
@@ -480,18 +510,27 @@ export async function createSchema(
  * name. Older versions stay in place for historical submissions, and
  * phases using an older version of this template are moved to the new
  * schema_id.
+ *
+ * Pass `newName` to rename the whole lineage AND publish the new version
+ * in ONE backend transaction (a combined "rename + edit" save). A failed
+ * publish rolls the rename back, so there is no partial "renamed but
+ * content unchanged" state. A 409 (`enrollment.schema_name_exists`) is
+ * raised when the new name already identifies a different schema.
  */
 export async function updateSchema(
   id: string,
   fields: FormField[],
   coreRequirements?: CoreRequirements,
   legalBlocks?: FormLegalBlock[],
+  newName?: string,
 ): Promise<FormSchema> {
   const body: {
+    name?: string;
     fields: FormField[];
     core_requirements?: CoreRequirements;
     legal_blocks?: FormLegalBlock[];
   } = { fields };
+  if (newName !== undefined) body.name = newName;
   if (coreRequirements !== undefined) body.core_requirements = coreRequirements;
   if (legalBlocks !== undefined) body.legal_blocks = legalBlocks;
   const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
@@ -505,6 +544,80 @@ export async function updateSchema(
       "Formularvorlage konnte nicht gespeichert werden",
       logger,
       "schema_update_failed",
+    );
+  }
+  return readJSON<FormSchema>(response);
+}
+
+export async function uploadEnrollmentLegalDocument(
+  file: File,
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("document", file);
+
+  const response = await fetch("/api/enrollment/legal-documents", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const message =
+      response.status === 413
+        ? "Die PDF-Datei darf maximal 10 MB groß sein."
+        : response.status === 415
+          ? "Bitte eine PDF-Datei hochladen."
+          : "PDF-Datei konnte nicht hochgeladen werden";
+    throw new Error(message);
+  }
+
+  const result = (await response.json()) as {
+    data?: { document_url?: string };
+  };
+  const documentURL = result.data?.document_url;
+  if (!documentURL) {
+    throw new Error("PDF-Datei konnte nicht hochgeladen werden");
+  }
+  return documentURL;
+}
+
+export async function deleteEnrollmentLegalDocument(
+  documentURL: string,
+  options: { keepalive?: boolean } = {},
+): Promise<void> {
+  const filename = documentURL.trim().split("/").pop();
+  if (!filename) return;
+
+  const response = await fetch(
+    `/api/enrollment/legal-documents/${encodeURIComponent(filename)}`,
+    { keepalive: options.keepalive, method: "DELETE" },
+  );
+  if (!response.ok) {
+    throw new Error("PDF-Datei konnte nicht entfernt werden");
+  }
+}
+
+/**
+ * Renames a logical schema. Every version row sharing the source's name
+ * is renamed atomically, so the whole version lineage keeps one shared
+ * name. This publishes no new version and leaves the form fields
+ * untouched. The backend rejects (409) a name already used by a
+ * different schema.
+ */
+export async function renameSchema(
+  id: string,
+  name: string,
+): Promise<FormSchema> {
+  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) {
+    throw await readEnrollmentError(
+      response,
+      "Formularvorlage konnte nicht umbenannt werden",
+      logger,
+      "schema_rename_failed",
     );
   }
   return readJSON<FormSchema>(response);

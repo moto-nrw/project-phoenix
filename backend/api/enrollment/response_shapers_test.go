@@ -73,6 +73,18 @@ func TestToCareOfferingResponse_PreservesNilPointers(t *testing.T) {
 	assert.Nil(t, out.PriceCents)
 }
 
+func TestToCareOfferingResponseIncludesAvailabilityRule(t *testing.T) {
+	o := &enrollmentModels.CareOffering{AvailabilityRule: &enrollmentModels.CareOfferingAvailabilityRule{
+		Match: enrollmentModels.AvailabilityMatchAll,
+		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
+			Source: enrollmentModels.AvailabilitySourceGradeLevel, Operator: enrollmentModels.AvailabilityOperatorIn, Value: []int{1, 2},
+		}},
+	}}
+	out := toCareOfferingResponse(o)
+	require.NotNil(t, out.AvailabilityRule)
+	assert.Equal(t, []int{1, 2}, out.AvailabilityRule.Conditions[0].Value)
+}
+
 // --- renderPublicEnrollmentError -----------------------------------------
 
 func TestRenderPublicEnrollmentError_EnrollmentDisabled404WithCode(t *testing.T) {

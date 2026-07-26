@@ -44,11 +44,6 @@ func TestAttendance_GetUpdatedAt(t *testing.T) {
 	assert.Equal(t, now, attendance.GetUpdatedAt())
 }
 
-func TestAttendance_TableName(t *testing.T) {
-	attendance := &Attendance{}
-	assert.Equal(t, "active.attendance", attendance.TableName())
-}
-
 func TestAttendance_IsCheckedIn_WhenCheckedIn(t *testing.T) {
 	now := time.Now()
 	attendance := &Attendance{

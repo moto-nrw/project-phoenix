@@ -2,16 +2,16 @@ package iot
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -80,37 +80,11 @@ func (s *service) IsDeviceOnlineAt(ctx context.Context, device *iot.Device, now 
 // DeviceOnlineWindow resolves the per-tenant device-online window, falling back
 // to defaultDeviceOnlineWindow when no override exists or the lookup fails.
 func (s *service) DeviceOnlineWindow(ctx context.Context) time.Duration {
-	if s.settings == nil {
-		return defaultDeviceOnlineWindow
-	}
-	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyDeviceOnlineWindowMinutes)
-	if err != nil {
-		slog.WarnContext(ctx, "device online window override check failed, using default",
-			slog.String("key", configModel.KeyDeviceOnlineWindowMinutes),
-			slog.String("error", err.Error()),
-		)
-		return defaultDeviceOnlineWindow
-	}
-	if !has {
-		return defaultDeviceOnlineWindow
-	}
-	minutes, err := s.settings.ResolveInt(ctx, configModel.KeyDeviceOnlineWindowMinutes)
-	if err != nil || minutes <= 0 {
+	minutes := config.ResolveIntOrDefault(ctx, s.settings, configModel.KeyDeviceOnlineWindowMinutes, 0, slog.Default())
+	if minutes <= 0 {
 		return defaultDeviceOnlineWindow
 	}
 	return time.Duration(minutes) * time.Minute
-}
-
-// generateAPIKey generates a secure random API key for device authentication
-func (s *service) generateAPIKey() (string, error) {
-	// Generate 32 random bytes
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-
-	// Convert to hex string and add prefix
-	return fmt.Sprintf("dev_%s", hex.EncodeToString(bytes)), nil
 }
 
 // CreateDevice creates a new IoT device
@@ -137,7 +111,7 @@ func (s *service) CreateDevice(ctx context.Context, device *iot.Device) error {
 
 	// Generate API key if not provided
 	if device.APIKey == nil || *device.APIKey == "" {
-		apiKey, err := s.generateAPIKey()
+		apiKey, err := randstr.APIKey()
 		if err != nil {
 			return &IoTError{Op: "CreateDevice", Err: fmt.Errorf("failed to generate API key: %w", err)}
 		}
@@ -406,7 +380,7 @@ func (s *service) GetDevicesByRegisteredBy(ctx context.Context, personID int64) 
 
 // GetActiveDevices retrieves all active devices
 func (s *service) GetActiveDevices(ctx context.Context) ([]*iot.Device, error) {
-	devices, err := s.deviceRepo.FindActiveDevices(ctx)
+	devices, err := s.deviceRepo.FindByStatus(ctx, iot.DeviceStatusActive)
 	if err != nil {
 		return nil, &IoTError{Op: "GetActiveDevices", Err: err}
 	}
@@ -416,7 +390,7 @@ func (s *service) GetActiveDevices(ctx context.Context) ([]*iot.Device, error) {
 
 // GetDevicesRequiringMaintenance retrieves all devices requiring maintenance
 func (s *service) GetDevicesRequiringMaintenance(ctx context.Context) ([]*iot.Device, error) {
-	devices, err := s.deviceRepo.FindDevicesRequiringMaintenance(ctx)
+	devices, err := s.deviceRepo.FindByStatus(ctx, iot.DeviceStatusMaintenance)
 	if err != nil {
 		return nil, &IoTError{Op: "GetDevicesRequiringMaintenance", Err: err}
 	}
@@ -464,13 +438,6 @@ func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 	// This would be implemented with actual network scanning logic in a real system
 	// For now, just return an error to indicate this is not implemented
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}
-}
-
-// UpdateDeviceLastSeen updates only the last_seen timestamp for a device by PK.
-// This is a targeted update that skips existence checks and full-model validation,
-// intended for use in middleware where the device has already been authenticated.
-func (s *service) UpdateDeviceLastSeen(ctx context.Context, id int64) error {
-	return s.UpdateDeviceLastSeenAt(ctx, id, time.Now())
 }
 
 // UpdateDeviceLastSeenAt updates only the last_seen timestamp for a device using

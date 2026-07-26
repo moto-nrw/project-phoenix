@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -112,36 +111,6 @@ func (r *DateframeRepository) FindOverlapping(ctx context.Context, startDate, en
 	}
 
 	return dateframes, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *DateframeRepository) Create(ctx context.Context, dateframe *schedule.Dateframe) error {
-	if dateframe == nil {
-		return fmt.Errorf("dateframe cannot be nil")
-	}
-
-	// Validate dateframe
-	if err := dateframe.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, dateframe)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *DateframeRepository) Update(ctx context.Context, dateframe *schedule.Dateframe) error {
-	if dateframe == nil {
-		return fmt.Errorf("dateframe cannot be nil")
-	}
-
-	// Validate dateframe
-	if err := dateframe.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, dateframe)
 }
 
 // List retrieves dateframes matching the provided query options

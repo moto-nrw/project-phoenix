@@ -15,25 +15,46 @@ export type EnrollmentAPIError = Error & {
   rawMessage?: string;
 };
 
+export const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
+  "Der Planungszeitraum des gewählten Regeltermins muss den gesamten Betreuungszeitraum der Anmeldephase abdecken. Wähle einen passenden Regeltermin oder entferne die Verknüpfung.";
+
 const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
   "enrollment.care_offering_missing":
     "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
   "enrollment.care_offering_exactly_one":
     "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.",
+  "enrollment.care_offering_unavailable":
+    "Ein ausgewähltes Betreuungsangebot ist für die Klassenstufe dieses Kindes nicht verfügbar. Bitte prüfe die Klassenstufe und die Auswahl.",
   "enrollment.required_care_offering_missing":
     "Für jedes Kind muss ein verpflichtendes Betreuungsangebot ausgewählt sein.",
   "enrollment.care_offering_full":
     "Eines der ausgewählten Betreuungsangebote ist bereits voll und kann derzeit keine weiteren Anmeldungen aufnehmen. Bitte wähle ein anderes Angebot oder wende dich an die Schule.",
+  "enrollment.care_offering_template_period_mismatch":
+    CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE,
   "enrollment.disabled":
     "Die Online-Anmeldung ist für diese Schule aktuell nicht freigeschaltet. Bitte wende dich an die Schulleitung.",
   "enrollment.window_closed":
     "Die Anmeldefrist für diese Anmeldephase ist abgelaufen oder noch nicht geöffnet. Bitte wende dich an die Schule.",
   "enrollment.invalid_phone": "Bitte gib eine gültige Telefonnummer ein.",
   "enrollment.invalid_email": "Bitte gib eine gültige E-Mail-Adresse ein.",
+  "enrollment.pickup_time_not_allowed":
+    "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste. Die markierte Zeit ist nicht mehr verfügbar.",
+  "enrollment.selected_day_not_available":
+    "Der gewählte Wochentag ist für dieses Angebot nicht verfügbar. Bitte wähle nur die angezeigten Tage aus.",
+  "enrollment.day_selection_required":
+    "Bitte wähle für dieses Angebot mindestens einen Wochentag aus.",
+  "enrollment.day_selection_not_allowed":
+    "Für dieses Angebot sind die Betreuungstage fest vorgegeben und können nicht ausgewählt werden.",
+  "enrollment.care_offering_days_required":
+    "Bitte wähle mindestens einen Wochentag für das Angebot aus.",
+  "enrollment.late_invite_invalid":
+    "Dieser Nachzügler-Link ist ungültig, abgelaufen oder wurde bereits verwendet. Bitte wende dich an die Schule.",
   "enrollment.schema_has_phases":
     "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
   "enrollment.schema_has_requests":
     "Diese Formularvorlage wurde bereits für Anmeldungen verwendet und kann nicht gelöscht werden.",
+  "enrollment.schema_name_exists":
+    "Es gibt bereits ein Formular mit diesem Namen.",
   "rollover.source_not_found": "Die Quellphase wurde nicht gefunden.",
   "rollover.invalid_request":
     "Die Eingaben sind unvollständig oder ungültig. Bitte alle Pflichtfelder prüfen.",

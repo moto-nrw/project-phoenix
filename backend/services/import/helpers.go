@@ -139,6 +139,10 @@ var departureModeAliases = map[string]string{
 	"wird abgeholt": "pickup",
 	"abgeholt":      "pickup",
 	"pickup":        "pickup",
+	// "Mit anderem Kind" (#1694): accompanied departure with another child.
+	"mit anderem kind": "accompanied",
+	"begleitet":        "accompanied",
+	"accompanied":      "accompanied",
 }
 
 // parseDepartureDayColumns reads the optional per-day Gehweise columns
@@ -158,7 +162,7 @@ func parseDepartureDayColumns(mapper *ColumnMapper) (map[string]string, error) {
 		normalized := strings.ToLower(strings.TrimSpace(raw))
 		mode, ok := departureModeAliases[normalized]
 		if !ok {
-			return nil, fmt.Errorf("%s enthält ungültigen Wert %q (erlaubt: alleine, bus, abholung)", d.col, raw)
+			return nil, fmt.Errorf("%s enthält ungültigen Wert %q (erlaubt: alleine, bus, abholung, mit anderem Kind)", d.col, raw)
 		}
 		if days == nil {
 			days = make(map[string]string, len(departureDayColumns))
@@ -219,6 +223,8 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 		return row, err
 	}
 	row.DepartureDays = departureDays
+	// Free-text "mit wem" for the accompanied departure mode (#1694).
+	row.DepartureCompanionNote = mapper.GetCol("begleitung")
 	row.EnrolledFrom = mapper.GetCol("einschreibung von")
 	row.EnrolledUntil = mapper.GetCol("einschreibung bis")
 

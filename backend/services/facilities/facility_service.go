@@ -6,15 +6,17 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"sort"
+	"maps"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Operation name constants to avoid string duplication
@@ -26,8 +28,19 @@ const (
 
 // service implements the facilities.Service interface
 type service struct {
-	roomRepo        facilities.RoomRepository
-	activeGroupRepo active.GroupRepository
+	roomRepo                         facilities.RoomRepository
+	activeGroupRepo                  active.GroupRepository
+	lockTemplateRecurrence           func(context.Context) error
+	validateCareOfferingRoomDeletion func(context.Context, int64) error
+}
+
+// ServiceConfig carries the optional cross-domain guard needed by room
+// deletion. NewService remains for focused tests and legacy wiring.
+type ServiceConfig struct {
+	RoomRepo                         facilities.RoomRepository
+	ActiveGroupRepo                  active.GroupRepository
+	LockTemplateRecurrence           func(context.Context) error
+	ValidateCareOfferingRoomDeletion func(context.Context, int64) error
 }
 
 // wcRoomAliasNames lists the accepted canonical toilet-room aliases in
@@ -43,9 +56,20 @@ var wcRoomAliasNames = [...]string{constants.WCRoomName, constants.WCRoomAliasNa
 
 // NewService creates a new facilities service
 func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository) Service {
+	return NewServiceWithConfig(ServiceConfig{
+		RoomRepo:        roomRepo,
+		ActiveGroupRepo: activeGroupRepo,
+	})
+}
+
+// NewServiceWithConfig builds the facilities service with recurrence-aware
+// room deletion validation.
+func NewServiceWithConfig(cfg ServiceConfig) Service {
 	return &service{
-		roomRepo:        roomRepo,
-		activeGroupRepo: activeGroupRepo,
+		roomRepo:                         cfg.RoomRepo,
+		activeGroupRepo:                  cfg.ActiveGroupRepo,
+		lockTemplateRecurrence:           cfg.LockTemplateRecurrence,
+		validateCareOfferingRoomDeletion: cfg.ValidateCareOfferingRoomDeletion,
 	}
 }
 
@@ -97,6 +121,13 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 	// Validate room data
 	if err := room.Validate(); err != nil {
 		return &FacilitiesError{Op: opCreateRoom, Err: translateValidationError(err)}
+	}
+	// Schulhof is an application invariant, not a normal room label. Reserve
+	// every case variant because repository name lookup is case-insensitive;
+	// only dedicated provisioning may create the exact canonical spelling.
+	if strings.EqualFold(room.Name, constants.SchulhofRoomName) &&
+		(room.Name != constants.SchulhofRoomName || !room.IsSystem) {
+		return &FacilitiesError{Op: opCreateRoom, Err: ErrSystemRoomNameReserved}
 	}
 
 	// Set tenant ID from context
@@ -150,7 +181,7 @@ func translateValidationError(err error) error {
 // constraint name is checked so other future unique indexes on the table do
 // not accidentally surface as "color already in use" toasts.
 func isUniqueColorViolation(err error) bool {
-	return isUniqueViolationOnIndex(err, facilities.RoomColorUniqueConstraintName)
+	return base.IsUniqueViolationOn(err, facilities.RoomColorUniqueConstraintName)
 }
 
 // isUniqueWCAliasViolation reports whether err is a PostgreSQL 23505 raised
@@ -158,29 +189,7 @@ func isUniqueColorViolation(err error) bool {
 // per tenant". Hit only on the TOCTOU race the application-level guard in
 // CreateRoom/UpdateRoom can't close — see migration 1.15.48.
 func isUniqueWCAliasViolation(err error) bool {
-	return isUniqueViolationOnIndex(err, facilities.RoomWCAliasUniqueConstraintName)
-}
-
-// isUniqueViolationOnIndex reports whether err is a PostgreSQL 23505 raised
-// by the named partial unique index. Pulled out of isUniqueColorViolation
-// because we now have two such indexes on facilities.rooms and the matching
-// logic is identical — only the index name differs.
-func isUniqueViolationOnIndex(err error, indexName string) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if !errors.As(err, &pgErr) {
-		return false
-	}
-	if pgErr.Field('C') != "23505" {
-		return false
-	}
-	return pgErr.Field('n') == indexName
+	return base.IsUniqueViolationOn(err, facilities.RoomWCAliasUniqueConstraintName)
 }
 
 // equalStringPtr compares two *string for equality treating nil as "no value"
@@ -257,6 +266,12 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 	// Block renaming system rooms (Schulhof, WC)
 	if constants.IsSystemRoomName(existingRoom.Name) && room.Name != existingRoom.Name {
 		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
+	}
+	// Reserve Schulhof as a rename target as well. Without this guard, a
+	// normal room could become Schulhof after timetable Start validated it,
+	// leaving a generic active group in the dedicated supervision room.
+	if existingRoom.Name != room.Name && strings.EqualFold(room.Name, constants.SchulhofRoomName) {
+		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomNameReserved}
 	}
 
 	// System-room color handling.
@@ -353,12 +368,34 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 	} else if len(activeGroups) > 0 {
 		return &FacilitiesError{Op: "delete room", Err: ErrRoomInUse}
 	}
+	if err := s.validateRoomCareOfferingDeletion(ctx, id); err != nil {
+		return err
+	}
 
 	// Delete the room
 	if err := s.roomRepo.Delete(ctx, id); err != nil {
 		return &FacilitiesError{Op: "delete room", Err: err}
 	}
 
+	return nil
+}
+
+func (s *service) validateRoomCareOfferingDeletion(ctx context.Context, id int64) error {
+	if s.validateCareOfferingRoomDeletion == nil {
+		return nil
+	}
+	if s.lockTemplateRecurrence == nil {
+		return &FacilitiesError{Op: "delete room: lock timetable recurrence", Err: errors.New("template recurrence lock is not configured")}
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return &FacilitiesError{Op: "delete room: lock timetable recurrence", Err: err}
+	}
+	if err := s.validateCareOfferingRoomDeletion(ctx, id); err != nil {
+		if errors.Is(err, enrollmentModels.ErrCareOfferingInvalid) {
+			return &FacilitiesError{Op: "delete room", Err: ErrRoomRequiredByCareOffering}
+		}
+		return &FacilitiesError{Op: "delete room: validate care offerings", Err: err}
+	}
 	return nil
 }
 
@@ -414,16 +451,6 @@ func (s *service) FindRoomByName(ctx context.Context, name string) (*facilities.
 	return room, nil
 }
 
-// FindRoomsByBuilding finds rooms by building
-func (s *service) FindRoomsByBuilding(ctx context.Context, building string) ([]*facilities.Room, error) {
-	rooms, err := s.roomRepo.FindByBuilding(ctx, building)
-	if err != nil {
-		return nil, &FacilitiesError{Op: "find rooms by building", Err: err}
-	}
-
-	return rooms, nil
-}
-
 // FindRoomsByCategory finds rooms by category
 func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*facilities.Room, error) {
 	rooms, err := s.roomRepo.FindByCategory(ctx, category)
@@ -432,26 +459,6 @@ func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*
 	}
 
 	return rooms, nil
-}
-
-// FindRoomsByFloor finds rooms by building and floor
-func (s *service) FindRoomsByFloor(ctx context.Context, building string, floor int) ([]*facilities.Room, error) {
-	rooms, err := s.roomRepo.FindByFloor(ctx, building, floor)
-	if err != nil {
-		return nil, &FacilitiesError{Op: "find rooms by floor", Err: err}
-	}
-
-	return rooms, nil
-}
-
-// CheckRoomAvailability checks if a room is available for a given capacity
-func (s *service) CheckRoomAvailability(ctx context.Context, roomID int64, requiredCapacity int) (bool, error) {
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return false, &FacilitiesError{Op: "check room availability", Err: ErrRoomNotFound}
-	}
-
-	return room.IsAvailable(requiredCapacity), nil
 }
 
 // GetAvailableRooms finds all rooms that can accommodate the given capacity
@@ -510,23 +517,6 @@ func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity i
 	return roomsWithOccupancy, nil
 }
 
-// GetRoomUtilization calculates the current utilization of a room
-func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64, error) {
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return 0, &FacilitiesError{Op: "get room utilization", Err: ErrRoomNotFound}
-	}
-
-	// This would typically be implemented by querying other systems
-	// For now just return a placeholder value
-	if room.Capacity == nil || *room.Capacity <= 0 {
-		return 0, nil
-	}
-
-	// Placeholder logic
-	return 0.0, nil
-}
-
 // GetBuildingList returns a list of all buildings in the system
 func (s *service) GetBuildingList(ctx context.Context) ([]string, error) {
 	// Get all rooms - using empty filter map for now
@@ -544,11 +534,7 @@ func (s *service) GetBuildingList(ctx context.Context) ([]string, error) {
 	}
 
 	// Convert map to sorted slice
-	buildings := make([]string, 0, len(buildingMap))
-	for building := range buildingMap {
-		buildings = append(buildings, building)
-	}
-	sort.Strings(buildings)
+	buildings := slices.Sorted(maps.Keys(buildingMap))
 
 	return buildings, nil
 }
@@ -570,11 +556,7 @@ func (s *service) GetCategoryList(ctx context.Context) ([]string, error) {
 	}
 
 	// Convert map to sorted slice
-	categories := make([]string, 0, len(categoryMap))
-	for category := range categoryMap {
-		categories = append(categories, category)
-	}
-	sort.Strings(categories)
+	categories := slices.Sorted(maps.Keys(categoryMap))
 
 	return categories, nil
 }

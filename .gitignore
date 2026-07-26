@@ -415,6 +415,7 @@ backend/server.log
 # IDE configurations
 .idea/
 .vscode/
+.serena/
 # Docker compose files should use templates
 docker-compose.yml
 docker-compose.prod.yml
@@ -458,7 +459,6 @@ docker-compose.sonar.yml
 
 .cursor/*
 
-backend/simulator/iot/simulator.yaml
 backend/.seed-state.json
 .cache_ggshield
 gitleaks-report.json
@@ -477,6 +477,9 @@ openspec/
 # Node modules (frontend manages its own via frontend/.gitignore)
 node_modules/
 
+# pnpm content-addressable store (machine-generated cache, never commit)
+.pnpm-store/
+
 # Devbox + direnv
 .devbox/
 .direnv/
@@ -489,3 +492,6 @@ node_modules/
 
 # Downloaded CI run logs dumped under docs/ for local debugging (never commit)
 docs/logs_*/
+
+# Local QA/review screenshots (kept on disk, never tracked)
+tmp-screens-1841/

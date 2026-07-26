@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -7,7 +8,7 @@ const logger = createLogger({ component: "StaffTimeTrackingExportRoute" });
 
 // Admin export proxy. Streams CSV/XLSX binary from the backend as a file
 // download. Mirrors /api/time-tracking/export but for a specific staff ID.
-export async function GET(
+async function GETHandler(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
@@ -62,3 +63,5 @@ export async function GET(
     return new Response("Internal server error", { status: 500 });
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

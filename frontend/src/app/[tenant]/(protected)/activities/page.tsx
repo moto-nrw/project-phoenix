@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { useSession } from "next-auth/react";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -18,11 +19,14 @@ import { QuickCreateActivityModal } from "~/components/activities/quick-create-m
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
-import { Loading } from "~/components/ui/loading";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
+import { ActivitiesSkeleton } from "./page-skeleton";
+import { redirect } from "next/navigation";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -61,6 +65,32 @@ function ActivitiesPageContent() {
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const { success: toastSuccess } = useToast();
   const [isMobile, setIsMobile] = useState(false);
+  const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
+
+  // useSWRAuth silently disables the fetch when there is no authenticated
+  // session (data stays undefined, isLoading stays false). Require a session
+  // here so a direct visit after logout/expiry redirects instead of showing
+  // the skeleton forever.
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      router.push("/");
+    },
+  });
+
+  // The session callback can keep status "authenticated" while clearing the
+  // token and setting session.error (expired refresh token). useSWRAuth never
+  // starts without a token, so redirect instead of showing the skeleton
+  // forever — same pattern as the dashboard.
+  if (
+    status === "authenticated" &&
+    session &&
+    (session.error === "RefreshTokenExpired" || !session.user?.token)
+  ) {
+    logger.info("invalid session, redirecting to login");
+    redirect(tenantPath("/"));
+  }
 
   // Fetch activities, categories, and current staff with SWR
   const {
@@ -257,8 +287,18 @@ function ActivitiesPageContent() {
     return filters;
   }, [searchTerm, categoryFilter, myActivitiesFilter, categories]);
 
-  if (isLoading) {
-    return <Loading fullPage={false} />;
+  // Session loading is gated explicitly via status; the data clause covers
+  // the render tick between "authenticated" and SWR starting its first fetch
+  // (isLoading is still false there but no data exists yet). Unauthenticated
+  // visits redirect via the required-session guard, and expired/tokenless
+  // sessions redirect via the effect above, so this cannot show the skeleton
+  // indefinitely.
+  if (
+    status === "loading" ||
+    isLoading ||
+    (pageData === undefined && !fetchError)
+  ) {
+    return <ActivitiesSkeleton />;
   }
 
   return (
@@ -302,6 +342,7 @@ function ActivitiesPageContent() {
             actionButton={
               !isMobile && (
                 <button
+                  type="button"
                   onClick={() => setIsQuickCreateOpen(true)}
                   className="group flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950"
                   aria-label="Aktivität erstellen"
@@ -327,6 +368,7 @@ function ActivitiesPageContent() {
 
         {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
         <button
+          type="button"
           onClick={() => setIsQuickCreateOpen(true)}
           className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950 md:hidden"
           aria-label="Aktivität erstellen"

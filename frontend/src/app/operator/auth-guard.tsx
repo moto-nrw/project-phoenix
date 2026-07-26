@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { operatorPath } from "~/lib/operator-url";
 import { OperatorShellProvider } from "~/lib/shell-auth-context";
@@ -38,41 +37,24 @@ export function OperatorAuthGuard({
   readonly children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const isPublicPage = OPERATOR_PUBLIC_PAGES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
   const { data: session, status } = useSession();
-
-  // Redirect non-operator authenticated users away
-  useEffect(() => {
-    if (
-      !isPublicPage &&
-      status === "authenticated" &&
-      session?.user?.scope !== "platform"
-    ) {
-      router.push("/");
-    }
-  }, [isPublicPage, status, session, router]);
-
-  // Redirect unauthenticated users to login
-  useEffect(() => {
-    if (!isPublicPage && status === "unauthenticated") {
-      router.push(operatorPath("/operator/login"));
-    }
-  }, [isPublicPage, status, router]);
 
   // Login page: render without auth guards
   if (isPublicPage) {
     return <>{children}</>;
   }
 
-  // Loading, unauthenticated, or wrong account type — show loading spinner
-  if (
-    status === "loading" ||
-    status === "unauthenticated" ||
-    session?.user?.scope !== "platform"
-  ) {
+  if (status === "authenticated" && session?.user?.scope !== "platform") {
+    redirect("/");
+  }
+  if (status === "unauthenticated") {
+    redirect(operatorPath("/operator/login"));
+  }
+
+  if (status === "loading") {
     return <FullPageLoading />;
   }
 

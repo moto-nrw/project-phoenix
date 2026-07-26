@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -354,6 +354,53 @@ func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 	})
 }
 
+func TestVisitRepository_FindByActiveGroupIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("empty input hits no DB and returns nothing", func(t *testing.T) {
+		visits, err := repo.FindByActiveGroupIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, visits)
+	})
+
+	t.Run("finds visits across the given active groups in one call", func(t *testing.T) {
+		now := time.Now()
+		visit1 := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		require.NoError(t, repo.Create(ctx, visit1))
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit1.ID)
+
+		visit2 := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		require.NoError(t, repo.Create(ctx, visit2))
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit2.ID)
+
+		// One unknown id in the set must not affect the real matches.
+		visits, err := repo.FindByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID, -1})
+		require.NoError(t, err)
+
+		foundStudents := map[int64]bool{}
+		for _, v := range visits {
+			assert.Equal(t, data.ActiveGroup.ID, v.ActiveGroupID)
+			foundStudents[v.StudentID] = true
+		}
+		assert.True(t, foundStudents[data.Student1.ID])
+		assert.True(t, foundStudents[data.Student2.ID])
+	})
+}
+
 func TestVisitRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -428,46 +475,6 @@ func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 	})
 }
 
-func TestVisitRepository_FindWithRelations(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := activeRepo.NewVisitRepository(db).(*activeRepo.VisitRepository)
-	ctx := testpkg.TenantContext(1)
-	data := createVisitTestData(t, db)
-	defer cleanupVisitTestData(t, db, data)
-
-	t.Run("find with student loads student relation", func(t *testing.T) {
-		visit := &active.Visit{
-			StudentID:     data.Student1.ID,
-			ActiveGroupID: data.ActiveGroup.ID,
-			EntryTime:     time.Now(),
-		}
-		require.NoError(t, repo.Create(ctx, visit))
-		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
-
-		found, err := repo.FindWithStudent(ctx, visit.ID)
-		require.NoError(t, err)
-		require.NotNil(t, found)
-		assert.Equal(t, data.Student1.ID, found.Student.ID)
-	})
-
-	t.Run("find with active group loads active group relation", func(t *testing.T) {
-		visit := &active.Visit{
-			StudentID:     data.Student2.ID,
-			ActiveGroupID: data.ActiveGroup.ID,
-			EntryTime:     time.Now(),
-		}
-		require.NoError(t, repo.Create(ctx, visit))
-		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
-
-		found, err := repo.FindWithActiveGroup(ctx, visit.ID)
-		require.NoError(t, err)
-		require.NotNil(t, found.ActiveGroup)
-		assert.Equal(t, data.ActiveGroup.ID, found.ActiveGroup.ID)
-	})
-}
-
 func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -513,30 +520,6 @@ func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 	})
 }
 
-func TestVisitRepository_CountActiveByStudentID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := testpkg.TenantContext(1)
-	data := createVisitTestData(t, db)
-	defer cleanupVisitTestData(t, db, data)
-
-	now := time.Now()
-	activeVisit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, now.Add(-30*time.Minute), nil)
-	exitTime := now.Add(-10 * time.Minute)
-	endedVisit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, now.Add(-2*time.Hour), &exitTime)
-	otherStudentVisit := testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, now.Add(-20*time.Minute), nil)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.visits", activeVisit.ID, endedVisit.ID, otherStudentVisit.ID)
-	}()
-
-	count, err := repo.CountActiveByStudentID(ctx, data.Student1.ID)
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, count)
-}
-
 func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -546,7 +529,7 @@ func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
-	visit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, time.Now().Add(-30*time.Minute), nil)
+	visit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, timezone.Today().Add(30*time.Minute), nil)
 	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 	t.Run("empty input short-circuits", func(t *testing.T) {
@@ -778,38 +761,6 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 	})
 }
 
-func TestVisitRepository_DeleteVisitsBeforeDate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := testpkg.TenantContext(1)
-	data := createVisitTestData(t, db)
-	defer cleanupVisitTestData(t, db, data)
-
-	t.Run("deletes visits before specified date", func(t *testing.T) {
-		now := time.Now()
-		exitTime := now.Add(-60 * 24 * time.Hour)
-		entryTime := exitTime.Add(-1 * time.Hour)
-		createdAt := exitTime.Add(-1 * time.Hour)
-
-		var visitID int64
-		err := db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
-			VALUES (?, ?, ?, ?, ?, ?, 1)
-			RETURNING id
-		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
-			Scan(ctx, &visitID)
-		require.NoError(t, err)
-
-		cutoffDate := now.Add(-30 * 24 * time.Hour)
-		deleted, err := repo.DeleteVisitsBeforeDate(ctx, data.Student1.ID, cutoffDate)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, deleted, int64(1))
-	})
-}
-
-// NOTE: FindWithStudent and FindWithActiveGroup methods exist in implementation
 // but are not exposed in the VisitRepository interface, so they cannot be
 // tested through the interface.
 

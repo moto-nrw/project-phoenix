@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authConfig, _resetRefreshState, _testHelpers } from "./config";
+import { tenantAuthConfig as authConfig } from "./tenant-config";
+import { _resetRefreshState, _testHelpers } from "./shared";
 import { operatorAuthConfig } from "./operator-config";
 import { parentAuthConfig } from "./parent-config";
 import type { NextAuthConfig, User } from "next-auth";
@@ -17,12 +18,37 @@ const INTERNAL_REFRESH_JWT =
 // { id: 1, first_name: "John", email: "john@example.com" } (no last_name, no roles)
 const TEACHER_JWT_MINIMAL =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20ifQ.test";
-// { id: 45, first_name: "Op", email: "op@example.com", is_admin: true }
+// { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], permissions: [], scope: "platform", is_admin: false }
 const OPERATOR_JWT =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsImZpcnN0X25hbWUiOiJPcCIsImVtYWlsIjoib3BAZXhhbXBsZS5jb20iLCJpc19hZG1pbiI6dHJ1ZX0.test";
-// { id: 45, first_name: "Op", email: "op@example.com" } (no is_admin)
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInBlcm1pc3Npb25zIjpbXSwic2NvcGUiOiJwbGF0Zm9ybSIsImlzX2FkbWluIjpmYWxzZX0.test";
+// { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
 const OPERATOR_JWT_MINIMAL =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsImZpcnN0X25hbWUiOiJPcCIsImVtYWlsIjoib3BAZXhhbXBsZS5jb20ifQ.test";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInNjb3BlIjoicGxhdGZvcm0ifQ.test";
+// { id: 45, sub: "operator:45", email: "legacy-op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
+const OPERATOR_JWT_EMAIL_ONLY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwiZW1haWwiOiJsZWdhY3ktb3BAZXhhbXBsZS5jb20iLCJmaXJzdF9uYW1lIjoiT3AiLCJyb2xlcyI6WyJvcGVyYXRvciJdLCJzY29wZSI6InBsYXRmb3JtIn0.test";
+// { id: 45, sub: "operator:45", first_name: "Op", roles: ["operator"], scope: "platform" }
+const OPERATOR_JWT_NO_EMAIL =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwiZmlyc3RfbmFtZSI6Ik9wIiwicm9sZXMiOlsib3BlcmF0b3IiXSwic2NvcGUiOiJwbGF0Zm9ybSJ9.test";
+
+function refreshJwt(
+  token: string,
+  expiresAt = Date.now() + 60 * 60 * 1000,
+  issuedAt = Math.floor(Date.now() / 1000),
+) {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" }),
+  ).toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({
+      id: 123,
+      token,
+      exp: Math.floor(expiresAt / 1000),
+      iat: issuedAt,
+    }),
+  ).toString("base64url");
+  return `${header}.${payload}.test`;
+}
 
 // Mock ~/env
 vi.mock("~/env", () => ({
@@ -31,6 +57,7 @@ vi.mock("~/env", () => ({
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     AUTH_JWT_EXPIRY: "15m",
     AUTH_JWT_REFRESH_EXPIRY: "1h",
+    NEXTAUTH_SECRET: "test-auth-secret-with-sufficient-entropy",
     TENANT_DOMAIN: "moto-app.de",
   },
 }));
@@ -46,6 +73,11 @@ class MockCredentialsSignin extends Error {
 }
 vi.mock("next-auth", () => ({
   CredentialsSignin: MockCredentialsSignin,
+}));
+
+const mockRequestHeaders = vi.hoisted(() => vi.fn());
+vi.mock("next/headers", () => ({
+  headers: mockRequestHeaders,
 }));
 
 // Mock fetch globally
@@ -80,6 +112,7 @@ describe("authConfig", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.stubGlobal("fetch", mockFetch);
+    mockRequestHeaders.mockResolvedValue(new Headers());
     _resetRefreshState();
   });
 
@@ -146,6 +179,9 @@ describe("authConfig", () => {
       expect(result?.isAdmin).toBe(false);
       expect(result?.tokenExpiry).toBeDefined();
       expect(result?.refreshTokenExpiry).toBeDefined();
+      expect(result?.refreshRecoveryProof).toEqual(expect.any(String));
+      expect(result?.refreshRecoveryProof).not.toBe("access-token");
+      expect(result?.refreshRecoveryProof).not.toBe("refresh-token");
     });
 
     it("should carry permissions from user onto the token", async () => {
@@ -196,11 +232,18 @@ describe("authConfig", () => {
     });
 
     it("should proactively refresh when access token near expiry", async () => {
+      const newRefreshToken = refreshJwt("new-refresh-token");
+      mockRequestHeaders.mockResolvedValue(
+        new Headers({
+          "user-agent": "Mozilla/5.0 Tablet",
+          "x-forwarded-for": "203.0.113.10, 172.20.0.4",
+        }),
+      );
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           access_token: "new-access-token",
-          refresh_token: "new-refresh-token",
+          refresh_token: newRefreshToken,
         }),
       });
 
@@ -208,6 +251,7 @@ describe("authConfig", () => {
         id: "123",
         token: "old-access-token",
         refreshToken: "old-refresh-token",
+        refreshRecoveryProof: "independent-recovery-proof",
         tokenExpiry: Date.now() + 2 * 60 * 1000, // Expires in 2 min (within 5 min buffer)
         refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days out
       };
@@ -229,11 +273,17 @@ describe("authConfig", () => {
           method: "POST",
           headers: expect.objectContaining({
             Authorization: "Bearer old-refresh-token",
+            "User-Agent": "Mozilla/5.0 Tablet",
+            "X-Forwarded-For": "172.20.0.4",
+            "X-Refresh-Recovery-Proof": "independent-recovery-proof",
           }) as Record<string, string>,
         }),
       );
       expect(result?.token).toBe("new-access-token");
-      expect(result?.refreshToken).toBe("new-refresh-token");
+      expect(result?.refreshToken).toBe(newRefreshToken);
+      expect(result?.refreshRecoveryProof).not.toBe(
+        "independent-recovery-proof",
+      );
       expect(result?.error).toBeUndefined();
     });
 
@@ -316,12 +366,13 @@ describe("authConfig", () => {
       expect(result?.error).toBeUndefined();
     });
 
-    it("should proactively refresh when access token already expired", async () => {
+    it("keeps the session when a tablet resumes after sleeping past access-token expiry", async () => {
+      const refreshedRefreshToken = refreshJwt("refreshed-refresh-token");
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           access_token: "refreshed-access-token",
-          refresh_token: "refreshed-refresh-token",
+          refresh_token: refreshedRefreshToken,
         }),
       });
 
@@ -346,17 +397,82 @@ describe("authConfig", () => {
       // JWT callback now handles post-expiry refresh too
       expect(mockFetch).toHaveBeenCalledOnce();
       expect(result?.token).toBe("refreshed-access-token");
-      expect(result?.refreshToken).toBe("refreshed-refresh-token");
+      expect(result?.refreshToken).toBe(refreshedRefreshToken);
       expect(result?.error).toBeUndefined();
     });
 
+    it("retries after a short tablet network interruption instead of logging out", async () => {
+      const reconnectedRefreshToken = refreshJwt("reconnected-refresh-token");
+      mockFetch
+        .mockRejectedValueOnce(new Error("tablet temporarily offline"))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            access_token: "reconnected-access-token",
+            refresh_token: reconnectedRefreshToken,
+          }),
+        });
+
+      const sleepingTabletToken = {
+        id: "123",
+        token: "expired-access-token",
+        refreshToken: "still-valid-refresh-token",
+        tokenExpiry: Date.now() - 30 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+
+      const offlineResult = await callJwt({ ...sleepingTabletToken });
+      expect(offlineResult?.error).toBeUndefined();
+      expect(offlineResult?.refreshToken).toBe("still-valid-refresh-token");
+
+      const reconnectedResult = await callJwt({ ...sleepingTabletToken });
+      expect(reconnectedResult?.error).toBeUndefined();
+      expect(reconnectedResult?.token).toBe("reconnected-access-token");
+      expect(reconnectedResult?.refreshToken).toBe(reconnectedRefreshToken);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("derives the same bootstrap proof for a legacy session after a process replacement", async () => {
+      mockFetch.mockRejectedValue(new Error("response interrupted"));
+      const legacyToken = {
+        id: "123",
+        token: "expired-access-token",
+        refreshToken: "legacy-refresh-token",
+        tokenExpiry: Date.now() - 30 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+
+      await callJwt({ ...legacyToken });
+      const firstHeaders = mockFetch.mock.calls[0]?.[1]?.headers as Record<
+        string,
+        string
+      >;
+      _resetRefreshState();
+      await callJwt({ ...legacyToken });
+      const secondHeaders = mockFetch.mock.calls[1]?.[1]?.headers as Record<
+        string,
+        string
+      >;
+
+      expect(firstHeaders["X-Refresh-Recovery-Proof"]).toBe(
+        secondHeaders["X-Refresh-Recovery-Proof"],
+      );
+      expect(firstHeaders["X-Refresh-Recovery-Proof"]).not.toBe(
+        legacyToken.token,
+      );
+      expect(firstHeaders["X-Refresh-Recovery-Proof"]).not.toBe(
+        legacyToken.refreshToken,
+      );
+    });
+
     it("should deduplicate late-arriving callbacks via cache", async () => {
+      const newRefreshToken = refreshJwt("new-refresh-1");
       // First call: triggers actual refresh and caches result
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           access_token: "new-access-1",
-          refresh_token: "new-refresh-1",
+          refresh_token: newRefreshToken,
         }),
       });
 
@@ -364,6 +480,7 @@ describe("authConfig", () => {
         id: "123",
         token: "old-access-token",
         refreshToken: "dedup-refresh-token",
+        refreshRecoveryProof: "shared-cache-proof",
         tokenExpiry: Date.now() + 2 * 60 * 1000,
         refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
       });
@@ -371,18 +488,71 @@ describe("authConfig", () => {
       // First callback: performs the actual refresh
       const result1 = await callJwt(makeToken());
       expect(result1?.token).toBe("new-access-1");
-      expect(result1?.refreshToken).toBe("new-refresh-1");
+      expect(result1?.refreshToken).toBe(newRefreshToken);
       expect(mockFetch).toHaveBeenCalledOnce();
 
       // Late-arriving callback with same OLD refresh token: served from cache
       const result2 = await callJwt(makeToken());
       expect(result2?.token).toBe("new-access-1");
-      expect(result2?.refreshToken).toBe("new-refresh-1");
+      expect(result2?.refreshToken).toBe(newRefreshToken);
+      expect(result2?.refreshRecoveryProof).toBe(result1?.refreshRecoveryProof);
       // Still only 1 fetch call — second was served from cache
       expect(mockFetch).toHaveBeenCalledOnce();
     });
 
+    it("keeps one successor proof and its persisted expiry across independent recovery responses", async () => {
+      const persistedExpiry = Date.now() + 9 * 60 * 1000;
+      const expectedExpiry = Math.floor(persistedExpiry / 1000) * 1000;
+      const firstSuccessorJwt = refreshJwt(
+        "persisted-successor",
+        persistedExpiry,
+        1_700_000_000,
+      );
+      const delayedSuccessorJwt = refreshJwt(
+        "persisted-successor",
+        persistedExpiry,
+        1_700_000_030,
+      );
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            access_token: "first-recovered-access",
+            refresh_token: firstSuccessorJwt,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            access_token: "delayed-recovered-access",
+            refresh_token: delayedSuccessorJwt,
+          }),
+        });
+
+      const predecessorToken = {
+        id: "123",
+        token: "expired-access",
+        refreshToken: "rotated-predecessor",
+        refreshRecoveryProof: "predecessor-proof",
+        tokenExpiry: Date.now() - 30 * 1000,
+        refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+      };
+
+      const firstRecovery = await callJwt({ ...predecessorToken });
+      _resetRefreshState();
+      const delayedRecovery = await callJwt({ ...predecessorToken });
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(delayedRecovery?.refreshToken).toBe(delayedSuccessorJwt);
+      expect(delayedRecovery?.refreshRecoveryProof).toBe(
+        firstRecovery?.refreshRecoveryProof,
+      );
+      expect(firstRecovery?.refreshTokenExpiry).toBe(expectedExpiry);
+      expect(delayedRecovery?.refreshTokenExpiry).toBe(expectedExpiry);
+    });
+
     it("should share in-flight refresh promise across concurrent callbacks", async () => {
+      const sharedRefreshToken = refreshJwt("shared-refresh");
       // Single slow fetch that all concurrent calls share
       let resolveRefresh: (value: unknown) => void;
       mockFetch.mockReturnValueOnce(
@@ -395,6 +565,7 @@ describe("authConfig", () => {
         id: "123",
         token: "old-access-token",
         refreshToken: "concurrent-refresh-token",
+        refreshRecoveryProof: "shared-inflight-proof",
         tokenExpiry: Date.now() + 2 * 60 * 1000,
         refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
       });
@@ -416,14 +587,14 @@ describe("authConfig", () => {
       const p3 = callJwt(makeToken());
 
       // Only 1 fetch should have been made
-      expect(mockFetch).toHaveBeenCalledOnce();
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledOnce());
 
       // Resolve the single fetch — all 3 callbacks get the same result
       resolveRefresh!({
         ok: true,
         json: async () => ({
           access_token: "shared-access",
-          refresh_token: "shared-refresh",
+          refresh_token: sharedRefreshToken,
         }),
       });
 
@@ -432,20 +603,24 @@ describe("authConfig", () => {
       expect(r1?.token).toBe("shared-access");
       expect(r2?.token).toBe("shared-access");
       expect(r3?.token).toBe("shared-access");
-      expect(r1?.refreshToken).toBe("shared-refresh");
-      expect(r2?.refreshToken).toBe("shared-refresh");
-      expect(r3?.refreshToken).toBe("shared-refresh");
+      expect(r1?.refreshToken).toBe(sharedRefreshToken);
+      expect(r2?.refreshToken).toBe(sharedRefreshToken);
+      expect(r3?.refreshToken).toBe(sharedRefreshToken);
+      expect(r1?.refreshRecoveryProof).toBe(r2?.refreshRecoveryProof);
+      expect(r2?.refreshRecoveryProof).toBe(r3?.refreshRecoveryProof);
       // Confirm only 1 fetch across all 3 callbacks
       expect(mockFetch).toHaveBeenCalledOnce();
     });
 
     it("should not use cache for a different refresh token", async () => {
+      const refreshTokenA = refreshJwt("refresh-A-new");
+      const refreshTokenB = refreshJwt("refresh-B-new");
       // First: refresh with token-A
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           access_token: "access-A",
-          refresh_token: "refresh-A-new",
+          refresh_token: refreshTokenA,
         }),
       });
 
@@ -474,7 +649,7 @@ describe("authConfig", () => {
         ok: true,
         json: async () => ({
           access_token: "access-B",
-          refresh_token: "refresh-B-new",
+          refresh_token: refreshTokenB,
         }),
       });
 
@@ -487,9 +662,49 @@ describe("authConfig", () => {
       });
 
       expect(result?.token).toBe("access-B");
-      expect(result?.refreshToken).toBe("refresh-B-new");
+      expect(result?.refreshToken).toBe(refreshTokenB);
       // Two separate fetches — cache was not used
       expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not share a rotation with the same refresh token but a different recovery proof", async () => {
+      const firstRefreshToken = refreshJwt("first-refresh");
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            access_token: "first-access",
+            refresh_token: firstRefreshToken,
+          }),
+        })
+        .mockResolvedValueOnce({ ok: false, status: 401 });
+
+      const baseToken = {
+        id: "123",
+        token: "old-access",
+        refreshToken: "shared-old-refresh",
+        tokenExpiry: Date.now() + 2 * 60 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+
+      await callJwt({
+        ...baseToken,
+        refreshRecoveryProof: "legitimate-proof",
+      });
+      await callJwt({
+        ...baseToken,
+        refreshRecoveryProof: "unrelated-proof",
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining("/auth/refresh"),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "X-Refresh-Recovery-Proof": "unrelated-proof",
+          }) as Record<string, string>,
+        }),
+      );
     });
 
     it("should mark token as expired when refresh token expired", async () => {
@@ -544,6 +759,7 @@ describe("authConfig", () => {
         email: "test@example.com",
         token: "access-token",
         refreshToken: "refresh-token",
+        refreshRecoveryProof: "http-only-proof",
         roles: ["teacher"],
         firstName: "Test",
         isAdmin: false,
@@ -560,6 +776,8 @@ describe("authConfig", () => {
       expect(user?.roles).toEqual(["teacher"]);
       expect(user?.firstName).toBe("Test");
       expect(user?.isAdmin).toBe(false);
+      expect(user).not.toHaveProperty("refreshRecoveryProof");
+      expect(result).not.toHaveProperty("refreshRecoveryProof");
     });
 
     it("should expose permissions from the token on the session", () => {
@@ -1433,8 +1651,7 @@ describe("authConfig", () => {
           p.type === "credentials",
       );
       const provider = providers[0] as unknown as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const opts = provider?.options as Record<string, unknown> | undefined;
       return opts?.authorize as (
         credentials: Record<string, string> | undefined,
@@ -1469,6 +1686,44 @@ describe("authConfig", () => {
       expect(result?.id).toBe("45");
       expect(result?.roles).toEqual(["operator"]);
       expect(result?.scope).toBe("platform");
+    });
+
+    it("should forward only the canonical operator client IP", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: OPERATOR_JWT,
+            refresh_token: "op-refresh-token",
+            operator: {
+              id: 45,
+              email: "op@example.com",
+              display_name: "Op",
+            },
+          },
+        }),
+      });
+
+      const authorize = getOperatorAuthorize();
+      await authorize(
+        { email: "op@example.com", password: "correct" },
+        new Request("http://localhost:3000", {
+          headers: {
+            "x-forwarded-for": "203.0.113.10, 172.20.0.4",
+            "x-real-ip": "198.51.100.25",
+          },
+        }),
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://server:8080/operator/auth/login",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "X-Forwarded-For": "172.20.0.4",
+          }) as HeadersInit,
+        }),
+      );
     });
 
     it("should return null for missing credentials", async () => {
@@ -1535,6 +1790,41 @@ describe("authConfig", () => {
       expect(result).not.toBeNull();
       expect(result?.scope).toBe("platform");
       expect(result?.roles).toEqual(["operator"]);
+      expect(result?.email).toBe("op@example.com");
+      expect(result?.email).not.toBe("operator:45");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to email claim for legacy operator internal refresh tokens", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: OPERATOR_JWT_EMAIL_ONLY,
+          refreshToken: "op-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.email).toBe("legacy-op@example.com");
+      expect(result?.email).not.toBe("operator:45");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should not use operator subject as email when internal refresh token has no email claims", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: OPERATOR_JWT_NO_EMAIL,
+          refreshToken: "op-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.email).toBe("");
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -1621,8 +1911,7 @@ describe("authConfig", () => {
           p.type === "credentials",
       );
       const provider = providers[0] as unknown as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const opts = provider?.options as Record<string, unknown> | undefined;
       return opts?.authorize as (
         credentials: Record<string, string> | undefined,
@@ -1656,6 +1945,39 @@ describe("authConfig", () => {
 
       expect(result).not.toBeNull();
       expect(result?.scope).toBe("parent");
+    });
+
+    it("should forward only the canonical parent client IP", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: PARENT_JWT,
+            refresh_token: "parent-refresh-token",
+          },
+        }),
+      });
+
+      const authorize = getParentAuthorize();
+      await authorize(
+        { email: "parent@example.com", password: "correct" },
+        new Request("http://localhost:3000", {
+          headers: {
+            "x-forwarded-for": "203.0.113.10, 172.20.0.4",
+            "x-real-ip": "198.51.100.25",
+          },
+        }),
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://server:8080/parent/auth/login",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "X-Forwarded-For": "172.20.0.4",
+          }) as HeadersInit,
+        }),
+      );
     });
 
     it("should return null for missing credentials", async () => {
@@ -1806,6 +2128,7 @@ describe("authConfig", () => {
         id: "123",
         token: "old-access",
         refreshToken: "fail-concurrent-token",
+        refreshRecoveryProof: "shared-failure-proof",
         tokenExpiry: Date.now() - 60 * 1000, // Already expired
         refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
       });
@@ -1825,6 +2148,7 @@ describe("authConfig", () => {
       const p2 = callJwt(makeToken());
 
       // Resolve with failure
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledOnce());
       resolveRefresh!({ ok: false, status: 401 });
 
       const [r1, r2] = await Promise.all([p1, p2]);
@@ -1886,12 +2210,13 @@ describe("authConfig", () => {
 
   describe("JWT callback - operator scope refresh", () => {
     it("should use operator refresh URL and parse envelope response", async () => {
+      const newOperatorRefreshToken = refreshJwt("new-op-refresh");
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           data: {
             access_token: "new-op-access",
-            refresh_token: "new-op-refresh",
+            refresh_token: newOperatorRefreshToken,
           },
         }),
       });
@@ -1910,7 +2235,7 @@ describe("authConfig", () => {
         expect.any(Object),
       );
       expect(result?.token).toBe("new-op-access");
-      expect(result?.refreshToken).toBe("new-op-refresh");
+      expect(result?.refreshToken).toBe(newOperatorRefreshToken);
     });
   });
 

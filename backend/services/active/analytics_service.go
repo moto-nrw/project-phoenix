@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Analytics and statistics
@@ -30,24 +29,13 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.ActivityCategories = baseData.activityCategories
 	analytics.SupervisorsToday = baseData.supervisorsToday
 
-	sickOpts := modelBase.NewQueryOptions()
-	sickOpts.Filter.Equal("sick", true)
-	if sickCount, err := s.studentRepo.CountWithOptions(ctx, sickOpts); err == nil {
-		analytics.StudentsSick = sickCount
-	}
-
-	excusedOpts := modelBase.NewQueryOptions()
-	excusedOpts.Filter.Equal("excused", true)
-	if excusedCount, err := s.studentRepo.CountWithOptions(ctx, excusedOpts); err == nil {
-		classTripCount, classTripErr := s.countClassTripStudentsForDate(ctx, today)
-		if classTripErr == nil {
-			excusedCount += classTripCount
-		} else {
-			s.getLogger().Warn("failed to count class trip students for dashboard",
-				"error", classTripErr.Error(),
-			)
-		}
-		analytics.StudentsExcused = excusedCount
+	if statusCounts, err := s.countEffectiveAbsencesForDate(ctx, today); err == nil {
+		analytics.StudentsSick = statusCounts.Sick
+		analytics.StudentsExcused = statusCounts.Excused
+	} else {
+		s.getLogger().Warn("failed to count effective student absences for dashboard",
+			"error", err.Error(),
+		)
 	}
 
 	// Phase 3: Build room lookup maps
@@ -91,9 +79,24 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	return analytics, nil
 }
 
-func (s *service) countClassTripStudentsForDate(ctx context.Context, date timezone.Date) (int, error) {
-	if s.studentStatusRepo == nil {
-		return 0, nil
+func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date timezone.Date) (studentStatusCounts, error) {
+	if s.StudentStatusRepo == nil {
+		return studentStatusCounts{}, nil
 	}
-	return s.studentStatusRepo.CountActiveClassTripStudents(ctx, date)
+	counts, err := s.StudentStatusRepo.CountEffectiveDashboardAbsences(ctx, date)
+	if err != nil {
+		return studentStatusCounts{}, err
+	}
+	if counts == nil {
+		return studentStatusCounts{}, nil
+	}
+	return studentStatusCounts{
+		Sick:    counts.Sick,
+		Excused: counts.Excused,
+	}, nil
+}
+
+type studentStatusCounts struct {
+	Sick    int
+	Excused int
 }

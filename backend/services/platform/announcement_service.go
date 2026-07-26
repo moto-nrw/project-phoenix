@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -11,13 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
 )
-
-// IsAnnouncementPublished reports whether the announcement is live (visible to
-// users) at the given instant: it has a PublishedAt timestamp in the past.
-// The clock is injected via `now` so the visibility decision stays testable.
-func IsAnnouncementPublished(a *platform.Announcement, now time.Time) bool {
-	return a.PublishedAt != nil && a.PublishedAt.Before(now)
-}
 
 // IsAnnouncementExpired reports whether the announcement has expired at the
 // given instant: it has an ExpiresAt timestamp in the past. The clock is
@@ -53,13 +47,7 @@ type AnnouncementService interface {
 }
 
 type announcementService struct {
-	announcementRepo     platform.AnnouncementRepository
-	announcementViewRepo platform.AnnouncementViewRepository
-	auditLogRepo         platform.OperatorAuditLogRepository
-	orgRepo              platform.OrganizationRepository
-	schoolRepo           platform.SchoolRepository
-	db                   *bun.DB
-	logger               *slog.Logger
+	AnnouncementServiceConfig
 }
 
 // AnnouncementServiceConfig holds configuration for the announcement service
@@ -75,22 +63,11 @@ type AnnouncementServiceConfig struct {
 
 // NewAnnouncementService creates a new announcement service
 func NewAnnouncementService(cfg AnnouncementServiceConfig) AnnouncementService {
-	return &announcementService{
-		announcementRepo:     cfg.AnnouncementRepo,
-		announcementViewRepo: cfg.AnnouncementViewRepo,
-		auditLogRepo:         cfg.AuditLogRepo,
-		orgRepo:              cfg.OrgRepo,
-		schoolRepo:           cfg.SchoolRepo,
-		db:                   cfg.DB,
-		logger:               cfg.Logger,
-	}
+	return &announcementService{AnnouncementServiceConfig: cfg}
 }
 
 func (s *announcementService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // deduplicateInt64 returns a sorted copy of the slice with duplicates removed.
@@ -141,7 +118,7 @@ func diffInt64(newIDs, existingIDs []int64) []int64 {
 func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, tenantIDs []int64) error {
 	if len(orgIDs) > 0 {
 		unique := deduplicateInt64(orgIDs)
-		count, err := s.orgRepo.CountByIDs(ctx, unique)
+		count, err := s.OrgRepo.CountByIDs(ctx, unique)
 		if err != nil {
 			return fmt.Errorf("failed to verify organizations: %w", err)
 		}
@@ -151,7 +128,7 @@ func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, 
 	}
 	if len(tenantIDs) > 0 {
 		unique := deduplicateInt64(tenantIDs)
-		count, err := s.schoolRepo.CountByIDs(ctx, unique)
+		count, err := s.SchoolRepo.CountByIDs(ctx, unique)
 		if err != nil {
 			return fmt.Errorf("failed to verify schools: %w", err)
 		}
@@ -189,7 +166,7 @@ func (s *announcementService) CreateAnnouncement(ctx context.Context, announceme
 		return err
 	}
 
-	if err := s.announcementRepo.Create(ctx, announcement); err != nil {
+	if err := s.AnnouncementRepo.Create(ctx, announcement); err != nil {
 		return err
 	}
 
@@ -201,7 +178,7 @@ func (s *announcementService) CreateAnnouncement(ctx context.Context, announceme
 
 // GetAnnouncement retrieves an announcement by ID
 func (s *announcementService) GetAnnouncement(ctx context.Context, id int64) (*platform.Announcement, error) {
-	announcement, err := s.announcementRepo.FindByID(ctx, id)
+	announcement, err := s.AnnouncementRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +194,7 @@ func (s *announcementService) UpdateAnnouncement(ctx context.Context, announceme
 		return &InvalidDataError{Err: fmt.Errorf("announcement cannot be nil")}
 	}
 
-	existing, err := s.announcementRepo.FindByID(ctx, announcement.ID)
+	existing, err := s.AnnouncementRepo.FindByID(ctx, announcement.ID)
 	if err != nil {
 		return err
 	}
@@ -237,7 +214,7 @@ func (s *announcementService) UpdateAnnouncement(ctx context.Context, announceme
 		return err
 	}
 
-	if err := s.announcementRepo.Update(ctx, announcement); err != nil {
+	if err := s.AnnouncementRepo.Update(ctx, announcement); err != nil {
 		return err
 	}
 
@@ -258,7 +235,7 @@ func (s *announcementService) UpdateAnnouncement(ctx context.Context, announceme
 
 // DeleteAnnouncement deletes an announcement
 func (s *announcementService) DeleteAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
-	existing, err := s.announcementRepo.FindByID(ctx, id)
+	existing, err := s.AnnouncementRepo.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -266,7 +243,7 @@ func (s *announcementService) DeleteAnnouncement(ctx context.Context, id int64, 
 		return &AnnouncementNotFoundError{AnnouncementID: id}
 	}
 
-	if err := s.announcementRepo.Delete(ctx, id); err != nil {
+	if err := s.AnnouncementRepo.Delete(ctx, id); err != nil {
 		return err
 	}
 
@@ -278,12 +255,12 @@ func (s *announcementService) DeleteAnnouncement(ctx context.Context, id int64, 
 
 // ListAnnouncements lists all announcements
 func (s *announcementService) ListAnnouncements(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
-	return s.announcementRepo.List(ctx, includeInactive)
+	return s.AnnouncementRepo.List(ctx, includeInactive)
 }
 
 // PublishAnnouncement publishes an announcement
 func (s *announcementService) PublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
-	existing, err := s.announcementRepo.FindByID(ctx, id)
+	existing, err := s.AnnouncementRepo.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -291,7 +268,7 @@ func (s *announcementService) PublishAnnouncement(ctx context.Context, id int64,
 		return &AnnouncementNotFoundError{AnnouncementID: id}
 	}
 
-	if err := s.announcementRepo.Publish(ctx, id); err != nil {
+	if err := s.AnnouncementRepo.Publish(ctx, id); err != nil {
 		return err
 	}
 
@@ -303,7 +280,7 @@ func (s *announcementService) PublishAnnouncement(ctx context.Context, id int64,
 
 // UnpublishAnnouncement unpublishes an announcement
 func (s *announcementService) UnpublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
-	existing, err := s.announcementRepo.FindByID(ctx, id)
+	existing, err := s.AnnouncementRepo.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -311,7 +288,7 @@ func (s *announcementService) UnpublishAnnouncement(ctx context.Context, id int6
 		return &AnnouncementNotFoundError{AnnouncementID: id}
 	}
 
-	if err := s.announcementRepo.Unpublish(ctx, id); err != nil {
+	if err := s.AnnouncementRepo.Unpublish(ctx, id); err != nil {
 		return err
 	}
 
@@ -326,48 +303,48 @@ func (s *announcementService) UnpublishAnnouncement(ctx context.Context, id int6
 // Base-role expansion (custom role → system role matching) is handled at the SQL level
 // via an EXISTS subquery in the repository, consistent with the GetStats query strategy.
 func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
-	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRoles, tenantID, orgID)
+	return s.AnnouncementViewRepo.GetUnreadForUser(ctx, userID, userRoles, tenantID, orgID)
 }
 
 // CountUnread counts unread announcements for a user scoped to the current session tenant/org
 func (s *announcementService) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
-	return s.announcementViewRepo.CountUnread(ctx, userID, userRoles, tenantID, orgID)
+	return s.AnnouncementViewRepo.CountUnread(ctx, userID, userRoles, tenantID, orgID)
 }
 
 // GetStats retrieves view statistics for an announcement
 func (s *announcementService) GetStats(ctx context.Context, announcementID int64) (*platform.AnnouncementStats, error) {
 	// Verify announcement exists
-	ann, err := s.announcementRepo.FindByID(ctx, announcementID)
+	ann, err := s.AnnouncementRepo.FindByID(ctx, announcementID)
 	if err != nil {
 		return nil, err
 	}
 	if ann == nil {
 		return nil, &AnnouncementNotFoundError{AnnouncementID: announcementID}
 	}
-	return s.announcementViewRepo.GetStats(ctx, announcementID)
+	return s.AnnouncementViewRepo.GetStats(ctx, announcementID)
 }
 
 // MarkSeen marks an announcement as seen by a user
 func (s *announcementService) MarkSeen(ctx context.Context, userID, announcementID int64) error {
-	return s.announcementViewRepo.MarkSeen(ctx, userID, announcementID)
+	return s.AnnouncementViewRepo.MarkSeen(ctx, userID, announcementID)
 }
 
 // MarkDismissed marks an announcement as dismissed by a user
 func (s *announcementService) MarkDismissed(ctx context.Context, userID, announcementID int64) error {
-	return s.announcementViewRepo.MarkDismissed(ctx, userID, announcementID)
+	return s.AnnouncementViewRepo.MarkDismissed(ctx, userID, announcementID)
 }
 
 // GetViewDetails retrieves detailed view information for an announcement
 func (s *announcementService) GetViewDetails(ctx context.Context, announcementID int64) ([]*platform.AnnouncementViewDetail, error) {
 	// Verify announcement exists
-	ann, err := s.announcementRepo.FindByID(ctx, announcementID)
+	ann, err := s.AnnouncementRepo.FindByID(ctx, announcementID)
 	if err != nil {
 		return nil, err
 	}
 	if ann == nil {
 		return nil, &AnnouncementNotFoundError{AnnouncementID: announcementID}
 	}
-	return s.announcementViewRepo.GetViewDetails(ctx, announcementID)
+	return s.AnnouncementViewRepo.GetViewDetails(ctx, announcementID)
 }
 
 // logAction logs an audit entry
@@ -390,7 +367,7 @@ func (s *announcementService) logAction(ctx context.Context, operatorID int64, a
 		}
 	}
 
-	if err := s.auditLogRepo.Create(ctx, entry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, entry); err != nil {
 		s.getLogger().Error("failed to create audit log",
 			"operator_id", operatorID,
 			"action", action,

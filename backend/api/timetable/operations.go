@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -51,7 +52,7 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 }
 
 func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request) {
-	if rs.operationsService == nil {
+	if rs.OperationsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
@@ -69,7 +70,7 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.operationsService.PlannedNow(r.Context(), int64(claims.ID), claims.IsAdmin, date, timezone.Now(), opts)
+	result, err := rs.OperationsService.PlannedNow(r.Context(), int64(claims.ID), claims.IsAdmin, date, timezone.Now(), opts)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -110,12 +111,12 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 func (rs *Resource) operationsRoster(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		claims := jwt.ClaimsFromCtx(r.Context())
-		return rs.operationsService.Roster(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
+		return rs.OperationsService.Roster(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
 	}, "Timetable roster retrieved")
 }
 
 func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http.Request) {
-	if rs.operationsService == nil {
+	if rs.OperationsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
@@ -124,7 +125,7 @@ func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.operationsService.RosterByActiveGroup(r.Context(), int64(claims.ID), claims.IsAdmin, activeGroupID)
+	result, err := rs.OperationsService.RosterByActiveGroup(r.Context(), int64(claims.ID), claims.IsAdmin, activeGroupID)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -135,7 +136,7 @@ func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http
 func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		claims := jwt.ClaimsFromCtx(r.Context())
-		result, err := rs.operationsService.Start(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
+		result, err := rs.OperationsService.Start(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +150,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r *http.Request) {
-	if rs.instanceService == nil || rs.operationsService == nil || rs.timetableData == nil {
+	if rs.OperationsService == nil || rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations resource not fully wired")))
 		return
 	}
@@ -165,17 +166,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
 		return
 	}
-	if err := rs.lockSpontaneousStartRoom(r.Context(), req.RoomID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start room failed", err))
-		return
-	}
-	hasRoomConflict, _, err := rs.timetableData.CheckRoomConflict(r.Context(), req.RoomID, 0)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
-		return
-	}
-	if hasRoomConflict {
-		common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+	if !rs.validateSpontaneousRoom(w, r, req.RoomID) {
 		return
 	}
 
@@ -192,9 +183,11 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
 		return
 	}
+
 	isSpontaneous := true
 	window := serverSpontaneousActivityWindow(timezone.Now())
-	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
+	claims := jwt.ClaimsFromCtx(r.Context())
+	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, scheduleSvc.CreateInstanceInput{
 		Date:             window.date,
 		StartTime:        window.startTime,
 		EndTime:          window.endTime,
@@ -209,14 +202,16 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		CreatedByStaffID: &createdBy,
 	})
 	if err != nil {
-		renderCreateInstanceError(w, r, err)
-		return
-	}
-
-	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.operationsService.Start(r.Context(), int64(claims.ID), claims.IsAdmin, inst.ID)
-	if err != nil {
-		rs.renderOperationsError(w, r, err)
+		// The create+start composition owns its own rollback (both phases share
+		// the request tx). A Create-phase failure is wrapped so it keeps the
+		// create-specific error mapping; a Start-phase failure uses the
+		// operations mapping.
+		var createErr *scheduleSvc.SpontaneousCreateError
+		if errors.As(err, &createErr) {
+			renderCreateInstanceError(w, r, createErr.Err)
+		} else {
+			rs.renderOperationsError(w, r, err)
+		}
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, startOperationResponse{
@@ -225,6 +220,48 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		ActiveGroupID: result.ActiveGroupID,
 		Warnings:      result.Warnings,
 	}, "Spontaneous timetable instance created and started")
+}
+
+// validateSpontaneousRoom checks the target room exists, is not the permanent
+// Schulhof room (which has its own supervision flow), and is currently
+// unoccupied — taking the spontaneous-start room lock in between so the
+// existence-vs-conflict check is serialized. Renders the appropriate error and
+// returns false on any failure.
+func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Request, roomID int64) bool {
+	room, err := rs.TimetableData.GetRoom(r.Context(), roomID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
+			return false
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load spontaneous room failed", err))
+		return false
+	}
+	if room == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
+		return false
+	}
+	if room.Name == constants.SchulhofRoomName {
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			scheduleSvc.ErrSchulhofSupervisionRequired,
+			schulhofSupervisionRequiredCode,
+		))
+		return false
+	}
+	if err := rs.lockSpontaneousStartRoom(r.Context(), roomID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start room failed", err))
+		return false
+	}
+	hasRoomConflict, _, err := rs.TimetableData.CheckRoomConflict(r.Context(), roomID, 0)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
+		return false
+	}
+	if hasRoomConflict {
+		common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+		return false
+	}
+	return true
 }
 
 type spontaneousActivityWindow struct {
@@ -246,13 +283,13 @@ func (rs *Resource) resolveSpontaneousActivityGroupID(ctx context.Context, title
 	if requestedID != nil {
 		return requestedID, nil
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		return nil, errors.New("activity repositories are not wired")
 	}
 	if err := rs.lockSpontaneousActivityName(ctx, title); err != nil {
 		return nil, err
 	}
-	if existing, err := rs.timetableData.GetActivityGroupByName(ctx, title); err == nil && existing != nil {
+	if existing, err := rs.TimetableData.GetActivityGroupByName(ctx, title); err == nil && existing != nil {
 		return &existing.ID, nil
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -272,7 +309,7 @@ func (rs *Resource) resolveSpontaneousActivityGroupID(ctx context.Context, title
 		IsTemplate:      false,
 	}
 	group.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.timetableData.CreateActivityGroup(ctx, group); err != nil {
+	if err := rs.TimetableData.CreateActivityGroup(ctx, group); err != nil {
 		return nil, err
 	}
 	return &group.ID, nil
@@ -283,7 +320,7 @@ func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*act
 	if err := rs.lockSpontaneousActivityCategory(ctx); err != nil {
 		return nil, err
 	}
-	if existing, err := rs.timetableData.GetActivityCategoryByName(ctx, spontaneousCategoryName); err == nil && existing != nil {
+	if existing, err := rs.TimetableData.GetActivityCategoryByName(ctx, spontaneousCategoryName); err == nil && existing != nil {
 		return existing, nil
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -295,7 +332,7 @@ func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*act
 		Color:       "#83CD2D",
 	}
 	category.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.timetableData.CreateActivityCategory(ctx, category); err != nil {
+	if err := rs.TimetableData.CreateActivityCategory(ctx, category); err != nil {
 		return nil, err
 	}
 	return category, nil
@@ -318,15 +355,15 @@ func clockTimeFromMinutes(minutes int) time.Time {
 }
 
 func (rs *Resource) lockSpontaneousStartRoom(ctx context.Context, roomID int64) error {
-	return rs.timetableData.LockSpontaneousStartRoom(ctx, roomID)
+	return rs.TimetableData.LockSpontaneousStartRoom(ctx, roomID)
 }
 
 func (rs *Resource) lockSpontaneousActivityName(ctx context.Context, name string) error {
-	return rs.timetableData.LockSpontaneousActivityName(ctx, name)
+	return rs.TimetableData.LockSpontaneousActivityName(ctx, name)
 }
 
 func (rs *Resource) lockSpontaneousActivityCategory(ctx context.Context) error {
-	return rs.timetableData.LockSpontaneousActivityCategory(ctx)
+	return rs.TimetableData.LockSpontaneousActivityCategory(ctx)
 }
 
 func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Request) {
@@ -336,13 +373,13 @@ func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Reques
 }
 
 func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
-	logger := rs.logger
+	logger := rs.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 	careConcept := configSvc.ResolveStringOrDefault(
 		r.Context(),
-		rs.settingsService,
+		rs.SettingsService,
 		configModel.KeyCareConcept,
 		configModel.CareConceptOpenRooms,
 		logger,
@@ -352,7 +389,7 @@ func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
 	}
 	return configSvc.ResolveBoolOrDefault(
 		r.Context(),
-		rs.settingsService,
+		rs.SettingsService,
 		configModel.KeyWebSpontaneousActivities,
 		true,
 		logger,
@@ -362,12 +399,12 @@ func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
 func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		claims := jwt.ClaimsFromCtx(r.Context())
-		return rs.operationsService.Complete(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
+		return rs.OperationsService.Complete(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
 	}, "Timetable instance completed")
 }
 
 func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Request) {
-	if rs.operationsService == nil {
+	if rs.OperationsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
@@ -376,7 +413,7 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.operationsService.CheckInStudent(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID)
+	result, err := rs.OperationsService.CheckInStudent(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -385,7 +422,7 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 }
 
 func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Request) {
-	if rs.operationsService == nil {
+	if rs.OperationsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
@@ -394,7 +431,7 @@ func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Req
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.operationsService.CheckOutStudent(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID)
+	result, err := rs.OperationsService.CheckOutStudent(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -403,7 +440,7 @@ func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Req
 }
 
 func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Request) {
-	if rs.operationsService == nil {
+	if rs.OperationsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
@@ -425,7 +462,7 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.operationsService.PatchAttendance(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID, patch)
+	result, err := rs.OperationsService.PatchAttendance(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID, patch)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -434,7 +471,7 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 }
 
 func (rs *Resource) withOperationInstance(w http.ResponseWriter, r *http.Request, fn func(int64) (any, error), message string) {
-	if rs.operationsService == nil {
+	if rs.OperationsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
@@ -496,6 +533,8 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
+	case errors.Is(err, scheduleSvc.ErrSchulhofSupervisionRequired):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, schulhofSupervisionRequiredCode))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationNotFound):

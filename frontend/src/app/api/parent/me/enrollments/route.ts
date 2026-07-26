@@ -1,7 +1,4 @@
-import {
-  createParentGetHandler,
-  parentApiGet,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet } from "~/lib/parent/route-wrapper.server";
 
 interface BackendEnrollmentRequestChild {
   child_id: string;
@@ -32,7 +29,6 @@ interface BackendEnrollmentRequest {
  * (matched by guardian_account_id from the parent JWT). account_id is
  * read server-side from the JWT, never from query/body.
  */
-export const GET = createParentGetHandler<BackendEnrollmentRequest[]>(
-  async (_request, token) =>
-    parentApiGet<BackendEnrollmentRequest[]>("/parent/me/enrollments", token),
+export const GET = proxyGet<BackendEnrollmentRequest[]>(
+  "/parent/me/enrollments",
 );

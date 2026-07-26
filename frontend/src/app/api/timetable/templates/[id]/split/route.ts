@@ -5,20 +5,12 @@
 //   creates a new version with the submitted fields. Body shape mirrors
 //   SplitTemplateBody in lib/timetable-types.ts.
 //
-// The Go backend wraps responses in { status, data, message }. Strip that
-// envelope here so route-wrapper does not double-wrap the payload.
-import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler, isStringParam } from "~/lib/route-wrapper.server";
+// The Go backend wraps responses in { status, data, message }. proxyPost
+// strips that envelope so route-wrapper does not double-wrap the payload.
+import { proxyPost } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const POST = createPostHandler(
-  async (_request: NextRequest, body: unknown, token: string, params) => {
-    if (!isStringParam(params.id)) throw new Error("Invalid id parameter");
-    const response = await apiPost<{ data: unknown }>(
-      `/api/timetable/templates/${params.id}/split`,
-      token,
-      body ?? {},
-    );
-    return response.data;
-  },
+export const POST = proxyPost(
+  (params) =>
+    `/api/timetable/templates/${requirePathSegmentParam(params)}/split`,
 );

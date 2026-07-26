@@ -1,30 +1,14 @@
-import {
-  createPutHandler,
-  createDeleteHandler,
-} from "@/lib/route-wrapper.server";
-import { apiPut, apiDelete } from "@/lib/api-helpers.server";
+import { proxyPut, proxyDelete } from "@/lib/route-proxy.server";
+import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // PUT /api/students/[id]/pickup-notes/[noteId] - Update a pickup note
-export const PUT = createPutHandler(async (_request, body, token, params) => {
-  const { id, noteId } = params;
-
-  const response = await apiPut(
-    `/api/students/${String(id)}/pickup-notes/${String(noteId)}`,
-    token,
-    body,
-  );
-  // @ts-expect-error - API helper returns unknown type
-
-  return response.data;
-});
+export const PUT = proxyPut(
+  (p) =>
+    `/api/students/${requirePathSegmentParam(p)}/pickup-notes/${requirePathSegmentParam(p, "noteId")}`,
+);
 
 // DELETE /api/students/[id]/pickup-notes/[noteId] - Delete a pickup note
-export const DELETE = createDeleteHandler(async (_request, token, params) => {
-  const { id, noteId } = params;
-
-  await apiDelete(
-    `/api/students/${String(id)}/pickup-notes/${String(noteId)}`,
-    token,
-  );
-  return null;
-});
+export const DELETE = proxyDelete(
+  (p) =>
+    `/api/students/${requirePathSegmentParam(p)}/pickup-notes/${requirePathSegmentParam(p, "noteId")}`,
+);

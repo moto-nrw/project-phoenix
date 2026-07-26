@@ -211,7 +211,6 @@ export function PasswordField({
             }
           }}
           placeholder={hints.placeholder}
-          autoFocus
           className={`block rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 ${
             isPin
               ? "w-28 pr-9 text-center tracking-widest tabular-nums"

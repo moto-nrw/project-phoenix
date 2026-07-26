@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentTemplateRoute" });
 
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
@@ -57,3 +58,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

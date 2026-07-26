@@ -17,6 +17,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+func init() {
+	// Router() calls jwt.MustNewTokenAuth(); MintTestJWT signs with the same
+	// secret. Seed the deterministic JWT config before any Router construction.
+	testutil.SeedTestJWTConfig()
+}
+
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
@@ -39,6 +45,23 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
+// newRouter mounts the production feedback Router() under /feedback so that
+// requests exercise the real middleware chain (JWT auth → tenant tx →
+// permission checks) exactly as the live server does.
+func newRouter(ctx *testContext) chi.Router {
+	router := chi.NewRouter()
+	router.Mount("/feedback", ctx.resource.Router())
+	return router
+}
+
+// feedbackRequest builds an authenticated request signed with a real JWT that
+// carries the default admin claims (tenant 1, admin:* permissions).
+func feedbackRequest(t *testing.T, method, target string, body interface{}) *http.Request {
+	t.Helper()
+	token := testutil.MintTestJWT(t, testutil.DefaultTestClaims())
+	return testutil.NewAuthenticatedRequest(t, method, target, body, testutil.WithJWTBearer(token))
+}
+
 // enableFeedback turns on the feedback feature for tenant 1
 // via a real DB setting override. Cleanup is deferred automatically.
 func enableFeedback(t *testing.T, ctx *testContext) {
@@ -59,13 +82,9 @@ func TestListFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback", ctx.resource.ListFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -76,13 +95,9 @@ func TestListFeedback_WithStudentFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback", ctx.resource.ListFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback?student_id=1", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback?student_id=1", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -93,13 +108,9 @@ func TestListFeedback_WithDateFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback", ctx.resource.ListFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback?date=2026-01-14", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback?date=2026-01-14", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -110,13 +121,9 @@ func TestListFeedback_WithMensaFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback", ctx.resource.ListFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback?is_mensa=true", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback?is_mensa=true", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -131,13 +138,9 @@ func TestGetFeedback_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/{id}", ctx.resource.GetFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/999999", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/999999", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -148,13 +151,9 @@ func TestGetFeedback_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/{id}", ctx.resource.GetFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/invalid", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/invalid", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -174,13 +173,9 @@ func TestGetStudentFeedback_Success(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
-	router.Get("/feedback/student/{id}", ctx.resource.GetStudentFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/feedback/student/%d", student.ID), nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", fmt.Sprintf("/feedback/student/%d", student.ID), nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -192,13 +187,9 @@ func TestGetStudentFeedback_InvalidID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 	enableFeedback(t, ctx)
 
-	router := chi.NewRouter()
-	router.Get("/feedback/student/{id}", ctx.resource.GetStudentFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/student/invalid", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/student/invalid", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -213,13 +204,9 @@ func TestGetDateFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/date/{date}", ctx.resource.GetDateFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date/2026-01-14", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/date/2026-01-14", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -230,13 +217,9 @@ func TestGetDateFeedback_InvalidDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/date/{date}", ctx.resource.GetDateFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date/invalid-date", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/date/invalid-date", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -251,13 +234,9 @@ func TestGetMensaFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/mensa", ctx.resource.GetMensaFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/mensa", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/mensa", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -268,13 +247,9 @@ func TestGetMensaFeedback_WithFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/mensa", ctx.resource.GetMensaFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/mensa?is_mensa=false", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/mensa?is_mensa=false", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -289,13 +264,9 @@ func TestGetDateRangeFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -310,14 +281,10 @@ func TestGetDateRangeFeedback_WithStudentID(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Range", "Student", "2b")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
-	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET",
-		fmt.Sprintf("/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31&student_id=%d", student.ID), nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET",
+		fmt.Sprintf("/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31&student_id=%d", student.ID), nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -328,13 +295,9 @@ func TestGetDateRangeFeedback_InvalidStartDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date-range?start_date=invalid&end_date=2026-01-31", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/date-range?start_date=invalid&end_date=2026-01-31", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -345,13 +308,9 @@ func TestGetDateRangeFeedback_InvalidEndDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date-range?start_date=2026-01-01&end_date=invalid", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET", "/feedback/date-range?start_date=2026-01-01&end_date=invalid", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -362,14 +321,10 @@ func TestGetDateRangeFeedback_InvalidStudentID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET",
-		"/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31&student_id=invalid", nil,
-		testutil.WithPermissions("feedback:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "GET",
+		"/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31&student_id=invalid", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -388,8 +343,7 @@ func TestCreateFeedback_Success(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Create", "Feedback", "3c")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
+	router := newRouter(ctx)
 
 	// Value must be 'positive', 'neutral', or 'negative'
 	body := map[string]interface{}{
@@ -400,10 +354,7 @@ func TestCreateFeedback_Success(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
-		testutil.WithPermissions("feedback:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "POST", "/feedback", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -418,8 +369,7 @@ func TestCreateFeedback_MissingValue(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Missing", "Value", "3c")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
+	router := newRouter(ctx)
 
 	body := map[string]interface{}{
 		"day":               time.Now().Format("2006-01-02"),
@@ -428,10 +378,7 @@ func TestCreateFeedback_MissingValue(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
-		testutil.WithPermissions("feedback:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "POST", "/feedback", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -442,8 +389,7 @@ func TestCreateFeedback_MissingStudentID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
+	router := newRouter(ctx)
 
 	body := map[string]interface{}{
 		"value":             "Great day!",
@@ -452,10 +398,7 @@ func TestCreateFeedback_MissingStudentID(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
-		testutil.WithPermissions("feedback:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "POST", "/feedback", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -470,8 +413,7 @@ func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Date", "3c")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
+	router := newRouter(ctx)
 
 	body := map[string]interface{}{
 		"value":             "Great day!",
@@ -481,10 +423,7 @@ func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
-		testutil.WithPermissions("feedback:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "POST", "/feedback", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -499,8 +438,7 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Time", "3c")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
+	router := newRouter(ctx)
 
 	body := map[string]interface{}{
 		"value":             "Great day!",
@@ -510,10 +448,7 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
-		testutil.WithPermissions("feedback:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "POST", "/feedback", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -535,8 +470,7 @@ func TestCreateBatchFeedback_Success(t *testing.T) {
 	student2 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Two", "4a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student2.ID)
 
-	router := chi.NewRouter()
-	router.Post("/feedback/batch", ctx.resource.CreateBatchFeedbackHandler())
+	router := newRouter(ctx)
 
 	// Value must be 'positive', 'neutral', or 'negative'
 	body := map[string]interface{}{
@@ -558,10 +492,7 @@ func TestCreateBatchFeedback_Success(t *testing.T) {
 		},
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback/batch", body,
-		testutil.WithPermissions("feedback:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "POST", "/feedback/batch", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -572,17 +503,13 @@ func TestCreateBatchFeedback_EmptyEntries(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/feedback/batch", ctx.resource.CreateBatchFeedbackHandler())
+	router := newRouter(ctx)
 
 	body := map[string]interface{}{
 		"entries": []map[string]interface{}{},
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback/batch", body,
-		testutil.WithPermissions("feedback:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "POST", "/feedback/batch", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -597,8 +524,7 @@ func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Invalid", "4a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
-	router.Post("/feedback/batch", ctx.resource.CreateBatchFeedbackHandler())
+	router := newRouter(ctx)
 
 	// Value must be 'positive', 'neutral', or 'negative'
 	body := map[string]interface{}{
@@ -617,10 +543,7 @@ func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 		},
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback/batch", body,
-		testutil.WithPermissions("feedback:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "POST", "/feedback/batch", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -635,13 +558,9 @@ func TestDeleteFeedback_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Delete("/feedback/{id}", ctx.resource.DeleteFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/feedback/999999", nil,
-		testutil.WithPermissions("feedback:delete"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "DELETE", "/feedback/999999", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -652,13 +571,9 @@ func TestDeleteFeedback_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Delete("/feedback/{id}", ctx.resource.DeleteFeedbackHandler())
+	router := newRouter(ctx)
 
-	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/feedback/invalid", nil,
-		testutil.WithPermissions("feedback:delete"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
+	req := feedbackRequest(t, "DELETE", "/feedback/invalid", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 

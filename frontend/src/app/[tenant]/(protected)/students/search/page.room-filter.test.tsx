@@ -41,7 +41,7 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush }),
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenant: () => ({ tenantSlug: "t", tenant: null }),
   useTenantSafe: () => ({
     tenantSlug: "t",
@@ -58,7 +58,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useBreadcrumb: () => ({ breadcrumb: {}, setBreadcrumb: vi.fn() }),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: () => <div data-testid="header" />,
 }));
 
@@ -164,7 +164,11 @@ vi.mock("~/components/students/student-card", () => ({
     studentId: string;
     onClick: () => void;
   }) => (
-    <button data-testid={`student-card-${studentId}`} onClick={onClick}>
+    <button
+      type="button"
+      data-testid={`student-card-${studentId}`}
+      onClick={onClick}
+    >
       card-{studentId}
     </button>
   ),

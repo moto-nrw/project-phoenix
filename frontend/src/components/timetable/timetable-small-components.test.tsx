@@ -6,9 +6,8 @@ import { MonthPlannerGrid } from "./month-planner-grid";
 import { TemplateCard } from "./template-card";
 import { TemplateList } from "./template-list";
 import { TimetableAddMenu } from "./timetable-add-menu";
-import { TimetableToolbar } from "./timetable-toolbar";
+import { TimetableRatioPill } from "./timetable-ratio-pill";
 import { WeeklyCalendarGrid } from "./weekly-calendar-grid";
-import { YearPlannerGrid } from "./year-planner-grid";
 import type {
   EnrichedInstance,
   TimetableTemplate,
@@ -32,7 +31,10 @@ const instance: EnrichedInstance = {
   staffCount: 1,
   absentStaffCount: 0,
   expectedStudentsCount: 2,
+  notScheduledStudentsCount: 0,
   presentStudentsCount: 1,
+  requiredStaffCount: 1,
+  assignedStaffCount: 1,
   conflictWarnings: [
     {
       kind: "room",
@@ -53,8 +55,11 @@ const template: TimetableTemplate = {
   roomName: "Turnhalle",
   isOpen: true,
   maxParticipants: 12,
+  targetGroupType: "none",
   enrollmentCount: 8,
   supervisorCount: 1,
+  requiredStaffCount: 1,
+  assignedStaffCount: 1,
   studentIds: ["21"],
   staffIds: ["11"],
   primaryStaffId: "11",
@@ -138,6 +143,28 @@ describe("small timetable components", () => {
     );
 
     expect(screen.getByText("Spontan")).toBeInTheDocument();
+  });
+
+  it("suppresses staffing warnings for cancelled month instances", () => {
+    const cancelled: EnrichedInstance = {
+      ...instance,
+      status: "cancelled",
+      isLive: false,
+      requiredStaffCount: 2,
+      assignedStaffCount: 0,
+      conflictWarnings: [],
+    };
+
+    render(
+      <MonthPlannerGrid
+        days={[new Date("2026-05-04T00:00:00")]}
+        monthDate={new Date("2026-05-01T00:00:00")}
+        instances={[cancelled]}
+        onDayClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Besetzung: 0/2")).not.toBeInTheDocument();
   });
 
   it("offers only one-off and recurring entries in the add menu", () => {
@@ -235,6 +262,54 @@ describe("small timetable components", () => {
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
   });
 
+  it("shows staffing capacity on template cards", () => {
+    render(
+      <TemplateCard
+        template={{
+          ...template,
+          requiredStaffCount: 3,
+          assignedStaffCount: 1,
+        }}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("1/3")).toBeInTheDocument();
+    expect(screen.getByText("Besetzung:")).toHaveClass("sr-only");
+  });
+
+  it("gives compact ratio pills a screen-reader label", () => {
+    render(
+      <TimetableRatioPill
+        icon={<span />}
+        label="Besetzung"
+        value="1/3"
+        tone="warning"
+        variant="compact"
+      />,
+    );
+
+    expect(screen.getByText("Besetzung:")).toHaveClass("sr-only");
+    expect(screen.getByText("1/3")).toBeVisible();
+  });
+
+  it("labels dot ratio pills without an image role", () => {
+    render(
+      <TimetableRatioPill
+        icon={null}
+        label="Besetzung"
+        value="1/3"
+        tone="warning"
+        variant="dot"
+      />,
+    );
+
+    expect(screen.getByText("Besetzung: 1/3")).toHaveClass("sr-only");
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
   it("shows a missing-room hint only when the template has no room", () => {
     const { rerender } = render(
       <TemplateCard
@@ -263,146 +338,9 @@ describe("small timetable components", () => {
     ).toBeInTheDocument();
   });
 
-  it("handles toolbar view, navigation, add, and density controls", () => {
-    const onViewChange = vi.fn();
-    const onPrev = vi.fn();
-    const onNext = vi.fn();
-    const onToday = vi.fn();
-    const onAddInstance = vi.fn();
-    const onDensityChange = vi.fn();
-
-    render(
-      <TimetableToolbar
-        view="week"
-        onViewChange={onViewChange}
-        rangeLabel="KW 19"
-        onPrev={onPrev}
-        onNext={onNext}
-        onToday={onToday}
-        density="normal"
-        onDensityChange={onDensityChange}
-        onAddInstance={onAddInstance}
-        planWeekAction={<span>Plan action</span>}
-      />,
-    );
-
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Monat" }), {
-      button: 0,
-    });
-    fireEvent.click(screen.getByLabelText("Vorheriger Zeitraum"));
-    fireEvent.click(screen.getByLabelText("Nächster Zeitraum"));
-    fireEvent.click(screen.getByRole("button", { name: "Heute" }));
-    fireEvent.click(screen.getByRole("button", { name: "Termin" }));
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Komfortabel" }));
-
-    expect(onViewChange).toHaveBeenCalledWith("month");
-    expect(onPrev).toHaveBeenCalledOnce();
-    expect(onNext).toHaveBeenCalledOnce();
-    expect(onToday).toHaveBeenCalledOnce();
-    expect(onAddInstance).toHaveBeenCalledOnce();
-    expect(onDensityChange).toHaveBeenCalledWith("comfortable");
-  });
-
-  it("closes the toolbar density menu from keyboard and outside clicks", () => {
-    render(
-      <TimetableToolbar
-        view="week"
-        onViewChange={vi.fn()}
-        rangeLabel="KW 19"
-        onPrev={vi.fn()}
-        onNext={vi.fn()}
-        onToday={vi.fn()}
-        density="normal"
-        onDensityChange={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.mouseDown(document.body);
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  });
-
-  it("offers period management in the toolbar overflow menu in every view", () => {
-    const onManagePeriods = vi.fn();
-    const sharedProps = {
-      onViewChange: vi.fn(),
-      rangeLabel: "Mai 2026",
-      onPrev: vi.fn(),
-      onNext: vi.fn(),
-      onToday: vi.fn(),
-      onManagePeriods,
-    };
-
-    const { rerender } = render(
-      <TimetableToolbar view="month" {...sharedProps} />,
-    );
-
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    // Density only applies to the week view; outside it the menu carries
-    // just the Verwaltung section.
-    expect(screen.queryByText("Zeilenhöhe")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: /schuljahre & ferien/i }),
-    );
-    expect(onManagePeriods).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-
-    rerender(<TimetableToolbar view="series" {...sharedProps} navDisabled />);
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    expect(
-      screen.getByRole("menuitem", { name: /schuljahre & ferien/i }),
-    ).toBeInTheDocument();
-    fireEvent.keyDown(document, { key: "Escape" });
-
-    rerender(
-      <TimetableToolbar
-        view="week"
-        {...sharedProps}
-        density="normal"
-        onDensityChange={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    expect(screen.getByText("Zeilenhöhe")).toBeInTheDocument();
-    expect(screen.getByText("Verwaltung")).toBeInTheDocument();
-  });
-
-  it("hides irrelevant toolbar controls for series and today states", () => {
-    render(
-      <TimetableToolbar
-        view="series"
-        onViewChange={vi.fn()}
-        rangeLabel="Regeltermine"
-        onPrev={vi.fn()}
-        onNext={vi.fn()}
-        onToday={vi.fn()}
-        isOnToday
-        navDisabled
-      />,
-    );
-
-    expect(
-      screen.queryByLabelText("Vorheriger Zeitraum"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Weitere Optionen")).not.toBeInTheDocument();
-  });
-
-  it("renders week/month/year grids and forwards date selections", () => {
+  it("renders week/month grids and forwards date selections", () => {
     const onInstanceClick = vi.fn();
     const onDayClick = vi.fn();
-    const onMonthClick = vi.fn();
     const weekDays = [
       new Date("2026-05-04T00:00:00"),
       new Date("2026-05-05T00:00:00"),
@@ -439,21 +377,6 @@ describe("small timetable components", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /4/i }));
-    expect(onDayClick).toHaveBeenCalledWith("2026-05-04");
-
-    rerender(
-      <YearPlannerGrid
-        months={[new Date("2026-05-01T00:00:00")]}
-        instances={[instance]}
-        todayISO="2026-05-04"
-        onMonthClick={onMonthClick}
-        onDayClick={onDayClick}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /mai/i }));
-    fireEvent.click(screen.getByRole("button", { name: /2026-05-04/ }));
-
-    expect(onMonthClick).toHaveBeenCalledWith(new Date("2026-05-01T00:00:00"));
     expect(onDayClick).toHaveBeenCalledWith("2026-05-04");
   });
 

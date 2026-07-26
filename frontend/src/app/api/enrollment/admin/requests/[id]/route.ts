@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -17,7 +18,7 @@ async function bearerHeader() {
   return `Bearer ${token}`;
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+async function GETHandler(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const authHeader = await bearerHeader();
   if (!authHeader) {
@@ -42,3 +43,39 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     );
   }
 }
+
+export const GET = withTenantAuth(GETHandler);
+
+async function DELETEHandler(request: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+  const authHeader = await bearerHeader();
+  if (!authHeader) {
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  }
+  try {
+    const body = (await request.json()) as { reason: string };
+    const response = await fetch(
+      `${getServerApiUrl()}/api/enrollment/admin/requests/${encodeURIComponent(id)}/`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    return NextResponse.json(payload, { status: response.status });
+  } catch (error) {
+    logger.error("admin_request_delete_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}
+
+export const DELETE = withTenantAuth(DELETEHandler);

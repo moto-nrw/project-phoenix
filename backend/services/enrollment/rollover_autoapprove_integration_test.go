@@ -1,19 +1,23 @@
 package enrollment_test
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,6 +53,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		CareOfferingRepo:         repoFactory.CareOffering,
 		PhaseRepo:                repoFactory.Phase,
 		PersonRepo:               repoFactory.Person,
+		StaffRepo:                repoFactory.Staff,
 		StudentRepo:              repoFactory.Student,
 		StudentGuardianRepo:      repoFactory.StudentGuardian,
 		GuardianProfileRepo:      repoFactory.GuardianProfile,
@@ -56,6 +61,8 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		ActivityGroupRepo:        repoFactory.ActivityGroup,
 		ActivityScheduleRepo:     repoFactory.ActivitySchedule,
 		CalendarPeriodRepo:       repoFactory.CalendarPeriod,
+		TimeframeRepo:            repoFactory.Timeframe,
+		ActivityExceptionRepo:    repoFactory.ActivityException,
 		AccountRepo:              repoFactory.Account,
 		AccountTenantRepo:        repoFactory.AccountTenant,
 		AccountRoleRepo:          repoFactory.AccountRole,
@@ -414,4 +421,114 @@ func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 	afterCount := countStudentsForPerson(t, env, existing.PersonID)
 	assert.Equal(t, beforeCount, afterCount,
 		"auto-approve must not insert a second student row for the same person")
+}
+
+func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *testing.T) {
+	env, cleanup := setupAutoApproveIntegrationEnv(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	source, existing := seedApprovedChildWithStudent(
+		t, env,
+		"Anna", "Rollback", "auto-approve-rollback@example.com",
+		"Lina", "Rollback",
+		int16(1),
+	)
+	require.NotNil(t, existing.EnrolledFrom)
+	require.NotNil(t, existing.EnrolledUntil)
+	originalClass := existing.SchoolClass
+	originalStatus := existing.Status
+	originalFrom := *existing.EnrolledFrom
+	originalUntil := *existing.EnrolledUntil
+
+	// Persist a legacy-invalid template offering. The schedule resolves for the
+	// target phase, but the fixed offering has no days, so Decide fails in care
+	// recurrence validation only after applyApprovalRollover updates the student.
+	group := createCareOfferingTemplateGroup(t, env.db, "rollover-savepoint")
+	period := createCareOfferingTestPeriod(
+		t,
+		env.db,
+		"rollover-savepoint",
+		timezone.NewDate(2027, 8, 1),
+		timezone.NewDate(2028, 8, 31),
+	)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Invalid empty-day rollover offering",
+		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"tue"},
+		IsActive:        true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	// Simulate a legacy row saved before #1885 made available_days
+	// mandatory: clear the days directly, bypassing Validate. The rollback
+	// behavior under test targets exactly such legacy-invalid rows.
+	_, updErr := env.db.NewUpdate().
+		TableExpr("enrollment.care_offerings").
+		Set("available_days = '[]'::jsonb").
+		Where("id = ?", offering.ID).
+		Exec(ctx)
+	require.NoError(t, updErr)
+	link := &enrollmentModels.RequestChildOffering{
+		RequestChildID: source.ID,
+		CareOfferingID: offering.ID,
+	}
+	link.SetTenantID(1)
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, link))
+
+	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req.RolloverAutoApprove = true
+	req.RolloverDeadline = time.Now().Add(-time.Hour)
+	req.Name = "auto-approve-savepoint-rollback-target"
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
+	require.NoError(t, err)
+
+	rolled, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+		ctx,
+		result.Phase.ID,
+		[]string{enrollmentModels.ChildStatusAutoRenewed},
+	)
+	require.NoError(t, err)
+	require.Len(t, rolled, 1)
+	rolledChildID := rolled[0].ID
+
+	var summary *enrollmentService.DeadlineWorkerSummary
+	err = tenant.WithTenantTx(context.Background(), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		var workerErr error
+		summary, workerErr = env.rolloverSvc.RunDeadlineWorker(txCtx, time.Now())
+		return workerErr
+	})
+	require.NoError(t, err, "ordinary Decide failures must be isolated to their row savepoint")
+	require.NotNil(t, summary)
+	assert.Equal(t, 0, summary.AutoRenewedToApproved)
+	assert.Equal(t, 1, summary.AutoApproveErrors)
+
+	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, originalClass, refreshed.SchoolClass,
+		"failed approval must not commit the target grade/class")
+	assert.Equal(t, originalStatus, refreshed.Status)
+	require.NotNil(t, refreshed.EnrolledFrom)
+	require.NotNil(t, refreshed.EnrolledUntil)
+	assert.Equal(t, originalFrom, *refreshed.EnrolledFrom,
+		"failed approval must not commit the target enrollment start")
+	assert.Equal(t, originalUntil, *refreshed.EnrolledUntil,
+		"failed approval must not commit the target enrollment end")
+
+	rolledAfter, err := env.repos.RequestChild.FindByID(ctx, rolledChildID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusAutoRenewed, rolledAfter.Status)
+	assert.Nil(t, rolledAfter.CreatedStudentID, "failed approval must not link the existing student")
+
+	enrollments, err := env.repos.StudentEnrollment.FindByStudentID(ctx, existing.ID)
+	require.NoError(t, err)
+	for _, enrollment := range enrollments {
+		if enrollment.EnrollmentRequestChildID != nil {
+			assert.NotEqual(t, rolledChildID, *enrollment.EnrollmentRequestChildID,
+				"failed approval must not leave a materialized roster row")
+		}
+	}
 }

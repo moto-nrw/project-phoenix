@@ -18,11 +18,13 @@ type SeedState struct {
 	DevicePIN   string                `json:"device_pin"`
 	Bootstrap   SeedStateBootstrap    `json:"bootstrap"`
 	Accounts    SeedStateAccounts     `json:"accounts"`
+	Parents     []ParentCredentials   `json:"parents,omitempty"`
 	Devices     map[string]SeedDevice `json:"devices"`
 	Students    []SeedStudent         `json:"students"`
 	Rooms       map[string]int64      `json:"rooms"`
 	Activities  map[string]int64      `json:"activities"`
 	Groups      map[string]int64      `json:"groups"`
+	Enrollment  SeedEnrollmentState   `json:"enrollment,omitempty"`
 	Credentials SeedStateCredentials  `json:"credentials"`
 	Topology    SeedStateTopology     `json:"topology"`
 	Entities    SeedStateEntities     `json:"entities"`
@@ -34,6 +36,7 @@ type SeedStateCredentials struct {
 	Operator  *SeedOperatorCredentials `json:"operator,omitempty"`
 	DevicePIN string                   `json:"device_pin"`
 	Accounts  SeedStateAccounts        `json:"accounts"`
+	Parents   []ParentCredentials      `json:"parents,omitempty"`
 }
 
 type SeedOperatorCredentials struct {
@@ -48,9 +51,10 @@ type SeedStateTopology struct {
 }
 
 type SeedStateEntities struct {
-	Bootstrap SeedStateBootstrap    `json:"bootstrap"`
-	Devices   map[string]SeedDevice `json:"devices"`
-	Students  []SeedStudent         `json:"students"`
+	Bootstrap  SeedStateBootstrap    `json:"bootstrap"`
+	Devices    map[string]SeedDevice `json:"devices"`
+	Students   []SeedStudent         `json:"students"`
+	Enrollment SeedEnrollmentState   `json:"enrollment,omitempty"`
 }
 
 type SeedStateLookups struct {
@@ -78,6 +82,15 @@ type SeedStateBootstrap struct {
 type SeedStateAccounts struct {
 	Admin    []AccountCredentials `json:"admin"`
 	Betreuer []AccountCredentials `json:"betreuer"`
+}
+
+type ParentCredentials struct {
+	Email      string  `json:"email"`
+	Password   string  `json:"password"`
+	Name       string  `json:"name"`
+	AccountID  int64   `json:"account_id,omitempty"`
+	GuardianID int64   `json:"guardian_id"`
+	StudentIDs []int64 `json:"student_ids,omitempty"`
 }
 
 type BootstrapAdminCredentials struct {
@@ -108,6 +121,29 @@ type SeedStudent struct {
 	LastName  string `json:"last_name"`
 	GroupKey  string `json:"group_key"`
 	Class     string `json:"class"`
+}
+
+type SeedEnrollmentState struct {
+	PhaseID       int64                    `json:"phase_id,omitempty"`
+	Offerings     map[string]int64         `json:"offerings,omitempty"`
+	Requests      []SeedEnrollmentRequest  `json:"requests,omitempty"`
+	ParentActions []SeedParentPortalAction `json:"parent_actions,omitempty"`
+	Settings      map[string]any           `json:"settings,omitempty"`
+}
+
+type SeedEnrollmentRequest struct {
+	RequestID   int64   `json:"request_id"`
+	Source      string  `json:"source"`
+	Status      string  `json:"status,omitempty"`
+	StatusURL   string  `json:"status_url,omitempty"`
+	StatusToken string  `json:"status_token,omitempty"`
+	ChildIDs    []int64 `json:"child_ids,omitempty"`
+}
+
+type SeedParentPortalAction struct {
+	ParentEmail string `json:"parent_email"`
+	StudentID   int64  `json:"student_id"`
+	Type        string `json:"type"`
 }
 
 func WriteSeedState(state *SeedState, path string) error {
@@ -184,6 +220,12 @@ func (s *SeedState) Normalize() {
 	if len(s.Accounts.Admin) == 0 && len(s.Accounts.Betreuer) == 0 {
 		s.Accounts = s.Credentials.Accounts
 	}
+	if len(s.Credentials.Parents) == 0 && len(s.Parents) > 0 {
+		s.Credentials.Parents = append([]ParentCredentials(nil), s.Parents...)
+	}
+	if len(s.Parents) == 0 && len(s.Credentials.Parents) > 0 {
+		s.Parents = append([]ParentCredentials(nil), s.Credentials.Parents...)
+	}
 
 	if s.Entities.Bootstrap.OrganizationID == 0 && s.Bootstrap.OrganizationID != 0 {
 		s.Entities.Bootstrap = s.Bootstrap
@@ -204,6 +246,14 @@ func (s *SeedState) Normalize() {
 	}
 	if len(s.Students) == 0 && len(s.Entities.Students) > 0 {
 		s.Students = append([]SeedStudent(nil), s.Entities.Students...)
+	}
+	normalizeEnrollmentState(&s.Enrollment)
+	normalizeEnrollmentState(&s.Entities.Enrollment)
+	if s.Entities.Enrollment.PhaseID == 0 && s.Enrollment.PhaseID != 0 {
+		s.Entities.Enrollment = cloneEnrollmentState(s.Enrollment)
+	}
+	if s.Enrollment.PhaseID == 0 && s.Entities.Enrollment.PhaseID != 0 {
+		s.Enrollment = cloneEnrollmentState(s.Entities.Enrollment)
 	}
 
 	if len(s.Lookups.Rooms) == 0 && len(s.Rooms) > 0 {
@@ -256,6 +306,32 @@ func cloneSeedIDMap(src map[string]int64) map[string]int64 {
 	dst := make(map[string]int64, len(src))
 	for key, value := range src {
 		dst[key] = value
+	}
+	return dst
+}
+
+func normalizeEnrollmentState(state *SeedEnrollmentState) {
+	if state == nil {
+		return
+	}
+	if state.Offerings == nil {
+		state.Offerings = make(map[string]int64)
+	}
+	if state.Settings == nil {
+		state.Settings = make(map[string]any)
+	}
+}
+
+func cloneEnrollmentState(src SeedEnrollmentState) SeedEnrollmentState {
+	dst := SeedEnrollmentState{
+		PhaseID:       src.PhaseID,
+		Offerings:     cloneSeedIDMap(src.Offerings),
+		Requests:      append([]SeedEnrollmentRequest(nil), src.Requests...),
+		ParentActions: append([]SeedParentPortalAction(nil), src.ParentActions...),
+		Settings:      make(map[string]any, len(src.Settings)),
+	}
+	for key, value := range src.Settings {
+		dst.Settings[key] = value
 	}
 	return dst
 }

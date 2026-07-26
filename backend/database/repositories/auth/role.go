@@ -73,9 +73,7 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").
 		Where("ar.account_id = ?", accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "ar"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "ar")
 
 	err := query.Scan(ctx)
 
@@ -110,9 +108,7 @@ func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountI
 		Where("ar.account_id IN (?)", bun.List(accountIDs)).
 		OrderExpr("ar.created_at ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "ar"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "ar")
 
 	err := query.Scan(ctx, &rows)
 
@@ -154,47 +150,6 @@ func (r *RoleRepository) RemoveRoleFromAccount(_ context.Context, _ int64, _ int
 		Op:  "remove role from account",
 		Err: errors.New("deprecated: use AccountRoleRepository.DeleteByAccountAndRole instead"),
 	}
-}
-
-// GetRoleWithPermissions retrieves a role with its associated permissions
-func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int64) (*auth.Role, error) {
-	role := new(auth.Role)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(role).
-		ModelTableExpr(roleTableAlias).
-		Where(whereRoleID, roleID)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get role",
-			Err: err,
-		}
-	}
-
-	// Load permissions for the role
-	var permissions []*auth.Permission
-	err = base.GetDB(ctx, r.db).NewSelect().
-		Model(&permissions).
-		ModelTableExpr("auth.permissions AS permission").
-		Join("JOIN auth.role_permissions rp ON rp.permission_id = permission.id").
-		Where("rp.role_id = ?", roleID).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get role permissions",
-			Err: err,
-		}
-	}
-
-	role.Permissions = permissions
-	return role, nil
 }
 
 // FindByID overrides the base FindByID to include system roles (tenant_id IS NULL)
@@ -250,21 +205,6 @@ func (r *RoleRepository) Delete(ctx context.Context, id any) error {
 	}
 
 	return nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *RoleRepository) Create(ctx context.Context, role *auth.Role) error {
-	if role == nil {
-		return fmt.Errorf("role cannot be nil")
-	}
-
-	// Validate role
-	if err := role.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, role)
 }
 
 // Update overrides the base Update method for schema consistency

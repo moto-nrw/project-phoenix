@@ -15,28 +15,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// GradeTransitionService defines operations for managing grade transitions
-type GradeTransitionService interface {
-	// Transition management
-	Create(ctx context.Context, req CreateTransitionRequest) (*education.GradeTransition, error)
-	Update(ctx context.Context, id int64, req UpdateTransitionRequest) (*education.GradeTransition, error)
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*education.GradeTransition, error)
-	List(ctx context.Context, options *base.QueryOptions) ([]*education.GradeTransition, int, error)
-
-	// Preview & Apply
-	Preview(ctx context.Context, id int64) (*TransitionPreview, error)
-	Apply(ctx context.Context, id int64, accountID int64) (*TransitionResult, error)
-
-	// Undo
-	Revert(ctx context.Context, id int64, accountID int64) (*TransitionResult, error)
-
-	// Utilities
-	GetDistinctClasses(ctx context.Context) ([]string, error)
-	SuggestMappings(ctx context.Context) ([]*SuggestedMapping, error)
-	GetHistory(ctx context.Context, transitionID int64) ([]*education.GradeTransitionHistory, error)
-}
-
 // CreateTransitionRequest contains data for creating a new transition
 type CreateTransitionRequest struct {
 	AcademicYear string           `json:"academic_year"`
@@ -105,8 +83,9 @@ type SuggestedMapping struct {
 // Error message format constants
 const errFmtTransitionNotFound = "transition not found: %w"
 
-// gradeTransitionService implements GradeTransitionService
-type gradeTransitionService struct {
+// GradeTransitionService manages grade transitions: CRUD, preview/apply,
+// revert, and mapping utilities.
+type GradeTransitionService struct {
 	transitionRepo education.GradeTransitionRepository
 	studentRepo    users.StudentRepository
 	personRepo     users.PersonRepository
@@ -122,8 +101,8 @@ type GradeTransitionServiceDependencies struct {
 }
 
 // NewGradeTransitionService creates a new grade transition service
-func NewGradeTransitionService(deps GradeTransitionServiceDependencies) GradeTransitionService {
-	return &gradeTransitionService{
+func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTransitionService {
+	return &GradeTransitionService{
 		transitionRepo: deps.TransitionRepo,
 		studentRepo:    deps.StudentRepo,
 		personRepo:     deps.PersonRepo,
@@ -132,7 +111,7 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) GradeTra
 }
 
 // Create creates a new grade transition with mappings
-func (s *gradeTransitionService) Create(ctx context.Context, req CreateTransitionRequest) (*education.GradeTransition, error) {
+func (s *GradeTransitionService) Create(ctx context.Context, req CreateTransitionRequest) (*education.GradeTransition, error) {
 	if req.AcademicYear == "" {
 		return nil, errors.New("academic_year is required")
 	}
@@ -162,7 +141,7 @@ func (s *gradeTransitionService) Create(ctx context.Context, req CreateTransitio
 }
 
 // createMappingsIfProvided creates mappings for a transition if any are provided.
-func (s *gradeTransitionService) createMappingsIfProvided(
+func (s *GradeTransitionService) createMappingsIfProvided(
 	ctx context.Context,
 	transition *education.GradeTransition,
 	reqMappings []MappingRequest,
@@ -189,7 +168,7 @@ func (s *gradeTransitionService) createMappingsIfProvided(
 }
 
 // buildMappings validates and builds mapping entities from input.
-func (s *gradeTransitionService) buildMappings(transitionID int64, inputs []MappingRequest) ([]*education.GradeTransitionMapping, error) {
+func (s *GradeTransitionService) buildMappings(transitionID int64, inputs []MappingRequest) ([]*education.GradeTransitionMapping, error) {
 	mappings := make([]*education.GradeTransitionMapping, 0, len(inputs))
 	for _, m := range inputs {
 		mapping := &education.GradeTransitionMapping{
@@ -206,7 +185,7 @@ func (s *gradeTransitionService) buildMappings(transitionID int64, inputs []Mapp
 }
 
 // Update updates a grade transition
-func (s *gradeTransitionService) Update(ctx context.Context, id int64, req UpdateTransitionRequest) (*education.GradeTransition, error) {
+func (s *GradeTransitionService) Update(ctx context.Context, id int64, req UpdateTransitionRequest) (*education.GradeTransition, error) {
 	transition, err := s.transitionRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
@@ -244,7 +223,7 @@ func applyTransitionUpdates(transition *education.GradeTransition, req UpdateTra
 }
 
 // replaceMappingsIfProvided deletes existing mappings and creates new ones if provided.
-func (s *gradeTransitionService) replaceMappingsIfProvided(
+func (s *GradeTransitionService) replaceMappingsIfProvided(
 	ctx context.Context,
 	transition *education.GradeTransition,
 	reqMappings []MappingRequest,
@@ -280,7 +259,7 @@ func (s *gradeTransitionService) replaceMappingsIfProvided(
 }
 
 // Delete deletes a draft grade transition
-func (s *gradeTransitionService) Delete(ctx context.Context, id int64) error {
+func (s *GradeTransitionService) Delete(ctx context.Context, id int64) error {
 	transition, err := s.transitionRepo.FindByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf(errFmtTransitionNotFound, err)
@@ -294,17 +273,17 @@ func (s *gradeTransitionService) Delete(ctx context.Context, id int64) error {
 }
 
 // GetByID retrieves a grade transition by ID with mappings
-func (s *gradeTransitionService) GetByID(ctx context.Context, id int64) (*education.GradeTransition, error) {
+func (s *GradeTransitionService) GetByID(ctx context.Context, id int64) (*education.GradeTransition, error) {
 	return s.transitionRepo.FindByIDWithMappings(ctx, id)
 }
 
 // List retrieves grade transitions with pagination
-func (s *gradeTransitionService) List(ctx context.Context, options *base.QueryOptions) ([]*education.GradeTransition, int, error) {
+func (s *GradeTransitionService) List(ctx context.Context, options *base.QueryOptions) ([]*education.GradeTransition, int, error) {
 	return s.transitionRepo.List(ctx, options)
 }
 
 // Preview returns what will happen when the transition is applied
-func (s *gradeTransitionService) Preview(ctx context.Context, id int64) (*TransitionPreview, error) {
+func (s *GradeTransitionService) Preview(ctx context.Context, id int64) (*TransitionPreview, error) {
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
@@ -332,7 +311,7 @@ func (s *gradeTransitionService) Preview(ctx context.Context, id int64) (*Transi
 }
 
 // buildMappingPreviews populates preview with mapping details and returns mapped class names.
-func (s *gradeTransitionService) buildMappingPreviews(
+func (s *GradeTransitionService) buildMappingPreviews(
 	ctx context.Context,
 	preview *TransitionPreview,
 	mappings []*education.GradeTransitionMapping,
@@ -361,7 +340,7 @@ func (s *gradeTransitionService) buildMappingPreviews(
 }
 
 // createMappingPreview creates a MappingPreview from a mapping and student count.
-func (s *gradeTransitionService) createMappingPreview(mapping *education.GradeTransitionMapping, count int) MappingPreview {
+func (s *GradeTransitionService) createMappingPreview(mapping *education.GradeTransitionMapping, count int) MappingPreview {
 	action := "promote"
 	if mapping.IsGraduating() {
 		action = "graduate"
@@ -375,7 +354,7 @@ func (s *gradeTransitionService) createMappingPreview(mapping *education.GradeTr
 }
 
 // findUnmappedClasses finds classes with students that are not in the transition.
-func (s *gradeTransitionService) findUnmappedClasses(
+func (s *GradeTransitionService) findUnmappedClasses(
 	ctx context.Context,
 	preview *TransitionPreview,
 	mappedClasses map[string]bool,
@@ -405,7 +384,7 @@ func (s *gradeTransitionService) findUnmappedClasses(
 }
 
 // addPreviewWarnings adds warning messages to the preview.
-func (s *gradeTransitionService) addPreviewWarnings(preview *TransitionPreview) {
+func (s *GradeTransitionService) addPreviewWarnings(preview *TransitionPreview) {
 	if len(preview.UnmappedClasses) > 0 {
 		preview.Warnings = append(preview.Warnings,
 			fmt.Sprintf("%d classes with students are not included in this transition",
@@ -419,7 +398,7 @@ func (s *gradeTransitionService) addPreviewWarnings(preview *TransitionPreview) 
 }
 
 // Apply executes the grade transition
-func (s *gradeTransitionService) Apply(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
+func (s *GradeTransitionService) Apply(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
@@ -457,7 +436,7 @@ func validateCanApply(transition *education.GradeTransition) error {
 }
 
 // executeApply performs the actual apply within a transaction.
-func (s *gradeTransitionService) executeApply(
+func (s *GradeTransitionService) executeApply(
 	ctx context.Context,
 	transition *education.GradeTransition,
 	accountID int64,
@@ -494,7 +473,7 @@ func categorizeMappings(mappings []*education.GradeTransitionMapping) (promote, 
 }
 
 // recordTransitionHistory creates history records for all affected students.
-func (s *gradeTransitionService) recordTransitionHistory(
+func (s *GradeTransitionService) recordTransitionHistory(
 	ctx context.Context,
 	transitionID int64,
 	mappings []*education.GradeTransitionMapping,
@@ -558,7 +537,7 @@ func buildHistoryRecords(
 }
 
 // applyPromotions updates student classes for promotions.
-func (s *gradeTransitionService) applyPromotions(
+func (s *GradeTransitionService) applyPromotions(
 	ctx context.Context,
 	transitionID int64,
 	promoteClasses []string,
@@ -576,7 +555,7 @@ func (s *gradeTransitionService) applyPromotions(
 }
 
 // applyGraduations deletes graduating students.
-func (s *gradeTransitionService) applyGraduations(
+func (s *GradeTransitionService) applyGraduations(
 	ctx context.Context,
 	graduateClasses []string,
 	result *TransitionResult,
@@ -600,7 +579,7 @@ func (s *gradeTransitionService) applyGraduations(
 }
 
 // markTransitionApplied updates the transition status to applied.
-func (s *gradeTransitionService) markTransitionApplied(
+func (s *GradeTransitionService) markTransitionApplied(
 	ctx context.Context,
 	transition *education.GradeTransition,
 	accountID int64,
@@ -629,7 +608,7 @@ func finalizeApplyResult(result *TransitionResult) {
 }
 
 // Revert undoes an applied grade transition
-func (s *gradeTransitionService) Revert(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
+func (s *GradeTransitionService) Revert(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
@@ -671,7 +650,7 @@ func validateCanRevert(transition *education.GradeTransition) error {
 }
 
 // executeRevert performs the actual revert within a transaction.
-func (s *gradeTransitionService) executeRevert(
+func (s *GradeTransitionService) executeRevert(
 	ctx context.Context,
 	transition *education.GradeTransition,
 	accountID int64,
@@ -694,7 +673,7 @@ func (s *gradeTransitionService) executeRevert(
 
 // revertPromotedStudents reverts promoted students to their original classes.
 // Returns the count of graduated students that cannot be restored and any error.
-func (s *gradeTransitionService) revertPromotedStudents(
+func (s *GradeTransitionService) revertPromotedStudents(
 	ctx context.Context,
 	history []*education.GradeTransitionHistory,
 	result *TransitionResult,
@@ -733,7 +712,7 @@ func (s *gradeTransitionService) revertPromotedStudents(
 // revertStudentClass updates a student back to their original class.
 // Returns (true, nil) if successful, (false, nil) if student no longer exists,
 // or (false, error) if a real database error occurred.
-func (s *gradeTransitionService) revertStudentClass(
+func (s *GradeTransitionService) revertStudentClass(
 	ctx context.Context,
 	h *education.GradeTransitionHistory,
 ) (bool, error) {
@@ -754,7 +733,7 @@ func (s *gradeTransitionService) revertStudentClass(
 }
 
 // markTransitionReverted updates the transition status to reverted.
-func (s *gradeTransitionService) markTransitionReverted(
+func (s *GradeTransitionService) markTransitionReverted(
 	ctx context.Context,
 	transition *education.GradeTransition,
 	accountID int64,
@@ -771,12 +750,12 @@ func (s *gradeTransitionService) markTransitionReverted(
 }
 
 // GetDistinctClasses returns all distinct school classes
-func (s *gradeTransitionService) GetDistinctClasses(ctx context.Context) ([]string, error) {
+func (s *GradeTransitionService) GetDistinctClasses(ctx context.Context) ([]string, error) {
 	return s.transitionRepo.GetDistinctClasses(ctx)
 }
 
 // SuggestMappings auto-suggests class mappings based on naming patterns
-func (s *gradeTransitionService) SuggestMappings(ctx context.Context) ([]*SuggestedMapping, error) {
+func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*SuggestedMapping, error) {
 	classes, err := s.transitionRepo.GetDistinctClasses(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get classes: %w", err)
@@ -846,6 +825,6 @@ func (s *gradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 }
 
 // GetHistory retrieves the history records for a transition
-func (s *gradeTransitionService) GetHistory(ctx context.Context, transitionID int64) ([]*education.GradeTransitionHistory, error) {
+func (s *GradeTransitionService) GetHistory(ctx context.Context, transitionID int64) ([]*education.GradeTransitionHistory, error) {
 	return s.transitionRepo.GetHistory(ctx, transitionID)
 }

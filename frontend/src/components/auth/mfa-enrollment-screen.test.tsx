@@ -8,10 +8,13 @@ import {
 } from "@testing-library/react";
 import { MFAEnrollmentScreen } from "./mfa-enrollment-screen";
 
-vi.mock("~/components/ui", () => ({
+vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => (
     <div role="alert">{message}</div>
   ),
+}));
+
+vi.mock("~/components/ui/button", () => ({
   Button: ({
     children,
     onClick,
@@ -27,6 +30,9 @@ vi.mock("~/components/ui", () => ({
       {children}
     </button>
   ),
+}));
+
+vi.mock("~/components/ui/wizard-stepper", () => ({
   WizardStepper: ({ steps, current }: { steps: string[]; current: number }) => (
     <ol data-testid="wizard-stepper">
       {steps.map((label, idx) => (

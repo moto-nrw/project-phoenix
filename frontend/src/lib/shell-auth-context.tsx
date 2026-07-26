@@ -95,17 +95,19 @@ export function TeacherShellProvider({
         } catch {
           // sessionStorage unavailable (e.g. private browsing quota)
         }
-        // Delete backend refresh tokens. Fire-and-forget: the cookie is
-        // included in the request headers at send time, so signOut() clearing
-        // the cookie afterward doesn't affect the in-flight request.
-        fetch("/api/auth/logout", {
-          method: "POST",
-          signal: AbortSignal.timeout(5000),
-        }).catch((err: unknown) => {
+        // Finish backend revocation before clearing the Auth.js cookie. The
+        // response-aware route may persist a just-refreshed session cookie;
+        // awaiting it guarantees signOut remains the final cookie mutation.
+        try {
+          await fetch("/api/auth/logout", {
+            method: "POST",
+            signal: AbortSignal.timeout(5000),
+          });
+        } catch (err: unknown) {
           logger.warn("backend_logout_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
-        });
+        }
         clearSessionCache();
         await signOut({ redirect: false });
         window.location.href = "/";
@@ -170,7 +172,7 @@ export function OperatorShellProvider({
       },
       mode: "operator" as const,
       homeUrl: operatorPath("/operator/suggestions"),
-      profileUrl: null,
+      profileUrl: operatorPath("/operator/settings"),
     };
   }, [session, sessionStatus]);
 

@@ -1,4 +1,5 @@
 import { createOperatorPublicProxyPostHandler } from "~/lib/operator/route-wrapper.server";
+import { operatorInvitationToken } from "~/lib/operator/operator-invitation-session.server";
 
 /**
  * POST /api/operator/auth/invitations/validate
@@ -7,4 +8,12 @@ import { createOperatorPublicProxyPostHandler } from "~/lib/operator/route-wrapp
  */
 export const POST = createOperatorPublicProxyPostHandler(
   "/operator/auth/invitations/validate",
+  {
+    transformBody(request, body) {
+      return {
+        ...(typeof body === "object" && body !== null ? body : {}),
+        token: operatorInvitationToken(request),
+      };
+    },
+  },
 );

@@ -19,11 +19,7 @@ func init() {
 		SortOrder:       1,
 		Validation:      &config.ValidationRules{Pattern: &pinPattern},
 		AccessPolicy:    config.AccessAdminOnly,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceNFCEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
 	// --- MFA / Two-Factor Authentication (issue #1308) ---
@@ -59,15 +55,9 @@ func init() {
 		Tab:             "security",
 		Category:        "mfa",
 		SortOrder:       20,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyMFAMode,
-			Condition: "neq",
-			Value:     config.MFAModeOff,
-		},
+		DependsOn:       config.DependsOnNeq(config.KeyMFAMode, config.MFAModeOff),
 	})
 
-	mfaTrustedDeviceMin := float64(1)
-	mfaTrustedDeviceMax := float64(180)
 	config.Register(config.Definition{
 		Key:             config.KeyMFATrustedDeviceDays,
 		Label:           "Vertrauenswürdige Geräte: Gültigkeit (Tage)",
@@ -79,18 +69,12 @@ func init() {
 		Tab:             "security",
 		Category:        "mfa",
 		SortOrder:       21,
-		Validation:      &config.ValidationRules{Min: &mfaTrustedDeviceMin, Max: &mfaTrustedDeviceMax},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyMFATrustedDeviceEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(1, 180),
+		DependsOn:       config.DependsOnEq(config.KeyMFATrustedDeviceEnabled, true),
 	})
 
 	// --- Account brute-force lockout policy (issue #586) ---
 
-	lockoutThresholdMin := float64(1)
-	lockoutThresholdMax := float64(20)
 	config.Register(config.Definition{
 		Key:             config.KeyAccountLockoutThreshold,
 		Label:           "Konto-Sperre: Fehlversuche",
@@ -102,11 +86,9 @@ func init() {
 		Tab:             "security",
 		Category:        "lockout",
 		SortOrder:       30,
-		Validation:      &config.ValidationRules{Min: &lockoutThresholdMin, Max: &lockoutThresholdMax},
+		Validation:      config.Range(1, 20),
 	})
 
-	lockoutDurationMin := float64(1)
-	lockoutDurationMax := float64(1440)
 	config.Register(config.Definition{
 		Key:             config.KeyAccountLockoutDurationMinutes,
 		Label:           "Konto-Sperre: Dauer (Minuten)",
@@ -118,7 +100,7 @@ func init() {
 		Tab:             "security",
 		Category:        "lockout",
 		SortOrder:       31,
-		Validation:      &config.ValidationRules{Min: &lockoutDurationMin, Max: &lockoutDurationMax},
+		Validation:      config.Range(1, 1440),
 	})
 
 }

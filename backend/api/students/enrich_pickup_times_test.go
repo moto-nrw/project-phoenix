@@ -57,10 +57,7 @@ func TestEnrichWithPickupTimes_FullAccessGating(t *testing.T) {
 		},
 	}
 
-	rs := &Resource{
-		PickupScheduleService: mock,
-		Logger:                slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: mock, Logger: slog.Default()}}
 
 	responses := []StudentResponse{
 		{ID: 100, HasFullAccess: true},
@@ -89,10 +86,7 @@ func TestEnrichWithPickupTimes_FullAccessGating(t *testing.T) {
 }
 
 func TestEnrichWithPickupTimes_NilService(t *testing.T) {
-	rs := &Resource{
-		PickupScheduleService: nil,
-		Logger:                slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: nil, Logger: slog.Default()}}
 
 	responses := []StudentResponse{
 		{ID: 100, HasFullAccess: true},
@@ -105,10 +99,7 @@ func TestEnrichWithPickupTimes_NilService(t *testing.T) {
 
 func TestEnrichWithPickupTimes_EmptyIDs(t *testing.T) {
 	mock := &mockPickupScheduleService{}
-	rs := &Resource{
-		PickupScheduleService: mock,
-		Logger:                slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: mock, Logger: slog.Default()}}
 
 	responses := []StudentResponse{}
 	rs.enrichWithPickupTimes(context.Background(), responses, []int64{}, time.Now())
@@ -126,10 +117,7 @@ func TestEnrichWithPickupTimes_NoPickupTime(t *testing.T) {
 		},
 	}
 
-	rs := &Resource{
-		PickupScheduleService: mock,
-		Logger:                slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: mock, Logger: slog.Default()}}
 
 	responses := []StudentResponse{
 		{ID: 100, HasFullAccess: true},
@@ -157,10 +145,7 @@ func TestEnrichWithPickupTimes_ExceptionWithNotes(t *testing.T) {
 		},
 	}
 
-	rs := &Resource{
-		PickupScheduleService: mock,
-		Logger:                slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: mock, Logger: slog.Default()}}
 
 	responses := []StudentResponse{
 		{ID: 100, HasFullAccess: true},
@@ -187,10 +172,7 @@ func TestEnrichWithPickupTimes_ExceptionWithoutPickupTime(t *testing.T) {
 		},
 	}
 
-	rs := &Resource{
-		PickupScheduleService: mock,
-		Logger:                slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: mock, Logger: slog.Default()}}
 
 	responses := []StudentResponse{
 		{ID: 100, HasFullAccess: true},
@@ -267,10 +249,7 @@ func TestEnrichWithPickupTimes_ServiceError(t *testing.T) {
 		bulkErr: fmt.Errorf("database connection lost"),
 	}
 
-	rs := &Resource{
-		PickupScheduleService: mock,
-		Logger:                slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: mock, Logger: slog.Default()}}
 
 	responses := []StudentResponse{
 		{ID: 100, HasFullAccess: true},
@@ -296,10 +275,7 @@ func TestEnrichWithArrivalTimes_FullAccessGating(t *testing.T) {
 		},
 	}
 
-	rs := &Resource{
-		ArrivalScheduleService: mock,
-		Logger:                 slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{ArrivalScheduleService: mock, Logger: slog.Default()}}
 
 	responses := []StudentResponse{
 		{ID: 100, HasFullAccess: true},
@@ -330,10 +306,7 @@ func TestEnrichWithArrivalTimes_ExceptionWithoutArrivalTime(t *testing.T) {
 		},
 	}
 
-	rs := &Resource{
-		ArrivalScheduleService: mock,
-		Logger:                 slog.Default(),
-	}
+	rs := &Resource{ResourceConfig: ResourceConfig{ArrivalScheduleService: mock, Logger: slog.Default()}}
 
 	responses := []StudentResponse{{ID: 100, HasFullAccess: true}}
 	rs.enrichWithArrivalTimes(context.Background(), responses, []int64{100}, now)

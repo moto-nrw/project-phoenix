@@ -11,54 +11,6 @@ import (
 )
 
 // =============================================================================
-// uniqueInt64 Tests
-// =============================================================================
-
-func TestUniqueInt64_Empty(t *testing.T) {
-	result := uniqueInt64([]int64{})
-	assert.Empty(t, result)
-}
-
-func TestUniqueInt64_NilInput(t *testing.T) {
-	result := uniqueInt64(nil)
-	assert.Nil(t, result)
-}
-
-func TestUniqueInt64_AllUnique(t *testing.T) {
-	input := []int64{1, 2, 3, 4, 5}
-	result := uniqueInt64(input)
-	assert.Equal(t, input, result)
-}
-
-func TestUniqueInt64_WithDuplicates(t *testing.T) {
-	input := []int64{1, 2, 2, 3, 1, 4, 3, 5}
-	result := uniqueInt64(input)
-	assert.Len(t, result, 5)
-	// Verify all original values are present (order may vary)
-	seen := make(map[int64]bool)
-	for _, v := range result {
-		seen[v] = true
-	}
-	assert.True(t, seen[1])
-	assert.True(t, seen[2])
-	assert.True(t, seen[3])
-	assert.True(t, seen[4])
-	assert.True(t, seen[5])
-}
-
-func TestUniqueInt64_SingleElement(t *testing.T) {
-	input := []int64{42}
-	result := uniqueInt64(input)
-	assert.Equal(t, []int64{42}, result)
-}
-
-func TestUniqueInt64_AllSame(t *testing.T) {
-	input := []int64{7, 7, 7, 7, 7}
-	result := uniqueInt64(input)
-	assert.Equal(t, []int64{7}, result)
-}
-
-// =============================================================================
 // filterCheckedInStudents Tests
 // =============================================================================
 
@@ -168,7 +120,7 @@ func TestCoalesceMap_NonNilPrimary(t *testing.T) {
 	fallback := map[int64]*activeService.AttendanceStatus{
 		2: {StudentID: 2},
 	}
-	result := coalesceMap(primary, fallback)
+	result := coalesce(primary, fallback)
 	assert.Equal(t, primary, result)
 }
 
@@ -176,12 +128,12 @@ func TestCoalesceMap_NilPrimary(t *testing.T) {
 	fallback := map[int64]*activeService.AttendanceStatus{
 		2: {StudentID: 2},
 	}
-	result := coalesceMap(nil, fallback)
+	result := coalesce(nil, fallback)
 	assert.Equal(t, fallback, result)
 }
 
 func TestCoalesceMap_BothNil(t *testing.T) {
-	result := coalesceMap(nil, nil)
+	result := coalesce[int64, *activeService.AttendanceStatus](nil, nil)
 	assert.Nil(t, result)
 }
 
@@ -196,7 +148,7 @@ func TestCoalesceVisitMap_NonNilPrimary(t *testing.T) {
 	fallback := map[int64]*activeModels.Visit{
 		2: {StudentID: 2},
 	}
-	result := coalesceVisitMap(primary, fallback)
+	result := coalesce(primary, fallback)
 	assert.Equal(t, primary, result)
 }
 
@@ -204,12 +156,12 @@ func TestCoalesceVisitMap_NilPrimary(t *testing.T) {
 	fallback := map[int64]*activeModels.Visit{
 		2: {StudentID: 2},
 	}
-	result := coalesceVisitMap(nil, fallback)
+	result := coalesce(nil, fallback)
 	assert.Equal(t, fallback, result)
 }
 
 func TestCoalesceVisitMap_BothNil(t *testing.T) {
-	result := coalesceVisitMap(nil, nil)
+	result := coalesce[int64, *activeModels.Visit](nil, nil)
 	assert.Nil(t, result)
 }
 
@@ -227,7 +179,7 @@ func TestCoalesceGroupMap_NonNilPrimary(t *testing.T) {
 	fallback := map[int64]*activeModels.Group{
 		2: {GroupID: base.Int64Ptr(2)},
 	}
-	result := coalesceGroupMap(primary, fallback)
+	result := coalesce(primary, fallback)
 	assert.Equal(t, primary, result)
 }
 
@@ -235,12 +187,12 @@ func TestCoalesceGroupMap_NilPrimary(t *testing.T) {
 	fallback := map[int64]*activeModels.Group{
 		2: {GroupID: base.Int64Ptr(2)},
 	}
-	result := coalesceGroupMap(nil, fallback)
+	result := coalesce(nil, fallback)
 	assert.Equal(t, fallback, result)
 }
 
 func TestCoalesceGroupMap_BothNil(t *testing.T) {
-	result := coalesceGroupMap(nil, nil)
+	result := coalesce[int64, *activeModels.Group](nil, nil)
 	assert.Nil(t, result)
 }
 

@@ -1,11 +1,3 @@
-import type { NextRequest } from "next/server";
-import {
-  createOperatorGetHandler,
-  operatorApiGet,
-} from "~/lib/operator/route-wrapper.server";
+import { proxyGet } from "~/lib/operator/route-wrapper.server";
 
-export const GET = createOperatorGetHandler(
-  async (_request: NextRequest, token: string) => {
-    return await operatorApiGet("/operator/accounts", token);
-  },
-);
+export const GET = proxyGet("/operator/accounts");

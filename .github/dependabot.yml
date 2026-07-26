@@ -58,6 +58,13 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Next.js 16.2 loads the TypeScript JavaScript compiler API, which was
+    # removed in TypeScript 7. Remove this once a stable Next.js release can
+    # type-check through the TypeScript CLI.
+    ignore:
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps)"

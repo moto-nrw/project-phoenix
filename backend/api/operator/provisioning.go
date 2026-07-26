@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -21,8 +22,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
-
-const seedTokenHeader = "X-Phoenix-Seed-Token"
 
 // ProvisioningResource handles operator tenant provisioning endpoints.
 type ProvisioningResource struct {
@@ -475,16 +474,7 @@ func (rs *ProvisioningResource) ListSystemRoles(w http.ResponseWriter, r *http.R
 }
 
 func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *http.Request) {
-	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
-	if !ok {
-		return
-	}
-	accounts, err := rs.service.ListSchoolAccounts(r.Context(), schoolID)
-	if err != nil {
-		common.RenderError(w, r, ProvisioningErrorRenderer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, accounts, "School accounts retrieved successfully")
+	idList(w, r, "id", "invalid school ID", rs.service.ListSchoolAccounts, ProvisioningErrorRenderer, "School accounts retrieved successfully")
 }
 
 func (rs *ProvisioningResource) GetSchoolAccountCaregiverCapability(w http.ResponseWriter, r *http.Request) {
@@ -592,16 +582,7 @@ func (rs *ProvisioningResource) DisableSchoolAccountCaregiverCapability(w http.R
 }
 
 func (rs *ProvisioningResource) ListOrganizationAccounts(w http.ResponseWriter, r *http.Request) {
-	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
-	if !ok {
-		return
-	}
-	accounts, err := rs.service.ListOrganizationAccounts(r.Context(), orgID)
-	if err != nil {
-		common.RenderError(w, r, ProvisioningErrorRenderer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, accounts, "Organization accounts retrieved successfully")
+	idList(w, r, "id", "invalid organization ID", rs.service.ListOrganizationAccounts, ProvisioningErrorRenderer, "Organization accounts retrieved successfully")
 }
 
 func (rs *ProvisioningResource) ListAllAccounts(w http.ResponseWriter, r *http.Request) {
@@ -741,29 +722,11 @@ func (rs *ProvisioningResource) ListAllDevices(w http.ResponseWriter, r *http.Re
 }
 
 func (rs *ProvisioningResource) ListSchoolDevices(w http.ResponseWriter, r *http.Request) {
-	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
-	if !ok {
-		return
-	}
-	devices, err := rs.service.ListSchoolDevices(r.Context(), schoolID)
-	if err != nil {
-		common.RenderError(w, r, ProvisioningErrorRenderer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, devices, "School devices retrieved successfully")
+	idList(w, r, "id", "invalid school ID", rs.service.ListSchoolDevices, ProvisioningErrorRenderer, "School devices retrieved successfully")
 }
 
 func (rs *ProvisioningResource) ListOrganizationDevices(w http.ResponseWriter, r *http.Request) {
-	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
-	if !ok {
-		return
-	}
-	devices, err := rs.service.ListOrganizationDevices(r.Context(), orgID)
-	if err != nil {
-		common.RenderError(w, r, ProvisioningErrorRenderer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, devices, "Organization devices retrieved successfully")
+	idList(w, r, "id", "invalid organization ID", rs.service.ListOrganizationDevices, ProvisioningErrorRenderer, "Organization devices retrieved successfully")
 }
 
 type createDeviceRequest struct {
@@ -861,16 +824,7 @@ func (rs *ProvisioningResource) DeleteDevice(w http.ResponseWriter, r *http.Requ
 }
 
 func (rs *ProvisioningResource) ListSchoolPersons(w http.ResponseWriter, r *http.Request) {
-	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
-	if !ok {
-		return
-	}
-	persons, err := rs.service.ListSchoolPersons(r.Context(), schoolID)
-	if err != nil {
-		common.RenderError(w, r, ProvisioningErrorRenderer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, persons, "School persons retrieved successfully")
+	idList(w, r, "id", "invalid school ID", rs.service.ListSchoolPersons, ProvisioningErrorRenderer, "School persons retrieved successfully")
 }
 
 func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.Request) {
@@ -888,8 +842,5 @@ func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
-	if !strings.EqualFold(strings.TrimSpace(r.Header.Get(seedTokenHeader)), "true") {
-		return false
-	}
-	return strings.ToLower(strings.TrimSpace(viper.GetString("app_env"))) != "production"
+	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
 }

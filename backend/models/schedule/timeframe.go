@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Timeframe represents a time period with start and end times
@@ -16,21 +15,6 @@ type Timeframe struct {
 	EndTime     *time.Time `bun:"end_time" json:"end_time,omitempty"`
 	IsActive    bool       `bun:"is_active,notnull,default:false" json:"is_active"`
 	Description string     `bun:"description" json:"description,omitempty"`
-}
-
-func (t *Timeframe) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.timeframes AS "timeframe"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.timeframes AS "timeframe"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (t *Timeframe) TableName() string {
-	return "schedule.timeframes"
 }
 
 // Validate ensures timeframe data is valid
@@ -91,19 +75,4 @@ func (t *Timeframe) Overlaps(other *Timeframe) bool {
 	// Both have start and end times
 	// Overlap if one starts before the other ends
 	return (other.StartTime.Before(*t.EndTime) && t.StartTime.Before(*other.EndTime))
-}
-
-// GetID implements the Entity interface
-func (t *Timeframe) GetID() interface{} {
-	return t.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (t *Timeframe) GetCreatedAt() time.Time {
-	return t.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (t *Timeframe) GetUpdatedAt() time.Time {
-	return t.UpdatedAt
 }

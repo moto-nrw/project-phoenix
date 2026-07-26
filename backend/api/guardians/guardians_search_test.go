@@ -9,15 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -67,11 +63,10 @@ func TestListGuardians_SearchFiltersResults(t *testing.T) {
 		fmt.Sprintf("Zzother%d", time.Now().UnixNano()), "Beta",
 		fmt.Sprintf("other%d@example.com", time.Now().UnixNano()))
 
-	router := chi.NewRouter()
-	router.Get("/guardians/search", tc.resource.SearchGuardiansForPickerHandler())
+	router := tc.resource.Router()
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search?q="+token, nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/search?q="+token, nil,
+		bearer(t, testutil.DefaultTestClaims()),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -106,13 +101,12 @@ func TestListGuardians_SearchMatchesFullNameWithSpace(t *testing.T) {
 	last := fmt.Sprintf("Zzlast%d", time.Now().UnixNano())
 	match := seedSearchGuardian(t, tc, first, last, fmt.Sprintf("%s.full@example.com", first))
 
-	router := chi.NewRouter()
-	router.Get("/guardians/search", tc.resource.SearchGuardiansForPickerHandler())
+	router := tc.resource.Router()
 
 	for _, q := range []string{first + " " + last, last + " " + first} {
 		req := testutil.NewAuthenticatedRequest(t, "GET",
-			"/guardians/search?q="+url.QueryEscape(q), nil,
-			testutil.WithClaims(testutil.DefaultTestClaims()),
+			"/search?q="+url.QueryEscape(q), nil,
+			bearer(t, testutil.DefaultTestClaims()),
 		)
 		rr := testutil.ExecuteRequest(router, req)
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -142,14 +136,13 @@ func TestListGuardians_SearchWildcardsAreLiteral(t *testing.T) {
 	token := fmt.Sprintf("Zzwild%d", time.Now().UnixNano())
 	seeded := seedSearchGuardian(t, tc, token, "Alpha", fmt.Sprintf("%s.wild@example.com", token))
 
-	router := chi.NewRouter()
-	router.Get("/guardians/search", tc.resource.SearchGuardiansForPickerHandler())
+	router := tc.resource.Router()
 
 	// "%%%" url-encoded. If wildcards were active this would match everything;
 	// treated literally it matches only a guardian whose name/email contains the
 	// literal string "%%%" (none do), so the seeded guardian must be absent.
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search?q=%25%25%25", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/search?q=%25%25%25", nil,
+		bearer(t, testutil.DefaultTestClaims()),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -197,12 +190,10 @@ func TestListGuardians_SearchProjectionIsGDPRSafe(t *testing.T) {
 	// cleanupGuardian (registered by seedSearchGuardian) also removes the
 	// students_guardians link for this guardian.
 
-	router := chi.NewRouter()
-	router.Get("/guardians/search", tc.resource.SearchGuardiansForPickerHandler())
+	router := tc.resource.Router()
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search?q="+token, nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(1)),
-		testutil.WithPermissions("users:read"),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/search?q="+token, nil,
+		bearer(t, withPerms(testutil.TeacherTestClaims(1), "users:read")),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -224,19 +215,6 @@ func TestListGuardians_SearchProjectionIsGDPRSafe(t *testing.T) {
 	require.True(t, found, "the seeded guardian must appear in the search results")
 }
 
-// pickerSearchRouter mounts the picker search behind its REAL route gate
-// (RequiresPermission(users:read)) + the tenant-tx middleware, exactly as
-// api.go wires it. RequiresPermission reads the permissions injected via
-// testutil.WithPermissions from context, so this exercises the actual gate
-// without needing a signed JWT.
-func pickerSearchRouter(tc *testContext) chi.Router {
-	withTx := tenant.TenantTxMiddleware(tc.db)
-	router := chi.NewRouter()
-	router.With(authorize.RequiresPermission(permissions.UsersRead), withTx).
-		Get("/guardians/search", tc.resource.SearchGuardiansForPickerHandler())
-	return router
-}
-
 // TestGuardianPickerSearch_AllowedForStaffWithUsersRead is the core of #1513:
 // the picker must be reachable by ordinary staff who manage students (the seeded
 // "user" role holds users:read), not just admins. Otherwise a group supervisor
@@ -249,12 +227,11 @@ func TestGuardianPickerSearch_AllowedForStaffWithUsersRead(t *testing.T) {
 	token := fmt.Sprintf("Zzperm%d", time.Now().UnixNano())
 	match := seedSearchGuardian(t, tc, token, "Alpha", fmt.Sprintf("%s.perm@example.com", token))
 
-	router := pickerSearchRouter(tc)
+	router := tc.resource.Router()
 
 	// An ordinary (non-admin) staff member holding users:read — no admin:*.
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search?q="+token, nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(1)),
-		testutil.WithPermissions("users:read"),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/search?q="+token, nil,
+		bearer(t, withPerms(testutil.TeacherTestClaims(1), "users:read")),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -278,12 +255,12 @@ func TestGuardianPickerSearch_ForbiddenWithoutUsersRead(t *testing.T) {
 	tc := setupTestContext(t)
 	defer func() { _ = tc.db.Close() }()
 
-	router := pickerSearchRouter(tc)
+	router := tc.resource.Router()
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search?q=anything", nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(1)),
-		// Unrelated permission only — no users:read, no admin:*.
-		testutil.WithPermissions("groups:read"),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/search?q=anything", nil,
+		// Unrelated permission only — no users:read, no admin:*. Non-nil roles
+		// keep this a 403 (insufficient permission), not a 401.
+		bearer(t, withPerms(testutil.TeacherTestClaims(1), "groups:read")),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertForbidden(t, rr)
@@ -316,12 +293,11 @@ func TestGuardianPickerSearch_ShortQueryReturnsEmpty(t *testing.T) {
 	token := fmt.Sprintf("Zzshort%d", time.Now().UnixNano())
 	seedSearchGuardian(t, tc, token, "Alpha", fmt.Sprintf("%s.short@example.com", token))
 
-	router := chi.NewRouter()
-	router.Get("/guardians/search", tc.resource.SearchGuardiansForPickerHandler())
+	router := tc.resource.Router()
 
 	// "Zz" — 2 chars, below the 3-char minimum.
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search?q=Zz", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/search?q=Zz", nil,
+		bearer(t, testutil.DefaultTestClaims()),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -345,12 +321,11 @@ func TestGuardianPickerSearch_ClampsPageSize(t *testing.T) {
 	token := fmt.Sprintf("Zzclamp%d", time.Now().UnixNano())
 	seedSearchGuardian(t, tc, token, "Alpha", fmt.Sprintf("%s.clamp@example.com", token))
 
-	router := chi.NewRouter()
-	router.Get("/guardians/search", tc.resource.SearchGuardiansForPickerHandler())
+	router := tc.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET",
-		"/guardians/search?q="+token+"&page_size=100000", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		"/search?q="+token+"&page_size=100000", nil,
+		bearer(t, testutil.DefaultTestClaims()),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)

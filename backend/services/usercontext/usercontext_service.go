@@ -1,12 +1,15 @@
 package usercontext
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,6 +45,12 @@ type UserContextRepositories struct {
 	SupervisorRepo     active.GroupSupervisorRepository
 	ProfileRepo        users.ProfileRepository
 	SubstitutionRepo   education.GroupSubstitutionRepository
+
+	// SSE subscription dependencies (optional — nil-safe). Injected so the
+	// SSE handler can delegate staff-resolution + topic-building to this
+	// service instead of orchestrating it in the api layer.
+	ActiveService activeService.Service
+	SSESettings   SSESettingsResolver
 }
 
 // userContextService implements the UserContextService interface
@@ -58,15 +67,14 @@ type userContextService struct {
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
+	sseActiveSvc       activeService.Service
+	sseSettings        SSESettingsResolver
 	logger             *slog.Logger
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *userContextService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
@@ -84,6 +92,8 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.
 		supervisorRepo:     repos.SupervisorRepo,
 		profileRepo:        repos.ProfileRepo,
 		substitutionRepo:   repos.SubstitutionRepo,
+		sseActiveSvc:       repos.ActiveService,
+		sseSettings:        repos.SSESettings,
 		logger:             logger,
 	}
 }
@@ -230,43 +240,6 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 // non-zero user ID (i.e. the request passed through auth middleware).
 func isAuthenticated(ctx context.Context) bool {
 	return jwt.ClaimsFromCtx(ctx).ID > 0
-}
-
-func currentUserHasRole(ctx context.Context, roleName string) bool {
-	claims := jwt.ClaimsFromCtx(ctx)
-	for _, role := range claims.Roles {
-		if strings.EqualFold(role, roleName) {
-			return true
-		}
-	}
-	return false
-}
-
-// currentUserHasAnyRole checks whether the authenticated user holds at least
-// one of the given roles.  It returns true when:
-//   - the user is authenticated AND has at least one matching role, OR
-//   - the user is authenticated but has NO roles assigned at all (backwards-
-//     compatible: legacy tokens / test helpers that omit the Roles field are
-//     treated as implicitly authorised).
-//
-// It returns false only when:
-//   - the context has no claims (unauthenticated), OR
-//   - the user has explicit roles but none of them match.
-func currentUserHasAnyRole(ctx context.Context, roleNames ...string) bool {
-	claims := jwt.ClaimsFromCtx(ctx)
-	if claims.ID == 0 {
-		return false
-	}
-	// No explicit roles → legacy token / test context; allow through.
-	if len(claims.Roles) == 0 {
-		return true
-	}
-	for _, name := range roleNames {
-		if currentUserHasRole(ctx, name) {
-			return true
-		}
-	}
-	return false
 }
 
 // hasValidStaffOrTeacher checks if the user has valid staff or teacher linkage
@@ -640,10 +613,7 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 	}
 
 	// Convert map keys to slice
-	ids := make([]int64, 0, len(studentIDs))
-	for id := range studentIDs {
-		ids = append(ids, id)
-	}
+	ids := slices.Collect(maps.Keys(studentIDs))
 
 	// If no students found, return empty slice
 	if len(ids) == 0 {

@@ -7,16 +7,16 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Hoisted mocks
-const { mockUsePathname, mockUseSession, mockPush } = vi.hoisted(() => ({
+const { mockUsePathname, mockUseSession, mockRedirect } = vi.hoisted(() => ({
   mockUsePathname: vi.fn(),
   mockUseSession: vi.fn(),
-  mockPush: vi.fn(),
+  mockRedirect: vi.fn(),
 }));
 
 // Mock navigation
 vi.mock("next/navigation", () => ({
   usePathname: mockUsePathname,
-  useRouter: () => ({ push: mockPush }),
+  redirect: mockRedirect,
 }));
 
 // Mock next-auth
@@ -164,11 +164,10 @@ describe("OperatorAuthGuard", () => {
       </OperatorAuthGuard>,
     );
 
-    expect(mockPush).toHaveBeenCalledWith("/operator/login");
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(mockRedirect).toHaveBeenCalledWith("/operator/login");
   });
 
-  it("shows loading when authenticated but wrong scope", () => {
+  it("redirects when authenticated but using the wrong scope", () => {
     mockUsePathname.mockReturnValue("/operator/suggestions");
     mockUseSession.mockReturnValue({
       data: { user: { scope: "teacher", name: "Teacher" } },
@@ -182,7 +181,6 @@ describe("OperatorAuthGuard", () => {
     );
 
     // Should redirect non-operator users away
-    expect(mockPush).toHaveBeenCalledWith("/");
-    expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
+    expect(mockRedirect).toHaveBeenCalledWith("/");
   });
 });

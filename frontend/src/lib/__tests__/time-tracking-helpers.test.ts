@@ -145,6 +145,7 @@ describe("mapWorkSessionHistoryResponse", () => {
       },
     ],
     edit_count: 2,
+    audit_count: 3,
   };
 
   it("maps all fields including history-specific ones", () => {
@@ -155,6 +156,7 @@ describe("mapWorkSessionHistoryResponse", () => {
     expect(result.breaks).toHaveLength(1);
     expect(result.breaks[0]!.id).toBe("1");
     expect(result.editCount).toBe(2);
+    expect(result.auditCount).toBe(3);
     expect(result.status).toBe("home_office");
     expect(result.autoCheckedOut).toBe(true);
   });
@@ -172,6 +174,15 @@ describe("mapWorkSessionHistoryResponse", () => {
     } as unknown as BackendWorkSessionHistory;
     const result = mapWorkSessionHistoryResponse(noEdits);
     expect(result.editCount).toBe(0);
+  });
+
+  it("defaults audit_count to 0", () => {
+    const noAuditCount = {
+      ...backendHistory,
+      audit_count: undefined,
+    } as unknown as BackendWorkSessionHistory;
+    const result = mapWorkSessionHistoryResponse(noAuditCount);
+    expect(result.auditCount).toBe(0);
   });
 });
 

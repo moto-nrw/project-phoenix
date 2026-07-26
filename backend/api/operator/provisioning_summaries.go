@@ -42,29 +42,11 @@ func (rs *ProvisioningResource) ListSchoolSummaries(w http.ResponseWriter, r *ht
 // ListOrganizationSchoolSummaries returns schools under a specific organization
 // with per-row counts. GET /api/operator/organizations/{id}/schools.
 func (rs *ProvisioningResource) ListOrganizationSchoolSummaries(w http.ResponseWriter, r *http.Request) {
-	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
-	if !ok {
-		return
-	}
-	summaries, err := rs.service.ListOrganizationSchoolSummaries(r.Context(), orgID)
-	if err != nil {
-		common.RenderError(w, r, ProvisioningErrorRenderer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, summaries, "Organization school summaries retrieved successfully")
+	idList(w, r, "id", "invalid organization ID", rs.service.ListOrganizationSchoolSummaries, ProvisioningErrorRenderer, "Organization school summaries retrieved successfully")
 }
 
 // ListOrganizationPersons returns all persons across every school belonging to
 // the given organization. GET /api/operator/organizations/{id}/persons.
 func (rs *ProvisioningResource) ListOrganizationPersons(w http.ResponseWriter, r *http.Request) {
-	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
-	if !ok {
-		return
-	}
-	persons, err := rs.service.ListOrganizationPersons(r.Context(), orgID)
-	if err != nil {
-		common.RenderError(w, r, ProvisioningErrorRenderer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, persons, "Organization persons retrieved successfully")
+	idList(w, r, "id", "invalid organization ID", rs.service.ListOrganizationPersons, ProvisioningErrorRenderer, "Organization persons retrieved successfully")
 }

@@ -6,12 +6,10 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -19,10 +17,6 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
-
-// MFA email-code length is shared with the tenant flow — both call into the
-// same crypto helpers in services/auth/mfa_codes.go.
-const operatorMFAEmailCodeLength = authService.MFAEmailCodeLength
 
 // errOperatorMFAServiceUnavailable mirrors the tenant-side guard. Operator
 // deployments without an MFAService configured should still respond cleanly.
@@ -51,16 +45,7 @@ func NewMFAResource(authSvc platformSvc.OperatorAuthService, mfaSvc platformSvc.
 // requireMFA short-circuits with 503 when no MFAService is wired. Use as the
 // first line of every handler.
 func (rs *MFAResource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
-	if rs.mfaService == nil {
-		common.RenderError(w, r, &common.ErrResponse{
-			Err:            errOperatorMFAServiceUnavailable,
-			HTTPStatusCode: http.StatusServiceUnavailable,
-			Status:         "error",
-			ErrorText:      errOperatorMFAServiceUnavailable.Error(),
-		})
-		return false
-	}
-	return true
+	return common.RequireDependency(w, r, rs.mfaService != nil, errOperatorMFAServiceUnavailable)
 }
 
 // mapOperatorMFAError translates known MFA-service errors into HTTP responses.
@@ -89,22 +74,9 @@ func mapOperatorMFAError(w http.ResponseWriter, r *http.Request, err error) {
 
 // ----- /auth/mfa/verify -----
 
-// MFAVerifyRequest is the body for POST /operator/auth/mfa/verify.
-type MFAVerifyRequest struct {
-	ChallengeToken string `json:"challenge_token"`
-	Code           string `json:"code"`
-	RememberDevice bool   `json:"remember_device,omitempty"`
-}
-
-// Bind validates the verify request fields.
-func (req *MFAVerifyRequest) Bind(_ *http.Request) error {
-	req.ChallengeToken = strings.TrimSpace(req.ChallengeToken)
-	req.Code = strings.TrimSpace(req.Code)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.ChallengeToken, validation.Required),
-		validation.Field(&req.Code, validation.Required, validation.Length(operatorMFAEmailCodeLength, operatorMFAEmailCodeLength)),
-	)
-}
+// MFAVerifyRequest is the body for POST /operator/auth/mfa/verify. Shared
+// with the tenant portal via api/common.
+type MFAVerifyRequest = common.MFAVerifyRequest
 
 // Verify exchanges a challenge token + email code for a regular access /
 // refresh token pair. When the request carries `remember_device: true` we
@@ -129,25 +101,12 @@ func (rs *MFAResource) Verify(w http.ResponseWriter, r *http.Request) {
 
 // ----- /auth/mfa/resend -----
 
-// MFAResendRequest is the body for POST /operator/auth/mfa/resend.
-type MFAResendRequest struct {
-	ChallengeToken string `json:"challenge_token"`
-}
+// MFAResendRequest is the body for POST /operator/auth/mfa/resend. Shared
+// with the tenant portal via api/common.
+type MFAResendRequest = common.MFAResendRequest
 
-// Bind validates the resend request.
-func (req *MFAResendRequest) Bind(_ *http.Request) error {
-	req.ChallengeToken = strings.TrimSpace(req.ChallengeToken)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.ChallengeToken, validation.Required),
-	)
-}
-
-// MFAResendResponse mirrors the tenant-side shape so frontend clients
-// see one wire format. The renewed token must replace the in-flight
-// challenge_token; see the tenant handler for the why.
-type MFAResendResponse struct {
-	ChallengeToken string `json:"challenge_token"`
-}
+// MFAResendResponse carries the renewed challenge token — see api/common.
+type MFAResendResponse = common.MFAResendResponse
 
 // Resend re-issues an email code against the existing challenge token.
 // Rate-limited inside the service. Returns the renewed challenge JWT.
@@ -192,21 +151,10 @@ func (rs *MFAResource) EnrollStart(w http.ResponseWriter, r *http.Request) {
 
 // ----- /auth/mfa/enroll/confirm -----
 
-// MFAEnrollConfirmRequest is the body for POST /operator/auth/mfa/enroll/confirm.
-type MFAEnrollConfirmRequest struct {
-	Code string `json:"code"`
-	// RememberDevice optionally issues a trusted-device cookie on
-	// successful enrollment, parallel to the verify-flow's flag.
-	RememberDevice bool `json:"remember_device,omitempty"`
-}
-
-// Bind validates the confirm request.
-func (req *MFAEnrollConfirmRequest) Bind(_ *http.Request) error {
-	req.Code = strings.TrimSpace(req.Code)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Code, validation.Required, validation.Length(operatorMFAEmailCodeLength, operatorMFAEmailCodeLength)),
-	)
-}
+// MFAEnrollConfirmRequest is the body for POST
+// /operator/auth/mfa/enroll/confirm. Shared with the tenant portal via
+// api/common.
+type MFAEnrollConfirmRequest = common.MFAEnrollConfirmRequest
 
 // EnrollConfirm verifies the just-emailed code, marks the operator as
 // enrolled, and mints a full access/refresh token pair so the frontend can

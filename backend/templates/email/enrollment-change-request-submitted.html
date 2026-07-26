@@ -1,0 +1,26 @@
+{{define "enrollment-change-request-submitted.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "school-brand" .}}
+    <h1>Neue Änderungsanfrage</h1>
+
+    <p>Eine Familie hat eine Änderung zu einer bestehenden Anmeldung eingereicht.</p>
+
+    <div class="highlight-box">
+        <p style="margin: 0; font-size: 14px;"><strong>Erziehungsberechtigte/r:</strong> {{.GuardianFirstName}} {{.GuardianLastName}}</p>
+    </div>
+
+    <p>Bitte prüfen Sie die Anfrage im Verwaltungsbereich.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.AdminURL}}">Änderungsanfrage öffnen</a>
+    </div>
+
+    <div class="link-box">
+        <a href="{{.AdminURL}}">{{.AdminURL}}</a>
+    </div>
+</div>
+
+{{template "footer" .}}
+{{end}}

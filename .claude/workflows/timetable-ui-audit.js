@@ -25,7 +25,7 @@ const FILES = [
   { path: `${DIR}/conflict-warnings-banner.tsx`, role: 'Inline warning banner for conflicts' },
   { path: `${DIR}/calendar-period-modal.tsx`, role: 'Modal: create/edit calendar period (contains native <select>)' },
   { path: `${DIR}/timetable-event-modal.tsx`, role: 'Large modal/slide-over: create/edit instance or series (many native <select>)' },
-  { path: `${DIR}/instance-detail-slide-over.tsx`, role: 'Slide-over: instance detail, lifecycle actions, roster' },
+  { path: `${DIR}/instance-detail-modal.tsx`, role: 'Modal: instance detail, lifecycle actions, roster' },
 ]
 
 // ---- Kit reference embedded so auditors share one rubric ----
@@ -51,7 +51,7 @@ Need X → use Y (do NOT hand-roll):
 - Avatar                    → Avatar
 - Location/presence badge    → LocationBadge, PresenceBadge, StudentPresenceBadge
 - Kebab / overflow menu     → OverflowMenu                          (~/components/ui/page-header/OverflowMenu)
-- API error message text     → getApiErrorMessage                   (~/components/ui/modal-utils)
+- API error message text     → getApiErrorMessage                   (~/lib/api-error-message)
 
 CANONICAL VALUES:
 - Card / panel surface = "rounded-2xl border border-gray-200 bg-white shadow-sm" (24px radius). Inconsistent card radii (rounded-lg/rounded-xl for a card surface), bare "rounded", ad-hoc "rounded-[Npx]", or a square border-b-only strip are VIOLATIONS.

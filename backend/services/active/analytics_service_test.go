@@ -50,6 +50,43 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		assert.GreaterOrEqual(t, analytics.ActiveActivities, 1, "Should have at least 1 active activity")
 	})
 
+	t.Run("counts planned excused students for today", func(t *testing.T) {
+		// ARRANGE
+		before, err := service.GetDashboardAnalytics(ctx)
+		require.NoError(t, err)
+
+		statusRepo := repositories.NewFactory(db).StudentStatusDay
+		plannedExcusedStudent := testpkg.CreateTestStudent(t, db, "PlannedExcused", "Dashboard", "PE1")
+		legacyOverlapStudent := testpkg.CreateTestStudent(t, db, "LegacyOverlap", "Dashboard", "PE2")
+		defer testpkg.CleanupActivityFixtures(t, db, plannedExcusedStudent.ID, legacyOverlapStudent.ID)
+
+		flagTrue := true
+		_, err = db.NewUpdate().
+			Model(legacyOverlapStudent).
+			Set("excused = ?", flagTrue).
+			Where("id = ?", legacyOverlapStudent.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		now := time.Now()
+		for _, studentID := range []int64{plannedExcusedStudent.ID, legacyOverlapStudent.ID} {
+			require.NoError(t, statusRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
+				StudentID:  studentID,
+				Date:       timezone.TodayDate(),
+				Status:     activeModels.StudentStatusDayExcused,
+				ReportedAt: now,
+				Source:     activeModels.StudentStatusSourcePlanned,
+			}))
+		}
+
+		// ACT
+		after, err := service.GetDashboardAnalytics(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, before.StudentsExcused+2, after.StudentsExcused)
+	})
+
 	t.Run("counts class trip students as excused without counting sick overlaps", func(t *testing.T) {
 		// ARRANGE
 		before, err := service.GetDashboardAnalytics(ctx)

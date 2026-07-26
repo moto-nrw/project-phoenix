@@ -1,32 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { permissionsConfig } from "@/lib/database/configs/permissions.config";
+import { permissionsConfig } from "@/components/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
-import {
-  PermissionCreateModal,
-  PermissionEditModal,
-  PermissionsMasterDetail,
-} from "@/components/permissions";
+import { PermissionEditModal } from "@/components/permissions/permission-edit-modal";
+import { PermissionsMasterDetail } from "@/components/permissions/permissions-master-detail";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   formatPermissionDisplay,
   localizeDescription,
 } from "@/lib/permission-labels";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -34,9 +32,19 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "DatabasePermissionsPage" });
 
 export default function PermissionsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PermissionsPageContent />
+    </Suspense>
+  );
+}
+
+function PermissionsPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
+  // The query value only selects an already-loaded row; it never authorizes or
+  // pre-fills a permission mutation.
   const selectedId = searchParams.get("permission");
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();
@@ -371,10 +379,12 @@ export default function PermissionsPage() {
         />
       ) : null}
 
-      <PermissionCreateModal
+      <DatabaseFormModal<Permission>
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
-        onCreate={handleCreatePermission}
+        mode="create"
+        config={permissionsConfig}
+        onSubmit={handleCreatePermission}
       />
 
       {selectedPermission && (

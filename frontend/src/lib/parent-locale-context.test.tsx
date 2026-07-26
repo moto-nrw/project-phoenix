@@ -71,8 +71,12 @@ function Consumer() {
     <div>
       <span data-testid="locale">{ctx?.locale}</span>
       <span data-testid="auth">{String(ctx?.authenticated)}</span>
-      <button onClick={() => void ctx?.setLocale("ru")}>set-ru</button>
-      <button onClick={() => void ctx?.setLocale("en")}>set-en</button>
+      <button type="button" onClick={() => void ctx?.setLocale("ru")}>
+        set-ru
+      </button>
+      <button type="button" onClick={() => void ctx?.setLocale("en")}>
+        set-en
+      </button>
     </div>
   );
 }

@@ -76,9 +76,12 @@ func renderXLSX(doc Document) ([]byte, error) {
 		return nil, err
 	}
 
-	for rowIdx, row := range doc.Rows {
-		excelRow := headerRow + rowIdx + 1
-		if row.GroupTitle != "" {
+	excelRow := headerRow + 1
+	currentGroup := ""
+	for _, row := range doc.Rows {
+		hasValues := len(row.Values) > 0
+		if row.GroupTitle != "" && (!hasValues || row.GroupTitle != currentGroup) {
+			currentGroup = row.GroupTitle
 			startCell, _ := excelize.CoordinatesToCellName(1, excelRow)
 			lastColumn := len(doc.Columns)
 			if lastColumn < 1 {
@@ -94,6 +97,9 @@ func renderXLSX(doc Document) ([]byte, error) {
 			if err := f.SetCellStyle(sheet, startCell, endCell, groupStyle); err != nil {
 				return nil, err
 			}
+			excelRow++
+		}
+		if !hasValues {
 			continue
 		}
 		for colIdx, column := range doc.Columns {
@@ -102,13 +108,17 @@ func renderXLSX(doc Document) ([]byte, error) {
 				return nil, err
 			}
 		}
+		excelRow++
 	}
 
 	for idx := range doc.Columns {
 		col, _ := excelize.ColumnNumberToName(idx + 1)
 		width := 18.0
-		if doc.Columns[idx].ID == ColumnName {
+		switch doc.Columns[idx].ID {
+		case ColumnName:
 			width = 26
+		case ColumnDeparture, ColumnGuardianContacts:
+			width = 32
 		}
 		if err := f.SetColWidth(sheet, col, col, width); err != nil {
 			return nil, err

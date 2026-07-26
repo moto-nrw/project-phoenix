@@ -59,3 +59,31 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     );
   }
 }
+
+export async function PUT(request: NextRequest, context: RouteContext) {
+  const { token } = await context.params;
+  if (!token) {
+    return NextResponse.json({ error: "token required" }, { status: 400 });
+  }
+  try {
+    const body = (await request.json()) as Record<string, unknown>;
+    const response = await fetch(
+      `${getServerApiUrl()}/api/enrollment/requests/${encodeURIComponent(token)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    return NextResponse.json(payload, { status: response.status });
+  } catch (error) {
+    logger.error("status_put_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { Student } from "~/lib/student-helpers";
 
@@ -9,12 +15,30 @@ const {
   uploadStudentPhotoMock,
   deleteStudentPhotoMock,
   fetchStudentPrivacyConsentMock,
+  fetchStudentEnrollmentExtraFieldsMock,
+  fetchStudentCompanionsMock,
 } = vi.hoisted(() => ({
   handleStudentFormSubmitMock: vi.fn(),
   validateStudentFormMock: vi.fn(),
   uploadStudentPhotoMock: vi.fn(),
   deleteStudentPhotoMock: vi.fn(),
-  fetchStudentPrivacyConsentMock: vi.fn(() => Promise.resolve(null)),
+  fetchStudentPrivacyConsentMock: vi.fn<
+    () => Promise<{ accepted: boolean; dataRetentionDays: number } | null>
+  >(() => Promise.resolve(null)),
+  fetchStudentEnrollmentExtraFieldsMock: vi.fn<
+    (studentId: string) => Promise<unknown[]>
+  >(() => Promise.resolve([])),
+  // Unreachable by default, exactly like the un-mocked network call these
+  // tests used to make: the tab then leaves the companion list alone instead
+  // of submitting one, which is what every suite below assumes.
+  fetchStudentCompanionsMock: vi.fn<(studentId: string) => Promise<unknown[]>>(
+    () => Promise.reject(new Error("companions unavailable")),
+  ),
+}));
+
+vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-companion-api")>()),
+  fetchStudentCompanions: fetchStudentCompanionsMock,
 }));
 
 vi.mock("~/lib/student-form-validation", () => ({
@@ -26,6 +50,7 @@ vi.mock("~/lib/student-api", () => ({
   uploadStudentPhoto: uploadStudentPhotoMock,
   deleteStudentPhoto: deleteStudentPhotoMock,
   fetchStudentPrivacyConsent: fetchStudentPrivacyConsentMock,
+  fetchStudentEnrollmentExtraFields: fetchStudentEnrollmentExtraFieldsMock,
 }));
 
 // Mock StudentPhotoSection with controllable test buttons. The real component
@@ -102,24 +127,56 @@ vi.mock("./student-form-fields", () => ({
         value={formData.first_name ?? ""}
         onChange={(e) => onChange("first_name", e.target.value)}
       />
+      <input
+        data-testid="address-street"
+        value={formData.address_street ?? ""}
+        onChange={(e) => onChange("address_street", e.target.value)}
+      />
+      <input
+        data-testid="address-postal-code"
+        value={formData.address_postal_code ?? ""}
+        onChange={(e) => onChange("address_postal_code", e.target.value)}
+      />
+      <input
+        data-testid="address-city"
+        value={formData.address_city ?? ""}
+        onChange={(e) => onChange("address_city", e.target.value)}
+      />
     </div>
   ),
   DepartureSection: ({
     days,
     onChange,
+    onCompanionsChange,
   }: {
-    days?: Record<string, string> | null;
-    onChange: (v: Record<string, string>) => void;
+    days?: Record<string, string[]> | null;
+    onChange: (v: Record<string, string[]>) => void;
+    onCompanionsChange?: (
+      companions: { companion_student_id: string; weekdays: string[] }[],
+    ) => void;
   }) => (
     <div data-testid="departure-section">
       <span data-testid="departure-mon">{days?.mon ?? "alone"}</span>
       <button
         type="button"
         data-testid="departure-set-mon-bus"
-        onClick={() => onChange({ ...days, mon: "bus" })}
+        onClick={() => onChange({ ...days, mon: ["bus"] })}
       >
         set-mon-bus
       </button>
+      {onCompanionsChange ? (
+        <button
+          type="button"
+          data-testid="companion-add"
+          onClick={() =>
+            onCompanionsChange([
+              { companion_student_id: "7", weekdays: ["mon"] },
+            ])
+          }
+        >
+          add-companion
+        </button>
+      ) : null}
     </div>
   ),
   // EnrollmentConsentsSection: read-only consent display rendered
@@ -130,14 +187,40 @@ vi.mock("./student-form-fields", () => ({
 
 vi.mock("./student-common-form-sections", () => ({
   StudentCommonFormSections: ({
+    formData,
     errors,
+    onChange,
   }: {
+    formData: Partial<Student>;
     errors: Record<string, string>;
+    onChange: (field: keyof Student, value: string | boolean | number) => void;
   }) => (
     <div
       data-testid="common-sections"
       data-error-count={Object.keys(errors).length}
-    />
+      // The separately fetched consent reaches the draft one effect later than
+      // the fetch resolves; the tests wait on these before editing, because an
+      // edit made in between is overwritten by that sync.
+      data-privacy-consent={String(formData.privacy_consent_accepted)}
+      data-retention-days={String(formData.data_retention_days)}
+    >
+      {/* The Datenschutz controls live in this section; the tests drive them
+          directly to tell a consent edit apart from an unrelated save. */}
+      <button
+        type="button"
+        data-testid="privacy-consent-on"
+        onClick={() => onChange("privacy_consent_accepted", true)}
+      >
+        privacy-consent-on
+      </button>
+      <button
+        type="button"
+        data-testid="retention-90"
+        onClick={() => onChange("data_retention_days", 90)}
+      >
+        retention-90
+      </button>
+    </div>
   ),
 }));
 
@@ -147,10 +230,15 @@ vi.mock("~/components/ui/button", () => ({
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     variant?: string;
-  }) => <button {...props}>{children}</button>,
+  }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
 }));
 
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
+import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
 
 function makeStudent(overrides: Partial<Student> = {}): Student {
   return {
@@ -164,10 +252,27 @@ function makeStudent(overrides: Partial<Student> = {}): Student {
   } as Student;
 }
 
+/**
+ * Blocks until the separately fetched Datenschutz values are in the editable
+ * draft. Editing before that is pointless: the sync effect writes the server
+ * values over the whole pair and takes the edit with it.
+ *
+ * At least one of the awaited values has to differ from the pre-load draft
+ * (not accepted / 30 days), or the wait passes before the fetch resolved.
+ */
+async function waitForConsentInDraft(accepted: string, retentionDays: string) {
+  await waitFor(() => {
+    const section = screen.getByTestId("common-sections");
+    expect(section).toHaveAttribute("data-privacy-consent", accepted);
+    expect(section).toHaveAttribute("data-retention-days", retentionDays);
+  });
+}
+
 describe("StudentStammdatenTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchStudentPrivacyConsentMock.mockResolvedValue(null);
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValue([]);
     validateStudentFormMock.mockReturnValue({});
     handleStudentFormSubmitMock.mockImplementation(
       async (
@@ -218,6 +323,228 @@ describe("StudentStammdatenTab", () => {
     });
 
     expect(screen.getByRole("button", { name: /Speichern/ })).toBeEnabled();
+  });
+
+  it("renders persisted address fields in the editable draft", () => {
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({
+          address_street: "Musterstraße 12",
+          address_postal_code: "50667",
+          address_city: "Köln",
+        })}
+        groups={[]}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId<HTMLInputElement>("address-street").value).toBe(
+      "Musterstraße 12",
+    );
+    expect(
+      screen.getByTestId<HTMLInputElement>("address-postal-code").value,
+    ).toBe("50667");
+    expect(screen.getByTestId<HTMLInputElement>("address-city").value).toBe(
+      "Köln",
+    );
+  });
+
+  it("enables submit and persists address-only edits", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({ address_city: "Köln" })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("address-city"), {
+      target: { value: "Bonn" },
+    });
+
+    const saveButton = screen.getByRole("button", { name: /Speichern/ });
+    expect(saveButton).toBeEnabled();
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ address_city: "Bonn" }),
+      );
+    });
+  });
+
+  // The proxy writes the Datenschutz pair BEFORE the student PUT, so anything
+  // this form sends is stored even when the student write is refused. An
+  // unrelated edit must therefore not carry the loaded consent along: it would
+  // overwrite a change somebody else made since the load and survive the
+  // refusal.
+  it("omits the unchanged Datenschutz pair from an unrelated save", async () => {
+    fetchStudentPrivacyConsentMock.mockResolvedValue({
+      accepted: true,
+      dataRetentionDays: 90,
+    });
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({ address_city: "Köln" })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    // Wait for the fetched consent to land in the draft — before that there is
+    // nothing to omit and the assertion would pass for the wrong reason.
+    await waitForConsentInDraft("true", "90");
+
+    fireEvent.change(screen.getByTestId("address-city"), {
+      target: { value: "Bonn" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.address_city).toBe("Bonn");
+    expect("privacy_consent_accepted" in submitted).toBe(false);
+    expect("data_retention_days" in submitted).toBe(false);
+  });
+
+  // Both fields travel together: the proxy's consent PUT upserts the pair, so a
+  // lone field would reset the other to its default.
+  it("submits both Datenschutz fields when one of them changed", async () => {
+    // 60 days, not the 30 the draft starts with: the wait below would otherwise
+    // be satisfied by the pre-load defaults and the edit would race the sync.
+    fetchStudentPrivacyConsentMock.mockResolvedValue({
+      accepted: false,
+      dataRetentionDays: 60,
+    });
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    await waitForConsentInDraft("false", "60");
+
+    fireEvent.click(screen.getByTestId("privacy-consent-on"));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.privacy_consent_accepted).toBe(true);
+    expect(submitted.data_retention_days).toBe(60);
+  });
+
+  it("submits both Datenschutz fields when only the retention changed", async () => {
+    fetchStudentPrivacyConsentMock.mockResolvedValue({
+      accepted: true,
+      dataRetentionDays: 30,
+    });
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    await waitForConsentInDraft("true", "30");
+
+    fireEvent.click(screen.getByTestId("retention-90"));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.data_retention_days).toBe(90);
+    expect(submitted.privacy_consent_accepted).toBe(true);
+  });
+
+  it("renders linked per-child enrollment extra fields read-only", async () => {
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValue([
+      {
+        request_id: "77",
+        phase_name: "Anmeldung 2026",
+        submitted_at: "2026-06-01T12:00:00Z",
+        fields: [
+          {
+            key: "swimming_level",
+            label: "Schwimmfähigkeit",
+            type: "select",
+            options: [{ label: "Kann sicher schwimmen", value: "safe" }],
+            value: "safe",
+          },
+        ],
+      },
+    ]);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("Zusatzangaben")).toBeInTheDocument();
+    expect(screen.getByText("Schwimmfähigkeit")).toBeInTheDocument();
+    expect(screen.getByText("Kann sicher schwimmen")).toBeInTheDocument();
+  });
+
+  it("clears previous enrollment extra fields while loading a different student", async () => {
+    fetchStudentEnrollmentExtraFieldsMock.mockImplementation(
+      (studentId: string) => {
+        if (studentId === "1") {
+          return Promise.resolve([
+            {
+              request_id: "77",
+              phase_name: "Anmeldung 2026",
+              submitted_at: "2026-06-01T12:00:00Z",
+              fields: [
+                {
+                  key: "swimming_level",
+                  label: "Schwimmfähigkeit",
+                  type: "select",
+                  options: [{ label: "Kann sicher schwimmen", value: "safe" }],
+                  value: "safe",
+                },
+              ],
+            },
+          ]);
+        }
+        return new Promise(() => {
+          // Keep the second request in flight so stale data would remain visible.
+        });
+      },
+    );
+
+    const { rerender } = render(
+      <StudentStammdatenTab
+        student={makeStudent({ id: "1", first_name: "Max" })}
+        groups={[]}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Kann sicher schwimmen"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <StudentStammdatenTab
+        student={makeStudent({ id: "2", first_name: "Mia" })}
+        groups={[]}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Zusatzangaben werden geladen..."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kann sicher schwimmen")).not.toBeInTheDocument();
   });
 
   it("calls onSave with submitted form data", async () => {
@@ -356,6 +683,42 @@ describe("StudentStammdatenTab", () => {
     );
   });
 
+  // The proxy commits the privacy consent before the student PUT, in a
+  // separate backend transaction. When the student write then fails, the
+  // generic banner would tell the user nothing was saved while their consent
+  // change is already stored — and cancelling the retry leaves it there.
+  it("names the saved consent when the student write failed on top of it", async () => {
+    const onSave = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Save failed"), {
+        body: JSON.stringify({
+          error: "Save failed",
+          details: { privacy_consent_saved: true },
+        }),
+      }),
+    );
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("first-name"), {
+      target: { value: "X" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          /Die Datenschutzeinstellungen wurden bereits gespeichert, die übrigen Änderungen nicht\./,
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("rebuilds draft when a *different* student is selected (id changes)", () => {
     const { rerender } = render(
       <StudentStammdatenTab
@@ -462,6 +825,432 @@ describe("StudentStammdatenTab", () => {
   });
 });
 
+// Laufgemeinschaft suite. A companion-plan 409 is a question, not a failure:
+// the backend refuses and names the children and weekdays it would have to
+// widen. The retry has to repeat those names — the backend re-checks against
+// freshly locked rows and only widens what the confirmation actually covers,
+// so a retry that confirms nothing earns the identical 409 again. These tests
+// pin down where that list is read from.
+describe("StudentStammdatenTab — companion plan conflicts", () => {
+  const conflictPayload = {
+    error: "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    message:
+      "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
+  };
+
+  function conflictError(
+    extra: { body?: string; message?: string } = {},
+  ): Error & { status?: number; body?: string } {
+    const err = new Error(
+      extra.message ??
+        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    ) as Error & { status?: number; body?: string };
+    err.status = 409;
+    if (extra.body !== undefined) err.body = extra.body;
+    return err;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchStudentPrivacyConsentMock.mockResolvedValue(null);
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValue([]);
+    validateStudentFormMock.mockReturnValue({});
+    // The stored links must be known before a conflict can be answered — the
+    // tab only submits (and only retries) a companion list it actually read.
+    fetchStudentCompanionsMock.mockResolvedValue([
+      { companion_student_id: "42", weekdays: ["mon"] },
+    ]);
+    handleStudentFormSubmitMock.mockImplementation(
+      async (
+        event: Event & { preventDefault: () => void },
+        _formData: Partial<Student>,
+        validate: () => boolean,
+        save: (data: Partial<Student>) => Promise<void>,
+        setSaving: (v: boolean) => void,
+        setErrors: (e: Record<string, string>) => void,
+      ) => {
+        event.preventDefault();
+        if (!validate()) return;
+        setSaving(true);
+        try {
+          await save(_formData);
+        } catch (err) {
+          setErrors({ submit: err instanceof Error ? err.message : "err" });
+        } finally {
+          setSaving(false);
+        }
+      },
+    );
+  });
+
+  async function saveAndAnswerConflict(
+    err: Error,
+  ): Promise<ReturnType<typeof vi.fn>> {
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(err)
+      .mockResolvedValue(undefined);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    await waitFor(() => expect(fetchStudentCompanionsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByTestId("first-name"), {
+      target: { value: "Maja" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    const confirmButton = await screen.findByRole("button", {
+      name: "Ergänzen und speichern",
+    });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    return onSave;
+  }
+
+  it("confirms the children the 409 body named on the retry", async () => {
+    // The CRUD service hands over the untouched response body; the German
+    // sentence in `message` never carries the list, so reading the body is the
+    // only way the retry can name Kind 42 for Montag and Dienstag.
+    const onSave = await saveAndAnswerConflict(
+      conflictError({ body: JSON.stringify(conflictPayload) }),
+    );
+
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      extend_companion_plans: true,
+      confirmed_companion_extensions: [
+        { companion_student_id: "42", weekdays: ["mon", "tue"] },
+      ],
+    });
+  });
+
+  it("falls back to the JSON embedded in the message when no body traveled", async () => {
+    // Errors from studentService reach this form without a body. The older
+    // regex path stays alive so those callers keep working.
+    const onSave = await saveAndAnswerConflict(
+      conflictError({
+        message: `API error (409): ${JSON.stringify(conflictPayload)}`,
+      }),
+    );
+
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      confirmed_companion_extensions: [
+        { companion_student_id: "42", weekdays: ["mon", "tue"] },
+      ],
+    });
+  });
+
+  it("still reads the message when the body carries no conflict list", async () => {
+    // A body that is only the plain German sentence must not shadow a message
+    // that does hold the list — otherwise the retry silently confirms nothing.
+    const onSave = await saveAndAnswerConflict(
+      conflictError({
+        body: "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+        message: `API error (409): ${JSON.stringify(conflictPayload)}`,
+      }),
+    );
+
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      confirmed_companion_extensions: [
+        { companion_student_id: "42", weekdays: ["mon", "tue"] },
+      ],
+    });
+  });
+
+  it("drops the conflicts when the question is dismissed", async () => {
+    // "Abbrechen" is a NO. Keeping the named children around would widen the
+    // linked child's Heimweg on the next ordinary save — a cross-child write
+    // the user declined.
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(
+        conflictError({ body: JSON.stringify(conflictPayload) }),
+      )
+      .mockResolvedValue(undefined);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+    await waitFor(() => expect(fetchStudentCompanionsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByTestId("first-name"), {
+      target: { value: "Maja" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Abbrechen" }));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      confirmed_companion_extensions: [],
+    });
+  });
+
+  it("confirms nothing when neither body nor message can be read", async () => {
+    // The safe direction: an unreadable conflict means the backend asks again
+    // rather than the form widening a child's plan nobody agreed to.
+    const onSave = await saveAndAnswerConflict(conflictError());
+
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      extend_companion_plans: true,
+      confirmed_companion_extensions: [],
+    });
+  });
+});
+
+// Staleness suite. The submitted companion list REPLACES the stored one, so it
+// may only travel when this form actually edited it: someone else may have
+// changed the links since the load, and re-sending the loaded snapshot on an
+// unrelated save would silently revert their change (the backend row-locks the
+// writes, but a lock cannot tell that ours is stale).
+describe("StudentStammdatenTab — companion list staleness", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchStudentPrivacyConsentMock.mockResolvedValue(null);
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValue([]);
+    validateStudentFormMock.mockReturnValue({});
+    fetchStudentCompanionsMock.mockResolvedValue([
+      { companion_student_id: "42", weekdays: ["mon"] },
+    ]);
+    handleStudentFormSubmitMock.mockImplementation(
+      async (
+        event: Event & { preventDefault: () => void },
+        _formData: Partial<Student>,
+        validate: () => boolean,
+        save: (data: Partial<Student>) => Promise<void>,
+        setSaving: (v: boolean) => void,
+      ) => {
+        event.preventDefault();
+        if (!validate()) return;
+        setSaving(true);
+        await save(_formData);
+        setSaving(false);
+      },
+    );
+  });
+
+  async function saveAfter(
+    edit: () => void,
+  ): Promise<ReturnType<typeof vi.fn>> {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+    await waitFor(() => expect(fetchStudentCompanionsMock).toHaveBeenCalled());
+    edit();
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    return onSave;
+  }
+
+  it("omits the companion list from a save that did not touch it", async () => {
+    const onSave = await saveAfter(() =>
+      fireEvent.change(screen.getByTestId("address-street"), {
+        target: { value: "Neue Straße 1" },
+      }),
+    );
+
+    // No key at all — the backend leaves the stored links alone. An empty list
+    // would delete them, the loaded list would overwrite a concurrent edit.
+    expect(onSave.mock.calls[0]![0]).not.toHaveProperty("companions");
+  });
+
+  it("sends the companion list once the user edited it", async () => {
+    const onSave = await saveAfter(() =>
+      fireEvent.click(screen.getByTestId("companion-add")),
+    );
+
+    expect(onSave.mock.calls[0]![0]).toMatchObject({
+      companions: [{ companion_student_id: "7", weekdays: ["mon"] }],
+    });
+  });
+
+  // The list REPLACES the stored one, so the backend has to be told which
+  // stored list it replaces. Without it two people editing the same child from
+  // the same snapshot both submit everything they saw and the second save
+  // silently deletes the first one's link.
+  it("sends the fingerprint of the loaded list along with an edited one", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([
+      { companion_student_id: "2", weekdays: ["mon"] },
+    ]);
+    const onSave = await saveAfter(() =>
+      fireEvent.click(screen.getByTestId("companion-add")),
+    );
+
+    expect(onSave.mock.calls[0]![0]).toMatchObject({
+      companions_fingerprint: "2:mon",
+    });
+  });
+
+  // An unrelated save must not claim anything about the links — it does not
+  // replace them, so a fingerprint could only ever refuse it for someone else's
+  // legitimate change.
+  it("omits the fingerprint from a save that does not touch the links", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([
+      { companion_student_id: "2", weekdays: ["mon"] },
+    ]);
+    const onSave = await saveAfter(() =>
+      fireEvent.change(screen.getByTestId("address-street"), {
+        target: { value: "Neue Straße 1" },
+      }),
+    );
+
+    expect(onSave.mock.calls[0]![0]).not.toHaveProperty(
+      "companions_fingerprint",
+    );
+  });
+
+  // The tab stays mounted while other people work on the same child, and
+  // student.id does not change when they do — so without listening to
+  // companion writes the form keeps a snapshot that no longer exists and its
+  // next save replaces the stored links with it.
+  it("reloads the links on a remote change while nothing is edited", async () => {
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    // The picker only appears once the stored links are known.
+    expect(await screen.findByTestId("companion-add")).toBeInTheDocument();
+    expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    await waitFor(() =>
+      expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("blocks the save when a remote change lands on an edited list", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+    expect(await screen.findByTestId("companion-add")).toBeInTheDocument();
+    expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId("companion-add"));
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    // The draft survives — discarding the user's work silently would be the
+    // other way to lose an edit.
+    expect(
+      await screen.findByText(/zwischenzeitlich an anderer Stelle geändert/),
+    ).toBeInTheDocument();
+    expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Bitte oben neu laden und die Änderung wiederholen/),
+      ).toBeInTheDocument(),
+    );
+    expect(onSave).not.toHaveBeenCalled();
+
+    // "Neu laden" is the explicit way out.
+    fireEvent.click(screen.getByRole("button", { name: /Neu laden/ }));
+    await waitFor(() =>
+      expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  // The other side of the same coin: because a narrowed plan DELETES links
+  // without naming one, that save has to say which links it was looking at. The
+  // backend refuses a plan-driven removal that makes no such claim, so a form
+  // whose plan went stale (a dropped refresh) is told to reload instead of
+  // quietly dropping an edge somebody else just created.
+  it("sends the fingerprint with a plan edit that carries no list", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([
+      { companion_student_id: "2", weekdays: ["mon"] },
+    ]);
+    const onSave = await saveAfter(() =>
+      fireEvent.click(screen.getByTestId("departure-set-mon-bus")),
+    );
+
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted).not.toHaveProperty("companions");
+    expect(submitted).toMatchObject({ companions_fingerprint: "2:mon" });
+  });
+
+  // A departure-plan save can change the stored links without carrying a
+  // companions list: the backend TRIMS every link whose weekday the new plan no
+  // longer allows, and the picker unmounts with the last accompanied day before
+  // it can trim the local copy. Promoting the list this form still holds to the
+  // new baseline would resurrect the deleted children here. student.id does not
+  // change on a refetch, so only an explicit reload re-reads them.
+  it("re-reads the stored links after a save instead of trusting the local list", async () => {
+    await saveAfter(() =>
+      fireEvent.click(screen.getByTestId("departure-set-mon-bus")),
+    );
+
+    await waitFor(() =>
+      expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  // The stranded-companion 400 is an instruction, not a failure: it names the
+  // child whose Heimweg has to be filled in first. "Bitte versuchen Sie es
+  // erneut" would be wrong twice — the identical retry is refused again, and
+  // the only way out of the refusal is lost.
+  it("shows the backend message when a link would strand the other child", async () => {
+    const refusal = new Error(
+      "API error 400: Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht.",
+    ) as Error & { status?: number; body?: string };
+    refusal.status = 400;
+    refusal.body = JSON.stringify({
+      status: "error",
+      error:
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      code: "companion_would_lose_departure",
+    });
+
+    const onSave = vi.fn().mockRejectedValue(refusal);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+    await waitFor(() => expect(fetchStudentCompanionsMock).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("companion-add"));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    expect(
+      await screen.findByText(
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
 // Photo orchestration suite. The default global useTenantSafe mock returns
 // `tenant: null` so photosEnabled resolves to false — that's covered by the
 // existing tests above. These tests override the mock to flip the feature on
@@ -473,7 +1262,7 @@ describe("StudentStammdatenTab — photo orchestration", () => {
     fetchStudentPrivacyConsentMock.mockResolvedValue(null);
     validateStudentFormMock.mockReturnValue({});
     // Override useTenantSafe so photosEnabled is true for this suite.
-    const tenantProvider = await import("~/components/tenant/tenant-provider");
+    const tenantProvider = await import("~/lib/tenant-context");
     vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
       tenantSlug: "test-tenant",
       tenant: { studentPhotosEnabled: true },
@@ -706,7 +1495,7 @@ describe("StudentStammdatenTab — photo orchestration", () => {
     // the draft so the checkbox renders the right initial value. This test
     // first renders with the feature OFF (consent omitted from draft) then
     // flips it ON (server has consent recorded → draft picks up `true`).
-    const tenantProvider = await import("~/components/tenant/tenant-provider");
+    const tenantProvider = await import("~/lib/tenant-context");
     // Start with feature off.
     vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
       tenantSlug: "test-tenant",
@@ -759,5 +1548,84 @@ describe("StudentStammdatenTab — photo orchestration", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
     expect(Object.keys(submitted)).not.toContain("photo_consent_given");
+  });
+
+  it("rebases an untouched departure plan onto the refreshed student", async () => {
+    // Somebody else widened the plan (and linked a child on the new day) while
+    // this form sat open on an address edit. The form resubmits the plan on
+    // every save and the backend trims the links to it, so a stale plan here
+    // would delete that fresh link.
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <StudentStammdatenTab
+        student={makeStudent({
+          allowed_departure_modes: { mon: ["accompanied"] },
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    rerender(
+      <StudentStammdatenTab
+        student={makeStudent({
+          allowed_departure_modes: {
+            mon: ["accompanied"],
+            tue: ["accompanied"],
+          },
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("address-city"), {
+      target: { value: "Bonn" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.allowed_departure_modes).toEqual({
+      mon: ["accompanied"],
+      tue: ["accompanied"],
+    });
+  });
+
+  it("keeps a locally edited departure plan when the student refreshes", async () => {
+    // The other half of the rule: a plan the user actually changed is their
+    // edit and must survive a background refetch — the rebase may only move a
+    // plan nobody touched.
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <StudentStammdatenTab
+        student={makeStudent({
+          allowed_departure_modes: { mon: ["accompanied"] },
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("departure-set-mon-bus"));
+
+    rerender(
+      <StudentStammdatenTab
+        student={makeStudent({
+          allowed_departure_modes: {
+            mon: ["accompanied"],
+            tue: ["accompanied"],
+          },
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.allowed_departure_modes).toEqual({ mon: ["bus"] });
   });
 });

@@ -25,7 +25,7 @@ func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
-	mock.ExpectExec(`UPDATE auth\.accounts SET avatar = .* WHERE \(id = .*\)`).
+	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET .*avatar.* WHERE .*id.*`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = repo.UpdateAvatar(context.Background(), 42, "/uploads/avatars/global/success.jpg")
@@ -44,7 +44,7 @@ func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
-	mock.ExpectExec(`UPDATE auth\.accounts SET avatar = .* WHERE \(id = .*\)`).
+	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET .*avatar.* WHERE .*id.*`).
 		WillReturnError(errors.New("update failed"))
 
 	err = repo.UpdateAvatar(context.Background(), 42, "/uploads/avatars/global/fail.jpg")
@@ -52,7 +52,7 @@ func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 
 	var dbErr *modelBase.DatabaseError
 	require.ErrorAs(t, err, &dbErr)
-	assert.Equal(t, "update avatar", dbErr.Op)
+	assert.Equal(t, "update columns", dbErr.Op)
 	assert.EqualError(t, dbErr.Err, "update failed")
 	require.NoError(t, mock.ExpectationsWereMet())
 }

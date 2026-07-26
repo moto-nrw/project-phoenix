@@ -4,7 +4,6 @@ package active
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -46,9 +45,7 @@ func (r *VisitRepository) FindActiveByStudentID(ctx context.Context, studentID i
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -69,14 +66,39 @@ func (r *VisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".active_group_id = ?`, activeGroupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group ID",
+			Err: err,
+		}
+	}
+
+	return visits, nil
+}
+
+// FindByActiveGroupIDs finds all visits belonging to any of the given active
+// groups in a single query. It is the bulk counterpart of FindByActiveGroupID:
+// callers that resolve many groups (a whole day of slots) get one query instead
+// of one per group. An empty input returns no visits without hitting the DB.
+func (r *VisitRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.Visit, error) {
+	if len(activeGroupIDs) == 0 {
+		return nil, nil
+	}
+	var visits []*active.Visit
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&visits).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		Where(`"visit".active_group_id IN (?)`, bun.List(activeGroupIDs))
+
+	query = base.WithTenantFilter(ctx, query, "visit")
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by active group IDs",
 			Err: err,
 		}
 	}
@@ -92,9 +114,7 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".entry_time <= ? AND ("visit".exit_time IS NULL OR "visit".exit_time >= ?)`, end, start)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -137,9 +157,7 @@ func (r *VisitRepository) FindByStudentAndTimeRange(ctx context.Context, student
 		Where(`"visit".entry_time <= ?`, end).
 		OrderExpr(`"visit".entry_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -188,106 +206,9 @@ func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	return base.AssertRowsAffected(result, 1, "end visit")
 }
 
-// Create overrides base Create to handle validation
-func (r *VisitRepository) Create(ctx context.Context, visit *active.Visit) error {
-	if visit == nil {
-		return fmt.Errorf("visit cannot be nil")
-	}
-
-	// Validate visit
-	if err := visit.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, visit)
-}
-
 // List overrides the base List method to accept the new QueryOptions type
 func (r *VisitRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Visit, error) {
-	var visits []*active.Visit
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return visits, nil
-}
-
-// FindWithStudent retrieves visits with student details
-func (r *VisitRepository) FindWithStudent(ctx context.Context, id int64) (*active.Visit, error) {
-	visit := new(active.Visit)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(visit).
-		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Relation("Student").
-		Where(`"visit".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with student",
-			Err: err,
-		}
-	}
-
-	return visit, nil
-}
-
-// FindWithActiveGroup retrieves visits with active group details
-func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*active.Visit, error) {
-	visit := new(active.Visit)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(visit).
-		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Where(`"visit".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with active group",
-			Err: err,
-		}
-	}
-
-	// Load active group separately — BUN Relation("ActiveGroup") does not
-	// resolve the schema:active tag for relation sub-queries.
-	group := new(active.Group)
-	err = base.GetDB(ctx, r.db).NewSelect().
-		Model(group).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, visit.ActiveGroupID).
-		Scan(ctx)
-
-	if err == nil {
-		visit.ActiveGroup = group
-	}
-
-	return visit, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
@@ -371,46 +292,12 @@ func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int
 		Where(`"visit".created_at < ?`, cutoffDate).
 		Where(`"visit".exit_time IS NOT NULL`) // Only delete completed visits
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete expired visits",
-			Err: err,
-		}
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "get rows affected",
-			Err: err,
-		}
-	}
-
-	return rowsAffected, nil
-}
-
-// DeleteVisitsBeforeDate deletes visits created before a specific date for a student
-func (r *VisitRepository) DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error) {
-	query := base.GetDB(ctx, r.db).NewDelete().
-		Model((*active.Visit)(nil)).
-		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Where(`"visit".student_id = ?`, studentID).
-		Where(`"visit".created_at < ?`, beforeDate).
-		Where(`"visit".exit_time IS NOT NULL`) // Only delete completed visits
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "delete visits before date",
 			Err: err,
 		}
 	}
@@ -443,9 +330,7 @@ func (r *VisitRepository) GetVisitRetentionStats(ctx context.Context) (map[int64
 		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)").
 		Group("v.student_id")
 
-	if where, val, ok := base.TenantWhere(ctx, "v"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "v")
 
 	err := query.Scan(ctx, &results)
 	if err != nil {
@@ -472,9 +357,7 @@ func (r *VisitRepository) CountExpiredVisits(ctx context.Context) (int64, error)
 		Where("v.exit_time IS NOT NULL").
 		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)")
 
-	if where, val, ok := base.TenantWhere(ctx, "v"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "v")
 
 	count, err := query.Count(ctx)
 	if err != nil {
@@ -500,9 +383,7 @@ func (r *VisitRepository) OldestExpiredVisitDate(ctx context.Context) (*time.Tim
 		Where("v.exit_time IS NOT NULL").
 		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)")
 
-	if where, val, ok := base.TenantWhere(ctx, "v"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "v")
 
 	var oldest *time.Time
 	if err := query.Scan(ctx, &oldest); err != nil {
@@ -535,9 +416,7 @@ func (r *VisitRepository) ExpiredVisitMonthlyCounts(ctx context.Context) (map[st
 		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)").
 		GroupExpr("TO_CHAR(v.created_at, 'YYYY-MM')")
 
-	if where, val, ok := base.TenantWhere(ctx, "v"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "v")
 
 	if err := query.Scan(ctx, &results); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -564,9 +443,7 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 		Order(`entry_time DESC`).
 		Limit(1)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -726,9 +603,7 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 		OrderExpr(`"visit".student_id ASC`).
 		OrderExpr(`"visit".entry_time DESC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -780,9 +655,7 @@ func (r *VisitRepository) ListActiveStudentIDsByRoomID(ctx context.Context, room
 		Where(`"group".end_time IS NULL`).
 		Where(`"visit".exit_time IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	if err := query.Scan(ctx, &ids); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -803,28 +676,6 @@ func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupI
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count active by group ID",
-			Err: err,
-		}
-	}
-
-	return count, nil
-}
-
-// CountActiveByStudentID counts active visits (exit_time IS NULL) for a student.
-func (r *VisitRepository) CountActiveByStudentID(ctx context.Context, studentID int64) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`active.visits AS "visit"`).
-		Where(`"visit".student_id = ?`, studentID).
-		Where(`"visit".exit_time IS NULL`)
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count active by student ID",
 			Err: err,
 		}
 	}
@@ -908,9 +759,7 @@ func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, stu
 		Where(`"visit".student_id IN (?)`, bun.List(uniqueIDs)).
 		Where(`"visit".entry_time >= ?`, today)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	if err := query.Scan(ctx, &results); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -956,9 +805,7 @@ func (r *VisitRepository) FindByStudentAndActiveGroupIDs(
 		Where(`"visit".active_group_id IN (?)`, bun.List(activeGroupIDs)).
 		OrderExpr(`"visit".entry_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -978,9 +825,7 @@ func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit
 		Where(`"visit".exit_time IS NULL`).
 		Order(`entry_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -1022,9 +867,7 @@ func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, st
 		OrderExpr(`"visit".student_id ASC`).
 		OrderExpr(`"visit".entry_time DESC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "visit")
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{

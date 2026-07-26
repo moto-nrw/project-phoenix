@@ -5,10 +5,12 @@ import {
   useId,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { MoreVertical } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Check, MoreVertical } from "lucide-react";
 
 export interface OverflowMenuItem {
   /** Visible label. */
@@ -25,18 +27,53 @@ export interface OverflowMenuItem {
   readonly disabled?: boolean;
 }
 
+/** Non-interactive uppercase label grouping the entries below it. */
+interface OverflowMenuHeader {
+  readonly kind: "header";
+  readonly label: string;
+}
+
+/** Single-select row with a checkmark shown when active (role="menuitemradio"). */
+interface OverflowMenuRadioItem {
+  readonly kind: "radio";
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+}
+
+export type OverflowMenuEntry =
+  OverflowMenuItem | OverflowMenuHeader | OverflowMenuRadioItem;
+
 interface OverflowMenuProps {
   /** Menu items to render. Empty array → renders nothing. */
-  readonly items: readonly OverflowMenuItem[];
+  readonly items: readonly OverflowMenuEntry[];
   /** Accessible label for the trigger button. */
   readonly ariaLabel?: string;
+  /**
+   * Trigger footprint. `"default"` is the 36px page-header kebab; `"sm"` is a
+   * compact 24px kebab with a smaller icon and a more muted default color, for
+   * dense inline chrome (e.g. a shift block in the Dienstplan grid) where the
+   * full-size trigger would tower over the row. Additive — existing callers
+   * omit it and get the unchanged 36px trigger.
+   */
+  readonly triggerSize?: "default" | "sm";
   /** Optional class for the trigger button (size/spacing tweaks). */
   readonly triggerClassName?: string;
+  /**
+   * Optional CSS selector for an ancestor of the trigger. When set, the menu
+   * stretches to that ancestor's width and sits inside it (8px inset), instead
+   * of the default 220px popover anchored to the trigger. Use this when the
+   * trigger lives in a narrow container (e.g. a meal-plan day column) where a
+   * fixed-width popover would poke out the side and read as misaligned.
+   */
+  readonly matchContainerSelector?: string;
 }
 
 /**
  * Generic kebab (⋮) overflow menu. Anchored bottom-right of the trigger by
- * default; flips to bottom-left if the page edge is too close on the right.
+ * default; flips to bottom-left if the page edge is too close on the right, and
+ * flips ABOVE the trigger when it sits too close to the viewport bottom.
  *
  * Closes on outside click, Escape key, or item activation. Built without a
  * popover library to avoid adding a Radix dep just for one use site — the
@@ -45,16 +82,32 @@ interface OverflowMenuProps {
 export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
+  triggerSize = "default",
   triggerClassName = "",
+  matchContainerSelector,
 }: OverflowMenuProps) {
+  // Size variant: the "default" values are byte-for-byte the previous hardcoded
+  // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
+  // gray-600 color. "sm" shrinks to a 24px trigger, 16px icon, and a muted
+  // gray-400 (splitting color from the string avoids a Tailwind text-* conflict
+  // that class-string order would not resolve).
+  const triggerSizeClass = triggerSize === "sm" ? "size-6" : "size-9";
+  const triggerColorClass =
+    triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
+  const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";
   const [isOpen, setIsOpen] = useState(false);
-  const [alignRight, setAlignRight] = useState(true);
+  // The menu renders in a portal on <body> with fixed positioning so it can
+  // never be clipped by an ancestor's `overflow-hidden` (e.g. a rounded table
+  // or card the kebab lives in). Position is derived from the trigger rect on
+  // open. `right`/`left` mirror the previous right-0/left-0 anchoring.
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
-  // Close on outside click + Escape. Only attached while open so we don't
-  // pay the listener cost on every page that mounts a menu.
+  // Close on outside click + Escape. Because the menu is fixed-positioned, also
+  // close on scroll/resize so it never lingers detached from its trigger. Only
+  // attached while open so we don't pay the listener cost on every page.
   useEffect(() => {
     if (!isOpen) return;
 
@@ -71,12 +124,29 @@ export function OverflowMenu({
         triggerRef.current?.focus();
       }
     };
+    const onReflow = (event: Event) => {
+      // A viewport-bounded menu scrolls internally. That scroll bubbles through
+      // the capture listener on window and must not close the menu itself.
+      const target = event.target;
+      if (
+        event.type === "scroll" &&
+        target instanceof Node &&
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
 
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onReflow, true);
+    window.addEventListener("resize", onReflow);
     return () => {
       document.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onReflow, true);
+      window.removeEventListener("resize", onReflow);
     };
   }, [isOpen]);
 
@@ -91,16 +161,59 @@ export function OverflowMenu({
   const handleOpen = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect != null) {
-      const spaceLeft = rect.left;
-      // Flip to left-anchored only when there isn't enough room on the
-      // trigger's left for the menu to extend leftward.
-      setAlignRight(spaceLeft >= 220);
+      const gap = 4; // matches the old mt-1
+      const viewportInset = 8;
+      // Vertical anchoring: below the trigger by default, flipped ABOVE it when
+      // there is not enough room below for the (conservatively estimated) menu
+      // height. Without the flip, a trigger near the viewport bottom (e.g. the
+      // last table row) drops the menu below the fold, where the first scroll
+      // attempt immediately closes it via the scroll listener. Anchoring by
+      // `bottom` needs no exact height — only the flip decision estimates one.
+      const estimatedMenuHeight = items.length * 40 + 16;
+      const roomAbove = Math.max(0, rect.top - gap - viewportInset);
+      const roomBelow = Math.max(
+        0,
+        window.innerHeight - rect.bottom - gap - viewportInset,
+      );
+      const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
+      const vertical: CSSProperties = flipUp
+        ? {
+            bottom: window.innerHeight - rect.top + gap,
+            maxHeight: roomAbove,
+          }
+        : { top: rect.bottom + gap, maxHeight: roomBelow };
+      // Container-stretch mode: when an ancestor selector is given, size the
+      // menu to that ancestor (8px inset both sides) so it sits cleanly INSIDE
+      // a narrow container instead of poking out the side. The trigger only
+      // contributes the vertical position here.
+      const container = matchContainerSelector
+        ? triggerRef.current?.closest(matchContainerSelector)
+        : null;
+      if (container != null) {
+        const cr = container.getBoundingClientRect();
+        const inset = 8;
+        setMenuStyle({
+          ...vertical,
+          left: cr.left + inset,
+          width: cr.width - inset * 2,
+        });
+      } else {
+        // Default to right-anchored (menu extends LEFT from the trigger's right
+        // edge); flip to left-anchored only when the trigger sits too close to
+        // the left edge for the menu to extend leftward.
+        const style: CSSProperties =
+          rect.left >= 220
+            ? { ...vertical, right: window.innerWidth - rect.right }
+            : { ...vertical, left: rect.left };
+        setMenuStyle(style);
+      }
     }
     setIsOpen((prev) => !prev);
   };
 
   const onItemKey =
-    (item: OverflowMenuItem) => (event: KeyboardEvent<HTMLButtonElement>) => {
+    (item: OverflowMenuItem | OverflowMenuRadioItem) =>
+    (event: KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         if (item.disabled) return;
@@ -121,62 +234,111 @@ export function OverflowMenu({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`inline-flex size-9 items-center justify-center rounded-full text-gray-600 transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
+        className={`inline-flex ${triggerSizeClass} items-center justify-center rounded-full ${triggerColorClass} transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
       >
-        <MoreVertical className="size-5" aria-hidden />
+        <MoreVertical className={iconSizeClass} aria-hidden />
       </button>
 
-      {isOpen ? (
-        <div
-          ref={menuRef}
-          id={menuId}
-          role="menu"
-          aria-label={ariaLabel}
-          // Surface mirrors DesktopFilters dropdown so menu / filter
-          // popovers read as one component family — same border, radius,
-          // and shadow elevation across the page.
-          className={`absolute top-full z-50 mt-1 min-w-[220px] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
-            alignRight ? "right-0" : "left-0"
-          }`}
-        >
-          {items.map((item, index) => {
-            const colorClass = item.destructive
-              ? "text-red-600"
-              : "text-gray-700";
-            const interactive = item.disabled
-              ? "cursor-not-allowed opacity-50"
-              : "hover:bg-gray-50 active:bg-gray-100";
+      {isOpen
+        ? createPortal(
+            <div
+              ref={menuRef}
+              id={menuId}
+              role="menu"
+              aria-label={ariaLabel}
+              style={menuStyle}
+              // Surface mirrors DesktopFilters dropdown so menu / filter
+              // popovers read as one component family — same border, radius,
+              // and shadow elevation across the page. Fixed + portaled so it
+              // escapes any clipping `overflow-hidden` ancestor. In
+              // container-stretch mode the width comes from `menuStyle`, so the
+              // 220px floor is dropped to let the menu match a narrow column.
+              className={`fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+                matchContainerSelector ? "" : "min-w-[220px]"
+              }`}
+            >
+              {items.map((entry, index) => {
+                if ("kind" in entry && entry.kind === "header") {
+                  return (
+                    <div
+                      key={`header-${entry.label}`}
+                      className={`px-4 py-2 ${index > 0 ? "border-t border-gray-100" : ""}`}
+                    >
+                      <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+                        {entry.label}
+                      </p>
+                    </div>
+                  );
+                }
 
-            return (
-              <button
-                key={`${item.label}-${index}`}
-                type="button"
-                role="menuitem"
-                disabled={item.disabled}
-                onClick={() => {
-                  if (item.disabled) return;
-                  setIsOpen(false);
-                  item.onClick();
-                }}
-                onKeyDown={onItemKey(item)}
-                className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`}
-              >
-                {item.icon != null ? (
-                  <span className="flex size-4 flex-shrink-0 items-center justify-center text-gray-500">
-                    {item.icon}
-                  </span>
-                ) : null}
-                <span className="flex-1 truncate">{item.label}</span>
-                {item.badge != null ? (
-                  <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 tabular-nums">
-                    {item.badge}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+                if ("kind" in entry && entry.kind === "radio") {
+                  return (
+                    <button
+                      key={`radio-${entry.label}`}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={entry.checked}
+                      disabled={entry.disabled}
+                      onClick={() => {
+                        if (entry.disabled) return;
+                        setIsOpen(false);
+                        entry.onClick();
+                      }}
+                      onKeyDown={onItemKey(entry)}
+                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm font-medium transition-colors ${
+                        entry.disabled
+                          ? "cursor-not-allowed opacity-50"
+                          : "hover:bg-gray-50 active:bg-gray-100"
+                      } ${entry.checked ? "text-gray-900" : "text-gray-700"}`}
+                    >
+                      <span>{entry.label}</span>
+                      {entry.checked ? (
+                        <Check className="size-4 text-gray-900" aria-hidden />
+                      ) : null}
+                    </button>
+                  );
+                }
+
+                const item = entry;
+                const colorClass = item.destructive
+                  ? "text-red-600"
+                  : "text-gray-700";
+                const interactive = item.disabled
+                  ? "cursor-not-allowed opacity-50"
+                  : "hover:bg-gray-50 active:bg-gray-100";
+
+                return (
+                  <button
+                    key={`item-${item.label}`}
+                    type="button"
+                    role="menuitem"
+                    disabled={item.disabled}
+                    onClick={() => {
+                      if (item.disabled) return;
+                      setIsOpen(false);
+                      item.onClick();
+                    }}
+                    onKeyDown={onItemKey(item)}
+                    className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`}
+                  >
+                    {item.icon != null ? (
+                      <span className="flex size-4 flex-shrink-0 items-center justify-center text-gray-500">
+                        {item.icon}
+                      </span>
+                    ) : null}
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.badge != null ? (
+                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 tabular-nums">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

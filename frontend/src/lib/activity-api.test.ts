@@ -11,7 +11,10 @@ import type {
   CreateActivityRequest,
   UpdateActivityRequest,
 } from "./activity-helpers";
-import { buildBackendActivity, buildBackendCategory } from "~/test/fixtures";
+import {
+  buildBackendActivity,
+  buildBackendCategory,
+} from "~/test/fixtures/activities";
 
 const { mockGetServerApiUrl } = vi.hoisted(() => ({
   mockGetServerApiUrl: vi.fn(() => "http://server:8080"),
@@ -590,6 +593,38 @@ describe("activity-api", () => {
       const result = await activityApi.getCategories();
 
       expect(result).toHaveLength(1);
+    });
+
+    it("maps the raw backend shape (shift_type_id) in browser context (#1837)", async () => {
+      // Regression: the browser path used to return the raw payload unmapped,
+      // so consumers reading category.shiftTypeId (e.g. the shift-type mapping
+      // modal) never matched and could clear links.
+      vi.stubGlobal("window", {});
+      mockedGetSession.mockResolvedValueOnce({
+        user: { id: "1", token: "test-token" },
+        expires: "2099-01-01",
+      });
+
+      const backendShaped = {
+        id: 7,
+        name: "Betreuung",
+        color: "#83CD2D",
+        shift_type_id: 99,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ data: [backendShaped] }),
+        }),
+      );
+
+      const result = await activityApi.getCategories();
+
+      expect(result[0]?.id).toBe("7");
+      expect(result[0]?.shiftTypeId).toBe("99");
     });
 
     it("returns empty array for non-array response", async () => {

@@ -7,40 +7,22 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// setupRouterUnderTenantTx mounts the create-student handler behind the REAL
-// TenantTxMiddleware, reproducing the production request pipeline. This matters:
-// the bare setupRouter() lets the handler's inner WithTenantTx open its own
-// outermost transaction, which rolls back cleanly on any returned error. In
-// production the route is wrapped by TenantTxMiddleware, so the inner
-// WithTenantTx merely REUSES the outer transaction and the rollback decision is
-// deferred to the middleware — which only rolls back on 5xx and COMMITS on a
-// 400. A guardian ValidationError surfaced as a 400 would therefore commit an
-// already-written student unless validation happens before the first write.
-// These tests guard exactly that pipeline behavior.
 func emailPtr(s string) *string { return &s }
 
-func setupRouterUnderTenantTx(tc *testContext, handler http.HandlerFunc) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.With(tenant.TenantTxMiddleware(tc.db)).Post("/", handler)
-	return router
-}
-
 // assertNoStudentCommittedUnderTenantTx posts a create-student body that must
-// fail guardian validation through the real TenantTxMiddleware, asserts a 400
-// carrying the given German fragment, and proves the middleware did NOT commit
-// an orphaned person/student. Without the pre-write validation fix, the student
-// rows would commit despite the 400 and this assertion would fail.
+// fail guardian validation through the production Router(), whose POST / route
+// is wrapped by the REAL TenantTxMiddleware. This matters: the middleware only
+// rolls back on 5xx and COMMITS on a 400, so a guardian ValidationError surfaced
+// as a 400 would commit an already-written student unless validation happens
+// before the first write. The test asserts a 400 carrying the given German
+// fragment and proves the middleware did NOT commit an orphaned person/student.
 func assertNoStudentCommittedUnderTenantTx(
 	t *testing.T,
 	tc *testContext,
@@ -50,9 +32,8 @@ func assertNoStudentCommittedUnderTenantTx(
 ) {
 	t.Helper()
 
-	router := setupRouterUnderTenantTx(tc, tc.resource.CreateStudentHandler())
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code,
 		"invalid guardian input must return 400 (not 500). Body: %s", rr.Body.String())
@@ -161,8 +142,6 @@ func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
 
 	for _, relType := range []string{"parent", "guardian", "relative", "other"} {
 		t.Run(relType, func(t *testing.T) {
-			router := setupRouterUnderTenantTx(tc, tc.resource.CreateStudentHandler())
-
 			body := map[string]interface{}{
 				"first_name":   "RelOk",
 				"last_name":    "Accept_" + relType,
@@ -178,7 +157,7 @@ func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
 			}
 
 			req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-			rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+			rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 			require.Equal(t, http.StatusCreated, rr.Code,
 				"relationship_type %q must be accepted. Body: %s", relType, rr.Body.String())
 

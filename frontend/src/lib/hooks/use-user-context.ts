@@ -20,7 +20,7 @@
 "use client";
 
 import { useImmutableSWR } from "~/lib/swr";
-import type { UserContextResponse } from "~/app/api/user-context/route";
+import type { UserContextResponse } from "~/lib/user-context-types";
 
 interface ApiResponse<T> {
   data: T;

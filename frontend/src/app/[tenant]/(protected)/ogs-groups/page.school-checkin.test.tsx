@@ -50,9 +50,13 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 // Page gates the FAB on binary mode; the global tenant-provider mock
 // (src/test/setup.ts) defaults to "detailed", which would hide the trigger
 // and make every assertion here fail. Override to "binary".
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  // OpenCareModeGuard (#1544) wraps the page; fixed_groups keeps it inert.
+  // Its useTenantAwarePath call needs the routing-mode selector too.
+  useOpenCareGroupMode: vi.fn(() => false),
+  useTenantRoutingModeSafe: vi.fn(() => "subdomain"),
   // useStudentPhotosEnabled (used by ogs-groups for the avatar-clearance
   // spacer) reads tenant.studentPhotosEnabled via this selector. The mock
   // returns null which makes the hook resolve to enabled=false — fine for
@@ -73,6 +77,7 @@ vi.mock("~/components/students/school-checkin-fab", () => ({
     mockFab(props);
     return (
       <button
+        type="button"
         data-testid="school-checkin-fab"
         data-active={props.isActive}
         data-pending={props.pendingCount}
@@ -95,6 +100,7 @@ vi.mock("~/components/students/school-checkin-mode-mobile", () => ({
     pendingCount: number;
   }) => (
     <button
+      type="button"
       data-testid="school-checkin-mobile"
       data-active={props.isActive}
       onClick={props.onToggle}
@@ -119,6 +125,7 @@ vi.mock("~/components/students/student-card", () => ({
     mockStudentCard(props);
     return (
       <button
+        type="button"
         data-testid={`student-card-${props.studentId}`}
         data-checkin-mode={props.checkinMode ?? false}
         data-checkin-state={props.checkinState ?? ""}
@@ -201,7 +208,7 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     actionButton,
     mobileActionButton,

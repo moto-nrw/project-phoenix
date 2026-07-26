@@ -6,11 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCommentRead_TableName(t *testing.T) {
-	cr := &CommentRead{}
-	assert.Equal(t, "suggestions.comment_reads", cr.TableName())
-}
-
 func TestCommentRead_StructFields(t *testing.T) {
 	// Verify struct can be instantiated with all fields
 	cr := &CommentRead{

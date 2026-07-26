@@ -1,10 +1,5 @@
-import type { NextRequest } from "next/server";
-import { apiPut, apiDelete } from "~/lib/api-helpers.server";
-import {
-  createPutHandler,
-  createDeleteHandler,
-  isStringParam,
-} from "~/lib/route-wrapper.server";
+import { proxyDelete, proxyPut } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface UpdateAbsenceBody {
   absence_type?: string;
@@ -18,36 +13,14 @@ interface UpdateAbsenceBody {
  * PUT /api/time-tracking/absences/{id}
  * Update an absence
  */
-export const PUT = createPutHandler<unknown, UpdateAbsenceBody>(
-  async (
-    _request: NextRequest,
-    body: UpdateAbsenceBody,
-    token: string,
-    params,
-  ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid absence ID");
-    }
-
-    const response = await apiPut<{ data: unknown }>(
-      `/api/time-tracking/absences/${params.id}`,
-      token,
-      body,
-    );
-    return response.data;
-  },
+export const PUT = proxyPut<unknown, UpdateAbsenceBody>(
+  (p) => `/api/time-tracking/absences/${requirePathSegmentParam(p)}`,
 );
 
 /**
  * DELETE /api/time-tracking/absences/{id}
  * Delete an absence
  */
-export const DELETE = createDeleteHandler<void>(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid absence ID");
-    }
-
-    await apiDelete(`/api/time-tracking/absences/${params.id}`, token);
-  },
+export const DELETE = proxyDelete(
+  (p) => `/api/time-tracking/absences/${requirePathSegmentParam(p)}`,
 );

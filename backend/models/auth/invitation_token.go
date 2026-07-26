@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // InvitationToken represents an invitation sent to create a new account.
@@ -33,26 +32,6 @@ type InvitationToken struct {
 	Creator *Account `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
 }
 
-// TableName returns the fully-qualified table name.
-func (t *InvitationToken) TableName() string {
-	return "auth.invitation_tokens"
-}
-
-// BeforeAppendModel ensures the schema-qualified table expression is used with an alias.
-func (t *InvitationToken) BeforeAppendModel(query any) error {
-	const tableExpr = `auth.invitation_tokens AS "invitation_token"`
-
-	switch q := query.(type) {
-	case *bun.InsertQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.UpdateQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.DeleteQuery:
-		q.ModelTableExpr(tableExpr)
-	}
-	return nil
-}
-
 // Validate ensures core fields are present and sensible.
 func (t *InvitationToken) Validate() error {
 	if strings.TrimSpace(t.Email) == "" {
@@ -74,9 +53,9 @@ func (t *InvitationToken) Validate() error {
 }
 
 // IsUsed returns true if the invitation was already accepted or revoked. This
-// is a pure field accessor (UsedAt != nil); the wall-clock expiry/validity
-// decision lives in the auth service (services/auth.InvitationTokenExpired /
-// InvitationTokenValid), per issue #586 (Rule 12).
+// is a pure field accessor (UsedAt != nil); the wall-clock expiry decision
+// lives in the auth service (services/auth.InvitationTokenExpired), per issue
+// #586 (Rule 12).
 func (t *InvitationToken) IsUsed() bool {
 	return t.UsedAt != nil
 }
@@ -84,19 +63,4 @@ func (t *InvitationToken) IsUsed() bool {
 // SetExpiry assigns a duration from now as the expiry.
 func (t *InvitationToken) SetExpiry(duration time.Duration) {
 	t.ExpiresAt = time.Now().Add(duration)
-}
-
-// GetID returns the primary key.
-func (t *InvitationToken) GetID() interface{} {
-	return t.ID
-}
-
-// GetCreatedAt returns the creation timestamp.
-func (t *InvitationToken) GetCreatedAt() time.Time {
-	return t.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp.
-func (t *InvitationToken) GetUpdatedAt() time.Time {
-	return t.UpdatedAt
 }

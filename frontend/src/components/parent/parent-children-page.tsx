@@ -6,6 +6,7 @@ import { ArrowRight, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type Child, listMyChildren } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 
 const logger = createLogger({ component: "ParentChildrenPage" });
 
@@ -15,11 +16,7 @@ function formatDate(
   empty: string,
 ): string {
   if (!iso) return empty;
-  return new Intl.DateTimeFormat(locale, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(iso));
+  return formatLocalizedDate(iso, locale);
 }
 
 function formatServiceRange(
@@ -83,7 +80,7 @@ export function ParentChildrenPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="p-5 sm:p-6 lg:p-8">
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {t("eyebrow")}
           </p>
           <h1 className="mt-1 text-3xl font-semibold text-gray-900 sm:text-4xl">
@@ -122,7 +119,7 @@ function ChildCard({
       className="group rounded-2xl border border-gray-200 bg-gray-50/70 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
       <div className="flex items-center gap-4">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-base font-semibold text-[#4A7A15]">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-base font-semibold text-[#5A8E1F]">
           {getInitials(child) || (
             <Users className="h-6 w-6" aria-hidden="true" />
           )}

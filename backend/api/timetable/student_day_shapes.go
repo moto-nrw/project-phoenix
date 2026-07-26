@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // SlotResponse describes an arrival or pickup slot for a single day.
@@ -19,24 +20,26 @@ type SlotResponse struct {
 	Reason       *string `json:"reason,omitempty"`
 }
 
-// SlotSource constants for SlotResponse.Source. Kept as strings (not a type)
-// because the wire format is a plain JSON string — no need for a typed enum.
+// SlotSource constants for SlotResponse.Source. Aliased to the schedule
+// service so the wire strings and the shared ResolveSlotSource precedence rule
+// stay in lockstep — one source of truth.
 const (
-	SlotSourceSchedule  = "schedule"
-	SlotSourceException = "exception"
-	SlotSourceNone      = "none"
+	SlotSourceSchedule  = scheduleSvc.SlotSourceSchedule
+	SlotSourceException = scheduleSvc.SlotSourceException
+	SlotSourceNone      = scheduleSvc.SlotSourceNone
 )
 
 // AttendanceDayResponse is the per-student attendance payload on a day
 // instance. Status / substatus / note / checked_in_at come from
-// schedule.instance_students; is_unplanned is true only for active/completed
-// instances where the student had a visit but no instance_students row.
+// schedule.instance_students; is_unplanned marks a persisted visit without a
+// booking. Legacy retained visits can still be synthesized during migration.
 type AttendanceDayResponse struct {
-	Status      string  `json:"status"`
-	Substatus   *string `json:"substatus"`
-	Note        *string `json:"note"`
-	CheckedInAt *string `json:"checked_in_at"`
-	IsUnplanned bool    `json:"is_unplanned"`
+	Status       string  `json:"status"`
+	Substatus    *string `json:"substatus"`
+	Note         *string `json:"note"`
+	CheckedInAt  *string `json:"checked_in_at"`
+	CheckedOutAt *string `json:"checked_out_at"`
+	IsUnplanned  bool    `json:"is_unplanned"`
 }
 
 // InstanceDayResponse is one scheduled instance as it appears in a student's
@@ -76,8 +79,8 @@ type StudentWeekResponse struct {
 
 // mapEnrolledInstance lifts a repo-side (instance, attendance) pair into the
 // wire shape. The attendance row is authoritative — status/substatus/note/
-// checked_in_at come from it directly. is_unplanned is always false here
-// (enrolled = has an instance_students row).
+// checked_in_at come from it directly. A persisted unplanned visit also has an
+// instance_students row, so the row's is_unplanned flag stays authoritative.
 func mapEnrolledInstance(row *scheduleModel.ScheduledInstanceRow) InstanceDayResponse {
 	att := row.Attendance
 	resp := InstanceDayResponse{
@@ -89,11 +92,12 @@ func mapEnrolledInstance(row *scheduleModel.ScheduledInstanceRow) InstanceDayRes
 		Status:        row.Instance.Status,
 		ActiveGroupID: row.Instance.ActiveGroupID,
 		Attendance: AttendanceDayResponse{
-			Status:      att.Status,
-			Substatus:   att.Substatus,
-			Note:        att.Note,
-			CheckedInAt: formatOptionalRFC3339(att.CheckedInAt),
-			IsUnplanned: false,
+			Status:       att.Status,
+			Substatus:    att.Substatus,
+			Note:         att.Note,
+			CheckedInAt:  formatOptionalRFC3339(att.CheckedInAt),
+			CheckedOutAt: formatOptionalRFC3339(att.CheckedOutAt),
+			IsUnplanned:  att.IsUnplanned,
 		},
 	}
 	return resp
@@ -114,11 +118,12 @@ func mapUnplannedInstance(inst *scheduleModel.ActivityInstance, visit *activeMod
 		Status:        inst.Status,
 		ActiveGroupID: inst.ActiveGroupID,
 		Attendance: AttendanceDayResponse{
-			Status:      scheduleModel.AttendanceStatusPresent,
-			Substatus:   nil,
-			Note:        nil,
-			CheckedInAt: checkedIn,
-			IsUnplanned: true,
+			Status:       scheduleModel.AttendanceStatusPresent,
+			Substatus:    nil,
+			Note:         nil,
+			CheckedInAt:  checkedIn,
+			CheckedOutAt: formatOptionalRFC3339(visit.ExitTime),
+			IsUnplanned:  true,
 		},
 	}
 }

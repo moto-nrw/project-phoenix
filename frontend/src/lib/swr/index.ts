@@ -21,13 +21,9 @@
 export {
   useSWRAuth,
   useImmutableSWR,
-  useSWRWithId,
   useTenantMutate,
   useTenantMutateMatching,
 } from "./hooks";
-
-// Re-export config for advanced usage
-export { swrConfig, immutableConfig } from "./config";
 
 // Re-export SWR utilities that consumers might need
 export { mutate } from "swr";

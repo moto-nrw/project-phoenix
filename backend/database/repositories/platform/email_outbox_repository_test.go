@@ -92,6 +92,32 @@ func TestEmailOutboxRepository_Create_RejectsInvalidRow(t *testing.T) {
 	assert.Contains(t, err.Error(), "validation failed")
 }
 
+func TestEmailOutboxRepository_Create_IdempotencyKeySuppressesDuplicate(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("idempotent")
+	defer wipeOutbox(db, tenantID, kind)
+	key := uniqueOutboxToken("decision-key")
+	first := makeOutbox(kind)
+	first.IdempotencyKey = &key
+	second := makeOutbox(kind)
+	second.IdempotencyKey = &key
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		if err := repo.Create(ctx, first); err != nil {
+			return err
+		}
+		return repo.Create(ctx, second)
+	}))
+
+	count, err := db.NewSelect().
+		Table("platform.email_outbox").
+		Where("tenant_id = ?", tenantID).
+		Where("idempotency_key = ?", key).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
 func TestEmailOutboxRepository_FindByID_HappyPath(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("find")
@@ -301,6 +327,52 @@ func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.
 	assert.True(t, found, "limit=0 must default to the budget (25), not return 0 rows")
 }
 
+// --- LockSending -------------------------------------------------------
+
+func TestEmailOutboxRepository_LockSending_TrueForSendingRow(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("locksending")
+	defer wipeOutbox(db, tenantID, kind)
+
+	r := makeOutbox(kind)
+	r.Status = platformModels.EmailOutboxStatusSending
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, r)
+	}))
+
+	var claimed bool
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		claimed, lErr = repo.LockSending(ctx, r.ID)
+		return lErr
+	}))
+	assert.True(t, claimed, "a row still in 'sending' must lock as claimed")
+}
+
+func TestEmailOutboxRepository_LockSending_FalseWhenGoneOrNotSending(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("lockgone")
+	defer wipeOutbox(db, tenantID, kind)
+
+	pending := makeOutbox(kind) // still 'pending' — not a valid claim
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, pending)
+	}))
+
+	for name, id := range map[string]int64{
+		"deleted row":     9_999_999,
+		"non-sending row": pending.ID,
+	} {
+		var claimed bool
+		require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+			var lErr error
+			claimed, lErr = repo.LockSending(ctx, id)
+			return lErr
+		}), name)
+		assert.False(t, claimed, "%s must report not claimed, without error", name)
+	}
+}
+
 // --- MarkSent / MarkRetry / MarkFailed --------------------------------
 
 func TestEmailOutboxRepository_MarkSent_HappyPath(t *testing.T) {
@@ -475,4 +547,83 @@ func TestEmailOutboxRepository_FindByRelatedEntity_EmptyResultNoError(t *testing
 	})
 	require.NoError(t, err)
 	assert.Empty(t, list)
+}
+
+// --- CancelPendingByRelatedEntity ------------------------------------
+
+func TestEmailOutboxRepository_CancelPendingByRelatedEntity_FailsOnlyPendingForEntity(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("cancel")
+	defer wipeOutbox(db, tenantID, kind)
+
+	relatedType := platformModels.EmailKindParentAnnouncement
+	targetID := int64(717171)
+	otherID := int64(818181)
+
+	makeRelated := func(rID int64, status string) *platformModels.EmailOutbox {
+		r := makeOutbox(kind)
+		rt := relatedType
+		id := rID
+		r.RelatedEntityType = &rt
+		r.RelatedEntityID = &id
+		r.Status = status
+		return r
+	}
+
+	// Two pending rows for the target entity (should be cancelled), a
+	// 'sending' row for the target entity (already claimed → left alone), and a
+	// pending row for a different entity (out of scope).
+	pendingA := makeRelated(targetID, platformModels.EmailOutboxStatusPending)
+	pendingB := makeRelated(targetID, platformModels.EmailOutboxStatusPending)
+	sending := makeRelated(targetID, platformModels.EmailOutboxStatusSending)
+	otherEntity := makeRelated(otherID, platformModels.EmailOutboxStatusPending)
+	for _, r := range []*platformModels.EmailOutbox{pendingA, pendingB, sending, otherEntity} {
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, r)
+		}))
+	}
+
+	var cancelled int64
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var cErr error
+		cancelled, cErr = repo.CancelPendingByRelatedEntity(ctx, relatedType, targetID, "announcement retracted before send")
+		return cErr
+	}))
+	assert.EqualValues(t, 2, cancelled, "only the two pending rows for the entity must be cancelled")
+
+	statusOf := func(id int64) *platformModels.EmailOutbox {
+		var got *platformModels.EmailOutbox
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			var fbErr error
+			got, fbErr = repo.FindByID(ctx, id)
+			return fbErr
+		}))
+		return got
+	}
+
+	for _, id := range []int64{pendingA.ID, pendingB.ID} {
+		row := statusOf(id)
+		assert.Equal(t, platformModels.EmailOutboxStatusFailed, row.Status,
+			"pending row for the entity must be flipped to failed so the worker skips it")
+		require.NotNil(t, row.LastError)
+		assert.Equal(t, "announcement retracted before send", *row.LastError)
+	}
+
+	assert.Equal(t, platformModels.EmailOutboxStatusSending, statusOf(sending.ID).Status,
+		"a row already claimed by the worker ('sending') must NOT be cancelled")
+	assert.Equal(t, platformModels.EmailOutboxStatusPending, statusOf(otherEntity.ID).Status,
+		"a pending row for a DIFFERENT entity must be untouched")
+}
+
+func TestEmailOutboxRepository_CancelPendingByRelatedEntity_NoMatchesReturnsZero(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	var cancelled int64
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var cErr error
+		cancelled, cErr = repo.CancelPendingByRelatedEntity(ctx,
+			platformModels.EmailKindParentAnnouncement, 9_999_999, "reason")
+		return cErr
+	})
+	require.NoError(t, err)
+	assert.Zero(t, cancelled)
 }

@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -96,9 +94,8 @@ func (rs *Resource) createRollover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sourceID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || sourceID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid source phase id")))
+	sourceID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid source phase id")
+	if !ok {
 		return
 	}
 
@@ -150,9 +147,8 @@ func (rs *Resource) listRolloverReview(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("rollover service not configured")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phase id")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid phase id")
+	if !ok {
 		return
 	}
 
@@ -197,9 +193,8 @@ func (rs *Resource) decideRolloverReview(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("rollover service not configured")))
 		return
 	}
-	childID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || childID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request_child id")))
+	childID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid request_child id")
+	if !ok {
 		return
 	}
 	body := &RolloverReviewDecisionRequest{}

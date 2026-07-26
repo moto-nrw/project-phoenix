@@ -34,7 +34,7 @@ var serviceQueryRatchetAllowlist = map[string]int{
 	// Deliberately-kept transaction control (SAVEPOINT / advisory locks /
 	// LOCK TABLE) — transaction orchestration is service-layer per Rule 11.
 	"services/active/session_service.go":                4, // advisory lock + savepoints for best-effort DB side effects
-	"services/enrollment/request_service.go":            1,
+	"services/enrollment/rejected_cleanup_service.go":   4, // savepoint isolates cleanup inside the scheduler's ambient tenant transaction
 	"services/import/student_import_config.go":          3,
 	"services/platform/operator_suggestions_service.go": 3,
 	"services/users/caregiver_capability.go":            1,

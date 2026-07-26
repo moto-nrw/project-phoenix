@@ -3,15 +3,10 @@ package schedule
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableInstanceStaff is the schema-qualified table name.
-const tableInstanceStaff = "schedule.instance_staff"
 
 // InstanceStaff assigns a staff member to a materialized activity instance.
 // A row's optional RoomID (E3 multi-room override) is nil when the staff
@@ -27,29 +22,14 @@ type InstanceStaff struct {
 	IsPrimary    bool   `bun:"is_primary,notnull,default:false" json:"is_primary"`
 	IsSubstitute bool   `bun:"is_substitute,notnull,default:false" json:"is_substitute"`
 	IsAbsent     bool   `bun:"is_absent,notnull,default:false" json:"is_absent"`
+	// AbsenceReason is an optional short "why" captured when the staff member
+	// is marked absent (Vertretungsplan, issue #1840).
+	AbsenceReason *string `bun:"absence_reason" json:"absence_reason,omitempty"`
+	// SickAbsenceID identifies the active.staff_absences row whose #1843 sick
+	// cascade marked this row absent. NULL for manual Vertretungsplan absences;
+	// deleting the sick report clears only rows carrying its id.
+	SickAbsenceID *int64 `bun:"sick_absence_id" json:"sick_absence_id,omitempty"`
 }
-
-func (s *InstanceStaff) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.instance_staff AS "instance_staff"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.instance_staff AS "instance_staff"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (s *InstanceStaff) TableName() string { return tableInstanceStaff }
-
-// GetID implements the Entity interface.
-func (s *InstanceStaff) GetID() any { return s.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (s *InstanceStaff) GetCreatedAt() time.Time { return s.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (s *InstanceStaff) GetUpdatedAt() time.Time { return s.UpdatedAt }
 
 // Validate ensures the staff assignment is well-formed.
 func (s *InstanceStaff) Validate() error {
@@ -70,6 +50,11 @@ func (s *InstanceStaff) Validate() error {
 type InstanceStaffRepository interface {
 	base.Repository[*InstanceStaff]
 
+	// UpdateColumns surfaces the embedded generic repository's single-column
+	// update: the #1843 sick cascade stamps/releases sick_absence_id without
+	// whole-model writes.
+	UpdateColumns(ctx context.Context, row *InstanceStaff, columns ...string) (int64, error)
+
 	// FindByInstanceID returns all staff assignments for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStaff, error)
 
@@ -85,6 +70,13 @@ type InstanceStaffRepository interface {
 	// member across all instances on a given date. Used by the one-click
 	// substitute flow (E6) and gap detection.
 	FindByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*InstanceStaff, error)
+
+	// FindByStaffAndDateRange returns the staff member's assignments across
+	// all instances dated within [from, to] inclusive, ordered by instance
+	// date then start time. Used by the self-service assignment read (#1844)
+	// so its cost stays proportional to one staff member's plan, never the
+	// whole tenant window.
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*InstanceStaff, error)
 
 	// CountNonAbsentByInstanceIDs returns, for each instance id, the number of
 	// instance_staff rows with is_absent=false. Single GROUP BY query; callers

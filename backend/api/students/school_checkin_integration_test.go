@@ -63,12 +63,11 @@ func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
-	router := setupRouter(tc.resource.SchoolCheckinHandler(), "id")
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "in"})
-	req := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(bodyBytes))
+	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
@@ -94,19 +93,18 @@ func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
-	router := setupRouter(tc.resource.SchoolCheckinHandler(), "id")
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "in"})
 
 	// First call creates the row.
-	req1 := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(bodyBytes))
+	req1 := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
 	req1.Header.Set("Content-Type", "application/json")
-	rr1 := executeWithAuth(router, req1, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr1 := authExec(t, tc, req1, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rr1.Code, "body: %s", rr1.Body.String())
 
 	// Second call with identical action should be a no-op.
-	req2 := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(bodyBytes))
+	req2 := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
 	req2.Header.Set("Content-Type", "application/json")
-	rr2 := executeWithAuth(router, req2, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr2 := authExec(t, tc, req2, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr2.Code)
 	var resp struct {
@@ -127,20 +125,18 @@ func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
-	router := setupRouter(tc.resource.SchoolCheckinHandler(), "id")
-
 	// Check in first.
 	bodyIn, _ := json.Marshal(map[string]string{"action": "in"})
-	reqIn := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(bodyIn))
+	reqIn := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyIn))
 	reqIn.Header.Set("Content-Type", "application/json")
-	rrIn := executeWithAuth(router, reqIn, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rrIn := authExec(t, tc, reqIn, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rrIn.Code, "check-in body: %s", rrIn.Body.String())
 
 	// Now check out.
 	bodyOut, _ := json.Marshal(map[string]string{"action": "out"})
-	reqOut := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(bodyOut))
+	reqOut := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyOut))
 	reqOut.Header.Set("Content-Type", "application/json")
-	rrOut := executeWithAuth(router, reqOut, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rrOut := authExec(t, tc, reqOut, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rrOut.Code, "check-out body: %s", rrOut.Body.String())
 	var resp struct {
@@ -194,11 +190,10 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", att.ID)
 
 	// Web checkout — must close attendance AND end the open visit.
-	router := setupRouter(tc.resource.SchoolCheckinHandler(), "id")
 	body, _ := json.Marshal(map[string]string{"action": "out"})
-	req := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(body))
+	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
@@ -218,9 +213,8 @@ func TestSchoolCheckin_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
-	router := setupRouter(tc.resource.SchoolCheckinHandler(), "id")
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "in"})
-	req := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(bodyBytes))
+	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 
 	// Non-admin claim so the users:checkin permission flows through the
@@ -232,7 +226,7 @@ func TestSchoolCheckin_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
 	claims.IsAdmin = false
 	claims.Permissions = []string{"users:checkin"}
 
-	rr := executeWithAuth(router, req, claims, []string{"users:checkin"})
+	rr := authExec(t, tc, req, claims, []string{"users:checkin"})
 
 	// The caller is not a supervisor of this student's group → 403 with
 	// the specific denial reason (not the "person not found" auth error
@@ -250,12 +244,11 @@ func TestSchoolCheckin_InvalidAction_Rejects(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
-	router := setupRouter(tc.resource.SchoolCheckinHandler(), "id")
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "toggle"}) // not in | out
-	req := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(bodyBytes))
+	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	// Body is JSON with escaped quotes (`\"in\"` not `"in"`), so match on

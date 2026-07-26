@@ -1,5 +1,3 @@
-import { vi } from "vitest";
-
 /**
  * Default session data matching the backend's JWT structure.
  * Overrides merge shallowly into user; top-level fields merge into session.
@@ -31,28 +29,4 @@ export function mockSessionData(
     },
     expires: overrides?.expires ?? "2099-01-01",
   };
-}
-
-/**
- * Returns a mock useSession() return value for authenticated state.
- * Pass overrides to customize the session data.
- */
-export function mockUseSessionReturn(
-  overrides?: Parameters<typeof mockSessionData>[0],
-) {
-  return {
-    data: mockSessionData(overrides),
-    status: "authenticated" as const,
-    update: vi.fn(),
-  };
-}
-
-/**
- * Returns a vi.fn() pre-configured to resolve with session data.
- * Use as the return value inside vi.mock("next-auth") or vi.mock("next-auth/react").
- */
-export function setupGetSessionMock(
-  session?: ReturnType<typeof mockSessionData> | null,
-) {
-  return vi.fn().mockResolvedValue(session ?? mockSessionData());
 }

@@ -2,17 +2,14 @@ package platform_test
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -25,8 +22,7 @@ func TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	op := createTestOperatorForMFAAtomic(t, db, "mfa-atomic-counter")
-	t.Cleanup(func() { cleanupTestOperatorForMFAAtomic(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 
 	repo := repositories.NewFactory(db).Operator
 
@@ -78,8 +74,7 @@ func TestOperatorRepository_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	op := createTestOperatorForMFAAtomic(t, db, "mfa-atomic-reset")
-	t.Cleanup(func() { cleanupTestOperatorForMFAAtomic(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 
 	repo := repositories.NewFactory(db).Operator
 
@@ -94,29 +89,4 @@ func TestOperatorRepository_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, 0, persisted.MFAAttempts)
 	assert.Nil(t, persisted.MFALockedUntil)
-}
-
-func createTestOperatorForMFAAtomic(t *testing.T, db *bun.DB, slug string) *platformModels.Operator {
-	t.Helper()
-	op := &platformModels.Operator{
-		Email:        fmt.Sprintf("op-mfa-atomic-%s-%d@test.local", slug, time.Now().UnixNano()),
-		DisplayName:  "MFA Atomic Test Operator",
-		PasswordHash: "$argon2id$placeholder-mfa-atomic",
-		Active:       true,
-	}
-	_, err := db.NewInsert().
-		Model(op).
-		ModelTableExpr("platform.operators").
-		Exec(context.Background())
-	require.NoError(t, err)
-	return op
-}
-
-func cleanupTestOperatorForMFAAtomic(t *testing.T, db *bun.DB, operatorID int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		Model((*platformModels.Operator)(nil)).
-		ModelTableExpr("platform.operators").
-		Where("id = ?", operatorID).
-		Exec(context.Background())
 }

@@ -10,9 +10,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // startActivitySession handles starting an activity session on a device
@@ -31,7 +32,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &SessionStartRequest{}
 	if err := render.Bind(r, req); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -49,7 +50,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		if rs.handleSessionConflictError(w, r, err, req.ActivityID, deviceCtx.ID) {
 			return
 		}
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 	rs.mirrorSessionToTimetable(r.Context(), activeGroup, req.SupervisorIDs)
@@ -77,19 +78,37 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
 	if err != nil {
 		if errors.Is(err, activeSvc.ErrNoActiveSession) {
-			iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("no active session to end")))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no active session to end")))
 			return
 		}
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
-	// End the session
-	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+	// The timetable side closes FIRST, before the session end (#1747 review).
+	// Both halves run in the request's tenant transaction, so a failure here
+	// rolls everything back — but EndActivitySession emits its checkout and
+	// activity-ended SSE events eagerly, not after commit. Running it first
+	// would let a failing bridge roll the database back while kiosks and
+	// dashboards had already been told the session was over. Ordering the
+	// failure-prone half ahead of the announcing half keeps the two in step:
+	// the mirrored instance's own completion event is registered after commit
+	// and is dropped with the rollback.
+	if err := rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to end mirrored timetable instance", err))
 		return
 	}
-	rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID)
+
+	// End the session. Anything failing from here on leaves a completed
+	// timetable instance next to a session that is still open, so the
+	// transaction has to go — and the tenant middleware only rolls back on its
+	// own for 5xx. ErrorRenderer maps "already ended" and friends to 4xx, which
+	// would commit exactly that split state (#1747 review).
+	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, shared.ErrorRenderer(err))
+		return
+	}
 
 	response := map[string]interface{}{
 		"active_group_id": currentSession.ID,
@@ -141,7 +160,7 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 			common.Respond(w, r, http.StatusOK, response, "No active session")
 			return
 		}
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -219,21 +238,21 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 	sessionIDStr := chi.URLParam(r, "sessionId")
 	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("invalid session ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
 		return
 	}
 
 	// Parse request
 	req := &UpdateSupervisorsRequest{}
 	if err := render.Bind(r, req); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Update supervisors
 	updatedGroup, err := rs.ActiveService.UpdateActiveGroupSupervisors(r.Context(), sessionID, req.SupervisorIDs)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -268,14 +287,14 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &SessionStartRequest{}
 	if err := render.Bind(r, req); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Check for conflicts
 	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 

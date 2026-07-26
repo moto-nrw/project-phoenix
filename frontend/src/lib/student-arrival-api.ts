@@ -18,6 +18,9 @@ export interface ArrivalException {
   exception_date: string;
   expected_arrival?: string | null;
   reason?: string | null;
+  // "staff" or "guardian" — a guardian-sourced row was set by a parent in the
+  // parents portal.
+  source?: string;
   created_by: number;
   created_at: string;
   updated_at: string;

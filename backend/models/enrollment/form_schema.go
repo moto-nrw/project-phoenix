@@ -44,27 +44,29 @@ const (
 	// Structured types — admins cannot define their internal shape;
 	// the renderer + decision service know how to interpret them.
 	// Each pairs with a specific FormField.Target (see ReservedTargets).
-	FormFieldPhoneList       FormFieldType = "phone_list"       // 0..N labelled phone numbers
-	FormFieldWeekdaySchedule FormFieldType = "weekday_schedule" // mon..fri → HH:MM, optional per day
-	FormFieldWeekdayBoolean  FormFieldType = "weekday_boolean"  // mon..fri → bool, optional per day
-	FormFieldWeekdayMode     FormFieldType = "weekday_mode"     // mon..fri → alone/bus/pickup, optional per day
-	FormFieldContactList     FormFieldType = "contact_list"     // 0..N people (name + phones + flags)
+	FormFieldPhoneList        FormFieldType = "phone_list"         // 0..N labelled phone numbers
+	FormFieldWeekdaySchedule  FormFieldType = "weekday_schedule"   // mon..fri → HH:MM, optional per day
+	FormFieldWeekdayBoolean   FormFieldType = "weekday_boolean"    // mon..fri → bool, optional per day
+	FormFieldWeekdayMode      FormFieldType = "weekday_mode"       // mon..fri → alone/bus/pickup, optional per day
+	FormFieldWeekdayMultiMode FormFieldType = "weekday_multi_mode" // mon..fri → []alone/bus/pickup, optional per day
+	FormFieldContactList      FormFieldType = "contact_list"       // 0..N people (name + phones + flags)
 )
 
 // validFormFieldTypes is the set of accepted FormFieldType values.
 var validFormFieldTypes = map[FormFieldType]bool{
-	FormFieldBoolean:         true,
-	FormFieldNumber:          true,
-	FormFieldText:            true,
-	FormFieldTextarea:        true,
-	FormFieldDate:            true,
-	FormFieldSelect:          true,
-	FormFieldInfo:            true,
-	FormFieldPhoneList:       true,
-	FormFieldWeekdaySchedule: true,
-	FormFieldWeekdayBoolean:  true,
-	FormFieldWeekdayMode:     true,
-	FormFieldContactList:     true,
+	FormFieldBoolean:          true,
+	FormFieldNumber:           true,
+	FormFieldText:             true,
+	FormFieldTextarea:         true,
+	FormFieldDate:             true,
+	FormFieldSelect:           true,
+	FormFieldInfo:             true,
+	FormFieldPhoneList:        true,
+	FormFieldWeekdaySchedule:  true,
+	FormFieldWeekdayBoolean:   true,
+	FormFieldWeekdayMode:      true,
+	FormFieldWeekdayMultiMode: true,
+	FormFieldContactList:      true,
 }
 
 // FormFieldOption is a single static option on a select-type field.
@@ -97,8 +99,8 @@ const (
 	// templates are not bound to a phase and offering ids differ per
 	// phase. Only valid on per-child fields, paired with the "includes"
 	// operator. Evaluated client-side only — the backend never resolves
-	// this source (care offerings are per-child, and ValidateSubmission
-	// checks guardian-level fields only).
+	// this source (care offerings are per-child; the submit flow's
+	// validation checks guardian-level fields only).
 	ConditionSourceCareOffering = "care_offering"
 )
 
@@ -196,18 +198,24 @@ func (c *VisibilityCondition) Validate(appliesToChild bool) error {
 // row, additional students_guardians row, etc.). Type is constrained by
 // Target — see ReservedTargets for the allowed (target, type) pairs.
 type FormField struct {
-	Key         string               `json:"key"`
-	Label       string               `json:"label"`
-	Type        FormFieldType        `json:"type"`
-	Required    bool                 `json:"required,omitempty"`
-	HelpText    string               `json:"help_text,omitempty"`
-	Content     string               `json:"content,omitempty"` // body text for FormFieldInfo blocks (plain text, newlines preserved); empty for all other types
-	Options     []FormFieldOption    `json:"options,omitempty"`
-	Validation  *FormFieldValidation `json:"validation,omitempty"`
-	SortOrder   int                  `json:"sort_order"`
-	AppliesToCh bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
-	Target      string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
-	VisibleWhen *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
+	Key      string            `json:"key"`
+	Label    string            `json:"label"`
+	Type     FormFieldType     `json:"type"`
+	Required bool              `json:"required,omitempty"`
+	HelpText string            `json:"help_text,omitempty"`
+	Content  string            `json:"content,omitempty"` // body text for FormFieldInfo blocks (plain text, newlines preserved); empty for all other types
+	Options  []FormFieldOption `json:"options,omitempty"`
+	// AllowedTimes constrains a FormFieldWeekdaySchedule field to a fixed
+	// list of HH:MM pickup times. Empty/absent = free time entry (the
+	// historical behaviour). When set, every per-weekday time a parent
+	// submits must be a member of this list. Only valid on a
+	// weekday_schedule field; rejected on every other type.
+	AllowedTimes []string             `json:"allowed_times,omitempty"`
+	Validation   *FormFieldValidation `json:"validation,omitempty"`
+	SortOrder    int                  `json:"sort_order"`
+	AppliesToCh  bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
+	Target       string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
+	VisibleWhen  *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
 }
 
 const CoreRequirementGuardianPhone = "guardian_phone"
@@ -260,16 +268,26 @@ const (
 	// (TargetStudentPickupStatus) targets, which are kept as legacy aliases so
 	// older saved schemas keep working; all of them dispatch onto
 	// student.departure_days, the single source of truth (#1610).
-	TargetStudentDeparture = "student.departure"
+	TargetStudentDeparture             = "student.departure"
+	TargetStudentAllowedDepartureModes = "student.allowed_departure_modes"
 	// TargetStudentBusDays is the legacy Buskind target. TargetStudentBus
 	// ("student.bus") is kept as a legacy alias so older saved schemas keep
 	// working; both dispatch onto student.departure_days as bus days.
 	TargetStudentBusDays      = "student.bus_days"
 	TargetStudentBus          = "student.bus"
 	TargetStudentPickupStatus = "student.pickup_status"
-	TargetSchedulePickup      = "schedule.pickup"
-	TargetScheduleArrival     = "schedule.arrival"
-	TargetStudentContacts     = "student.contacts"
+	// TargetStudentDepartureCompanionNote captures the free-text "mit wem" for
+	// the accompanied departure mode (sibling, friend, named person). It is a
+	// coupled companion to TargetStudentAllowedDepartureModes, NOT an
+	// independently admin-pickable field: it rides on a reserved child
+	// custom-data key under this string and is applied (accompanied-gated) by
+	// the decision service. It is intentionally absent from ReservedTargets so
+	// a schema cannot declare it as a standalone field whose answer would be
+	// silently dropped on approval (#1694).
+	TargetStudentDepartureCompanionNote = "student.departure_companion_note"
+	TargetSchedulePickup                = "schedule.pickup"
+	TargetScheduleArrival               = "schedule.arrival"
+	TargetStudentContacts               = "student.contacts"
 )
 
 // ReservedTargets is the canonical list of admin-pickable targets.
@@ -283,15 +301,16 @@ const (
 //
 // Keep in sync with the frontend editor's reserved-targets picker.
 var ReservedTargets = map[string]ReservedTarget{
-	TargetStudentHealthInfo:   {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
-	TargetStudentExtraInfo:    {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
-	TargetStudentDeparture:    {Type: FormFieldWeekdayMode, AppliesToChild: true, Label: "Geh- und Abholregelung"},
-	TargetStudentBusDays:      {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
-	TargetStudentBus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
-	TargetStudentPickupStatus: {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Abholregelung"},
-	TargetSchedulePickup:      {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Abholzeiten"},
-	TargetScheduleArrival:     {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Ankunftszeiten"},
-	TargetStudentContacts:     {Type: FormFieldContactList, AppliesToChild: true, Label: "Weitere Kontakte / Abholberechtigte / Notfallkontakte"},
+	TargetStudentHealthInfo:            {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
+	TargetStudentExtraInfo:             {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
+	TargetStudentAllowedDepartureModes: {Type: FormFieldWeekdayMultiMode, AppliesToChild: true, Label: "Erlaubte Heimwege"},
+	TargetStudentDeparture:             {Type: FormFieldWeekdayMode, AppliesToChild: true, Label: "Geh- und Abholregelung"},
+	TargetStudentBusDays:               {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
+	TargetStudentBus:                   {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
+	TargetStudentPickupStatus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Abholregelung"},
+	TargetSchedulePickup:               {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Abholzeiten"},
+	TargetScheduleArrival:              {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Ankunftszeiten"},
+	TargetStudentContacts:              {Type: FormFieldContactList, AppliesToChild: true, Label: "Weitere Kontakte / Abholberechtigte / Notfallkontakte"},
 }
 
 // CoreFieldKeys are reserved - the form_schemas.fields JSONB MUST NOT
@@ -381,6 +400,9 @@ func (f *FormField) validateInfo() error {
 	if f.Validation != nil {
 		return fmt.Errorf("information field %q must not declare validation", f.Key)
 	}
+	if len(f.AllowedTimes) > 0 {
+		return fmt.Errorf("information field %q must not declare allowed_times", f.Key)
+	}
 	return nil
 }
 
@@ -399,6 +421,32 @@ func (f *FormField) validateQuestion() error {
 	}
 	if f.Type != FormFieldSelect && len(f.Options) > 0 {
 		return fmt.Errorf("non-select field %q must not declare options", f.Key)
+	}
+
+	// AllowedTimes (fixed pickup times) is only meaningful on the pickup
+	// schedule field; everywhere else it would silently do nothing, so
+	// reject it. In particular the arrival schedule (schedule.arrival)
+	// stays free-entry by design. Each entry must be a unique HH:MM
+	// value; normalize (trim) in place so the stored schema is canonical.
+	if len(f.AllowedTimes) > 0 {
+		if f.Target != TargetSchedulePickup {
+			return fmt.Errorf("field %q: allowed_times is only valid on the pickup-times field", f.Key)
+		}
+		seen := make(map[string]bool, len(f.AllowedTimes))
+		for i, t := range f.AllowedTimes {
+			t = strings.TrimSpace(t)
+			if t == "" {
+				return fmt.Errorf("field %q: allowed_times must not contain empty entries", f.Key)
+			}
+			if _, err := time.Parse("15:04", t); err != nil {
+				return fmt.Errorf("field %q: allowed_times entry %q must be HH:MM", f.Key, t)
+			}
+			if seen[t] {
+				return fmt.Errorf("field %q: duplicate allowed_times entry %q", f.Key, t)
+			}
+			seen[t] = true
+			f.AllowedTimes[i] = t
+		}
 	}
 
 	// Structured types are only meaningful when paired with their
@@ -431,7 +479,7 @@ func (f *FormField) validateQuestion() error {
 // renderer and decision service treat these specially.
 func isStructuredFieldType(t FormFieldType) bool {
 	switch t {
-	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldWeekdayMode, FormFieldContactList:
+	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldWeekdayMode, FormFieldWeekdayMultiMode, FormFieldContactList:
 		return true
 	default:
 		return false
@@ -487,16 +535,18 @@ type WeekdayBoolean map[string]bool
 // users.DepartureMode without importing the users package, keeping the
 // enrollment model layer self-contained.
 const (
-	WeekdayModeAlone  = "alone"
-	WeekdayModeBus    = "bus"
-	WeekdayModePickup = "pickup"
+	WeekdayModeAlone       = "alone"
+	WeekdayModeBus         = "bus"
+	WeekdayModePickup      = "pickup"
+	WeekdayModeAccompanied = "accompanied"
 )
 
 // ValidWeekdayModes is the set of accepted WeekdayMode values.
 var ValidWeekdayModes = map[string]bool{
-	WeekdayModeAlone:  true,
-	WeekdayModeBus:    true,
-	WeekdayModePickup: true,
+	WeekdayModeAlone:       true,
+	WeekdayModeBus:         true,
+	WeekdayModePickup:      true,
+	WeekdayModeAccompanied: true,
 }
 
 // WeekdayMode is the value of a FormFieldWeekdayMode field. Keys are weekday
@@ -511,7 +561,33 @@ func (w WeekdayMode) Validate() error {
 			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
 		}
 		if !ValidWeekdayModes[mode] {
-			return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup", day, mode)
+			return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup/accompanied", day, mode)
+		}
+	}
+	return nil
+}
+
+// WeekdayMultiMode is the value of a FormFieldWeekdayMultiMode field. Each
+// weekday contains every allowed departure mode for that care day.
+type WeekdayMultiMode map[string][]string
+
+func (w WeekdayMultiMode) Validate() error {
+	for day, modes := range w {
+		if !ValidWeekdays[day] {
+			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
+		}
+		if len(modes) == 0 {
+			return fmt.Errorf("weekday %q must contain at least one departure mode", day)
+		}
+		seen := map[string]bool{}
+		for _, mode := range modes {
+			if !ValidWeekdayModes[mode] {
+				return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup/accompanied", day, mode)
+			}
+			if seen[mode] {
+				return fmt.Errorf("weekday %q contains duplicate mode %q", day, mode)
+			}
+			seen[mode] = true
 		}
 	}
 	return nil
@@ -536,6 +612,32 @@ func (w WeekdaySchedule) Validate() error {
 		}
 		if _, err := time.Parse("15:04", hhmm); err != nil {
 			return fmt.Errorf("weekday %q time %q must be HH:MM", day, hhmm)
+		}
+	}
+	return nil
+}
+
+// ValidateAllowed checks the schedule is well-formed AND every set time is a
+// member of allowed (the field's configured fixed pickup times). Empty days
+// stay valid ("kein fester Eintrag"). Callers must skip this when allowed is
+// empty — an empty allowed list means "no restriction", not "nothing
+// permitted". Backs the server-side enforcement so a scripted client can't
+// bypass the fixed-times dropdown the public form renders.
+func (w WeekdaySchedule) ValidateAllowed(allowed []string) error {
+	if err := w.Validate(); err != nil {
+		return err
+	}
+	set := make(map[string]bool, len(allowed))
+	for _, t := range allowed {
+		set[strings.TrimSpace(t)] = true
+	}
+	for day, hhmm := range w {
+		hhmm = strings.TrimSpace(hhmm)
+		if hhmm == "" {
+			continue
+		}
+		if !set[hhmm] {
+			return fmt.Errorf("weekday %q time %q is not an allowed pickup time", day, hhmm)
 		}
 	}
 	return nil
@@ -616,6 +718,9 @@ const (
 
 	LegalBlockSourceStandard = "standard"
 	LegalBlockSourceCustom   = "custom"
+
+	LegalBlockDisplayModeText = "text"
+	LegalBlockDisplayModePDF  = "pdf"
 )
 
 var validLegalBlockKinds = map[string]bool{
@@ -636,15 +741,17 @@ var standardLegalBlockKeys = map[string]bool{
 // Standard blocks originate from tenant settings and may be overridden or
 // disabled on the template. Custom blocks are stored only on the template.
 type FormLegalBlock struct {
-	Key       string `json:"key"`
-	Kind      string `json:"kind"`
-	Title     string `json:"title"`
-	Label     string `json:"label"`
-	Text      string `json:"text"`
-	Required  bool   `json:"required"`
-	Enabled   bool   `json:"enabled"`
-	SortOrder int    `json:"sort_order"`
-	Source    string `json:"source,omitempty"`
+	Key         string `json:"key"`
+	Kind        string `json:"kind"`
+	Title       string `json:"title"`
+	Label       string `json:"label"`
+	Text        string `json:"text"`
+	Required    bool   `json:"required"`
+	Enabled     bool   `json:"enabled"`
+	SortOrder   int    `json:"sort_order"`
+	Source      string `json:"source,omitempty"`
+	DisplayMode string `json:"display_mode,omitempty"`
+	DocumentURL string `json:"document_url,omitempty"`
 }
 
 func (b *FormLegalBlock) Validate() error {
@@ -654,6 +761,8 @@ func (b *FormLegalBlock) Validate() error {
 	b.Label = strings.TrimSpace(b.Label)
 	b.Text = strings.TrimSpace(b.Text)
 	b.Source = strings.TrimSpace(b.Source)
+	b.DisplayMode = strings.TrimSpace(b.DisplayMode)
+	b.DocumentURL = strings.TrimSpace(b.DocumentURL)
 
 	if b.Key == "" {
 		return errors.New("legal block key is required")
@@ -694,6 +803,20 @@ func (b *FormLegalBlock) Validate() error {
 	if b.Kind == LegalBlockKindNotice && b.Required {
 		return fmt.Errorf("notice legal block %q cannot be required", b.Key)
 	}
+	if b.DisplayMode == "" {
+		b.DisplayMode = LegalBlockDisplayModeText
+	}
+	if b.DisplayMode != LegalBlockDisplayModeText && b.DisplayMode != LegalBlockDisplayModePDF {
+		return fmt.Errorf("legal block %q has unknown display mode %q", b.Key, b.DisplayMode)
+	}
+	if b.DisplayMode == LegalBlockDisplayModePDF {
+		if b.Key != ConsentKeyAGB || b.Source != LegalBlockSourceStandard {
+			return fmt.Errorf("legal block %q cannot use PDF display mode", b.Key)
+		}
+		if b.Enabled && b.DocumentURL == "" {
+			return fmt.Errorf("enabled legal block %q requires a PDF document", b.Key)
+		}
+	}
 	return nil
 }
 
@@ -712,11 +835,6 @@ type FormSchema struct {
 	LegalBlocks      []FormLegalBlock `bun:"legal_blocks,type:jsonb,notnull,default:'[]'" json:"legal_blocks"`
 	IsActive         bool             `bun:"is_active,notnull,default:false" json:"is_active"`
 	CreatedBy        int64            `bun:"created_by,notnull" json:"created_by"`
-}
-
-// TableName returns the schema-qualified table name.
-func (s *FormSchema) TableName() string {
-	return "enrollment.form_schemas"
 }
 
 // Validate checks fields for duplicate keys + per-field validity.
@@ -752,6 +870,7 @@ func (s *FormSchema) Validate() error {
 		legalByKey[s.LegalBlocks[i].Key] = true
 	}
 	byKey := make(map[string]*FormField, len(s.Fields))
+	seenTarget := make(map[string]string, len(s.Fields))
 	for i := range s.Fields {
 		if err := s.Fields[i].Validate(); err != nil {
 			return fmt.Errorf("field %d: %w", i, err)
@@ -760,6 +879,17 @@ func (s *FormSchema) Validate() error {
 			return fmt.Errorf("duplicate form field key %q", s.Fields[i].Key)
 		}
 		byKey[s.Fields[i].Key] = &s.Fields[i]
+		// A reserved target writes one specific Stammdaten column on approval, so
+		// two fields pointing at the same target produce an undefined last-field-wins
+		// outcome — the safety-sensitive departure plan in particular can silently
+		// collapse back into self-goer semantics (#1694). Free custom fields (empty
+		// target) may repeat. Keep in sync with the editor's reserved-targets picker.
+		if t := s.Fields[i].Target; t != "" {
+			if firstKey, dup := seenTarget[t]; dup {
+				return fmt.Errorf("duplicate field target %q on fields %q and %q", t, firstKey, s.Fields[i].Key)
+			}
+			seenTarget[t] = s.Fields[i].Key
+		}
 	}
 
 	// Second pass: validate cross-field visibility references now that
@@ -807,9 +937,23 @@ type FormSchemaRepository interface {
 	ListByTenant(ctx context.Context) ([]*FormSchema, error)
 	NextVersion(ctx context.Context) (int, error)
 	NextVersionForName(ctx context.Context, name string) (int, error)
+	// ExistsByName reports whether any version row already carries name
+	// for the tenant in context. Used to reject a rename onto an existing
+	// logical schema before touching the unique index.
+	ExistsByName(ctx context.Context, name string) (bool, error)
 	DeactivatePrevious(ctx context.Context) error
 	UpdateActiveFlag(ctx context.Context, id int64, isActive bool) error
+	// RenameByName renames every version of a logical schema in one
+	// atomic update, so the whole version lineage keeps a shared name.
+	// Callers must guard against colliding with an existing name first.
+	RenameByName(ctx context.Context, oldName, newName string) error
 	DeleteByName(ctx context.Context, name string) error
+	HasLegalDocumentReference(ctx context.Context, storedURL, publicURL string) (bool, error)
+	// LockLineages serializes lineage mutations (publish, rename, delete)
+	// for the tenant in context against one another, so a rename and a
+	// concurrent publish cannot split a version lineage. Transaction-scoped;
+	// the caller must already be inside the request's tenant transaction.
+	LockLineages(ctx context.Context) error
 }
 
 // SubmissionData is the reduced shape used by the legacy schema-service

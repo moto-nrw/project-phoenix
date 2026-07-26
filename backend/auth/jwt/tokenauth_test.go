@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -204,6 +205,28 @@ func TestTokenAuth_CreateRefreshJWT_SetsExpiry(t *testing.T) {
 	assert.True(t, expTime.Before(beforeCreate.Add(auth.JwtRefreshExpiry+time.Minute)))
 }
 
+func TestTokenAuth_CreateRefreshJWT_PreservesPersistedExpiry(t *testing.T) {
+	setupViperDefaults()
+	auth, err := NewTokenAuthWithSecret(testSecret)
+	require.NoError(t, err)
+
+	expiresAt := time.Now().Add(10 * time.Minute).Unix()
+	token, err := auth.CreateRefreshJWT(RefreshClaims{
+		ID:    1,
+		Token: "persisted-token",
+		CommonClaims: CommonClaims{
+			ExpiresAt: expiresAt,
+		},
+	})
+	require.NoError(t, err)
+
+	decoded, err := auth.JwtAuth.Decode(token)
+	require.NoError(t, err)
+	expiry, ok := decoded.Expiration()
+	require.True(t, ok)
+	assert.Equal(t, expiresAt, expiry.Unix())
+}
+
 // =============================================================================
 // GenTokenPair Tests
 // =============================================================================
@@ -348,7 +371,7 @@ func TestRandStringBytes_GeneratesCorrectLength(t *testing.T) {
 	lengths := []int{10, 32, 64, 128}
 
 	for _, length := range lengths {
-		result := randStringBytes(length)
+		result, _ := randstr.String(length, randstr.Alphanumeric)
 		assert.Len(t, result, length)
 	}
 }
@@ -357,7 +380,7 @@ func TestRandStringBytes_GeneratesUniqueValues(t *testing.T) {
 	results := make(map[string]bool)
 
 	for i := 0; i < 100; i++ {
-		result := randStringBytes(32)
+		result, _ := randstr.String(32, randstr.Alphanumeric)
 		assert.False(t, results[result], "Generated duplicate random string")
 		results[result] = true
 	}
@@ -366,7 +389,7 @@ func TestRandStringBytes_GeneratesUniqueValues(t *testing.T) {
 func TestRandStringBytes_ContainsOnlyValidChars(t *testing.T) {
 	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-	result := randStringBytes(1000)
+	result, _ := randstr.String(1000, randstr.Alphanumeric)
 
 	for _, char := range result {
 		assert.Contains(t, validChars, string(char), "Random string contains invalid character")

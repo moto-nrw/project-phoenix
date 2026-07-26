@@ -3,18 +3,29 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Loading } from "~/components/ui/loading";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
-import { PasswordChangeModal } from "~/components/ui";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PasswordChangeModal } from "~/components/ui/password-change-modal";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { useToast } from "~/contexts/ToastContext";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
+import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
+
+interface OperatorProfile {
+  id: number;
+  email: string;
+  display_name: string;
+}
+
+function isEmail(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.includes("@");
+}
 
 function OperatorSettingsContent() {
   const { data: session, status, update: updateSession } = useSession();
+  const { success: toastSuccess, error: toastError } = useToast();
+  const sessionName = session?.user?.name ?? "";
+  const sessionEmail = session?.user?.email ?? "";
 
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState("");
-  const [alertType, setAlertType] = useState<"success" | "error">("success");
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -23,6 +34,7 @@ function OperatorSettingsContent() {
     displayName: "",
     email: "",
   });
+  const [profileData, setProfileData] = useState<OperatorProfile | null>(null);
 
   // Email change state
   const [showEmailChangeDialog, setShowEmailChangeDialog] = useState(false);
@@ -31,22 +43,51 @@ function OperatorSettingsContent() {
   const [emailChangeNewEmail, setEmailChangeNewEmail] = useState("");
   const [emailChangePassword, setEmailChangePassword] = useState("");
 
-  const handleAlertClose = useCallback(() => {
-    setShowAlert(false);
-  }, []);
-
   const handleClosePasswordModal = useCallback(() => {
     setShowPasswordModal(false);
   }, []);
 
   useEffect(() => {
-    if (session?.user) {
-      setFormData({
-        displayName: session.user.name ?? "",
-        email: session.user.email ?? "",
-      });
+    if (status !== "authenticated") {
+      return;
     }
-  }, [session]);
+
+    let ignore = false;
+    const sessionFallback = {
+      displayName: sessionName,
+      email: isEmail(sessionEmail) ? sessionEmail : "",
+    };
+
+    setFormData(sessionFallback);
+
+    const loadProfile = async () => {
+      try {
+        const response = await sessionFetch("/api/operator/profile", {
+          method: "GET",
+        });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as { data?: OperatorProfile };
+        const profile = data.data;
+        if (!profile || ignore) return;
+
+        setProfileData(profile);
+        setFormData({
+          displayName: profile.display_name,
+          email: profile.email,
+        });
+      } catch {
+        // Keep the safe session fallback. The profile form should not surface
+        // token subjects like "operator:2" as an email address.
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      ignore = true;
+    };
+  }, [status, sessionName, sessionEmail]);
 
   const handleSaveProfile = async () => {
     setIsSaving(true);
@@ -64,16 +105,26 @@ function OperatorSettingsContent() {
         );
       }
 
-      await updateSession({ name: formData.displayName });
+      const data = (await response.json()) as { data?: OperatorProfile };
+      const updatedProfile = data.data;
+      const nextDisplayName =
+        updatedProfile?.display_name ?? formData.displayName;
+      const nextEmail = updatedProfile?.email ?? formData.email;
+
+      if (updatedProfile) {
+        setProfileData(updatedProfile);
+      }
+      setFormData({
+        displayName: nextDisplayName,
+        email: nextEmail,
+      });
+
+      await updateSession({ name: nextDisplayName, email: nextEmail });
 
       setIsEditing(false);
-      setAlertMessage("Profil erfolgreich aktualisiert");
-      setAlertType("success");
-      setShowAlert(true);
+      toastSuccess("Profil erfolgreich aktualisiert", { duration: 3000 });
     } catch {
-      setAlertMessage("Fehler beim Speichern des Profils");
-      setAlertType("error");
-      setShowAlert(true);
+      toastError("Fehler beim Speichern des Profils", { duration: 3000 });
     } finally {
       setIsSaving(false);
     }
@@ -116,11 +167,10 @@ function OperatorSettingsContent() {
       setShowEmailChangeDialog(false);
       setEmailChangeNewEmail("");
       setEmailChangePassword("");
-      setAlertMessage(
+      toastSuccess(
         `Eine Bestätigungs-E-Mail wird an ${confirmedEmail} gesendet. Bitte überprüfe dein Postfach.`,
+        { duration: 3000 },
       );
-      setAlertType("success");
-      setShowAlert(true);
     } catch {
       setEmailChangeError("Ein Netzwerkfehler ist aufgetreten.");
     } finally {
@@ -222,12 +272,18 @@ function OperatorSettingsContent() {
             {isEditing ? (
               <>
                 <button
+                  type="button"
                   onClick={() => {
                     setIsEditing(false);
-                    if (session?.user) {
+                    if (profileData) {
                       setFormData({
-                        displayName: session.user.name ?? "",
-                        email: session.user.email ?? "",
+                        displayName: profileData.display_name,
+                        email: profileData.email,
+                      });
+                    } else if (status === "authenticated") {
+                      setFormData({
+                        displayName: sessionName,
+                        email: isEmail(sessionEmail) ? sessionEmail : "",
                       });
                     }
                   }}
@@ -236,6 +292,7 @@ function OperatorSettingsContent() {
                   Abbrechen
                 </button>
                 <button
+                  type="button"
                   onClick={() => void handleSaveProfile()}
                   disabled={isSaving}
                   className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
@@ -245,6 +302,7 @@ function OperatorSettingsContent() {
               </>
             ) : (
               <button
+                type="button"
                 onClick={() => setIsEditing(true)}
                 className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
               >
@@ -264,6 +322,7 @@ function OperatorSettingsContent() {
             Sicherheit.
           </p>
           <button
+            type="button"
             onClick={() => setShowPasswordModal(true)}
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
           >
@@ -272,18 +331,9 @@ function OperatorSettingsContent() {
         </div>
 
         {/* Trusted Devices Section */}
+        <PasskeySettingsSection scope="operator" />
         <TrustedDevicesSection scope="operator" />
       </div>
-
-      {showAlert && (
-        <SimpleAlert
-          type={alertType}
-          message={alertMessage}
-          onClose={handleAlertClose}
-          autoClose
-          duration={3000}
-        />
-      )}
 
       {showPasswordModal && (
         <PasswordChangeModal
@@ -292,9 +342,7 @@ function OperatorSettingsContent() {
           apiEndpoint="/api/operator/profile/password"
           onSuccess={() => {
             handleClosePasswordModal();
-            setAlertMessage("Passwort erfolgreich geändert");
-            setAlertType("success");
-            setShowAlert(true);
+            toastSuccess("Passwort erfolgreich geändert", { duration: 3000 });
           }}
         />
       )}
@@ -303,10 +351,6 @@ function OperatorSettingsContent() {
         ref={emailDialogRef}
         aria-labelledby="email-change-title"
         onClose={handleCloseEmailDialog}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) handleCloseEmailDialog();
-        }}
-        onKeyDown={() => {}}
         className="m-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-xl backdrop:bg-black/50"
       >
         {showEmailChangeDialog && (

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -18,7 +18,6 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 const (
@@ -67,58 +66,29 @@ type GuardianServiceDependencies struct {
 	DB *bun.DB
 }
 
-type guardianService struct {
-	guardianProfileRepo     users.GuardianProfileRepository
-	guardianPhoneNumberRepo users.GuardianPhoneNumberRepository
-	studentGuardianRepo     users.StudentGuardianRepository
-	guardianInvitationRepo  authModels.GuardianInvitationRepository
-	accountRepo             authModels.AccountRepository
-	accountParentRepo       authModels.AccountParentRepository
-	accountTenantRepo       authModels.AccountTenantRepository
-	accountRoleRepo         authModels.AccountRoleRepository
-	roleRepo                authModels.RoleRepository
-	studentRepo             users.StudentRepository
-	personRepo              users.PersonRepository
-	dispatcher              *email.Dispatcher
-	frontendURL             string
-	defaultFrom             email.Email
-	invitationExpiry        time.Duration
-	db                      *bun.DB
-	txHandler               *base.TxHandler
+// GuardianService manages guardian profiles, their student relationships,
+// invitations, and phone numbers.
+type GuardianService struct {
+	GuardianServiceDependencies
+	txHandler *base.TxHandler
 }
 
 // NewGuardianService creates a new GuardianService instance
-func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
-	trimmedFrontend := strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
-	dispatcher := deps.Dispatcher
-	if dispatcher == nil && deps.Mailer != nil {
-		dispatcher = email.NewDispatcher(deps.Mailer, slog.Default().With("component", "email"))
+func NewGuardianService(deps GuardianServiceDependencies) *GuardianService {
+	deps.FrontendURL = strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
+	if deps.Dispatcher == nil && deps.Mailer != nil {
+		deps.Dispatcher = email.NewDispatcher(deps.Mailer, slog.Default().With("component", "email"))
 	}
 
-	return &guardianService{
-		guardianProfileRepo:     deps.GuardianProfileRepo,
-		guardianPhoneNumberRepo: deps.GuardianPhoneNumberRepo,
-		studentGuardianRepo:     deps.StudentGuardianRepo,
-		guardianInvitationRepo:  deps.GuardianInvitationRepo,
-		accountRepo:             deps.AccountRepo,
-		accountParentRepo:       deps.AccountParentRepo,
-		accountTenantRepo:       deps.AccountTenantRepo,
-		accountRoleRepo:         deps.AccountRoleRepo,
-		roleRepo:                deps.RoleRepo,
-		studentRepo:             deps.StudentRepo,
-		personRepo:              deps.PersonRepo,
-		dispatcher:              dispatcher,
-		frontendURL:             trimmedFrontend,
-		defaultFrom:             deps.DefaultFrom,
-		invitationExpiry:        deps.InvitationExpiry,
-		db:                      deps.DB,
-		txHandler:               base.NewTxHandler(deps.DB),
+	return &GuardianService{
+		GuardianServiceDependencies: deps,
+		txHandler:                   base.NewTxHandler(deps.DB),
 	}
 }
 
 // CreateGuardian creates a new guardian profile without an account
 // Note: Phone numbers should be added separately via AddPhoneNumber
-func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*users.GuardianProfile, error) {
+func (s *GuardianService) CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*users.GuardianProfile, error) {
 	profile := &users.GuardianProfile{
 		FirstName:              req.FirstName,
 		LastName:               req.LastName,
@@ -151,17 +121,17 @@ func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 	// FindByEmail matches case-insensitively (LOWER(email)), so it is at least
 	// as strict as the index and never lets a colliding email slip through.
 	if profile.Email != nil && strings.TrimSpace(*profile.Email) != "" {
-		if existing, err := s.guardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*profile.Email)); err == nil && existing != nil {
+		if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*profile.Email)); err == nil && existing != nil {
 			return nil, newEmailInUseError(*profile.Email)
 		}
 	}
 
-	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+	if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
 		// TOCTOU guard: two concurrent creates can both pass the FindByEmail
 		// pre-check above and then race on the UNIQUE(tenant_id, email) index.
 		// The loser gets a raw 23505 — classify it as the same bad-input
 		// ValidationError (HTTP 400) the pre-check produces, never a 500.
-		if isGuardianUniqueViolation(err) && profile.Email != nil {
+		if base.IsUniqueViolation(err) && profile.Email != nil {
 			return nil, newEmailInUseError(*profile.Email)
 		}
 		return nil, fmt.Errorf("failed to create guardian profile: %w", err)
@@ -171,14 +141,14 @@ func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 }
 
 // CreateGuardianWithInvitation creates a guardian profile and sends an invitation
-func (s *guardianService) CreateGuardianWithInvitation(ctx context.Context, req GuardianCreateRequest, createdBy int64) (*users.GuardianProfile, *authModels.GuardianInvitation, error) {
+func (s *GuardianService) CreateGuardianWithInvitation(ctx context.Context, req GuardianCreateRequest, createdBy int64) (*users.GuardianProfile, *authModels.GuardianInvitation, error) {
 	// Validate email is provided for invitation
 	if req.Email == nil || strings.TrimSpace(*req.Email) == "" {
 		return nil, nil, fmt.Errorf("email is required to send invitation")
 	}
 
 	// Check if email already has an account
-	if existingProfile, err := s.guardianProfileRepo.FindByEmail(ctx, *req.Email); err == nil && existingProfile.HasAccount {
+	if existingProfile, err := s.GuardianProfileRepo.FindByEmail(ctx, *req.Email); err == nil && existingProfile.HasAccount {
 		return nil, nil, fmt.Errorf("guardian with this email already has an account")
 	}
 
@@ -200,14 +170,14 @@ func (s *guardianService) CreateGuardianWithInvitation(ctx context.Context, req 
 }
 
 // GetGuardianByID retrieves a guardian profile by ID with phone numbers
-func (s *guardianService) GetGuardianByID(ctx context.Context, id int64) (*users.GuardianProfile, error) {
-	profile, err := s.guardianProfileRepo.FindByID(ctx, id)
+func (s *GuardianService) GetGuardianByID(ctx context.Context, id int64) (*users.GuardianProfile, error) {
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
 	// Load phone numbers for this guardian
-	phoneNumbers, err := s.guardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
+	phoneNumbers, err := s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
 	if err == nil {
 		profile.PhoneNumbers = phoneNumbers
 	}
@@ -215,14 +185,20 @@ func (s *guardianService) GetGuardianByID(ctx context.Context, id int64) (*users
 	return profile, nil
 }
 
-// GetGuardianByEmail retrieves a guardian profile by email
-func (s *guardianService) GetGuardianByEmail(ctx context.Context, email string) (*users.GuardianProfile, error) {
-	return s.guardianProfileRepo.FindByEmail(ctx, email)
-}
-
 // UpdateGuardian updates a guardian profile
-func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error {
-	profile, err := s.guardianProfileRepo.FindByID(ctx, id)
+func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error {
+	// Serialize all guardian contact writers on the profile row. The
+	// parents-portal contact path (services/parent.UpdateGuardianContact) locks
+	// this same row FOR UPDATE before its read-modify-write plus wholesale phone
+	// replace; taking the lock here — BEFORE the read — makes this staff profile
+	// edit serialize against it, so a stale-read full-row Update can't clobber the
+	// parent's save and vice versa (#1667 review). The handler wraps this call in
+	// WithTenantTx, so the lock is held for the whole request transaction; without
+	// a transaction (CLI/seed) the SELECT FOR UPDATE is a harmless no-op.
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
+		return err
+	}
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -233,7 +209,7 @@ func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 	// guardian without changing the email must NOT collide with the row itself.
 	// FindByEmail is case-insensitive (LOWER=LOWER), matching CreateGuardian.
 	if req.Email != nil && strings.TrimSpace(*req.Email) != "" {
-		if existing, ferr := s.guardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*req.Email)); ferr == nil && existing != nil && existing.ID != id {
+		if existing, ferr := s.GuardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*req.Email)); ferr == nil && existing != nil && existing.ID != id {
 			return newEmailInUseError(*req.Email)
 		}
 	}
@@ -254,10 +230,10 @@ func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 		profile.LanguagePreference = req.LanguagePreference
 	}
 
-	if err := s.guardianProfileRepo.Update(ctx, profile); err != nil {
+	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
 		// TOCTOU guard mirroring CreateGuardian: a concurrent writer can claim
 		// the email between the check above and this Update.
-		if isGuardianUniqueViolation(err) && profile.Email != nil {
+		if base.IsUniqueViolation(err) && profile.Email != nil {
 			return newEmailInUseError(*profile.Email)
 		}
 		return err
@@ -272,8 +248,8 @@ func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 // guardian is still linked to any student — the handler turns that into a 409.
 // Use this only for guardians with no remaining links; for the deliberate
 // full delete use DeleteGuardianWithLinks.
-func (s *guardianService) DeleteGuardian(ctx context.Context, id int64) error {
-	return s.guardianProfileRepo.Delete(ctx, id)
+func (s *GuardianService) DeleteGuardian(ctx context.Context, id int64) error {
+	return s.GuardianProfileRepo.Delete(ctx, id)
 }
 
 // DeleteGuardianWithLinks deletes a guardian together with all of its
@@ -286,12 +262,12 @@ func (s *guardianService) DeleteGuardian(ctx context.Context, id int64) error {
 // This is the "Komplett löschen" path from #819 and is gated to admins at the
 // handler, because it reaches across every linked student — including siblings
 // in groups the caller may not supervise.
-func (s *guardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64) error {
-	if err := s.guardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
+func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64) error {
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
 
-	links, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, id)
+	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to load guardian links: %w", err)
 	}
@@ -303,29 +279,49 @@ func (s *guardianService) DeleteGuardianWithLinks(ctx context.Context, id int64,
 		return ErrGuardianDeletePreviewChanged
 	}
 	for _, link := range links {
-		if err := s.studentGuardianRepo.Delete(ctx, link.ID); err != nil {
+		if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
 			return fmt.Errorf("failed to remove guardian link %d: %w", link.ID, err)
 		}
 	}
-	return s.guardianProfileRepo.Delete(ctx, id)
-}
-
-// GetLinkedStudentNames returns the full names of every student currently
-// linked to the guardian. Backs the delete-confirmation flow: an empty slice
-// means a plain delete is safe, a non-empty one drives the 409 warning that
-// lists exactly which children (incl. siblings) would lose the guardian.
-func (s *guardianService) GetLinkedStudentNames(ctx context.Context, guardianProfileID int64) ([]string, error) {
-	impact, err := s.GetGuardianDeleteImpact(ctx, guardianProfileID)
-	if err != nil {
-		return nil, err
-	}
-	return impact.StudentNames, nil
+	return s.GuardianProfileRepo.Delete(ctx, id)
 }
 
 // GetGuardianDeleteImpact returns the exact current affected links and display
 // names for a full guardian delete preview.
-func (s *guardianService) GetGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error) {
+func (s *GuardianService) GetGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error) {
 	return s.getGuardianDeleteImpact(ctx, guardianProfileID)
+}
+
+// EvaluateGuardianDelete decides whether a guardian may be deleted and reports
+// whether the guardian still has student links, so the caller can pick the
+// correct delete path. It reads the current blast radius and applies the two
+// business rules a full delete is gated on:
+//
+//   - a guardian still linked to students may not be deleted without an explicit
+//     force request (returns *GuardianStillLinkedError, carrying the affected
+//     children for the admin warning); and
+//   - a forced full delete reaches across siblings the caller may not supervise,
+//     so it is restricted to admins (returns ErrGuardianForceDeleteRequiresAdmin).
+//
+// hasLinks is only meaningful when err is nil. A read failure is returned as-is.
+func (s *GuardianService) EvaluateGuardianDelete(ctx context.Context, guardianProfileID int64, force, isAdmin bool) (hasLinks bool, err error) {
+	impact, err := s.getGuardianDeleteImpact(ctx, guardianProfileID)
+	if err != nil {
+		return false, err
+	}
+
+	if len(impact.StudentNames) == 0 {
+		return false, nil
+	}
+
+	if !force {
+		return true, &GuardianStillLinkedError{StudentNames: impact.StudentNames}
+	}
+	if !isAdmin {
+		return true, ErrGuardianForceDeleteRequiresAdmin
+	}
+
+	return true, nil
 }
 
 func sameInt64Set(a, b []int64) bool {
@@ -340,31 +336,13 @@ func sameInt64Set(a, b []int64) bool {
 	return slices.Equal(aCopy, bCopy)
 }
 
-// isGuardianUniqueViolation reports whether err (or a wrapped DatabaseError)
-// carries PostgreSQL code 23505 (unique_violation) — used to classify a raced
-// duplicate-email insert/update as bad input rather than a 500.
-func isGuardianUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
-	}
-	return false
-}
-
 // SendInvitation sends an invitation to a guardian.
 //
 // Deprecated: Replaced by services/auth.GuardianInvitationService.Create
 // (parent-enrollment PR 3). Frontend does not call this. Cleanup PR pending.
-func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvitationRequest) (*authModels.GuardianInvitation, error) {
+func (s *GuardianService) SendInvitation(ctx context.Context, req GuardianInvitationRequest) (*authModels.GuardianInvitation, error) {
 	// Get guardian profile
-	profile, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
 	if err != nil {
 		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
 	}
@@ -375,7 +353,7 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 	}
 
 	// Check for pending invitations
-	existingInvitations, err := s.guardianInvitationRepo.FindByGuardianProfileID(ctx, profile.ID)
+	existingInvitations, err := s.GuardianInvitationRepo.FindByGuardianProfileID(ctx, profile.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing invitations: %w", err)
 	}
@@ -394,16 +372,16 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 		Token:             token,
 		GuardianProfileID: profile.ID,
 		CreatedBy:         req.CreatedBy,
-		ExpiresAt:         time.Now().Add(s.invitationExpiry),
+		ExpiresAt:         time.Now().Add(s.InvitationExpiry),
 	}
 	invitation.SetTenantID(tenant.FromContext(ctx))
 
-	if err := s.guardianInvitationRepo.Create(ctx, invitation); err != nil {
+	if err := s.GuardianInvitationRepo.Create(ctx, invitation); err != nil {
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
 	}
 
 	// Send invitation email asynchronously, pass tenant context for DB calls
-	if s.dispatcher != nil && profile.Email != nil {
+	if s.Dispatcher != nil && profile.Email != nil {
 		tenantCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
 		go s.sendInvitationEmail(tenantCtx, invitation, profile)
 	}
@@ -413,13 +391,13 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 
 // sendInvitationEmail sends the invitation email (called asynchronously).
 // ctx should carry tenant context but NOT a transaction (use tenant.WithTenantID on Background).
-func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
-	if s.dispatcher == nil || profile.Email == nil {
+func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
+	if s.Dispatcher == nil || profile.Email == nil {
 		return
 	}
 
-	invitationURL := fmt.Sprintf("%s/guardian/invite?token=%s", s.frontendURL, invitation.Token)
-	expiryHours := int(s.invitationExpiry.Hours())
+	invitationURL := fmt.Sprintf("%s/guardian/invite?token=%s", s.FrontendURL, invitation.Token)
+	expiryHours := int(s.InvitationExpiry.Hours())
 
 	// P2 FIX: Handle errors gracefully in async email context
 	// If we can't load student names, log the error but continue with empty list
@@ -434,7 +412,7 @@ func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *a
 	}
 
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail("", *profile.Email),
 		Subject:  "Einladung zum Eltern-Portal",
 		Template: "guardian-invitation.html",
@@ -443,7 +421,7 @@ func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *a
 			"LastName":      profile.LastName,
 			"InvitationURL": invitationURL,
 			"ExpiryHours":   expiryHours,
-			"LogoURL":       fmt.Sprintf("%s/logo.png", s.frontendURL),
+			"LogoURL":       fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL),
 			"StudentNames":  studentNames,
 		},
 	}
@@ -455,8 +433,8 @@ func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *a
 		Recipient:   *profile.Email,
 	}
 
-	if s.dispatcher != nil {
-		s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	if s.Dispatcher != nil {
+		s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
 			Message:  message,
 			Metadata: meta,
 		})
@@ -464,13 +442,13 @@ func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *a
 
 	// Update email status
 	now := time.Now()
-	_ = s.guardianInvitationRepo.UpdateEmailStatus(ctx, invitation.ID, &now, nil, 0)
+	_ = s.GuardianInvitationRepo.UpdateEmailStatus(ctx, invitation.ID, &now, nil, 0)
 }
 
 // getStudentNamesForGuardian retrieves the full names of all students linked to a guardian
 // Returns an error if the guardian-student relationships cannot be loaded or if any student/person
 // lookup fails. This ensures callers can distinguish between "no students" and "data retrieval failure".
-func (s *guardianService) getStudentNamesForGuardian(ctx context.Context, guardianProfileID int64) ([]string, error) {
+func (s *GuardianService) getStudentNamesForGuardian(ctx context.Context, guardianProfileID int64) ([]string, error) {
 	impact, err := s.getGuardianDeleteImpact(ctx, guardianProfileID)
 	if err != nil {
 		return nil, err
@@ -480,31 +458,44 @@ func (s *guardianService) getStudentNamesForGuardian(ctx context.Context, guardi
 
 // getGuardianDeleteImpact retrieves the link IDs and full names of all students
 // linked to a guardian from the same relationship snapshot.
-func (s *guardianService) getGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error) {
-	relationships, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+func (s *GuardianService) getGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error) {
+	relationships, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load guardian-student relationships: %w", err)
 	}
 
 	linkIDs := make([]int64, 0, len(relationships))
-	studentNames := make([]string, 0, len(relationships))
+	studentIDs := make([]int64, 0, len(relationships))
 	for _, rel := range relationships {
 		linkIDs = append(linkIDs, rel.ID)
-		student, err := s.studentRepo.FindByID(ctx, rel.StudentID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load student %d: %w", rel.StudentID, err)
-		}
+		studentIDs = append(studentIDs, rel.StudentID)
+	}
 
-		person, err := s.personRepo.FindByID(ctx, student.PersonID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load person %d for student %d: %w", student.PersonID, rel.StudentID, err)
-		}
+	// Batch-load students and their persons (replaces the per-relationship
+	// 2N+1 lookups). Missing rows stay hard errors, as before.
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load students: %w", err)
+	}
+	personIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		personIDs = append(personIDs, student.PersonID)
+	}
+	persons, err := s.PersonRepo.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load persons: %w", err)
+	}
 
-		// P1 FIX: Guard against nil person record (some repositories return (nil, nil) for missing rows)
-		if person == nil {
+	studentNames := make([]string, 0, len(relationships))
+	for _, rel := range relationships {
+		student, ok := students[rel.StudentID]
+		if !ok {
+			return nil, fmt.Errorf("failed to load student %d: record missing", rel.StudentID)
+		}
+		person, ok := persons[student.PersonID]
+		if !ok || person == nil {
 			return nil, fmt.Errorf("person record %d is missing for student %d", student.PersonID, rel.StudentID)
 		}
-
 		studentNames = append(studentNames, person.GetFullName())
 	}
 
@@ -514,292 +505,90 @@ func (s *guardianService) getGuardianDeleteImpact(ctx context.Context, guardianP
 	}, nil
 }
 
-// ValidateInvitation validates an invitation token.
-//
-// Deprecated: Replaced by services/auth.GuardianInvitationService.Validate
-// (parent-enrollment PR 3). Frontend does not call this. Cleanup PR pending.
-func (s *guardianService) ValidateInvitation(ctx context.Context, token string) (*GuardianInvitationValidationResult, error) {
-	invitation, err := s.guardianInvitationRepo.FindByToken(ctx, token)
-	if err != nil {
-		return nil, fmt.Errorf("invitation not found: %w", err)
-	}
-
-	if err := s.validateInvitationStatus(invitation); err != nil {
-		return nil, err
-	}
-
-	// Get guardian profile
-	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
-	if err != nil {
-		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
-	}
-
-	// P2 FIX: Propagate errors from student name lookup instead of swallowing them
-	studentNames, err := s.getStudentNamesForGuardian(ctx, profile.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load student information for guardian %d: %w", profile.ID, err)
-	}
-
-	email := ""
-	if profile.Email != nil {
-		email = *profile.Email
-	}
-
-	return &GuardianInvitationValidationResult{
-		GuardianFirstName: profile.FirstName,
-		GuardianLastName:  profile.LastName,
-		Email:             email,
-		StudentNames:      studentNames,
-		ExpiresAt:         invitation.ExpiresAt.Format(time.RFC3339),
-	}, nil
-}
-
-// AcceptInvitation accepts an invitation and creates a guardian account.
-//
-// Deprecated: This flow writes to the orphaned auth.accounts_parents table
-// and is unused by the frontend. The parent-enrollment plan replaces this
-// with services/auth.GuardianInvitationService (PR 3, 2026-04). Will be
-// removed in a separate cleanup PR once /api/guardians/invitations/...
-// routes are confirmed unused. New code should not call this method.
-func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvitationAcceptRequest) (*authModels.AccountParent, error) {
-	if err := s.validateInvitationAcceptRequest(req); err != nil {
-		return nil, err
-	}
-
-	invitation, profile, err := s.validateInvitationAndProfile(ctx, req.Token)
-	if err != nil {
-		return nil, err
-	}
-
-	var account *authModels.AccountParent
-	tenantCtx := tenant.WithTenantID(ctx, invitation.TenantID)
-	err = s.txHandler.RunInTx(tenantCtx, func(txCtx context.Context, _ bun.Tx) error {
-		var innerErr error
-		account, innerErr = s.createGuardianAccountFromInvitation(txCtx, profile, req.Password, invitation.TenantID)
-		if innerErr != nil {
-			return innerErr
-		}
-		return s.finalizeInvitationAcceptance(txCtx, invitation.ID, profile.ID, account.ID)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return account, nil
-}
-
-// validateInvitationAcceptRequest validates the invitation acceptance request
-func (s *guardianService) validateInvitationAcceptRequest(req GuardianInvitationAcceptRequest) error {
-	if req.Password != req.ConfirmPassword {
-		return fmt.Errorf("passwords do not match")
-	}
-
-	if err := authService.ValidatePasswordStrength(req.Password); err != nil {
-		return fmt.Errorf("password validation failed: %w", err)
-	}
-
-	return nil
-}
-
-// validateInvitationAndProfile validates invitation and retrieves guardian profile
-func (s *guardianService) validateInvitationAndProfile(ctx context.Context, token string) (*authModels.GuardianInvitation, *users.GuardianProfile, error) {
-	invitation, err := s.guardianInvitationRepo.FindByToken(ctx, token)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invitation not found: %w", err)
-	}
-
-	if err := s.validateInvitationStatus(invitation); err != nil {
-		return nil, nil, err
-	}
-
-	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
-	if err != nil {
-		return nil, nil, fmt.Errorf(errMsgGuardianNotFound, err)
-	}
-
-	if profile.Email == nil || *profile.Email == "" {
-		return nil, nil, fmt.Errorf("guardian profile has no email")
-	}
-
-	return invitation, profile, nil
-}
-
-// validateInvitationStatus checks if invitation is valid and returns appropriate error
-func (s *guardianService) validateInvitationStatus(invitation *authModels.GuardianInvitation) error {
-	now := time.Now()
-	if authService.GuardianInvitationValid(invitation, now) {
-		return nil
-	}
-
-	if authService.GuardianInvitationExpired(invitation, now) {
-		return fmt.Errorf("invitation has expired")
-	}
-
-	if invitation.IsAccepted() {
-		return fmt.Errorf("invitation has already been accepted")
-	}
-
-	return fmt.Errorf("invitation is no longer valid")
-}
-
-// createGuardianAccountFromInvitation creates a new guardian account with hashed password.
-// tenantID is passed explicitly because guardian invitation acceptance is a public route
-// where tenant.FromContext(ctx) would return 0.
-func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Context, profile *users.GuardianProfile, password string, tenantID int64) (*authModels.AccountParent, error) {
-	passwordHash, err := userpass.HashPassword(password, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	emailAddress := strings.ToLower(strings.TrimSpace(*profile.Email))
-	account, err := s.createOrUpdateGuardianAccount(ctx, emailAddress, passwordHash)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.ensureGuardianTenantAccess(ctx, account.ID, tenantID); err != nil {
-		return nil, err
-	}
-
-	legacyAccount := &authModels.AccountParent{
-		Email:        account.Email,
-		Username:     account.Username,
-		PasswordHash: account.PasswordHash,
-		Active:       account.Active,
-	}
-	legacyAccount.ID = account.ID
-	legacyAccount.SetTenantID(tenantID)
-
-	return legacyAccount, nil
-}
-
-func (s *guardianService) createOrUpdateGuardianAccount(ctx context.Context, emailAddress, passwordHash string) (*authModels.Account, error) {
-	existing, err := s.accountRepo.FindByEmail(ctx, emailAddress)
-	if err == nil && existing != nil {
-		return existing, nil
-	}
-	if err != nil && !isGuardianServiceNotFound(err) {
-		return nil, fmt.Errorf("failed to find account: %w", err)
-	}
-
-	account := &authModels.Account{
-		Email:        emailAddress,
-		PasswordHash: &passwordHash,
-		Active:       true,
-	}
-	if err := s.accountRepo.Create(ctx, account); err != nil {
-		return nil, fmt.Errorf("failed to create account: %w", err)
-	}
-
-	return account, nil
-}
-
-func (s *guardianService) ensureGuardianTenantAccess(ctx context.Context, accountID, tenantID int64) error {
-	if err := s.ensureGuardianRole(ctx, accountID, tenantID); err != nil {
-		return err
-	}
-
-	now := time.Now()
-	mapping := &authModels.AccountTenant{
-		AccountID:   accountID,
-		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
-		ActivatedAt: &now,
-	}
-	if err := s.accountTenantRepo.EnsureActive(ctx, mapping); err != nil {
-		return fmt.Errorf("failed to link account to tenant: %w", err)
-	}
-
-	return nil
-}
-
-func (s *guardianService) ensureGuardianRole(ctx context.Context, accountID, tenantID int64) error {
-	role, err := s.roleRepo.FindByName(ctx, authModels.BaseRoleGuardian)
-	if err != nil {
-		return fmt.Errorf("failed to find guardian role: %w", err)
-	}
-	if role == nil {
-		return fmt.Errorf("guardian role not found")
-	}
-
-	existingRole, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
-	if err == nil && existingRole != nil {
-		return nil
-	}
-	if err != nil && !isGuardianServiceNotFound(err) {
-		return fmt.Errorf("failed to find account role: %w", err)
-	}
-
-	accountRole := &authModels.AccountRole{AccountID: accountID, RoleID: role.ID}
-	accountRole.SetTenantID(tenantID)
-	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
-		return fmt.Errorf("failed to assign guardian role: %w", err)
-	}
-
-	return nil
-}
-
-func isGuardianServiceNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "not found") || strings.Contains(message, "no rows")
-}
-
-// finalizeInvitationAcceptance links account to profile and marks invitation as accepted
-func (s *guardianService) finalizeInvitationAcceptance(ctx context.Context, invitationID, profileID, accountID int64) error {
-	if err := s.guardianProfileRepo.LinkAccount(ctx, profileID, accountID); err != nil {
-		return fmt.Errorf("failed to link account to profile: %w", err)
-	}
-
-	if err := s.guardianInvitationRepo.MarkAsAccepted(ctx, invitationID); err != nil {
-		return fmt.Errorf("failed to mark invitation as accepted: %w", err)
-	}
-
-	return nil
-}
-
 // GetStudentGuardians retrieves all guardians for a student
-func (s *guardianService) GetStudentGuardians(ctx context.Context, studentID int64) ([]*GuardianWithRelationship, error) {
-	relationships, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int64) ([]*GuardianWithRelationship, error) {
+	relationships, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+
+	profileIDs := make([]int64, 0, len(relationships))
+	for _, rel := range relationships {
+		profileIDs = append(profileIDs, rel.GuardianProfileID)
+	}
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make([]*GuardianWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
-		profile, err := s.guardianProfileRepo.FindByID(ctx, rel.GuardianProfileID)
-		if err != nil {
+		profile, ok := profiles[rel.GuardianProfileID]
+		if !ok {
 			continue // Skip if profile not found
 		}
 
 		// Load phone numbers for this guardian
-		phoneNumbers, err := s.guardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
+		phoneNumbers, err := s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
 		if err == nil {
 			profile.PhoneNumbers = phoneNumbers
 		}
 
 		result = append(result, &GuardianWithRelationship{
-			Profile:      profile,
-			Relationship: rel,
+			Profile:           profile,
+			Relationship:      rel,
+			InvitationPending: !profile.HasAccount && s.hasOpenInvitation(ctx, profile.ID),
 		})
 	}
 
 	return result, nil
 }
 
+// hasOpenInvitation reports whether the guardian profile has an invitation that
+// is neither accepted, expired, nor rejected — i.e. an outstanding invite the
+// staff UI should surface as "Einladung offen". Best-effort: a lookup error is
+// treated as "no pending invite" so the guardian list still renders.
+func (s *GuardianService) hasOpenInvitation(ctx context.Context, guardianProfileID int64) bool {
+	invitations, err := s.GuardianInvitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	if err != nil {
+		return false
+	}
+	now := time.Now()
+	for _, inv := range invitations {
+		if inv.IsAccepted() {
+			continue
+		}
+		if !inv.ExpiresAt.IsZero() && now.After(inv.ExpiresAt) {
+			continue
+		}
+		if inv.ApprovalStatus == authModels.GuardianInvitationApprovalRejected {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 // GetGuardianStudents retrieves all students for a guardian
-func (s *guardianService) GetGuardianStudents(ctx context.Context, guardianProfileID int64) ([]*StudentWithRelationship, error) {
-	relationships, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+func (s *GuardianService) GetGuardianStudents(ctx context.Context, guardianProfileID int64) ([]*StudentWithRelationship, error) {
+	relationships, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	if err != nil {
+		return nil, err
+	}
+
+	studentIDs := make([]int64, 0, len(relationships))
+	for _, rel := range relationships {
+		studentIDs = append(studentIDs, rel.StudentID)
+	}
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make([]*StudentWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
-		student, err := s.studentRepo.FindByID(ctx, rel.StudentID)
-		if err != nil {
+		student, ok := students[rel.StudentID]
+		if !ok {
 			continue // Skip if student not found
 		}
 
@@ -813,15 +602,20 @@ func (s *guardianService) GetGuardianStudents(ctx context.Context, guardianProfi
 }
 
 // LinkGuardianToStudent creates a relationship between guardian and student
-func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*users.StudentGuardian, error) {
+func (s *GuardianService) LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*users.StudentGuardian, error) {
 	// Validate guardian profile exists
-	if _, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
+	if _, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
 		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
 	}
 
 	// Validate student exists
-	if _, err := s.studentRepo.FindByID(ctx, req.StudentID); err != nil {
+	if _, err := s.StudentRepo.FindByID(ctx, req.StudentID); err != nil {
 		return nil, fmt.Errorf("student not found: %w", err)
+	}
+
+	role := req.GuardianRole
+	if strings.TrimSpace(role) == "" {
+		role = authorize.DefaultStudentGuardianRole(req.RelationshipType, req.IsPrimary, req.IsEmergencyContact, req.CanPickup)
 	}
 
 	// Build the new relationship.
@@ -835,6 +629,7 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 		PickupNotes:        req.PickupNotes,
 		EmergencyPriority:  req.EmergencyPriority,
 	}
+	authorize.ApplyStudentGuardianRole(relationship, role)
 	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	// Idempotent on an existing link: re-linking a guardian already attached to
@@ -844,7 +639,7 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 	// transaction (a raw duplicate INSERT would do both in PostgreSQL). This is
 	// the same "re-selecting is not an error" semantics as the batch create path
 	// in AddGuardiansToStudent.
-	inserted, err := s.studentGuardianRepo.LinkIfNotExists(ctx, relationship)
+	inserted, err := s.StudentGuardianRepo.LinkIfNotExists(ctx, relationship)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
 	}
@@ -858,7 +653,7 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 	// action). Never upserting the flags on a re-link keeps safety-relevant fields
 	// (who can pick up the child, who the emergency contact is) mutable only via
 	// that explicit endpoint, with no silent overwrite from a stray re-link.
-	existingLinks, err := s.studentGuardianRepo.FindByStudentID(ctx, req.StudentID)
+	existingLinks, err := s.StudentGuardianRepo.FindByStudentID(ctx, req.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load existing guardian link: %w", err)
 	}
@@ -893,11 +688,15 @@ func germanGuardianValidationMessage(err error) string {
 	}
 }
 
-// ValidateNewGuardians validates guardian input without persisting anything.
-// See the interface doc comment for why callers must run this before the first
-// write. Every failure is returned as a *ValidationError (HTTP 400) carrying a
-// user-facing German message.
-func (s *guardianService) ValidateNewGuardians(ctx context.Context, guardians []NewStudentGuardian) error {
+// ValidateNewGuardians checks guardian input (profile, relationship type,
+// emergency priority, phone numbers, and duplicate email) WITHOUT writing
+// anything. Callers that persist a student and its guardians in one
+// transaction MUST call this before the first write so a ValidationError
+// rolls back an empty transaction instead of committing an orphaned
+// student (TenantTxMiddleware only rolls back on 5xx). Every failure is
+// returned as a *ValidationError (HTTP 400) carrying a user-facing German
+// message.
+func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []NewStudentGuardian) error {
 	// Track emails seen within this single request so two new guardians sharing
 	// one email are rejected up front rather than colliding on insert.
 	seenEmails := make(map[string]struct{}, len(guardians))
@@ -910,7 +709,7 @@ func (s *guardianService) ValidateNewGuardians(ctx context.Context, guardians []
 		// clean 400, not a 500) and that the relationship fields are valid,
 		// matching the new-guardian path below and the detail-page link route.
 		if id := guardians[i].ExistingProfileID; id != nil {
-			if _, err := s.guardianProfileRepo.FindByID(ctx, *id); err != nil {
+			if _, err := s.GuardianProfileRepo.FindByID(ctx, *id); err != nil {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
 				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ausgewählte Person nicht gefunden", i+1)}
 			}
@@ -965,7 +764,7 @@ func (s *guardianService) ValidateNewGuardians(ctx context.Context, guardians []
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
 				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: E-Mail-Adresse %q ist mehrfach angegeben", i+1, email)}
 			}
-			if existing, err := s.guardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
+			if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
 				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: "+emailInUseMsgFmt, i+1, email)}
 			}
@@ -1002,7 +801,7 @@ func (s *guardianService) ValidateNewGuardians(ctx context.Context, guardians []
 // and AddPhoneNumber, all of which join the ambient tenant transaction via the
 // context, so a failure on any guardian aborts the surrounding transaction and
 // leaves no partial student/guardian data behind.
-func (s *guardianService) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error {
+func (s *GuardianService) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error {
 	// Defense-in-depth: re-validate before any write so this method is safe
 	// even if a caller forgets the pre-write ValidateNewGuardians call. Bad
 	// client input surfaces as a classified ValidationError (HTTP 400) instead
@@ -1044,6 +843,7 @@ func (s *guardianService) AddGuardiansToStudent(ctx context.Context, studentID i
 			StudentID:          studentID,
 			GuardianProfileID:  profileID,
 			RelationshipType:   g.Relationship.RelationshipType,
+			GuardianRole:       g.Relationship.GuardianRole,
 			IsPrimary:          g.Relationship.IsPrimary,
 			IsEmergencyContact: g.Relationship.IsEmergencyContact,
 			CanPickup:          g.Relationship.CanPickup,
@@ -1069,8 +869,8 @@ func (s *guardianService) AddGuardiansToStudent(ctx context.Context, studentID i
 }
 
 // GetStudentGuardianRelationship retrieves a student-guardian relationship by ID
-func (s *guardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error) {
-	relationship, err := s.studentGuardianRepo.FindByID(ctx, relationshipID)
+func (s *GuardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error) {
+	relationship, err := s.StudentGuardianRepo.FindByID(ctx, relationshipID)
 	if err != nil {
 		return nil, fmt.Errorf("relationship not found: %w", err)
 	}
@@ -1078,8 +878,8 @@ func (s *guardianService) GetStudentGuardianRelationship(ctx context.Context, re
 }
 
 // UpdateStudentGuardianRelationship updates a student-guardian relationship
-func (s *guardianService) UpdateStudentGuardianRelationship(ctx context.Context, relationshipID int64, req StudentGuardianUpdateRequest) error {
-	relationship, err := s.studentGuardianRepo.FindByID(ctx, relationshipID)
+func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context, relationshipID int64, req StudentGuardianUpdateRequest) error {
+	relationship, err := s.StudentGuardianRepo.FindByID(ctx, relationshipID)
 	if err != nil {
 		return fmt.Errorf("relationship not found: %w", err)
 	}
@@ -1087,6 +887,9 @@ func (s *guardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 	// Update fields if provided
 	if req.RelationshipType != nil {
 		relationship.RelationshipType = *req.RelationshipType
+	}
+	if req.GuardianRole != nil {
+		authorize.ApplyStudentGuardianRole(relationship, *req.GuardianRole)
 	}
 	if req.IsPrimary != nil {
 		relationship.IsPrimary = *req.IsPrimary
@@ -1104,20 +907,20 @@ func (s *guardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 		relationship.EmergencyPriority = *req.EmergencyPriority
 	}
 
-	return s.studentGuardianRepo.Update(ctx, relationship)
+	return s.StudentGuardianRepo.Update(ctx, relationship)
 }
 
 // RemoveGuardianFromStudent removes a guardian from a student
-func (s *guardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID int64) error {
+func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID int64) error {
 	// Find the relationship
-	relationships, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+	relationships, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return err
 	}
 
 	for _, rel := range relationships {
 		if rel.GuardianProfileID == guardianProfileID {
-			return s.studentGuardianRepo.Delete(ctx, rel.ID)
+			return s.StudentGuardianRepo.Delete(ctx, rel.ID)
 		}
 	}
 
@@ -1125,15 +928,15 @@ func (s *guardianService) RemoveGuardianFromStudent(ctx context.Context, student
 }
 
 // ListGuardians retrieves guardians with pagination and filters, including phone numbers
-func (s *guardianService) ListGuardians(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error) {
-	profiles, err := s.guardianProfileRepo.ListWithOptions(ctx, options)
+func (s *GuardianService) ListGuardians(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error) {
+	profiles, err := s.GuardianProfileRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
 	}
 
 	// Load phone numbers for each guardian
 	for _, profile := range profiles {
-		phoneNumbers, err := s.guardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
+		phoneNumbers, err := s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
 		if err == nil {
 			profile.PhoneNumbers = phoneNumbers
 		}
@@ -1150,8 +953,8 @@ func (s *guardianService) ListGuardians(ctx context.Context, options *base.Query
 //
 // The linked children are fetched in ONE batch query for all matched guardians
 // and grouped in memory, so the picker never falls into a per-guardian N+1.
-func (s *guardianService) SearchGuardiansForPicker(ctx context.Context, searchText string, limit int) ([]*GuardianPickerMatch, error) {
-	profiles, err := s.guardianProfileRepo.SearchByText(ctx, searchText, limit)
+func (s *GuardianService) SearchGuardiansForPicker(ctx context.Context, searchText string, limit int) ([]*GuardianPickerMatch, error) {
+	profiles, err := s.GuardianProfileRepo.SearchByText(ctx, searchText, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1164,7 +967,7 @@ func (s *guardianService) SearchGuardiansForPicker(ctx context.Context, searchTe
 		ids[i] = p.ID
 	}
 
-	children, err := s.studentGuardianRepo.ListLinkedChildrenForGuardians(ctx, ids)
+	children, err := s.StudentGuardianRepo.ListLinkedChildrenForGuardians(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -1182,23 +985,23 @@ func (s *guardianService) SearchGuardiansForPicker(ctx context.Context, searchTe
 }
 
 // GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts
-func (s *guardianService) GetGuardiansWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error) {
-	return s.guardianProfileRepo.FindWithoutAccount(ctx)
+func (s *GuardianService) GetGuardiansWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error) {
+	return s.GuardianProfileRepo.FindWithoutAccount(ctx)
 }
 
 // GetInvitableGuardians retrieves guardians who can be invited
-func (s *guardianService) GetInvitableGuardians(ctx context.Context) ([]*users.GuardianProfile, error) {
-	return s.guardianProfileRepo.FindInvitable(ctx)
+func (s *GuardianService) GetInvitableGuardians(ctx context.Context) ([]*users.GuardianProfile, error) {
+	return s.GuardianProfileRepo.FindInvitable(ctx)
 }
 
 // GetPendingInvitations retrieves all pending guardian invitations
-func (s *guardianService) GetPendingInvitations(ctx context.Context) ([]*authModels.GuardianInvitation, error) {
-	return s.guardianInvitationRepo.FindPending(ctx)
+func (s *GuardianService) GetPendingInvitations(ctx context.Context) ([]*authModels.GuardianInvitation, error) {
+	return s.GuardianInvitationRepo.FindPending(ctx)
 }
 
 // CleanupExpiredInvitations deletes expired invitations
-func (s *guardianService) CleanupExpiredInvitations(ctx context.Context) (int, error) {
-	return s.guardianInvitationRepo.DeleteExpired(ctx)
+func (s *GuardianService) CleanupExpiredInvitations(ctx context.Context) (int, error) {
+	return s.GuardianInvitationRepo.DeleteExpired(ctx)
 }
 
 // ============================================================================
@@ -1206,20 +1009,28 @@ func (s *guardianService) CleanupExpiredInvitations(ctx context.Context) (int, e
 // ============================================================================
 
 // AddPhoneNumber adds a new phone number to a guardian
-func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error) {
+func (s *GuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error) {
+	// Lock the guardian profile so phone-list writers serialize with the
+	// parents-portal contact path, which locks the same row before its wholesale
+	// phone replace (delete-all + re-insert) — see UpdateGuardian. Without this a
+	// staff phone add could land between the parent's read-old-phones and its
+	// replace, then be wiped by the replace. Held for the request transaction.
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianID); err != nil {
+		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
+	}
 	// Verify guardian exists
-	if _, err := s.guardianProfileRepo.FindByID(ctx, guardianID); err != nil {
+	if _, err := s.GuardianProfileRepo.FindByID(ctx, guardianID); err != nil {
 		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
 	}
 
 	// Get current count to determine if this should be primary
-	count, err := s.guardianPhoneNumberRepo.CountByGuardianID(ctx, guardianID)
+	count, err := s.GuardianPhoneNumberRepo.CountByGuardianID(ctx, guardianID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count existing phone numbers: %w", err)
 	}
 
 	// Get next priority
-	priority, err := s.guardianPhoneNumberRepo.GetNextPriority(ctx, guardianID)
+	priority, err := s.GuardianPhoneNumberRepo.GetNextPriority(ctx, guardianID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get next priority: %w", err)
 	}
@@ -1245,16 +1056,16 @@ func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 
 	// If setting as primary, unset existing primaries first
 	if isPrimary && count > 0 {
-		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
+		if err := s.GuardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
 			return nil, fmt.Errorf("failed to unset existing primary: %w", err)
 		}
-		if err := s.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
+		if err := s.GuardianPhoneNumberRepo.Create(ctx, phone); err != nil {
 			return nil, fmt.Errorf("failed to create phone number: %w", err)
 		}
 		return phone, nil
 	}
 
-	if err := s.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
+	if err := s.GuardianPhoneNumberRepo.Create(ctx, phone); err != nil {
 		return nil, fmt.Errorf("failed to create phone number: %w", err)
 	}
 
@@ -1262,10 +1073,17 @@ func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 }
 
 // UpdatePhoneNumber updates an existing phone number
-func (s *guardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, req PhoneNumberUpdateRequest) error {
-	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
+func (s *GuardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, req PhoneNumberUpdateRequest) error {
+	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
 		return fmt.Errorf(errMsgPhoneNotFound, err)
+	}
+	// Lock the owning guardian profile so this edit serializes with the
+	// parents-portal contact path's wholesale phone replace (see UpdateGuardian).
+	// The phone→profile association is immutable, so reading the phone first and
+	// then locking its profile is safe.
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, phone.GuardianProfileID); err != nil {
+		return fmt.Errorf(errMsgGuardianNotFound, err)
 	}
 
 	// Update fields if provided
@@ -1288,43 +1106,49 @@ func (s *guardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, 
 	// Handle primary flag change
 	if req.IsPrimary != nil && *req.IsPrimary && !phone.IsPrimary {
 		phone.IsPrimary = true
-		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
+		if err := s.GuardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
 			return fmt.Errorf("failed to unset existing primary: %w", err)
 		}
-		return s.guardianPhoneNumberRepo.Update(ctx, phone)
+		return s.GuardianPhoneNumberRepo.Update(ctx, phone)
 	} else if req.IsPrimary != nil && !*req.IsPrimary && phone.IsPrimary {
 		// Unsetting primary - need to promote another number
 		phone.IsPrimary = false
 	}
 
-	return s.guardianPhoneNumberRepo.Update(ctx, phone)
+	return s.GuardianPhoneNumberRepo.Update(ctx, phone)
 }
 
 // DeletePhoneNumber removes a phone number
-func (s *guardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) error {
-	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
+func (s *GuardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) error {
+	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
 		return fmt.Errorf(errMsgPhoneNotFound, err)
+	}
+	// Lock the owning guardian profile so this delete (and the primary-promotion
+	// below) serializes with the parents-portal contact path's wholesale phone
+	// replace (see UpdateGuardian).
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, phone.GuardianProfileID); err != nil {
+		return fmt.Errorf(errMsgGuardianNotFound, err)
 	}
 
 	wasPrimary := phone.IsPrimary
 	guardianID := phone.GuardianProfileID
 
 	// Delete the phone number
-	if err := s.guardianPhoneNumberRepo.Delete(ctx, phoneID); err != nil {
+	if err := s.GuardianPhoneNumberRepo.Delete(ctx, phoneID); err != nil {
 		return fmt.Errorf("failed to delete phone number: %w", err)
 	}
 
 	// If deleted number was primary, promote the next one
 	if wasPrimary {
-		phones, err := s.guardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
+		phones, err := s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
 		if err != nil {
 			return nil // Deletion succeeded, just couldn't promote - not fatal
 		}
 
 		// Promote the first remaining phone number (already sorted by priority)
 		if len(phones) > 0 {
-			_ = s.guardianPhoneNumberRepo.SetPrimary(ctx, phones[0].ID, guardianID)
+			_ = s.GuardianPhoneNumberRepo.SetPrimary(ctx, phones[0].ID, guardianID)
 		}
 	}
 
@@ -1332,21 +1156,30 @@ func (s *guardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) 
 }
 
 // SetPrimaryPhone sets a phone number as the primary contact
-func (s *guardianService) SetPrimaryPhone(ctx context.Context, phoneID int64) error {
-	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
+func (s *GuardianService) SetPrimaryPhone(ctx context.Context, phoneID int64) error {
+	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
 		return fmt.Errorf(errMsgPhoneNotFound, err)
 	}
+	// Lock the owning guardian profile so this primary-flag flip serializes with
+	// the parents-portal contact path's wholesale phone replace (delete-all +
+	// re-insert) — see UpdateGuardian. Without it a staff set-primary could land
+	// between the parent's read-old-phones and its replace, then be wiped by the
+	// replace. The phone→profile association is immutable, so reading the phone
+	// first and then locking its profile is safe. Held for the request tx.
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, phone.GuardianProfileID); err != nil {
+		return fmt.Errorf(errMsgGuardianNotFound, err)
+	}
 
-	return s.guardianPhoneNumberRepo.SetPrimary(ctx, phoneID, phone.GuardianProfileID)
+	return s.GuardianPhoneNumberRepo.SetPrimary(ctx, phoneID, phone.GuardianProfileID)
 }
 
 // GetGuardianPhoneNumbers retrieves all phone numbers for a guardian, sorted by priority
-func (s *guardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error) {
-	return s.guardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
+func (s *GuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error) {
+	return s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
 }
 
 // GetPhoneNumberByID retrieves a phone number by ID
-func (s *guardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
-	return s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
+func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
+	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 }

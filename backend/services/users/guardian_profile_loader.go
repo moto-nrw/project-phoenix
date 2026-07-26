@@ -15,30 +15,26 @@ import (
 // students. Handlers used to issue raw multi-schema queries directly;
 // this service keeps the data access inside the repository and the
 // tenant transaction handling in one place.
-type GuardianProfileLoader interface {
-	// LoadForTenant looks up the guardian profile linked to accountID
-	// under the given tenant. Wraps the read in WithTenantTx so RLS
-	// scopes the join. Returns (nil, nil) when the account has no
-	// profile in this tenant — callers fall through to their default
-	// (claims-derived) response.
-	LoadForTenant(ctx context.Context, accountID, tenantID int64) (*usersModels.GuardianProfileWithChildren, error)
-}
-
-type guardianProfileLoader struct {
+type GuardianProfileLoader struct {
 	repo   usersModels.GuardianProfileRepository
 	db     *bun.DB
 	logger *slog.Logger
 }
 
 // NewGuardianProfileLoader wires a loader against the repo + db.
-func NewGuardianProfileLoader(repo usersModels.GuardianProfileRepository, db *bun.DB, logger *slog.Logger) GuardianProfileLoader {
+func NewGuardianProfileLoader(repo usersModels.GuardianProfileRepository, db *bun.DB, logger *slog.Logger) *GuardianProfileLoader {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &guardianProfileLoader{repo: repo, db: db, logger: logger}
+	return &GuardianProfileLoader{repo: repo, db: db, logger: logger}
 }
 
-func (s *guardianProfileLoader) LoadForTenant(ctx context.Context, accountID, tenantID int64) (*usersModels.GuardianProfileWithChildren, error) {
+// LoadForTenant looks up the guardian profile linked to accountID
+// under the given tenant. Wraps the read in WithTenantTx so RLS
+// scopes the join. Returns (nil, nil) when the account has no
+// profile in this tenant — callers fall through to their default
+// (claims-derived) response.
+func (s *GuardianProfileLoader) LoadForTenant(ctx context.Context, accountID, tenantID int64) (*usersModels.GuardianProfileWithChildren, error) {
 	if accountID <= 0 || tenantID <= 0 {
 		return nil, nil
 	}

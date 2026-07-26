@@ -64,7 +64,7 @@ vi.mock("./header/session-warning", () => ({
 
 vi.mock("./header/profile-dropdown", () => ({
   ProfileTrigger: ({ onClick }: { onClick: () => void }) => (
-    <button data-testid="profile-trigger" onClick={onClick}>
+    <button type="button" data-testid="profile-trigger" onClick={onClick}>
       Profile
     </button>
   ),
@@ -79,10 +79,10 @@ vi.mock("./header/profile-dropdown", () => ({
   }) =>
     isOpen ? (
       <div data-testid="profile-dropdown">
-        <button data-testid="close-dropdown" onClick={onClose}>
+        <button type="button" data-testid="close-dropdown" onClick={onClose}>
           Close
         </button>
-        <button data-testid="logout-button" onClick={onLogout}>
+        <button type="button" data-testid="logout-button" onClick={onLogout}>
           Logout
         </button>
       </div>
@@ -94,12 +94,6 @@ vi.mock("./header/breadcrumb-components", () => ({
   OgsGroupsBreadcrumb: () => <div data-testid="ogs-groups-breadcrumb">OGS</div>,
   ActiveSupervisionsBreadcrumb: () => (
     <div data-testid="active-supervisions-breadcrumb">Active</div>
-  ),
-  InvitationsBreadcrumb: () => (
-    <div data-testid="invitations-breadcrumb">Invitations</div>
-  ),
-  ActivityBreadcrumb: () => (
-    <div data-testid="activity-breadcrumb">Activity</div>
   ),
   RoomBreadcrumb: () => <div data-testid="room-breadcrumb">Room</div>,
   StudentHistoryBreadcrumb: () => (
@@ -124,8 +118,6 @@ vi.mock("./header/breadcrumb-utils", () => ({
   getPageTypeInfo: (pathname: string) => ({
     isDatabaseSubPage: pathname.includes("/database/"),
     isDatabaseDeepPage: pathname.includes("/database/groups/"),
-    isActivityDetailPage:
-      pathname.includes("/activities/") && pathname !== "/activities",
     isRoomDetailPage: pathname.includes("/rooms/") && pathname !== "/rooms",
     isStudentHistoryPage:
       pathname.includes("/students/") && pathname.includes("/history"),
@@ -245,7 +237,7 @@ describe("Header", () => {
   });
 
   it("renders database breadcrumb for database pages", () => {
-    mockUsePathname.mockReturnValue("/database/groups/combined");
+    mockUsePathname.mockReturnValue("/database/groups");
 
     render(<Header />);
     expect(screen.getByTestId("database-breadcrumb")).toBeInTheDocument();
@@ -265,23 +257,6 @@ describe("Header", () => {
     expect(
       screen.getByTestId("active-supervisions-breadcrumb"),
     ).toBeInTheDocument();
-  });
-
-  it("renders invitations breadcrumb", () => {
-    mockUsePathname.mockReturnValue("/invitations");
-
-    render(<Header />);
-    expect(screen.getByTestId("invitations-breadcrumb")).toBeInTheDocument();
-  });
-
-  it("renders activity breadcrumb for activity detail pages", () => {
-    mockUsePathname.mockReturnValue("/activities/123");
-    mockUseBreadcrumb.mockReturnValue({
-      breadcrumb: { activityName: "Test Activity" },
-    });
-
-    render(<Header />);
-    expect(screen.getByTestId("activity-breadcrumb")).toBeInTheDocument();
   });
 
   it("renders room breadcrumb for room detail pages", () => {

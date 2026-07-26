@@ -1,29 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
-import InvitationsPage from "./page";
 
-const mockReplace = vi.fn();
-
-vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({
-    replace: mockReplace,
-    push: vi.fn(),
-    back: vi.fn(),
-  }),
+const { mockRedirect } = vi.hoisted(() => ({
+  mockRedirect: vi.fn(),
 }));
 
-describe("InvitationsPage", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
+}));
 
-  it("redirects to /database/personal", () => {
-    render(<InvitationsPage />);
-    expect(mockReplace).toHaveBeenCalledWith("/database/personal");
-  });
+import InvitationsRedirectPage from "./page";
 
-  it("renders nothing (returns null)", () => {
-    const { container } = render(<InvitationsPage />);
-    expect(container.innerHTML).toBe("");
+describe("InvitationsRedirectPage", () => {
+  it("redirects to the tenant-aware personal database page", () => {
+    render(<InvitationsRedirectPage />);
+
+    expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/database/personal");
   });
 });

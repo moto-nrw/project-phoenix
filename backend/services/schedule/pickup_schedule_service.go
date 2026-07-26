@@ -2,23 +2,18 @@ package schedule
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
-// PickupScheduleService defines operations for managing student pickup schedules
+// PickupScheduleService defines operations for managing student pickup schedules.
+// The domain-named contract is intentionally stable because IoT, planning,
+// reminders, exports, and messaging consume it directly.
 type PickupScheduleService interface {
-	// Schedule operations
 	GetStudentPickupSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentPickupSchedule, error)
-	// GetWeeklySchedulesByStudentIDsAndWeekday returns the raw weekly pickup
-	// schedules of many students for one weekday (issue #584 lookup;
-	// repository result returned verbatim — no exception merging).
 	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentPickupSchedule, error)
 	GetStudentPickupScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentPickupSchedule, error)
 	UpsertStudentPickupSchedule(ctx context.Context, scheduleData *schedule.StudentPickupSchedule) error
@@ -26,16 +21,17 @@ type PickupScheduleService interface {
 	DeleteStudentPickupSchedule(ctx context.Context, scheduleID int64) error
 	DeleteAllStudentPickupSchedules(ctx context.Context, studentID int64) error
 
-	// Exception operations
 	GetStudentPickupExceptionByID(ctx context.Context, exceptionID int64) (*schedule.StudentPickupException, error)
+	GetStudentPickupExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*schedule.StudentPickupException, error)
 	GetStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error)
 	GetUpcomingStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error)
 	CreateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error
 	UpdateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error
 	DeleteStudentPickupException(ctx context.Context, exceptionID int64) error
 	DeleteAllStudentPickupExceptions(ctx context.Context, studentID int64) error
+	CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, pickupTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentPickupException, error)
+	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, pickupTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentPickupException, error)
 
-	// Note operations
 	GetStudentPickupNoteByID(ctx context.Context, noteID int64) (*schedule.StudentPickupNote, error)
 	GetStudentPickupNotes(ctx context.Context, studentID int64) ([]*schedule.StudentPickupNote, error)
 	GetStudentPickupNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*schedule.StudentPickupNote, error)
@@ -44,26 +40,22 @@ type PickupScheduleService interface {
 	DeleteStudentPickupNote(ctx context.Context, noteID int64) error
 	DeleteAllStudentPickupNotes(ctx context.Context, studentID int64) error
 
-	// Computed operations
 	GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error)
 	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectivePickupTime, error)
 	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error)
 }
 
-// StudentPickupData contains combined pickup schedule and exception data
 type StudentPickupData struct {
 	Schedules  []*schedule.StudentPickupSchedule  `json:"schedules"`
 	Exceptions []*schedule.StudentPickupException `json:"exceptions"`
 	Notes      []*schedule.StudentPickupNote      `json:"notes"`
 }
 
-// NoteData represents a single note in the effective pickup time response
 type NoteData struct {
 	ID      int64  `json:"id"`
 	Content string `json:"content"`
 }
 
-// EffectivePickupTime represents the pickup time for a specific date
 type EffectivePickupTime struct {
 	Date        timezone.Date `json:"date"`
 	PickupTime  *time.Time    `json:"pickup_time"`
@@ -73,491 +65,284 @@ type EffectivePickupTime struct {
 	DayNotes    []NoteData    `json:"day_notes,omitempty"`
 }
 
-// Operation names for ScheduleError.
-const (
-	opCreateStudentPickupException     = "create student pickup exception"
-	opUpdateStudentPickupException     = "update student pickup exception"
-	opUpsertBulkStudentPickupSchedules = "upsert bulk student pickup schedules"
-	opGetStudentPickupData             = "get student pickup data"
-	opGetEffectivePickupTime           = "get effective pickup time"
-	opGetBulkEffectivePickupTimes      = "get bulk effective pickup times"
-)
-
-// pickupScheduleService implements PickupScheduleService
 type pickupScheduleService struct {
-	scheduleRepo  schedule.StudentPickupScheduleRepository
-	exceptionRepo schedule.StudentPickupExceptionRepository
-	noteRepo      schedule.StudentPickupNoteRepository
+	core *effectiveTimeCore[
+		*schedule.StudentPickupSchedule,
+		*schedule.StudentPickupException,
+		*schedule.StudentPickupNote,
+		pickupTimeDomain,
+	]
 }
 
-// NewPickupScheduleService creates a new pickup schedule service
 func NewPickupScheduleService(
 	scheduleRepo schedule.StudentPickupScheduleRepository,
 	exceptionRepo schedule.StudentPickupExceptionRepository,
 	noteRepo schedule.StudentPickupNoteRepository,
+	db *bun.DB,
 ) PickupScheduleService {
 	return &pickupScheduleService{
-		scheduleRepo:  scheduleRepo,
-		exceptionRepo: exceptionRepo,
-		noteRepo:      noteRepo,
+		core: newEffectiveTimeCore(
+			scheduleRepo,
+			exceptionRepo,
+			noteRepo,
+			db,
+			pickupTimeDomain{},
+		),
 	}
 }
 
-// Schedule operations
+func (s *pickupScheduleService) GetStudentPickupSchedules(
+	ctx context.Context,
+	studentID int64,
+) ([]*schedule.StudentPickupSchedule, error) {
+	return s.core.Schedules(ctx, studentID)
+}
 
-// GetStudentPickupSchedules returns all pickup schedules for a student
-func (s *pickupScheduleService) GetStudentPickupSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentPickupSchedule, error) {
-	schedules, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
+func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
+	ctx context.Context,
+	studentIDs []int64,
+	weekday int,
+) ([]*schedule.StudentPickupSchedule, error) {
+	return s.core.WeeklySchedulesByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+}
+
+func (s *pickupScheduleService) GetStudentPickupScheduleForWeekday(
+	ctx context.Context,
+	studentID int64,
+	weekday int,
+) (*schedule.StudentPickupSchedule, error) {
+	return s.core.ScheduleForWeekday(ctx, studentID, weekday)
+}
+
+func (s *pickupScheduleService) UpsertStudentPickupSchedule(
+	ctx context.Context,
+	row *schedule.StudentPickupSchedule,
+) error {
+	return s.core.UpsertSchedule(ctx, row)
+}
+
+func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(
+	ctx context.Context,
+	studentID int64,
+	rows []*schedule.StudentPickupSchedule,
+) error {
+	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+}
+
+func (s *pickupScheduleService) DeleteStudentPickupSchedule(
+	ctx context.Context,
+	scheduleID int64,
+) error {
+	return s.core.DeleteSchedule(ctx, scheduleID)
+}
+
+func (s *pickupScheduleService) DeleteAllStudentPickupSchedules(
+	ctx context.Context,
+	studentID int64,
+) error {
+	return s.core.DeleteAllSchedules(ctx, studentID)
+}
+
+func (s *pickupScheduleService) GetStudentPickupExceptionByID(
+	ctx context.Context,
+	exceptionID int64,
+) (*schedule.StudentPickupException, error) {
+	return s.core.ExceptionByID(ctx, exceptionID)
+}
+
+func (s *pickupScheduleService) GetStudentPickupExceptionForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+) (*schedule.StudentPickupException, error) {
+	return s.core.ExceptionForDate(ctx, studentID, date)
+}
+
+func (s *pickupScheduleService) GetStudentPickupExceptions(
+	ctx context.Context,
+	studentID int64,
+) ([]*schedule.StudentPickupException, error) {
+	return s.core.Exceptions(ctx, studentID)
+}
+
+func (s *pickupScheduleService) GetUpcomingStudentPickupExceptions(
+	ctx context.Context,
+	studentID int64,
+) ([]*schedule.StudentPickupException, error) {
+	return s.core.UpcomingExceptions(ctx, studentID)
+}
+
+func (s *pickupScheduleService) CreateStudentPickupException(
+	ctx context.Context,
+	row *schedule.StudentPickupException,
+) error {
+	return s.core.CreateException(ctx, row)
+}
+
+func (s *pickupScheduleService) UpdateStudentPickupException(
+	ctx context.Context,
+	row *schedule.StudentPickupException,
+) error {
+	return s.core.UpdateExceptionRow(ctx, row)
+}
+
+func (s *pickupScheduleService) CreateOrReclaimException(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+	pickupTime *time.Time,
+	reason *string,
+	staffID int64,
+	resolveStaffID func() (int64, error),
+) (*schedule.StudentPickupException, error) {
+	return s.core.CreateOrReclaimException(
+		ctx,
+		studentID,
+		date,
+		pickupTime,
+		reason,
+		staffID,
+		resolveStaffID,
+	)
+}
+
+func (s *pickupScheduleService) UpdateException(
+	ctx context.Context,
+	exceptionID int64,
+	studentID int64,
+	date timezone.Date,
+	reason *string,
+	pickupTime *time.Time,
+	resolveStaffID func() (int64, error),
+) (*schedule.StudentPickupException, error) {
+	return s.core.UpdateException(
+		ctx,
+		exceptionID,
+		studentID,
+		date,
+		reason,
+		pickupTime,
+		resolveStaffID,
+	)
+}
+
+func (s *pickupScheduleService) DeleteStudentPickupException(
+	ctx context.Context,
+	exceptionID int64,
+) error {
+	return s.core.DeleteException(ctx, exceptionID)
+}
+
+func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(
+	ctx context.Context,
+	studentID int64,
+) error {
+	return s.core.DeleteAllExceptions(ctx, studentID)
+}
+
+func (s *pickupScheduleService) GetStudentPickupNoteByID(
+	ctx context.Context,
+	noteID int64,
+) (*schedule.StudentPickupNote, error) {
+	return s.core.NoteByID(ctx, noteID)
+}
+
+func (s *pickupScheduleService) GetStudentPickupNotes(
+	ctx context.Context,
+	studentID int64,
+) ([]*schedule.StudentPickupNote, error) {
+	return s.core.Notes(ctx, studentID)
+}
+
+func (s *pickupScheduleService) GetStudentPickupNotesForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+) ([]*schedule.StudentPickupNote, error) {
+	return s.core.NotesForDate(ctx, studentID, date)
+}
+
+func (s *pickupScheduleService) CreateStudentPickupNote(
+	ctx context.Context,
+	row *schedule.StudentPickupNote,
+) error {
+	return s.core.CreateNote(ctx, row)
+}
+
+func (s *pickupScheduleService) UpdateStudentPickupNote(
+	ctx context.Context,
+	row *schedule.StudentPickupNote,
+) error {
+	return s.core.UpdateNote(ctx, row)
+}
+
+func (s *pickupScheduleService) DeleteStudentPickupNote(
+	ctx context.Context,
+	noteID int64,
+) error {
+	return s.core.DeleteNote(ctx, noteID)
+}
+
+func (s *pickupScheduleService) DeleteAllStudentPickupNotes(
+	ctx context.Context,
+	studentID int64,
+) error {
+	return s.core.DeleteAllNotes(ctx, studentID)
+}
+
+func (s *pickupScheduleService) GetStudentPickupData(
+	ctx context.Context,
+	studentID int64,
+) (*StudentPickupData, error) {
+	data, err := s.core.Data(ctx, studentID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup schedules", Err: err}
+		return nil, err
 	}
-	return schedules, nil
-}
-
-// GetStudentPickupScheduleForWeekday returns the pickup schedule for a specific weekday
-func (s *pickupScheduleService) GetStudentPickupScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentPickupSchedule, error) {
-	if weekday < schedule.WeekdayMonday || weekday > schedule.WeekdayFriday {
-		return nil, &ScheduleError{Op: "get student pickup schedule for weekday", Err: errors.New("invalid weekday")}
-	}
-
-	pickupSchedule, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup schedule for weekday", Err: err}
-	}
-	return pickupSchedule, nil
-}
-
-// UpsertStudentPickupSchedule creates or updates a pickup schedule
-func (s *pickupScheduleService) UpsertStudentPickupSchedule(ctx context.Context, scheduleData *schedule.StudentPickupSchedule) error {
-	if err := scheduleData.Validate(); err != nil {
-		return &ScheduleError{Op: "upsert student pickup schedule", Err: err}
-	}
-
-	if err := s.scheduleRepo.UpsertSchedule(ctx, scheduleData); err != nil {
-		return &ScheduleError{Op: "upsert student pickup schedule", Err: err}
-	}
-	return nil
-}
-
-// UpsertBulkStudentPickupSchedules replaces all pickup schedules for a student.
-// This deletes existing schedules and inserts the new ones atomically,
-// ensuring that cleared weekdays are properly removed.
-func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error {
-	// Delete all existing schedules for this student first. The repository
-	// joins the handler's WithTenantTx transaction via the context.
-	if err := s.scheduleRepo.DeleteByStudentID(ctx, studentID); err != nil {
-		return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("failed to delete existing schedules: %w", err)}
-	}
-
-	// Insert new schedules
-	for _, sched := range schedules {
-		sched.StudentID = studentID
-		if err := sched.Validate(); err != nil {
-			return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("invalid schedule for weekday %d: %w", sched.Weekday, err)}
-		}
-		sched.SetTenantID(tenant.FromContext(ctx))
-
-		if err := s.scheduleRepo.Create(ctx, sched); err != nil {
-			return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: err}
-		}
-	}
-	return nil
-}
-
-// DeleteStudentPickupSchedule deletes a pickup schedule by ID
-func (s *pickupScheduleService) DeleteStudentPickupSchedule(ctx context.Context, scheduleID int64) error {
-	if err := s.scheduleRepo.Delete(ctx, scheduleID); err != nil {
-		return &ScheduleError{Op: "delete student pickup schedule", Err: err}
-	}
-	return nil
-}
-
-// DeleteAllStudentPickupSchedules deletes all pickup schedules for a student
-func (s *pickupScheduleService) DeleteAllStudentPickupSchedules(ctx context.Context, studentID int64) error {
-	if err := s.scheduleRepo.DeleteByStudentID(ctx, studentID); err != nil {
-		return &ScheduleError{Op: "delete all student pickup schedules", Err: err}
-	}
-	return nil
-}
-
-// Exception operations
-
-// GetStudentPickupExceptionByID returns a pickup exception by its ID
-func (s *pickupScheduleService) GetStudentPickupExceptionByID(ctx context.Context, exceptionID int64) (*schedule.StudentPickupException, error) {
-	exception, err := s.exceptionRepo.FindByID(ctx, exceptionID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup exception by id", Err: err}
-	}
-	return exception, nil
-}
-
-// GetStudentPickupExceptions returns all pickup exceptions for a student
-func (s *pickupScheduleService) GetStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error) {
-	exceptions, err := s.exceptionRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup exceptions", Err: err}
-	}
-	return exceptions, nil
-}
-
-// GetUpcomingStudentPickupExceptions returns upcoming pickup exceptions for a student
-func (s *pickupScheduleService) GetUpcomingStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error) {
-	exceptions, err := s.exceptionRepo.FindUpcomingByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get upcoming student pickup exceptions", Err: err}
-	}
-	return exceptions, nil
-}
-
-// CreateStudentPickupException creates a new pickup exception
-func (s *pickupScheduleService) CreateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error {
-	if err := exception.Validate(); err != nil {
-		return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
-	}
-
-	// Check for existing exception on the same date
-	existing, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, exception.StudentID, exception.ExceptionDate)
-	if err != nil {
-		return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
-	}
-	if existing != nil {
-		existing.PickupTime = exception.PickupTime
-		existing.Reason = exception.Reason
-		if err := s.exceptionRepo.Update(ctx, existing); err != nil {
-			return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
-		}
-		*exception = *existing
-		return nil
-	}
-
-	exception.SetTenantID(tenant.FromContext(ctx))
-	if err := s.exceptionRepo.Create(ctx, exception); err != nil {
-		return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
-	}
-	return nil
-}
-
-// UpdateStudentPickupException updates an existing pickup exception
-func (s *pickupScheduleService) UpdateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error {
-	if err := exception.Validate(); err != nil {
-		return &ScheduleError{Op: opUpdateStudentPickupException, Err: err}
-	}
-
-	// Check if changing date would conflict with another exception
-	existing, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, exception.StudentID, exception.ExceptionDate)
-	if err != nil {
-		return &ScheduleError{Op: opUpdateStudentPickupException, Err: err}
-	}
-	if existing != nil && existing.ID != exception.ID {
-		return &ScheduleError{Op: opUpdateStudentPickupException, Err: errors.New("exception already exists for this date")}
-	}
-
-	if err := s.exceptionRepo.Update(ctx, exception); err != nil {
-		return &ScheduleError{Op: opUpdateStudentPickupException, Err: err}
-	}
-	return nil
-}
-
-// DeleteStudentPickupException deletes a pickup exception by ID
-func (s *pickupScheduleService) DeleteStudentPickupException(ctx context.Context, exceptionID int64) error {
-	if err := s.exceptionRepo.Delete(ctx, exceptionID); err != nil {
-		return &ScheduleError{Op: "delete student pickup exception", Err: err}
-	}
-	return nil
-}
-
-// DeleteAllStudentPickupExceptions deletes all pickup exceptions for a student
-func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(ctx context.Context, studentID int64) error {
-	if err := s.exceptionRepo.DeleteByStudentID(ctx, studentID); err != nil {
-		return &ScheduleError{Op: "delete all student pickup exceptions", Err: err}
-	}
-	return nil
-}
-
-// Note operations
-
-// GetStudentPickupNoteByID returns a pickup note by its ID
-func (s *pickupScheduleService) GetStudentPickupNoteByID(ctx context.Context, noteID int64) (*schedule.StudentPickupNote, error) {
-	note, err := s.noteRepo.FindByID(ctx, noteID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup note by id", Err: err}
-	}
-	return note, nil
-}
-
-// GetStudentPickupNotes returns all pickup notes for a student
-func (s *pickupScheduleService) GetStudentPickupNotes(ctx context.Context, studentID int64) ([]*schedule.StudentPickupNote, error) {
-	notes, err := s.noteRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup notes", Err: err}
-	}
-	return notes, nil
-}
-
-// GetStudentPickupNotesForDate returns pickup notes for a student on a specific date
-func (s *pickupScheduleService) GetStudentPickupNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*schedule.StudentPickupNote, error) {
-	notes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup notes for date", Err: err}
-	}
-	return notes, nil
-}
-
-// CreateStudentPickupNote creates a new pickup note
-func (s *pickupScheduleService) CreateStudentPickupNote(ctx context.Context, note *schedule.StudentPickupNote) error {
-	if err := note.Validate(); err != nil {
-		return &ScheduleError{Op: "create student pickup note", Err: err}
-	}
-
-	note.SetTenantID(tenant.FromContext(ctx))
-	if err := s.noteRepo.Create(ctx, note); err != nil {
-		return &ScheduleError{Op: "create student pickup note", Err: err}
-	}
-	return nil
-}
-
-// UpdateStudentPickupNote updates an existing pickup note
-func (s *pickupScheduleService) UpdateStudentPickupNote(ctx context.Context, note *schedule.StudentPickupNote) error {
-	if err := note.Validate(); err != nil {
-		return &ScheduleError{Op: "update student pickup note", Err: err}
-	}
-
-	if err := s.noteRepo.Update(ctx, note); err != nil {
-		return &ScheduleError{Op: "update student pickup note", Err: err}
-	}
-	return nil
-}
-
-// DeleteStudentPickupNote deletes a pickup note by ID
-func (s *pickupScheduleService) DeleteStudentPickupNote(ctx context.Context, noteID int64) error {
-	if err := s.noteRepo.Delete(ctx, noteID); err != nil {
-		return &ScheduleError{Op: "delete student pickup note", Err: err}
-	}
-	return nil
-}
-
-// DeleteAllStudentPickupNotes deletes all pickup notes for a student
-func (s *pickupScheduleService) DeleteAllStudentPickupNotes(ctx context.Context, studentID int64) error {
-	if err := s.noteRepo.DeleteByStudentID(ctx, studentID); err != nil {
-		return &ScheduleError{Op: "delete all student pickup notes", Err: err}
-	}
-	return nil
-}
-
-// Computed operations
-
-// GetStudentPickupData returns combined schedule, exception, and note data for a student.
-// Returns all exceptions and notes (not just upcoming) to support week view navigation to past weeks.
-func (s *pickupScheduleService) GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error) {
-	schedules, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetStudentPickupData, Err: err}
-	}
-
-	exceptions, err := s.exceptionRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetStudentPickupData, Err: err}
-	}
-
-	notes, err := s.noteRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetStudentPickupData, Err: err}
-	}
-
 	return &StudentPickupData{
-		Schedules:  schedules,
-		Exceptions: exceptions,
-		Notes:      notes,
+		Schedules:  data.Schedules,
+		Exceptions: data.Exceptions,
+		Notes:      data.Notes,
 	}, nil
 }
 
-// GetEffectivePickupTimeForDate calculates the effective pickup time for a specific date
-func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectivePickupTime, error) {
-	weekday := int(date.Weekday())
-
-	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
-	if weekday == 0 {
-		weekday = 7
-	}
-
-	result := &EffectivePickupTime{
-		Date:        date,
-		WeekdayName: schedule.WeekdayNames[weekday],
-	}
-
-	// Weekend check
-	if weekday > schedule.WeekdayFriday {
-		return result, nil
-	}
-
-	// Check for exception on this date first
-	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+func (s *pickupScheduleService) GetEffectivePickupTimeForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+) (*EffectivePickupTime, error) {
+	result, err := s.core.EffectiveTimeForDate(ctx, studentID, date)
 	if err != nil {
-		return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
+		return nil, err
 	}
-
-	if exception != nil {
-		result.IsException = true
-		result.PickupTime = exception.PickupTime
-		if reason := pickupNoteOverride(exception.Reason); reason != "" {
-			result.Notes = reason
-		} else {
-			sched, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
-			if err != nil {
-				return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
-			}
-			result.Notes = pickupScheduleNotes(sched)
-		}
-	} else {
-		// Fall back to regular schedule
-		sched, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
-		if err != nil {
-			return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
-		}
-
-		if sched != nil {
-			result.PickupTime = &sched.PickupTime
-			result.Notes = pickupScheduleNotes(sched)
-		}
-	}
-
-	// Load day notes
-	dayNotes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
-	}
-	for _, n := range dayNotes {
-		result.DayNotes = append(result.DayNotes, NoteData{ID: n.ID, Content: n.Content})
-	}
-
-	return result, nil
+	return pickupEffectiveTime(result), nil
 }
 
-// GetBulkEffectivePickupTimesForDate calculates effective pickup times for multiple students on a given date
-// Uses bulk database queries for optimal performance (O(2) queries instead of O(N))
-func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error) {
-	if len(studentIDs) == 0 {
-		return make(map[int64]*EffectivePickupTime), nil
-	}
-
-	weekday := int(date.Weekday())
-
-	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
-	if weekday == 0 {
-		weekday = 7
-	}
-
-	result := make(map[int64]*EffectivePickupTime, len(studentIDs))
-
-	// Initialize results for all students
-	for _, studentID := range studentIDs {
-		result[studentID] = &EffectivePickupTime{
-			Date:        date,
-			WeekdayName: schedule.WeekdayNames[weekday],
-		}
-	}
-
-	// Weekend check - all students have no pickup time
-	if weekday > schedule.WeekdayFriday {
-		return result, nil
-	}
-
-	// Bulk fetch all exceptions for the given date (single query)
-	exceptions, err := s.exceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetBulkEffectivePickupTimes, Err: err}
-	}
-
-	// Build exception map for O(1) lookup
-	exceptionMap := make(map[int64]*schedule.StudentPickupException, len(exceptions))
-	for _, exc := range exceptions {
-		exceptionMap[exc.StudentID] = exc
-	}
-
-	// Bulk fetch all schedules for the given weekday (single query)
-	schedules, err := s.scheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetBulkEffectivePickupTimes, Err: err}
-	}
-
-	// Build schedule map for O(1) lookup
-	scheduleMap := make(map[int64]*schedule.StudentPickupSchedule, len(schedules))
-	for _, sched := range schedules {
-		scheduleMap[sched.StudentID] = sched
-	}
-
-	// Bulk fetch all notes for the given date (single query)
-	notes, err := s.noteRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetBulkEffectivePickupTimes, Err: err}
-	}
-
-	// Build notes map for grouping by student
-	notesMap := make(map[int64][]*schedule.StudentPickupNote)
-	for _, n := range notes {
-		notesMap[n.StudentID] = append(notesMap[n.StudentID], n)
-	}
-
-	// Merge results: exception takes precedence over schedule
-	mergePickupResults(studentIDs, result, exceptionMap, scheduleMap, notesMap)
-
-	return result, nil
-}
-
-// mergePickupResults merges exception, schedule, and note data into effective pickup times
-func mergePickupResults(
+func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(
+	ctx context.Context,
 	studentIDs []int64,
-	result map[int64]*EffectivePickupTime,
-	exceptionMap map[int64]*schedule.StudentPickupException,
-	scheduleMap map[int64]*schedule.StudentPickupSchedule,
-	notesMap map[int64][]*schedule.StudentPickupNote,
-) {
-	for _, studentID := range studentIDs {
-		r := result[studentID]
-		sched := scheduleMap[studentID]
-
-		// Check for exception first (takes priority)
-		if exc, ok := exceptionMap[studentID]; ok {
-			r.IsException = true
-			r.PickupTime = exc.PickupTime
-			if reason := pickupNoteOverride(exc.Reason); reason != "" {
-				r.Notes = reason
-			} else {
-				r.Notes = pickupScheduleNotes(sched)
-			}
-		} else if sched != nil {
-			// Fall back to regular schedule
-			r.PickupTime = &sched.PickupTime
-			r.Notes = pickupScheduleNotes(sched)
-		}
-
-		// Attach day notes
-		if dayNotes, ok := notesMap[studentID]; ok {
-			for _, n := range dayNotes {
-				r.DayNotes = append(r.DayNotes, NoteData{ID: n.ID, Content: n.Content})
-			}
-		}
+	date timezone.Date,
+) (map[int64]*EffectivePickupTime, error) {
+	results, err := s.core.BulkEffectiveTimesForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
 	}
+	mapped := make(map[int64]*EffectivePickupTime, len(results))
+	for studentID, result := range results {
+		mapped[studentID] = pickupEffectiveTime(result)
+	}
+	return mapped, nil
 }
 
-func pickupNoteOverride(reason *string) string {
-	if reason == nil {
-		return ""
+func pickupEffectiveTime(result *effectiveTimeResult) *EffectivePickupTime {
+	mapped := &EffectivePickupTime{
+		Date:        result.Date,
+		PickupTime:  result.Time,
+		WeekdayName: result.WeekdayName,
+		IsException: result.IsException,
+		Notes:       result.Notes,
 	}
-
-	return strings.TrimSpace(*reason)
-}
-
-func pickupScheduleNotes(sched *schedule.StudentPickupSchedule) string {
-	if sched == nil || sched.Notes == nil {
-		return ""
+	for _, note := range result.DayNotes {
+		mapped.DayNotes = append(mapped.DayNotes, NoteData(note))
 	}
-
-	return strings.TrimSpace(*sched.Notes)
-}
-
-// GetWeeklySchedulesByStudentIDsAndWeekday returns the raw weekly pickup
-// schedules of many students for one weekday.
-func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentPickupSchedule, error) {
-	return s.scheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+	return mapped
 }

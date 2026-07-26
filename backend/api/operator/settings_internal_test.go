@@ -1,14 +1,10 @@
 package operator
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,8 +14,8 @@ func TestNewSettingsResource(t *testing.T) {
 	assert.NotNil(t, res)
 	assert.Nil(t, res.settingsService)
 	assert.Nil(t, res.db)
-	assert.Nil(t, res.broadcaster)
 	assert.Nil(t, res.schoolService)
+	assert.NotNil(t, res.operatorSettings)
 }
 
 func TestRenderOperatorSettingsError_DefinitionNotFound(t *testing.T) {
@@ -87,42 +83,4 @@ func TestRenderOperatorSettingsError_NonSettingsError(t *testing.T) {
 	renderOperatorSettingsError(w, r, err)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
-func TestEnforcePresenceModeSwitchGuard_IgnoresOtherKeys(t *testing.T) {
-	err := enforcePresenceModeSwitchGuard(
-		context.Background(),
-		nil,
-		configModel.KeyCheckoutSchulhofEnabled,
-		false,
-	)
-	assert.NoError(t, err)
-}
-
-func TestEnforcePresenceModeSwitchGuard_ForceBypass(t *testing.T) {
-	err := enforcePresenceModeSwitchGuard(
-		context.Background(),
-		nil,
-		configModel.KeyPresenceMode,
-		true,
-	)
-	assert.NoError(t, err)
-}
-
-func TestErrPresenceModeSwitchBlocked_IsSentinel(t *testing.T) {
-	wrapped := fmt.Errorf("set value: %w", ErrPresenceModeSwitchBlocked)
-	assert.True(t, errors.Is(wrapped, ErrPresenceModeSwitchBlocked))
-
-	other := errors.New(errPresenceModeSwitchBlockedMsg)
-	assert.False(t, errors.Is(other, ErrPresenceModeSwitchBlocked))
-}
-
-func TestEnforcePresenceModeSwitchGuard_NonPresenceForceIsNoop(t *testing.T) {
-	err := enforcePresenceModeSwitchGuard(
-		context.Background(),
-		nil,
-		configModel.KeyCheckoutSchulhofEnabled,
-		true,
-	)
-	assert.NoError(t, err)
 }

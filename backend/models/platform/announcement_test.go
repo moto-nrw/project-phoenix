@@ -193,11 +193,6 @@ func TestAnnouncement_IsDraft_NotNil(t *testing.T) {
 	assert.False(t, a.IsDraft())
 }
 
-func TestAnnouncement_TableName(t *testing.T) {
-	a := &Announcement{}
-	assert.Equal(t, "platform.announcements", a.TableName())
-}
-
 func TestAnnouncement_GetID(t *testing.T) {
 	a := &Announcement{}
 	a.ID = 123

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // MFA method constants accepted by the v1 implementation.
@@ -24,20 +23,6 @@ type MFACredential struct {
 	LastUsedAt *time.Time `bun:"last_used_at" json:"last_used_at,omitempty"`
 }
 
-// BeforeAppendModel keeps the schema-qualified table name on UPDATE/DELETE.
-func (c *MFACredential) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.mfa_credentials AS "mfa_credential"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.mfa_credentials AS "mfa_credential"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (c *MFACredential) TableName() string { return "auth.mfa_credentials" }
-
 // Validate ensures the credential references a valid method.
 func (c *MFACredential) Validate() error {
 	if c.AccountID == 0 {
@@ -48,12 +33,3 @@ func (c *MFACredential) Validate() error {
 	}
 	return nil
 }
-
-// GetID returns the entity's primary key. Required by base.Entity.
-func (c *MFACredential) GetID() interface{} { return c.ID }
-
-// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
-func (c *MFACredential) GetCreatedAt() time.Time { return c.CreatedAt }
-
-// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
-func (c *MFACredential) GetUpdatedAt() time.Time { return c.UpdatedAt }

@@ -1,6 +1,10 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+import type {
+  CompanionExtensionConfirmation,
+  StudentCompanion,
+} from "./student-companion-api";
 import {
   LOCATION_STATUSES,
   parseLocation,
@@ -113,9 +117,12 @@ export function formatPickupDays(value?: PickupDays | null): string {
 // exclusive choice per weekday: the child goes home alone ("alleine"), rides
 // the bus ("bus"), or is collected by a person ("pickup"). departure_days is
 // the single source of truth on the backend; bus_days/pickup_days are derived.
-export type DepartureMode = "alone" | "bus" | "pickup";
+export type DepartureMode = "alone" | "bus" | "pickup" | "accompanied";
 export type DepartureDayKey = BusDayKey;
 export type DepartureDays = Partial<Record<DepartureDayKey, DepartureMode>>;
+export type AllowedDepartureModes = Partial<
+  Record<DepartureDayKey, DepartureMode[]>
+>;
 
 export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
   key: DepartureDayKey;
@@ -128,21 +135,41 @@ export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
   { key: "fri", label: "Freitag" },
 ] as const;
 
-/** German labels for the three departure modes (shown in forms and badges). */
+/** German labels for the departure modes (shown in forms and badges). */
 const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
-  alone: "Geht alleine",
+  alone: "Geht zu Fuß",
   bus: "Fährt Bus",
   pickup: "Wird abgeholt",
+  accompanied: "Mit anderem Kind",
 };
 
-/** Mode for a weekday, defaulting to "alone" for any day not set to bus/pickup. */
-export function departureModeFor(
-  value: DepartureDays | null | undefined,
-  key: DepartureDayKey,
-): DepartureMode {
-  const mode = value?.[key];
-  return mode === "bus" || mode === "pickup" ? mode : "alone";
-}
+/** Short labels for the departure modes, used in compact badges (editor pills
+ *  and the read-only Stammdaten matrix). */
+export const DEPARTURE_MODE_SHORT_LABELS: Record<DepartureMode, string> = {
+  alone: "Zu Fuß",
+  bus: "Bus",
+  pickup: "Abgeholt",
+  accompanied: "Anderes Kind",
+};
+
+/**
+ * Quiet read-only pill for displaying a selected departure arrangement in the
+ * Stammdaten view, so the matrix sits calmly next to the plain text fields
+ * around it instead of shouting in color (the per-mode colors, incl. the
+ * accompanied magenta from #1694, were dropped — the mode is conveyed by its
+ * label, not a color). The editor keeps its checkboxes; only the active fill
+ * was neutralized there.
+ */
+export const CARE_DISPLAY_PILL =
+  "inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700";
+
+/** Canonical render order for departure modes (stable badge ordering). */
+const DEPARTURE_MODE_ORDER: readonly DepartureMode[] = [
+  "alone",
+  "bus",
+  "pickup",
+  "accompanied",
+];
 
 export function normalizeDepartureDays(
   value?: DepartureDays | null,
@@ -150,16 +177,90 @@ export function normalizeDepartureDays(
   const out: DepartureDays = {};
   for (const day of DEPARTURE_WEEKDAYS) {
     const mode = value?.[day.key];
-    if (mode === "bus" || mode === "pickup") out[day.key] = mode;
+    if (mode === "bus" || mode === "pickup" || mode === "accompanied")
+      out[day.key] = mode;
   }
   return out;
 }
 
-export function departureDaysHaveAny(value?: DepartureDays | null): boolean {
-  return DEPARTURE_WEEKDAYS.some((day) => {
-    const mode = value?.[day.key];
-    return mode === "bus" || mode === "pickup";
+export function normalizeAllowedDepartureModes(
+  value?: AllowedDepartureModes | null,
+): AllowedDepartureModes {
+  const out: AllowedDepartureModes = {};
+  for (const day of DEPARTURE_WEEKDAYS) {
+    const raw = value?.[day.key];
+    if (!Array.isArray(raw)) continue;
+    const modes = (["alone", "bus", "pickup", "accompanied"] as const).filter(
+      (mode) => raw.includes(mode),
+    );
+    if (modes.length > 0) out[day.key] = modes;
+  }
+  return out;
+}
+
+/**
+ * Stable identity of a departure plan, equal exactly when
+ * allowedDepartureModesEqual is (both read the normalized plan, so missing days
+ * and unordered mode arrays produce the same string).
+ *
+ * Needed where a plan has to be COMPARED AGAINST ITS OWN EARLIER SELF across an
+ * async boundary rather than against another value: the companion refresh hook
+ * remembers what a running save submitted, and a plan edited while that save is
+ * in flight must not be mistaken for the one it carried (#1694).
+ */
+export function allowedDepartureModesFingerprint(
+  value?: AllowedDepartureModes | null,
+): string {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.map(
+    (day) => `${day.key}:${(normalized[day.key] ?? []).join(",")}`,
+  ).join("|");
+}
+
+/** Semantic equality of two departure plans: same modes on every weekday after
+ *  normalization, so shape noise (missing days, duplicate or unordered mode
+ *  arrays) does not read as a change. Used for dirty checks and for deciding
+ *  whether a save can have touched the Laufgemeinschaft links (#1694). */
+export function allowedDepartureModesEqual(
+  a?: AllowedDepartureModes | null,
+  b?: AllowedDepartureModes | null,
+): boolean {
+  const left = normalizeAllowedDepartureModes(a);
+  const right = normalizeAllowedDepartureModes(b);
+  return DEPARTURE_WEEKDAYS.every((day) => {
+    const leftModes = left[day.key] ?? [];
+    const rightModes = right[day.key] ?? [];
+    return (
+      leftModes.length === rightModes.length &&
+      leftModes.every((mode, idx) => mode === rightModes[idx])
+    );
   });
+}
+
+/** Reports whether any weekday allows the accompanied ("Mit anderem Kind")
+ *  departure mode. Reads the unified allowed_departure_modes when present and
+ *  falls back to the exclusive departure_days, so it works on every form shape
+ *  (#1694). */
+export function allowedModesIncludeAccompanied(
+  allowed?: AllowedDepartureModes | null,
+  departureDays?: DepartureDays | null,
+): boolean {
+  return accompaniedWeekdayKeys(allowed, departureDays).length > 0;
+}
+
+/** The weekdays on which the plan allows the accompanied ("Mit anderem Kind")
+ *  departure mode, in Mon..Fri order. The "mit wem" requirement is checked PER
+ *  DAY — a Monday link answers nothing for an accompanied Tuesday — so callers
+ *  validating companion coverage need the days, not just a boolean (#1694). */
+export function accompaniedWeekdayKeys(
+  allowed?: AllowedDepartureModes | null,
+  departureDays?: DepartureDays | null,
+): DepartureDayKey[] {
+  return DEPARTURE_WEEKDAYS.filter(
+    (day) =>
+      (allowed?.[day.key]?.includes("accompanied") ?? false) ||
+      departureDays?.[day.key] === "accompanied",
+  ).map((day) => day.key);
 }
 
 /** Folds the legacy bus/pickup maps into the unified map. Pickup wins on a
@@ -176,37 +277,146 @@ export function departureDaysFromLegacy(
   return out;
 }
 
-/** Derives the legacy bus_days map (days whose mode is "bus") for consumers
- *  and partial updates that still read it. */
-export function departureToBusDays(value?: DepartureDays | null): BusDays {
-  const out: BusDays = {};
+export function allowedDepartureModesFromDeparture(
+  value?: DepartureDays | null,
+): AllowedDepartureModes {
+  const out: AllowedDepartureModes = {};
   for (const day of DEPARTURE_WEEKDAYS) {
-    if (value?.[day.key] === "bus") out[day.key] = true;
+    const mode = value?.[day.key];
+    if (mode === "bus" || mode === "pickup" || mode === "accompanied")
+      out[day.key] = [mode];
   }
   return out;
 }
 
-/** Derives the legacy pickup_days map (days whose mode is "pickup"). */
-export function departureToPickupDays(
-  value?: DepartureDays | null,
+function allowedDepartureModesFromLegacy(
+  bus?: BusDays | null,
+  pickup?: PickupDays | null,
+): AllowedDepartureModes {
+  const out: AllowedDepartureModes = {};
+  for (const day of DEPARTURE_WEEKDAYS) {
+    const modes: DepartureMode[] = [];
+    if (bus?.[day.key]) modes.push("bus");
+    if (pickup?.[day.key]) modes.push("pickup");
+    if (modes.length > 0) out[day.key] = modes;
+  }
+  return out;
+}
+
+export function allowedDepartureToBusDays(
+  value?: AllowedDepartureModes | null,
+): BusDays {
+  const out: BusDays = {};
+  for (const day of DEPARTURE_WEEKDAYS) {
+    if (value?.[day.key]?.includes("bus")) out[day.key] = true;
+  }
+  return out;
+}
+
+export function allowedDepartureToPickupDays(
+  value?: AllowedDepartureModes | null,
 ): PickupDays {
   const out: PickupDays = {};
   for (const day of DEPARTURE_WEEKDAYS) {
-    if (value?.[day.key] === "pickup") out[day.key] = true;
+    if (value?.[day.key]?.includes("pickup")) out[day.key] = true;
   }
   return out;
 }
 
-/** Compact summary, e.g. "Mo: Fährt Bus, Mi: Wird abgeholt" or a fallback. */
-export function formatDepartureDays(value?: DepartureDays | null): string {
-  const parts = DEPARTURE_WEEKDAYS.filter((day) => {
-    const mode = value?.[day.key];
-    return mode === "bus" || mode === "pickup";
-  }).map(
-    (day) =>
-      `${day.label.slice(0, 2)}: ${DEPARTURE_MODE_LABELS[value![day.key]!]}`,
+export function allowedDepartureToDepartureDays(
+  value?: AllowedDepartureModes | null,
+): DepartureDays {
+  const out: DepartureDays = {};
+  for (const day of DEPARTURE_WEEKDAYS) {
+    const modes = value?.[day.key] ?? [];
+    if (modes.includes("pickup")) out[day.key] = "pickup";
+    else if (modes.includes("bus")) out[day.key] = "bus";
+    else if (modes.includes("accompanied")) out[day.key] = "accompanied";
+  }
+  return out;
+}
+
+export function formatAllowedDepartureModes(
+  value?: AllowedDepartureModes | null,
+): string {
+  const normalized = normalizeAllowedDepartureModes(value);
+  const parts = DEPARTURE_WEEKDAYS.flatMap((day) => {
+    const modes = normalized[day.key] ?? [];
+    if (modes.length === 0) return [];
+    return [
+      `${day.label.slice(0, 2)}: ${modes
+        .map((mode) => DEPARTURE_MODE_LABELS[mode])
+        .join(", ")}`,
+    ];
+  });
+  return parts.length > 0 ? parts.join("; ") : "Geht immer alleine";
+}
+
+/**
+ * Compact day-only summary for the "Erlaubte Heimwege" badge. Lists just the
+ * weekdays that have any departure mode configured (e.g. "Mo, Di, Fr"), mirroring
+ * formatBusDays/formatPickupDays. Unlike formatAllowedDepartureModes it omits the
+ * per-day modes, so the badge stays single-line even when every weekday has bus
+ * and pickup — the full breakdown lives in the editor rows right below it.
+ */
+export function formatAllowedDepartureDays(
+  value?: AllowedDepartureModes | null,
+): string {
+  const normalized = normalizeAllowedDepartureModes(value);
+  const labels = DEPARTURE_WEEKDAYS.filter(
+    (day) => (normalized[day.key]?.length ?? 0) > 0,
+  ).map((day) => day.label.slice(0, 2));
+  return labels.length > 0 ? labels.join(", ") : "Geht immer alleine";
+}
+
+export interface DepartureMatrixRow {
+  readonly key: DepartureDayKey;
+  /** Full weekday label, e.g. "Montag". */
+  readonly label: string;
+  /** Two-letter weekday label, e.g. "Mo". */
+  readonly short: string;
+  /** Allowed modes for the day in canonical order; never empty — a day with no
+   *  configured arrangement folds to ["alone"] (the child leaves on its own). */
+  readonly modes: DepartureMode[];
+}
+
+/**
+ * Builds the per-weekday rows for the read-only "Erlaubte Heimwege" matrix
+ * (Mo–Fr). A weekday with no configured mode folds to ["alone"], mirroring
+ * formatAllowedDepartureModes' "goes alone" semantics. Modes are returned in the
+ * canonical DEPARTURE_MODE_ORDER so badges render in a stable order.
+ */
+export function departureMatrixRows(
+  value?: AllowedDepartureModes | null,
+): DepartureMatrixRow[] {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.map((day) => {
+    const modes = normalized[day.key] ?? [];
+    const ordered = DEPARTURE_MODE_ORDER.filter((mode) => modes.includes(mode));
+    return {
+      key: day.key,
+      label: day.label,
+      short: day.label.slice(0, 2),
+      modes: ordered.length > 0 ? ordered : ["alone"],
+    };
+  });
+}
+
+/**
+ * True when at least one weekday has a non-alone arrangement (bus, pickup or
+ * accompanied), i.e. the child does not simply go home alone every day. Used to
+ * collapse the matrix to a single "Geht immer alleine" line when there is
+ * nothing meaningful to show.
+ */
+export function hasAnyDepartureArrangement(
+  value?: AllowedDepartureModes | null,
+): boolean {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.some((day) =>
+    (normalized[day.key] ?? []).some(
+      (mode) => mode === "bus" || mode === "pickup" || mode === "accompanied",
+    ),
   );
-  return parts.length > 0 ? parts.join(", ") : "Geht immer alleine";
 }
 
 /**
@@ -242,6 +452,7 @@ export interface BackendStudent {
   bus_days?: BusDays;
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   sick?: boolean;
   sick_since?: string;
   excused?: boolean;
@@ -251,14 +462,43 @@ export interface BackendStudent {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
+  // Parent's note for a still-pending "entschuldigt" request covering today
+  // (operations.parent_excused_requires_approval). Informational only — it does
+  // NOT change day_planning_status; the child stays "expected" until the OGS
+  // confirms. Absent when there is no pending excused request for today.
+  pending_excused_note?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_email?: string;
   guardian_phone?: string;
   group_id?: number;
   group_name?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   scheduled_checkout?: ScheduledCheckoutInfo;
   extra_info?: string;
+  departure_companion_note?: string;
+  companion_student_ids?: number[];
+  /** Write-only: the complete "läuft mit" list submitted with the plan. The id
+   *  stays the string the frontend holds — the backend accepts a quoted
+   *  decimal, which is exact for every int64. */
+  companions?: { companion_student_id: string; weekdays: string[] }[];
+  /**
+   * Write-only: fingerprint of the list the client loaded before it built
+   * `companions`. The backend compares it against the stored links under the
+   * child's row lock and refuses a replacement built on a snapshot someone else
+   * has since replaced (409 `companions_changed`) instead of deleting their
+   * links.
+   */
+  companions_fingerprint?: string;
+  /** Write-only: confirms widening a linked child's own departure plan. */
+  extend_companion_plans?: boolean;
+  /** Write-only: the children and weekdays that confirmation actually covered. */
+  confirmed_companion_extensions?: {
+    companion_student_id: string;
+    weekdays: string[];
+  }[];
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -367,6 +607,7 @@ export interface Student {
   // Unified per-weekday departure mode (alone/bus/pickup), the source of truth
   // for how the child leaves; bus_days/pickup_days are derived from it (#1610).
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
@@ -379,10 +620,17 @@ export interface Student {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
+  // Parent's note for a still-pending "entschuldigt" request covering today.
+  // Informational only — the child stays "expected" (day_planning_status
+  // unchanged) until an office/admin confirms the request.
+  pending_excused_note?: string;
   name_lg?: string;
   contact_lg?: string;
   guardian_email?: string;
   guardian_phone?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   custom_users_id?: string;
   // Privacy consent data (fetched separately)
   privacy_consent?: PrivacyConsent;
@@ -397,6 +645,25 @@ export interface Student {
   attendance_log_enabled?: boolean;
   // Extra information visible only to supervisors
   extra_info?: string;
+  // Free-text "mit wem" for the accompanied departure mode (#1694)
+  departure_companion_note?: string;
+  /** Children this child walks home with on the shown day (Laufgemeinschaft).
+   *  Only present when the list was fetched with include_companions. Backend
+   *  int64 ids, carried as strings per the type-mapping rule. */
+  companion_student_ids?: string[];
+  /** The child's Laufgemeinschaft. Loaded from the companions endpoint and
+   *  submitted back with the departure plan it belongs to; omitting it leaves
+   *  the stored links untouched. */
+  companions?: StudentCompanion[];
+  /** Write-only: fingerprint of the LOADED list, so the backend can refuse a
+   *  replacement built on a snapshot someone else has since replaced instead of
+   *  deleting their links (409 `companions_changed`). */
+  companions_fingerprint?: string;
+  /** Write-only: confirms widening a linked child's own departure plan. */
+  extend_companion_plans?: boolean;
+  /** Write-only: the children and weekdays that confirmation actually covered.
+   *  Without them the backend treats the confirmation as unanswered. */
+  confirmed_companion_extensions?: CompanionExtensionConfirmation[];
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -457,6 +724,14 @@ export function mapStudentResponse(
     bus: busDaysHaveAny(backendStudent.bus_days),
     bus_days: normalizeBusDays(backendStudent.bus_days),
     pickup_days: normalizePickupDays(backendStudent.pickup_days),
+    allowed_departure_modes: backendStudent.allowed_departure_modes
+      ? normalizeAllowedDepartureModes(backendStudent.allowed_departure_modes)
+      : backendStudent.departure_days
+        ? allowedDepartureModesFromDeparture(backendStudent.departure_days)
+        : allowedDepartureModesFromLegacy(
+            backendStudent.bus_days,
+            backendStudent.pickup_days,
+          ),
     // departure_days is authoritative; fall back to folding the legacy maps for
     // older payloads that predate it (#1610).
     departure_days: backendStudent.departure_days
@@ -474,12 +749,20 @@ export function mapStudentResponse(
     day_planning_status: backendStudent.day_planning_status,
     day_planning_reason: backendStudent.day_planning_reason,
     day_planning_label: backendStudent.day_planning_label,
+    pending_excused_note: backendStudent.pending_excused_note,
     name_lg: backendStudent.guardian_name ?? undefined,
     contact_lg: backendStudent.guardian_contact ?? undefined,
     guardian_email: backendStudent.guardian_email,
     guardian_phone: backendStudent.guardian_phone,
+    address_street: backendStudent.address_street,
+    address_city: backendStudent.address_city,
+    address_postal_code: backendStudent.address_postal_code,
     custom_users_id: undefined, // Not provided by backend
     extra_info: backendStudent.extra_info,
+    departure_companion_note: backendStudent.departure_companion_note,
+    // Backend int64 ids → strings at the mapping boundary (type-mapping rule);
+    // ids above Number.MAX_SAFE_INTEGER must never live as JS numbers.
+    companion_student_ids: backendStudent.companion_student_ids?.map(String),
     birthday: backendStudent.birthday,
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
@@ -549,11 +832,19 @@ export function prepareStudentForBackend(
     tag_id?: string;
     guardian_email?: string;
     guardian_phone?: string;
+    address_street?: string;
+    address_city?: string;
+    address_postal_code?: string;
     extra_info?: string;
+    departure_companion_note?: string;
     birthday?: string;
     health_info?: string;
     supervisor_notes?: string;
     pickup_status?: string;
+    companions?: { companion_student_id: string; weekdays: string[] }[];
+    companions_fingerprint?: string;
+    extend_companion_plans?: boolean;
+    confirmed_companion_extensions?: CompanionExtensionConfirmation[];
   },
 ): Partial<BackendStudent> {
   return {
@@ -576,6 +867,10 @@ export function prepareStudentForBackend(
       student.pickup_days !== undefined
         ? normalizePickupDays(student.pickup_days)
         : undefined,
+    allowed_departure_modes:
+      student.allowed_departure_modes !== undefined
+        ? normalizeAllowedDepartureModes(student.allowed_departure_modes)
+        : undefined,
     // departure_days is the unified source of truth (#1610); when provided the
     // backend derives bus_days/pickup_days/pickup_status from it.
     departure_days:
@@ -590,7 +885,40 @@ export function prepareStudentForBackend(
     tag_id: student.tag_id,
     guardian_email: student.guardian_email,
     guardian_phone: student.guardian_phone,
+    address_street: student.address_street,
+    address_city: student.address_city,
+    address_postal_code: student.address_postal_code,
     extra_info: student.extra_info,
+    departure_companion_note: student.departure_companion_note,
+    // Laufgemeinschaft ("läuft mit"). Only sent when the caller actually
+    // edited it — an omitted key leaves the stored links untouched, while []
+    // clears them.
+    // The id travels as the string the frontend holds: the backend accepts a
+    // quoted decimal for exactly this reason. Converting to a JS number would
+    // round an id beyond Number.MAX_SAFE_INTEGER to a DIFFERENT child's id.
+    companions: student.companions?.map((companion) => ({
+      companion_student_id: companion.companion_student_id,
+      weekdays: companion.weekdays,
+    })),
+    // The fingerprint of the list the form LOADED, so the backend can refuse a
+    // write built on a snapshot someone else has since replaced instead of
+    // silently deleting their links.
+    //
+    // Sent WITHOUT a list too: the departure plan removes links on its own (the
+    // backend trims every weekday the new plan no longer allows), and the forms
+    // resubmit their whole plan on every save — so a plan that rode along on a
+    // stale load deletes a fresh edge exactly like a stale list would. The
+    // backend refuses such a removal unless this claim matches what is stored.
+    companions_fingerprint: student.companions_fingerprint,
+    extend_companion_plans: student.extend_companion_plans,
+    // What the user confirmed, not just that they confirmed something: the
+    // backend refuses to widen a conflict these entries do not cover.
+    confirmed_companion_extensions: student.confirmed_companion_extensions?.map(
+      (entry) => ({
+        companion_student_id: entry.companion_student_id,
+        weekdays: entry.weekdays,
+      }),
+    ),
     // Convert empty string to undefined for date fields (Go backend expects null or valid date)
     birthday:
       student.birthday && student.birthday.trim() !== ""
@@ -620,7 +948,11 @@ export interface UpdateStudentRequest {
   tag_id?: string;
   guardian_email?: string;
   guardian_phone?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   extra_info?: string;
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -629,6 +961,7 @@ export interface UpdateStudentRequest {
   bus_days?: BusDays;
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   sick?: boolean;
   /** Optional free-text reason stamped on today's sick day when marking sick. */
   sick_reason?: string;
@@ -651,8 +984,12 @@ export interface BackendUpdateRequest {
   guardian_contact?: string;
   guardian_email?: string;
   guardian_phone?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   group_id?: number;
   extra_info?: string;
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -661,10 +998,27 @@ export interface BackendUpdateRequest {
   bus_days?: BusDays;
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   sick?: boolean;
   sick_reason?: string;
   excused?: boolean;
   photo_consent_given?: boolean;
+  /** Laufgemeinschaft: the child's complete "läuft mit" list. Omit to leave
+   *  the links untouched; [] clears them. */
+  companions?: { companion_student_id: string; weekdays: string[] }[];
+  /** Fingerprint of the companion list the client loaded before building
+   *  `companions`. Mandatory whenever `companions` is present (including []) —
+   *  the backend rejects the update without it. Build it with
+   *  `companionsFingerprint()`. */
+  companions_fingerprint?: string;
+  /** Confirms widening a linked child's own departure plan (answer to the 409
+   *  conflict). */
+  extend_companion_plans?: boolean;
+  /** The children and weekdays that confirmation covered. */
+  confirmed_companion_extensions?: {
+    companion_student_id: string;
+    weekdays: string[];
+  }[];
 }
 
 // Map privacy consent from backend to frontend
@@ -707,7 +1061,11 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "contact_lg", target: "guardian_contact" },
   { source: "guardian_email", target: "guardian_email" },
   { source: "guardian_phone", target: "guardian_phone" },
+  { source: "address_street", target: "address_street" },
+  { source: "address_city", target: "address_city" },
+  { source: "address_postal_code", target: "address_postal_code" },
   { source: "extra_info", target: "extra_info" },
+  { source: "departure_companion_note", target: "departure_companion_note" },
   { source: "birthday", target: "birthday" },
   { source: "health_info", target: "health_info" },
   { source: "supervisor_notes", target: "supervisor_notes" },
@@ -715,6 +1073,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   // departure_days is the single source of truth (#1610); bus_days/pickup_days
   // are still accepted by the backend for partial legacy updates.
   { source: "departure_days", target: "departure_days" },
+  { source: "allowed_departure_modes", target: "allowed_departure_modes" },
   { source: "bus_days", target: "bus_days" },
   { source: "pickup_days", target: "pickup_days" },
   { source: "sick", target: "sick" },

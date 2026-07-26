@@ -146,6 +146,13 @@ function runSearch(fuse: HelpFuse, rawQuery: string): HelpSearchHit[] {
         boost += 400; // title prefix
       else if (titleFold.includes(fullFold)) boost += 200; // phrase in title
       if (entry.tokenHits === matchTokens.length) boost += 100; // all words matched
+      // Word-aligned title hits beat substring-in-word hits: "raum" as a
+      // prefix of the title word "raume" outranks "raum" buried inside
+      // "kalenderzeitraume".
+      const titleWords = titleFold.split(/\s+/);
+      for (const token of matchTokens) {
+        if (titleWords.some((word) => word.startsWith(token))) boost += 50;
+      }
       return { ...entry, boost };
     })
     .sort(
@@ -189,7 +196,7 @@ interface PanelRect {
  * identically on every help page. Recomputed on open, resize, and scroll.
  */
 function usePanelRect(
-  anchorRef: React.RefObject<HTMLDivElement | null>,
+  anchorRef: React.RefObject<HTMLElement | null>,
   open: boolean,
 ): PanelRect | undefined {
   const [rect, setRect] = useState<PanelRect>();
@@ -472,7 +479,7 @@ export function HelpSearchInline() {
   );
   const [dismissed, setDismissed] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const baseId = useId();
@@ -523,7 +530,7 @@ export function HelpSearchInline() {
       if (event.key === "Escape") setDismissed(true);
     };
     document.addEventListener("mousedown", onPointer);
-    document.addEventListener("touchstart", onPointer);
+    document.addEventListener("touchstart", onPointer, { passive: true });
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onPointer);
@@ -566,7 +573,7 @@ export function HelpSearchInline() {
     : undefined;
 
   return (
-    <div ref={containerRef} role="search">
+    <search ref={containerRef}>
       <SearchBar
         value={query}
         onChange={handleChange}
@@ -624,7 +631,7 @@ export function HelpSearchInline() {
             document.body,
           )
         : null}
-    </div>
+    </search>
   );
 }
 

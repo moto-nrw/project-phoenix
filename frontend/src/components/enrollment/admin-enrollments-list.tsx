@@ -12,12 +12,15 @@ import {
   ExternalLink,
   FileText,
   LockKeyhole,
+  MessageSquare,
   type LucideIcon,
   Settings2,
 } from "lucide-react";
 import {
+  type AdminEnrollmentChangeRequest,
   type AdminRequestSummary,
   type ChildStatus,
+  listAdminEnrollmentChangeRequests,
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
@@ -28,9 +31,11 @@ import {
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
 import { fetchSettingsSchema } from "~/lib/settings-api";
+import { Alert } from "~/components/ui/alert";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
 
@@ -56,6 +61,7 @@ interface CareOfferingStats {
 
 export function AdminEnrollmentsList() {
   const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [careOfferingStats, setCareOfferingStats] = useState<CareOfferingStats>(
@@ -65,6 +71,12 @@ export function AdminEnrollmentsList() {
     null,
   );
   const [allRequests, setAllRequests] = useState<AdminRequestSummary[]>([]);
+  const [changeRequests, setChangeRequests] = useState<
+    AdminEnrollmentChangeRequest[]
+  >([]);
+  const [changeRequestsError, setChangeRequestsError] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
@@ -74,14 +86,33 @@ export function AdminEnrollmentsList() {
     async function load() {
       setLoading(true);
       setError(null);
+      setChangeRequestsError(null);
       try {
-        const [phasesData, allRequestsData, schemasData, settingsData] =
-          await Promise.all([
-            listPhases(),
-            listAdminRequests(),
-            listSchemas().catch(() => [] as FormSchema[]),
-            fetchSettingsSchema().catch(() => null),
-          ]);
+        const [
+          phasesData,
+          allRequestsData,
+          changeRequestsResult,
+          schemasData,
+          settingsData,
+        ] = await Promise.all([
+          listPhases(),
+          listAdminRequests(),
+          listAdminEnrollmentChangeRequests()
+            .then((data) => ({ data, error: null as string | null }))
+            .catch((err) => {
+              const message =
+                err instanceof Error ? err.message : "Unbekannter Fehler";
+              logger.error("admin_change_requests_load_failed", {
+                error: message,
+              });
+              return {
+                data: [] as AdminEnrollmentChangeRequest[],
+                error: message,
+              };
+            }),
+          listSchemas().catch(() => [] as FormSchema[]),
+          fetchSettingsSchema().catch(() => null),
+        ]);
         const offeringLists = await Promise.all(
           phasesData.map((phase) =>
             listCareOfferings(phase.id).catch(() => []),
@@ -90,6 +121,8 @@ export function AdminEnrollmentsList() {
         if (cancelled) return;
         setPhases(phasesData);
         setAllRequests(allRequestsData);
+        setChangeRequests(changeRequestsResult.data);
+        setChangeRequestsError(changeRequestsResult.error);
         setSchemas(schemasData);
         const activePhaseIds = new Set(
           phasesData
@@ -147,6 +180,12 @@ export function AdminEnrollmentsList() {
         requestCount={allRequests.length}
       />
 
+      <ChangeRequestsOverview
+        error={changeRequestsError}
+        requests={changeRequests}
+        tenantPath={tenantPath}
+      />
+
       {error && (
         <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
           {error}
@@ -157,8 +196,75 @@ export function AdminEnrollmentsList() {
         phases={phases}
         requests={allRequests}
         tenantSlug={tenantSlug}
+        tenantPath={tenantPath}
       />
     </div>
+  );
+}
+
+function ChangeRequestsOverview({
+  error,
+  requests,
+  tenantPath,
+}: Readonly<{
+  error: string | null;
+  requests: AdminEnrollmentChangeRequest[];
+  tenantPath: (path: string) => string;
+}>) {
+  const pending = requests.filter((row) => row.status === "pending_review");
+  const waitingForParent = requests.filter(
+    (row) => row.status === "needs_parent_response",
+  );
+  const openCount = pending.length + waitingForParent.length;
+
+  return (
+    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
+            <MessageSquare className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+              Änderungen
+            </p>
+            <h2 className="mt-1 text-base font-semibold text-gray-900">
+              Änderungsanfragen
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+              Familien können nach einer Entscheidung Korrekturen einreichen.
+              Offene Anfragen prüfst du gesammelt in der Review-Ansicht.
+            </p>
+          </div>
+        </div>
+        <Link
+          href={tenantPath("/admin/enrollments/change-requests")}
+          className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
+        >
+          Anfragen prüfen
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
+      {error ? (
+        <div className="mt-4">
+          <Alert
+            type="error"
+            message="Änderungsanfragen konnten nicht geladen werden. Die Zahlen sind unbekannt."
+          />
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <PhaseStat label="Offen" value={pending.length} />
+          <PhaseStat label="Rückfragen" value={waitingForParent.length} />
+          <PhaseStat label="Gesamt" value={requests.length} />
+        </div>
+      )}
+      {!error && openCount === 0 ? (
+        <p className="mt-3 text-sm text-gray-500">
+          Aktuell wartet keine Änderungsanfrage auf Bearbeitung.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -181,6 +287,7 @@ function readEnrollmentEnabled(
 
 function formatPhaseDate(value: string): string {
   return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -197,10 +304,12 @@ function EnrollmentPhaseOverview({
   phases,
   requests,
   tenantSlug,
+  tenantPath,
 }: Readonly<{
   phases: Phase[];
   requests: AdminRequestSummary[];
   tenantSlug: string | null;
+  tenantPath: (path: string) => string;
 }>) {
   const phaseStats = useMemo(() => {
     const stats = new Map<
@@ -322,7 +431,9 @@ function EnrollmentPhaseOverview({
                   <PhasePublicLinkActions
                     phase={phase}
                     tenantSlug={tenantSlug}
-                    enrollmentsHref={`/admin/enrollments/phases/${phase.id}`}
+                    enrollmentsHref={tenantPath(
+                      `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
+                    )}
                   />
                 </div>
               </div>
@@ -359,7 +470,7 @@ function PhasePublicLinkActions({
         rel="noreferrer"
         className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
-        Phase ansehen
+        Formular ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </a>
       <Link

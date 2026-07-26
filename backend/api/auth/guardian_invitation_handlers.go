@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -61,13 +59,13 @@ type AcceptGuardianInvitationResponse struct {
 
 func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.GuardianInvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
 	if token == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("token is required")))
 		return
 	}
 
@@ -86,7 +84,7 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -104,19 +102,19 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 
 func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.GuardianInvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
 	if token == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("token is required")))
 		return
 	}
 
 	req := &AcceptGuardianInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -138,7 +136,7 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 	}
 	if err != nil {
 		if !renderAcceptError(w, r, err) {
-			common.RenderError(w, r, ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}
@@ -167,41 +165,10 @@ func (rs *Resource) lookupTenantSlugForGuardianInvitation(ctx context.Context, t
 
 func (rs *Resource) resendGuardianInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.GuardianInvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
-
-	idParam := chi.URLParam(r, "id")
-	invitationID, err := strconv.ParseInt(idParam, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid invitation id")))
-		return
-	}
-
-	claims := jwt.ClaimsFromCtx(r.Context())
-
-	ctx := r.Context()
-	if rs.db != nil {
-		err = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-			return rs.GuardianInvitationService.Resend(txCtx, invitationID, int64(claims.ID))
-		})
-	} else {
-		err = rs.GuardianInvitationService.Resend(ctx, invitationID, int64(claims.ID))
-	}
-	if err != nil {
-		if errors.Is(err, authService.ErrInvitationExpired) {
-			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationExpired))
-			return
-		}
-		if renderInvitationError(w, r, err) {
-			return
-		}
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	slog.Default().Info("guardian invitation resend requested",
-		slog.Int64("invitation_id", invitationID),
-		slog.Int64("account_id", int64(claims.ID)))
-	common.Respond(w, r, http.StatusOK, map[string]string{"message": "Guardian invitation resent"}, "Guardian invitation resent successfully")
+	rs.resendInvitationHandler(w, r,
+		rs.GuardianInvitationService.Resend,
+		"guardian invitation resend requested", "Guardian invitation resent", "Guardian invitation resent successfully")
 }

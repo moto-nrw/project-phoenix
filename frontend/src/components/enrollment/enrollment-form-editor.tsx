@@ -5,10 +5,13 @@ import { createPortal } from "react-dom";
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import {
   ArrowLeft,
@@ -18,6 +21,7 @@ import {
   Eye,
   ExternalLink,
   FileText,
+  FileUp,
   GripVertical,
   HelpCircle,
   Info,
@@ -27,21 +31,28 @@ import {
   Pencil,
   Plus,
   ShieldCheck,
+  TextCursorInput,
   Trash2,
 } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { FormModal } from "~/components/ui/form-modal";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
   blankField,
   blankInfoField,
   createSchema,
+  deleteEnrollmentLegalDocument,
   deleteSchema,
   fetchPublicLegalTexts,
   latestSchemasByName,
   listSchemas,
+  renameSchema,
   updateSchema,
+  uploadEnrollmentLegalDocument,
   RESERVED_TARGETS,
   type ConditionOperator,
   type ConditionSource,
@@ -50,6 +61,7 @@ import {
   type FormFieldType,
   type FormLegalBlock,
   type FormSchema,
+  type LegalBlockDisplayMode,
   type CoreRequirementKey,
   type CoreRequirements,
   type PublicLegalTexts,
@@ -57,7 +69,11 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
+import {
+  copyStableObjectKey,
+  getStableObjectKey,
+} from "~/lib/stable-object-key";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -73,6 +89,7 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   weekday_schedule: "Wochenzeiten",
   weekday_boolean: "Wochentage",
   weekday_mode: "Geh- und Abholregelung",
+  weekday_multi_mode: "Erlaubte Heimwege",
   contact_list: "Kontaktliste",
 };
 
@@ -104,6 +121,7 @@ const structuredFieldTypes = new Set<FormFieldType>([
   "weekday_schedule",
   "weekday_boolean",
   "weekday_mode",
+  "weekday_multi_mode",
   "contact_list",
 ]);
 
@@ -113,6 +131,7 @@ const structuredFieldTypes = new Set<FormFieldType>([
 const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
   "student.health_info": "Gesundheitsinformationen beim Kind speichern",
   "student.extra_info": "Hinweise für die Betreuung beim Kind speichern",
+  "student.allowed_departure_modes": "Erlaubte Heimwege beim Kind speichern",
   "student.departure": "Geh- und Abholregelung beim Kind speichern",
   "student.bus_days": "Buskind beim Kind speichern",
   "student.bus": "Buskind beim Kind speichern",
@@ -129,6 +148,7 @@ const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
 // targets superseded by the unified student.departure (#1610); they are
 // excluded so new fields can only pick the canonical unified target.
 const LEGACY_PICKER_TARGETS = new Set<Exclude<FormFieldTarget, "">>([
+  "student.departure",
   "student.bus",
   "student.bus_days",
   "student.pickup_status",
@@ -149,6 +169,8 @@ const targetSuggestionDescriptions: Record<
     "Für Allergien, Medikamente oder andere Gesundheitsangaben.",
   "student.extra_info":
     "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
+  "student.allowed_departure_modes":
+    "Für Betreuungstage festlegen, welche Heimwege erlaubt sind: zu Fuß, Bus, Abholung oder mit anderem Kind. Mit Betreuungsangeboten sehen Eltern nur die gewählten Betreuungstage; als Pflichtfrage ist pro Betreuungstag mindestens ein Heimweg nötig.",
   "student.departure":
     "Für die Wochentage festlegen, wie das Kind nach Hause geht: geht alleine, fährt Bus oder wird abgeholt.",
   "student.bus_days":
@@ -163,6 +185,8 @@ const targetSuggestionDescriptions: Record<
 };
 
 const NEW_SCHEMA_VALUE = "__new__";
+const LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE =
+  "Bitte warte, bis der PDF-Upload abgeschlossen ist.";
 type EditorMode = "overview" | "builder" | "detail";
 type PendingNavigation = "overview" | "new" | "preview";
 
@@ -216,6 +240,9 @@ const STANDARD_LEGAL_BLOCKS: FormLegalBlock[] = [
     source: "standard",
   },
 ];
+
+const LEGAL_BLOCK_DISPLAY_MODE_TEXT = "text" satisfies LegalBlockDisplayMode;
+const LEGAL_BLOCK_DISPLAY_MODE_PDF = "pdf" satisfies LegalBlockDisplayMode;
 
 interface CoreField {
   readonly key: string;
@@ -290,6 +317,17 @@ const CORE_FIELDS: ReadonlyArray<CoreField> = [
   },
 ];
 
+// True when newName is a non-empty rename of schema's current name. The
+// single source of truth for "is this a rename?" shared by both entry
+// points: the builder's inline name field and the standalone rename dialog.
+function isRenameOf(
+  schema: FormSchema | null | undefined,
+  newName: string,
+): boolean {
+  const trimmed = newName.trim();
+  return Boolean(schema) && trimmed.length > 0 && trimmed !== schema?.name;
+}
+
 export function EnrollmentFormEditor() {
   const toast = useToast();
   const tenantSlug = useTenantSlugSafe();
@@ -315,6 +353,16 @@ export function EnrollmentFormEditor() {
     useState<PendingNavigation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FormSchema | null>(null);
   const [deletingSchemaId, setDeletingSchemaId] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<FormSchema | null>(null);
+  const uploadedDraftDocumentURLsRef = useRef<Set<string>>(new Set());
+  const savingDraftDocumentURLsRef = useRef<Set<string>>(new Set());
+  const unmountedRef = useRef(false);
+  const [uploadedDraftDocumentURLs, setUploadedDraftDocumentURLs] = useState<
+    Set<string>
+  >(() => new Set());
+  const [uploadingLegalDocumentCount, setUploadingLegalDocumentCount] =
+    useState(0);
+  const hasPendingLegalDocumentUpload = uploadingLegalDocumentCount > 0;
 
   const latestByName = useMemo(
     () => latestSchemasByName(allSchemas),
@@ -352,6 +400,108 @@ export function EnrollmentFormEditor() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  const setDraftDocumentURLs = useCallback(
+    (updater: (urls: Set<string>) => Set<string>) => {
+      const next = updater(new Set(uploadedDraftDocumentURLsRef.current));
+      uploadedDraftDocumentURLsRef.current = next;
+      setUploadedDraftDocumentURLs(next);
+    },
+    [],
+  );
+
+  const rememberDraftDocumentURL = useCallback(
+    (documentURL: string) => {
+      const trimmed = documentURL.trim();
+      if (!trimmed) return;
+      setDraftDocumentURLs((urls) => {
+        urls.add(trimmed);
+        return urls;
+      });
+    },
+    [setDraftDocumentURLs],
+  );
+
+  const forgetDraftDocumentURL = useCallback(
+    (documentURL: string) => {
+      setDraftDocumentURLs((urls) => {
+        urls.delete(documentURL);
+        return urls;
+      });
+    },
+    [setDraftDocumentURLs],
+  );
+
+  const forgetDraftDocumentURLs = useCallback(
+    (documentURLs: Iterable<string>) => {
+      setDraftDocumentURLs((urls) => {
+        for (const documentURL of documentURLs) {
+          urls.delete(documentURL);
+        }
+        return urls;
+      });
+    },
+    [setDraftDocumentURLs],
+  );
+
+  const beginLegalDocumentUpload = useCallback(() => {
+    setUploadingLegalDocumentCount((count) => count + 1);
+  }, []);
+
+  const endLegalDocumentUpload = useCallback(() => {
+    setUploadingLegalDocumentCount((count) => Math.max(0, count - 1));
+  }, []);
+
+  const cleanupDraftDocumentURLs = useCallback(
+    async ({
+      keepalive = false,
+      notify = true,
+      urlsToKeep = new Set<string>(),
+    }: {
+      keepalive?: boolean;
+      notify?: boolean;
+      urlsToKeep?: ReadonlySet<string>;
+    } = {}) => {
+      const urls = Array.from(uploadedDraftDocumentURLsRef.current).filter(
+        (url) => !urlsToKeep.has(url),
+      );
+      if (urls.length === 0) return;
+      const results = await Promise.allSettled(
+        urls.map((url) => deleteEnrollmentLegalDocument(url, { keepalive })),
+      );
+      const deletedURLs = urls.filter(
+        (_, index) => results[index]?.status === "fulfilled",
+      );
+      if (deletedURLs.length > 0) {
+        forgetDraftDocumentURLs(deletedURLs);
+      }
+      if (notify && results.some((result) => result.status === "rejected")) {
+        toast.error(
+          "Nicht alle ungespeicherten PDF-Dateien konnten bereinigt werden.",
+        );
+      }
+    },
+    [forgetDraftDocumentURLs, toast],
+  );
+
+  useEffect(() => {
+    unmountedRef.current = false;
+
+    return () => {
+      unmountedRef.current = true;
+      const urls = Array.from(uploadedDraftDocumentURLsRef.current).filter(
+        (url) => !savingDraftDocumentURLsRef.current.has(url),
+      );
+      uploadedDraftDocumentURLsRef.current = new Set(
+        Array.from(uploadedDraftDocumentURLsRef.current).filter((url) =>
+          savingDraftDocumentURLsRef.current.has(url),
+        ),
+      );
+      for (const url of urls) {
+        void deleteEnrollmentLegalDocument(url, { keepalive: true });
+      }
+    };
+  }, []);
 
   const selectSchema = (schema: FormSchema, nextMode: EditorMode) => {
     setSelectedKey(schema.id);
@@ -398,6 +548,25 @@ export function EnrollmentFormEditor() {
     }
   };
 
+  const requestRenameSchema = (schema: FormSchema) => {
+    setRenameTarget(schema);
+  };
+
+  // Rename touches every version row of the lineage in one PATCH; it
+  // does NOT publish a new version. Throws on failure so the dialog can
+  // surface the backend message (e.g. a name already in use).
+  const confirmRenameSchema = async (newName: string) => {
+    if (!renameTarget) return;
+    const updated = await renameSchema(renameTarget.id, newName);
+    await loadAll();
+    // Keep the builder's name field in sync if this template is open.
+    if (selectedKey === renameTarget.id) {
+      setName(updated.name);
+    }
+    toast.success(`Vorlage in „${updated.name}" umbenannt.`);
+    setRenameTarget(null);
+  };
+
   const startNew = () => {
     setSelectedKey(NEW_SCHEMA_VALUE);
     setName("");
@@ -415,7 +584,11 @@ export function EnrollmentFormEditor() {
 
   const updateField = (index: number, patch: Partial<FormField>) => {
     setFields((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, ...patch } : f)),
+      prev.map((field, i) =>
+        i === index
+          ? copyStableObjectKey(field, { ...field, ...patch })
+          : field,
+      ),
     );
   };
 
@@ -445,7 +618,9 @@ export function EnrollmentFormEditor() {
     setFields((prev) =>
       prev
         .filter((_, i) => i !== index)
-        .map((f, i) => ({ ...f, sort_order: i })),
+        .map((field, i) =>
+          copyStableObjectKey(field, { ...field, sort_order: i }),
+        ),
     );
   };
 
@@ -457,7 +632,9 @@ export function EnrollmentFormEditor() {
       const tmp = next[index];
       next[index] = next[target]!;
       next[target] = tmp!;
-      return next.map((f, i) => ({ ...f, sort_order: i }));
+      return next.map((field, i) =>
+        copyStableObjectKey(field, { ...field, sort_order: i }),
+      );
     });
   };
 
@@ -502,6 +679,15 @@ export function EnrollmentFormEditor() {
     () => legalBlocksSignature(standardLegalBlocks),
     [standardLegalBlocks],
   );
+  // Split the edit-mode dirty check into its two independent axes so the
+  // save path can tell a pure rename (name only) from a content change.
+  // A name-only edit must rename in place without publishing a redundant
+  // new version (which is what updateSchema does).
+  const editNameChanged = name.trim() !== (currentSchema?.name ?? "");
+  const editContentChanged =
+    currentFieldSignature !== savedFieldSignature ||
+    savedCoreRequirementSignature !== currentCoreRequirementSignature ||
+    savedLegalBlocksSignature !== currentLegalBlocksSignature;
   const hasUnsavedChanges =
     mode === "builder" &&
     (isCreating
@@ -509,15 +695,17 @@ export function EnrollmentFormEditor() {
         fields.length > 0 ||
         currentCoreRequirementSignature !== "{}" ||
         currentLegalBlocksSignature !== standardLegalBlocksSignature
-      : currentFieldSignature !== savedFieldSignature ||
-        savedCoreRequirementSignature !== currentCoreRequirementSignature ||
-        savedLegalBlocksSignature !== currentLegalBlocksSignature);
+      : editNameChanged || editContentChanged);
   const saveBlockedMessage = getSchemaDraftValidationMessage({
     fields,
     legalBlocks,
-    isCreating,
     name,
   });
+  const pendingUploadMessage = hasPendingLegalDocumentUpload
+    ? LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE
+    : null;
+  const effectiveSaveBlockedMessage =
+    saveBlockedMessage ?? pendingUploadMessage;
 
   const saveSchema = async (
     nextMode: EditorMode = "detail",
@@ -528,7 +716,6 @@ export function EnrollmentFormEditor() {
       const validationMessage = getSchemaDraftValidationMessage({
         fields,
         legalBlocks,
-        isCreating,
         name,
       });
       if (validationMessage) {
@@ -536,9 +723,22 @@ export function EnrollmentFormEditor() {
         toast.error(validationMessage);
         return null;
       }
+      if (hasPendingLegalDocumentUpload) {
+        setError(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+        toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+        return null;
+      }
 
       const fieldsForSave = prepareFieldsForSave(fields);
       const legalBlocksForSave = prepareLegalBlocksForSave(legalBlocks);
+      const referencedDraftDocumentURLs = draftDocumentURLsInLegalBlocks(
+        legalBlocksForSave,
+        uploadedDraftDocumentURLsRef.current,
+      );
+      savingDraftDocumentURLsRef.current = referencedDraftDocumentURLs;
+      await cleanupDraftDocumentURLs({
+        urlsToKeep: referencedDraftDocumentURLs,
+      });
       let result: FormSchema;
       if (isCreating) {
         result = await createSchema(
@@ -547,17 +747,40 @@ export function EnrollmentFormEditor() {
           coreRequirements,
           legalBlocksForSave,
         );
+      } else if (isRenameOf(currentSchema, name) && !editContentChanged) {
+        // Name-only change: rename the lineage in place. We deliberately
+        // skip updateSchema here so a pure rename doesn't publish a
+        // redundant identical version (and re-point bound phases). This
+        // matches the standalone "Umbenennen" dialog's semantics.
+        result = await renameSchema(selectedKey, name.trim());
       } else {
+        // Combined "rename + edit" save: pass the new name to updateSchema so
+        // the backend renames the lineage AND publishes the new version in ONE
+        // transaction. A failed publish rolls the rename back, so there is no
+        // partial "renamed but content unchanged" state and the local baseline
+        // can never drift from the database. renameTo is undefined when only
+        // the content changed, leaving the lineage name untouched.
+        const renameTo = isRenameOf(currentSchema, name)
+          ? name.trim()
+          : undefined;
         result = await updateSchema(
           selectedKey,
           fieldsForSave,
           coreRequirements,
           legalBlocksForSave,
+          renameTo,
         );
+      }
+      if (unmountedRef.current) {
+        uploadedDraftDocumentURLsRef.current = new Set();
+        savingDraftDocumentURLsRef.current = new Set();
+        return result;
       }
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
       const savedSchema = stillThere ?? result;
+      forgetDraftDocumentURLs(referencedDraftDocumentURLs);
+      savingDraftDocumentURLsRef.current = new Set();
       selectSchema(savedSchema, nextMode);
       toast.success(
         isCreating ? "Formularvorlage erstellt." : "Änderungen gespeichert.",
@@ -566,12 +789,23 @@ export function EnrollmentFormEditor() {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Speichern fehlgeschlagen";
-      logger.error("schema_save_failed", { error: message });
-      setError(message);
-      toast.error(message);
+      if (unmountedRef.current) {
+        const urls = Array.from(savingDraftDocumentURLsRef.current);
+        for (const url of urls) {
+          void deleteEnrollmentLegalDocument(url, { keepalive: true });
+        }
+        savingDraftDocumentURLsRef.current = new Set();
+      } else {
+        logger.error("schema_save_failed", { error: message });
+        setError(message);
+        toast.error(message);
+      }
       return null;
     } finally {
-      setSaving(false);
+      if (!unmountedRef.current) {
+        savingDraftDocumentURLsRef.current = new Set();
+        setSaving(false);
+      }
     }
   };
 
@@ -580,6 +814,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestBackToOverview = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (hasUnsavedChanges) {
       setPendingNavigation("overview");
       return;
@@ -588,6 +826,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestStartNew = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (hasUnsavedChanges) {
       setPendingNavigation("new");
       return;
@@ -604,6 +846,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestExternalPreview = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (!hasUnsavedChanges && currentSchema) {
       openPreviewWindow(currentSchema.id);
       return;
@@ -611,9 +857,10 @@ export function EnrollmentFormEditor() {
     setPendingNavigation("preview");
   };
 
-  const discardPendingNavigation = () => {
+  const discardPendingNavigation = async () => {
     const pending = pendingNavigation;
     setPendingNavigation(null);
+    await cleanupDraftDocumentURLs();
     if (pending === "overview") {
       backToOverview();
       return;
@@ -671,6 +918,7 @@ export function EnrollmentFormEditor() {
           onCreate={startNew}
           onEdit={editSchema}
           onPreview={previewSchema}
+          onRename={requestRenameSchema}
           onDelete={requestRemoveSchema}
           error={error}
         />
@@ -679,6 +927,11 @@ export function EnrollmentFormEditor() {
           deleting={deletingSchemaId === deleteTarget?.id}
           onClose={() => setDeleteTarget(null)}
           onConfirm={confirmRemoveSchema}
+        />
+        <RenameSchemaDialog
+          schema={renameTarget}
+          onClose={() => setRenameTarget(null)}
+          onConfirm={confirmRenameSchema}
         />
       </>
     );
@@ -704,7 +957,7 @@ export function EnrollmentFormEditor() {
           <button
             type="button"
             onClick={requestBackToOverview}
-            disabled={saving}
+            disabled={saving || hasPendingLegalDocumentUpload}
             className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -735,6 +988,11 @@ export function EnrollmentFormEditor() {
               standardBlocks={standardLegalBlocks}
               onChange={setLegalBlocks}
               disabled={saving}
+              draftDocumentURLs={uploadedDraftDocumentURLs}
+              onDraftDocumentUploaded={rememberDraftDocumentURL}
+              onDraftDocumentDeleted={forgetDraftDocumentURL}
+              onUploadStart={beginLegalDocumentUpload}
+              onUploadEnd={endLegalDocumentUpload}
             />
 
             <section className="space-y-4">
@@ -790,7 +1048,7 @@ export function EnrollmentFormEditor() {
                 <div className="space-y-3">
                   {fields.map((field, index) => (
                     <FieldEditorRow
-                      key={`custom-field-${index}`}
+                      key={getStableObjectKey(field, "custom-field")}
                       field={field}
                       index={index}
                       total={fields.length}
@@ -809,7 +1067,7 @@ export function EnrollmentFormEditor() {
                 <button
                   type="button"
                   onClick={requestStartNew}
-                  disabled={saving}
+                  disabled={saving || hasPendingLegalDocumentUpload}
                   className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
                 >
                   Zurücksetzen
@@ -817,7 +1075,7 @@ export function EnrollmentFormEditor() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || hasPendingLegalDocumentUpload}
                   className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving
@@ -857,8 +1115,8 @@ export function EnrollmentFormEditor() {
       </section>
       <UnsavedChangesDialog
         pendingNavigation={pendingNavigation}
-        saving={saving}
-        saveBlockedMessage={saveBlockedMessage}
+        saving={saving || hasPendingLegalDocumentUpload}
+        saveBlockedMessage={effectiveSaveBlockedMessage}
         onCancel={() => setPendingNavigation(null)}
         onDiscard={discardPendingNavigation}
         onSave={savePendingNavigation}
@@ -873,6 +1131,7 @@ function EnrollmentFormsOverview({
   onCreate,
   onEdit,
   onPreview,
+  onRename,
   onDelete,
   error,
 }: Readonly<{
@@ -881,6 +1140,7 @@ function EnrollmentFormsOverview({
   onCreate: () => void;
   onEdit: (schema: FormSchema) => void;
   onPreview: (schema: FormSchema) => void;
+  onRename: (schema: FormSchema) => void;
   onDelete: (schema: FormSchema) => void;
   error: string | null;
 }>) {
@@ -942,6 +1202,7 @@ function EnrollmentFormsOverview({
                 phases={phases}
                 onEdit={onEdit}
                 onPreview={onPreview}
+                onRename={onRename}
                 onDelete={onDelete}
               />
             </section>
@@ -964,12 +1225,14 @@ function TemplateOverviewList({
   phases,
   onEdit,
   onPreview,
+  onRename,
   onDelete,
 }: Readonly<{
   templates: FormSchema[];
   phases: Phase[];
   onEdit: (schema: FormSchema) => void;
   onPreview: (schema: FormSchema) => void;
+  onRename: (schema: FormSchema) => void;
   onDelete: (schema: FormSchema) => void;
 }>) {
   return (
@@ -982,6 +1245,7 @@ function TemplateOverviewList({
             schema={schema}
             onEdit={() => onEdit(schema)}
             onPreview={() => onPreview(schema)}
+            onRename={() => onRename(schema)}
             onDelete={() => onDelete(schema)}
             isAssigned={phases.some(
               (phase) => phase.form_schema_id === schema.id,
@@ -1036,12 +1300,14 @@ function TemplateOverviewRow({
   schema,
   onEdit,
   onPreview,
+  onRename,
   onDelete,
   isAssigned,
 }: Readonly<{
   schema: FormSchema;
   onEdit: () => void;
   onPreview: () => void;
+  onRename: () => void;
   onDelete: () => void;
   isAssigned: boolean;
 }>) {
@@ -1098,6 +1364,11 @@ function TemplateOverviewRow({
               label: "Bearbeiten",
               icon: <Pencil className="h-4 w-4" aria-hidden />,
               onClick: onEdit,
+            },
+            {
+              label: "Umbenennen",
+              icon: <TextCursorInput className="h-4 w-4" aria-hidden />,
+              onClick: onRename,
             },
             {
               label: "Löschen",
@@ -1584,6 +1855,103 @@ function DeleteSchemaDialog({
   );
 }
 
+function RenameSchemaDialog({
+  schema,
+  onClose,
+  onConfirm,
+}: Readonly<{
+  schema: FormSchema | null;
+  onClose: () => void;
+  onConfirm: (newName: string) => Promise<void>;
+}>) {
+  const [value, setValue] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset the field to the current name each time the dialog opens for a
+  // schema so the admin edits from the existing value.
+  useEffect(() => {
+    if (schema) {
+      setValue(schema.name);
+      setError(null);
+      setSubmitting(false);
+    }
+  }, [schema]);
+
+  const isOpen = schema !== null;
+  const trimmed = value.trim();
+  const canSubmit = isRenameOf(schema, value) && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onConfirm(trimmed);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Umbenennen fehlgeschlagen",
+      );
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Formular umbenennen"
+      size="sm"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => void submit()}
+            disabled={!canSubmit}
+            isLoading={submitting}
+          >
+            Speichern
+          </Button>
+        </div>
+      }
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+        className="space-y-3"
+      >
+        <Input
+          name="schema-name"
+          label="Name"
+          type="text"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder="z. B. Ferienbetreuung Sommer 2026"
+          error={error ?? undefined}
+          autoFocus
+        />
+        <p className="text-xs leading-5 text-gray-500">
+          Der neue Name gilt für alle Versionen dieser Vorlage. Bereits
+          abgeschickte Anmeldungen bleiben unverändert.
+        </p>
+      </form>
+    </FormModal>
+  );
+}
+
 function UnsavedChangesDialog({
   pendingNavigation,
   saving,
@@ -1599,94 +1967,68 @@ function UnsavedChangesDialog({
   onDiscard: () => void;
   onSave: () => void;
 }>) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!pendingNavigation) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onCancel, pendingNavigation]);
-
-  if (!mounted || !pendingNavigation) return null;
+  if (!pendingNavigation) return null;
 
   const isPreview = pendingNavigation === "preview";
-  const dialog = (
-    <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-950/35 p-4 backdrop-blur-sm"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="unsaved-form-dialog-title"
-        className="moto-content-surface w-full max-w-lg rounded-2xl border p-5 shadow-xl"
+  const footer = (
+    <>
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={saving}
+        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Ungespeicherte Änderungen
-        </p>
-        <h2
-          id="unsaved-form-dialog-title"
-          className="mt-1 text-lg font-semibold text-gray-900"
+        Abbrechen
+      </button>
+      {!isPreview ? (
+        <button
+          type="button"
+          onClick={onDiscard}
+          disabled={saving}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Änderungen speichern?
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          {isPreview
-            ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
-            : "Du hast Änderungen an dieser Vorlage. Speichere sie, bevor du den Bereich verlässt, oder verwirf sie bewusst."}
-        </p>
-        {saveBlockedMessage ? (
-          <div className="mt-4 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm font-medium text-[#9F1F1E]">
-            {saveBlockedMessage}
-          </div>
-        ) : null}
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={saving}
-            className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          {!isPreview ? (
-            <button
-              type="button"
-              onClick={onDiscard}
-              disabled={saving}
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Verwerfen
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving || Boolean(saveBlockedMessage)}
-            className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving
-              ? "Speichert..."
-              : isPreview
-                ? "Speichern und Vorschau öffnen"
-                : "Speichern und fortfahren"}
-          </button>
-        </div>
-      </section>
-    </div>
+          Verwerfen
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving || Boolean(saveBlockedMessage)}
+        className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {saving
+          ? "Speichert..."
+          : isPreview
+            ? "Speichern und Vorschau öffnen"
+            : "Speichern und fortfahren"}
+      </button>
+    </>
   );
 
-  return createPortal(dialog, document.body);
+  return (
+    <Modal
+      isOpen
+      onClose={onCancel}
+      title="Änderungen speichern?"
+      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
+      isDismissDisabled={saving}
+      footer={footer}
+    >
+      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        Ungespeicherte Änderungen
+      </p>
+      <p className="mt-2 text-sm leading-6 text-gray-600">
+        {isPreview
+          ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
+          : "Du hast Änderungen an dieser Vorlage. Speichere sie, bevor du den Bereich verlässt, oder verwirf sie bewusst."}
+      </p>
+      {saveBlockedMessage ? (
+        <div className="mt-4 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm font-medium text-[#9F1F1E]">
+          {saveBlockedMessage}
+        </div>
+      ) : null}
+    </Modal>
+  );
 }
 
 function FormBuilderIntro() {
@@ -1768,11 +2110,11 @@ function BuilderTemplateSummary({
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
             {isCreating
               ? "Gib der Vorlage einen eindeutigen Namen. Danach kannst du Pflichtangaben und Zusatzfragen festlegen."
-              : "Beim Speichern bleiben bestehende Anmeldungen nachvollziehbar."}
+              : "Der Name lässt sich hier ändern und gilt für alle Versionen. Bestehende Anmeldungen bleiben nachvollziehbar."}
           </p>
         </div>
 
-        {isCreating ? (
+        <div className="space-y-3">
           <label className="block">
             <span className="text-xs font-medium text-gray-700">
               Name der Vorlage
@@ -1786,25 +2128,28 @@ function BuilderTemplateSummary({
               className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
             />
           </label>
-        ) : (
-          <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {fields.length} Zusatzfragen
-            </span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {requiredCount} Pflicht-Zusatzfragen
-            </span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {childFieldCount} pro Kind
-            </span>
-          </div>
-        )}
+          {!isCreating ? (
+            <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                {fields.length} Zusatzfragen
+              </span>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                {requiredCount} Pflicht-Zusatzfragen
+              </span>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                {childFieldCount} pro Kind
+              </span>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {currentSchema ? (
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
           <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-            {new Date(currentSchema.created_at).toLocaleString("de-DE")}
+            {new Date(currentSchema.created_at).toLocaleString("de-DE", {
+              timeZone: "Europe/Berlin",
+            })}
           </span>
         </div>
       ) : null}
@@ -1870,21 +2215,39 @@ function LegalBlocksSection({
   standardBlocks,
   onChange,
   disabled,
+  draftDocumentURLs,
+  onDraftDocumentUploaded,
+  onDraftDocumentDeleted,
+  onUploadStart,
+  onUploadEnd,
 }: Readonly<{
   blocks: FormLegalBlock[];
   standardBlocks: FormLegalBlock[];
-  onChange: (blocks: FormLegalBlock[]) => void;
+  onChange: Dispatch<SetStateAction<FormLegalBlock[]>>;
   disabled: boolean;
+  draftDocumentURLs: ReadonlySet<string>;
+  onDraftDocumentUploaded: (documentURL: string) => void;
+  onDraftDocumentDeleted: (documentURL: string) => void;
+  onUploadStart: () => void;
+  onUploadEnd: () => void;
 }>) {
+  const toast = useToast();
   const [editingStandardKeys, setEditingStandardKeys] = useState<string[]>([]);
+  const [uploadingDocumentKey, setUploadingDocumentKey] = useState<
+    string | null
+  >(null);
+  const blocksRef = useRef(blocks);
+  useEffect(() => {
+    blocksRef.current = blocks;
+  }, [blocks]);
   const standardByKey = useMemo(
     () => new Map(standardBlocks.map((block) => [block.key, block])),
     [standardBlocks],
   );
 
   const updateBlock = (index: number, patch: Partial<FormLegalBlock>) => {
-    onChange(
-      blocks.map((block, i) => {
+    onChange((currentBlocks) =>
+      currentBlocks.map((block, i) => {
         if (i !== index) return block;
         const next = { ...block, ...patch };
         if (
@@ -1901,7 +2264,9 @@ function LegalBlocksSection({
   const resetStandardBlock = (index: number, key: string) => {
     const standardBlock = standardByKey.get(key);
     if (!standardBlock) return;
-    onChange(blocks.map((block, i) => (i === index ? standardBlock : block)));
+    onChange((currentBlocks) =>
+      currentBlocks.map((block, i) => (i === index ? standardBlock : block)),
+    );
     setEditingStandardKeys((keys) => keys.filter((value) => value !== key));
   };
   const editStandardBlock = (key: string) => {
@@ -1909,24 +2274,82 @@ function LegalBlocksSection({
       keys.includes(key) ? keys : [...keys, key],
     );
   };
+  const uploadAGBDocument = async (index: number, file: File | null) => {
+    if (!file) return;
+    setUploadingDocumentKey(blocks[index]?.key ?? null);
+    onUploadStart();
+    try {
+      const documentURL = await uploadEnrollmentLegalDocument(file);
+      const previousURL = (blocksRef.current[index]?.document_url ?? "").trim();
+      onChange((currentBlocks) => {
+        return currentBlocks.map((block, i) =>
+          i === index
+            ? {
+                ...block,
+                document_url: documentURL,
+                display_mode: LEGAL_BLOCK_DISPLAY_MODE_PDF,
+                enabled: true,
+              }
+            : block,
+        );
+      });
+      onDraftDocumentUploaded(documentURL);
+      if (
+        previousURL &&
+        previousURL !== documentURL &&
+        draftDocumentURLs.has(previousURL)
+      ) {
+        try {
+          await deleteEnrollmentLegalDocument(previousURL);
+          onDraftDocumentDeleted(previousURL);
+        } catch {
+          toast.error("Die vorherige PDF-Datei konnte nicht bereinigt werden.");
+        }
+      }
+      toast.success("AGB-PDF hochgeladen.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "PDF-Datei konnte nicht hochgeladen werden.",
+      );
+    } finally {
+      setUploadingDocumentKey(null);
+      onUploadEnd();
+    }
+  };
+  const removeAGBDocument = async (index: number) => {
+    const documentURL = (blocks[index]?.document_url ?? "").trim();
+    updateBlock(index, {
+      document_url: "",
+      display_mode: LEGAL_BLOCK_DISPLAY_MODE_TEXT,
+    });
+    if (!documentURL || !draftDocumentURLs.has(documentURL)) return;
+    try {
+      await deleteEnrollmentLegalDocument(documentURL);
+      onDraftDocumentDeleted(documentURL);
+    } catch {
+      toast.error("PDF-Datei konnte nicht bereinigt werden.");
+    }
+  };
   const addCustomBlock = () => {
-    onChange([
-      ...blocks,
+    onChange((currentBlocks) => [
+      ...currentBlocks,
       {
-        key: nextCustomLegalBlockKey(blocks),
+        key: nextCustomLegalBlockKey(currentBlocks),
         kind: "consent",
         title: "Weitere Einwilligung",
         label: "Ich stimme dieser Einwilligung zu.",
         text: "",
         required: false,
         enabled: true,
-        sort_order: blocks.length * 10 + 10,
+        sort_order: currentBlocks.length * 10 + 10,
         source: "custom",
       },
     ]);
   };
   const removeBlock = (index: number) => {
-    onChange(blocks.filter((_, i) => i !== index));
+    onChange((currentBlocks) => currentBlocks.filter((_, i) => i !== index));
   };
   const standardEntries = blocks
     .map((block, index) => ({ block, index }))
@@ -2023,18 +2446,34 @@ function LegalBlocksSection({
         />
       </label>
 
-      <label className="mt-3 block">
-        <span className="text-xs font-medium text-gray-700">
-          Rechtstext / Erklärung
-        </span>
-        <textarea
-          value={block.text}
+      {block.key === "agb" && block.source === "standard" ? (
+        <AGBTemplateSourceEditor
+          mode={legalBlockDisplayMode(block)}
+          onModeChange={(mode) => updateBlock(index, { display_mode: mode })}
+          textValue={block.text}
+          onTextChange={(value) => updateBlock(index, { text: value })}
+          documentURL={block.document_url ?? ""}
+          documentSaving={uploadingDocumentKey === block.key}
           disabled={disabled}
-          rows={4}
-          onChange={(event) => updateBlock(index, { text: event.target.value })}
-          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+          onDocumentUpload={(file) => uploadAGBDocument(index, file)}
+          onDocumentRemove={() => void removeAGBDocument(index)}
         />
-      </label>
+      ) : (
+        <label className="mt-3 block">
+          <span className="text-xs font-medium text-gray-700">
+            Rechtstext / Erklärung
+          </span>
+          <textarea
+            value={block.text}
+            disabled={disabled}
+            rows={4}
+            onChange={(event) =>
+              updateBlock(index, { text: event.target.value })
+            }
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+          />
+        </label>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <LegalBlockModeControl
@@ -2207,7 +2646,164 @@ function hasStandardLegalBlockOverride(
     block.title !== standardBlock.title ||
     block.label !== standardBlock.label ||
     block.text !== standardBlock.text ||
-    block.required !== standardBlock.required
+    block.required !== standardBlock.required ||
+    legalBlockDisplayMode(block) !== legalBlockDisplayMode(standardBlock) ||
+    (block.document_url ?? "") !== (standardBlock.document_url ?? "")
+  );
+}
+
+function AGBTemplateSourceEditor({
+  mode,
+  onModeChange,
+  textValue,
+  onTextChange,
+  documentURL,
+  documentSaving,
+  disabled,
+  onDocumentUpload,
+  onDocumentRemove,
+}: Readonly<{
+  mode: LegalBlockDisplayMode;
+  onModeChange: (mode: LegalBlockDisplayMode) => void;
+  textValue: string;
+  onTextChange: (value: string) => void;
+  documentURL: string;
+  documentSaving: boolean;
+  disabled: boolean;
+  onDocumentUpload: (file: File | null) => void;
+  onDocumentRemove: () => void;
+}>) {
+  const hasText = textValue.trim() !== "";
+  const hasDocument = documentURL.trim() !== "";
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_TEXT)}
+          disabled={disabled}
+          className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT
+              ? "border-[#5080D8] bg-[#5080D8]/10 text-gray-950 shadow-sm"
+              : "border-gray-200 bg-white text-gray-700 hover:border-[#5080D8]/40 hover:bg-[#5080D8]/5"
+          }`}
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <FileText className="h-4 w-4" aria-hidden="true" />
+            Text eingeben
+          </span>
+          <span className="mt-1 block text-xs text-gray-500">
+            Eltern lesen den Text direkt im Formular.
+          </span>
+          {hasText ? (
+            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
+              Text gespeichert
+            </span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_PDF)}
+          disabled={disabled}
+          className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            mode === LEGAL_BLOCK_DISPLAY_MODE_PDF
+              ? "border-[#5080D8] bg-[#5080D8]/10 text-gray-950 shadow-sm"
+              : "border-gray-200 bg-white text-gray-700 hover:border-[#5080D8]/40 hover:bg-[#5080D8]/5"
+          }`}
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <FileUp className="h-4 w-4" aria-hidden="true" />
+            PDF-Datei hochladen
+          </span>
+          <span className="mt-1 block text-xs text-gray-500">
+            Eltern öffnen im Formular einen PDF-Link.
+          </span>
+          {hasDocument ? (
+            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
+              PDF gespeichert
+            </span>
+          ) : null}
+        </button>
+      </div>
+
+      {mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT ? (
+        <label className="block">
+          <span className="text-xs font-medium text-gray-700">
+            Rechtstext / Erklärung
+          </span>
+          <textarea
+            value={textValue}
+            disabled={disabled}
+            rows={4}
+            onChange={(event) => onTextChange(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+          />
+        </label>
+      ) : (
+        <div className="rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/5 p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
+              <p className="mt-0.5 text-xs text-gray-600">
+                {hasDocument
+                  ? "Diese PDF wird in dieser Formularvorlage als Link angezeigt."
+                  : "Lade die AGB / Teilnahmebedingungen als PDF hoch."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#5080D8]/25 bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors hover:bg-[#5080D8]/10 ${
+                  disabled || documentSaving
+                    ? "pointer-events-none opacity-50"
+                    : ""
+                }`}
+              >
+                <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  disabled={disabled || documentSaving}
+                  onChange={(event) => {
+                    onDocumentUpload(event.currentTarget.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              {hasDocument ? (
+                <a
+                  href={publicAGBDocumentURL(documentURL)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Öffnen</span>
+                </a>
+              ) : null}
+              {hasDocument ? (
+                <button
+                  type="button"
+                  onClick={onDocumentRemove}
+                  disabled={disabled || documentSaving}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF3130]/20 bg-white px-2.5 py-1.5 font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Entfernen</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {documentSaving ? (
+            <p className="mt-2 text-xs text-gray-500">
+              PDF wird hochgeladen...
+            </p>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2399,7 +2995,9 @@ function CoreFieldRow({
         </div>
         <p className="mt-0.5 text-xs leading-5 text-gray-500">
           {field.requirementKey
-            ? (field.requirementHint ?? "Kann verpflichtend gemacht werden.")
+            ? required
+              ? (field.requirementHint ?? "Diese Angabe ist verpflichtend.")
+              : "Kann verpflichtend gemacht werden."
             : "Immer erforderlich und deshalb nicht änderbar."}
         </p>
       </div>
@@ -2520,6 +3118,22 @@ interface FieldEditorRowProps {
   readonly disabled: boolean;
 }
 
+interface AllowedTimeRow {
+  readonly id: string;
+  readonly value: string;
+}
+
+function createAllowedTimeRows(
+  values: readonly string[],
+  idPrefix: string,
+  sequence: { current: number },
+): AllowedTimeRow[] {
+  return values.map((value) => {
+    sequence.current += 1;
+    return { id: `${idPrefix}-${sequence.current}`, value };
+  });
+}
+
 function FieldEditorRow({
   field,
   index,
@@ -2531,6 +3145,8 @@ function FieldEditorRow({
   onMoveDown,
   disabled,
 }: FieldEditorRowProps) {
+  const allowedTimeIdPrefix = useId();
+  const allowedTimeSequence = useRef(0);
   const target = field.target || null;
   const isTargetField = target !== null;
   const isInfo = field.type === "information";
@@ -2562,6 +3178,74 @@ function FieldEditorRow({
       }));
     onChange({ options });
   };
+
+  // Local editing rows for the fixed pickup times: each row is one HH:MM
+  // time picker. Kept separate from field.allowed_times so a half-filled
+  // (empty) row can stay on screen while the admin picks a time; only the
+  // trimmed, de-duplicated, non-empty values are pushed up to the field.
+  const [allowedTimesRows, setAllowedTimesRows] = useState<AllowedTimeRow[]>(
+    () =>
+      createAllowedTimeRows(
+        field.allowed_times ?? [],
+        allowedTimeIdPrefix,
+        allowedTimeSequence,
+      ),
+  );
+  // Signature of the allowed_times we last pushed up via onChange. Used to
+  // tell an *external* change (a schema/template switch reusing this row at
+  // the same index — the row is keyed by index, not field identity, so the
+  // component instance is not remounted) from a *self-induced* one (our own
+  // commit echoing back through field.allowed_times). Only the former resets
+  // the local rows; the latter must not, or a half-filled empty row would be
+  // wiped on every keystroke.
+  const lastCommittedSig = useRef<string>(
+    (field.allowed_times ?? []).join("\n"),
+  );
+
+  useEffect(() => {
+    const incoming = field.allowed_times ?? [];
+    const incomingSig = incoming.join("\n");
+    if (incomingSig !== lastCommittedSig.current) {
+      lastCommittedSig.current = incomingSig;
+      setAllowedTimesRows(
+        createAllowedTimeRows(
+          incoming,
+          allowedTimeIdPrefix,
+          allowedTimeSequence,
+        ),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field.key, field.type, field.allowed_times]);
+
+  const commitAllowedTimes = (rows: AllowedTimeRow[]) => {
+    setAllowedTimesRows(rows);
+    const allowed_times = Array.from(
+      new Set(rows.map((row) => row.value.trim()).filter(Boolean)),
+    );
+    lastCommittedSig.current = allowed_times.join("\n");
+    onChange({ allowed_times });
+  };
+
+  const updateAllowedTime = (index: number, value: string) => {
+    const rows = [...allowedTimesRows];
+    const row = rows[index];
+    if (!row) return;
+    rows[index] = { ...row, value };
+    commitAllowedTimes(rows);
+  };
+
+  const addAllowedTime = () => {
+    const [row] = createAllowedTimeRows(
+      [""],
+      allowedTimeIdPrefix,
+      allowedTimeSequence,
+    );
+    if (row) commitAllowedTimes([...allowedTimesRows, row]);
+  };
+
+  const removeAllowedTime = (index: number) =>
+    commitAllowedTimes(allowedTimesRows.filter((_, i) => i !== index));
 
   return (
     <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
@@ -2749,6 +3433,7 @@ function FieldEditorRow({
                     ) : null}
                   </span>
                   <CustomSelect
+                    ariaLabel="Typ"
                     value={field.type}
                     onChange={(value) =>
                       onChange({ type: value as FormFieldType })
@@ -2796,6 +3481,55 @@ function FieldEditorRow({
                     className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   />
                 </label>
+              ) : null}
+
+              {field.target === "schedule.pickup" ? (
+                <div>
+                  <span className="text-xs font-medium text-gray-700">
+                    Feste Auswahlzeiten (optional)
+                  </span>
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Ohne Zeiten geben Eltern die Uhrzeit frei ein. Sobald Zeiten
+                    hinterlegt sind, wählen Eltern pro Wochentag nur aus dieser
+                    Liste.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={addAllowedTime}
+                    disabled={disabled}
+                    className="mt-2 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Zeit hinzufügen
+                  </button>
+                  {allowedTimesRows.length > 0 ? (
+                    <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {allowedTimesRows.map((row, index) => (
+                        <li key={row.id} className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={row.value}
+                            onChange={(event) =>
+                              updateAllowedTime(index, event.target.value)
+                            }
+                            disabled={disabled}
+                            aria-label={`Auswahlzeit ${index + 1}`}
+                            className="h-10 w-full min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeAllowedTime(index)}
+                            disabled={disabled}
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label={`Auswahlzeit ${index + 1} entfernen`}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
               ) : null}
 
               <div className="grid gap-2 sm:grid-cols-2">
@@ -2994,11 +3728,16 @@ function ConditionEditor({
 
       {condition ? (
         <div className="mt-3 space-y-2">
-          <label className="block" htmlFor={`condition-${index}-source`}>
+          <label
+            className="block"
+            htmlFor={`condition-${index}-source`}
+            id={`condition-${index}-source-label`}
+          >
             <span className="text-xs font-medium text-gray-700">
               Sichtbar wenn
             </span>
             <CustomSelect
+              ariaLabelledBy={`condition-${index}-source-label`}
               id={`condition-${index}-source`}
               value={condition.source}
               onChange={(value) =>
@@ -3088,9 +3827,14 @@ function ConditionFieldControls({
 
   return (
     <>
-      <label className="block" htmlFor={`${idPrefix}-question`}>
+      <label
+        className="block"
+        htmlFor={`${idPrefix}-question`}
+        id={`${idPrefix}-question-label`}
+      >
         <span className="text-xs font-medium text-gray-700">Frage</span>
         <CustomSelect
+          ariaLabelledBy={`${idPrefix}-question-label`}
           id={`${idPrefix}-question`}
           value={condition.field ?? ""}
           onChange={changeController}
@@ -3103,9 +3847,14 @@ function ConditionFieldControls({
         />
       </label>
 
-      <label className="block" htmlFor={`${idPrefix}-operator`}>
+      <label
+        className="block"
+        htmlFor={`${idPrefix}-operator`}
+        id={`${idPrefix}-operator-label`}
+      >
         <span className="text-xs font-medium text-gray-700">Vergleich</span>
         <CustomSelect
+          ariaLabelledBy={`${idPrefix}-operator-label`}
           id={`${idPrefix}-operator`}
           value={condition.operator}
           onChange={(value) => changeOperator(value as ConditionOperator)}
@@ -3119,10 +3868,15 @@ function ConditionFieldControls({
       </label>
 
       {condition.operator !== "not_empty" && controller ? (
-        <label className="block" htmlFor={`${idPrefix}-value`}>
+        <label
+          className="block"
+          htmlFor={`${idPrefix}-value`}
+          id={`${idPrefix}-value-label`}
+        >
           <span className="text-xs font-medium text-gray-700">Wert</span>
           {controller.type === "boolean" ? (
             <CustomSelect
+              ariaLabelledBy={`${idPrefix}-value-label`}
               id={`${idPrefix}-value`}
               value={condition.value === true ? "true" : "false"}
               onChange={(value) => onPatch({ value: value === "true" })}
@@ -3135,6 +3889,7 @@ function ConditionFieldControls({
             />
           ) : (
             <CustomSelect
+              ariaLabelledBy={`${idPrefix}-value-label`}
               id={`${idPrefix}-value`}
               value={String(condition.value ?? "")}
               onChange={(value) => onPatch({ value })}
@@ -3165,9 +3920,14 @@ function ConditionGradeControls({
 }>) {
   return (
     <>
-      <label className="block" htmlFor={`${idPrefix}-operator`}>
+      <label
+        className="block"
+        htmlFor={`${idPrefix}-operator`}
+        id={`${idPrefix}-operator-label`}
+      >
         <span className="text-xs font-medium text-gray-700">Vergleich</span>
         <CustomSelect
+          ariaLabelledBy={`${idPrefix}-operator-label`}
           id={`${idPrefix}-operator`}
           value={condition.operator}
           onChange={(value) =>
@@ -3400,9 +4160,9 @@ function FormPreview({
               </div>
             ) : (
               <div className="space-y-3">
-                {fields.map((field, index) => (
+                {fields.map((field) => (
                   <PreviewCustomField
-                    key={`${field.key || "preview"}-${index}`}
+                    key={getStableObjectKey(field, "preview-field")}
                     field={field}
                   />
                 ))}
@@ -3421,44 +4181,52 @@ function FormPreview({
                 </span>
               </div>
               <div className="space-y-2">
-                {enabledLegalBlocks.map((block) => (
-                  <div
-                    key={block.key}
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-2"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <span
-                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                          block.kind === "notice"
-                            ? "border-[#5080D8]/30 bg-[#5080D8]/10"
-                            : "border-gray-300 bg-white"
-                        }`}
-                        aria-hidden="true"
-                      >
-                        {block.kind === "notice" ? (
-                          <Info className="h-3 w-3 text-[#5080D8]" />
-                        ) : null}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-sm font-medium text-gray-900">
-                            {block.title.trim() || block.label}
-                          </span>
-                          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                            {block.kind === "notice"
-                              ? "Hinweis"
-                              : block.required
-                                ? "Pflicht"
-                                : "Optional"}
-                          </span>
+                {enabledLegalBlocks.map((block) => {
+                  const previewText = legalBlockPreviewText(block);
+                  return (
+                    <div
+                      key={block.key}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <span
+                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                            block.kind === "notice"
+                              ? "border-[#5080D8]/30 bg-[#5080D8]/10"
+                              : "border-gray-300 bg-white"
+                          }`}
+                          aria-hidden="true"
+                        >
+                          {block.kind === "notice" ? (
+                            <Info className="h-3 w-3 text-[#5080D8]" />
+                          ) : null}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-medium text-gray-900">
+                              {block.title.trim() || block.label}
+                            </span>
+                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                              {block.kind === "notice"
+                                ? "Hinweis"
+                                : block.required
+                                  ? "Pflicht"
+                                  : "Optional"}
+                            </span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
+                            {block.label}
+                          </p>
+                          {previewText.trim() !== "" ? (
+                            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-gray-400">
+                              {previewText}
+                            </p>
+                          ) : null}
                         </div>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
-                          {block.label}
-                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           ) : null}
@@ -3710,7 +4478,7 @@ function getTargetOptions(
   return [];
 }
 
-function prepareFieldsForSave(fields: FormField[]): FormField[] {
+export function prepareFieldsForSave(fields: FormField[]): FormField[] {
   return fields.map((field, index) => {
     if (field.target) {
       // Suggested field: type/options/scope are fixed by the spec, but
@@ -3723,6 +4491,13 @@ function prepareFieldsForSave(fields: FormField[]): FormField[] {
         help_text: field.help_text?.trim() ?? "",
         required: Boolean(field.required),
         visible_when: field.visible_when ?? undefined,
+        // Carry the admin-configured fixed pickup times through; the
+        // rebuilt base field drops them otherwise. Only the pickup-times
+        // field may carry this (arrival stays free-entry, and the backend
+        // rejects allowed_times on any other target), so anything else is
+        // forced to undefined and omitted on serialize.
+        allowed_times:
+          field.target === "schedule.pickup" ? field.allowed_times : undefined,
       };
     }
     if (field.type === "information") {
@@ -3768,6 +4543,8 @@ function mergeStandardLegalBlocks(
         ...standard,
         text: inheritedText,
         enabled: inheritedEnabled,
+        display_mode: standardLegalBlockDisplayMode(standard.key, legalTexts),
+        document_url: standardLegalBlockDocumentURL(standard.key, legalTexts),
       };
     }
     return {
@@ -3775,11 +4552,16 @@ function mergeStandardLegalBlocks(
       kind: configured.kind,
       title: configured.title,
       label: configured.label,
-      text: configured.text || inheritedText,
+      text:
+        standard.key === "agb"
+          ? inheritedText
+          : configured.text || inheritedText,
       required: configured.required,
       enabled: inheritedEnabled,
       sort_order: configured.sort_order ?? standard.sort_order,
       source: "standard",
+      display_mode: standardLegalBlockDisplayMode(standard.key, legalTexts),
+      document_url: standardLegalBlockDocumentURL(standard.key, legalTexts),
     };
   });
 }
@@ -3791,7 +4573,7 @@ function standardLegalBlockText(
   if (!legalTexts) return "";
   switch (key) {
     case "agb":
-      return legalTexts.agb;
+      return standardAGBText(legalTexts);
     case "data_processing":
       return legalTexts.dsgvo;
     case "photo":
@@ -3803,6 +4585,62 @@ function standardLegalBlockText(
   }
 }
 
+function standardAGBText(legalTexts: PublicLegalTexts): string {
+  if (legalTexts.agb_display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF) {
+    return "";
+  }
+  return legalTexts.agb;
+}
+
+function standardLegalBlockDisplayMode(
+  key: string,
+  legalTexts: PublicLegalTexts | null,
+): LegalBlockDisplayMode {
+  if (key === "agb" && legalTexts?.agb_display_mode === "pdf") {
+    return LEGAL_BLOCK_DISPLAY_MODE_PDF;
+  }
+  return LEGAL_BLOCK_DISPLAY_MODE_TEXT;
+}
+
+function standardLegalBlockDocumentURL(
+  key: string,
+  legalTexts: PublicLegalTexts | null,
+): string {
+  if (key !== "agb") return "";
+  if (legalTexts?.agb_display_mode !== LEGAL_BLOCK_DISPLAY_MODE_PDF) return "";
+  return (legalTexts?.agb_document_url ?? "").trim();
+}
+
+function legalBlockDisplayMode(block: FormLegalBlock): LegalBlockDisplayMode {
+  return block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF
+    ? LEGAL_BLOCK_DISPLAY_MODE_PDF
+    : LEGAL_BLOCK_DISPLAY_MODE_TEXT;
+}
+
+function legalBlockPreviewText(block: FormLegalBlock): string {
+  if (
+    block.key === "agb" &&
+    legalBlockDisplayMode(block) === LEGAL_BLOCK_DISPLAY_MODE_PDF
+  ) {
+    const documentURL = (block.document_url ?? "").trim();
+    if (documentURL === "") return "";
+    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
+  }
+  return block.text;
+}
+
+function publicAGBDocumentURL(storedURL: string): string {
+  const globalPrefix = "/uploads/enrollment-legal-documents/";
+  if (storedURL.startsWith(globalPrefix)) {
+    return `/api/public/enrollment-legal-documents/${storedURL.slice(globalPrefix.length)}`;
+  }
+  const formPrefix = "/uploads/enrollment-form-legal-documents/";
+  if (storedURL.startsWith(formPrefix)) {
+    return `/api/public/enrollment-form-legal-documents/${storedURL.slice(formPrefix.length)}`;
+  }
+  return storedURL;
+}
+
 function standardLegalBlockEnabled(
   key: string,
   legalTexts: PublicLegalTexts | null,
@@ -3810,7 +4648,14 @@ function standardLegalBlockEnabled(
   if (!legalTexts) return false;
   switch (key) {
     case "agb":
-      return legalTexts.terms_enabled && legalTexts.agb.trim() !== "";
+      if (!legalTexts.terms_enabled) return false;
+      if (
+        standardLegalBlockDisplayMode(key, legalTexts) ===
+        LEGAL_BLOCK_DISPLAY_MODE_PDF
+      ) {
+        return standardLegalBlockDocumentURL("agb", legalTexts) !== "";
+      }
+      return standardAGBText(legalTexts).trim() !== "";
     case "data_processing":
       return legalTexts.dsgvo_enabled && legalTexts.dsgvo.trim() !== "";
     case "photo":
@@ -3841,17 +4686,44 @@ function mergeSavedLegalBlocks(
 }
 
 function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
-  return blocks.map((block, index) => ({
-    key: normalizeFieldKey(block.key) || `custom_consent_${index + 1}`,
-    kind: block.kind,
-    title: block.title.trim(),
-    label: block.label.trim(),
-    text: block.text.trim(),
-    required: block.kind === "notice" ? false : Boolean(block.required),
-    enabled: Boolean(block.enabled),
-    sort_order: index * 10 + 10,
-    source: block.source ?? "custom",
-  }));
+  return blocks.map((block, index) => {
+    const displayMode = legalBlockDisplayMode(block);
+    const documentURL =
+      displayMode === LEGAL_BLOCK_DISPLAY_MODE_PDF
+        ? (block.document_url ?? "").trim()
+        : "";
+    return {
+      key: normalizeFieldKey(block.key) || `custom_consent_${index + 1}`,
+      kind: block.kind,
+      title: block.title.trim(),
+      label: block.label.trim(),
+      text: block.text.trim(),
+      required: block.kind === "notice" ? false : Boolean(block.required),
+      enabled: Boolean(block.enabled),
+      sort_order: index * 10 + 10,
+      source: block.source ?? "custom",
+      display_mode: displayMode,
+      document_url: documentURL,
+    };
+  });
+}
+
+function draftDocumentURLsInLegalBlocks(
+  blocks: FormLegalBlock[],
+  draftURLs: ReadonlySet<string>,
+): Set<string> {
+  const urls = new Set<string>();
+  for (const block of blocks) {
+    const documentURL = (block.document_url ?? "").trim();
+    if (
+      block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
+      documentURL &&
+      draftURLs.has(documentURL)
+    ) {
+      urls.add(documentURL);
+    }
+  }
+  return urls;
 }
 
 function nextCustomLegalBlockKey(blocks: FormLegalBlock[]): string {
@@ -3888,10 +4760,20 @@ function getRequiredHint(field: FormField): string {
     return "Eltern müssen Ja oder Nein auswählen.";
   }
   if (field.type === "weekday_schedule") {
-    return "Eltern müssen mindestens eine Uhrzeit angeben.";
+    return "Eltern müssen für jeden Betreuungstag eine Uhrzeit angeben (ohne Betreuungsangebote: mindestens eine).";
   }
   if (field.type === "weekday_boolean") {
+    // Legacy pickup (student.pickup_status) accepts an empty selection ("geht
+    // alleine nach Hause") -- required only forces parents to confirm the
+    // field once, not to tick a day. Every other weekday_boolean (Buskind)
+    // genuinely needs at least one day.
+    if (field.target === "student.pickup_status") {
+      return "Eltern müssen die Abholregelung bestätigen (Tage auswählen oder leer lassen).";
+    }
     return "Eltern müssen mindestens einen Wochentag auswählen.";
+  }
+  if (field.type === "weekday_multi_mode") {
+    return "Eltern müssen pro Betreuungstag mindestens einen Heimweg auswählen.";
   }
   if (field.type === "contact_list") {
     return "Eltern müssen mindestens einen vollständigen Kontakt angeben.";
@@ -3905,15 +4787,13 @@ function getRequiredHint(field: FormField): string {
 function getSchemaDraftValidationMessage({
   fields,
   legalBlocks,
-  isCreating,
   name,
 }: Readonly<{
   fields: FormField[];
   legalBlocks: FormLegalBlock[];
-  isCreating: boolean;
   name: string;
 }>): string | null {
-  if (isCreating && name.trim() === "") {
+  if (name.trim() === "") {
     return "Bitte gib zuerst einen Namen für die Vorlage ein.";
   }
 
@@ -3974,6 +4854,13 @@ function getSchemaDraftValidationMessage({
     if (block.label === "") {
       return `Bitte gib für Zustimmung ${position} einen Text neben der Checkbox ein.`;
     }
+    if (
+      block.key === "agb" &&
+      block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
+      (block.document_url ?? "").trim() === ""
+    ) {
+      return "Bitte lade für die AGB eine PDF-Datei hoch oder wähle wieder Text eingeben.";
+    }
   }
 
   return null;
@@ -3981,6 +4868,7 @@ function getSchemaDraftValidationMessage({
 
 function formatSchemaDate(value: string): string {
   return new Date(value).toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

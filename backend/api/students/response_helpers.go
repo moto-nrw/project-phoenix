@@ -3,6 +3,7 @@ package students
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -72,14 +73,21 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
-	// departure_days is the single source of truth (#1610); bus_days, pickup_days
-	// and the derived bus flag are emitted for clients not yet migrated.
-	departure := student.DepartureDays.Normalize()
+	allowed := student.AllowedDepartureModes.Normalize()
+	if !allowed.HasAny() {
+		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	departure := allowed.DepartureDays()
+	response.AllowedDepartureModes = allowed
 	response.DepartureDays = departure
-	response.BusDays = departure.BusDays()
+	response.BusDays = allowed.BusDays()
 	response.Bus = response.BusDays.HasAny()
-	response.PickupDays = departure.PickupDays()
-	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
+	response.PickupDays = allowed.PickupDays()
+	// Derive pickup_status from the FULL non-exclusive set, not the exclusive
+	// `departure` projection: the projection ranks bus over accompanied, so a day
+	// allowing both would drop the accompanied signal and return this child to
+	// legacy list/search/admin consumers as a self-goer (#1694).
+	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
 }
 
 func responsePickupStatus(student *users.Student, derived string) string {
@@ -89,7 +97,8 @@ func responsePickupStatus(student *users.Student, derived string) string {
 	stored := strings.TrimSpace(*student.PickupStatus)
 	if stored == "" ||
 		stored == users.PickupStatusPickedUp ||
-		stored == users.PickupStatusGoesAlone {
+		stored == users.PickupStatusGoesAlone ||
+		stored == users.PickupStatusAccompanied {
 		return derived
 	}
 	return *student.PickupStatus
@@ -99,6 +108,9 @@ func responsePickupStatus(student *users.Student, derived string) string {
 func populateSensitiveStudentFields(response *StudentResponse, student *users.Student) {
 	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo
+	}
+	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
+		response.DepartureCompanionNote = *student.DepartureCompanionNote
 	}
 	if student.SupervisorNotes != nil {
 		response.SupervisorNotes = *student.SupervisorNotes
@@ -114,6 +126,18 @@ func populateSensitiveStudentFields(response *StudentResponse, student *users.St
 	}
 	if student.ExcusedSince != nil {
 		response.ExcusedSince = student.ExcusedSince
+	}
+}
+
+func populateStudentAddressFields(response *StudentResponse, student *users.Student) {
+	if student.AddressStreet != nil {
+		response.AddressStreet = *student.AddressStreet
+	}
+	if student.AddressCity != nil {
+		response.AddressCity = *student.AddressCity
+	}
+	if student.AddressPostalCode != nil {
+		response.AddressPostalCode = *student.AddressPostalCode
 	}
 }
 
@@ -199,6 +223,9 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo
 	}
+	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
+		response.DepartureCompanionNote = *student.DepartureCompanionNote
+	}
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
@@ -221,13 +248,18 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
-	// departure_days is the single source of truth (#1610); the rest are derived.
-	departure := student.DepartureDays.Normalize()
+	allowed := student.AllowedDepartureModes.Normalize()
+	if !allowed.HasAny() {
+		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	departure := allowed.DepartureDays()
+	response.AllowedDepartureModes = allowed
 	response.DepartureDays = departure
-	response.BusDays = departure.BusDays()
+	response.BusDays = allowed.BusDays()
 	response.Bus = response.BusDays.HasAny()
-	response.PickupDays = departure.PickupDays()
-	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
+	response.PickupDays = allowed.PickupDays()
+	// Full set, not the exclusive projection: see populatePublicStudentFields (#1694).
+	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
 }
 
 // presentOrTransit returns the appropriate location for a checked-in student
@@ -333,6 +365,9 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
 	populateSensitiveStudentFields(&response, student)
+	if hasFullAccess {
+		populateStudentAddressFields(&response, student)
+	}
 
 	// Photo + consent metadata. Suppressed entirely when the feature is
 	// off; PhotoURL additionally requires hasFullAccess so we never hand
@@ -378,6 +413,9 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
 	populateSnapshotSensitiveFields(&response, student)
+	if hasFullAccess {
+		populateStudentAddressFields(&response, student)
+	}
 
 	// Photo + consent metadata — same rationale as in newStudentResponseWithOpts.
 	populatePhotoFields(&response, student, photosEnabled, hasFullAccess)
@@ -530,4 +568,107 @@ func applyActualTimesFromSnapshot(response *StudentResponse, snapshot *common.St
 	}
 
 	applyActualTimesFromAttendance(response, status)
+}
+
+// getPersonForStudent fetches the person data for a student
+// Returns the person and true if successful, or renders an error and returns nil, false
+func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, student *users.Student) (*users.Person, bool) {
+	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to get person data for student", err))
+		return nil, false
+	}
+	return person, true
+}
+
+// getStudentGroup fetches the group for a student if they have one assigned
+func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student) *education.Group {
+	if student.GroupID == nil {
+		return nil
+	}
+	group, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
+	if err != nil {
+		return nil
+	}
+	return group
+}
+
+// fetchStudentGroup retrieves group data if the student has an assigned group
+func (rs *Resource) fetchStudentGroup(ctx context.Context, groupID *int64) *education.Group {
+	if groupID == nil {
+		return nil
+	}
+	group, err := rs.EducationService.GetGroup(ctx, *groupID)
+	if err != nil {
+		return nil
+	}
+	return group
+}
+
+func (rs *Resource) filterStudentIDsByGroup(ctx context.Context, studentIDs []int64, groupID int64) ([]int64, error) {
+	studentMap, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]int64, 0, len(studentMap))
+	for _, sid := range studentIDs {
+		student, ok := studentMap[sid]
+		if !ok || student.GroupID == nil || *student.GroupID != groupID {
+			continue
+		}
+		filtered = append(filtered, sid)
+	}
+	return filtered, nil
+}
+
+// buildStudentResponses builds filtered student responses
+func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) []StudentResponse {
+	responses := make([]StudentResponse, 0, len(students))
+
+	for _, student := range students {
+		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot, photosEnabled)
+		if response != nil {
+			responses = append(responses, *response)
+		}
+	}
+
+	return responses
+}
+
+// buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
+func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) *StudentResponse {
+	hasFullAccess := accessCtx.HasFullAccessToStudent(student)
+
+	// Get person data from snapshot
+	person := dataSnapshot.GetPerson(student.PersonID)
+	if person == nil {
+		return nil
+	}
+
+	// Apply filters
+	if !matchesSearchFilter(person, student.ID, params.search) {
+		return nil
+	}
+	if !matchesNameFilters(person, params.firstName, params.lastName) {
+		return nil
+	}
+	if !matchesGradeLevel(student.SchoolClass, params.gradeLevel) {
+		return nil
+	}
+
+	// Get group data from snapshot
+	var group *education.Group
+	if student.GroupID != nil {
+		group = dataSnapshot.GetGroup(*student.GroupID)
+	}
+
+	// Build response
+	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot, photosEnabled)
+
+	// Apply location filter
+	if !matchesLocationFilter(params.location, studentResponse.Location, hasFullAccess) {
+		return nil
+	}
+
+	return &studentResponse
 }

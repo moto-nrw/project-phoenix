@@ -526,48 +526,6 @@ func TestGroupOperations(t *testing.T) {
 		assert.Equal(t, group.Name, retrieved.Name)
 	})
 
-	t.Run("assign room to group", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RoomAssignGroup")
-		room := testpkg.CreateTestRoom(t, db, "TestRoom")
-
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
-
-		// ACT
-		err := service.AssignRoomToGroup(ctx, group.ID, room.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify room is assigned
-		groupWithRoom, err := service.FindGroupWithRoom(ctx, group.ID)
-		require.NoError(t, err)
-		require.NotNil(t, groupWithRoom.RoomID)
-		assert.Equal(t, room.ID, *groupWithRoom.RoomID)
-	})
-
-	t.Run("remove room from group", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RoomRemoveGroup")
-		room := testpkg.CreateTestRoom(t, db, "RoomToRemove")
-
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
-
-		// First assign the room
-		err := service.AssignRoomToGroup(ctx, group.ID, room.ID)
-		require.NoError(t, err)
-
-		// ACT
-		err = service.RemoveRoomFromGroup(ctx, group.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify room is removed
-		groupWithoutRoom, err := service.GetGroup(ctx, group.ID)
-		require.NoError(t, err)
-		assert.Nil(t, groupWithoutRoom.RoomID)
-	})
 }
 
 // ============================================================================
@@ -581,27 +539,6 @@ func TestTeacherGroupOperations(t *testing.T) {
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
 
-	t.Run("add teacher to group via service", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "AddTeacherGroup")
-		teacher := testpkg.CreateTestTeacher(t, db, "ServiceAdd", "Teacher")
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, teacher.ID, teacher.Staff.ID)
-
-		// ACT
-		err := service.AddTeacherToGroup(ctx, group.ID, teacher.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify teacher is in group
-		teachers, err := service.GetGroupTeachers(ctx, group.ID)
-		require.NoError(t, err)
-		assert.Len(t, teachers, 1)
-		assert.Equal(t, teacher.ID, teachers[0].ID)
-	})
-
 	t.Run("remove teacher from group", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "RemoveTeacherGroup")
@@ -611,11 +548,10 @@ func TestTeacherGroupOperations(t *testing.T) {
 			group.ID, teacher.ID, teacher.Staff.ID)
 
 		// First add the teacher
-		err := service.AddTeacherToGroup(ctx, group.ID, teacher.ID)
-		require.NoError(t, err)
+		require.NoError(t, service.UpdateGroupTeachers(ctx, group.ID, []int64{teacher.ID}))
 
 		// ACT
-		err = service.RemoveTeacherFromGroup(ctx, group.ID, teacher.ID)
+		err := service.RemoveTeacherFromGroup(ctx, group.ID, teacher.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -624,26 +560,6 @@ func TestTeacherGroupOperations(t *testing.T) {
 		teachers, err := service.GetGroupTeachers(ctx, group.ID)
 		require.NoError(t, err)
 		assert.Empty(t, teachers)
-	})
-
-	t.Run("prevents duplicate teacher assignment", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "DuplicateTeacherGroup")
-		teacher := testpkg.CreateTestTeacher(t, db, "Duplicate", "Teacher")
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, teacher.ID, teacher.Staff.ID)
-
-		// First add the teacher
-		err := service.AddTeacherToGroup(ctx, group.ID, teacher.ID)
-		require.NoError(t, err)
-
-		// ACT: Try to add again
-		err = service.AddTeacherToGroup(ctx, group.ID, teacher.ID)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already assigned")
 	})
 
 	t.Run("get teacher groups", func(t *testing.T) {
@@ -656,10 +572,8 @@ func TestTeacherGroupOperations(t *testing.T) {
 			group1.ID, group2.ID, teacher.ID, teacher.Staff.ID)
 
 		// Add teacher to both groups
-		err := service.AddTeacherToGroup(ctx, group1.ID, teacher.ID)
-		require.NoError(t, err)
-		err = service.AddTeacherToGroup(ctx, group2.ID, teacher.ID)
-		require.NoError(t, err)
+		require.NoError(t, service.UpdateGroupTeachers(ctx, group1.ID, []int64{teacher.ID}))
+		require.NoError(t, service.UpdateGroupTeachers(ctx, group2.ID, []int64{teacher.ID}))
 
 		// ACT
 		groups, err := service.GetTeacherGroups(ctx, teacher.ID)
@@ -782,7 +696,7 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "GroupDelete", "Teacher")
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID)
 
-		_ = service.AddTeacherToGroup(ctx, group.ID, teacher.ID)
+		_ = service.UpdateGroupTeachers(ctx, group.ID, []int64{teacher.ID})
 
 		// ACT
 		err := service.DeleteGroup(ctx, group.ID)
@@ -854,69 +768,6 @@ func TestEducationService_GetGroupsByIDs(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Empty(t, groups)
-	})
-}
-
-func TestEducationService_FindGroupByName(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds group by name", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "FindByNameTest")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
-
-		// ACT - use actual unique name from fixture (fixtures add timestamps)
-		found, err := service.FindGroupByName(ctx, group.Name)
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, found)
-		assert.Equal(t, group.ID, found.ID)
-	})
-
-	t.Run("returns error for non-existent name", func(t *testing.T) {
-		// ACT
-		_, err := service.FindGroupByName(ctx, "NonExistentGroupName12345")
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestEducationService_FindGroupsByRoom(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds groups by room", func(t *testing.T) {
-		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "RoomForGroups")
-		group := testpkg.CreateTestEducationGroup(t, db, "GroupInRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
-
-		// Assign room to group
-		_ = service.AssignRoomToGroup(ctx, group.ID, room.ID)
-
-		// ACT
-		groups, err := service.FindGroupsByRoom(ctx, room.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, groups)
-	})
-
-	t.Run("returns error for non-existent room", func(t *testing.T) {
-		// ACT
-		_, err := service.FindGroupsByRoom(ctx, 999999999)
-
-		// ASSERT
-		require.Error(t, err)
 	})
 }
 
@@ -1275,7 +1126,8 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "FindGroupWithRoom")
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
 
-		_ = service.AssignRoomToGroup(ctx, group.ID, room.ID)
+		group.RoomID = &room.ID
+		require.NoError(t, service.UpdateGroup(ctx, group))
 
 		// ACT
 		found, err := service.FindGroupWithRoom(ctx, group.ID)
@@ -1289,54 +1141,6 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ACT
 		_, err := service.FindGroupWithRoom(ctx, 999999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestEducationService_AssignRoomToGroup(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for non-existent group", func(t *testing.T) {
-		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "AssignRoomTest")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-
-		// ACT
-		err := service.AssignRoomToGroup(ctx, 999999999, room.ID)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error for non-existent room", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "AssignRoomGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
-
-		// ACT
-		err := service.AssignRoomToGroup(ctx, group.ID, 999999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestEducationService_RemoveRoomFromGroup(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for non-existent group", func(t *testing.T) {
-		// ACT
-		err := service.RemoveRoomFromGroup(ctx, 999999999)
 
 		// ASSERT
 		require.Error(t, err)

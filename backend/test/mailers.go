@@ -77,6 +77,17 @@ func (m *CapturingMailer) WaitForMessages(count int, timeout time.Duration) bool
 	}
 }
 
+// Templates returns the template name of every captured message, in order.
+func (m *CapturingMailer) Templates() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, len(m.messages))
+	for i, msg := range m.messages {
+		out[i] = msg.Template
+	}
+	return out
+}
+
 // Clear removes all captured messages.
 func (m *CapturingMailer) Clear() {
 	m.mu.Lock()

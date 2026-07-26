@@ -95,11 +95,6 @@ func TestOperator_Validate_DisplayNameTrimmed(t *testing.T) {
 	assert.Equal(t, "Test Operator", o.DisplayName)
 }
 
-func TestOperator_TableName(t *testing.T) {
-	o := &Operator{}
-	assert.Equal(t, "platform.operators", o.TableName())
-}
-
 func TestOperator_GetID(t *testing.T) {
 	o := &Operator{}
 	o.ID = 456

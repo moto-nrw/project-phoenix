@@ -11,6 +11,7 @@ import React, {
 import { useSession } from "next-auth/react";
 import { hasPermission, isAdmin, isCaregiver } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
+import { useLatest } from "~/lib/hooks/use-latest";
 
 const logger = createLogger({ component: "SupervisionContext" });
 
@@ -104,10 +105,9 @@ export function SupervisionProvider({
   // endpoint first. The server-side setting is the single source of truth for
   // whether all rooms are visible; users without opt-in fall back to their
   // own scope via the staff endpoint.
-  const tokenRef = React.useRef<string | undefined>(session?.user?.token);
-  tokenRef.current = session?.user?.token;
-  const isAdminRef = React.useRef<boolean>(isAdmin(session));
-  isAdminRef.current = isAdmin(session);
+  const tokenRef = useLatest(session?.user?.token);
+  const sessionIsAdmin = isAdmin(session);
+  const isAdminRef = useLatest(sessionIsAdmin);
 
   // Whether the user may read group/supervision data. The Schulhof status
   // endpoint is gated by `groups:read` on the backend, so accounts with an
@@ -116,13 +116,13 @@ export function SupervisionProvider({
   // keep their role fallback; staff sessions issued before the permissions
   // claim existed have no list at all, so keep their role-based access alive
   // during that rollout window and let the backend remain the final authority.
-  const canReadGroupsRef = React.useRef<boolean>(false);
   const sessionPermissions = session?.user?.permissions;
   const hasExplicitPermissions = Array.isArray(sessionPermissions);
-  canReadGroupsRef.current =
-    isAdmin(session) ||
+  const canReadGroups =
+    sessionIsAdmin ||
     hasPermission(session, "groups:read") ||
     (!hasExplicitPermissions && isCaregiver(session));
+  const canReadGroupsRef = useLatest(canReadGroups);
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<
@@ -216,7 +216,7 @@ export function SupervisionProvider({
         };
       });
     }
-  }, []); // No dependencies - uses ref
+  }, [tokenRef]);
 
   // Check if user is supervising an active room (also fetches Schulhof status)
   const checkSupervision = useCallback(async () => {
@@ -468,7 +468,7 @@ export function SupervisionProvider({
         };
       });
     }
-  }, []); // No dependencies - uses ref
+  }, [canReadGroupsRef, isAdminRef, tokenRef]);
 
   // Check Schulhof status and add to supervised rooms if exists
   // Refresh all supervision states with debouncing
@@ -506,8 +506,10 @@ export function SupervisionProvider({
     [checkGroups, checkSupervision],
   );
 
-  // Store the refresh function in ref
-  refreshRef.current = refresh;
+  // Store the refresh function only after its render commits.
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
 
   // Initial load and refresh on session changes only
   useEffect(() => {

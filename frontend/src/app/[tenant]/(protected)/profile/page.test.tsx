@@ -50,13 +50,13 @@ vi.mock("~/lib/image-utils", () => ({
 }));
 
 // Mock UI Components
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title }: { title: string }) => (
     <div data-testid="page-header">{title}</div>
   ),
 }));
 
-vi.mock("~/components/ui", () => ({
+vi.mock("~/components/ui/password-change-modal", () => ({
   PasswordChangeModal: ({
     isOpen,
     onClose,
@@ -69,8 +69,12 @@ vi.mock("~/components/ui", () => ({
     <>
       {isOpen && (
         <div data-testid="password-modal">
-          <button onClick={onClose}>Close Modal</button>
-          <button onClick={onSuccess}>Success</button>
+          <button type="button" onClick={onClose}>
+            Close Modal
+          </button>
+          <button type="button" onClick={onSuccess}>
+            Success
+          </button>
         </div>
       )}
     </>
@@ -83,6 +87,10 @@ vi.mock("~/components/ui/loading", () => ({
       Loading...
     </div>
   ),
+}));
+
+vi.mock("~/components/settings/passkey-settings-section", () => ({
+  PasskeySettingsSection: () => <div data-testid="passkey-settings" />,
 }));
 
 // Mock Button component
@@ -102,7 +110,7 @@ vi.mock("~/components/ui/button", () => ({
     size?: string;
     [key: string]: unknown;
   }) => (
-    <button {...props} disabled={!!props.disabled || isLoading}>
+    <button type="button" {...props} disabled={!!props.disabled || isLoading}>
       {isLoading ? loadingText : children}
     </button>
   ),
@@ -407,9 +415,7 @@ describe("ProfilePage", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /passwort ändern/i }));
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByRole("button", { name: "Success" }));
-      });
+      fireEvent.click(await screen.findByRole("button", { name: "Success" }));
 
       await waitFor(() => {
         expect(screen.queryByTestId("password-modal")).not.toBeInTheDocument();

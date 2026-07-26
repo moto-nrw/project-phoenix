@@ -71,17 +71,17 @@ func studentInGroup(groupID int64) *users.Student {
 
 func TestHasAdminPermissions(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
-		assert.False(t, hasAdminPermissions(nil))
-		assert.False(t, hasAdminPermissions([]string{}))
+		assert.False(t, HasAdminWildcard(nil))
+		assert.False(t, HasAdminWildcard([]string{}))
 	})
 	t.Run("non-admin scopes only", func(t *testing.T) {
-		assert.False(t, hasAdminPermissions([]string{"users:read", "users:update"}))
+		assert.False(t, HasAdminWildcard([]string{"users:read", "users:update"}))
 	})
 	t.Run("admin:* grants", func(t *testing.T) {
-		assert.True(t, hasAdminPermissions([]string{"users:read", "admin:*"}))
+		assert.True(t, HasAdminWildcard([]string{"users:read", "admin:*"}))
 	})
 	t.Run("*:* grants", func(t *testing.T) {
-		assert.True(t, hasAdminPermissions([]string{"*:*"}))
+		assert.True(t, HasAdminWildcard([]string{"*:*"}))
 	})
 }
 
@@ -339,6 +339,29 @@ func TestCanModifyStudent_NonSupervisorDenies(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "groups you supervise")
 	assert.Contains(t, err.Error(), "delete")
+}
+
+func TestWritableStudentFilter(t *testing.T) {
+	// Admin: every student writable, including a groupless one.
+	admin := WritableStudentFilter(context.Background(), []string{"admin:*"}, nil)
+	assert.True(t, admin(studentInGroup(7)))
+	assert.True(t, admin(&users.Student{}))
+	assert.True(t, admin(nil))
+
+	// Nil user context (non-admin): nothing writable.
+	none := WritableStudentFilter(context.Background(), []string{"users:update"}, nil)
+	assert.False(t, none(studentInGroup(7)))
+
+	// Supervisor of group 7 (education group): only students in group 7.
+	sup := WritableStudentFilter(
+		context.Background(),
+		[]string{"users:update"},
+		&stubUserCtx{staff: &users.Staff{}, groups: []*education.Group{{Model: base.Model{ID: 7}}}},
+	)
+	assert.True(t, sup(studentInGroup(7)))
+	assert.False(t, sup(studentInGroup(8)))
+	assert.False(t, sup(&users.Student{}), "a groupless student is admin-only")
+	assert.False(t, sup(nil))
 }
 
 func TestCanUpdateStudent_Wrapper(t *testing.T) {

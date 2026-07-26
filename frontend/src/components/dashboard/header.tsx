@@ -10,19 +10,19 @@ import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
+import { useTenantSafe } from "~/lib/tenant-context";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
+import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
 import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
 import {
   DatabaseBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
-  InvitationsBreadcrumb,
   EnrollmentBreadcrumb,
-  ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
@@ -38,13 +38,16 @@ import {
   getPageTypeInfo,
 } from "./header/breadcrumb-utils";
 
+function isPathSegment(path: string, basePath: string): boolean {
+  return path === basePath || path.startsWith(`${basePath}/`);
+}
+
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
   const {
     studentName,
     staffName,
     roomName,
-    activityName,
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
@@ -55,6 +58,7 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  const tenantContext = useTenantSafe();
   // parentNav is available in every shell; only parent-mode branches read it, so
   // the German staff/operator labels are untouched (they render the de mirror).
   const tParentNav = useTranslations("parentNav");
@@ -77,6 +81,13 @@ export function Header() {
     if (pathname === "/parents/children") return tParentNav("children");
     if (pathname.startsWith("/parents/children/"))
       return tParentNav("childProfile");
+    if (isPathSegment(pathname, "/parents/messages"))
+      return tParentNav("messages");
+    if (isPathSegment(pathname, "/messages")) return tParentNav("messages");
+    if (pathname === "/parents/news" || pathname === "/news")
+      return tParentNav("news");
+    if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
+      return tParentNav("mealPlan");
     return null;
   })();
   const displayedPageTitle = parentPageTitle ?? pageTitle;
@@ -140,6 +151,7 @@ export function Header() {
   // Use JWT name as single source of truth (avoids flicker from async profile fetch)
   const displayName = userName;
   const displayAvatar = profile?.avatar;
+  const brandLabel = mode === "teacher" ? tenantContext?.tenant?.name : null;
 
   const isSessionExpired = sessionExpired;
 
@@ -161,7 +173,11 @@ export function Header() {
         >
           {/* Left section: Logo + Brand + Context */}
           <div className="flex flex-shrink-0 items-center space-x-4">
-            <BrandLink isScrolled={isScrolled} href={homeUrl} />
+            <BrandLink
+              isScrolled={isScrolled}
+              href={homeUrl}
+              label={brandLabel}
+            />
             <BreadcrumbDivider />
             <HeaderBreadcrumb
               pathname={pathname}
@@ -172,7 +188,6 @@ export function Header() {
               studentName={studentName}
               staffName={staffName}
               roomName={roomName}
-              activityName={activityName}
               referrer={referrer}
               breadcrumbLabel={breadcrumbLabel}
               historyType={historyType}
@@ -195,6 +210,7 @@ export function Header() {
               <RefreshButton />
             </div>
 
+            {mode === "teacher" ? <RemindersBell /> : null}
             {mode === "teacher" ? <TenantSwitcher /> : null}
             {mode === "parent" ? <LanguageSwitcher compact /> : null}
 
@@ -213,6 +229,9 @@ export function Header() {
                 displayAvatar={displayAvatar}
                 userEmail={userEmail}
                 profileUrl={profileUrl}
+                profileLabel={
+                  mode === "operator" ? "Profileinstellungen" : undefined
+                }
                 onClose={() => setIsProfileMenuOpen(false)}
                 onLogout={() => setIsLogoutModalOpen(true)}
               />
@@ -259,7 +278,6 @@ interface HeaderBreadcrumbProps {
   readonly studentName?: string;
   readonly staffName?: string;
   readonly roomName?: string;
-  readonly activityName?: string;
   readonly referrer: string;
   readonly breadcrumbLabel: string;
   readonly historyType: string;
@@ -276,7 +294,6 @@ function HeaderBreadcrumb({
   studentName,
   staffName,
   roomName,
-  activityName,
   referrer,
   breadcrumbLabel,
   historyType,
@@ -307,11 +324,6 @@ function HeaderBreadcrumb({
     );
   }
 
-  // Invitations page
-  if (pathname === "/invitations") {
-    return <InvitationsBreadcrumb />;
-  }
-
   if (pageTypeInfo.isEnrollmentPage) {
     return (
       <EnrollmentBreadcrumb
@@ -326,11 +338,6 @@ function HeaderBreadcrumb({
     return (
       <ParentChildBreadcrumb childName={pageTitle} isScrolled={isScrolled} />
     );
-  }
-
-  // Activity detail page
-  if (pageTypeInfo.isActivityDetailPage && activityName) {
-    return <ActivityBreadcrumb activityName={activityName} />;
   }
 
   // Room detail page
@@ -390,7 +397,6 @@ function HeaderBreadcrumb({
     "/activities",
     "/staff",
     "/substitutions",
-    "/statistics",
     "/timetables",
     "/time-tracking",
   ];

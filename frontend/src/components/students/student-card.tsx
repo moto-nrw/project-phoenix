@@ -522,11 +522,52 @@ export function PickupTimeRow({
  * the reason on two rows would be noise. Mirrors the existing schedule-based
  * "Kommt heute nicht (…)" wording so every absence reads identically.
  */
-export function StudentAbsenceRow({ label }: Readonly<{ label: string }>) {
+export function StudentAbsenceRow({
+  label,
+  wording = "Kommt heute nicht",
+}: Readonly<{
+  label: string;
+  /**
+   * Leading phrase before the reason. The default fits the today view; a
+   * non-today planning date (#1939) passes "Kommt nicht" so the card never
+   * says "heute" about another day.
+   */
+  wording?: string;
+}>) {
   return (
     <StudentInfoRow icon={<AbsenceIcon />}>
-      {`Kommt heute nicht (${label})`}
+      {`${wording} (${label})`}
     </StudentInfoRow>
+  );
+}
+
+/**
+ * Informational badge for a child with a still-pending "entschuldigt" request
+ * covering today (operations.parent_excused_requires_approval). It is NOT an
+ * absence — the child stays "expected" and keeps its normal arrival/pickup rows
+ * until the OGS confirms — so this renders as a single compact amber pill
+ * alongside them, not in place of them. The parent's note (if any) is kept to
+ * the hover title so the card stays as dense as its other rows. Amber hex comes
+ * from LOCATION_COLORS.SICK (CLAUDE.md §0).
+ */
+export function StudentPendingExcusedRow({
+  note,
+}: Readonly<{ note?: string }>) {
+  // Leading icon at the row's left edge (aligned with the other StudentInfoRow
+  // icons) and the amber pill in the text column, so this line sits in the same
+  // rhythm as the sibling rows instead of looking offset.
+  return (
+    <div className="mt-1 flex items-center gap-1.5">
+      <span className="flex-shrink-0">
+        <AbsenceIcon />
+      </span>
+      <span
+        className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]"
+        title={note ?? undefined}
+      >
+        Freigabe ausstehend
+      </span>
+    </div>
   );
 }
 
@@ -543,6 +584,7 @@ export function ArrivalTimeRow({
   isAbsent,
   notes,
   now,
+  absentWording = "Kommt heute nicht",
 }: Readonly<{
   arrivalTime?: string;
   actualTime?: string;
@@ -550,11 +592,13 @@ export function ArrivalTimeRow({
   isAbsent: boolean;
   notes?: string;
   now: Date;
+  /** See StudentAbsenceRow — date-neutral phrase for non-today views (#1939). */
+  absentWording?: string;
 }>) {
   if (isAbsent) {
     return (
       <StudentInfoRow icon={<AbsenceIcon />}>
-        {notes ? `Kommt heute nicht (${notes})` : "Kommt heute nicht"}
+        {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
   }
@@ -562,7 +606,7 @@ export function ArrivalTimeRow({
   if (isException && !arrivalTime && !actualTime) {
     return (
       <StudentInfoRow icon={<AbsenceIcon />}>
-        {notes ? `Kommt heute nicht (${notes})` : "Kommt heute nicht"}
+        {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
   }

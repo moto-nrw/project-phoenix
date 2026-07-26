@@ -21,19 +21,3 @@ func AccountHasRole(account *auth.Account, roleName string) bool {
 	}
 	return false
 }
-
-// AccountHasPermission reports whether the account's loaded permission
-// relations include a permission with the given name (case-insensitive). Use
-// HasPermission (the wildcard-aware []string variant) for JWT-claim checks;
-// this variant operates on the eagerly-loaded relation set.
-func AccountHasPermission(account *auth.Account, permission string) bool {
-	if account == nil {
-		return false
-	}
-	for _, p := range account.Permissions {
-		if p != nil && strings.EqualFold(p.Name, permission) {
-			return true
-		}
-	}
-	return false
-}

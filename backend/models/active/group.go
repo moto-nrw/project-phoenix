@@ -31,41 +31,6 @@ type Group struct {
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
 
-// BeforeAppendModel is commented out to let the repository control the table expression
-// func (g *Group) BeforeAppendModel(query any) error {
-// 	switch q := query.(type) {
-// 	case *bun.SelectQuery:
-// 		q.ModelTableExpr("active.groups")
-// 	case *bun.InsertQuery:
-// 		q.ModelTableExpr("active.groups")
-// 	case *bun.UpdateQuery:
-// 		q.ModelTableExpr("active.groups")
-// 	case *bun.DeleteQuery:
-// 		q.ModelTableExpr("active.groups")
-// 	}
-// 	return nil
-// }
-
-// GetID returns the entity's ID
-func (g *Group) GetID() interface{} {
-	return g.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (g *Group) GetCreatedAt() time.Time {
-	return g.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (g *Group) GetUpdatedAt() time.Time {
-	return g.UpdatedAt
-}
-
-// TableName returns the database table name
-func (g *Group) TableName() string {
-	return "active.groups"
-}
-
 // Validate ensures active group data is valid
 func (g *Group) Validate() error {
 	if g.StartTime.IsZero() {

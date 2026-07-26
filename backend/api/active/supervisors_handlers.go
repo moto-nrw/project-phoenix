@@ -276,36 +276,43 @@ func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Supervision ended successfully")
 }
 
-// getAllActiveSupervisions returns all active groups with room info for admin overview.
-// Only available to admins when the admin_supervision_overview setting is enabled.
+// getAllActiveSupervisions returns all active groups with room info for the
+// admin overview or for permission-bearing staff in open-care mode.
 // Returns the same response format as /api/me/groups/supervised so the frontend
 // can consume both endpoints identically.
 // GET /api/active/supervisors/all
 func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Check admin role from JWT claims
+	// The route already requires groups:read. These settings may broaden the
+	// operational group scope, but never replace the permission check.
 	claims := jwt.ClaimsFromCtx(ctx)
-	if !claims.IsAdmin {
-		common.RenderError(w, r, ErrorForbidden(errors.New("admin role required")))
+	if rs.SettingsService == nil {
+		common.RenderError(w, r, ErrorForbidden(errors.New("operational group overview is not available")))
 		return
 	}
 
-	// Check tenant setting — SettingsService must be available and the setting must be enabled
-	if rs.SettingsService == nil {
-		common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not available")))
-		return
+	allowed := false
+	if claims.IsAdmin {
+		enabled, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
+		if err != nil {
+			rs.getLogger().WarnContext(ctx, "admin supervision overview setting check failed", "error", err.Error())
+			common.RenderError(w, r, ErrorForbidden(errors.New("operational group overview setting could not be resolved")))
+			return
+		}
+		allowed = enabled
 	}
-	enabled, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
-	if err != nil {
-		rs.getLogger().WarnContext(ctx, "admin_supervision_overview setting check failed",
-			"error", err.Error(),
-		)
-		common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not enabled")))
-		return
+	if !allowed {
+		mode, err := rs.SettingsService.ResolveString(ctx, configModel.KeyGroupMode)
+		if err != nil {
+			rs.getLogger().WarnContext(ctx, "operational group mode setting check failed", "error", err.Error())
+			common.RenderError(w, r, ErrorForbidden(errors.New("operational group mode could not be resolved")))
+			return
+		}
+		allowed = mode == configModel.GroupModeOpenCare
 	}
-	if !enabled {
-		common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not enabled for this school")))
+	if !allowed {
+		common.RenderError(w, r, ErrorForbidden(errors.New("all-group operational access is not enabled for this school")))
 		return
 	}
 

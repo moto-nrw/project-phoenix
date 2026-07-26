@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestCalendarPeriod_Validate(t *testing.T) {
@@ -151,11 +150,6 @@ func TestCalendarPeriod_ContainsDate(t *testing.T) {
 	assert.False(t, p.ContainsDate(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)))  // after
 }
 
-func TestCalendarPeriod_TableName(t *testing.T) {
-	p := &CalendarPeriod{}
-	assert.Equal(t, "schedule.calendar_periods", p.TableName())
-}
-
 func TestCalendarPeriod_GetID(t *testing.T) {
 	p := &CalendarPeriod{}
 	p.ID = 42
@@ -174,28 +168,4 @@ func TestCalendarPeriod_GetUpdatedAt(t *testing.T) {
 	p := &CalendarPeriod{}
 	p.UpdatedAt = now
 	assert.Equal(t, now, p.GetUpdatedAt())
-}
-
-func TestCalendarPeriod_BeforeAppendModel(t *testing.T) {
-	p := &CalendarPeriod{}
-
-	t.Run("handles SelectQuery", func(t *testing.T) {
-		err := p.BeforeAppendModel(&bun.SelectQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles UpdateQuery", func(t *testing.T) {
-		err := p.BeforeAppendModel(&bun.UpdateQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles DeleteQuery", func(t *testing.T) {
-		err := p.BeforeAppendModel(&bun.DeleteQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles unknown query type", func(t *testing.T) {
-		err := p.BeforeAppendModel("unknown")
-		assert.NoError(t, err)
-	})
 }

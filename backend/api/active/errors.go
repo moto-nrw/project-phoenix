@@ -1,167 +1,85 @@
 package active
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
-// ErrResponse renderer type for handling all sorts of errors.
-type ErrResponse struct {
-	Err            error `json:"-"` // low-level runtime error
-	HTTPStatusCode int   `json:"-"` // http response status code
-
-	StatusText string `json:"status"`          // user-level status message
-	AppCode    int    `json:"code,omitempty"`  // application-specific error code
-	ErrorText  string `json:"error,omitempty"` // application-level error message, for debugging
+// newErrResponse builds a common.ErrResponse carrying this package's
+// historical human-readable status classification (e.g. "Room Conflict")
+// instead of api/common's literal "error". The wire bytes are pinned by
+// wire_format_test.go — normalizing the status values to "error" is a
+// separate, frontend-audited change, not part of the struct consolidation
+// (issue #575 B1).
+func newErrResponse(status int, statusText string, err error) *common.ErrResponse {
+	return &common.ErrResponse{
+		Err:            err,
+		HTTPStatusCode: status,
+		Status:         statusText,
+		ErrorText:      err.Error(),
+	}
 }
 
-// Render sets the specific error code for the response
-func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
-	render.Status(r, e.HTTPStatusCode)
-	return nil
+// statusText adapts newErrResponse to the ErrorRule.Render shape.
+func statusText(status int, text string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return newErrResponse(status, text, err) }
+}
+
+// errorRules maps active-service sentinels to HTTP status + the package's
+// human-text status classification. Matched via errors.Is, so both bare
+// sentinels and *activeSvc.ActiveError-wrapped ones classify identically.
+//
+// The ErrStudentAlreadyActive 409: issue #844 added a DB-level partial
+// unique index on active.visits; the active service translates the
+// resulting 23505 to ErrStudentAlreadyActive for ALL CreateVisit callers,
+// so the admin POST /active/visits route must answer 409 like the IoT
+// checkin path, not 400.
+var errorRules = []common.ErrorRule{
+	{Target: activeSvc.ErrActiveGroupNotFound, Render: statusText(http.StatusNotFound, "Active Group Not Found")},
+	{Target: activeSvc.ErrVisitNotFound, Render: statusText(http.StatusNotFound, "Visit Not Found")},
+	{Target: activeSvc.ErrGroupSupervisorNotFound, Render: statusText(http.StatusNotFound, "Group Supervisor Not Found")},
+	{Target: activeSvc.ErrCombinedGroupNotFound, Render: statusText(http.StatusNotFound, "Combined Group Not Found")},
+	{Target: activeSvc.ErrGroupMappingNotFound, Render: statusText(http.StatusNotFound, "Group Mapping Not Found")},
+	{Target: activeSvc.ErrInvalidData, Render: statusText(http.StatusBadRequest, "Invalid Data")},
+	{Target: activeSvc.ErrActiveGroupAlreadyEnded, Render: statusText(http.StatusBadRequest, "Active Group Already Ended")},
+	{Target: activeSvc.ErrVisitAlreadyEnded, Render: statusText(http.StatusBadRequest, "Visit Already Ended")},
+	{Target: activeSvc.ErrSupervisionAlreadyEnded, Render: statusText(http.StatusBadRequest, "Supervision Already Ended")},
+	{Target: activeSvc.ErrCombinedGroupAlreadyEnded, Render: statusText(http.StatusBadRequest, "Combined Group Already Ended")},
+	{Target: activeSvc.ErrGroupAlreadyInCombination, Render: statusText(http.StatusBadRequest, "Group Already In Combination")},
+	{Target: activeSvc.ErrStudentAlreadyInGroup, Render: statusText(http.StatusBadRequest, "Student Already In Group")},
+	{Target: activeSvc.ErrStudentAlreadyActive, Render: statusText(http.StatusConflict, "Student Already Has Active Visit")},
+	{Target: activeSvc.ErrStudentsNotPresent, Render: statusText(http.StatusConflict, "Students Not Present")},
+	{Target: activeSvc.ErrStudentMoveForbidden, Render: statusText(http.StatusForbidden, "Forbidden")},
+	{Target: activeSvc.ErrStaffAlreadySupervising, Render: statusText(http.StatusBadRequest, "Staff Already Supervising This Group")},
+	{Target: activeSvc.ErrCannotDeleteActiveGroup, Render: statusText(http.StatusBadRequest, "Cannot Delete Active Group With Active Visits")},
+	{Target: activeSvc.ErrInvalidTimeRange, Render: statusText(http.StatusBadRequest, "Invalid Time Range")},
+	{Target: activeSvc.ErrRoomConflict, Render: statusText(http.StatusConflict, "Room Conflict")},
+	{Target: activeSvc.ErrStudentNotFound, Render: statusText(http.StatusNotFound, "Student Not Found")},
+	{Target: activeSvc.ErrStaffNotFound, Render: statusText(http.StatusNotFound, "Staff Not Found")},
 }
 
 // ErrorRenderer returns a render.Renderer for the given error
-func ErrorRenderer(err error) render.Renderer {
-	// Default to internal server error
-	renderer := &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		StatusText:     "Internal Server Error",
-		ErrorText:      err.Error(),
-	}
+var ErrorRenderer = common.RulesRenderer(errorRules, statusText(http.StatusInternalServerError, "Internal Server Error"))
 
-	// Handle specific error types
-	switch {
-	case errors.Is(err, activeSvc.ErrActiveGroupNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Active Group Not Found"
-
-	case errors.Is(err, activeSvc.ErrVisitNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Visit Not Found"
-
-	case errors.Is(err, activeSvc.ErrGroupSupervisorNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Group Supervisor Not Found"
-
-	case errors.Is(err, activeSvc.ErrCombinedGroupNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Combined Group Not Found"
-
-	case errors.Is(err, activeSvc.ErrGroupMappingNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Group Mapping Not Found"
-
-	case errors.Is(err, activeSvc.ErrInvalidData):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Invalid Data"
-
-	case errors.Is(err, activeSvc.ErrActiveGroupAlreadyEnded):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Active Group Already Ended"
-
-	case errors.Is(err, activeSvc.ErrVisitAlreadyEnded):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Visit Already Ended"
-
-	case errors.Is(err, activeSvc.ErrSupervisionAlreadyEnded):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Supervision Already Ended"
-
-	case errors.Is(err, activeSvc.ErrCombinedGroupAlreadyEnded):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Combined Group Already Ended"
-
-	case errors.Is(err, activeSvc.ErrGroupAlreadyInCombination):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Group Already In Combination"
-
-	case errors.Is(err, activeSvc.ErrStudentAlreadyInGroup):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Student Already In Group"
-
-	case errors.Is(err, activeSvc.ErrStudentAlreadyActive):
-		// 409 Conflict — the request is well-formed but conflicts with
-		// existing state (the student already has an open visit). Issue
-		// #844 added a DB-level partial unique index on active.visits;
-		// the active service now translates the resulting 23505 error
-		// to ErrStudentAlreadyActive for ALL CreateVisit callers, not
-		// just the IoT checkin flow. Without this 409 mapping, the
-		// admin POST /active/visits route would surface concurrent
-		// duplicate-creation as 400 Bad Request, contradicting both
-		// the IoT path's 409 response and the semantic meaning of the
-		// error.
-		renderer.HTTPStatusCode = http.StatusConflict
-		renderer.StatusText = "Student Already Has Active Visit"
-
-	case errors.Is(err, activeSvc.ErrStaffAlreadySupervising):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Staff Already Supervising This Group"
-
-	case errors.Is(err, activeSvc.ErrCannotDeleteActiveGroup):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Cannot Delete Active Group With Active Visits"
-
-	case errors.Is(err, activeSvc.ErrInvalidTimeRange):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Invalid Time Range"
-
-	case errors.Is(err, activeSvc.ErrRoomConflict):
-		renderer.HTTPStatusCode = http.StatusConflict
-		renderer.StatusText = "Room Conflict"
-
-	case errors.Is(err, activeSvc.ErrStudentNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Student Not Found"
-
-	case errors.Is(err, activeSvc.ErrStaffNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Staff Not Found"
-	}
-
-	return renderer
-}
-
-// ErrorInvalidRequest returns an ErrResponse for invalid requests
+// ErrorInvalidRequest returns an error response for invalid requests
 func ErrorInvalidRequest(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusBadRequest,
-		StatusText:     "Invalid Request",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusBadRequest, "Invalid Request", err)
 }
 
-// ErrorInternalServer returns an ErrResponse for server errors
+// ErrorInternalServer returns an error response for server errors
 func ErrorInternalServer(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		StatusText:     "Internal Server Error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusInternalServerError, "Internal Server Error", err)
 }
 
-// ErrorForbidden returns an ErrResponse for forbidden actions
+// ErrorForbidden returns an error response for forbidden actions
 func ErrorForbidden(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusForbidden,
-		StatusText:     "Forbidden",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusForbidden, "Forbidden", err)
 }
 
-// ErrorUnauthorized returns an ErrResponse for unauthorized actions
+// ErrorUnauthorized returns an error response for unauthorized actions
 func ErrorUnauthorized(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     "Unauthorized",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusUnauthorized, "Unauthorized", err)
 }

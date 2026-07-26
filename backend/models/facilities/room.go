@@ -4,10 +4,8 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Room represents a physical room in a facility
@@ -20,25 +18,7 @@ type Room struct {
 	Capacity *int    `bun:"capacity" json:"capacity,omitempty"`
 	Category *string `bun:"category" json:"category,omitempty"`
 	Color    *string `bun:"color" json:"color,omitempty"`
-}
-
-// TableName returns the database table name
-func (r *Room) TableName() string {
-	return "facilities.rooms"
-}
-
-// BeforeAppendModel lets us modify query before it's executed
-func (r *Room) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(`facilities.rooms`)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`facilities.rooms AS "room"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`facilities.rooms AS "room"`)
-	}
-	return nil
+	IsSystem bool    `bun:"is_system,notnull,default:false" json:"is_system"`
 }
 
 // Validate ensures room data is valid
@@ -137,19 +117,4 @@ func (r *Room) GetFullName() string {
 		return r.Building + " - " + r.Name
 	}
 	return r.Name
-}
-
-// GetID returns the entity's ID
-func (r *Room) GetID() interface{} {
-	return r.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (r *Room) GetCreatedAt() time.Time {
-	return r.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (r *Room) GetUpdatedAt() time.Time {
-	return r.UpdatedAt
 }

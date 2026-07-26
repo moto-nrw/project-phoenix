@@ -25,6 +25,10 @@ const FIELD_LABELS: Record<string, string> = {
   break_duration: "Pausendauer",
   status: "Ort",
   notes: "Notiz",
+  // Deviation from the planned shift (#1844): old = geplante, new = tatsächliche
+  // Zeit (both "HH:MM"), the reason lands in the Grund column. So the row reads
+  // "Abweichung | 08:00 → 07:30 | Grund: …" — plan, actual and reason together.
+  deviation_reason: "Abweichung",
 };
 
 function formatEditValue(fieldName: string, value: string | null): string {

@@ -13,6 +13,12 @@ import {
   normalizeBusDays,
   pickupDaysHaveAny,
   formatPickupDays,
+  formatAllowedDepartureModes,
+  normalizeAllowedDepartureModes,
+  allowedDepartureToDepartureDays,
+  allowedDepartureToBusDays,
+  allowedDepartureToPickupDays,
+  formatAllowedDepartureDays,
   normalizePickupDays,
   SCHOOL_YEAR_FILTER_OPTIONS,
   mapStudentResponse,
@@ -27,7 +33,7 @@ import {
   extractGuardianContact,
   getStatusColor,
 } from "./student-helpers";
-import { buildBackendStudent } from "~/test/fixtures";
+import { buildBackendStudent } from "~/test/fixtures/students";
 
 // Sample backend student for testing
 const sampleBackendStudent = buildBackendStudent({
@@ -47,6 +53,9 @@ const sampleBackendStudent = buildBackendStudent({
   guardian_contact: "+49 123 456789",
   guardian_email: "hans@example.com",
   guardian_phone: "+49 987 654321",
+  address_street: "Musterstraße 12",
+  address_city: "Köln",
+  address_postal_code: "50667",
   group_id: 5,
   group_name: "Klasse 3a",
   extra_info: "Allergies: None",
@@ -184,6 +193,69 @@ describe("pickup day helpers", () => {
   });
 });
 
+describe("allowed departure mode helpers", () => {
+  it("formats allowed modes with weekday separators", () => {
+    expect(
+      formatAllowedDepartureModes({
+        mon: ["bus"],
+        wed: ["bus", "pickup"],
+        fri: ["pickup"],
+      }),
+    ).toBe("Mo: Fährt Bus; Mi: Fährt Bus, Wird abgeholt; Fr: Wird abgeholt");
+  });
+
+  it("formats an empty map as going alone", () => {
+    expect(formatAllowedDepartureModes({})).toBe("Geht immer alleine");
+    expect(formatAllowedDepartureModes(null)).toBe("Geht immer alleine");
+  });
+
+  it("supports the accompanied mode end to end (#1694)", () => {
+    const normalized = normalizeAllowedDepartureModes({
+      mon: ["accompanied"],
+      wed: ["accompanied", "pickup"],
+    });
+    expect(normalized).toEqual({
+      mon: ["accompanied"],
+      // departureModeOrder keeps pickup before accompanied
+      wed: ["pickup", "accompanied"],
+    });
+    expect(formatAllowedDepartureModes(normalized)).toBe(
+      "Mo: Mit anderem Kind; Mi: Wird abgeholt, Mit anderem Kind",
+    );
+    // Exclusive derivation: pickup outranks accompanied; an accompanied-only
+    // day stays accompanied.
+    expect(allowedDepartureToDepartureDays(normalized)).toEqual({
+      mon: "accompanied",
+      wed: "pickup",
+    });
+    // Accompanied must never leak into the legacy bus/pickup mirrors.
+    expect(allowedDepartureToBusDays({ mon: ["accompanied"] })).toEqual({});
+    expect(allowedDepartureToPickupDays({ mon: ["accompanied"] })).toEqual({});
+  });
+
+  it("summarizes only the weekdays as a compact day list", () => {
+    // The badge variant drops the per-day modes so it stays single-line even
+    // when every day carries both bus and pickup (the case that broke the modal).
+    expect(
+      formatAllowedDepartureDays({
+        mon: ["bus", "pickup"],
+        tue: ["bus", "pickup"],
+        wed: ["bus", "pickup"],
+        thu: ["bus", "pickup"],
+        fri: ["bus", "pickup"],
+      }),
+    ).toBe("Mo, Di, Mi, Do, Fr");
+    expect(formatAllowedDepartureDays({ mon: ["bus"], fri: ["pickup"] })).toBe(
+      "Mo, Fr",
+    );
+  });
+
+  it("formats an empty day summary as going alone", () => {
+    expect(formatAllowedDepartureDays({})).toBe("Geht immer alleine");
+    expect(formatAllowedDepartureDays(null)).toBe("Geht immer alleine");
+  });
+});
+
 describe("getSchoolYear", () => {
   it("extracts the first number from class labels", () => {
     expect(getSchoolYear("Klasse 3a")).toBe("3");
@@ -213,6 +285,9 @@ describe("mapStudentResponse", () => {
     expect(result.contact_lg).toBe("+49 123 456789"); // guardian_contact → contact_lg
     expect(result.guardian_email).toBe("hans@example.com");
     expect(result.guardian_phone).toBe("+49 987 654321");
+    expect(result.address_street).toBe("Musterstraße 12");
+    expect(result.address_city).toBe("Köln");
+    expect(result.address_postal_code).toBe("50667");
     expect(result.extra_info).toBe("Allergies: None");
     expect(result.birthday).toBe("2015-06-15");
   });
@@ -441,6 +516,9 @@ describe("prepareStudentForBackend", () => {
       group_id: "5",
       tag_id: "RFID-12345",
       guardian_email: "test@example.com",
+      address_street: "Musterstraße 12",
+      address_city: "Köln",
+      address_postal_code: "50667",
       birthday: "2015-06-15",
     };
 
@@ -457,7 +535,44 @@ describe("prepareStudentForBackend", () => {
     expect(result.group_id).toBe(5); // string → number
     expect(result.tag_id).toBe("RFID-12345");
     expect(result.guardian_email).toBe("test@example.com");
+    expect(result.address_street).toBe("Musterstraße 12");
+    expect(result.address_city).toBe("Köln");
+    expect(result.address_postal_code).toBe("50667");
     expect(result.birthday).toBe("2015-06-15");
+  });
+
+  // The submitted list REPLACES the stored one, so the backend needs to know
+  // WHICH stored list it is replacing — otherwise two editors starting from the
+  // same snapshot silently overwrite each other (#1694).
+  it("sends the companion fingerprint with a submitted list", () => {
+    const result = prepareStudentForBackend({
+      id: "1",
+      companions: [{ companion_student_id: "7", weekdays: ["mon"] }],
+      companions_fingerprint: "7:mon",
+    });
+
+    expect(result.companions).toEqual([
+      { companion_student_id: "7", weekdays: ["mon"] },
+    ]);
+    expect(result.companions_fingerprint).toBe("7:mon");
+  });
+
+  // A write without a list removes links too: the departure plan that rides
+  // along on every save trims every link whose weekday the plan no longer
+  // allows. So the claim has to travel on its own as well — otherwise a plan
+  // that went stale while the form was open deletes an edge somebody else just
+  // committed, and nothing on the backend can tell that apart from a deliberate
+  // narrowing. The caller decides whether it has a claim to make; this mapper
+  // forwards whatever it was given.
+  it("sends the companion fingerprint when no list travels", () => {
+    const result = prepareStudentForBackend({
+      id: "1",
+      first_name: "Max",
+      companions_fingerprint: "7:mon",
+    });
+
+    expect(result.companions).toBeUndefined();
+    expect(result.companions_fingerprint).toBe("7:mon");
   });
 
   it("converts empty birthday string to undefined", () => {
@@ -580,6 +695,9 @@ describe("mapUpdateRequestToBackend", () => {
       tag_id: "RFID-12345",
       guardian_email: "hans@example.com",
       guardian_phone: "+49 987 654321",
+      address_street: "Musterstraße 12",
+      address_city: "Köln",
+      address_postal_code: "50667",
       extra_info: "Notes",
       birthday: "2015-06-15",
       health_info: "None",
@@ -599,6 +717,9 @@ describe("mapUpdateRequestToBackend", () => {
     expect(result.guardian_name).toBe("Hans Mustermann"); // name_lg → guardian_name
     expect(result.guardian_contact).toBe("+49 123 456789"); // contact_lg → guardian_contact
     expect(result.tag_id).toBe("RFID-12345");
+    expect(result.address_street).toBe("Musterstraße 12");
+    expect(result.address_city).toBe("Köln");
+    expect(result.address_postal_code).toBe("50667");
     expect(result.guardian_email).toBe("hans@example.com");
     expect(result.guardian_phone).toBe("+49 987 654321");
     expect(result.extra_info).toBe("Notes");

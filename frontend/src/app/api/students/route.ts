@@ -51,6 +51,9 @@ interface StudentResponseFromBackend {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
+  // Parent's note for a still-pending "entschuldigt" request covering today;
+  // forwarded untouched and threaded into Student by mapStudentResponse.
+  pending_excused_note?: string;
   created_at: string;
   updated_at: string;
 }

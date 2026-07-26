@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -19,14 +20,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const xff = request.headers.get("x-forwarded-for") ?? "";
+    const forwardedFor = canonicalForwardedFor(request.headers);
+    // This proxies to the tenant-aware backend API, not static/object storage;
+    // encodeURIComponent keeps the slug inside one path segment.
     const response = await fetch(
       `${getServerApiUrl()}/api/enrollment/${encodeURIComponent(tenantSlug)}/submit`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Forwarded-For": xff,
+          ...(forwardedFor && { "X-Forwarded-For": forwardedFor }),
         },
         body: JSON.stringify(body),
       },

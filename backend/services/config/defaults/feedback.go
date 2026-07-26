@@ -18,8 +18,6 @@ func init() {
 		SortOrder:       20,
 	})
 
-	minDays := float64(7)
-	maxDays := float64(365)
 	config.Register(config.Definition{
 		Key:             config.KeyFeedbackDataRetentionDays,
 		Label:           "Feedback-Aufbewahrung (Tage)",
@@ -31,7 +29,7 @@ func init() {
 		Tab:             "gdpr",
 		Category:        "feedback",
 		SortOrder:       21,
-		Validation:      &config.ValidationRules{Min: &minDays, Max: &maxDays},
-		DependsOn:       &config.Dependency{Key: config.KeyFeedbackEnabled, Condition: "eq", Value: true},
+		Validation:      config.Range(7, 365),
+		DependsOn:       config.DependsOnEq(config.KeyFeedbackEnabled, true),
 	})
 }

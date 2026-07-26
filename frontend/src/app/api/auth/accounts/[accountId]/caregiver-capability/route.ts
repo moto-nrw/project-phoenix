@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 
@@ -58,14 +59,20 @@ async function proxyCaregiverCapability(
   });
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
+async function GETHandler(request: NextRequest, context: RouteContext) {
   return proxyCaregiverCapability(request, context, "GET");
 }
 
-export async function POST(request: NextRequest, context: RouteContext) {
+export const GET = withTenantAuth(GETHandler);
+
+async function POSTHandler(request: NextRequest, context: RouteContext) {
   return proxyCaregiverCapability(request, context, "POST");
 }
 
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export const POST = withTenantAuth(POSTHandler);
+
+async function DELETEHandler(request: NextRequest, context: RouteContext) {
   return proxyCaregiverCapability(request, context, "DELETE");
 }
+
+export const DELETE = withTenantAuth(DELETEHandler);

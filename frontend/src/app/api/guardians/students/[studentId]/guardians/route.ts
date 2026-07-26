@@ -1,32 +1,14 @@
-import {
-  createGetHandler,
-  createPostHandler,
-} from "@/lib/route-wrapper.server";
-import { apiGet, apiPost } from "@/lib/api-helpers.server";
+import { proxyGet, proxyPost } from "@/lib/route-proxy.server";
+import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // GET /api/guardians/students/[studentId]/guardians - Get all guardians for a student
-export const GET = createGetHandler(async (request, token, params) => {
-  const { studentId } = params;
-
-  const response = await apiGet(
-    `/api/guardians/students/${String(studentId)}/guardians`,
-    token,
-  );
-  // @ts-expect-error - API helper returns unknown type
-
-  return response.data;
-});
+export const GET = proxyGet(
+  (p) =>
+    `/api/guardians/students/${requirePathSegmentParam(p, "studentId")}/guardians`,
+);
 
 // POST /api/guardians/students/[studentId]/guardians - Link guardian to student
-export const POST = createPostHandler(async (request, body, token, params) => {
-  const { studentId } = params;
-
-  const response = await apiPost(
-    `/api/guardians/students/${String(studentId)}/guardians`,
-    token,
-    body,
-  );
-  // @ts-expect-error - API helper returns unknown type
-
-  return response.data;
-});
+export const POST = proxyPost(
+  (p) =>
+    `/api/guardians/students/${requirePathSegmentParam(p, "studentId")}/guardians`,
+);

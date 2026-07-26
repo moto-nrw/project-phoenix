@@ -1,14 +1,10 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import useSWR, { mutate } from "swr";
 import { createLogger } from "~/lib/logger";
 import {
-  SETTINGS_SCHEMA_SWR_KEY,
   applyOptimisticSchemaUpdate,
-  fetchSettingsSchema,
   setSettingValue,
   resetSettingValue,
 } from "~/lib/settings-api";
@@ -21,6 +17,8 @@ import { SettingsCategory } from "./settings-category";
 import { PersonalizationTab } from "./personalization-tab";
 import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { useTenantMutate } from "~/lib/swr/hooks";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
 // and therefore require an immediate re-fetch after save/reset instead of
@@ -36,6 +34,7 @@ interface SettingsTabContentProps {
   readonly highlightKey?: string | null;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
+  readonly onSchemaRefresh: () => void;
 }
 
 function SettingsTabContent({
@@ -43,6 +42,7 @@ function SettingsTabContent({
   highlightKey,
   onSave,
   onReset,
+  onSchemaRefresh,
 }: SettingsTabContentProps) {
   return (
     <div className="space-y-6">
@@ -54,6 +54,7 @@ function SettingsTabContent({
           highlightKey={highlightKey}
           onSave={onSave}
           onReset={onReset}
+          onSchemaRefresh={onSchemaRefresh}
         />
       ))}
     </div>
@@ -94,38 +95,42 @@ interface SettingsContentProps {
   readonly highlightKey?: string | null;
 }
 
-// useSettingsSchemaSWR is the single read path. The bridge mounted in the
-// protected layout invalidates SETTINGS_SCHEMA_SWR_KEY on cross-tab
-// BroadcastChannel notifications and SSE tenant_settings_changed events;
-// every consumer (this page, sidebar, mobile bottom nav, timetable day
-// hours) sees the same fresh data without per-component subscriptions.
-function useSettingsSchemaSWR() {
-  const { status: sessionStatus } = useSession();
-  return useSWR<SettingsSchema | null>(
-    sessionStatus === "authenticated" ? SETTINGS_SCHEMA_SWR_KEY : null,
-    fetchSettingsSchema,
-  );
-}
-
 function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   const { refresh: refreshSupervision } = useOptionalSupervision();
   const router = useRouter();
+  const tenantMutate = useTenantMutate();
   const {
     data: schema,
     error: fetchError,
     isLoading,
     mutate: revalidate,
-  } = useSettingsSchemaSWR();
+  } = useSettingsSchema();
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const applyOptimistic = useCallback((key: string, value: unknown) => {
-    void mutate(
-      SETTINGS_SCHEMA_SWR_KEY,
-      (current?: SettingsSchema | null) =>
-        current ? applyOptimisticSchemaUpdate(current, key, value) : current,
-      { revalidate: true },
-    );
-  }, []);
+  // Reminders settings decide whether the header reminders bell shows at all.
+  // After saving/resetting one, revalidate THIS tenant's /api/reminders cache
+  // so the bell's `enabled` flag flips immediately instead of waiting for the
+  // poll. The reminders SWR key is tenant-prefixed ("{slug}:reminders");
+  // useTenantMutate applies that prefix, so a different tenant's cache held in
+  // another tab is left untouched (no cross-tenant revalidation).
+  const revalidateRemindersIfNeeded = useCallback(
+    (key: string) => {
+      if (!key.startsWith("reminders.")) return;
+      void tenantMutate("reminders");
+    },
+    [tenantMutate],
+  );
+
+  const applyOptimistic = useCallback(
+    (key: string, value: unknown) => {
+      void revalidate(
+        (current?: SettingsSchema | null) =>
+          current ? applyOptimisticSchemaUpdate(current, key, value) : current,
+        { revalidate: true },
+      );
+    },
+    [revalidate],
+  );
 
   const handleSave = useCallback(
     async (key: string, value: unknown): Promise<string | null> => {
@@ -152,9 +157,10 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
       if (SUPERVISION_AFFECTING_KEYS.has(key)) {
         void refreshSupervision({ force: true });
       }
+      revalidateRemindersIfNeeded(key);
       return null;
     },
-    [applyOptimistic, refreshSupervision, router],
+    [applyOptimistic, refreshSupervision, revalidateRemindersIfNeeded, router],
   );
 
   const handleReset = useCallback(
@@ -172,14 +178,20 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
       notifySettingsChanged();
       // Reset has no optimistic value — bridge mutate() picks up the
       // registry default on revalidation.
-      void mutate(SETTINGS_SCHEMA_SWR_KEY);
+      void revalidate();
       if (SUPERVISION_AFFECTING_KEYS.has(key)) {
         void refreshSupervision({ force: true });
       }
+      revalidateRemindersIfNeeded(key);
       return null;
     },
-    [refreshSupervision, router],
+    [refreshSupervision, revalidate, revalidateRemindersIfNeeded, router],
   );
+
+  const handleSchemaRefresh = useCallback(() => {
+    notifySettingsChanged();
+    void revalidate();
+  }, [revalidate]);
 
   if (isLoading && !schema) {
     return <SettingsSkeleton />;
@@ -226,6 +238,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
         <div className="relative mb-4">
           <Alert type="error" message={saveError} />
           <button
+            type="button"
             onClick={() => setSaveError(null)}
             className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
             aria-label="Fehler schließen"
@@ -251,6 +264,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
         highlightKey={highlightKey}
         onSave={handleSave}
         onReset={handleReset}
+        onSchemaRefresh={handleSchemaRefresh}
       />
     </>
   );
@@ -266,11 +280,7 @@ export function useSettingsTabs(): {
   renderTab: (tabId: string) => React.ReactNode;
 } | null {
   const searchParams = useSearchParams();
-  const {
-    data: schema,
-    error: schemaError,
-    isLoading,
-  } = useSettingsSchemaSWR();
+  const { data: schema, error: schemaError, isLoading } = useSettingsSchema();
 
   if (isLoading) {
     return null;
@@ -279,6 +289,7 @@ export function useSettingsTabs(): {
   // Tab label mapping (German)
   const tabLabels: Record<string, string> = {
     operations: "Betrieb",
+    reminders: "Erinnerungen",
     gdpr: "Datenschutz",
     devices: "Geräte",
     enrollment: "Anmeldung",
@@ -293,6 +304,8 @@ export function useSettingsTabs(): {
   const tabIcons: Record<string, string> = {
     operations:
       "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+    reminders:
+      "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
     gdpr: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
     devices:
       "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",

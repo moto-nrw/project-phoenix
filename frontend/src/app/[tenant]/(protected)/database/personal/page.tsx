@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { redirect, useSearchParams } from "next/navigation";
@@ -12,14 +12,13 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
-import {
-  CaregiverCapabilityModal,
-  StaffMasterDetail,
-} from "@/components/teachers";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { CaregiverCapabilityModal } from "@/components/teachers/caregiver-capability-modal";
+import { RoleManagementModal } from "@/components/teachers/role-management-modal";
+import { StaffMasterDetail } from "@/components/teachers/staff-master-detail";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { InvitationForm } from "~/components/admin/invitation-form";
@@ -28,7 +27,7 @@ import { RoleGuard } from "~/components/auth/role-guard";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
-import { teachersConfig } from "@/lib/database/configs/teachers.config";
+import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
@@ -69,6 +68,14 @@ function matchesTeacherSearch(teacher: Teacher, searchLower: string): boolean {
 }
 
 export default function TeachersPage() {
+  return (
+    <Suspense fallback={null}>
+      <TeachersPageContent />
+    </Suspense>
+  );
+}
+
+function TeachersPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
@@ -85,6 +92,7 @@ export default function TeachersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [savingTeacher, setSavingTeacher] = useState(false);
 
   const {
@@ -217,6 +225,7 @@ export default function TeachersPage() {
     [],
   );
   const handleManageMFAClick = useCallback(() => setMfaModalOpen(true), []);
+  const handleManageRoleClick = useCallback(() => setRoleModalOpen(true), []);
 
   const handleEditTeacher = useCallback(
     async (data: Partial<Teacher> & { password?: string }) => {
@@ -375,6 +384,9 @@ export default function TeachersPage() {
             onManageMFA={
               selectedTeacher?.account_id ? handleManageMFAClick : undefined
             }
+            onManageRole={
+              selectedTeacher?.account_id ? handleManageRoleClick : undefined
+            }
           />
         </div>
       ) : !loading ? (
@@ -473,6 +485,18 @@ export default function TeachersPage() {
           bearerToken={accessToken}
           accountId={selectedTeacher.account_id.toString()}
           accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+        />
+      )}
+
+      {selectedTeacher?.account_id && (
+        <RoleManagementModal
+          isOpen={roleModalOpen}
+          onClose={() => setRoleModalOpen(false)}
+          accountId={selectedTeacher.account_id.toString()}
+          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+          onUpdated={async () => {
+            await tenantMutate("database-teachers-list");
+          }}
         />
       )}
     </DatabasePageLayout>

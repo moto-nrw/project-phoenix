@@ -2,7 +2,6 @@ package platform_test
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -39,41 +37,11 @@ func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repo
 	return svc, repos, db
 }
 
-// createTestOperatorForMFAService inserts a fresh operator row with
-// platform.operators columns wired (Email, DisplayName, PasswordHash,
-// Active). Mirrors the existing announcement_repository_test helper but
-// avoids the import-cycle by living in the services/platform package.
-func createTestOperatorForMFAService(t *testing.T, db *bun.DB, slug string) *platformModels.Operator {
-	t.Helper()
-	op := &platformModels.Operator{
-		Email:        fmt.Sprintf("op-mfa-svc-%s-%d@test.local", slug, time.Now().UnixNano()),
-		DisplayName:  "MFA Svc Operator",
-		PasswordHash: "$argon2id$placeholder-mfa-svc",
-		Active:       true,
-	}
-	_, err := db.NewInsert().
-		Model(op).
-		ModelTableExpr("platform.operators").
-		Exec(context.Background())
-	require.NoError(t, err)
-	return op
-}
-
-func cleanupTestOperatorForMFAService(t *testing.T, db *bun.DB, operatorID int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		Model((*platformModels.Operator)(nil)).
-		ModelTableExpr("platform.operators").
-		Where("id = ?", operatorID).
-		Exec(context.Background())
-}
-
 func TestOperatorMFAService_EnrollDisableLifecycle(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "lifecycle")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 
 	enrolled, err := svc.HasEnrollment(ctx, op.ID)
 	require.NoError(t, err)
@@ -99,8 +67,7 @@ func TestOperatorMFAService_TrustedDeviceFlow(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "trusted")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
@@ -122,8 +89,7 @@ func TestOperatorMFAService_StartChallengeAndWrongCode(t *testing.T) {
 	ctx := context.Background()
 	svc, repos, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "challenge")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
@@ -149,8 +115,7 @@ func TestOperatorMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "list-revoke")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
@@ -179,12 +144,8 @@ func TestOperatorMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	owner := createTestOperatorForMFAService(t, db, "owner")
-	attacker := createTestOperatorForMFAService(t, db, "attacker")
-	t.Cleanup(func() {
-		cleanupTestOperatorForMFAService(t, db, owner.ID)
-		cleanupTestOperatorForMFAService(t, db, attacker.ID)
-	})
+	owner := testpkg.CreateTestOperator(t, db)
+	attacker := testpkg.CreateTestOperator(t, db)
 
 	require.NoError(t, svc.Enroll(ctx, owner.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, owner.ID, "UA", net.ParseIP("203.0.113.20"))

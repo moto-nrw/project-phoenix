@@ -3,6 +3,11 @@
 import { getSession } from "next-auth/react";
 import { buildApiError } from "./auth-api";
 import type {
+  BackendClosingDayRange,
+  BackendDailyTarget,
+  BackendHoliday,
+  BackendMonthSummary,
+  MonthSummary,
   StaffAbsence,
   WeeklySummary,
   WorkSession,
@@ -11,7 +16,11 @@ import type {
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapClosingDaysResponse,
+  mapDailyTargetsResponse,
   mapHistoryResponse,
+  mapHolidaysResponse,
+  mapMonthSummaryResponse,
   mapStaffAbsenceResponse,
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
@@ -34,6 +43,13 @@ interface ApiResponse<T> {
  * UpdateSession (Issue #1368).
  */
 export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
+export const PLANNED_START_NOT_REACHED_CODE = "planned_start_not_reached";
+/**
+ * Stable error code surfaced when a check-in/check-out deviates from the
+ * planned shift window by more than the configured tolerance (F9). The page
+ * prompts for a reason and retries the same stamp with `reason` set.
+ */
+export const DEVIATION_REASON_REQUIRED_CODE = "deviation_reason_required";
 
 /**
  * Update session request body
@@ -135,21 +151,25 @@ class TimeTrackingService {
     }
   }
 
-  async checkIn(status: "present" | "home_office"): Promise<WorkSession> {
+  async checkIn(
+    status: "present" | "home_office",
+    reason?: string,
+  ): Promise<WorkSession> {
     const result = await this.request<WorkSession>(
       "/check-in",
       "POST",
       "Failed to check in",
-      { status },
+      reason ? { status, reason } : { status },
     );
     return mapWorkSessionResponse(result.data as never);
   }
 
-  async checkOut(): Promise<WorkSession> {
+  async checkOut(reason?: string): Promise<WorkSession> {
     const result = await this.request<WorkSession>(
       "/check-out",
       "POST",
       "Failed to check out",
+      reason ? { reason } : undefined,
     );
     return mapWorkSessionResponse(result.data as never);
   }
@@ -187,6 +207,69 @@ class TimeTrackingService {
       weekly_summaries: unknown[];
     }>(`/history?${params}`, "GET", "Failed to get history");
     return mapHistoryResponse(result.data as never);
+  }
+
+  // Own Monatskarte (#1842): Summe Soll/Ist, Gutschriften, Übertrag, Saldo.
+  async getMonthSummary(year: number, month: number): Promise<MonthSummary> {
+    const params = new URLSearchParams({
+      year: String(year),
+      month: String(month),
+    });
+    const result = await this.request<BackendMonthSummary>(
+      `/month-summary?${params}`,
+      "GET",
+      "Failed to get month summary",
+    );
+    return mapMonthSummaryResponse(result.data);
+  }
+
+  // Date-valid Soll per day (#1842). The daily table must not derive Soll from
+  // the CURRENT schedule: after a contract change that would show historical
+  // rows with today's hours while the Monatskarte above them reports the
+  // hours that actually applied.
+  async getScheduleTargets(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, number>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendDailyTarget[] | null>(
+      `/schedule-targets?${params}`,
+      "GET",
+      "Failed to get schedule targets",
+    );
+    return mapDailyTargetsResponse(result.data);
+  }
+
+  // Gesetzliche Feiertage des Tenants (#1418 3a), keyed YYYY-MM-DD → Name.
+  // Tenant-global (Bundesland-Setting), daher kein Staff-Parameter — die
+  // Admin-Detailansicht nutzt denselben Endpunkt.
+  async getHolidays(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendHoliday[] | null>(
+      `/holidays?${params}`,
+      "GET",
+      "Failed to get holidays",
+    );
+    return mapHolidaysResponse(result.data);
+  }
+
+  // OGS-Schließtage des Tenants (#1418 3b), keyed YYYY-MM-DD → Grund.
+  // Tenant-global wie die Feiertage; das Backend liefert Zeiträume, der
+  // Mapper expandiert sie tageweise.
+  async getClosingDays(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendClosingDayRange[] | null>(
+      `/closing-days?${params}`,
+      "GET",
+      "Failed to get closing days",
+    );
+    return mapClosingDaysResponse(result.data, from, to);
   }
 
   async updateSession(
@@ -256,6 +339,16 @@ class TimeTrackingService {
     return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
   }
 
+  async getQuestionedAbsences(): Promise<StaffAbsence[]> {
+    const params = new URLSearchParams({ status: "question" });
+    const result = await this.request<StaffAbsence[]>(
+      `/absences?${params}`,
+      "GET",
+      "Failed to get questioned absences",
+    );
+    return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
+  }
+
   async createAbsence(req: CreateAbsenceRequest): Promise<StaffAbsence> {
     const result = await this.request<StaffAbsence>(
       "/absences",
@@ -302,6 +395,17 @@ class TimeTrackingService {
       `/absences/${id}/cancel`,
       "POST",
       "Antrag konnte nicht storniert werden",
+    );
+  }
+
+  // Answer to a Rückfrage (#1419): amend the own note and move the absence
+  // back to "requested" for another decision round.
+  async resubmitAbsence(id: string, note: string): Promise<void> {
+    await this.request(
+      `/absences/${id}/resubmit`,
+      "POST",
+      "Antrag konnte nicht erneut eingereicht werden",
+      { note },
     );
   }
 

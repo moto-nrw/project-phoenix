@@ -3,8 +3,6 @@ package base
 import (
 	"context"
 	"time"
-
-	"github.com/uptrace/bun"
 )
 
 // Entity represents the basic interface for all model entities
@@ -43,43 +41,25 @@ type Repository[T Entity] interface {
 	List(ctx context.Context, options *QueryOptions) ([]T, error)
 }
 
-// TableNamer is implemented by models to specify their database table name
-type TableNamer interface {
-	TableName() string
-}
-
-// BeforeAppender is implemented by models that need to execute logic before being appended to the database
-type BeforeAppender interface {
-	BeforeAppend() error
-}
-
-// AfterScanner is implemented by models that need to execute logic after being scanned from the database
-type AfterScanner interface {
-	AfterScan() error
-}
-
-// Paginator provides a standard interface for pagination
-type Paginator interface {
-	// Paginate applies pagination to a database query
-	Paginate(query *bun.SelectQuery, page, pageSize int) *bun.SelectQuery
-}
-
-// Service defines a generic service interface
-type Service[T Entity] interface {
-	// Get retrieves an entity by its ID
-	Get(ctx context.Context, id interface{}) (T, error)
-
-	// Create creates a new entity
+// CRUDRepository is the generic 5-method CRUD contract implemented by the
+// concrete database/repositories/base.Repository[T]. Repository interfaces
+// embed it instead of re-declaring the block. Unlike Repository[T Entity],
+// its List takes plain equality filters — matching the concrete generic.
+type CRUDRepository[T any] interface {
+	// Create inserts a new entity into the database
 	Create(ctx context.Context, entity T) error
 
-	// Update updates an existing entity
+	// FindByID retrieves an entity by its ID
+	FindByID(ctx context.Context, id any) (T, error)
+
+	// Update updates an existing entity in the database
 	Update(ctx context.Context, entity T) error
 
-	// Delete removes an entity
-	Delete(ctx context.Context, id interface{}) error
+	// Delete removes an entity from the database
+	Delete(ctx context.Context, id any) error
 
-	// List retrieves all entities matching the provided filters
-	List(ctx context.Context, options *QueryOptions) ([]T, error)
+	// List retrieves all entities matching the provided equality filters
+	List(ctx context.Context, filters map[string]any) ([]T, error)
 }
 
 // DatabaseError represents database operation errors

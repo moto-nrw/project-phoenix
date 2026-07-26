@@ -142,16 +142,27 @@ vi.mock("~/env", () => ({
   },
 }));
 
-// Mock tenant provider globally so tenant-scoped components can render in tests.
-// Individual tests can override by calling vi.mocked(useTenant).mockReturnValue(...)
-// or `vi.unmock("~/components/tenant/tenant-provider")` when they need the real
-// context wired up (see `binary-mode-guard.test.tsx` for an example).
-vi.mock("~/components/tenant/tenant-provider", () => ({
+// Route-auth wrappers are exercised directly in focused unit tests. Route
+// tests mock the portal auth modules themselves, so keep their wrapper layer
+// transparent and preserve the existing one-session-read contract.
+const passthroughAuthWrapper = <Handler>(handler: Handler): Handler => handler;
+vi.mock("~/server/auth/tenant-route", () => ({
+  withTenantAuth: passthroughAuthWrapper,
+}));
+vi.mock("~/server/auth/operator-route", () => ({
+  withOperatorAuth: passthroughAuthWrapper,
+}));
+vi.mock("~/server/auth/parent-route", () => ({
+  withParentAuth: passthroughAuthWrapper,
+}));
+
+const tenantProviderMock = vi.hoisted(() => ({
   useTenant: vi.fn(() => ({
     tenantSlug: "test-tenant",
     tenant: null,
   })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  useTenantRoutingModeSafe: vi.fn(() => "path"),
   // Safe context accessor — never throws. Tests that need a populated
   // tenant override this mock locally; the default returns a slug-only
   // context so feature-flag hooks (useStudentPhotosEnabled) read `false`
@@ -168,6 +179,17 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   // (activities/devices). Default to true so those tests keep rendering the
   // page unless they explicitly cover the NFC-off branch.
   useNFCEnabled: vi.fn(() => true),
+  // Info-Point Dashboard is opt-in and defaults off in production; mirror
+  // that default here so unrelated tests don't accidentally exercise the
+  // hidden nav item. Tests covering the feature override this mock locally.
+  useDisplayEnabled: vi.fn(() => false),
+  // Care offerings were historically always enabled. Preserve that behaviour
+  // in unrelated fixtures unless a capability test opts out explicitly.
+  useCareOfferingsEnabled: vi.fn(() => true),
+  useAttendanceWebEnabled: vi.fn(() => true),
+  useOpenCareGroupMode: vi.fn(() => false),
+  useShowTimetableCounts: vi.fn(() => true),
+  useWaitlistEnabled: vi.fn(() => true),
   TenantProvider: ({
     children,
   }: {
@@ -176,6 +198,10 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
     tenant: unknown;
   }) => children,
 }));
+
+// Mock tenant context globally so tenant-scoped components can render in tests.
+// Tests that need the real context must unmock this module path.
+vi.mock("~/lib/tenant-context", () => tenantProviderMock);
 
 // Mock SWR globally - individual tests can override with vi.mocked()
 vi.mock("swr", () => ({

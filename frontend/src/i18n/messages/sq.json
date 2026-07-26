@@ -39,9 +39,11 @@
   "parentNav": {
     "start": "Fillimi",
     "children": "Fëmijët e mi",
+    "mealPlan": "Plani i ushqimit",
     "comingSoon": "Së shpejti në portalin e prindërve",
     "calendar": "Kalendari",
     "messages": "Mesazhe",
+    "news": "Lajme",
     "contactData": "Të dhënat e kontaktit",
     "soon": "Së shpejti",
     "refresh": "Rifresko të dhënat",
@@ -52,6 +54,20 @@
     "role": "Prind",
     "childProfile": "Profili i fëmijës",
     "loading": "Po ngarkohet..."
+  },
+  "parentMealPlan": {
+    "title": "Plani i ushqimit",
+    "subtitle": "Çfarë shërbehet në kujdesin ditor.",
+    "thisWeek": "Këtë javë",
+    "nextWeek": "Javën tjetër",
+    "today": "Sot",
+    "noMeal": "Asnjë vakt i regjistruar",
+    "empty": "Aktualisht nuk ka plan ushqimi për shkollën tuaj.",
+    "loadError": "Plani i ushqimit nuk mund të ngarkohej.",
+    "emptyWeek": "Për këtë javë ende nuk është futur asnjë plan ushqimi.",
+    "weekHeading": "Këtë javë",
+    "school": "Shkolla",
+    "week": "Java"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
@@ -67,6 +83,8 @@
     "newsDescription": "Këtu shfaqen njoftime nga përkujdesja dhe portali i prindërve.",
     "noNewsTitle": "Nuk ka lajme",
     "noNewsDescription": "Njoftimet e reja do t'i shihni direkt në faqen kryesore.",
+    "newsShowAll": "Shfaq të gjitha lajmet",
+    "noNewsPageDescription": "Sapo kujdestaria të publikojë një njoftim, ai do të shfaqet këtu.",
     "loadError": "Pamja e përgjithshme nuk u ngarkua. Rifreskoni faqen ose provoni më vonë.",
     "unknownError": "Gabim i panjohur",
     "notSet": "Nuk është vendosur",
@@ -82,7 +100,15 @@
       "rejected": "Refuzuar",
       "withdrawn": "Tërhequr"
     },
-    "dateRangeConnector": "deri"
+    "dateRangeConnector": "deri",
+    "newsNew": "E re",
+    "newsImportant": "E rëndësishme",
+    "newsMarkRead": "Shëno si të lexuar",
+    "newsAcknowledge": "Lexuar dhe konfirmuar",
+    "newsAcknowledged": "Konfirmuar",
+    "newsRead": "Lexuar",
+    "newsActionError": "Veprimi dështoi. Provoni përsëri.",
+    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen."
   },
   "parentChildren": {
     "eyebrow": "Fëmijët e mi",
@@ -111,12 +137,74 @@
     "masterDataEyebrow": "Të dhënat e fëmijës",
     "masterDataTitle": "Të dhënat bazë",
     "masterDataDescription": "Të dhënat më të rëndësishme për fëmijën dhe përkujdesjen.",
-    "pickupEyebrow": "Marrja",
-    "pickupPeopleTitle": "Të autorizuar për marrje",
-    "pickupPeopleDescription": "Persona që lejohen ta marrin këtë fëmijë.",
-    "manage": "Menaxho",
-    "add": "Shto",
-    "addPerson": "Shto person",
+    "guardians": {
+      "eyebrow": "Marrja dhe kontakti",
+      "title": "Të autorizuar për marrje dhe kontakte",
+      "description": "Kujdestarë ligjorë dhe persona që mund ta marrin fëmijën tuaj.",
+      "loadError": "Kontaktet nuk mund të ngarkoheshin.",
+      "loading": "Duke u ngarkuar…",
+      "empty": "Ende nuk ka kontakte.",
+      "contactSaved": "Të dhënat e kontaktit u ruajtën.",
+      "pickupSaved": "Të dhënat e marrjes u ruajtën.",
+      "relationships": {
+        "parent": "Prind",
+        "guardian": "Kujdestar ligjor",
+        "relative": "I afërm",
+        "other": "Person tjetër",
+        "contact": "Kontakt"
+      },
+      "badges": {
+        "primary": "Kryesor",
+        "canPickup": "Mund ta marrë",
+        "emergency": "Kontakt emergjence"
+      },
+      "editContact": "Ndrysho",
+      "managePickup": "Menaxho lejen e marrjes",
+      "contactTitle": "Ndrysho të dhënat e kontaktit",
+      "pickupTitle": "Menaxho marrjen",
+      "close": "Mbyll",
+      "cancel": "Anulo",
+      "save": "Ruaj",
+      "firstName": "Emri",
+      "lastName": "Mbiemri",
+      "email": "E-mail",
+      "street": "Rruga dhe numri",
+      "postalCode": "Kodi postar",
+      "city": "Qyteti",
+      "phoneNumbers": "Numra telefoni",
+      "phonePlaceholder": "Numri i telefonit",
+      "phoneTypeLabel": "Lloji i numrit të telefonit",
+      "phoneTypes": {
+        "mobile": "Celular",
+        "home": "Shtëpi",
+        "work": "Punë",
+        "other": "Tjetër"
+      },
+      "removePhone": "Hiq numrin e telefonit",
+      "addPhone": "Shto numër",
+      "nameRequired": "Emri dhe mbiemri janë të detyrueshëm.",
+      "contactSaveError": "Të dhënat e kontaktit nuk mund të ruheshin.",
+      "pickupSaveError": "Të dhënat e marrjes nuk mund të ruheshin.",
+      "canPickupLabel": "Mund ta marrë",
+      "canPickupDescription": "Ky person lejohet ta marrë fëmijën.",
+      "emergencyLabel": "Kontakt emergjence",
+      "emergencyDescription": "Do të kontaktohet në rast emergjence.",
+      "pickupNotes": "Shënim për marrjen",
+      "pickupNotesPlaceholder": "p.sh. Vjen me biçikletë",
+      "errors": {
+        "contactInvalid": "Ju lutemi kontrolloni të dhënat e kontaktit.",
+        "relationshipInvalid": "Ju lutemi kontrolloni të dhënat e marrjes.",
+        "emailConflict": "Kjo adresë e-mail përdoret tashmë për një kontakt tjetër.",
+        "hasOwnAccount": "Ky person i menaxhon të dhënat e kontaktit përmes llogarisë së vet prindërore.",
+        "sharedAcrossFamilies": "Ky kontakt përdoret nga disa familje dhe mund të ndryshohet vetëm nga shkolla.",
+        "notLinked": "Ky kontakt nuk i përket këtij fëmije.",
+        "permissionDenied": "Nuk keni leje për këtë ndryshim.",
+        "noChange": "Nuk u dërgua asnjë ndryshim.",
+        "socialWorkerManaged": "Këto të dhëna kontakti menaxhohen nga shkolla.",
+        "roleManaged": "Ky person është kujdestar ligjor dhe mund të ndryshohet vetëm nga vetë ai ose nga shkolla.",
+        "managementDisabled": "Menaxhimi i kontakteve është çaktivizuar për këtë shkollë."
+      }
+    },
     "newsEyebrow": "Aktuale",
     "newsTitle": "Lajme",
     "newsDescription": "Njoftime për grupin dhe përkujdesjen.",
@@ -126,12 +214,12 @@
     "comingSoonAria": "{label} së shpejti",
     "actions": {
       "sick": {
-        "label": "Raporto sëmundje",
-        "description": "Njoftim ditor për këtë fëmijë"
+        "label": "Njofto mungesë",
+        "description": "Njofto sëmundje ose justifikim"
       },
       "pickupTime": {
-        "label": "Ndrysho kohën e marrjes",
-        "description": "Njofto marrjen"
+        "label": "Ndrysho orarin e ardhjes dhe marrjes",
+        "description": "Cakto orarin për një ditë"
       },
       "message": {
         "label": "Shkruaj mesazh",
@@ -154,59 +242,117 @@
       "title": "Sot",
       "description": "Njoftime aktuale për këtë fëmijë.",
       "sickLabel": "Njoftim ditor",
-      "noSick": "Nuk ka njoftim sëmundjeje",
+      "noSick": "Nuk ka njoftim mungese",
       "pickupLabel": "Marrja",
-      "regularPickup": "Marrje e rregullt",
+      "pickupTime": "{time}",
+      "pickupChanged": "ndryshuar",
+      "pickupAbsent": "Sot mungon",
+      "pickupNone": "Sot pa marrje",
       "messagesLabel": "Mesazhe",
-      "noMessages": "Nuk ka mesazhe të reja",
-      "noMessagesSent": "Asnjë mesazh i dërguar",
-      "messagesSent": "{count, plural, one {# mesazh i dërguar} other {# mesazhe të dërguara}}"
-    },
-    "demo": {
-      "momName": "Mama",
-      "dadName": "Babi",
-      "grandmaName": "Gjyshja",
-      "auntName": "Tezja",
-      "mother": "Nëna",
-      "father": "Babai",
-      "pickup": "Marrje"
+      "noConversations": "Asnjë bisedë",
+      "unreadCount": "{count, plural, one {# mesazh i palexuar} other {# mesazhe të palexuara}}",
+      "conversationsCount": "{count, plural, one {# bisedë} other {# biseda}}"
     },
     "messages": {
       "eyebrow": "Portali i prindërve",
-      "title": "Mesazhe për ekipin",
-      "description": "Njoftime të shkurtra për stafin e kujdesit.",
-      "compose": "Shkruaj"
+      "title": "Mesazhe me OGS-në",
+      "description": "Biseda rreth fëmijës suaj.",
+      "compose": "Mesazh i ri",
+      "empty": "Ende asnjë bisedë. Dërgoni OGS-së mesazhin e parë."
     }
   },
   "parentChildCare": {
     "close": "Mbyll",
     "cancel": "Anulo",
     "sick": {
-      "title": "Njofto sëmundje",
-      "intro": "Njoftoni sëmundjen e fëmijës për një ose më shumë ditë. Stafi i kujdesit e sheh njoftimin menjëherë.",
+      "title": "Njofto mungesë",
+      "intro": "Njoftoni mungesën e fëmijës për një ose më shumë ditë. Zgjidhni nëse është i sëmurë apo mungon i justifikuar për një arsye tjetër. Stafi i kujdesit e sheh njoftimin menjëherë.",
+      "introApproval": "Njoftoni mungesën e fëmijës për një ose më shumë ditë. Zgjidhni nëse është i sëmurë apo mungon i justifikuar për një arsye tjetër. Një njoftim sëmundjeje stafi e sheh menjëherë; një mungesë e justifikuar duhet të konfirmohet nga ekipi.",
+      "kindLabel": "Lloji i mungesës",
+      "kindSick": "I sëmurë",
+      "kindExcused": "I justifikuar",
       "from": "Nga",
       "to": "Deri",
       "daysCount": "{count, plural, one {# ditë do të njoftohet.} other {# ditë do të njoftohen.}}",
-      "reasonLabel": "Arsyeja (opsionale)",
-      "reasonPlaceholder": "p.sh. temperaturë, te mjeku",
+      "reasonLabel": "Shënim (opsional)",
+      "reasonPlaceholder": "p.sh. temperaturë, takim te dentisti",
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme (data e mbarimit pas datës së fillimit).",
-      "saveError": "Njoftimi i sëmundjes nuk u ruajt dot.",
-      "submit": "Dërgo njoftimin e sëmundjes"
-    },
-    "notes": {
-      "title": "Mesazh për ekipin",
-      "newLabel": "Mesazh i ri",
-      "placeholder": "Njoftim i shkurtër për stafin e kujdesit …",
-      "empty": "Ju lutemi shkruani një mesazh.",
-      "sendError": "Mesazhi nuk u dërgua dot.",
-      "send": "Dërgo",
-      "lastSent": "Dërguar së fundmi",
-      "listEmpty": "Ende asnjë mesazh i dërguar."
+      "saveError": "Mungesa nuk u ruajt dot.",
+      "submittedButRefreshFailed": "Mungesa u dërgua, por nuk mund të shfaqej. Ju lutemi rifreskoni faqen.",
+      "overlapError": "Për një nga këto ditë ekziston tashmë një kërkesë mungese e hapur.",
+      "submit": "Dërgo njoftimin e mungesës",
+      "reasonLabelRequired": "Shënim (i detyrueshëm)",
+      "reasonRequiredError": "Ju lutemi shtoni një shënim që shpjegon pse fëmija juaj mungon me arsye.",
+      "approvalHint": "Kjo mungesë duhet të konfirmohet nga ekipi."
     },
     "summary": {
-      "none": "Asnjë njoftim sëmundjeje",
-      "oneDay": "I sëmurë më {date}",
-      "range": "I sëmurë {from} – {to}"
+      "none": "Asnjë mungesë",
+      "oneDay": "Mungon më {date}",
+      "range": "Mungon {from} – {to}",
+      "sickLabel": "I sëmurë",
+      "excusedLabel": "Me arsye",
+      "pendingLabel": "Në pritje të miratimit",
+      "rejectedLabel": "U refuzua",
+      "withdraw": "Tërhiq",
+      "withdrawError": "Tërheqja dështoi. Ju lutemi rifreskoni faqen.",
+      "withdrawAlreadyDecided": "OGS-ja tashmë e ka trajtuar këtë kërkesë, prandaj nuk mund të tërhiqet më.",
+      "reasonPrefix": "Arsyeja"
+    },
+    "pickup": {
+      "title": "Ndrysho orarin e ardhjes dhe marrjes",
+      "intro": "Caktoni një orar tjetër marrjeje ose ardhjeje për një ditë të vetme. Ndryshimi vlen vetëm për atë ditë.",
+      "dateLabel": "Dita",
+      "pickupLabel": "Ora e marrjes",
+      "arrivalLabel": "Ora e ardhjes",
+      "noTime": "Ju lutemi vendosni të paktën një orar.",
+      "saveError": "Ndryshimi nuk mund të ruhej.",
+      "loadError": "Oraret e ruajtura aktuale nuk mund të ngarkoheshin. Ju lutemi ringarkoni faqen dhe provoni përsëri.",
+      "errorDisabled": "Ndryshimi i orarit të marrjes nuk është aktivizuar për këtë institucion.",
+      "errorStaffConflict": "Institucioni ka caktuar tashmë orare të veçanta për këtë ditë. Ju lutemi kontaktoni ekipin.",
+      "errorRaced": "Kjo ditë sapo u ndryshua. Ju lutemi ringarkoni faqen dhe provoni përsëri.",
+      "errorPastDate": "Për ditët e kaluara nuk mund të ruhet asnjë ndryshim.",
+      "errorTooFar": "Kjo ditë është shumë larg në të ardhmen. Ju lutemi zgjidhni një ditë brenda dy muajve të ardhshëm.",
+      "staffSet": "Institucioni ka caktuar tashmë orare të veçanta për këtë ditë (marrja: {pickup}, ardhja: {arrival}).",
+      "existingHint": "Për {date} është caktuar tashmë një ndryshim. Ruajtja e mbishkruan.",
+      "reset": "Rivendos",
+      "submit": "Ruaj"
+    },
+    "actions": {
+      "sick": {
+        "label": "Njofto mungesë",
+        "shortLabel": "Mungesë",
+        "hint": "Njoftoni mungesën e fëmijës për një ose më shumë ditë"
+      },
+      "pickup": {
+        "label": "Marrje për një ditë",
+        "shortLabel": "Marrje",
+        "hint": "Përshtatni orarin e marrjes ose ardhjes për një ditë të vetme"
+      }
+    },
+    "request": {
+      "submit": "Dërgo kërkesën",
+      "sendError": "Kërkesa nuk mund të dërgohej.",
+      "careSchedule": {
+        "title": "Ndrysho oraret e kujdesit",
+        "intro": "Plani javor Hën–Pre si kërkesë drejt institucionit. Ndryshohen vetëm fushat e plotësuara, fushat bosh mbeten si më parë.",
+        "noChange": "Ju lutemi përshtatni të paktën një ditë.",
+        "arrival": "Ora e ardhjes",
+        "pickup": "Ora e marrjes",
+        "modeAria": "Mënyra e largimit {day}"
+      },
+      "weekday": {
+        "1": "E hënë",
+        "2": "E martë",
+        "3": "E mërkurë",
+        "4": "E enjte",
+        "5": "E premte"
+      },
+      "careMode": {
+        "unchanged": "Pa ndryshim",
+        "alone": "Largohet vetë",
+        "bus": "Udhëton me autobus",
+        "pickup": "Merret"
+      }
     }
   },
   "parentLogin": {
@@ -220,13 +366,72 @@
     "loading": "Po ngarkohet...",
     "submitting": "Duke hyrë...",
     "submit": "Hyr",
-    "forgotPassword": "Keni harruar fjalëkalimin? Ju lutemi kontaktoni OGS-në.",
+    "forgotPassword": "Keni harruar fjalëkalimin?",
     "errors": {
       "accountInactive": "Llogaria juaj është çaktivizuar. Ju lutemi kontaktoni shkollën.",
       "rateLimited": "Shumë përpjekje hyrjeje. Ju lutemi provoni më vonë.",
       "invalidCredentials": "Hyrja nuk është e mundur. Kontrolloni të dhënat ose përdorni hyrjen e shkollës nëse jeni personel.",
       "invalid": "Të dhëna hyrjeje të pavlefshme",
       "generic": "Gabim gjatë hyrjes. Ju lutemi provoni përsëri."
+    }
+  },
+  "parentPasswordResetModal": {
+    "title": "Rivendos fjalëkalimin",
+    "description": "Shkruani adresën tuaj të e-mailit dhe ne do t'ju dërgojmë një lidhje për të rivendosur fjalëkalimin.",
+    "emailLabel": "Adresa e e-mailit",
+    "cancel": "Anulo",
+    "submit": "Dërgo lidhjen",
+    "submitting": "Duke dërguar...",
+    "successTitle": "E-maili u dërgua!",
+    "successMessage": "Ju kemi dërguar një e-mail me një lidhje për të rivendosur fjalëkalimin.",
+    "successHint": "Ju lutemi kontrolloni kutinë hyrëse dhe ndiqni udhëzimet në e-mail.",
+    "close": "Mbyll",
+    "errors": {
+      "rateLimited": "Shumë përpjekje. Ju lutemi provoni përsëri pas {countdown}.",
+      "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri."
+    }
+  },
+  "parentPasswordResetPage": {
+    "backToLogin": "Kthehu te hyrja",
+    "errors": {
+      "missingToken": "Tokeni i rivendosjes është i pavlefshëm ose mungon. Ju lutemi kërkoni një lidhje të re.",
+      "invalidToken": "Token i pavlefshëm për rivendosje.",
+      "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri.",
+      "invalidRequest": "Kontrolloni lidhjen dhe kërkesat e fjalëkalimit, pastaj provoni përsëri.",
+      "expired": "Kjo lidhje për rivendosjen e fjalëkalimit ka skaduar. Ju lutemi kërkoni një lidhje të re.",
+      "notFound": "Nuk mundëm ta gjenim këtë lidhje për rivendosjen e fjalëkalimit. Ju lutemi kërkoni një lidhje të re."
+    },
+    "validation": {
+      "tooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
+      "missingUppercase": "Fjalëkalimi duhet të përmbajë të paktën një shkronjë të madhe.",
+      "missingLowercase": "Fjalëkalimi duhet të përmbajë të paktën një shkronjë të vogël.",
+      "missingNumber": "Fjalëkalimi duhet të përmbajë të paktën një numër.",
+      "missingSpecial": "Fjalëkalimi duhet të përmbajë të paktën një karakter special.",
+      "passwordMismatch": "Fjalëkalimet nuk përputhen."
+    },
+    "success": {
+      "eyebrow": "Fjalëkalimi u ndryshua",
+      "title": "Fjalëkalimi u ndryshua me sukses",
+      "subtitle": "Do të ridrejtoheni automatikisht te faqja e hyrjes.",
+      "body": "Mund të hyni përsëri pas pak."
+    },
+    "form": {
+      "eyebrow": "Rivendos fjalëkalimin",
+      "title": "Vendosni një fjalëkalim të ri",
+      "subtitle": "Zgjidhni një fjalëkalim të fortë për llogarinë tuaj.",
+      "passwordLabel": "Fjalëkalim i ri",
+      "confirmPasswordLabel": "Konfirmo fjalëkalimin",
+      "showPassword": "Shfaq fjalëkalimin",
+      "hidePassword": "Fshih fjalëkalimin",
+      "submitting": "Duke ruajtur...",
+      "submit": "Ndrysho fjalëkalimin"
+    },
+    "requirements": {
+      "title": "Kërkesat e fjalëkalimit:",
+      "minLength": "Të paktën 8 karaktere",
+      "mixedCase": "Shkronja të mëdha dhe të vogla",
+      "number": "Të paktën një numër",
+      "special": "Të paktën një karakter special"
     }
   },
   "guardianInvite": {
@@ -338,6 +543,7 @@
       "consentKicker": "Hapi 3",
       "consentTitle": "Pëlqimet",
       "guardianDescription": "Jepni personin që mund t’u përgjigjet pyetjeve dhe duhet të marrë lidhjen e statusit.",
+      "additionalGuardianLabel": "Kujdestari {index}",
       "extraKicker": "Pyetje shtesë",
       "extraTitle": "Të dhëna të tjera",
       "extraDescription": "OGS-ja ka nevojë për këto të dhëna shtesë krahas të dhënave bazë. Pyetjet e detyrueshme janë shënuar me yll.",
@@ -352,13 +558,18 @@
       "email": "E-mail *",
       "phone": "Telefoni",
       "phoneRequired": "Telefoni *",
+      "emailPlain": "E-mail",
       "dateOfBirth": "Data e lindjes *",
       "gradeLevel": "Klasa *",
+      "schoolClass": "Klasa konkrete",
+      "schoolClassRequired": "Klasa konkrete *",
+      "schoolClassOpen": "Klasa ende e pacaktuar",
       "choose": "Ju lutemi zgjidhni",
       "grade": "Klasa {grade}"
     },
     "actions": {
       "addChild": "Shto fëmijë tjetër",
+      "addGuardian": "Shto kujdestar tjetër",
       "remove": "Hiq",
       "submit": "Dërgo regjistrimin",
       "submitting": "Duke dërguar…",
@@ -389,6 +600,7 @@
       "validPhone": "Ju lutemi jepni një numër telefoni të vlefshëm.",
       "dob": "Ju lutemi jepni datën e lindjes.",
       "grade": "Ju lutemi zgjidhni klasën.",
+      "schoolClass": "Ju lutemi zgjidhni një klasë konkrete.",
       "agb": "Ju lutemi pranoni kushtet.",
       "data": "Ju lutemi jepni pëlqimin për përpunimin e të dhënave.",
       "emailContact": "Ju lutemi jepni pëlqimin për kontakt me e-mail.",
@@ -397,6 +609,7 @@
       "phoneList": "Ju lutemi jepni të paktën një numër telefoni.",
       "contactList": "Ju lutemi jepni të paktën një kontakt të plotë me e-mail ose numër telefoni.",
       "schedule": "Ju lutemi jepni të paktën një orar.",
+      "scheduleEveryDay": "Ju lutemi caktoni një orë për çdo ditë kujdesi.",
       "select": "Ju lutemi zgjidhni një opsion.",
       "required": "Ju lutemi plotësoni këtë fushë të detyrueshme.",
       "careMissing": "Ju lutemi zgjidhni të paktën një ofertë përkujdesjeje për çdo fëmijë.",
@@ -408,7 +621,8 @@
       "groupAtMostOne": "Ju lutemi zgjidhni më së shumti një ofertë te “{group}”.",
       "pickupConfirm": "Ju lutemi konfirmoni rregullimin e marrjes (zgjidhni ditët ose lëreni bosh).",
       "weekdayRequired": "Ju lutemi zgjidhni të paktën një ditë të javës.",
-      "weekdayModeConfirm": "Ju lutemi konfirmoni rregullimin e largimit."
+      "weekdayModeConfirm": "Ju lutemi konfirmoni rregullimin e largimit.",
+      "weekdayMultiModeRequired": "Ju lutemi zgjidhni të paktën një mënyrë kthimi për çdo ditë kujdesi."
     },
     "care": {
       "requiredTitle": "Oferta të detyrueshme",
@@ -420,15 +634,19 @@
       "optionalHint": "Zgjidhni ofertat që dëshironi për këtë fëmijë.",
       "reviewHint": "OGS-ja kontrollon vendet e lira pas dërgimit. Ju lutemi vini re: Me regjistrimin në ofertën e shkollës gjithëditore, fëmija juaj është i detyruar të marrë pjesë në oraret e regjistruara sipas rregullores për shkollën gjithëditore.",
       "requiredBadge": "E detyrueshme",
+      "automaticBadge": "automatike",
       "chooseExactlyOne": "Ju lutemi zgjidhni saktësisht një ofertë.",
       "chooseAtLeastOne": "Ju lutemi zgjidhni të paktën një ofertë.",
       "selectableDays": "Ditë të zgjedhshme: ",
       "days": "Ditë: ",
+      "automaticDays": "{days} automatike",
+      "manualDays": "{days} manuale",
       "holiday": "përfshin përkujdesje gjatë pushimeve",
       "lunch": "përfshin drekën",
       "ruleExactlyOne": "Ju lutemi zgjidhni saktësisht një",
       "ruleAtLeastOne": "Ju lutemi zgjidhni të paktën një",
-      "ruleAtMostOne": "Më së shumti një"
+      "ruleAtMostOne": "Më së shumti një",
+      "availabilitySelectionRemoved": "Disa oferta kujdesi nuk janë më të disponueshme për klasën e zgjedhur. Zgjedhjet, ditët dhe shtesat automatike u hoqën."
     },
     "captchaMisconfigured": "Regjistrimi aktualisht nuk është i mundur: konfigurimi i mbrojtjes kundër botëve është i paplotë. Ju lutemi kontaktoni drejtimin e OGS-së.",
     "structured": {
@@ -441,6 +659,10 @@
       "removeNumber": "Hiq numrin",
       "addPhone": "Shto numër telefoni",
       "emptySchedule": "Fushat bosh do të thonë: nuk ka të dhënë për këtë ditë.",
+      "everyDayTime": "Ju lutemi caktoni një orë për çdo ditë kujdesi.",
+      "atLeastOneTime": "Ju lutemi jepni të paktën një orar.",
+      "selectTime": "Ju lutemi zgjidhni",
+      "timeUnavailable": "nuk është më e disponueshme",
       "noneContact": "Ende nuk është dhënë kontakt shtesë.",
       "relationship": "Marrëdhënia (p.sh. gjyshe, xhaxha, fqinje)",
       "optionalEmail": "E-mail (opsional)",
@@ -461,11 +683,23 @@
       "year": "Viti",
       "pickupDaysHelp": "Zgjidhni ditët kur fëmija merret. Në ditët e pazgjedhura fëmija shkon vetëm në shtëpi.",
       "busDaysHelp": "Zgjidhni ditët kur fëmija udhëton me autobus.",
-      "departureModeHelp": "Zgjidhni për çdo ditë jave si shkon fëmija në shtëpi. Parazgjedhja është: shkon vetëm.",
+      "departureModeHelp": "Zgjidhni për çdo ditë jave si shkon fëmija në shtëpi. Parazgjedhja është: shkon në këmbë.",
+      "weekdayMultiModeHelp": "Zgjidhni të gjitha mënyrat e kthimit që lejohen për fëmijën tuaj në çdo ditë kujdesi.",
+      "weekdayMultiModeNoDays": "Së pari zgjidhni ditët e kujdesit.",
+      "weekdayMultiModeUniform": "Të njëjtat mënyra kthimi për të gjitha ditët e kujdesit",
+      "weekdayMultiModeUniformHint": "Bëni zgjedhjen një herë; vlen për çdo ditë kujdesi.",
+      "weekdayMultiModeUniformConfirmTitle": "Të zbatohet një zgjedhje për të gjitha ditët?",
+      "weekdayMultiModeUniformConfirmBody": "Keni zgjedhur mënyra të ndryshme kthimi për ditë të veçanta kujdesi. Nëse aktivizoni një zgjedhje të përbashkët, këto të dhëna sipas ditëve fshihen dhe e bëni zgjedhjen nga e para.",
+      "weekdayMultiModeUniformConfirmCta": "Fshi dhe vazhdo",
+      "weekdayMultiModeUniformConfirmCancel": "Anulo",
+      "departureCompanionLabel": "Me cilin fëmijë?",
+      "departureCompanionPlaceholder": "p.sh. motër/vëlla, shok, emër",
+      "departureCompanionRequired": "Ju lutemi tregoni me cilin fëmijë shkon fëmija juaj në shtëpi.",
       "departureModes": {
-        "alone": "Shkon vetëm",
+        "alone": "Shkon në këmbë",
         "bus": "Autobus",
-        "pickup": "Marrje"
+        "pickup": "Merret",
+        "accompanied": "Me një fëmijë tjetër"
       }
     },
     "months": [
@@ -523,6 +757,7 @@
     "submittedTitle": "Faleminderit. Regjistrimi juaj u dërgua.",
     "statusTitle": "Statusi i regjistrimit tuaj",
     "submittedDescription": "OGS-ja kontrollon të dhënat tuaja. Statusin aktual e shihni në këtë faqe. Ruani lidhjen ose e-mailin e konfirmimit.",
+    "duplicateWarning": "Për të paktën një fëmijë mund të ketë tashmë një regjistrim aktiv në këtë fazë. Regjistrimi i ri u ruajt gjithsesi. Kontaktoni OGS-në nëse keni pyetje.",
     "statusDescription": "Regjistrimi juaj u pranua më {date}. Këtu shihni statusin aktual, kontaktet dhe fëmijët e regjistruar.",
     "nextTitle": "Çfarë ndodh më pas",
     "currentTitle": "Statusi aktual",
@@ -551,10 +786,40 @@
     "withdrawChild": "Tërhiq këtë fëmijë",
     "guardianTitle": "Personi kujdestar",
     "edit": "Ndrysho",
+    "editFull": "Ndrysho regjistrimin",
+    "editLoading": "Regjistrimi po ngarkohet…",
+    "editLoadError": "Regjistrimi nuk mund të ndryshohet",
+    "editSaveError": "Ndryshimet nuk mund të ruheshin",
+    "editSubmit": "Ruaj ndryshimet",
+    "changeRequestTitle": "Kërko ndryshim",
+    "changeRequestDescription": "Ky regjistrim është shqyrtuar tashmë. Ndryshimet tuaja do t'i dërgohen OGS-së si kërkesë dhe do të zbatohen vetëm pas miratimit.",
+    "changeRequestEyebrow": "Për shqyrtim",
+    "changeRequestReasonLabel": "Shënim për ndryshimin, opsional",
+    "changeRequestReasonPlaceholder": "Çfarë ka ndryshuar?",
+    "changeRequestSubmit": "Dërgo kërkesën për ndryshim",
+    "changeRequestSaveError": "Kërkesa për ndryshim nuk mund të ruhej",
+    "requestChange": "Kërko ndryshim",
+    "changeRequestReplySaved": "Përgjigjja u dërgua.",
+    "changeRequestsEyebrow": "Ndryshime",
+    "changeRequestsTitle": "Kërkesa për ndryshim",
+    "changeRequestsDescription": "Këtu shihni kërkesat që janë ende në shqyrtim, pyetjet nga OGS dhe vendimet e përfunduara.",
+    "changeRequestsEmpty": "Ende nuk është dërguar asnjë kërkesë për ndryshim.",
+    "changeRequestCreated": "Dërguar më {date}",
+    "changeRequestAdminCorrection": "Korrigjuar nga OGS më {date}",
+    "changeRequestDiffTitle": "Ndryshimet e kërkuara",
+    "changeRequestDiffEmpty": "Nuk ka ndryshime të dallueshme në fusha.",
+    "changeRequestBefore": "Më parë",
+    "changeRequestRequested": "Kërkuar",
+    "changeRequestDecisionNote": "Vendimi:",
+    "changeRequestReplyLabel": "Përgjigje",
+    "changeRequestReplySending": "Duke dërguar…",
+    "changeRequestReplySubmit": "Dërgo përgjigje",
+    "backToStatus": "Kthehu te statusi",
     "nameLabel": "Emri",
     "emailLabel": "E-mail",
     "phoneLabel": "Telefoni",
     "notProvided": "Nuk është dhënë",
+    "additionalGuardiansLabel": "Kujdestarë shtesë",
     "firstNameLabel": "Emri",
     "lastNameLabel": "Mbiemri",
     "phoneOptionalLabel": "Telefoni, opsional",
@@ -563,6 +828,7 @@
     "save": "Ruaj",
     "cancel": "Anulo",
     "editLocked": "Ndryshimet janë të mundshme vetëm derisa ende nuk ka vendim. Për ndryshime kontaktoni OGS-në.",
+    "editLockedWithChangeRequest": "Ndryshimet direkte nuk janë më të mundshme. Mund të dërgoni një kërkesë për ndryshim te OGS.",
     "manageEyebrow": "Menaxho regjistrimin",
     "withdrawAllTitle": "Tërhiq të gjithë regjistrimin",
     "withdrawTitle": "Tërhiq regjistrimin",
@@ -577,6 +843,184 @@
       "pending_renewal": "Kërkohet konfirmim",
       "auto_renewed": "Pararegjistruar",
       "pending_admin_review": "Në shqyrtim"
+    },
+    "changeRequestStatus": {
+      "pending_review": "Në pritje të shqyrtimit",
+      "needs_parent_response": "Pyetje e hapur",
+      "approved": "Miratuar",
+      "rejected": "Refuzuar",
+      "cancelled": "Anuluar"
+    },
+    "changeRequestAuthor": {
+      "parent": "Ju",
+      "staff": "OGS",
+      "system": "Sistemi"
+    },
+    "diff": {
+      "yes": "Po",
+      "no": "Jo",
+      "childEntry": "Fëmija",
+      "additionalGuardianEntry": "Person shtesë",
+      "snapshot": {
+        "additional_guardians": "Kujdestarë shtesë",
+        "children": "Fëmijët",
+        "consent_flags": "Pëlqimet",
+        "custom_data": "Të dhëna shtesë",
+        "guardian_email": "E-mail",
+        "guardian_first_name": "Emri",
+        "guardian_last_name": "Mbiemri",
+        "guardian_phone": "Telefoni",
+        "phase_id": "Faza e regjistrimit"
+      },
+      "child": {
+        "custom_data": "Të dhëna shtesë",
+        "date_of_birth": "Data e lindjes",
+        "first_name": "Emri",
+        "last_name": "Mbiemri",
+        "offering_days": "Ditët e kujdesit",
+        "offering_ids": "Ofertat e kujdesit",
+        "target_grade_level": "Klasa e synuar",
+        "target_school_class": "Klasa"
+      },
+      "guardian": {
+        "email": "E-mail",
+        "first_name": "Emri",
+        "last_name": "Mbiemri",
+        "phone": "Telefoni"
+      },
+      "record": {
+        "automatic_selected_days": "Automatikisht",
+        "available_days": "Ditët e disponueshme",
+        "days_of_week_mode": "Modaliteti",
+        "email": "E-mail",
+        "first_name": "Emri",
+        "last_name": "Mbiemri",
+        "manual_selected_days": "Manualisht",
+        "offering_id": "Ofertë kujdesi",
+        "offering_ids": "Oferta kujdesi",
+        "phone": "Telefoni",
+        "selected_days": "Ditët"
+      },
+      "weekday": {
+        "mon": "Hën",
+        "tue": "Mar",
+        "wed": "Mër",
+        "thu": "Enj",
+        "fri": "Pre",
+        "sat": "Sht",
+        "sun": "Die"
+      }
     }
+  },
+  "parentMasterData": {
+    "title": "Stammdaten",
+    "subtitle": "Hier sehen Sie die zu Ihrem Kind gespeicherten Angaben. Die meisten Felder können Sie direkt ändern; einige Änderungen prüft das Team vorab.",
+    "back": "Zurück",
+    "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+    "saved": "Gespeichert",
+    "saveError": "Die Änderung konnte nicht gespeichert werden.",
+    "openLink": "Stammdaten ansehen & ändern",
+    "editableHint": "Änderungen werden automatisch gespeichert.",
+    "readonlyHint": "Diese Angaben pflegt die OGS.",
+    "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
+    "requestButton": "Änderung anfragen",
+    "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
+    "requestError": "Die Anfrage konnte nicht gesendet werden.",
+    "noChanges": "Es gibt keine Änderungen zum Senden.",
+    "pendingBadge": "In Prüfung",
+    "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
+    "editDisabled": "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
+    "requestDisabled": "Änderungsanfragen sind bei dieser OGS deaktiviert.",
+    "notSet": "Nicht angegeben",
+    "sections": {
+      "child": "Angaben zum Kind",
+      "health": "Gesundheit",
+      "contact": "Ihre Kontaktdaten",
+      "departure": "Dauerhafte Gehzeiten",
+      "careSchedule": "Betreuungszeiten"
+    },
+    "fields": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "birthday": "Geburtsdatum",
+      "schoolClass": "Klasse",
+      "status": "Status",
+      "carePeriod": "Betreuungszeitraum",
+      "healthInfo": "Gesundheitshinweise / Allergien",
+      "email": "E-Mail-Adresse",
+      "addressStreet": "Straße und Hausnummer",
+      "addressCity": "Ort",
+      "addressPostalCode": "PLZ",
+      "contactMethod": "Bevorzugter Kontaktweg",
+      "language": "Sprache",
+      "phone": "Telefonnummer",
+      "day": "Tag"
+    },
+    "contactMethods": {
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "mobile": "Mobil",
+      "sms": "SMS"
+    },
+    "departureModes": {
+      "pickup": "Wird abgeholt",
+      "bus": "Bus",
+      "alone": "Geht allein",
+      "accompanied": "Geht mit anderem Kind",
+      "none": "Keine Angabe"
+    },
+    "departureDays": {
+      "mon": "Mo",
+      "tue": "Di",
+      "wed": "Mi",
+      "thu": "Do",
+      "fri": "Fr"
+    },
+    "careSchedule": {
+      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "pendingBadge": "In Prüfung",
+      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
+      "requestedAt": "Angefragt am {date}",
+      "withdraw": "Zurückziehen",
+      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
+      "withdrawConfirmTitle": "Anfrage zurückziehen?",
+      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
+    }
+  },
+  "parentOgsMessaging": {
+    "readByStaff": "Lexuar",
+    "requestTypeCareSchedule": "Kërkesë: Ndrysho oraret e rregullta të kujdesit",
+    "requestTitleFallback": "Kërkesë",
+    "statusOpen": "E hapur",
+    "statusDone": "E përfunduar",
+    "statusRejected": "E refuzuar",
+    "statusWithdrawn": "E tërhequr",
+    "eventRequestConfirmed": "Kërkesa u konfirmua",
+    "eventRequestConfirmedCareSchedule": "Kërkesa u konfirmua, oraret e kujdesit u zbatuan",
+    "eventRequestCreatedCareSchedule": "Kërkesë për ndryshim të orareve të kujdesit u dërgua",
+    "eventRequestCreatedMasterData": "Kërkesë për ndryshim të Stammdaten u dërgua",
+    "eventRequestConfirmedMasterData": "Kërkesa u konfirmua, Stammdaten u zbatuan",
+    "eventRequestCreatedExcusedAbsence": "Kërkesë për mungesë të arsyetuar u dërgua",
+    "eventRequestConfirmedExcusedAbsence": "Kërkesa u konfirmua, mungesa u regjistrua",
+    "eventRequestRejected": "Kërkesa u refuzua",
+    "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
+    "eventRequestWithdrawn": "Kërkesa u tërhoq",
+    "diffHeading": "Ndryshimet tuaja të kërkuara",
+    "diffCareArrival": "Ora e ardhjes",
+    "diffCarePickup": "Ora e marrjes",
+    "diffCareDepartureMode": "Mënyra e largimit",
+    "diffWeekday1": "E hënë",
+    "diffWeekday2": "E martë",
+    "diffWeekday3": "E mërkurë",
+    "diffWeekday4": "E enjte",
+    "diffWeekday5": "E premte",
+    "diffModeAlone": "Largohet vetë",
+    "diffModeBus": "Udhëton me autobus",
+    "diffModePickup": "Merret",
+    "diffModeAccompanied": "Me një fëmijë tjetër"
   }
 }

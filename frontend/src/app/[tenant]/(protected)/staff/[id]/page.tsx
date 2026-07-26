@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
@@ -9,27 +9,22 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
 import {
+  employmentTypeLabels,
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
 import { getInitials } from "~/lib/format-utils";
 import { useSWRAuth } from "~/lib/swr";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { Loading } from "~/components/ui/loading";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
+import { StaffDetailSkeleton } from "./page-skeleton";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
-
-const employmentTypeLabels: Record<string, string> = {
-  full_time: "Vollzeit",
-  part_time: "Teilzeit",
-  minijob: "Minijob",
-};
 
 // ─── Rich Header ─────────────────────────────────────────────────────────────
 
@@ -213,7 +208,7 @@ function PlaceholderTab({ title }: { readonly title: string }) {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
-function StaffDetailContent() {
+export default function StaffDetailContent() {
   const { data: session, status: sessionStatus } = useSession({
     required: true,
     onUnauthenticated() {
@@ -224,6 +219,8 @@ function StaffDetailContent() {
   const params = useParams();
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
+  const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canViewTimeTracking = canEdit || canManageTimeTracking;
 
   const {
     data: staff,
@@ -244,7 +241,9 @@ function StaffDetailContent() {
         `${year}-01-01`,
         `${year}-12-31`,
       );
-      return rows.filter((r) => r.status === "requested").length;
+      return rows.filter(
+        (r) => r.status === "requested" || r.status === "question",
+      ).length;
     },
   );
   const pendingCount = pendingForStaff ?? 0;
@@ -276,12 +275,12 @@ function StaffDetailContent() {
   }, [menuOpen]);
 
   if (sessionStatus === "loading" || isLoading) {
-    return <Loading fullPage={false} />;
+    return <StaffDetailSkeleton />;
   }
 
-  if (!canEdit) {
+  if (!canViewTimeTracking) {
     router.replace("/staff");
-    return <Loading fullPage={false} />;
+    return <StaffDetailSkeleton />;
   }
 
   if (error || !staff) {
@@ -338,14 +337,25 @@ function StaffDetailContent() {
       />
 
       {/* Tabs */}
-      <Tabs defaultValue="uebersicht" className="w-full">
+      <Tabs
+        defaultValue={canViewTimeTracking ? "uebersicht" : "abwesenheiten"}
+        className="w-full"
+      >
         <TabsList
           variant="line"
           className="mb-6 w-full [scrollbar-width:none] justify-start overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden"
         >
-          <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
-          <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
-          <TabsTrigger value="arbeitszeitmodell">Arbeitszeitmodell</TabsTrigger>
+          {canViewTimeTracking ? (
+            <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
+          ) : null}
+          {canViewTimeTracking ? (
+            <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
+          ) : null}
+          {canEdit ? (
+            <TabsTrigger value="arbeitszeitmodell">
+              Arbeitszeitmodell
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger value="abwesenheiten">
             <span className="inline-flex items-center gap-1.5">
               Abwesenheiten
@@ -356,46 +366,57 @@ function StaffDetailContent() {
               )}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="stammdaten" disabled>
-            Stammdaten
-          </TabsTrigger>
-          <TabsTrigger value="dokumente" disabled>
-            Dokumente
-          </TabsTrigger>
+          {canEdit ? (
+            <>
+              <TabsTrigger value="stammdaten" disabled>
+                Stammdaten
+              </TabsTrigger>
+              <TabsTrigger value="dokumente" disabled>
+                Dokumente
+              </TabsTrigger>
+            </>
+          ) : null}
         </TabsList>
 
-        <TabsPrimitive.Content value="uebersicht">
-          <UebersichtTab staffId={staffId} />
-        </TabsPrimitive.Content>
+        {canViewTimeTracking ? (
+          <TabsPrimitive.Content value="uebersicht">
+            <UebersichtTab staffId={staffId} />
+          </TabsPrimitive.Content>
+        ) : null}
 
-        <TabsPrimitive.Content value="zeiterfassung">
-          <ZeiterfassungTab staffId={staffId} />
-        </TabsPrimitive.Content>
+        {canViewTimeTracking ? (
+          <TabsPrimitive.Content value="zeiterfassung">
+            <ZeiterfassungTab staffId={staffId} />
+          </TabsPrimitive.Content>
+        ) : null}
 
-        <TabsPrimitive.Content value="arbeitszeitmodell">
-          <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
-        </TabsPrimitive.Content>
+        {canEdit ? (
+          <TabsPrimitive.Content value="arbeitszeitmodell">
+            <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
+          </TabsPrimitive.Content>
+        ) : null}
 
         <TabsPrimitive.Content value="abwesenheiten">
-          <AbwesenheitenTab staffId={staffId} canEdit={canEdit} />
+          <AbwesenheitenTab
+            staffId={staffId}
+            canEdit={canEdit}
+            canManageSickReports={canManageTimeTracking}
+            staff={staff}
+          />
         </TabsPrimitive.Content>
 
-        <TabsPrimitive.Content value="stammdaten">
-          <PlaceholderTab title="Stammdaten" />
-        </TabsPrimitive.Content>
+        {canEdit ? (
+          <>
+            <TabsPrimitive.Content value="stammdaten">
+              <PlaceholderTab title="Stammdaten" />
+            </TabsPrimitive.Content>
 
-        <TabsPrimitive.Content value="dokumente">
-          <PlaceholderTab title="Dokumente" />
-        </TabsPrimitive.Content>
+            <TabsPrimitive.Content value="dokumente">
+              <PlaceholderTab title="Dokumente" />
+            </TabsPrimitive.Content>
+          </>
+        ) : null}
       </Tabs>
     </div>
-  );
-}
-
-export default function StaffDetailPage() {
-  return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <StaffDetailContent />
-    </Suspense>
   );
 }

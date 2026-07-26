@@ -112,11 +112,26 @@ type EnqueueRequest struct {
 	Payload           map[string]any
 	RelatedEntityType string // optional, e.g., "enrollment_request"
 	RelatedEntityID   int64  // optional, paired with RelatedEntityType
+	IdempotencyKey    string // optional; duplicate tenant/key enqueues are ignored
 }
 
 // Enqueue creates a pending outbox row in the current tenant
 // transaction. Caller is responsible for being inside a tenant tx
 // (otherwise the RLS policy will reject the INSERT).
+// EnqueueOutbox implements platformModels.OutboxEnqueuer for the feature
+// services (guardian invitations, enrollment emails), discarding the
+// created row.
+func (s *OutboxService) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
+	_, err := s.Enqueue(ctx, EnqueueRequest{
+		Kind:              req.Kind,
+		Payload:           req.Payload,
+		RelatedEntityType: req.RelatedEntityType,
+		RelatedEntityID:   req.RelatedEntityID,
+		IdempotencyKey:    req.IdempotencyKey,
+	})
+	return err
+}
+
 func (s *OutboxService) Enqueue(ctx context.Context, req EnqueueRequest) (*platformModels.EmailOutbox, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("outbox service not wired")
@@ -133,6 +148,10 @@ func (s *OutboxService) Enqueue(ctx context.Context, req EnqueueRequest) (*platf
 		Payload: req.Payload,
 		Status:  platformModels.EmailOutboxStatusPending,
 	}
+	if req.IdempotencyKey != "" {
+		key := req.IdempotencyKey
+		row.IdempotencyKey = &key
+	}
 	if req.RelatedEntityType != "" {
 		t := req.RelatedEntityType
 		row.RelatedEntityType = &t
@@ -145,6 +164,17 @@ func (s *OutboxService) Enqueue(ctx context.Context, req EnqueueRequest) (*platf
 		return nil, fmt.Errorf("enqueue email outbox row: %w", err)
 	}
 	return row, nil
+}
+
+// CancelPendingByRelatedEntity marks every still-pending outbox row for a
+// related entity as failed so the worker never sends it — used when the
+// triggering entity is retracted before the async send. Tenant-scoped; must run
+// inside the caller's tenant tx. Returns the number of rows cancelled.
+func (s *OutboxService) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
+	if s == nil || s.repo == nil {
+		return 0, errors.New("outbox service not wired")
+	}
+	return s.repo.CancelPendingByRelatedEntity(ctx, relatedType, relatedID, reason)
 }
 
 // FindByRelatedEntity surfaces the per-feature lookup so admin UIs can

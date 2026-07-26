@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { operatorAuth, uncachedOperatorAuth } from "~/server/auth/operator";
+import { withOperatorAuth } from "~/server/auth/operator-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 
@@ -68,10 +69,14 @@ async function forward(
   });
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
+async function GETHandler(request: NextRequest, context: RouteContext) {
   return forward(request, context, "GET");
 }
 
-export async function PUT(request: NextRequest, context: RouteContext) {
+export const GET = withOperatorAuth(GETHandler);
+
+async function PUTHandler(request: NextRequest, context: RouteContext) {
   return forward(request, context, "PUT");
 }
+
+export const PUT = withOperatorAuth(PUTHandler);

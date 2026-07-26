@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
-  BackendCombinedGroup,
-  BackendGroupMapping,
   BackendSchulhofStatus,
   BackendToggleSupervisionResponse,
 } from "./active-helpers";
@@ -11,7 +9,7 @@ import {
   buildBackendActiveSession,
   buildBackendVisit,
   buildBackendSupervisor,
-} from "~/test/fixtures";
+} from "~/test/fixtures/sessions";
 
 // Mock dependencies before importing the module
 vi.mock("next-auth/react", () => ({
@@ -79,25 +77,6 @@ const sampleBackendSupervisor = buildBackendSupervisor({
   staff_name: "Frau Schmidt",
   active_group_name: "Morning Session",
 });
-
-const sampleBackendCombinedGroup: BackendCombinedGroup = {
-  id: 300,
-  name: "Combined Morning",
-  description: "Combined session",
-  room_id: 5,
-  start_time: "2024-01-15T08:00:00Z",
-  is_active: true,
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-15T08:00:00Z",
-};
-
-const sampleBackendGroupMapping: BackendGroupMapping = {
-  id: 400,
-  active_group_id: 1,
-  combined_group_id: 300,
-  group_name: "Class 3A",
-  combined_name: "Combined Morning",
-};
 
 describe("active-service", () => {
   const consoleSpies = suppressConsole("error", "warn");
@@ -568,6 +547,40 @@ describe("active-service", () => {
         );
         expect(result.assigned).toEqual([50]);
       });
+
+      it("moves students to an active group through the batch move endpoint", async () => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                moved: [50, 51],
+                unchanged: [],
+                skipped: [],
+                active_group_id: 1,
+                room_id: 5,
+              },
+            }),
+        } as Response);
+
+        const result = await activeService.moveStudentsToActiveGroup(
+          ["50", "51"],
+          "1",
+        );
+
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/active/visits/move-to-group",
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              student_ids: [50, 51],
+              target_active_group_id: 1,
+            }),
+          }),
+        );
+        expect(result.moved).toEqual([50, 51]);
+      });
     });
 
     describe("updateVisit", () => {
@@ -773,132 +786,6 @@ describe("active-service", () => {
         const result = await activeService.endSupervision("200");
 
         expect(result.isActive).toBe(false);
-      });
-    });
-  });
-
-  describe("Combined Groups", () => {
-    describe("getCombinedGroups", () => {
-      it("fetches all combined groups", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: [sampleBackendCombinedGroup] }),
-        } as Response);
-
-        const result = await activeService.getCombinedGroups();
-
-        expect(result).toHaveLength(1);
-        expect(result[0]?.name).toBe("Combined Morning");
-      });
-    });
-
-    describe("getActiveCombinedGroups", () => {
-      it("fetches only active combined groups", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: [sampleBackendCombinedGroup] }),
-        } as Response);
-
-        await activeService.getActiveCombinedGroups();
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/active/combined/active",
-          expect.any(Object),
-        );
-      });
-    });
-
-    describe("createCombinedGroup", () => {
-      it("creates a new combined group", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: sampleBackendCombinedGroup }),
-        } as Response);
-
-        const result = await activeService.createCombinedGroup({
-          name: "Combined Morning",
-          roomId: "5",
-          startTime: new Date("2024-01-15T08:00:00Z"),
-        });
-
-        expect(result.id).toBe("300");
-      });
-    });
-
-    describe("endCombinedGroup", () => {
-      it("ends a combined group", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              data: { ...sampleBackendCombinedGroup, is_active: false },
-            }),
-        } as Response);
-
-        const result = await activeService.endCombinedGroup("300");
-
-        expect(result.isActive).toBe(false);
-      });
-    });
-  });
-
-  describe("Group Mappings", () => {
-    describe("getGroupMappingsByGroup", () => {
-      it("fetches mappings for a group", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: [sampleBackendGroupMapping] }),
-        } as Response);
-
-        const result = await activeService.getGroupMappingsByGroup("1");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]?.groupName).toBe("Class 3A");
-      });
-    });
-
-    describe("addGroupToCombination", () => {
-      it("adds a group to a combined group", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: sampleBackendGroupMapping }),
-        } as Response);
-
-        const result = await activeService.addGroupToCombination("1", "300");
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/active/mappings/add",
-          expect.objectContaining({
-            method: "POST",
-            body: expect.stringContaining('"active_group_id":1'),
-          }),
-        );
-        expect(result.id).toBe("400");
-      });
-    });
-
-    describe("removeGroupFromCombination", () => {
-      it("removes a group from a combined group", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({}),
-        } as Response);
-
-        await activeService.removeGroupFromCombination("1", "300");
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/active/mappings/remove",
-          expect.objectContaining({
-            method: "POST",
-          }),
-        );
       });
     });
   });

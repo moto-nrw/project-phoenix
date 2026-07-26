@@ -1,10 +1,53 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import { format, addMonths, subMonths } from "date-fns";
 import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
+
+// How the calendar is placed relative to the trigger:
+// - "overlay": absolutely positioned inside the picker's own stacking context.
+//   Cheapest option, but any ancestor with overflow hidden/auto clips it.
+// - "inline": rendered in normal flow below the trigger. Never clipped, but it
+//   pushes the surrounding content down while open.
+// - "popover": rendered into document.body via a portal and positioned from the
+//   trigger's viewport rect. Escapes clipping ancestors AND leaves the layout
+//   untouched — the right choice inside scrollable panels/modals.
+type CalendarLayout = "overlay" | "inline" | "popover";
+
+// Viewport gap and calendar footprint used to flip/clamp the popover. The
+// calendar is a fixed 7x6 grid of 32px days plus header and padding, so a
+// constant is accurate enough and avoids a measure-then-reposition flash.
+const POPOVER_MARGIN = 8;
+const POPOVER_WIDTH = 268;
+const POPOVER_HEIGHT = 340;
+
+interface PopoverPosition {
+  top: number;
+  left: number;
+}
+
+// Places the calendar below the trigger, flipping above when the viewport
+// bottom would cut it off, and clamps both axes into the viewport so the
+// calendar stays fully reachable on small screens.
+function computePopoverPosition(rect: DOMRect): PopoverPosition {
+  let top = rect.bottom + 4;
+  if (top + POPOVER_HEIGHT > window.innerHeight - POPOVER_MARGIN) {
+    const above = rect.top - 4 - POPOVER_HEIGHT;
+    top =
+      above >= POPOVER_MARGIN
+        ? above
+        : Math.max(
+            POPOVER_MARGIN,
+            window.innerHeight - POPOVER_MARGIN - POPOVER_HEIGHT,
+          );
+  }
+  const maxLeft = window.innerWidth - POPOVER_MARGIN - POPOVER_WIDTH;
+  const left = Math.max(POPOVER_MARGIN, Math.min(rect.left, maxLeft));
+  return { top, left };
+}
 
 type DatePickerProps =
   | {
@@ -14,7 +57,15 @@ type DatePickerProps =
       readonly placeholder?: string;
       readonly className?: string;
       readonly dropdownPlacement?: "up" | "down";
-      readonly calendarLayout?: "overlay" | "inline";
+      readonly calendarLayout?: CalendarLayout;
+      // Earliest selectable day (inclusive). Days before it are disabled — used
+      // to forbid past-date selection while keeping today choosable.
+      readonly minDate?: Date;
+      // Latest selectable day (inclusive). Days after it are disabled — used to
+      // cap selection at a planning horizon while keeping that day choosable.
+      readonly maxDate?: Date;
+      /** Hide the inline clear ("X") control. Use when the value is required. */
+      readonly hideClearButton?: boolean;
     }
   | {
       readonly mode: "multiple";
@@ -23,7 +74,7 @@ type DatePickerProps =
       readonly placeholder?: string;
       readonly className?: string;
       readonly dropdownPlacement?: "up" | "down";
-      readonly calendarLayout?: "overlay" | "inline";
+      readonly calendarLayout?: CalendarLayout;
       readonly disabledDates?: Date[];
     };
 
@@ -32,7 +83,7 @@ interface MultipleDatePickerCalendarProps {
   readonly onChangeDates: (dates: Date[]) => void;
   readonly disabledDates?: Date[];
   readonly dropdownPlacement: "up" | "down";
-  readonly calendarLayout: "overlay" | "inline";
+  readonly calendarLayout: CalendarLayout;
 }
 
 const EMPTY_DISABLED_DATES: Date[] = [];
@@ -46,6 +97,14 @@ export function DatePicker({
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  // null until the trigger rect has been measured. The portal renders only once
+  // a position exists, so the calendar never paints at the top-left corner
+  // before an effect moves it into place.
+  const [popoverPosition, setPopoverPosition] =
+    useState<PopoverPosition | null>(null);
+  const isPopover = calendarLayout === "popover";
   const isMultiple = props.mode === "multiple";
   const displayValue = isMultiple
     ? formatMultipleDateLabel(props.values)
@@ -53,12 +112,59 @@ export function DatePicker({
       ? format(props.value, "dd.MM.yyyy", { locale: de })
       : null;
 
+  // Portals only exist client-side; render nothing on the server pass.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const syncPopoverPosition = useCallback(() => {
+    if (!containerRef.current) return;
+    setPopoverPosition(
+      computePopoverPosition(containerRef.current.getBoundingClientRect()),
+    );
+  }, []);
+
+  // Opening measures the trigger and shows the calendar in the SAME event, so
+  // React commits both together and the portal's first paint is already in
+  // place. Positioning from an effect instead would paint one frame at the
+  // viewport origin first, which reads as the calendar flashing top-left.
+  const toggleOpen = () => {
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+    if (isPopover) {
+      syncPopoverPosition();
+    }
+    setIsOpen(true);
+  };
+
+  // Keep the position correct while the viewport changes. Any scroll (including
+  // inside a filter panel or modal) closes the calendar: the trigger would
+  // otherwise slide away from a portal that lives outside that scroll container
+  // — the same trade-off the operator status dropdown makes.
+  useEffect(() => {
+    if (!isPopover || !isOpen) return;
+    const close = () => setIsOpen(false);
+    window.addEventListener("resize", syncPopoverPosition);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("resize", syncPopoverPosition);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [isPopover, isOpen, syncPopoverPosition]);
+
   useEffect(() => {
     function handleOutsideInteraction(event: Event) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      // The portalled calendar is NOT inside containerRef, so it has to be
+      // treated as "inside" explicitly. Without this the pointerdown handler
+      // unmounts the calendar before the day button's click lands and picking a
+      // date silently does nothing.
+      if (popoverRef.current?.contains(target)) {
+        return;
+      }
+      if (containerRef.current && !containerRef.current.contains(target)) {
         setIsOpen(false);
       }
     }
@@ -74,11 +180,33 @@ export function DatePicker({
     };
   }, []);
 
+  const calendar = isMultiple ? (
+    <MultipleDatePickerCalendar
+      values={props.values}
+      onChangeDates={props.onChangeDates}
+      disabledDates={props.disabledDates}
+      dropdownPlacement={dropdownPlacement}
+      calendarLayout={calendarLayout}
+    />
+  ) : (
+    <DatePickerCalendar
+      value={props.value}
+      minDate={props.minDate}
+      maxDate={props.maxDate}
+      dropdownPlacement={dropdownPlacement}
+      calendarLayout={calendarLayout}
+      onChange={(date) => {
+        props.onChange(date);
+        setIsOpen(false);
+      }}
+    />
+  );
+
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         className={`flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
           isOpen ? "border-gray-300 bg-gray-50" : "hover:bg-gray-50"
         }`}
@@ -87,7 +215,7 @@ export function DatePicker({
           {displayValue ?? placeholder}
         </span>
         <div className="flex items-center gap-1">
-          {displayValue && (
+          {displayValue && !(!isMultiple && props.hideClearButton) && (
             <span
               role="button"
               tabIndex={0}
@@ -143,29 +271,23 @@ export function DatePicker({
         </div>
       </button>
 
-      {isOpen && (
-        <>
-          {isMultiple ? (
-            <MultipleDatePickerCalendar
-              values={props.values}
-              onChangeDates={props.onChangeDates}
-              disabledDates={props.disabledDates}
-              dropdownPlacement={dropdownPlacement}
-              calendarLayout={calendarLayout}
-            />
-          ) : (
-            <DatePickerCalendar
-              value={props.value}
-              dropdownPlacement={dropdownPlacement}
-              calendarLayout={calendarLayout}
-              onChange={(date) => {
-                props.onChange(date);
-                setIsOpen(false);
-              }}
-            />
-          )}
-        </>
-      )}
+      {/* The overlay/inline layouts render in place; the popover layout renders
+          the calendar into document.body at a viewport-fixed position. Portals
+          only exist client-side, hence the `mounted` guard on that branch, and
+          the position guard keeps the first paint from landing at the origin. */}
+      {isOpen && !isPopover && calendar}
+      {isOpen && isPopover && mounted && popoverPosition
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              className="fixed z-[10001]"
+              style={{ top: popoverPosition.top, left: popoverPosition.left }}
+            >
+              {calendar}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -182,13 +304,17 @@ function formatMultipleDateLabel(values: Date[]): string | null {
 
 function DatePickerCalendar({
   value,
+  minDate,
+  maxDate,
   dropdownPlacement,
   calendarLayout,
   onChange,
 }: {
   readonly value?: Date | null;
+  readonly minDate?: Date;
+  readonly maxDate?: Date;
   readonly dropdownPlacement: "up" | "down";
-  readonly calendarLayout: "overlay" | "inline";
+  readonly calendarLayout: CalendarLayout;
   readonly onChange: (date: Date | null) => void;
 }) {
   const [month, setMonth] = useState(value ?? new Date());
@@ -201,6 +327,7 @@ function DatePickerCalendar({
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
+          aria-label="Vorheriger Monat"
           onClick={() => setMonth(subMonths(month, 1))}
           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
@@ -223,6 +350,7 @@ function DatePickerCalendar({
         </span>
         <button
           type="button"
+          aria-label="Nächster Monat"
           onClick={() => setMonth(addMonths(month, 1))}
           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
@@ -244,6 +372,7 @@ function DatePickerCalendar({
       <DayPicker
         mode="single"
         selected={value ?? undefined}
+        disabled={buildSingleDisabledMatchers(minDate, maxDate)}
         month={month}
         onMonthChange={setMonth}
         onSelect={(date) => onChange(date ?? null)}
@@ -289,6 +418,7 @@ function MultipleDatePickerCalendar({
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
+          aria-label="Vorheriger Monat"
           onClick={() => setMonth(subMonths(month, 1))}
           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
@@ -311,6 +441,7 @@ function MultipleDatePickerCalendar({
         </span>
         <button
           type="button"
+          aria-label="Nächster Monat"
           onClick={() => setMonth(addMonths(month, 1))}
           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
@@ -362,13 +493,30 @@ function MultipleDatePickerCalendar({
   );
 }
 
+// Combines the optional lower/upper bounds into react-day-picker matchers.
+// An empty matcher list disables nothing, so an unbounded picker keeps every
+// day selectable.
+function buildSingleDisabledMatchers(
+  minDate?: Date,
+  maxDate?: Date,
+): ({ before: Date } | { after: Date })[] {
+  const matchers: ({ before: Date } | { after: Date })[] = [];
+  if (minDate) matchers.push({ before: minDate });
+  if (maxDate) matchers.push({ after: maxDate });
+  return matchers;
+}
+
 function getCalendarContainerClass(
   dropdownPlacement: "up" | "down",
-  calendarLayout: "overlay" | "inline",
+  calendarLayout: CalendarLayout,
 ): string {
   const base = "rounded-xl border border-gray-200 bg-white p-3 shadow-lg";
   if (calendarLayout === "inline") {
     return `${base} mt-2 w-fit max-w-full`;
+  }
+  // The portal wrapper owns placement; the card only needs its own surface.
+  if (calendarLayout === "popover") {
+    return `${base} w-fit`;
   }
   const placement =
     dropdownPlacement === "down" ? "top-full mt-1" : "bottom-full mb-1";

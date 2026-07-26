@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestInstanceStaff_Validate(t *testing.T) {
@@ -48,15 +47,4 @@ func TestInstanceStaff_Validate(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "room_id must be positive when set")
 	})
-}
-
-func TestInstanceStaff_TableName(t *testing.T) {
-	assert.Equal(t, "schedule.instance_staff", (&InstanceStaff{}).TableName())
-}
-
-func TestInstanceStaff_BeforeAppendModel(t *testing.T) {
-	s := &InstanceStaff{}
-	for _, q := range []any{&bun.SelectQuery{}, &bun.UpdateQuery{}, &bun.DeleteQuery{}, "unknown"} {
-		require.NoError(t, s.BeforeAppendModel(q))
-	}
 }

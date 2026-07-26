@@ -451,8 +451,9 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", oldEntry.ID, recentEntry.ID)
 
 		// Count entries for this student before delete
-		countBefore, err := repo.CountByStudentID(ctx, student.ID)
+		entriesBefore, err := repo.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
+		countBefore := len(entriesBefore)
 
 		// ACT: delete entries older than 30 days
 		deleted, err := repo.DeleteOlderThan(ctx, 30)
@@ -462,9 +463,9 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 		assert.GreaterOrEqual(t, deleted, 1)
 
 		// Count entries for this student after delete — should have fewer
-		countAfter, err := repo.CountByStudentID(ctx, student.ID)
+		entriesAfter, err := repo.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
-		assert.Less(t, countAfter, countBefore, "should have fewer entries after cleanup")
+		assert.Less(t, len(entriesAfter), countBefore, "should have fewer entries after cleanup")
 	})
 
 	t.Run("returns zero when nothing to delete", func(t *testing.T) {
@@ -491,113 +492,6 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 // ============================================================================
 // Count Tests
 // ============================================================================
-
-func TestEntryRepository_CountByDay(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
-
-	student := testpkg.CreateTestStudent(t, db, "Count", "Day", "10a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-	t.Run("counts entries by day", func(t *testing.T) {
-		today := timezone.TodayDate()
-
-		entry1 := &feedback.Entry{
-			Value:     feedback.ValuePositive,
-			Day:       today,
-			Time:      time.Now(),
-			StudentID: student.ID,
-		}
-		entry2 := &feedback.Entry{
-			Value:     feedback.ValueNeutral,
-			Day:       today,
-			Time:      time.Now(),
-			StudentID: student.ID,
-		}
-
-		err := repo.Create(ctx, entry1)
-		require.NoError(t, err)
-		err = repo.Create(ctx, entry2)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID)
-
-		count, err := repo.CountByDay(ctx, today)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 2)
-	})
-}
-
-func TestEntryRepository_CountByStudentID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
-
-	student := testpkg.CreateTestStudent(t, db, "Count", "Student", "11a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-	t.Run("counts entries by student", func(t *testing.T) {
-		today := timezone.TodayDate()
-
-		entry1 := &feedback.Entry{
-			Value:     feedback.ValuePositive,
-			Day:       today,
-			Time:      time.Now(),
-			StudentID: student.ID,
-		}
-		entry2 := &feedback.Entry{
-			Value:     feedback.ValueNegative,
-			Day:       today,
-			Time:      time.Now(),
-			StudentID: student.ID,
-		}
-
-		err := repo.Create(ctx, entry1)
-		require.NoError(t, err)
-		err = repo.Create(ctx, entry2)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID)
-
-		count, err := repo.CountByStudentID(ctx, student.ID)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 2)
-	})
-}
-
-func TestEntryRepository_CountMensaFeedback(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
-
-	student := testpkg.CreateTestStudent(t, db, "Count", "Mensa", "12a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-	t.Run("counts mensa feedback entries", func(t *testing.T) {
-		today := timezone.TodayDate()
-
-		mensaEntry := &feedback.Entry{
-			Value:           feedback.ValuePositive,
-			Day:             today,
-			Time:            time.Now(),
-			StudentID:       student.ID,
-			IsMensaFeedback: true,
-		}
-
-		err := repo.Create(ctx, mensaEntry)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", mensaEntry.ID)
-
-		count, err := repo.CountMensaFeedback(ctx, true)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 1)
-	})
-}
 
 func TestEntryRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)

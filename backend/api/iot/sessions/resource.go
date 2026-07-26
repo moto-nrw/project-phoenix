@@ -1,8 +1,6 @@
 package sessions
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -23,7 +21,8 @@ type Resource struct {
 	ActivitiesService activitiesSvc.ActivityService
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
-	TimetableData     scheduleSvc.TimetableDataService
+	TimetableData     *scheduleSvc.TimetableDataService
+	TimetableBridge   *scheduleSvc.TimetableBridgeService
 	Broadcaster       realtime.Broadcaster
 }
 
@@ -49,10 +48,12 @@ func NewResource(
 // ConfigureTimetableMirror wires optional repositories used to mirror
 // PyrePortal/RFID activity sessions into the timetable instance layer.
 func (rs *Resource) ConfigureTimetableMirror(
-	timetableData scheduleSvc.TimetableDataService,
+	timetableData *scheduleSvc.TimetableDataService,
+	timetableBridge *scheduleSvc.TimetableBridgeService,
 	broadcaster realtime.Broadcaster,
 ) {
 	rs.TimetableData = timetableData
+	rs.TimetableBridge = timetableBridge
 	rs.Broadcaster = broadcaster
 }
 
@@ -78,34 +79,3 @@ func (rs *Resource) Router() chi.Router {
 
 	return r
 }
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// StartSessionHandler returns the startActivitySession handler
-func (rs *Resource) StartSessionHandler() http.HandlerFunc { return rs.startActivitySession }
-
-// EndSessionHandler returns the endActivitySession handler
-func (rs *Resource) EndSessionHandler() http.HandlerFunc { return rs.endActivitySession }
-
-// GetCurrentSessionHandler returns the getCurrentSession handler
-func (rs *Resource) GetCurrentSessionHandler() http.HandlerFunc { return rs.getCurrentSession }
-
-// CheckConflictHandler returns the checkSessionConflict handler
-func (rs *Resource) CheckConflictHandler() http.HandlerFunc { return rs.checkSessionConflict }
-
-// UpdateSupervisorsHandler returns the updateSessionSupervisors handler
-func (rs *Resource) UpdateSupervisorsHandler() http.HandlerFunc { return rs.updateSessionSupervisors }
-
-// ProcessTimeoutHandler returns the processSessionTimeout handler
-func (rs *Resource) ProcessTimeoutHandler() http.HandlerFunc { return rs.processSessionTimeout }
-
-// UpdateActivityHandler returns the updateSessionActivity handler
-func (rs *Resource) UpdateActivityHandler() http.HandlerFunc { return rs.updateSessionActivity }
-
-// ValidateTimeoutHandler returns the validateSessionTimeout handler
-func (rs *Resource) ValidateTimeoutHandler() http.HandlerFunc { return rs.validateSessionTimeout }
-
-// GetTimeoutInfoHandler returns the getSessionTimeoutInfo handler
-func (rs *Resource) GetTimeoutInfoHandler() http.HandlerFunc { return rs.getSessionTimeoutInfo }

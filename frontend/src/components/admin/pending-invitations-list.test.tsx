@@ -33,10 +33,10 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal">
         <h3>{title}</h3>
         {children}
-        <button onClick={onConfirm} data-testid="confirm-button">
+        <button type="button" onClick={onConfirm} data-testid="confirm-button">
           Widerrufen
         </button>
-        <button onClick={onClose} data-testid="cancel-button">
+        <button type="button" onClick={onClose} data-testid="cancel-button">
           Abbrechen
         </button>
       </div>
@@ -156,12 +156,10 @@ describe("PendingInvitationsList", () => {
   it("calls resendInvitation when resend button clicked", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
-    await waitFor(() => {
-      const resendButtons = screen.getAllByText("Erneut");
-      // Invitations are sorted by expiration date (earliest first)
-      // ID 2 (expired) comes first, so click the second button for ID 1 (not expired)
-      fireEvent.click(resendButtons[1]!);
-    });
+    // Invitations are sorted by expiration date (earliest first)
+    // ID 2 (expired) comes first, so click the second button for ID 1 (not expired)
+    const resendButtons = await screen.findAllByText("Erneut");
+    fireEvent.click(resendButtons[1]!);
 
     await waitFor(() => {
       expect(mockResendInvitation).toHaveBeenCalledWith(1);
@@ -171,10 +169,8 @@ describe("PendingInvitationsList", () => {
   it("opens confirmation modal when delete button clicked", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
-    await waitFor(() => {
-      const deleteButtons = screen.getAllByText("Löschen");
-      fireEvent.click(deleteButtons[0]!);
-    });
+    const deleteButtons = await screen.findAllByText("Löschen");
+    fireEvent.click(deleteButtons[0]!);
 
     await waitFor(() => {
       expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -185,16 +181,12 @@ describe("PendingInvitationsList", () => {
   it("calls revokeInvitation when confirm button clicked", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
-    await waitFor(() => {
-      const deleteButtons = screen.getAllByText("Löschen");
-      // Click the second delete button (ID 1, non-expired)
-      fireEvent.click(deleteButtons[1]!);
-    });
+    // Click the second delete button (ID 1, non-expired)
+    const deleteButtons = await screen.findAllByText("Löschen");
+    fireEvent.click(deleteButtons[1]!);
 
-    await waitFor(() => {
-      const confirmButton = screen.getByTestId("confirm-button");
-      fireEvent.click(confirmButton);
-    });
+    const confirmButton = await screen.findByTestId("confirm-button");
+    fireEvent.click(confirmButton);
 
     await waitFor(() => {
       expect(mockRevokeInvitation).toHaveBeenCalledWith(1);

@@ -25,7 +25,7 @@ type MFAEmailChallengeRepository struct {
 // NewMFAEmailChallengeRepository creates a new repository for MFA email challenge codes.
 func NewMFAEmailChallengeRepository(db *bun.DB) auth.MFAEmailChallengeRepository {
 	return &MFAEmailChallengeRepository{
-		Repository: base.NewRepository[*auth.MFAEmailChallenge](db, mfaEmailChallengeTable, "MFAEmailChallenge"),
+		Repository: base.NewRepository[*auth.MFAEmailChallenge](db, mfaEmailChallengeTable, "MfaEmailChallenge"),
 		db:         db,
 	}
 }
@@ -100,17 +100,6 @@ func (r *MFAEmailChallengeRepository) CountRecentByAccountID(ctx context.Context
 // DeleteExpired removes challenges past their TTL, regardless of consumption status.
 // Intended for the periodic cleanup scheduler.
 func (r *MFAEmailChallengeRepository) DeleteExpired(ctx context.Context) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.MFAEmailChallenge)(nil)).
-		ModelTableExpr(mfaEmailChallengeTable).
-		Where("expires_at < ?", time.Now()).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired mfa email challenges", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired mfa email challenges", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expires_at", time.Now(), "delete expired mfa email challenges")
+	return int(deleted), err
 }

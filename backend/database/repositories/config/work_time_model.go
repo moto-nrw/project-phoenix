@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -73,6 +74,28 @@ func (r *WorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*conf
 		return nil, err
 	}
 	return enriched[0], nil
+}
+
+// FindByIDs resolves the given templates with their entries; IDs that do not
+// exist (or belong to another tenant) are absent from the result.
+func (r *WorkTimeModelRepository) FindByIDs(ctx context.Context, ids []int64) ([]*config.WorkTimeModel, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var models []*config.WorkTimeModel
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&models).
+		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
+		Where(`"work_time_model".id IN (?)`, bun.List(ids))
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"work_time_model".tenant_id = ?`, tenantID)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("find work-time models by ids: %w", err)
+	}
+	return r.attachEntries(ctx, models)
 }
 
 func (r *WorkTimeModelRepository) attachEntries(ctx context.Context, models []*config.WorkTimeModel) ([]*config.WorkTimeModel, error) {
@@ -211,6 +234,12 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	if len(staffIDs) == 0 {
 		return nil
 	}
+	slices.Sort(staffIDs)
+	for _, staffID := range staffIDs {
+		if err := repoBase.AcquireStaffBalanceLock(ctx, r.db, staffID); err != nil {
+			return err
+		}
+	}
 
 	now := time.Now()
 	today := timezone.TodayDate()
@@ -245,16 +274,23 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	rows := make([]*config.StaffWorkSchedule, 0, len(staffIDs)*len(model.Entries))
 	for _, staffID := range staffIDs {
 		for _, entry := range model.Entries {
+			// Stamp the model's anchor onto the new version (#1842). The
+			// staff-level anchor was just overwritten above, so without this
+			// the fresh rows would inherit a moving anchor — the very thing
+			// that let a template edit re-parity closed weeks.
+			versionAnchor := model.RotationAnchorDate
 			row := &config.StaffWorkSchedule{
-				StaffID:        staffID,
-				WeekIndex:      entry.WeekIndex,
-				RotationLength: model.RotationLength,
-				DayOfWeek:      entry.DayOfWeek,
-				TargetMinutes:  entry.TargetMinutes,
-				ValidFrom:      today,
-				ValidUntil:     nil,
-				CreatedAt:      now,
-				UpdatedAt:      now,
+				StaffID:            staffID,
+				WeekIndex:          entry.WeekIndex,
+				RotationLength:     model.RotationLength,
+				DayOfWeek:          entry.DayOfWeek,
+				TargetMinutes:      entry.TargetMinutes,
+				StartTime:          entry.StartTime,
+				RotationAnchorDate: &versionAnchor,
+				ValidFrom:          today,
+				ValidUntil:         nil,
+				CreatedAt:          now,
+				UpdatedAt:          now,
 			}
 			if tenantID > 0 {
 				row.SetTenantID(tenantID)

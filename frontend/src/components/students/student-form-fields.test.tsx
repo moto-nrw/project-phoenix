@@ -84,8 +84,9 @@ describe("PersonalInfoSection", () => {
       />,
     );
 
-    expect(screen.getByText("Group A")).toBeInTheDocument();
-    expect(screen.getByText("Group B")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("combobox"));
+    expect(screen.getByRole("option", { name: "Group A" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Group B" })).toBeInTheDocument();
   });
 });
 
@@ -263,40 +264,40 @@ describe("BusStatusSection", () => {
 });
 
 describe("DepartureSection", () => {
-  it("marks the active mode per weekday", () => {
+  it("marks the allowed modes per weekday", () => {
     const onChange = vi.fn();
     render(
       <DepartureSection
-        days={{ mon: "bus", wed: "pickup" }}
+        days={{ mon: ["bus", "pickup"], wed: ["pickup"] }}
         onChange={onChange}
       />,
     );
 
+    expect(screen.getByRole("checkbox", { name: "Montag: Bus" })).toBeChecked();
     expect(
-      screen.getByRole("button", { name: "Montag: Bus", pressed: true }),
-    ).toBeInTheDocument();
+      screen.getByRole("checkbox", { name: "Montag: Abgeholt" }),
+    ).toBeChecked();
     expect(
-      screen.getByRole("button", { name: "Mittwoch: Abholung", pressed: true }),
-    ).toBeInTheDocument();
-    // An unset day defaults to "Alleine".
+      screen.getByRole("checkbox", { name: "Mittwoch: Abgeholt" }),
+    ).toBeChecked();
     expect(
-      screen.getByRole("button", { name: "Dienstag: Alleine", pressed: true }),
-    ).toBeInTheDocument();
+      screen.getByRole("checkbox", { name: "Dienstag: Zu Fuß" }),
+    ).not.toBeChecked();
   });
 
-  it("sets a weekday to bus", () => {
+  it("adds a weekday mode", () => {
     const onChange = vi.fn();
     render(<DepartureSection days={{}} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Montag: Bus" }));
-    expect(onChange).toHaveBeenCalledWith({ mon: "bus" });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Montag: Bus" }));
+    expect(onChange).toHaveBeenCalledWith({ mon: ["bus"] });
   });
 
-  it("clears a weekday back to alone (removes the key)", () => {
+  it("clears the weekday when the last selected mode is removed", () => {
     const onChange = vi.fn();
-    render(<DepartureSection days={{ mon: "bus" }} onChange={onChange} />);
+    render(<DepartureSection days={{ mon: ["bus"] }} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Montag: Alleine" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Montag: Bus" }));
     expect(onChange).toHaveBeenCalledWith({});
   });
 });

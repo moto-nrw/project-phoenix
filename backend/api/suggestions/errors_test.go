@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/suggestions"
 	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/stretchr/testify/assert"
@@ -13,52 +14,52 @@ import (
 
 func TestErrorRenderer_NotFoundError(t *testing.T) {
 	renderer := suggestions.ErrorRenderer(suggestionsSvc.ErrPostNotFound)
-	resp, ok := renderer.(*suggestions.ErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
-	assert.Equal(t, "Not Found", resp.StatusText)
+	assert.Equal(t, "Not Found", resp.Status)
 }
 
 func TestErrorRenderer_ForbiddenError(t *testing.T) {
 	renderer := suggestions.ErrorRenderer(suggestionsSvc.ErrForbidden)
-	resp, ok := renderer.(*suggestions.ErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
-	assert.Equal(t, "Forbidden", resp.StatusText)
+	assert.Equal(t, "Forbidden", resp.Status)
 }
 
 func TestErrorRenderer_BadRequestError(t *testing.T) {
 	renderer := suggestions.ErrorRenderer(suggestionsSvc.ErrInvalidData)
-	resp, ok := renderer.(*suggestions.ErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
-	assert.Equal(t, "Bad Request", resp.StatusText)
+	assert.Equal(t, "Bad Request", resp.Status)
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
 	unknownErr := errors.New("unknown error")
 	renderer := suggestions.ErrorRenderer(unknownErr)
-	resp, ok := renderer.(*suggestions.ErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
-	assert.Equal(t, "Internal Server Error", resp.StatusText)
+	assert.Equal(t, "Internal Server Error", resp.Status)
 }
 
 func TestErrorInvalidRequest(t *testing.T) {
 	testErr := errors.New("invalid input")
 	renderer := suggestions.ErrorInvalidRequest(testErr)
-	resp, ok := renderer.(*suggestions.ErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Request", resp.StatusText)
+	assert.Equal(t, "Invalid Request", resp.Status)
 	assert.Equal(t, "invalid input", resp.ErrorText)
 }
 
 func TestErrResponse_Render(t *testing.T) {
-	errResp := &suggestions.ErrResponse{
+	errResp := &common.ErrResponse{
 		Err:            errors.New("test error"),
 		HTTPStatusCode: http.StatusNotFound,
-		StatusText:     "Not Found",
+		Status:         "Not Found",
 		ErrorText:      "test error",
 	}
 

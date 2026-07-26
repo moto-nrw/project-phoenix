@@ -20,14 +20,9 @@ type Service interface {
 	DeleteGroup(ctx context.Context, id int64) error
 	ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error)
 	CountGroups(ctx context.Context, options *base.QueryOptions) (int, error)
-	FindGroupByName(ctx context.Context, name string) (*education.Group, error)
-	FindGroupsByRoom(ctx context.Context, roomID int64) ([]*education.Group, error)
 	FindGroupWithRoom(ctx context.Context, groupID int64) (*education.Group, error)
-	AssignRoomToGroup(ctx context.Context, groupID, roomID int64) error
-	RemoveRoomFromGroup(ctx context.Context, groupID int64) error
 
 	// Group-Teacher operations
-	AddTeacherToGroup(ctx context.Context, groupID, teacherID int64) error
 	RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error
 	UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error
 	GetGroupTeachers(ctx context.Context, groupID int64) ([]*users.Teacher, error)

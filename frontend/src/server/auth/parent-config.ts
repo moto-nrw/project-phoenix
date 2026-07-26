@@ -2,7 +2,7 @@
  * Parent-specific NextAuth configuration.
  *
  * Cookie: "parent.session-token" with NO domain (host-only).
- * The parent cookie is only visible on parents.{TENANT_DOMAIN}, never
+ * The parent cookie is only visible on the configured parents host, never
  * leaking to tenant subdomains or the operator subdomain. Mirrors the
  * operator-config.ts pattern; see that file for the reference shape.
  *
@@ -13,6 +13,7 @@
 
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import {
   logger,
   parseJwtPayload,
@@ -69,10 +70,10 @@ export const parentAuthConfig = {
         if (!creds?.email || !creds?.password) return null;
 
         const forwardHeaders: Record<string, string> = {};
-        const forwarded = request?.headers.get("x-forwarded-for");
-        const realIp = request?.headers.get("x-real-ip");
-        if (forwarded) forwardHeaders["X-Forwarded-For"] = forwarded;
-        if (realIp) forwardHeaders["X-Real-IP"] = realIp;
+        const forwardedFor = canonicalForwardedFor(request?.headers ?? null);
+        if (forwardedFor) {
+          forwardHeaders["X-Forwarded-For"] = forwardedFor;
+        }
 
         const loginResult = await performParentLogin(
           creds.email,
@@ -132,7 +133,7 @@ export const parentAuthConfig = {
   },
   cookies: {
     // Host-only: no domain set, so the browser scopes the cookie to
-    // parents.{TENANT_DOMAIN} exactly. Tenant + operator subdomains
+    // the configured parents host exactly. Tenant + operator subdomains
     // never see this cookie, so a leak in either direction is
     // impossible by design.
     //

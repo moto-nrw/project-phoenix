@@ -98,8 +98,11 @@ func AuthErrorRenderer(err error) render.Renderer {
 	var invalidCreds *platformSvc.InvalidCredentialsError
 	var operatorInactive *platformSvc.OperatorInactiveError
 	var operatorNotFound *platformSvc.OperatorNotFoundError
+	var invalidRefresh *platformSvc.OperatorRefreshTokenInvalidError
 
 	switch {
+	case errors.As(err, &invalidRefresh):
+		return ErrUnauthorized()
 	case errors.As(err, &invalidCreds):
 		return ErrInvalidCredentials()
 	case errors.As(err, &operatorInactive):

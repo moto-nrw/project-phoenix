@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { useLatest } from "~/lib/hooks/use-latest";
 
 // Resource definitions with German labels
 const RESOURCES = [
@@ -89,8 +91,7 @@ export function PermissionSelector({
   const [action, setAction] = useState(value?.action ?? "");
 
   // Use ref to store onChange to avoid dependency issues
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  const onChangeRef = useLatest(onChange);
 
   // Track if we're syncing from external value to prevent loops
   const isSyncingRef = useRef(false);
@@ -145,7 +146,7 @@ export function PermissionSelector({
         onChangeRef.current({ resource, action: newAction });
       }
     },
-    [resource],
+    [onChangeRef, resource],
   );
 
   // Also notify when resource changes and action is already set
@@ -153,92 +154,65 @@ export function PermissionSelector({
     if (resource && action && !isSyncingRef.current) {
       onChangeRef.current({ resource, action });
     }
-  }, [resource, action]);
-
-  const baseSelectClasses =
-    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-pink-500 focus:outline-none appearance-none pr-10";
+  }, [resource, action, onChangeRef]);
 
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
       {/* Resource Dropdown */}
       <div>
         <label
+          id="permission-resource-label"
           htmlFor="permission-resource"
           className="mb-1.5 block text-xs font-medium text-gray-700"
         >
           Ressource{required && "*"}
         </label>
-        <div className="relative">
-          <select
-            id="permission-resource"
-            value={resource}
-            onChange={(e) => handleResourceChange(e.target.value)}
-            className={baseSelectClasses}
-            required={required}
-          >
-            <option value="">Ressource auswählen...</option>
-            {RESOURCES.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-          <svg
-            className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </div>
+        <CustomSelect
+          id="permission-resource"
+          ariaLabelledBy="permission-resource-label"
+          value={resource}
+          onChange={handleResourceChange}
+          options={[
+            { value: "", label: "Ressource auswählen..." },
+            ...RESOURCES.map((r) => ({ value: r.value, label: r.label })),
+          ]}
+          placeholder="Ressource auswählen..."
+          required={required}
+        />
       </div>
 
       {/* Action Dropdown */}
       <div>
         <label
+          id="permission-action-label"
           htmlFor="permission-action"
           className="mb-1.5 block text-xs font-medium text-gray-700"
         >
           Aktion{required && "*"}
         </label>
-        <div className="relative">
-          <select
-            id="permission-action"
-            value={action}
-            onChange={(e) => handleActionChange(e.target.value)}
-            className={baseSelectClasses}
-            required={required}
-            disabled={!resource}
-          >
-            <option value="">
-              {resource ? "Aktion auswählen..." : "Zuerst Ressource wählen"}
-            </option>
-            {availableActions.map((a) => (
-              <option key={a} value={a}>
-                {ACTION_LABELS[a] ?? a}
-              </option>
-            ))}
-          </select>
-          <svg
-            className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </div>
+        <CustomSelect
+          id="permission-action"
+          ariaLabelledBy="permission-action-label"
+          value={action}
+          onChange={handleActionChange}
+          options={[
+            {
+              value: "",
+              label: resource
+                ? "Aktion auswählen..."
+                : "Zuerst Ressource wählen",
+            },
+            ...availableActions.map((a) => ({
+              value: a,
+              label: ACTION_LABELS[a] ?? a,
+            })),
+          ]}
+          placeholder={
+            resource ? "Aktion auswählen..." : "Zuerst Ressource wählen"
+          }
+          required={required}
+          disabled={!resource}
+        />
       </div>
 
       {/* Preview of generated permission name */}

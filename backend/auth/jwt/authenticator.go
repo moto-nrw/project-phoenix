@@ -30,6 +30,18 @@ func ClaimsFromCtx(ctx context.Context) AppClaims {
 	return claims
 }
 
+// ActorAccountIDFromCtx returns the acting account ID for optional audit
+// fields. Missing claims and the zero ID map to nil so callers store NULL
+// instead of fabricating an actor.
+func ActorAccountIDFromCtx(ctx context.Context) *int64 {
+	claims := ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		return nil
+	}
+	id := int64(claims.ID)
+	return &id
+}
+
 // PermissionsFromCtx retrieves the permissions array from request context.
 func PermissionsFromCtx(ctx context.Context) []string {
 	perms, ok := ctx.Value(CtxPermissions).([]string)

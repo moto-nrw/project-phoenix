@@ -1,7 +1,7 @@
 "use client";
 
 import { AdminEnrollmentsList } from "~/components/enrollment/admin-enrollments-list";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Loading } from "~/components/ui/loading";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";

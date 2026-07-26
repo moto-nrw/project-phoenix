@@ -43,9 +43,8 @@ func TestListStudents_RoomFilter_ReturnsOnlyStudentsInRoom(t *testing.T) {
 		activityA.ID, roomA.ID,
 	)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?room_id=%d", roomA.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -102,9 +101,8 @@ func TestListStudents_RoomFilter_IntersectsWithGroupFilter(t *testing.T) {
 		groupX.ID, groupY.ID,
 	)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?room_id=%d&group_id=%d", roomA.ID, groupX.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -139,9 +137,8 @@ func TestListStudents_RoomFilter_EmptyRoomReturnsEmpty(t *testing.T) {
 	bystander := testpkg.CreateTestStudent(t, tc.db, "Bystander", "Student", "BYS1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, bystander.ID, emptyRoom.ID)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?room_id=%d", emptyRoom.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -177,9 +174,8 @@ func TestListStudents_LocationStateTransit_ReturnsCheckedInStudentsWithoutActive
 	)
 	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", transitAttendance.ID, inRoomAttendance.ID)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	req := testutil.NewRequest("GET", "/?location_state=transit", nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -202,6 +198,62 @@ func TestListStudents_LocationStateTransit_ReturnsCheckedInStudentsWithoutActive
 	assert.True(t, hasTransit, "checked-in student without active visit must appear")
 	assert.False(t, hasInRoom, "student with active room visit must NOT appear")
 	assert.False(t, hasAbsent, "student without open attendance must NOT appear")
+}
+
+func TestListStudents_LocationStatePresent_ReturnsStudentsWithOpenAttendance(t *testing.T) {
+	tc := setupTestContext(t)
+
+	staff := testpkg.CreateTestStaff(t, tc.db, "PresentFilter", "Staff")
+	device := testpkg.CreateTestDevice(t, tc.db, "present-filter-device")
+	room := testpkg.CreateTestRoom(t, tc.db, "PresentFilterRoom")
+	activity := testpkg.CreateTestActivityGroup(t, tc.db, "PresentFilterActivity")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
+
+	transitStudent := testpkg.CreateTestStudent(t, tc.db, "PresentTransit", "Student", "PFS1")
+	inRoomStudent := testpkg.CreateTestStudent(t, tc.db, "PresentRoom", "Student", "PFS2")
+	checkedOutStudent := testpkg.CreateTestStudent(t, tc.db, "PresentCheckedOut", "Student", "PFS3")
+	absentStudent := testpkg.CreateTestStudent(t, tc.db, "PresentAbsent", "Student", "PFS4")
+
+	now := time.Now().UTC()
+	transitAttendance := testpkg.CreateTestAttendance(t, tc.db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	inRoomAttendance := testpkg.CreateTestAttendance(t, tc.db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-15*time.Minute), nil)
+	checkOutTime := now.Add(-5 * time.Minute)
+	checkedOutAttendance := testpkg.CreateTestAttendance(t, tc.db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-15*time.Minute), &checkOutTime)
+	visit := testpkg.CreateTestVisit(t, tc.db, inRoomStudent.ID, activeGroup.ID, now.Add(-10*time.Minute), nil)
+
+	defer testpkg.CleanupActivityFixtures(
+		t, tc.db,
+		visit.ID, activeGroup.ID, transitStudent.ID, inRoomStudent.ID, checkedOutStudent.ID, absentStudent.ID,
+		activity.ID, room.ID, staff.ID, device.ID,
+	)
+	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", transitAttendance.ID, inRoomAttendance.ID, checkedOutAttendance.ID)
+
+	req := testutil.NewRequest("GET", "/?location_state=present", nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp struct {
+		Data []struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+
+	ids := make(map[int64]struct{}, len(resp.Data))
+	for _, s := range resp.Data {
+		ids[s.ID] = struct{}{}
+	}
+
+	_, hasTransit := ids[transitStudent.ID]
+	_, hasInRoom := ids[inRoomStudent.ID]
+	_, hasCheckedOut := ids[checkedOutStudent.ID]
+	_, hasAbsent := ids[absentStudent.ID]
+
+	assert.True(t, hasTransit, "checked-in student without active visit must appear")
+	assert.True(t, hasInRoom, "checked-in student with active visit must appear")
+	assert.False(t, hasCheckedOut, "checked-out student must NOT appear")
+	assert.False(t, hasAbsent, "student without attendance must NOT appear")
 }
 
 func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testing.T) {
@@ -248,9 +300,8 @@ func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testi
 	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", matchingAttendance.ID, otherGroupAttendance.ID)
 	defer testpkg.CleanupTableRecords(t, tc.db, "education.groups", targetGroup.ID, otherGroup.ID)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?location_state=transit&group_id=%d", targetGroup.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -267,7 +318,6 @@ func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testi
 
 func TestListStudents_LocationStateTransit_InvalidFilters(t *testing.T) {
 	tc := setupTestContext(t)
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 
 	tests := []struct {
 		name string
@@ -281,12 +331,16 @@ func TestListStudents_LocationStateTransit_InvalidFilters(t *testing.T) {
 			name: "transit cannot be combined with room",
 			path: "/?location_state=transit&room_id=42",
 		},
+		{
+			name: "present cannot be combined with room",
+			path: "/?location_state=present&room_id=42",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := testutil.NewRequest("GET", tt.path, nil)
-			rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+			rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 			assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 		})
@@ -299,9 +353,8 @@ func TestListStudents_LocationStateTransit_EmptyReturnsEmpty(t *testing.T) {
 	bystander := testpkg.CreateTestStudent(t, tc.db, "TransitEmpty", "Bystander", "TEB1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, bystander.ID)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	req := testutil.NewRequest("GET", "/?location_state=transit", nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -344,9 +397,8 @@ func TestListStudents_LocationStateTransitWithGroupID_NoIntersectionReturnsEmpty
 	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", attendance.ID)
 	defer testpkg.CleanupTableRecords(t, tc.db, "education.groups", studentGroup.ID, filterGroup.ID)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?location_state=transit&group_id=%d", filterGroup.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 

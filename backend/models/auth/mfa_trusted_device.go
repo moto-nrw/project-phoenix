@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // MFATrustedDevice persists the server-side record of a trusted-device cookie.
@@ -28,32 +27,7 @@ type MFATrustedDevice struct {
 	RevokedAt  *time.Time `bun:"revoked_at" json:"revoked_at,omitempty"`
 }
 
-// BeforeAppendModel keeps the schema-qualified table name on UPDATE/DELETE.
-func (d *MFATrustedDevice) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.mfa_trusted_devices AS "mfa_trusted_device"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.mfa_trusted_devices AS "mfa_trusted_device"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (d *MFATrustedDevice) TableName() string { return "auth.mfa_trusted_devices" }
-
 // IsRevoked returns true once the device was explicitly revoked. This is a pure
-// field accessor (RevokedAt != nil); the wall-clock expiry/active decision lives
-// in the auth service (services/auth.MFATrustedDeviceExpired /
-// MFATrustedDeviceActive) and the repository's active-device finders, per issue
-// #586 (Rule 12).
+// field accessor (RevokedAt != nil); the wall-clock expiry/active decision is
+// enforced by the repository's active-device finders, per issue #586 (Rule 12).
 func (d *MFATrustedDevice) IsRevoked() bool { return d.RevokedAt != nil }
-
-// GetID returns the entity's primary key. Required by base.Entity.
-func (d *MFATrustedDevice) GetID() interface{} { return d.ID }
-
-// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
-func (d *MFATrustedDevice) GetCreatedAt() time.Time { return d.CreatedAt }
-
-// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
-func (d *MFATrustedDevice) GetUpdatedAt() time.Time { return d.UpdatedAt }

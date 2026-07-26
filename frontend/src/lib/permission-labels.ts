@@ -18,6 +18,7 @@ export const resourceLabels: Record<string, string> = {
   suggestions: "Vorschläge",
   time_tracking: "Zeiterfassung",
   grade_transitions: "Klassenwechsel",
+  calendar: "Kalender",
 };
 
 export const actionLabels: Record<string, string> = {
@@ -143,6 +144,10 @@ const permissionDescriptions: Record<string, string> = {
 
   // Time Tracking
   "time_tracking:own": "Eigene Arbeitszeiten erfassen",
+
+  // Calendar
+  "calendar:own": "Eigenen Kalender nutzen und Einladungen beantworten",
+  "calendar:manage": "Termine und Einladungen erstellen und verwalten",
 
   // Grade Transitions
   "grade_transitions:read": "Klassenwechsel ansehen",

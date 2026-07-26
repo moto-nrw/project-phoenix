@@ -29,6 +29,7 @@ import { ArrivalScheduleManager } from "./arrival-schedule-manager";
 import { StudentAbholungTab } from "./student-abholung-tab";
 import { StudentGuardiansTab } from "./student-guardians-tab";
 import { StudentHistorieTab } from "./student-historie-tab";
+import { StudentEnrollmentsTab } from "./student-enrollments-tab";
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { getInitials } from "~/lib/format-utils";
@@ -46,6 +47,7 @@ interface StudentsMasterDetailProps {
   onArrivalDataChanged: () => void;
   groups: Array<{ value: string; label: string }>;
   onUpdateStudent: (studentId: string, data: Partial<Student>) => Promise<void>;
+  canViewEnrollments?: boolean;
   detailActions?: ReactNode;
 }
 
@@ -80,6 +82,7 @@ export function StudentsMasterDetail({
   onArrivalDataChanged,
   groups,
   onUpdateStudent,
+  canViewEnrollments = false,
   detailActions,
 }: StudentsMasterDetailProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
@@ -273,6 +276,7 @@ export function StudentsMasterDetail({
         groups,
         onArrivalDataChanged,
         onUpdateStudent,
+        canViewEnrollments,
       })}
       activeTab={activeTab}
       onTabChange={setActiveTab}
@@ -323,6 +327,7 @@ interface BuildTabsArgs {
   groups: Array<{ value: string; label: string }>;
   onArrivalDataChanged: () => void;
   onUpdateStudent: (studentId: string, data: Partial<Student>) => Promise<void>;
+  canViewEnrollments: boolean;
 }
 
 function buildTabs({
@@ -330,9 +335,10 @@ function buildTabs({
   groups,
   onArrivalDataChanged,
   onUpdateStudent,
+  canViewEnrollments,
 }: BuildTabsArgs): DetailTab[] {
   const studentId = student.id;
-  return [
+  const tabs: DetailTab[] = [
     {
       id: "master-data",
       label: "Stammdaten",
@@ -383,6 +389,14 @@ function buildTabs({
       content: <StudentHistorieTab studentId={studentId} />,
     },
   ];
+  if (canViewEnrollments) {
+    tabs.push({
+      id: "enrollments",
+      label: "Anmeldungen",
+      content: <StudentEnrollmentsTab studentId={studentId} />,
+    });
+  }
+  return tabs;
 }
 
 interface GroupActionsMenuProps {

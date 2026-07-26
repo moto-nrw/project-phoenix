@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 func newStudentStatusDayResponse(entry *active.StudentStatusDay) StudentStatusDayResponse {
@@ -58,9 +59,15 @@ func applyEffectiveStatusDaysToResponses(responses []StudentResponse, statusRows
 	}
 }
 
-func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []StudentResponse, now time.Time) {
+// applyStatusDaysForDate overlays the requested day's sick/excused/class-trip
+// status rows onto the responses. The error is returned rather than swallowed:
+// on a non-today view resetScheduledStatusFlags has already cleared the
+// row-seeded flags, so a silent lookup failure would report a sick, excused, or
+// class-trip child as expected. Callers must surface the error (500) instead of
+// serving an incorrect attendance plan (#1939).
+func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []StudentResponse, now time.Time) error {
 	if rs.StudentStatusDayService == nil || len(responses) == 0 {
-		return
+		return nil
 	}
 
 	studentIDs := make([]int64, 0, len(responses))
@@ -69,12 +76,10 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 	}
 	rows, err := rs.StudentStatusDayService.GetActiveByStudentIDsAndDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
-		if rs.Logger != nil {
-			rs.Logger.Warn("failed to apply student status days to responses", "error", err.Error())
-		}
-		return
+		return err
 	}
 	applyEffectiveStatusDaysToResponses(responses, rows)
+	return nil
 }
 
 func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, response *StudentResponse, now time.Time) {
@@ -101,29 +106,10 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 		return
 	}
 
-	var sickRow *active.StudentStatusDay
-	var classTripRow *active.StudentStatusDay
-	var excusedRow *active.StudentStatusDay
-	for _, row := range statusRows {
-		switch row.Status {
-		case active.StudentStatusDaySick:
-			if sickRow == nil || row.ReportedAt.After(sickRow.ReportedAt) {
-				sickRow = row
-			}
-		case active.StudentStatusDayClassTrip:
-			if classTripRow == nil || row.ReportedAt.After(classTripRow.ReportedAt) {
-				classTripRow = row
-			}
-		case active.StudentStatusDayExcused:
-			if excusedRow == nil || row.ReportedAt.After(excusedRow.ReportedAt) {
-				excusedRow = row
-			}
-		}
-	}
-
-	if sickRow != nil {
+	eff := activeService.ResolveEffectiveStatus(statusRows)
+	if eff.Sick {
 		response.Sick = true
-		response.SickSince = statusDayTimePtr(sickRow.ReportedAt)
+		response.SickSince = eff.SickSince
 		response.ClassTrip = false
 		response.ClassTripSince = nil
 		response.Excused = false
@@ -131,9 +117,9 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 		return
 	}
 
-	if classTripRow != nil {
+	if eff.ClassTrip {
 		response.ClassTrip = true
-		response.ClassTripSince = statusDayTimePtr(classTripRow.ReportedAt)
+		response.ClassTripSince = eff.ClassTripSince
 		response.Sick = false
 		response.SickSince = nil
 		response.Excused = false
@@ -141,12 +127,8 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 		return
 	}
 
-	if excusedRow != nil && !response.Sick {
+	if eff.Excused && !response.Sick {
 		response.Excused = true
-		response.ExcusedSince = statusDayTimePtr(excusedRow.ReportedAt)
+		response.ExcusedSince = eff.ExcusedSince
 	}
-}
-
-func statusDayTimePtr(v time.Time) *time.Time {
-	return &v
 }

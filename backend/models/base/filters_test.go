@@ -23,10 +23,6 @@ func TestNewFilter(t *testing.T) {
 		t.Error("NewFilter().or should be initialized")
 	}
 
-	if f.and == nil {
-		t.Error("NewFilter().and should be initialized")
-	}
-
 	if f.tableAlias != "" {
 		t.Errorf("NewFilter().tableAlias = %q, want empty string", f.tableAlias)
 	}
@@ -68,18 +64,6 @@ func TestFilter_Equal(t *testing.T) {
 
 	if f.conditions[0].Operator != OpEqual {
 		t.Errorf("Filter.Equal() operator = %v, want %v", f.conditions[0].Operator, OpEqual)
-	}
-}
-
-func TestFilter_NotEqual(t *testing.T) {
-	f := NewFilter().NotEqual("status", "deleted")
-
-	if len(f.conditions) != 1 {
-		t.Fatalf("Filter.NotEqual() should add one condition, got %d", len(f.conditions))
-	}
-
-	if f.conditions[0].Operator != OpNotEqual {
-		t.Errorf("Filter.NotEqual() operator = %v, want %v", f.conditions[0].Operator, OpNotEqual)
 	}
 }
 
@@ -205,14 +189,14 @@ func TestFilter_In(t *testing.T) {
 }
 
 func TestFilter_NotIn(t *testing.T) {
-	f := NewFilter().NotIn("role", "admin", "superuser")
+	f := NewFilter().NotIn("name", "WC", "Toilette")
 
 	if len(f.conditions) != 1 {
 		t.Fatalf("Filter.NotIn() should add one condition, got %d", len(f.conditions))
 	}
-
-	if f.conditions[0].Operator != OpNotIn {
-		t.Errorf("Filter.NotIn() operator = %v, want %v", f.conditions[0].Operator, OpNotIn)
+	cond := f.conditions[0]
+	if cond.Operator != OpNotIn {
+		t.Errorf("Filter.NotIn() operator = %v, want %v", cond.Operator, OpNotIn)
 	}
 }
 
@@ -228,36 +212,22 @@ func TestFilter_Or(t *testing.T) {
 	}
 }
 
-func TestFilter_And(t *testing.T) {
-	mainFilter := NewFilter().Equal("status", "active")
-	andFilter := Filter{}
-	andFilter.Equal("verified", true)
+func TestFilter_AndGroupsNestedConditionsAndInheritsAlias(t *testing.T) {
+	mainFilter := NewFilter().WithTableAlias("room").Equal("building", "A")
+	visibility := NewFilter().Equal("is_system", false)
+	visibility.Or(*NewFilter().Equal("name", "Schulhof"))
 
-	mainFilter.And(andFilter)
+	mainFilter.And(*visibility)
 
 	if len(mainFilter.and) != 1 {
 		t.Fatalf("Filter.And() should add one and-filter, got %d", len(mainFilter.and))
 	}
-}
-
-func TestFilter_DateRange(t *testing.T) {
-	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC)
-
-	f := NewFilter().DateRange("created_at", start, end)
-
-	if len(f.conditions) != 2 {
-		t.Fatalf("Filter.DateRange() should add two conditions, got %d", len(f.conditions))
+	nested := mainFilter.and[0]
+	if nested.tableAlias != "room" {
+		t.Errorf("nested AND alias = %q, want room", nested.tableAlias)
 	}
-
-	// First condition should be >= start
-	if f.conditions[0].Operator != OpGreaterThanOrEqual {
-		t.Errorf("DateRange first condition operator = %v, want %v", f.conditions[0].Operator, OpGreaterThanOrEqual)
-	}
-
-	// Second condition should be <= end
-	if f.conditions[1].Operator != OpLessThanOrEqual {
-		t.Errorf("DateRange second condition operator = %v, want %v", f.conditions[1].Operator, OpLessThanOrEqual)
+	if len(nested.or) != 1 || nested.or[0].tableAlias != "room" {
+		t.Fatalf("nested OR filter should inherit room alias: %+v", nested.or)
 	}
 }
 
@@ -274,49 +244,16 @@ func TestFilter_DateBetween(t *testing.T) {
 	if f.conditions[0].Field != "start_date" || f.conditions[0].Operator != OpLessThanOrEqual {
 		t.Errorf("DateBetween first condition = %+v, want start_date <=", f.conditions[0])
 	}
+	if got, ok := f.conditions[0].Value.(timezone.Date); !ok || got != date {
+		t.Errorf("DateBetween first value = %T(%v), want timezone.Date(%v)", f.conditions[0].Value, f.conditions[0].Value, date)
+	}
 
 	// end_date >= date
 	if f.conditions[1].Field != "end_date" || f.conditions[1].Operator != OpGreaterThanOrEqual {
 		t.Errorf("DateBetween second condition = %+v, want end_date >=", f.conditions[1])
 	}
-}
-
-func TestFilter_ToMap(t *testing.T) {
-	f := NewFilter().
-		Equal("status", "active").
-		Equal("role", "user").
-		Like("name", "%john%") // LIKE conditions are not included in map
-
-	result := f.ToMap()
-
-	if result["status"] != "active" {
-		t.Errorf("ToMap()[status] = %v, want active", result["status"])
-	}
-
-	if result["role"] != "user" {
-		t.Errorf("ToMap()[role] = %v, want user", result["role"])
-	}
-
-	// LIKE condition should not be in the map
-	if _, exists := result["name"]; exists {
-		t.Error("ToMap() should not include LIKE conditions")
-	}
-}
-
-func TestFilter_Chaining(t *testing.T) {
-	f := NewFilter().
-		WithTableAlias("u").
-		Equal("status", "active").
-		NotEqual("deleted", true).
-		GreaterThan("age", 18).
-		ILike("email", "%@example.com")
-
-	if f.tableAlias != "u" {
-		t.Errorf("Chained filter tableAlias = %q, want u", f.tableAlias)
-	}
-
-	if len(f.conditions) != 4 {
-		t.Errorf("Chained filter should have 4 conditions, got %d", len(f.conditions))
+	if got, ok := f.conditions[1].Value.(timezone.Date); !ok || got != date {
+		t.Errorf("DateBetween second value = %T(%v), want timezone.Date(%v)", f.conditions[1].Value, f.conditions[1].Value, date)
 	}
 }
 
@@ -441,21 +378,6 @@ func TestQueryOptions_WithPagination(t *testing.T) {
 
 	if qo.Pagination.PageSize != 25 {
 		t.Errorf("WithPagination().PageSize = %v, want 25", qo.Pagination.PageSize)
-	}
-}
-
-func TestQueryOptions_WithSorting(t *testing.T) {
-	sorting := Sorting{}
-	sorting.AddField("name", SortAsc)
-
-	qo := NewQueryOptions().WithSorting(sorting)
-
-	if qo.Sorting == nil {
-		t.Fatal("WithSorting() should set Sorting")
-	}
-
-	if len(qo.Sorting.Fields) != 1 {
-		t.Errorf("WithSorting() should preserve sort fields, got %d", len(qo.Sorting.Fields))
 	}
 }
 
@@ -630,73 +552,10 @@ func TestFilter_Remove(t *testing.T) {
 	}
 }
 
-func TestOperatorConstants(t *testing.T) {
-	tests := []struct {
-		op       Operator
-		expected string
-	}{
-		{OpEqual, "="},
-		{OpNotEqual, "!="},
-		{OpGreaterThan, ">"},
-		{OpGreaterThanOrEqual, ">="},
-		{OpLessThan, "<"},
-		{OpLessThanOrEqual, "<="},
-		{OpLike, "LIKE"},
-		{OpILike, "ILIKE"},
-		{OpIsNull, "IS NULL"},
-		{OpIsNotNull, "IS NOT NULL"},
-		{OpIn, "IN"},
-		{OpNotIn, "NOT IN"},
-		{OpContains, "@>"},
-		{OpContainedBy, "<@"},
-		{OpHasKey, "?"},
-	}
-
-	for _, tt := range tests {
-		if string(tt.op) != tt.expected {
-			t.Errorf("Operator %v = %q, want %q", tt.op, string(tt.op), tt.expected)
-		}
-	}
-}
-
 // =============================================================================
 // APPLY TO QUERY TESTS
 // These tests verify that filters can be applied to BUN queries without panicking
 // =============================================================================
-
-func TestFilter_ComplexChaining(t *testing.T) {
-	// Test complex filter chains to ensure they don't panic
-	f := NewFilter().
-		WithTableAlias("u").
-		Equal("status", "active").
-		NotEqual("deleted", true).
-		GreaterThan("age", 18).
-		LessThanOrEqual("age", 65).
-		ILike("email", "%@example.com").
-		IsNotNull("verified_at").
-		In("role", "admin", "moderator", "user")
-
-	// Add OR condition
-	orFilter := Filter{}
-	orFilter.Equal("is_system", true)
-	f.Or(orFilter)
-
-	// Add AND condition
-	andFilter := Filter{}
-	andFilter.IsNull("blocked_at")
-	f.And(andFilter)
-
-	// Verify filter was built correctly
-	if len(f.conditions) != 7 {
-		t.Errorf("Filter should have 7 conditions, got %d", len(f.conditions))
-	}
-	if len(f.or) != 1 {
-		t.Errorf("Filter should have 1 OR filter, got %d", len(f.or))
-	}
-	if len(f.and) != 1 {
-		t.Errorf("Filter should have 1 AND filter, got %d", len(f.and))
-	}
-}
 
 func TestPagination_Offset(t *testing.T) {
 	tests := []struct {
@@ -733,28 +592,5 @@ func TestPagination_Offset(t *testing.T) {
 				t.Errorf("Pagination offset = %d, want %d", offset, tt.expectedOffset)
 			}
 		})
-	}
-}
-
-func TestQueryOptions_ChainedConfiguration(t *testing.T) {
-	sorting := Sorting{}
-	sorting.AddField("created_at", SortDesc).AddField("name", SortAsc)
-
-	qo := NewQueryOptions().
-		WithPagination(2, 25).
-		WithSorting(sorting)
-
-	// Add filter conditions
-	qo.Filter.Equal("status", "active")
-
-	// Verify configuration
-	if qo.Pagination == nil || qo.Pagination.Page != 2 || qo.Pagination.PageSize != 25 {
-		t.Error("QueryOptions pagination not configured correctly")
-	}
-	if qo.Sorting == nil || len(qo.Sorting.Fields) != 2 {
-		t.Error("QueryOptions sorting not configured correctly")
-	}
-	if len(qo.Filter.conditions) != 1 {
-		t.Error("QueryOptions filter not configured correctly")
 	}
 }

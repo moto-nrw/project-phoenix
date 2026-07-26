@@ -80,7 +80,7 @@ func TestFixedSeeder_FetchRoles(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -96,7 +96,7 @@ func TestFixedSeeder_SeedRooms(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -112,7 +112,7 @@ func TestFixedSeeder_SeedStaff(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -134,7 +134,7 @@ func TestFixedSeeder_SeedStaff_MissingPerson(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -149,7 +149,7 @@ func TestFixedSeeder_SeedGroups(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -168,7 +168,7 @@ func TestFixedSeeder_SeedStudents(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -195,7 +195,7 @@ func TestFixedSeeder_SeedStudents_MissingGroup(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -210,7 +210,7 @@ func TestFixedSeeder_SeedGuardians(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -230,7 +230,7 @@ func TestFixedSeeder_FetchCategories(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -249,7 +249,7 @@ func TestFixedSeeder_FetchCategories_Empty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -262,7 +262,7 @@ func TestFixedSeeder_SeedActivities(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -290,7 +290,7 @@ func TestFixedSeeder_SeedActivities_MissingRoom(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -306,7 +306,7 @@ func TestFixedSeeder_AssignSupervisors(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -332,7 +332,7 @@ func TestFixedSeeder_EnrollStudents(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -352,7 +352,7 @@ func TestFixedSeeder_SeedDevices(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -368,7 +368,7 @@ func TestFixedSeeder_SeedStaffAccounts(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -427,7 +427,7 @@ func TestFixedSeeder_SwitchToStaffAccount(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -454,7 +454,7 @@ func TestFixedSeeder_MarkStudentsSick(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -484,7 +484,7 @@ func TestFixedSeeder_GetCheckedInStudentIDs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -505,7 +505,7 @@ func TestFixedSeeder_GetCheckedInStudentIDs_Empty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -590,7 +590,7 @@ func TestFixedSeeder_SeedRooms_APIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -607,7 +607,7 @@ func TestFixedSeeder_SeedDevices_APIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -624,7 +624,7 @@ func TestFixedSeeder_FetchRoles_APIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -640,7 +640,7 @@ func TestFixedSeeder_FetchCategories_APIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -653,7 +653,7 @@ func TestFixedSeeder_SeedGuardians_MissingStudentIndex(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
 	fs := NewFixedSeeder(client, true, "") // verbose to cover warning branch
@@ -669,7 +669,7 @@ func TestFixedSeeder_EnrollStudents_MissingStudentID(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
 	fs := NewFixedSeeder(client, true, "") // verbose to cover warning branch
@@ -687,7 +687,7 @@ func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	fs := NewFixedSeeder(client, false, "")
 	fs.staffCredentials = []StaffCredentials{
 		{Email: "demo1@mail.de", Password: "wrong", Name: "Admin", Position: "OGS-Büro"},
@@ -705,7 +705,7 @@ func TestFixedSeeder_SeedRooms_InvalidResponseJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -722,7 +722,7 @@ func TestFixedSeeder_GetCheckedInStudentIDs_APIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
 	fs := NewFixedSeeder(client, false, "")
@@ -745,7 +745,7 @@ func TestFixedSeeder_SeedPickupSchedules(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")
@@ -766,7 +766,7 @@ func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	client.token = "test-token"
 
 	fs := NewFixedSeeder(client, true, "")

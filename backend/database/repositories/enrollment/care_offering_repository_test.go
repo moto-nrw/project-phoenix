@@ -75,6 +75,28 @@ func TestCareOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
 	assert.Equal(t, tenantID, offering.TenantID)
 }
 
+func TestCareOfferingRepository_Create_PreservesExplicitCountsAsCareFalse(t *testing.T) {
+	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
+	defer wipeOfferings(db, tenantID, phaseID)
+
+	offering := makeOffering(phaseID, uniqueOfferingName("nonstat"))
+	offering.CountsAsCare = false
+	offering.CountsAsCareSet = true
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, offering)
+	}))
+
+	var got *enrollmentModels.CareOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var findErr error
+		got, findErr = repo.FindByID(ctx, offering.ID)
+		return findErr
+	}))
+	require.NotNil(t, got)
+	assert.False(t, got.CountsAsCare, "explicit counts_as_care=false must survive create")
+}
+
 func TestCareOfferingRepository_Create_RejectsInvalidOffering(t *testing.T) {
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	offering := makeOffering(phaseID, "") // blank name → Validate fails
@@ -304,6 +326,55 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 			"ListByPhase MUST only return rows for the requested phase (saw offering %d phase %d)",
 			o.ID, o.PhaseID)
 	}
+}
+
+func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T) {
+	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
+	defer wipeOfferings(db, tenantID, phaseA)
+
+	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
+	other := makeValidPhase(uniquePhaseName("ids-otherphase"))
+	other.ServiceStartDate = timezone.NewDate(2027, 9, 1)
+	other.ServiceEndDate = timezone.NewDate(2028, 7, 31)
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return phaseRepo.Create(ctx, other)
+	}))
+	t.Cleanup(func() {
+		wipeOfferings(db, tenantID, other.ID)
+		wipePhases(db, tenantID, other.Name)
+	})
+
+	first := makeOffering(phaseA, uniqueOfferingName("idsA"))
+	second := makeOffering(other.ID, uniqueOfferingName("idsB"))
+	unrequested := makeOffering(phaseA, uniqueOfferingName("idsSkip"))
+	for _, offering := range []*enrollmentModels.CareOffering{first, second, unrequested} {
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, offering)
+		}))
+	}
+
+	var empty []*enrollmentModels.CareOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		empty, lErr = repo.ListByIDs(ctx, nil)
+		return lErr
+	}))
+	assert.Empty(t, empty)
+
+	var list []*enrollmentModels.CareOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByIDs(ctx, []int64{first.ID, second.ID})
+		return lErr
+	}))
+	require.Len(t, list, 2)
+	gotIDs := make(map[int64]bool, len(list))
+	for _, offering := range list {
+		gotIDs[offering.ID] = true
+	}
+	assert.True(t, gotIDs[first.ID])
+	assert.True(t, gotIDs[second.ID])
+	assert.False(t, gotIDs[unrequested.ID])
 }
 
 func TestCareOfferingRepository_ListActiveByPhase_FiltersInactive(t *testing.T) {

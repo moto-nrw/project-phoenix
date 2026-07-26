@@ -29,7 +29,9 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="modal">
         <h2>{title}</h2>
-        <button onClick={onClose}>Close</button>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
         {children}
       </div>
     ) : null,
@@ -56,13 +58,14 @@ vi.mock("~/components/ui/database/database-form", () => ({
       {error && <div data-testid="form-error">{error}</div>}
       <div data-testid="initial-data">{JSON.stringify(initialData)}</div>
       <button
+        type="button"
         onClick={onSubmit}
         disabled={isLoading}
         data-testid="submit-button"
       >
         {submitLabel}
       </button>
-      <button onClick={onCancel} data-testid="cancel-button">
+      <button type="button" onClick={onCancel} data-testid="cancel-button">
         Cancel
       </button>
     </div>
@@ -70,7 +73,7 @@ vi.mock("~/components/ui/database/database-form", () => ({
 }));
 
 // Mock permissions config
-vi.mock("@/lib/database/configs/permissions.config", () => ({
+vi.mock("@/components/database/configs/permissions.config", () => ({
   permissionsConfig: {
     labels: {
       editModalTitle: "Berechtigung bearbeiten",

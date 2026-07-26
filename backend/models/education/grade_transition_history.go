@@ -3,7 +3,6 @@ package education
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -25,11 +24,6 @@ type GradeTransitionHistory struct {
 	FromClass    string  `bun:"from_class,notnull" json:"from_class"`
 	ToClass      *string `bun:"to_class" json:"to_class,omitempty"` // NULL = graduated/deleted
 	Action       string  `bun:"action,notnull" json:"action"`       // 'promoted', 'graduated', 'unchanged'
-}
-
-// TableName returns the database table name
-func (h *GradeTransitionHistory) TableName() string {
-	return "education.grade_transition_history"
 }
 
 // Validate ensures history data is valid
@@ -83,19 +77,4 @@ func (h *GradeTransitionHistory) WasGraduated() bool {
 // WasPromoted returns true if this record represents a promoted student
 func (h *GradeTransitionHistory) WasPromoted() bool {
 	return h.Action == ActionPromoted
-}
-
-// GetID returns the entity's ID
-func (h *GradeTransitionHistory) GetID() interface{} {
-	return h.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (h *GradeTransitionHistory) GetCreatedAt() time.Time {
-	return h.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (h *GradeTransitionHistory) GetUpdatedAt() time.Time {
-	return h.UpdatedAt
 }

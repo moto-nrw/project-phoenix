@@ -9,7 +9,7 @@ import {
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -32,10 +32,15 @@ vi.mock("~/components/ui/database/database-form", () => ({
     }, [nonce]);
     return (
       <div data-testid="database-form" data-nonce={nonce}>
-        <button onClick={() => void onSubmit({ name: "Updated Room" })}>
+        <button
+          type="button"
+          onClick={() => void onSubmit({ name: "Updated Room" })}
+        >
           Save
         </button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     );
   },

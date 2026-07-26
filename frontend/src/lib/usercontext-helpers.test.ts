@@ -35,7 +35,7 @@ describe("usercontext-helpers", () => {
       expect(result).toEqual({
         id: "1",
         name: "Class 1A",
-        room_id: "10",
+        roomId: "10",
         room: {
           id: "10",
           name: "Room 101",
@@ -66,7 +66,7 @@ describe("usercontext-helpers", () => {
 
       const result = mapEducationalGroupResponse(backendData);
 
-      expect(result.room_id).toBeUndefined();
+      expect(result.roomId).toBeUndefined();
       expect(result.room).toBeUndefined();
     });
 
@@ -103,7 +103,7 @@ describe("usercontext-helpers", () => {
 
       const result = mapEducationalGroupResponse(backendData);
 
-      expect(result.room_id).toBe("5");
+      expect(result.roomId).toBe("5");
       expect(result.room).toBeUndefined();
     });
   });

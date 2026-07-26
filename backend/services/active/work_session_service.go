@@ -2,13 +2,16 @@ package active
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/csv"
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,16 +21,19 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/xuri/excelize/v2"
 )
 
 // Error message constants to avoid duplication
 const (
-	errNoActiveSession    = "no active session found"
-	errGetCurrentSession  = "failed to get current session: %w"
-	errInvalidSessionData = "invalid session data: %w"
+	errNoActiveSession             = "no active session found"
+	errGetCurrentSession           = "failed to get current session: %w"
+	errInvalidSessionData          = "invalid session data: %w"
+	maxPlannedBreakDurationMinutes = 240
 )
 
 // BreakDurationUpdate represents an update to a single break's duration
@@ -68,12 +74,21 @@ type AdminCreateSessionRequest struct {
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
-	NetMinutes        int                              `json:"net_minutes"`
-	IsOvertime        bool                             `json:"is_overtime"`
-	IsBreakCompliant  bool                             `json:"is_break_compliant"`
-	RestPeriodWarning *string                          `json:"rest_period_warning,omitempty"`
-	Breaks            []*activeModels.WorkSessionBreak `json:"breaks"`
-	EditCount         int                              `json:"edit_count"`
+	// BreakMinutes SHADOWS WorkSession.BreakMinutes on the wire — the outer
+	// field is at the shallower depth, so encoding/json emits this one for
+	// "break_minutes". That is deliberate: the model field caches ENDED breaks
+	// only, while NetMinutes below already deducts a RUNNING one, so serializing
+	// the raw cache would print "Pause 0:00" next to an Ist that has visibly
+	// stopped growing. Both numbers come from the same as-of-now pair
+	// (totalBreakMinutes / netMinutesWithBreaks), which keeps
+	// gross = net + break true for the reader (#1842).
+	BreakMinutes     int                              `json:"break_minutes"`
+	NetMinutes       int                              `json:"net_minutes"`
+	IsOvertime       bool                             `json:"is_overtime"`
+	IsBreakCompliant bool                             `json:"is_break_compliant"`
+	Breaks           []*activeModels.WorkSessionBreak `json:"breaks"`
+	EditCount        int                              `json:"edit_count"`
+	AuditCount       int                              `json:"audit_count"`
 }
 
 // WeeklySummary aggregates work session data per ISO week
@@ -128,6 +143,44 @@ func (e *ReopenStatusConflictError) Error() string {
 	return "reopen status conflict"
 }
 
+// PlannedStartNotReachedError is returned by CheckIn when the optional
+// planned-start enforcement setting is enabled and today's work schedule has a
+// start time later than the current wall clock.
+type PlannedStartNotReachedError struct {
+	PlannedStartTime string
+	CurrentTime      string
+}
+
+func (e *PlannedStartNotReachedError) Error() string {
+	return "planned start not reached"
+}
+
+// DeviationReasonRequiredError is returned by CheckIn/CheckOut when the
+// tenant requires a reason for stamping outside the tolerance window around
+// the planned shift window (F9) and the request carried none. The API layer
+// renders it as HTTP 409 with the stable code "deviation_reason_required"
+// produced by api/time-tracking/errors.go.
+type DeviationReasonRequiredError struct {
+	Action           string // deviationActionCheckIn or deviationActionCheckOut
+	PlannedTime      string // planned reference as Berlin wall clock, "15:04"
+	ActualTime       string // actual stamp time as Berlin wall clock, "15:04"
+	DeviationMinutes int
+}
+
+func (e *DeviationReasonRequiredError) Error() string {
+	return "deviation reason required"
+}
+
+const (
+	deviationActionCheckIn  = "check_in"
+	deviationActionCheckOut = "check_out"
+)
+
+type settingsResolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
 // WorkSessionService defines operations for staff time tracking
 type WorkSessionService interface {
 	// CheckIn opens or reopens today's session for staffID. `source` records
@@ -141,10 +194,28 @@ type WorkSessionService interface {
 	// UpdateSession (which gates on a notes reason). If `status` differs
 	// from the existing session's status, CheckIn returns
 	// *ReopenStatusConflictError instead of silently overwriting.
-	CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
-	CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	//
+	// `reason` is the F9 deviation reason. It is only consulted when the
+	// tenant setting operations.time_tracking_require_deviation_reason is
+	// active AND the stamp falls outside the tolerance window around the
+	// planned shift window of the day; an empty reason then yields
+	// *DeviationReasonRequiredError, a non-empty one is written to
+	// audit.work_session_edits. Same contract on CheckOut.
+	CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
+	CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+
+	// The *On variants act on the open session of an explicit calendar day
+	// instead of re-deriving "today" from the server clock. A caller whose
+	// request straddles Berlin midnight (a kiosk stamp at 23:59:59) would
+	// otherwise look up a day the session was never written on and fail with
+	// "no active session found". The day-less forms above delegate here with
+	// the current day and keep their behaviour.
+	CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error)
+	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error)
+	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
+	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error)
 	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
 	// UpdateSessionAsAdmin is the admin-facing counterpart. editorStaffID is
@@ -159,6 +230,10 @@ type WorkSessionService interface {
 	// Notes are required to preserve the audit trail's "Verlässlichkeit".
 	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	// GetLatestOpenSession is GetCurrentSession without the "today" filter: it
+	// finds a session that is still running even when it was opened on an
+	// earlier calendar day.
+	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
@@ -170,6 +245,17 @@ type WorkSessionService interface {
 	GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
+	// AutoCheckoutDueSessions closes open sessions whose staff member has a
+	// planned shift (schedule.staff_shifts) that ended more than `grace` ago,
+	// stamping the checkout at the planned shift end (#1798). Sessions
+	// without a shift on their date are untouched (the nightly
+	// CleanupOpenSessions still catches them); sessions checked in after the
+	// shift end are skipped. Each close is marked AutoCheckedOut and audited
+	// with the SystemEditorID actor. No-op when no shift repo is injected.
+	AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error)
+	// SetStaffShiftRepo injects the planned-shift repository consumed by
+	// AutoCheckoutDueSessions (wired by the factory after construction).
+	SetStaffShiftRepo(repo scheduleModels.StaffShiftRepository)
 	// EnsureCheckedIn opens today's session if the staff member has no active
 	// row. The caller passes `source` (`app`/`nfc`) to record which channel
 	// triggered the auto-stamp; this avoids hard-coding the channel inside
@@ -194,6 +280,54 @@ type WorkSessionService interface {
 	// SaveCustomScheduleAsTemplate persists the rows as a new reusable work
 	// time model and binds it to the staff member.
 	SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error
+	// UpdateSchedule resolves the requested mode (template vs custom, with the
+	// legacy empty-mode fallback), validates and applies the change. Validation
+	// failures wrap ErrScheduleValidation so callers can map them to 400.
+	UpdateSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error
+}
+
+// scheduleEntryMaxTargetMinutes caps a single schedule day at 12 hours.
+const scheduleEntryMaxTargetMinutes = 720
+
+// ErrScheduleValidation marks a schedule-update failure caused by invalid
+// request input (bad mode, out-of-range values, duplicate slots) so callers
+// render a 400 instead of a 500.
+var ErrScheduleValidation = errors.New("schedule validation")
+
+type scheduleValidationError struct {
+	message string
+}
+
+func (e scheduleValidationError) Error() string {
+	return e.message
+}
+
+func (e scheduleValidationError) Is(target error) bool {
+	return target == ErrScheduleValidation
+}
+
+func scheduleValidationErrorf(format string, args ...any) error {
+	return scheduleValidationError{message: fmt.Sprintf(format, args...)}
+}
+
+// ScheduleEntry mirrors a single day of the schedule-update request at the
+// service boundary (no api DTO types).
+type ScheduleEntry struct {
+	WeekIndex     int
+	DayOfWeek     int
+	TargetMinutes int
+	StartTime     *string
+}
+
+// ScheduleUpdateInput mirrors the PUT /staff/{id}/schedule request body at the
+// service boundary.
+type ScheduleUpdateInput struct {
+	Mode               string
+	ModelID            *int64
+	RotationLength     int
+	RotationAnchorDate string
+	Entries            []ScheduleEntry
+	SaveAsTemplateName string
 }
 
 // workSessionService implements WorkSessionService
@@ -206,45 +340,149 @@ type workSessionService struct {
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
 	workModelRepo  configModels.WorkTimeModelRepository
+	settings       settingsResolver
+	staffShiftRepo scheduleModels.StaffShiftRepository
+	holidayReader  HolidayDatesReader
+	broadcaster    realtime.Broadcaster
 	logger         *slog.Logger
+	nowFunc        func() time.Time
+}
+
+// SetStaffShiftRepo injects the planned-shift repository used by
+// AutoCheckoutDueSessions (#1798). Setter instead of a constructor param to
+// keep the already long NewWorkSessionService signature stable; the factory
+// calls it right after construction.
+func (s *workSessionService) SetStaffShiftRepo(repo scheduleModels.StaffShiftRepository) {
+	s.staffShiftRepo = repo
+}
+
+// SetHolidayReader injects the public-holiday resolver (#1418 3a): holidays
+// reduce the weekly Soll shown in the history summaries. Deliberately NOT
+// part of the WorkSessionService interface — the factory injects it via a
+// type assertion, so external mocks of the interface stay untouched.
+func (s *workSessionService) SetHolidayReader(reader HolidayDatesReader) {
+	s.holidayReader = reader
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
+// WorkSessionService so existing API-layer mocks do not need a no-op setter.
+func (s *workSessionService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *workSessionService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
+	return cmp.Or(s.logger, slog.Default())
+}
+
+func (s *workSessionService) broadcastTimeTrackingChanged(ctx context.Context) {
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
+}
+
+func (s *workSessionService) lockStaffBalanceWrites(ctx context.Context, staffID int64) error {
+	if err := s.repo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+		return fmt.Errorf("failed to lock staff balance writes: %w", err)
 	}
-	return slog.Default()
+	return nil
+}
+
+func (s *workSessionService) lockStaffBalanceWritesOrdered(ctx context.Context, staffIDs []int64) error {
+	unique := make(map[int64]struct{}, len(staffIDs))
+	for _, staffID := range staffIDs {
+		unique[staffID] = struct{}{}
+	}
+	ordered := slices.Collect(maps.Keys(unique))
+	slices.Sort(ordered)
+	for _, staffID := range ordered {
+		if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, logger *slog.Logger) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, logger: logger}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger}
+}
+
+func (s *workSessionService) now() time.Time {
+	if s.nowFunc != nil {
+		return s.nowFunc()
+	}
+	return time.Now()
 }
 
 // CheckIn creates a new work session for the staff member.
 // Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
-func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
+func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
+	return s.checkIn(ctx, staffID, timezone.DateFromTime(s.now()), status, source, reason, true)
+}
+
+// CheckInOn resolves the existing session of an explicit calendar day instead
+// of deriving that day from the server clock: a kiosk that pinned its day
+// before stamping must reopen the row it saw, and its day-pinned reads have to
+// keep seeing it.
+//
+// The pin covers the lookup only. A session that is newly created is filed on
+// the day its own stamp falls on — see checkIn.
+func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
+	return s.checkIn(ctx, staffID, day, status, source, reason, true)
+}
+
+// checkIn is the shared body behind CheckIn and EnsureCheckedIn.
+// enforceDeviationGate switches the F9 reason requirement: deliberate
+// stamping (the time-tracking page) enforces it, auto-stamps triggered by
+// starting a supervision (EnsureCheckedIn) bypass it — those flows have no
+// way to collect a reason, and refusing the stamp would leave a supervisor
+// row without a matching work session.
+//
+// `lookupDay` selects the session this call acts on; it may have been resolved
+// by the caller before the request reached here. A session that is created
+// fresh is filed on the day of its own check_in_time instead: storing a
+// pre-midnight day next to a post-midnight stamp would misfile the session in
+// the daily history, in shift and deviation lookups, and in every total built
+// from the date column.
+func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupDay timezone.Date, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
 	if source != activeModels.WorkSessionSourceApp && source != activeModels.WorkSessionSourceNFC {
 		return nil, fmt.Errorf("source must be 'app' or 'nfc'")
 	}
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 
-	// Today's Berlin calendar day for the PostgreSQL DATE column
-	today := timezone.TodayDate()
+	now := s.now()
+	stampDay := timezone.DateFromTime(now)
 
-	// Check if there's already a session today
-	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
+	// Check if there's already a session on the day this call acts on
+	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check existing session: %w", err)
+	}
+
+	// A pinned day that no longer matches the stamp may only carry a session
+	// that is still running: that is a night shift the caller is right to act
+	// on. A closed row on that day is finished business from a day this stamp
+	// does not belong to, and reopening it would move yesterday's arrival and
+	// erase yesterday's departure. Act on the stamp's own day instead.
+	if existingSession != nil && !existingSession.IsActive() && lookupDay != stampDay {
+		lookupDay = stampDay
+		existingSession, err = s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("failed to check existing session: %w", err)
+		}
 	}
 
 	if existingSession != nil {
 		if existingSession.IsActive() {
 			return nil, fmt.Errorf("already checked in")
+		}
+		if err := s.ensurePlannedStartReached(ctx, staffID, lookupDay, now); err != nil {
+			return nil, err
 		}
 		// A status mismatch on reopen would silently rewrite an audit-relevant
 		// field with no FieldStatus edit emitted. Force the caller to reopen
@@ -259,14 +497,41 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 		}
 		// Re-open the checked-out session (accidental checkout recovery).
 		// Source and Status are both preserved (see reopenSession comment).
-		return s.reopenSession(ctx, existingSession, staffID)
+		reopened, err := s.reopenSession(ctx, existingSession, staffID)
+		if err != nil {
+			return nil, err
+		}
+		s.broadcastTimeTrackingChanged(ctx)
+		return reopened, nil
+	}
+
+	// From here the session is created, so it belongs to the day of its own
+	// stamp: the schedule and deviation checks below have to be read on that
+	// same day, or a stamp taken just after midnight is measured against the
+	// previous day's shift.
+	if err := s.ensurePlannedStartReached(ctx, staffID, stampDay, now); err != nil {
+		return nil, err
+	}
+
+	// F9: checking in more than the tolerance before the planned shift start
+	// needs a reason ("früher kommen"). The reopen path above is exempt —
+	// resuming after an accidental checkout is not a new arrival.
+	var deviation *plannedDeviation
+	if enforceDeviationGate {
+		var err error
+		deviation, err = s.detectPlannedDeviation(ctx, staffID, stampDay, now, deviationActionCheckIn)
+		if err != nil {
+			return nil, err
+		}
+		if deviation != nil && strings.TrimSpace(reason) == "" {
+			return nil, deviation.requiredError()
+		}
 	}
 
 	// Create new session
-	now := time.Now()
 	session := &activeModels.WorkSession{
 		StaffID:      staffID,
-		Date:         today,
+		Date:         stampDay,
 		Status:       status,
 		Source:       source,
 		CheckInTime:  now,
@@ -284,7 +549,61 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 		return nil, fmt.Errorf("failed to create work session: %w", err)
 	}
 
+	if deviation != nil {
+		if err := s.recordDeviationReason(ctx, session, deviation, reason, now); err != nil {
+			return nil, err
+		}
+	}
+
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
+}
+
+func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staffID int64, today timezone.Date, now time.Time) error {
+	if s.settings == nil {
+		return nil
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingEnforcePlannedStart)
+	if err != nil {
+		return fmt.Errorf("failed to resolve planned-start setting: %w", err)
+	}
+	if !enabled {
+		return nil
+	}
+	if s.scheduleRepo == nil {
+		return fmt.Errorf("staff work schedule repository not configured")
+	}
+
+	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, today)
+	if err != nil {
+		return fmt.Errorf("failed to load planned start schedule: %w", err)
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+
+	staff := s.resolveStaffForTargets(ctx, staffID)
+	anchor := configModels.ResolveScheduleAnchor(staffAnchorOf(staff), entries)
+	if anchor.IsZero() {
+		return nil
+	}
+	rotationWeek := configModels.ResolveWeekIndex(configModels.ScheduleRotationLength(entries), configModels.MondayOf(anchor), configModels.MondayOf(today))
+	dayIndex := configModels.ISODayIndex(today)
+	for _, entry := range entries {
+		if entry.WeekIndex != rotationWeek || entry.DayOfWeek != dayIndex || entry.StartTime == nil {
+			continue
+		}
+		plannedStart := timezone.WallClock(*entry.StartTime)
+		currentClock := timezone.WallClock(now.In(timezone.Berlin))
+		if currentClock.Before(plannedStart) {
+			return &PlannedStartNotReachedError{
+				PlannedStartTime: plannedStart.Format("15:04"),
+				CurrentTime:      currentClock.Format("15:04"),
+			}
+		}
+		return nil
+	}
+	return nil
 }
 
 // reopenSession clears checkout on an existing session so the staff member
@@ -296,8 +615,10 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 // differs from the existing one. The caller is expected to follow up
 // with UpdateSession (which gates on a notes reason).
 func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
+	now := time.Now()
 	session.CheckOutTime = nil
 	session.AutoCheckedOut = false
+	session.ReopenedAt = &now
 	session.UpdatedBy = &staffID
 
 	if err := session.Validate(); err != nil {
@@ -312,9 +633,17 @@ func (s *workSessionService) reopenSession(ctx context.Context, session *activeM
 }
 
 // CheckOut ends the current work session for the staff member
-func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
-	// Get current active session
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
+	return s.CheckOutOn(ctx, staffID, timezone.TodayDate(), reason)
+}
+
+// CheckOutOn ends the open session of an explicit calendar day.
+func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error) {
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
+	// Get the open session of the requested day
+	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(errNoActiveSession)
@@ -326,15 +655,38 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 		return nil, errors.New(errNoActiveSession)
 	}
 
+	now := s.now()
+
+	// F9: checking out more than the tolerance after the planned shift end
+	// needs a reason ("später gehen"). Referenced against the session's own
+	// date so a forgotten session from yesterday is measured against
+	// yesterday's plan.
+	deviation, err := s.detectPlannedDeviation(ctx, staffID, session.Date, now, deviationActionCheckOut)
+	if err != nil {
+		return nil, err
+	}
+	if deviation != nil && strings.TrimSpace(reason) == "" {
+		return nil, deviation.requiredError()
+	}
+
 	// End any active break before checkout
-	if err := s.endActiveBreakIfExists(ctx, session.ID); err != nil {
+	if err := s.endActiveBreakIfExists(ctx, session.ID, now); err != nil {
 		return nil, err
 	}
 
 	// Close the session using repository method
-	now := time.Now()
-	if err := s.repo.CloseSession(ctx, session.ID, now, false); err != nil {
+	closed, err := s.repo.CloseSession(ctx, session.ID, now, false)
+	if err != nil {
 		return nil, fmt.Errorf("failed to close session: %w", err)
+	}
+	if !closed {
+		return nil, errors.New(errNoActiveSession)
+	}
+
+	if deviation != nil {
+		if err := s.recordDeviationReason(ctx, session, deviation, reason, now); err != nil {
+			return nil, err
+		}
 	}
 
 	// End all active supervisions for this staff member (fire-and-forget)
@@ -346,11 +698,135 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 		return nil, fmt.Errorf("failed to retrieve updated session: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return updatedSession, nil
 }
 
-// endActiveBreakIfExists ends any active break for a session and recalculates break minutes.
-func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, sessionID int64) error {
+// plannedDeviation describes a stamp that falls outside the tolerance window
+// around the planned shift window of the day (F9).
+type plannedDeviation struct {
+	action  string
+	planned time.Time
+	actual  time.Time
+	minutes int
+}
+
+func (d *plannedDeviation) requiredError() *DeviationReasonRequiredError {
+	return &DeviationReasonRequiredError{
+		Action:           d.action,
+		PlannedTime:      d.planned.In(timezone.Berlin).Format("15:04"),
+		ActualTime:       d.actual.In(timezone.Berlin).Format("15:04"),
+		DeviationMinutes: d.minutes,
+	}
+}
+
+// detectPlannedDeviation implements the F9 rule: with the tenant setting
+// active, a check-in earlier than the earliest planned shift start minus the
+// tolerance, or a check-out later than the latest planned shift end plus the
+// tolerance, is a deviation that needs a reason. The plan source is
+// schedule.staff_shifts (real start AND end times); days without a shift
+// never deviate ("kein Plan, keine Abweichung"). Late arrivals and early
+// leaves are deliberately not gated — F9 targets unnoticed extra hours
+// ("früher kommen oder später gehen"), and missing time is already visible
+// in the saldo.
+func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID int64, day timezone.Date, now time.Time, action string) (*plannedDeviation, error) {
+	if s.settings == nil || s.staffShiftRepo == nil {
+		return nil, nil
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve deviation-reason setting: %w", err)
+	}
+	if !enabled {
+		return nil, nil
+	}
+
+	allShifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, day)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load planned shifts: %w", err)
+	}
+	// A cancelled shift does not take place (#1841), so it must not widen the
+	// planned window: with an active 08:00–12:00 shift and a cancelled
+	// 12:00–16:00 shift, a 15:00 checkout IS a deviation.
+	shifts := make([]*scheduleModels.StaffShift, 0, len(allShifts))
+	for _, shift := range allShifts {
+		if !shift.Cancelled {
+			shifts = append(shifts, shift)
+		}
+	}
+	if len(shifts) == 0 {
+		return nil, nil
+	}
+
+	toleranceMinutes, err := s.settings.ResolveInt(ctx, configModels.KeyTimeTrackingDeviationToleranceMinutes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve deviation-tolerance setting: %w", err)
+	}
+
+	var planned time.Time
+	var delta time.Duration
+	switch action {
+	case deviationActionCheckIn:
+		planned = shifts[0].StartInstant()
+		for _, shift := range shifts[1:] {
+			if start := shift.StartInstant(); start.Before(planned) {
+				planned = start
+			}
+		}
+		delta = planned.Sub(now) // positive when arriving early
+	case deviationActionCheckOut:
+		planned = shifts[0].EndInstant()
+		for _, shift := range shifts[1:] {
+			if end := shift.EndInstant(); end.After(planned) {
+				planned = end
+			}
+		}
+		delta = now.Sub(planned) // positive when leaving late
+	default:
+		return nil, fmt.Errorf("unknown deviation action %q", action)
+	}
+
+	if delta <= time.Duration(toleranceMinutes)*time.Minute {
+		return nil, nil
+	}
+
+	return &plannedDeviation{
+		action:  action,
+		planned: planned,
+		actual:  now,
+		minutes: int(math.Round(delta.Minutes())),
+	}, nil
+}
+
+// recordDeviationReason persists the F9 reason as an audit edit on the
+// session: old value = planned wall clock, new value = actual wall clock,
+// notes = the reason. The stamp and its audit row share the handler's tenant
+// transaction, so a failed audit write rolls the stamp back.
+func (s *workSessionService) recordDeviationReason(ctx context.Context, session *activeModels.WorkSession, dev *plannedDeviation, reason string, now time.Time) error {
+	planned := dev.planned.In(timezone.Berlin).Format("15:04")
+	actual := dev.actual.In(timezone.Berlin).Format("15:04")
+	trimmed := strings.TrimSpace(reason)
+	edit := &auditModels.WorkSessionEdit{
+		SessionID: session.ID,
+		StaffID:   session.StaffID,
+		EditedBy:  session.StaffID,
+		FieldName: auditModels.FieldDeviationReason,
+		OldValue:  &planned,
+		NewValue:  &actual,
+		Notes:     &trimmed,
+		CreatedAt: now,
+	}
+	edit.SetTenantID(tenant.FromContext(ctx))
+	if err := s.auditRepo.CreateBatch(ctx, []*auditModels.WorkSessionEdit{edit}); err != nil {
+		return fmt.Errorf("failed to record deviation reason: %w", err)
+	}
+	return nil
+}
+
+// endActiveBreakIfExists ends any active break for a session at endAt and
+// recalculates break minutes. endAt must not be after the session's checkout
+// time, or break rows end up ending after check_out_time.
+func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, sessionID int64, endAt time.Time) error {
 	activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to check active break: %w", err)
@@ -359,9 +835,13 @@ func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, session
 		return nil
 	}
 
-	now := time.Now()
-	duration := int(math.Round(now.Sub(activeBreak.StartedAt).Minutes()))
-	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, now, duration); err != nil {
+	// A break started after endAt (e.g. during the auto-checkout grace
+	// window) is capped to zero length instead of a negative duration.
+	if endAt.Before(activeBreak.StartedAt) {
+		endAt = activeBreak.StartedAt
+	}
+	duration := int(math.Round(endAt.Sub(activeBreak.StartedAt).Minutes()))
+	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, endAt, duration); err != nil {
 		return fmt.Errorf("failed to end active break: %w", err)
 	}
 
@@ -391,10 +871,18 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 }
 
 // StartBreak starts a new break for the current session
-// If plannedDurationMinutes is provided (1-120), sets planned_end_time for auto-end
+// If plannedDurationMinutes is provided (1-240), sets planned_end_time for auto-end
 func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
-	// Get today's active session
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	return s.StartBreakOn(ctx, staffID, timezone.TodayDate(), plannedDurationMinutes)
+}
+
+// StartBreakOn starts a break on the open session of an explicit calendar day.
+func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
+	// Get the open session of the requested day
+	session, err := s.repo.GetOpenByStaffAndDateForUpdate(ctx, staffID, day)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(errNoActiveSession)
@@ -416,8 +904,8 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 
 	// Validate plannedDurationMinutes if provided
 	if plannedDurationMinutes != nil {
-		if *plannedDurationMinutes < 1 || *plannedDurationMinutes > 120 {
-			return nil, errors.New("planned_duration_minutes must be between 1 and 120")
+		if *plannedDurationMinutes < 1 || *plannedDurationMinutes > maxPlannedBreakDurationMinutes {
+			return nil, fmt.Errorf("planned_duration_minutes must be between 1 and %d", maxPlannedBreakDurationMinutes)
 		}
 	}
 
@@ -442,13 +930,22 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 		return nil, fmt.Errorf("failed to create break: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return brk, nil
 }
 
 // EndBreak ends the current active break for the staff member's session
 func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
-	// Get today's active session
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	return s.EndBreakOn(ctx, staffID, timezone.TodayDate())
+}
+
+// EndBreakOn ends the active break on the open session of an explicit calendar day.
+func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error) {
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
+	// Get the open session of the requested day
+	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(errNoActiveSession)
@@ -486,6 +983,7 @@ func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*acti
 		return nil, fmt.Errorf("failed to retrieve updated session: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return updatedSession, nil
 }
 
@@ -507,7 +1005,15 @@ func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sess
 	return breaks, nil
 }
 
-// recalcBreakMinutes sums all break durations for a session and updates the cache
+// recalcBreakMinutes sums the ENDED break durations for a session and updates
+// the cache. A still-running break contributes nothing: its elapsed time is
+// live data, and readers that need it add it themselves against their own
+// clock (netMinutes + runningBreakMinutes in the month service, the live
+// session card). Folding the running duration in here would double-count it —
+// once from the cache, once from the reader — for every recalc that happens
+// while a break is open (editing an ended break on a session whose second
+// break is still running), and would leave a stale snapshot in the cache the
+// moment the recalc returned.
 func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID int64) error {
 	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
@@ -518,9 +1024,6 @@ func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID i
 	for _, brk := range breaks {
 		if brk.EndedAt != nil {
 			totalMinutes += brk.DurationMinutes
-		} else {
-			// Active break: compute live duration
-			totalMinutes += int(math.Round(time.Since(brk.StartedAt).Minutes()))
 		}
 	}
 
@@ -554,6 +1057,9 @@ func (uc *sessionUpdateContext) addAuditEdit(field string, oldVal, newVal *strin
 // audit entries. Self-edit path: the requesting staff must own the session.
 // Notes are only required when changing status (Vor Ort ↔ Homeoffice).
 func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
@@ -572,7 +1078,55 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 		}
 	}
 
+	// F8: with the deviation-reason setting active, self-edits of the
+	// recorded times (check-in, check-out, break minutes — including
+	// per-break duration edits, which are break-minute changes) need notes
+	// too, not only status changes. For the scalar fields the change
+	// detection mirrors applyTimeFieldUpdates/applyBreakUpdates, so an
+	// unchanged resend never trips the gate; a non-empty per-break list
+	// always counts as an edit intent (comparing it against stored rows
+	// would need an extra query before the ownership checks ran).
+	if s.selfEditChangesRecordedTimes(session, updates) {
+		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
+			required, err := s.deviationReasonRequired(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if required {
+				return nil, fmt.Errorf("notes required when changing recorded times")
+			}
+		}
+	}
+
 	return s.applySessionUpdate(ctx, staffID, session, updates)
+}
+
+// deviationReasonRequired resolves the F8/F9 tenant setting; nil settings
+// (tests, minimal wiring) mean the gate is off.
+func (s *workSessionService) deviationReasonRequired(ctx context.Context) (bool, error) {
+	if s.settings == nil {
+		return false, nil
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve deviation-reason setting: %w", err)
+	}
+	return enabled, nil
+}
+
+// selfEditChangesRecordedTimes reports whether the update would change
+// check_in_time, check_out_time, or break minutes on the session.
+func (s *workSessionService) selfEditChangesRecordedTimes(session *activeModels.WorkSession, updates SessionUpdateRequest) bool {
+	if updates.CheckInTime != nil && !session.CheckInTime.Equal(*updates.CheckInTime) {
+		return true
+	}
+	if updates.CheckOutTime != nil && (session.CheckOutTime == nil || !session.CheckOutTime.Equal(*updates.CheckOutTime)) {
+		return true
+	}
+	if updates.BreakMinutes != nil && *updates.BreakMinutes != session.BreakMinutes {
+		return true
+	}
+	return len(updates.Breaks) > 0
 }
 
 // UpdateSessionAsAdmin applies an admin correction. editorStaffID is the
@@ -584,6 +1138,9 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 // audit trail, and any foreign edit needs a reason. We're stricter than
 // self-edit on purpose.
 func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
+		return nil, err
+	}
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
@@ -641,6 +1198,7 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		}
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 
@@ -668,6 +1226,9 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 	}
 	if req.BreakMinutes < 0 {
 		return nil, fmt.Errorf("break_minutes must not be negative")
+	}
+	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
+		return nil, err
 	}
 
 	checkOut := req.CheckOutTime
@@ -725,6 +1286,7 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		return nil, fmt.Errorf("failed to create audit entries: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 
@@ -876,6 +1438,22 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 	return session, nil
 }
 
+// GetLatestOpenSession returns the most recent still-running session of a staff
+// member across all days, or nil when none is open. It answers "is this person
+// clocked in right now" without assuming the session was opened today — a night
+// stamp survives the Berlin midnight rollover.
+func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	session, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get latest open session: %w", err)
+	}
+
+	return session, nil
+}
+
 // GetHistory returns work sessions for a staff member in a date range with weekly aggregation
 func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error) {
 	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
@@ -889,10 +1467,16 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		sessionIDs[i] = session.ID
 	}
 
-	// Batch fetch edit counts
-	editCounts, err := s.auditRepo.CountBySessionIDs(ctx, sessionIDs)
+	// Batch fetch manual edit counts. System-authored edits (auto-checkout) and
+	// stamp-time deviation reasons (#1844) are excluded so they don't surface
+	// as "Manuell korrigiert".
+	editCounts, err := s.auditRepo.CountManualBySessionIDs(ctx, sessionIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get edit counts: %w", err)
+	}
+	auditCounts, err := s.auditRepo.CountBySessionIDs(ctx, sessionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get audit counts: %w", err)
 	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
@@ -905,12 +1489,19 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		}
 
 		responses[i] = &SessionResponse{
-			WorkSession:      session,
-			NetMinutes:       netMinutes(session, now),
-			IsOvertime:       isOvertime(session, now),
-			IsBreakCompliant: isBreakCompliant(session, now),
+			WorkSession: session,
+			// A running break is NOT in the BreakMinutes cache, so netMinutes
+			// alone would keep counting it as worked time and the day rows
+			// would climb while the Monatskarte and the week KPI (which both
+			// deduct it) stand still (#1842). The breaks are already loaded
+			// above — no extra query.
+			BreakMinutes:     totalBreakMinutes(session, breaks, now),
+			NetMinutes:       netMinutesWithBreaks(session, breaks, now),
+			IsOvertime:       isOvertime(session, breaks, now),
+			IsBreakCompliant: isBreakCompliant(session, breaks, now),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
+			AuditCount:       auditCounts[session.ID],
 		}
 	}
 
@@ -976,9 +1567,13 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 	if len(sessions) == 0 {
 		return nil
 	}
+	holidaySet, ok := s.holidayDatesForWeeks(ctx, sessionWeekStarts(sessions))
+	if !ok {
+		return nil
+	}
 	staff := s.resolveStaffForTargets(ctx, staffID)
 	if s.scheduleRepo != nil {
-		targets := s.weeklyTargetsFromDateValidSchedule(ctx, staffID, staff, sessions)
+		targets := s.weeklyTargetsFromDateValidSchedule(ctx, staffID, staff, sessions, holidaySet)
 		if len(targets) > 0 {
 			return targets
 		}
@@ -995,9 +1590,69 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 		if staff.RotationAnchorDate != nil {
 			anchor = *staff.RotationAnchorDate
 		}
-		return weeklyTargetsFromModel(model, anchor, sessions)
+		targets := configModels.WeeklyTargetsFromModel(model, anchor, sessionWeekStarts(sessions))
+		for weekStart, target := range targets {
+			targets[weekStart] = target - holidayModelMinutes(model, anchor, weekStart, holidaySet)
+		}
+		return summaryKeysOf(targets)
 	}
 	return nil
+}
+
+// holidayDatesForWeeks loads the public holidays covering the given weeks.
+// ok=false signals a resolver failure — then NO weekly Soll is shown rather
+// than one that ignores holidays and fakes minus hours (#1418 3a).
+func (s *workSessionService) holidayDatesForWeeks(ctx context.Context, weekStarts []timezone.Date) (map[timezone.Date]bool, bool) {
+	if s.holidayReader == nil || len(weekStarts) == 0 {
+		return nil, true
+	}
+	from, to := weekStarts[0], weekStarts[0]
+	for _, weekStart := range weekStarts[1:] {
+		if weekStart.Before(from) {
+			from = weekStart
+		}
+		if weekStart.After(to) {
+			to = weekStart
+		}
+	}
+	set, err := s.holidayReader.HolidayDates(ctx, from, to.AddDays(6))
+	if err != nil {
+		s.getLogger().Warn("failed to load public holidays for weekly summaries",
+			"error", err.Error(),
+		)
+		return nil, false
+	}
+	return set, true
+}
+
+// holidayScheduleMinutes sums the schedule Soll of the week's holiday days —
+// the amount a holiday week's target shrinks by.
+func holidayScheduleMinutes(entries []*configModels.StaffWorkSchedule, staffAnchor *timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+	total := 0
+	for offset := 0; offset < 7; offset++ {
+		day := weekStart.AddDays(offset)
+		if !holidaySet[day] {
+			continue
+		}
+		dayTarget, _ := configModels.DailyTargetFromSchedule(entries, staffAnchor, day)
+		total += dayTarget
+	}
+	return total
+}
+
+// holidayModelMinutes is holidayScheduleMinutes for the work-time-model
+// fallback path.
+func holidayModelMinutes(model *configModels.WorkTimeModel, anchor timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+	total := 0
+	for offset := 0; offset < 7; offset++ {
+		day := weekStart.AddDays(offset)
+		if !holidaySet[day] {
+			continue
+		}
+		dayTarget, _ := configModels.DailyTargetFromModel(model, anchor, day)
+		total += dayTarget
+	}
+	return total
 }
 
 func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID int64) *userModels.Staff {
@@ -1011,24 +1666,40 @@ func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID
 	return staff
 }
 
+// weeklyTargetsFromDateValidSchedule resolves the weekly Soll from date-valid
+// staff_work_schedules rows via the shared models/config helpers: one batched
+// read over the span of all session weeks, then per-week in-memory resolution
+// (validity windows, rotation weeks) through config.WeeklyTargetFromSchedule —
+// the same helper the Dienstplan weekly summaries use.
 func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	ctx context.Context,
 	staffID int64,
 	staff *userModels.Staff,
 	sessions []*SessionResponse,
+	holidaySet map[timezone.Date]bool,
 ) map[summaryWeekKey]int {
-	targetsByWeek := make(map[summaryWeekKey]int)
-	seen := make(map[summaryWeekKey]bool)
-	for _, session := range sessions {
-		year, week := session.Date.UTCMidnight().ISOWeek()
-		key := summaryWeekKey{Year: year, Week: week}
-		if seen[key] {
-			continue
+	weekStarts := sessionWeekStarts(sessions)
+	if len(weekStarts) == 0 {
+		return nil
+	}
+	from, to := weekStarts[0], weekStarts[0]
+	for _, weekStart := range weekStarts[1:] {
+		if weekStart.Before(from) {
+			from = weekStart
 		}
-		seen[key] = true
-		target, ok := s.weeklyTargetFromDateValidSchedule(ctx, staffID, staff, isoWeekStart(session.Date))
-		if ok {
-			targetsByWeek[key] = target
+		if weekStart.After(to) {
+			to = weekStart
+		}
+	}
+	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, from, to.AddDays(6))
+	if err != nil || len(entries) == 0 {
+		return nil
+	}
+	targetsByWeek := make(map[summaryWeekKey]int)
+	for _, weekStart := range weekStarts {
+		if target, ok := configModels.WeeklyTargetFromSchedule(entries, staffAnchorOf(staff), weekStart); ok {
+			target -= holidayScheduleMinutes(entries, staffAnchorOf(staff), weekStart, holidaySet)
+			targetsByWeek[summaryKeyOf(weekStart)] = target
 		}
 	}
 	if len(targetsByWeek) == 0 {
@@ -1037,108 +1708,48 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	return targetsByWeek
 }
 
-func (s *workSessionService) weeklyTargetFromDateValidSchedule(
-	ctx context.Context,
-	staffID int64,
-	staff *userModels.Staff,
-	weekStart timezone.Date,
-) (int, bool) {
-	total := 0
-	found := false
-	for offset := 0; offset < 7; offset++ {
-		date := weekStart.AddDays(offset)
-		entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, date)
-		if err != nil || len(entries) == 0 {
-			continue
-		}
-		anchor := resolveScheduleAnchorFromStaff(staff, entries)
-		rotationWeek := configModels.ResolveWeekIndex(scheduleRotationLength(entries), isoWeekStart(anchor), isoWeekStart(date))
-		dayIndex := isoDayIndex(date)
-		for _, entry := range entries {
-			if entry.WeekIndex == rotationWeek && entry.DayOfWeek == dayIndex {
-				total += entry.TargetMinutes
-				found = true
-			}
-		}
-	}
-	return total, found
-}
-
-func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor timezone.Date, sessions []*SessionResponse) map[summaryWeekKey]int {
-	if model == nil || len(model.Entries) == 0 || len(sessions) == 0 {
+// staffAnchorOf returns the staff-level rotation anchor when one is set.
+func staffAnchorOf(staff *userModels.Staff) *timezone.Date {
+	if staff == nil {
 		return nil
 	}
-	rotation := model.RotationLength
-	if rotation < 1 {
-		rotation = 1
-	}
-	targetsByRotationWeek := make(map[int]int, rotation)
-	for _, e := range model.Entries {
-		targetsByRotationWeek[e.WeekIndex] += e.TargetMinutes
-	}
-	return weeklyTargetsFromRotationTargets(targetsByRotationWeek, rotation, anchor, sessions)
+	return staff.RotationAnchorDate
 }
 
-func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotation int, anchor timezone.Date, sessions []*SessionResponse) map[summaryWeekKey]int {
-	if len(targetsByRotationWeek) == 0 {
-		return nil
-	}
-	targetsByWeek := make(map[summaryWeekKey]int)
+// sessionWeekStarts returns the deduplicated Monday week starts of the given
+// sessions in first-seen order.
+func sessionWeekStarts(sessions []*SessionResponse) []timezone.Date {
+	weekStarts := make([]timezone.Date, 0)
+	seen := make(map[timezone.Date]struct{})
 	for _, session := range sessions {
-		year, week := session.Date.UTCMidnight().ISOWeek()
-		key := summaryWeekKey{Year: year, Week: week}
-		if _, ok := targetsByWeek[key]; ok {
+		weekStart := configModels.MondayOf(session.Date)
+		if _, ok := seen[weekStart]; ok {
 			continue
 		}
-		weekStart := isoWeekStart(session.Date)
-		rotationWeek := configModels.ResolveWeekIndex(rotation, isoWeekStart(anchor), weekStart)
-		if target, ok := targetsByRotationWeek[rotationWeek]; ok {
-			targetsByWeek[key] = target
-		}
+		seen[weekStart] = struct{}{}
+		weekStarts = append(weekStarts, weekStart)
+	}
+	return weekStarts
+}
+
+// summaryKeyOf maps a Monday week start onto the ISO year/week summary key
+// (a Monday uniquely determines its ISO week, so the mapping is loss-free).
+func summaryKeyOf(weekStart timezone.Date) summaryWeekKey {
+	year, week := weekStart.UTCMidnight().ISOWeek()
+	return summaryWeekKey{Year: year, Week: week}
+}
+
+// summaryKeysOf rekeys the Monday-date targets of the shared model resolver
+// onto summary week keys.
+func summaryKeysOf(targets map[timezone.Date]int) map[summaryWeekKey]int {
+	if len(targets) == 0 {
+		return nil
+	}
+	targetsByWeek := make(map[summaryWeekKey]int, len(targets))
+	for weekStart, target := range targets {
+		targetsByWeek[summaryKeyOf(weekStart)] = target
 	}
 	return targetsByWeek
-}
-
-func resolveScheduleAnchorFromStaff(staff *userModels.Staff, entries []*configModels.StaffWorkSchedule) timezone.Date {
-	if staff != nil && staff.RotationAnchorDate != nil {
-		return *staff.RotationAnchorDate
-	}
-	var earliest timezone.Date
-	for _, e := range entries {
-		if earliest.IsZero() || e.ValidFrom.Before(earliest) {
-			earliest = e.ValidFrom
-		}
-	}
-	return earliest
-}
-
-func scheduleRotationLength(entries []*configModels.StaffWorkSchedule) int {
-	rotation := 1
-	for _, e := range entries {
-		if e.RotationLength > rotation {
-			rotation = e.RotationLength
-		}
-	}
-	if rotation < 1 {
-		return 1
-	}
-	return rotation
-}
-
-func isoWeekStart(date timezone.Date) timezone.Date {
-	weekday := int(date.Weekday())
-	if weekday == 0 {
-		weekday = 7
-	}
-	return date.AddDays(1 - weekday)
-}
-
-func isoDayIndex(date timezone.Date) int {
-	weekday := int(date.Weekday())
-	if weekday == 0 {
-		return configModels.DaySunday
-	}
-	return weekday - 1
 }
 
 // GetSessionEdits returns the audit trail for a work session
@@ -1188,10 +1799,7 @@ func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *
 	for _, e := range edits {
 		editorIDSet[e.EditedBy] = struct{}{}
 	}
-	editorIDs := make([]int64, 0, len(editorIDSet))
-	for id := range editorIDSet {
-		editorIDs = append(editorIDs, id)
-	}
+	editorIDs := slices.Collect(maps.Keys(editorIDSet))
 
 	staffMap := map[int64]*userModels.Staff{}
 	if s.staffRepo != nil {
@@ -1213,7 +1821,9 @@ func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *
 	views := make([]*WorkSessionEditView, len(edits))
 	for i, e := range edits {
 		name := ""
-		if staff, ok := staffMap[e.EditedBy]; ok && staff != nil && staff.Person != nil {
+		if e.EditedBy == auditModels.SystemEditorID {
+			name = "System"
+		} else if staff, ok := staffMap[e.EditedBy]; ok && staff != nil && staff.Person != nil {
 			name = strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName)
 		}
 		views[i] = &WorkSessionEditView{
@@ -1238,34 +1848,251 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 // CleanupOpenSessions closes all sessions that are still open before today
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
 	// Today's Berlin calendar day for the PostgreSQL DATE column
-	today := timezone.TodayDate()
+	today := timezone.DateFromTime(s.now())
 
 	// Get all open sessions before today
 	openSessions, err := s.repo.GetOpenSessions(ctx, today)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get open sessions: %w", err)
 	}
+	staffIDs := make([]int64, 0, len(openSessions))
+	for _, session := range openSessions {
+		staffIDs = append(staffIDs, session.StaffID)
+	}
+	if err := s.lockStaffBalanceWritesOrdered(ctx, staffIDs); err != nil {
+		return 0, err
+	}
 
 	count := 0
 	for _, session := range openSessions {
+		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
+		endOfDay := session.Date.EndOfDay()
+
 		// End any active break before closing the session
-		if err := s.endActiveBreakIfExists(ctx, session.ID); err != nil {
+		if err := s.endActiveBreakIfExists(ctx, session.ID, endOfDay); err != nil {
 			s.getLogger().WarnContext(ctx, "failed to end active break during cleanup",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()))
 			// Continue cleanup even if break ending fails
 		}
 
-		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
-		endOfDay := session.Date.EndOfDay()
-
-		if err := s.repo.CloseSession(ctx, session.ID, endOfDay, true); err != nil {
+		closed, err := s.repo.CloseSession(ctx, session.ID, endOfDay, true)
+		if err != nil {
 			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
 		}
+		if closed {
+			count++
+		}
+	}
+
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
+	return count, nil
+}
+
+// AutoCheckoutDueSessions closes open sessions at their planned shift end (#1798).
+func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error) {
+	if s.staffShiftRepo == nil {
+		return 0, nil
+	}
+
+	now := s.now()
+	// GetOpenSessions filters date < beforeDate; passing tomorrow includes
+	// today's open sessions, which is where forgotten checkouts live.
+	tomorrow := timezone.DateFromTime(now).AddDays(1)
+	openSessions, err := s.repo.GetOpenSessions(ctx, tomorrow)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get open sessions: %w", err)
+	}
+	if len(openSessions) == 0 {
+		return 0, nil
+	}
+	staffIDs := make([]int64, 0, len(openSessions))
+	for _, session := range openSessions {
+		staffIDs = append(staffIDs, session.StaffID)
+	}
+	if err := s.lockStaffBalanceWritesOrdered(ctx, staffIDs); err != nil {
+		return 0, err
+	}
+
+	// Batch the shift lookups per session date; latest shift end per staff wins.
+	latestEndByDate := make(map[timezone.Date]map[int64]*scheduleModels.StaffShift)
+	byDate := make(map[timezone.Date][]int64)
+	for _, session := range openSessions {
+		byDate[session.Date] = append(byDate[session.Date], session.StaffID)
+	}
+	for date, staffIDs := range byDate {
+		shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, staffIDs, date)
+		if err != nil {
+			return 0, fmt.Errorf("failed to load shifts for %s: %w", date.String(), err)
+		}
+		latest := make(map[int64]*scheduleModels.StaffShift, len(shifts))
+		for _, shift := range shifts {
+			// A cancelled shift does not take place (#1841): never close a
+			// session against the planned end of a shift the person is absent
+			// for. The nightly cleanup handles a still-open session instead.
+			if shift.Cancelled {
+				continue
+			}
+			current, ok := latest[shift.StaffID]
+			if !ok || shift.EndInstant().After(current.EndInstant()) {
+				latest[shift.StaffID] = shift
+			}
+		}
+		latestEndByDate[date] = latest
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	count := 0
+	for _, listedSession := range openSessions {
+		session, err := s.repo.LockOpenByIDForUpdate(ctx, listedSession.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
+					slog.Int64("session_id", listedSession.ID),
+					slog.Int64("staff_id", listedSession.StaffID))
+				continue
+			}
+			return count, fmt.Errorf("failed to lock auto-checkout session %d: %w", listedSession.ID, err)
+		}
+
+		shift, ok := latestEndByDate[session.Date][session.StaffID]
+		if !ok {
+			continue // no shift planned that day — nightly cleanup handles it
+		}
+		closeAt := shift.EndInstant()
+		if !now.After(closeAt.Add(grace)) {
+			continue // not yet due
+		}
+		if !closeAt.After(autoCheckoutEffectiveStart(session)) {
+			// Checked in or reopened after the planned shift end — never
+			// fabricate a checkout before the effective work start.
+			continue
+		}
+
+		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
+		if err != nil {
+			s.getLogger().WarnContext(ctx, "failed to inspect breaks during auto-checkout",
+				slog.Int64("session_id", session.ID),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		_, lateBreak := activeBreakAndLateBreakAfter(breaks, closeAt)
+		if lateBreak != nil {
+			attrs := []any{
+				slog.Int64("session_id", session.ID),
+				slog.Int64("break_id", lateBreak.ID),
+				slog.Time("break_started_at", lateBreak.StartedAt),
+				slog.Time("planned_end", closeAt),
+			}
+			if lateBreak.EndedAt != nil {
+				attrs = append(attrs, slog.Time("break_ended_at", *lateBreak.EndedAt))
+			}
+			s.getLogger().WarnContext(ctx, "skipping auto-checkout because a break crosses planned shift end", attrs...)
+			continue
+		}
+
+		closed, err := s.repo.CloseSession(ctx, session.ID, closeAt, true)
+		if err != nil {
+			return count, fmt.Errorf("failed to auto-checkout session %d: %w", session.ID, err)
+		}
+		if !closed {
+			s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
+				slog.Int64("session_id", session.ID),
+				slog.Int64("staff_id", session.StaffID))
+			continue
+		}
+
+		breaks, err = s.breakRepo.GetBySessionID(ctx, session.ID)
+		if err != nil {
+			return count, fmt.Errorf("failed to re-inspect breaks after auto-checkout close for session %d: %w", session.ID, err)
+		}
+		activeBreak, lateBreak := activeBreakAndLateBreakAfter(breaks, closeAt)
+		if lateBreak != nil {
+			return count, fmt.Errorf("late break detected after auto-checkout close for session %d", session.ID)
+		}
+
+		if activeBreak != nil {
+			if err := s.endActiveBreak(ctx, session.ID, activeBreak, closeAt); err != nil {
+				return count, fmt.Errorf("failed to end active break during auto-checkout for session %d: %w", session.ID, err)
+			}
+		}
+
+		// End open supervisions, exactly like manual checkout does.
+		s.endActiveSupervisionsOnCheckout(ctx, session.StaffID)
+
+		newVal := closeAt.Format(time.RFC3339)
+		note := "Automatische Ausstempelung zum geplanten Schichtende"
+		edit := &auditModels.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   session.StaffID,
+			EditedBy:  auditModels.SystemEditorID,
+			FieldName: auditModels.FieldCheckOutTime,
+			OldValue:  nil,
+			NewValue:  &newVal,
+			Notes:     &note,
+		}
+		edit.SetTenantID(tenantID)
+		if err := s.auditRepo.CreateBatch(ctx, []*auditModels.WorkSessionEdit{edit}); err != nil {
+			// The scheduler runs this inside a per-tenant transaction, so
+			// returning here rolls the unaudited checkout back with it.
+			return count, fmt.Errorf("failed to write auto-checkout audit entry for session %d: %w", session.ID, err)
+		}
+
+		s.getLogger().InfoContext(ctx, "session auto-checked-out at planned shift end",
+			slog.Int64("session_id", session.ID),
+			slog.Int64("staff_id", session.StaffID),
+			slog.String("check_out_time", newVal))
 		count++
 	}
 
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return count, nil
+}
+
+func autoCheckoutEffectiveStart(session *activeModels.WorkSession) time.Time {
+	if session == nil {
+		return time.Time{}
+	}
+	if session.ReopenedAt != nil {
+		return *session.ReopenedAt
+	}
+	return session.CheckInTime
+}
+
+func activeBreakAndLateBreakAfter(breaks []*activeModels.WorkSessionBreak, closeAt time.Time) (*activeModels.WorkSessionBreak, *activeModels.WorkSessionBreak) {
+	var activeBreak *activeModels.WorkSessionBreak
+	for _, brk := range breaks {
+		if brk == nil {
+			continue
+		}
+		if brk.EndedAt == nil {
+			activeBreak = brk
+		}
+		if brk.StartedAt.After(closeAt) {
+			return activeBreak, brk
+		}
+		if brk.EndedAt != nil && brk.EndedAt.After(closeAt) {
+			return activeBreak, brk
+		}
+	}
+	return activeBreak, nil
+}
+
+func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64, activeBreak *activeModels.WorkSessionBreak, endAt time.Time) error {
+	duration := int(math.Round(endAt.Sub(activeBreak.StartedAt).Minutes()))
+	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, endAt, duration); err != nil {
+		return fmt.Errorf("failed to end active break: %w", err)
+	}
+
+	if err := s.recalcBreakMinutes(ctx, sessionID); err != nil {
+		return fmt.Errorf("failed to update break minutes: %w", err)
+	}
+	return nil
 }
 
 // EnsureCheckedIn ensures a staff member is checked in, creating a session if needed.
@@ -1282,7 +2109,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	}
 
 	// Check if there's already a checked-out session today
-	today := timezone.TodayDate()
+	today := timezone.DateFromTime(s.now())
 	todaySession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)
@@ -1294,7 +2121,10 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	}
 
 	// No session today, create one with the channel the caller passed in.
-	return s.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent, source)
+	// The F9 deviation gate is bypassed: this auto-stamp fires because the
+	// staff member started a supervision, and that flow cannot collect a
+	// reason (see checkIn).
+	return s.checkIn(ctx, staffID, today, activeModels.WorkSessionStatusPresent, source, "", false)
 }
 
 // German weekday names for export
@@ -1306,6 +2136,7 @@ var germanAbsenceTypeLabels = map[string]string{
 	activeModels.AbsenceTypeVacation: "Urlaub",
 	activeModels.AbsenceTypeTraining: "Fortbildung",
 	activeModels.AbsenceTypeOther:    "Sonstige",
+	activeModels.AbsenceTypeCompTime: "Freizeitausgleich",
 }
 
 // exportRow represents a single row in the export (either a work session or an absence day)
@@ -1493,7 +2324,13 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 		ende = sess.CheckOutTime.Format("15:04")
 	}
 
-	pauseMin := strconv.Itoa(sess.BreakMinutes)
+	// Read the pause from the response-level total, not the model cache: for an
+	// open session with a running break the cache (sess.BreakMinutes) still holds
+	// only ENDED breaks and would print "Pause 0" next to a Netto that already
+	// deducts the running break (sr.NetMinutes). sr.BreakMinutes is the live
+	// total that pairs with that Netto, so the export row stays internally
+	// consistent (#1842).
+	pauseMin := strconv.Itoa(sr.BreakMinutes)
 
 	// Net as "Xh YYmin"
 	netMins := sr.NetMinutes
@@ -1556,6 +2393,17 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	if len(expiredBreaks) == 0 {
 		return 0, nil
 	}
+	staffIDs := make([]int64, 0, len(expiredBreaks))
+	for _, brk := range expiredBreaks {
+		session, err := s.repo.FindByID(ctx, brk.SessionID)
+		if err != nil {
+			return 0, fmt.Errorf("failed to resolve work session for balance lock: %w", err)
+		}
+		staffIDs = append(staffIDs, session.StaffID)
+	}
+	if err := s.lockStaffBalanceWritesOrdered(ctx, staffIDs); err != nil {
+		return 0, err
+	}
 
 	count := 0
 	for _, brk := range expiredBreaks {
@@ -1580,6 +2428,9 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 		count++
 	}
 
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return count, nil
 }
 
@@ -1611,12 +2462,12 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	}
 
 	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+	anchor := model.RotationAnchorDate
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, anchor); err != nil {
 		return fmt.Errorf("write assigned schedule snapshot: %w", err)
 	}
 
 	staff.WorkTimeModelID = &model.ID
-	anchor := model.RotationAnchorDate
 	staff.RotationAnchorDate = &anchor
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
@@ -1627,13 +2478,28 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
 func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *userModels.Staff, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+	// An omitted anchor keeps the staff-level one; the new version must be
+	// stamped with that same effective anchor, or it would silently re-parity
+	// once the staff anchor moves.
+	effective := anchor
+	if effective.IsZero() && staff.RotationAnchorDate != nil {
+		effective = *staff.RotationAnchorDate
+	}
+	// First rotational schedule of a staff member who has no anchor anywhere:
+	// stamp today, which is the version's valid_from. Leaving the column NULL
+	// would let a later template assignment write a staff-level anchor that
+	// these rows then fall back to, re-paritying their A/B weeks and moving a
+	// historical Saldo.
+	if effective.IsZero() && isRotationalSchedule(entries) {
+		effective = timezone.TodayDate()
+	}
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
 	staff.WorkTimeModelID = nil
-	if !anchor.IsZero() {
-		staff.RotationAnchorDate = &anchor
+	if !effective.IsZero() {
+		staff.RotationAnchorDate = &effective
 	}
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("unbind template: %w", err)
@@ -1657,7 +2523,7 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 		return err
 	}
 	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, anchor); err != nil {
 		return fmt.Errorf("write saved template schedule snapshot: %w", err)
 	}
 
@@ -1667,6 +2533,144 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
 	return nil
+}
+
+// UpdateSchedule resolves the requested mode and applies the schedule change.
+func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
+	mode := in.Mode
+	if mode == "" {
+		// Backwards compatibility: missing mode + flat entries means the
+		// caller still uses the single-week, no-rotation contract.
+		mode = "custom"
+		if in.RotationLength == 0 {
+			in.RotationLength = 1
+		}
+	}
+
+	var err error
+	switch mode {
+	case "template":
+		if in.ModelID == nil || *in.ModelID == 0 {
+			return scheduleValidationErrorf("model_id is required for mode=template")
+		}
+		err = s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
+	case "custom":
+		err = s.applyCustomSchedule(ctx, staff, in)
+	default:
+		return scheduleValidationErrorf("invalid mode %q", mode)
+	}
+	if err != nil {
+		return err
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
+}
+
+func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
+	rotation := in.RotationLength
+	if rotation == 0 {
+		rotation = 1
+	}
+	if rotation < 1 || rotation > configModels.WorkTimeModelMaxRotation {
+		return scheduleValidationErrorf("rotation_length must be between 1 and %d", configModels.WorkTimeModelMaxRotation)
+	}
+
+	anchor := timezone.Date{}
+	if in.RotationAnchorDate != "" {
+		parsed, err := timezone.ParseDate(in.RotationAnchorDate)
+		if err != nil {
+			return scheduleValidationErrorf("invalid rotation_anchor_date: %v", err)
+		}
+		anchor = parsed
+	}
+
+	entries, templateEntries, err := buildScheduleEntries(in.Entries, rotation)
+	if err != nil {
+		return err
+	}
+
+	if in.SaveAsTemplateName != "" {
+		if err := s.SaveCustomScheduleAsTemplate(ctx, staff, in.SaveAsTemplateName, rotation, anchor, templateEntries); err != nil {
+			return fmt.Errorf("save as template: %w", err)
+		}
+		return nil
+	}
+
+	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor)
+}
+
+func buildScheduleEntries(reqEntries []ScheduleEntry, rotation int) ([]*configModels.StaffWorkSchedule, []*configModels.WorkTimeModelEntry, error) {
+	entries := make([]*configModels.StaffWorkSchedule, 0, len(reqEntries))
+	templateEntries := make([]*configModels.WorkTimeModelEntry, 0, len(reqEntries))
+	seenSlots := make(map[string]struct{}, len(reqEntries))
+	for _, e := range reqEntries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		if err := validateScheduleEntryRequest(e, rotation, seenSlots); err != nil {
+			return nil, nil, err
+		}
+		startTime, err := parseScheduleStartTime(e.StartTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		entries = append(entries, &configModels.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+			StartTime:      startTime,
+		})
+		templateEntries = append(templateEntries, &configModels.WorkTimeModelEntry{
+			WeekIndex:     e.WeekIndex,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+			StartTime:     startTime,
+		})
+	}
+	return entries, templateEntries, nil
+}
+
+func parseScheduleStartTime(raw *string) (*time.Time, error) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("15:04", *raw)
+	if err != nil {
+		return nil, scheduleValidationErrorf("start_time must be HH:MM")
+	}
+	wallClock := timezone.WallClock(parsed)
+	return &wallClock, nil
+}
+
+func validateScheduleEntryRequest(e ScheduleEntry, rotation int, seenSlots map[string]struct{}) error {
+	if e.WeekIndex < 0 || e.WeekIndex >= rotation {
+		return scheduleValidationErrorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
+	}
+	if e.DayOfWeek < configModels.DayMonday || e.DayOfWeek > configModels.DaySunday {
+		return scheduleValidationErrorf("day_of_week must be between 0 and 6")
+	}
+	if e.TargetMinutes > scheduleEntryMaxTargetMinutes {
+		return scheduleValidationErrorf("target_minutes must be between 0 and %d", scheduleEntryMaxTargetMinutes)
+	}
+	slot := fmt.Sprintf("%d:%d", e.WeekIndex, e.DayOfWeek)
+	if _, ok := seenSlots[slot]; ok {
+		return scheduleValidationErrorf("duplicate schedule entry for week_index %d and day_of_week %d", e.WeekIndex, e.DayOfWeek)
+	}
+	seenSlots[slot] = struct{}{}
+	return nil
+}
+
+// isRotationalSchedule reports whether the rows span more than one week, i.e.
+// whether their parity depends on a rotation anchor at all. Single-week
+// schedules have no parity, so they keep a NULL anchor.
+func isRotationalSchedule(entries []*configModels.StaffWorkSchedule) bool {
+	for _, e := range entries {
+		if e != nil && (e.RotationLength > 1 || e.WeekIndex > 0) {
+			return true
+		}
+	}
+	return false
 }
 
 // modelEntriesToScheduleRows converts work-time-model entries into schedule
@@ -1682,6 +2686,7 @@ func modelEntriesToScheduleRows(modelEntries []*configModels.WorkTimeModelEntry,
 			RotationLength: rotation,
 			DayOfWeek:      e.DayOfWeek,
 			TargetMinutes:  e.TargetMinutes,
+			StartTime:      e.StartTime,
 		})
 	}
 	return rows

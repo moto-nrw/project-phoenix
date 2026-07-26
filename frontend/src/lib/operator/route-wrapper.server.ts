@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { withOperatorAuth } from "~/server/auth/operator-route";
 import { handleApiError } from "../api-helpers.server";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
+import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
-  type RouteContext,
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
@@ -14,6 +15,11 @@ import {
  */
 function is401Error(error: unknown): boolean {
   return error instanceof Error && error.message.includes("API error (401)");
+}
+
+async function readOperatorSession() {
+  const { operatorAuth } = await import("~/server/auth/operator");
+  return operatorAuth();
 }
 
 /**
@@ -215,13 +221,9 @@ function createOperatorNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { operatorAuth: auth } = await import("~/server/auth/operator");
-      const session = await auth();
+      const session = await readOperatorSession();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
 
@@ -233,17 +235,13 @@ function createOperatorNoBodyHandler<T>(
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { operatorAuth: auth } = await import("~/server/auth/operator");
-      const session = await auth();
+      const session = await readOperatorSession();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
@@ -256,7 +254,7 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 const jsonResponse = <T>(data: T) => NextResponse.json(wrapInApiResponse(data));
@@ -331,13 +329,9 @@ async function forwardBackendResponse(
  * Used for POST routes that need verbatim status/error forwarding with a JSON body.
  */
 export function createOperatorProxyPostHandler(backendEndpoint: string) {
-  return async (
-    request: NextRequest,
-    _context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withOperatorAuth(async (request): Promise<NextResponse> => {
     try {
-      const { operatorAuth: auth } = await import("~/server/auth/operator");
-      const session = await auth();
+      const session = await readOperatorSession();
       if (!session?.user?.token) return createUnauthorizedResponse();
 
       let body: unknown;
@@ -388,7 +382,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 /**
@@ -400,11 +394,27 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
  * On fetch failure: 500 with a generic German internal-error message
  *                   (no error detail to prevent information leakage on public routes).
  */
-export function createOperatorPublicProxyPostHandler(backendEndpoint: string) {
+interface OperatorPublicProxyOptions {
+  transformBody?: (
+    request: NextRequest,
+    body: unknown,
+  ) => unknown | Promise<unknown>;
+  decorateResponse?: (
+    request: NextRequest,
+    response: NextResponse,
+    backendSucceeded: boolean,
+  ) => void | Promise<void>;
+}
+
+export function createOperatorPublicProxyPostHandler(
+  backendEndpoint: string,
+  options: OperatorPublicProxyOptions = {},
+) {
   return async (request: NextRequest): Promise<NextResponse> => {
     let body: unknown;
     try {
       body = await parseRequestBody(request);
+      body = (await options.transformBody?.(request, body)) ?? body;
     } catch {
       return NextResponse.json(
         { message: "Ungültige Anfrage" },
@@ -433,7 +443,9 @@ export function createOperatorPublicProxyPostHandler(backendEndpoint: string) {
         durationMs: Date.now() - startedAt,
         outcome: response.ok ? "success" : "backend_error",
       });
-      return forwardBackendResponse(response);
+      const forwardedResponse = await forwardBackendResponse(response);
+      await options.decorateResponse?.(request, forwardedResponse, response.ok);
+      return forwardedResponse;
     } catch {
       await recordOperatorBackendProxyMetric({
         method: "POST",
@@ -464,13 +476,9 @@ export function createOperatorProxyMethodHandler(
   method: string,
   endpointBuilder: (params: Record<string, unknown>) => string,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { operatorAuth: auth } = await import("~/server/auth/operator");
-      const session = await auth();
+      const session = await readOperatorSession();
       if (!session?.user?.token) {
         return NextResponse.json(
           { error: "Unauthorized", code: "TOKEN_EXPIRED" },
@@ -478,10 +486,12 @@ export function createOperatorProxyMethodHandler(
         );
       }
 
-      const params = await extractParams(request, context);
-      const { getServerApiUrl } = await import("~/lib/server-api-url");
-      const { getClientForwardHeaders } =
-        await import("~/lib/client-headers.server");
+      const [params, { getServerApiUrl }, { getClientForwardHeaders }] =
+        await Promise.all([
+          extractParams(request, context),
+          import("~/lib/server-api-url"),
+          import("~/lib/client-headers.server"),
+        ]);
       const backendEndpoint = endpointBuilder(params);
       const url = `${getServerApiUrl()}${backendEndpoint}`;
       const forwardHeaders = getClientForwardHeaders(request);
@@ -525,7 +535,27 @@ export function createOperatorProxyMethodHandler(
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
+
+/**
+ * Operator proxy factories — envelope-wrapping pass-throughs built on the
+ * operator base handlers (operator fetchers already unwrap `data`). These are
+ * distinct from {@link createOperatorProxyPostHandler} /
+ * {@link createOperatorProxyMethodHandler}, which forward the backend response
+ * verbatim; use those when the client needs raw status codes/error messages.
+ */
+export const { proxyGet, proxyPost, proxyPut, proxyDelete } =
+  makeProxyFactories({
+    get: createOperatorGetHandler,
+    post: createOperatorPostHandler,
+    put: createOperatorPutHandler,
+    del: createOperatorDeleteHandler,
+    apiGet: operatorApiGet,
+    apiPost: operatorApiPost,
+    apiPut: operatorApiPut,
+    apiDelete: operatorApiDelete,
+    fetcherUnwrapsData: true,
+  });
 
 export { isStringParam } from "../route-wrapper-utils.server";

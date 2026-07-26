@@ -1,34 +1,14 @@
-import {
-  createPutHandler,
-  createDeleteHandler,
-} from "@/lib/route-wrapper.server";
-import { apiPut, apiDelete } from "@/lib/api-helpers.server";
+import { proxyPut, proxyDelete } from "@/lib/route-proxy.server";
+import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // PUT /api/guardians/[id]/phone-numbers/[phoneId] - Update phone number
-export const PUT = createPutHandler(async (request, body, token, params) => {
-  const { id, phoneId } = params;
-  const guardianId = String(id);
-  const phoneIdStr = String(phoneId);
-
-  const response = await apiPut(
-    `/api/guardians/${guardianId}/phone-numbers/${phoneIdStr}`,
-    token,
-    body,
-  );
-  // @ts-expect-error - API helper returns unknown type
-
-  return response.data;
-});
+export const PUT = proxyPut(
+  (p) =>
+    `/api/guardians/${requirePathSegmentParam(p)}/phone-numbers/${requirePathSegmentParam(p, "phoneId")}`,
+);
 
 // DELETE /api/guardians/[id]/phone-numbers/[phoneId] - Delete phone number
-export const DELETE = createDeleteHandler(async (request, token, params) => {
-  const { id, phoneId } = params;
-  const guardianId = String(id);
-  const phoneIdStr = String(phoneId);
-
-  await apiDelete(
-    `/api/guardians/${guardianId}/phone-numbers/${phoneIdStr}`,
-    token,
-  );
-  return null;
-});
+export const DELETE = proxyDelete(
+  (p) =>
+    `/api/guardians/${requirePathSegmentParam(p)}/phone-numbers/${requirePathSegmentParam(p, "phoneId")}`,
+);

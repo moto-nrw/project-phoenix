@@ -1,8 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { parentAuth } from "~/server/auth/parent";
+import { withParentAuth } from "~/server/auth/parent-route";
 import { handleApiError } from "../api-helpers.server";
+import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
-  type RouteContext,
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
@@ -83,11 +85,13 @@ function parseResponse<T>(response: Response): Promise<T> {
   });
 }
 
-export function parentApiGet<T>(endpoint: string, token: string): Promise<T> {
+// Internal — used only by the proxy factories below. parentApiDelete stays
+// exported because hand-rolled DELETE routes still import it directly.
+function parentApiGet<T>(endpoint: string, token: string): Promise<T> {
   return parentServerFetch<T>(endpoint, token, { method: "GET" });
 }
 
-export function parentApiPost<T, B = unknown>(
+function parentApiPost<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
@@ -95,12 +99,27 @@ export function parentApiPost<T, B = unknown>(
   return parentServerFetch<T>(endpoint, token, { method: "POST", body });
 }
 
-export function parentApiPut<T, B = unknown>(
+export function parentApiDelete<T>(
+  endpoint: string,
+  token: string,
+): Promise<T> {
+  return parentServerFetch<T>(endpoint, token, { method: "DELETE" });
+}
+
+function parentApiPut<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
 ): Promise<T> {
   return parentServerFetch<T>(endpoint, token, { method: "PUT", body });
+}
+
+export function parentApiPatch<T, B = unknown>(
+  endpoint: string,
+  token: string,
+  body?: B,
+): Promise<T> {
+  return parentServerFetch<T>(endpoint, token, { method: "PATCH", body });
 }
 
 type NoBodyHandler<T> = (
@@ -149,13 +168,9 @@ function createParentNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withParentAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { parentAuth: auth } = await import("~/server/auth/parent");
-      const session = await auth();
+      const session = await parentAuth();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
 
@@ -167,17 +182,13 @@ function createParentNoBodyHandler<T>(
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withParentAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { parentAuth: auth } = await import("~/server/auth/parent");
-      const session = await auth();
+      const session = await parentAuth();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
@@ -190,23 +201,51 @@ function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 const jsonResponse = <T>(data: T) => NextResponse.json(wrapInApiResponse(data));
 
-export function createParentGetHandler<T>(handler: NoBodyHandler<T>) {
+function createParentGetHandler<T>(handler: NoBodyHandler<T>) {
   return createParentNoBodyHandler(handler, jsonResponse);
 }
 
-export function createParentPostHandler<T, B = unknown>(
+function createParentPostHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
   return createParentWithBodyHandler(handler);
 }
 
-export function createParentPutHandler<T, B = unknown>(
+export function createParentDeleteHandler<T>(handler: NoBodyHandler<T>) {
+  return createParentNoBodyHandler(handler, jsonResponse);
+}
+
+function createParentPutHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
   return createParentWithBodyHandler(handler);
 }
+
+export function createParentPatchHandler<T, B = unknown>(
+  handler: WithBodyHandler<T, B>,
+) {
+  return createParentWithBodyHandler(handler);
+}
+
+/**
+ * Parent proxy factories — envelope-wrapping pass-throughs built on the parent
+ * base handlers (parent fetchers already unwrap `data`). Use these for pure
+ * pass-through parent routes instead of hand-rolling
+ * `createParentXHandler(async … parentApiX(…))`.
+ */
+export const { proxyGet, proxyPost, proxyPut } = makeProxyFactories({
+  get: createParentGetHandler,
+  post: createParentPostHandler,
+  put: createParentPutHandler,
+  del: createParentDeleteHandler,
+  apiGet: parentApiGet,
+  apiPost: parentApiPost,
+  apiPut: parentApiPut,
+  apiDelete: parentApiDelete,
+  fetcherUnwrapsData: true,
+});

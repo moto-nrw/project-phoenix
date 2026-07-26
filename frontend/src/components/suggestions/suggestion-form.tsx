@@ -6,6 +6,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { createSuggestion, updateSuggestion } from "~/lib/suggestions-api";
 import type { Suggestion } from "~/lib/suggestions-helpers";
 import { createLogger } from "~/lib/logger";
+import { trackEvent } from "~/lib/analytics";
 
 const logger = createLogger({ component: "SuggestionForm" });
 
@@ -78,6 +79,7 @@ export function SuggestionForm({
           title: trimmedTitle,
           description: trimmedDescription,
         });
+        trackEvent("suggestion_created");
         toastSuccess("Beitrag wurde eingereicht.");
       }
       onSuccess();
@@ -144,7 +146,6 @@ export function SuggestionForm({
               maxLength={200}
               placeholder="z.B. 'PDF-Export für Vertretungsplan'"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-              autoFocus
             />
           </div>
           <div>

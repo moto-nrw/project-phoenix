@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -17,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
+	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -25,7 +28,7 @@ import (
 // This is NOT a real secret - it's only used with mocked services in tests.
 const testStrongCredential = "Str0ngP@ssword!" //nolint:gosec // Test-only constant, not a real credential
 
-func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
+func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, *testpkg.CapturingMailer, sqlmock.Sqlmock, func()) {
 	service, invitations, accounts, roles, accountRoles, persons, _, mock, cleanup := newInvitationTestEnvWithMailer(t, nil)
 	return service, invitations, accounts, roles, accountRoles, persons, nil, mock, cleanup
 }
@@ -43,7 +46,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	)
 	accountRoleRepo := newStubAccountRoleRepository()
 	personRepo := newStubPersonRepository()
-	staffRepo := newStubStaffRepository()
+	staffRepo, _ := newStubStaffRepository()
 	teacherRepo := newStubTeacherRepository()
 
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
@@ -58,7 +61,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		PersonRepo:        personRepo,
 		StaffRepo:         staffRepo,
 		TeacherRepo:       teacherRepo,
-		SchoolRepo:        &stubSchoolRepository{},
+		SchoolRepo:        newStubSchoolRepository(nil),
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
 		FrontendURL:       "http://localhost:3000",
@@ -77,10 +80,6 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	return service, invitationRepo, accountRepo, roleRepo, accountRoleRepo, personRepo, mailer, mock, cleanup
 }
 
-func strPtr(s string) *string {
-	return &s
-}
-
 func expectAdminTx(mock sqlmock.Sqlmock) {
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -94,9 +93,9 @@ func expectAdminTxRollback(mock sqlmock.Sqlmock) {
 }
 
 func TestCreateInvitationSuccess(t *testing.T) {
-	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, newCapturingMailer())
+	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, testpkg.NewCapturingMailer())
 	t.Cleanup(cleanup)
-	mailer, ok := rawMailer.(*capturingMailer)
+	mailer, ok := rawMailer.(*testpkg.CapturingMailer)
 	require.True(t, ok)
 
 	ctx := context.Background()
@@ -104,8 +103,8 @@ func TestCreateInvitationSuccess(t *testing.T) {
 		Email:     "NewUser@example.com ",
 		RoleID:    2,
 		CreatedBy: 42,
-		FirstName: strPtr("Ada"),
-		LastName:  strPtr("Lovelace"),
+		FirstName: testpkg.StrPtr("Ada"),
+		LastName:  testpkg.StrPtr("Lovelace"),
 	}
 
 	expectAdminTx(mock)
@@ -260,8 +259,8 @@ func TestValidateInvitationReturnsDetails(t *testing.T) {
 		RoleID:    2,
 		CreatedBy: nullableCreatedBy(1),
 		ExpiresAt: time.Now().Add(12 * time.Hour),
-		FirstName: strPtr("Grace"),
-		LastName:  strPtr("Hopper"),
+		FirstName: testpkg.StrPtr("Grace"),
+		LastName:  testpkg.StrPtr("Hopper"),
 	}
 	require.NoError(t, invitations.Create(ctx, token))
 
@@ -410,9 +409,9 @@ func TestAcceptInvitationWeakPassword(t *testing.T) {
 }
 
 func TestResendInvitationSendsEmail(t *testing.T) {
-	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, newCapturingMailer())
+	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, testpkg.NewCapturingMailer())
 	t.Cleanup(cleanup)
-	mailer, ok := rawMailer.(*capturingMailer)
+	mailer, ok := rawMailer.(*testpkg.CapturingMailer)
 	require.True(t, ok)
 
 	ctx := context.Background()
@@ -542,7 +541,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 	)
 	accountRoles := newStubAccountRoleRepository()
 	persons := newStubPersonRepository()
-	staff := newStubStaffRepository()
+	staff, staffAll := newStubStaffRepository()
 	teachers := newStubTeacherRepository()
 
 	service := NewInvitationService(InvitationServiceConfig{
@@ -554,7 +553,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 		PersonRepo:        persons,
 		StaffRepo:         staff,
 		TeacherRepo:       teachers,
-		SchoolRepo:        &stubSchoolRepository{},
+		SchoolRepo:        newStubSchoolRepository(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,
@@ -593,7 +592,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 	require.Equal(t, tenantID, assignments[0].TenantID)
 	require.Equal(t, tenantID, assignments[1].TenantID)
 
-	createdStaff := staff.All()
+	createdStaff := staffAll()
 	require.Len(t, createdStaff, 1)
 	require.Equal(t, tenantID, createdStaff[0].TenantID)
 
@@ -686,7 +685,8 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
 
 	invitationRepo := newStubInvitationTokenRepository()
-	schoolRepo := &stubSchoolRepository{deletedTenantIDs: map[int64]bool{42: true}}
+	schoolRepo := newStubSchoolRepository(map[int64]bool{42: true})
+	staffRepo, _ := newStubStaffRepository()
 
 	service := NewInvitationService(InvitationServiceConfig{
 		InvitationRepo:    invitationRepo,
@@ -697,7 +697,7 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 		),
 		AccountRoleRepo:  newStubAccountRoleRepository(),
 		PersonRepo:       newStubPersonRepository(),
-		StaffRepo:        newStubStaffRepository(),
+		StaffRepo:        staffRepo,
 		TeacherRepo:      newStubTeacherRepository(),
 		SchoolRepo:       schoolRepo,
 		FrontendURL:      "http://localhost:3000",
@@ -734,6 +734,64 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 	require.True(t, errors.Is(err, ErrInvitationTenantDeleted),
 		"expected ErrInvitationTenantDeleted, got %v", err)
 	require.False(t, token.IsUsed(), "invitation must remain unused when school is deleted")
+}
+
+func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+
+	invitationRepo := newStubInvitationTokenRepository()
+	// School where slug != subdomain (issue #1977: OGS Burbach,
+	// slug=ogs-burbach, subdomain=burbach). The redirect after accepting an
+	// invitation must use the subdomain — tenant routing resolves by it.
+	schoolRepo := newStubSchoolRepository(nil)
+	schoolRepo.FindByIDFn = func(_ context.Context, id int64) (*platformModel.School, error) {
+		return &platformModel.School{
+			Model:     baseModel.Model{ID: id},
+			Active:    true,
+			Slug:      "ogs-burbach",
+			Subdomain: "burbach",
+		}, nil
+	}
+
+	service := NewInvitationService(InvitationServiceConfig{
+		InvitationRepo:    invitationRepo,
+		AccountRepo:       newStubAccountRepository(),
+		AccountTenantRepo: newStubAccountTenantRepository(),
+		RoleRepo: newStubRoleRepository(
+			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "Teacher"},
+		),
+		AccountRoleRepo:  newStubAccountRoleRepository(),
+		PersonRepo:       newStubPersonRepository(),
+		SchoolRepo:       schoolRepo,
+		FrontendURL:      "http://localhost:3000",
+		DefaultFrom:      newDefaultFromEmail(),
+		InvitationExpiry: 48 * time.Hour,
+		DB:               bunDB,
+	})
+
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	ctx := context.Background()
+	token := &authModel.InvitationToken{
+		Email:     "subdomain-test@example.com",
+		Token:     "subdomain-test-token",
+		RoleID:    2,
+		ExpiresAt: time.Now().Add(10 * time.Hour),
+	}
+	token.SetTenantID(42)
+	require.NoError(t, invitationRepo.Create(ctx, token))
+
+	expectAdminTx(mock)
+	subdomain := service.GetTenantSubdomainForToken(ctx, "subdomain-test-token")
+	require.Equal(t, "burbach", subdomain,
+		"accept response must carry the subdomain, not the slug")
 }
 
 func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
@@ -908,9 +966,9 @@ func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
 		RoleRepo:          newStubRoleRepository(&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "Admin"}),
 		AccountRoleRepo:   newStubAccountRoleRepository(),
 		PersonRepo:        newStubPersonRepository(),
-		StaffRepo:         newStubStaffRepository(),
+		StaffRepo:         staffRepoOnly(),
 		TeacherRepo:       newStubTeacherRepository(),
-		SchoolRepo:        &stubSchoolRepository{},
+		SchoolRepo:        newStubSchoolRepository(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,
@@ -936,8 +994,8 @@ func TestAcceptInvitationUsesInvitationNameFallback(t *testing.T) {
 		Email:     "fallback@example.com",
 		Token:     "fallback-name-token",
 		RoleID:    2,
-		FirstName: strPtr("Invite"),
-		LastName:  strPtr("Name"),
+		FirstName: testpkg.StrPtr("Invite"),
+		LastName:  testpkg.StrPtr("Name"),
 		ExpiresAt: time.Now().Add(10 * time.Hour),
 	}
 	token.SetTenantID(5)
@@ -1183,9 +1241,9 @@ func TestInvitationHelpersCoverFallbacks(t *testing.T) {
 	invitation := svc.buildInvitationToken("name@example.com", InvitationRequest{
 		Email:     "name@example.com",
 		RoleID:    1,
-		FirstName: strPtr(" Ada "),
-		LastName:  strPtr(" Lovelace "),
-		Position:  strPtr(" Leitung "),
+		FirstName: testpkg.StrPtr(" Ada "),
+		LastName:  testpkg.StrPtr(" Lovelace "),
+		Position:  testpkg.StrPtr(" Leitung "),
 	})
 	require.Equal(t, "Ada", *invitation.FirstName)
 	require.Equal(t, "Lovelace", *invitation.LastName)
@@ -1194,7 +1252,7 @@ func TestInvitationHelpersCoverFallbacks(t *testing.T) {
 	var tx bun.Tx
 	ctxWithTx := baseModel.ContextWithTx(context.Background(), &tx)
 	called := false
-	require.NoError(t, svc.withAdminTx(ctxWithTx, func(context.Context) error {
+	require.NoError(t, tenant.WithAdminTxOrDirect(ctxWithTx, svc.db, func(context.Context) error {
 		called = true
 		return nil
 	}))
@@ -1371,7 +1429,7 @@ func TestCreateAccountWithRoleStopsOnPartialFailures(t *testing.T) {
 					Name:     "admin",
 					IsSystem: true,
 				})
-				svc.staffRepo = failingStaffRepository{stubStaffRepository: newStubStaffRepository()}
+				svc.staffRepo = failingStaffRepository{StaffRepoMock: staffRepoOnly()}
 			},
 			wantErr: "staff failed",
 		},
@@ -1504,7 +1562,7 @@ func (failingAccountRoleRepository) Create(context.Context, *authModel.AccountRo
 }
 
 type failingStaffRepository struct {
-	*stubStaffRepository
+	*testpkg.StaffRepoMock
 }
 
 func (failingStaffRepository) Create(context.Context, *userModel.Staff) error {

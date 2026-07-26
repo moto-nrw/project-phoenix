@@ -62,6 +62,17 @@ describe("SettingsCategory", () => {
     expect(getByText("Test Category")).toBeDefined();
   });
 
+  it("overrides the 'aktivitaeten' key to the umlaut label", () => {
+    const { getByText } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory({ key: "aktivitaeten", label: "aktivitaeten" })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Aktivitäten")).toBeDefined();
+  });
+
   it("renders all visible items", () => {
     const { getByText } = renderWithProviders(
       <SettingsCategory

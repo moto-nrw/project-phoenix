@@ -59,6 +59,10 @@ func normalizeDeparturePlanForAudit(student *users.Student) {
 	if student == nil {
 		return
 	}
+	if student.AllowedDepartureModes != nil {
+		student.DepartureDays = student.AllowedDepartureModes.DepartureDays()
+		return
+	}
 	student.DepartureDays = users.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
 }
 
@@ -72,13 +76,18 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 	}
 
 	if !rs.checkStudentFullAccess(r, student) {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to view change history")))
+		renderError(w, r, common.ErrorForbidden(errors.New("full access required to view change history")))
+		return
+	}
+
+	if rs.StudentAuditService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("student audit service not configured")))
 		return
 	}
 
 	edits, err := rs.StudentAuditService.GetChangeHistory(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

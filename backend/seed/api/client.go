@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
@@ -18,17 +19,6 @@ type Client struct {
 	auth       phoenixapi.AuthRef
 	token      string
 	verbose    bool
-}
-
-// NewClient creates a new API client
-func NewClient(baseURL string, verbose bool) *Client {
-	adapter := phoenixapi.New(baseURL, verbose)
-	return &Client{
-		baseURL:    baseURL,
-		adapter:    adapter,
-		httpClient: adapter.HTTPClient(),
-		verbose:    verbose,
-	}
 }
 
 // NewClientWithAdapter creates a client that reuses a shared adapter.
@@ -75,6 +65,16 @@ func (c *Client) LoginOperator(email, password string) error {
 	return nil
 }
 
+// LoginParent authenticates with the parents portal API and stores the JWT token.
+func (c *Client) LoginParent(email, password string) error {
+	auth, err := c.adapter.LoginParent(context.Background(), email, password)
+	if err != nil {
+		return err
+	}
+	c.BindAuth(auth)
+	return nil
+}
+
 // Post makes an authenticated POST request
 func (c *Client) Post(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, true, nil)
@@ -85,9 +85,45 @@ func (c *Client) PostPublic(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, false, nil)
 }
 
+// PostPublicWithHeaders makes an unauthenticated POST request with extra headers.
+func (c *Client) PostPublicWithHeaders(path string, body any, headers map[string]string) ([]byte, error) {
+	return c.doRequestWithHeaders("POST", path, body, false, headers)
+}
+
 // PostWithHeaders makes an authenticated POST request with extra headers.
 func (c *Client) PostWithHeaders(path string, body any, headers map[string]string) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, true, headers)
+}
+
+func (c *Client) GetWithAuth(auth phoenixapi.AuthRef, path string) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("GET", path, nil, auth, nil)
+}
+
+func (c *Client) PostWithAuth(auth phoenixapi.AuthRef, path string, body any) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("POST", path, body, auth, nil)
+}
+
+func (c *Client) PutWithAuth(auth phoenixapi.AuthRef, path string, body any) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("PUT", path, body, auth, nil)
+}
+
+func (c *Client) PostWithAuthAndHeaders(auth phoenixapi.AuthRef, path string, body any, headers map[string]string) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("POST", path, body, auth, headers)
+}
+
+// DevicePost makes a device-authenticated POST request (API key + PIN).
+func (c *Client) DevicePost(path string, body any, apiKey, pin string) ([]byte, error) {
+	return c.PostWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path, body)
+}
+
+// DeviceGet makes a device-authenticated GET request (API key + PIN).
+func (c *Client) DeviceGet(path string, apiKey, pin string) ([]byte, error) {
+	return c.GetWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path)
+}
+
+// DevicePut makes a device-authenticated PUT request (API key + PIN).
+func (c *Client) DevicePut(path string, body any, apiKey, pin string) ([]byte, error) {
+	return c.PutWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path, body)
 }
 
 // Get makes an authenticated GET request
@@ -112,6 +148,10 @@ func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, 
 			}
 		}
 	}
+	return c.doRequestWithExplicitAuth(method, path, body, authRef, headers)
+}
+
+func (c *Client) doRequestWithExplicitAuth(method, path string, body any, authRef phoenixapi.AuthRef, headers map[string]string) ([]byte, error) {
 	respBody, statusCode, err := c.adapter.Raw(context.Background(), authRef, method, path, body, headers)
 	if err != nil {
 		return nil, err
@@ -228,17 +268,5 @@ func extractResponseSummary(resp map[string]any) string {
 	if len(parts) == 0 {
 		return "ok"
 	}
-	return fmt.Sprintf("{%s}", joinStrings(parts, ", "))
-}
-
-// joinStrings joins strings with a separator
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
-	}
-	return result
+	return fmt.Sprintf("{%s}", strings.Join(parts, ", "))
 }

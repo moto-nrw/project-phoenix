@@ -58,12 +58,6 @@ vi.mock("~/lib/usercontext-context", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-fullpage={fullPage} aria-label="Lädt..." />
-  ),
-}));
-
 const mockDashboardData = {
   studentsPresent: 150,
   studentsInRooms: 120,
@@ -87,6 +81,7 @@ const mockDashboardData = {
   ],
   currentActivities: [
     {
+      id: "101",
       name: "Schach",
       category: "Sport",
       participants: 8,
@@ -109,10 +104,12 @@ vi.mock("~/lib/swr/hooks", () => ({
   useSWRAuth: vi.fn(),
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
+  useOpenCareGroupMode: vi.fn(() => false),
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  useTenantRoutingModeSafe: vi.fn(() => "path"),
 }));
 
 vi.mock("~/lib/dashboard-helpers", () => ({
@@ -132,8 +129,9 @@ import { isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useNFCEnabled,
+  useOpenCareGroupMode,
   usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+} from "~/lib/tenant-context";
 
 // Helper to create SWR mock return values
 function mockSWR(
@@ -160,6 +158,7 @@ describe("DashboardPage", () => {
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
     vi.mocked(useNFCEnabled).mockReturnValue(true);
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
     vi.mocked(usePresenceMode).mockReturnValue("detailed");
   });
 
@@ -195,7 +194,9 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    // RoleGuard intercepts session-loading and renders the page's skeleton
+    // via its fallback prop.
+    expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
   });
 
   it("displays dashboard data after loading", async () => {
@@ -246,6 +247,21 @@ describe("DashboardPage", () => {
       expect(screen.getByText("Laufende Aktivitäten")).toBeInTheDocument();
       // "Aktive Gruppen" appears both as stat card title and info card title
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+    });
+  });
+
+  it("hides group dashboard surfaces in open-care group mode", async () => {
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Aktive Gruppen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /Aktive Gruppen/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Kinder anwesend")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
     });
   });
@@ -321,7 +337,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 
@@ -335,7 +351,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 });
@@ -541,6 +557,7 @@ describe("DashboardContent rendering states", () => {
   it("displays multiple current activities with status", async () => {
     const multipleCurrentActivities = [
       {
+        id: "201",
         name: "Schach",
         category: "Sport",
         participants: 8,
@@ -548,6 +565,7 @@ describe("DashboardContent rendering states", () => {
         status: "active",
       },
       {
+        id: "202",
         name: "Kunst",
         category: "Kreativ",
         participants: 12,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -9,12 +9,12 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -28,12 +28,13 @@ import {
 import { ConfirmationModal } from "~/components/ui/modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { studentsConfig } from "@/lib/database/configs/students.config";
+import { studentsConfig } from "@/components/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
 import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
+import { hasPermission } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -51,6 +52,14 @@ function parseGrouping(value: string | null): GroupingMode {
 }
 
 export default function StudentsPage() {
+  return (
+    <Suspense fallback={null}>
+      <StudentsPageContent />
+    </Suspense>
+  );
+}
+
+function StudentsPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
@@ -81,7 +90,7 @@ export default function StudentsPage() {
 
   const { success: toastSuccess, error: toastError } = useToast();
 
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
@@ -364,6 +373,7 @@ export default function StudentsPage() {
   }, [filteredStudents]);
 
   const canShowDetail = !loading && filteredStudents.length > 0;
+  const canViewEnrollments = hasPermission(session, "config:manage");
 
   const detailActions = selectedStudent ? (
     <button
@@ -445,6 +455,7 @@ export default function StudentsPage() {
             onArrivalDataChanged={handleArrivalChanged}
             groups={allGroups}
             onUpdateStudent={handleUpdateStudent}
+            canViewEnrollments={canViewEnrollments}
             detailActions={detailActions}
           />
         </div>

@@ -62,7 +62,7 @@ func TestStartSession_NoDevice(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/start", ctx.resource.StartSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"activity_id": 1,
@@ -83,7 +83,7 @@ func TestStartSession_InvalidJSON(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-1")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/start", ctx.resource.StartSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/start", bytes.NewBufferString("invalid json"))
@@ -103,7 +103,7 @@ func TestStartSession_MissingActivityID(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-2")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/start", ctx.resource.StartSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"room_id": 1, // Missing activity_id
@@ -125,7 +125,7 @@ func TestStartSession_InvalidActivityID(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-3")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/start", ctx.resource.StartSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"activity_id": 0, // Invalid activity_id
@@ -149,7 +149,7 @@ func TestEndSession_NoDevice(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/end", ctx.resource.EndSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/end", nil)
@@ -166,7 +166,7 @@ func TestEndSession_NoActiveSession(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-4")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/end", ctx.resource.EndSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/end", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -187,7 +187,7 @@ func TestGetCurrentSession_NoDevice(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/current", ctx.resource.GetCurrentSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil)
@@ -204,7 +204,7 @@ func TestGetCurrentSession_NoActiveSession(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-5")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/current", ctx.resource.GetCurrentSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -227,8 +227,7 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 
 	// Start a real session with supervisors
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/start", ctx.resource.StartSessionHandler())
-	router.Get("/current", ctx.resource.GetCurrentSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	startBody := map[string]interface{}{
 		"activity_id":    activity.ID,
@@ -281,7 +280,7 @@ func TestCheckConflict_NoDevice(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/check-conflict", ctx.resource.CheckConflictHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"activity_id": 1,
@@ -302,7 +301,7 @@ func TestCheckConflict_InvalidJSON(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-6")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/check-conflict", ctx.resource.CheckConflictHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/check-conflict", bytes.NewBufferString("invalid json"))
@@ -322,7 +321,7 @@ func TestCheckConflict_MissingActivityID(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-7")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/check-conflict", ctx.resource.CheckConflictHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{} // Missing activity_id
 
@@ -344,7 +343,7 @@ func TestUpdateSupervisors_NoDevice(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/{sessionId}/supervisors", ctx.resource.UpdateSupervisorsHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"supervisor_ids": []int64{1},
@@ -365,7 +364,7 @@ func TestUpdateSupervisors_InvalidSessionID(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-8")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/{sessionId}/supervisors", ctx.resource.UpdateSupervisorsHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"supervisor_ids": []int64{1},
@@ -387,7 +386,7 @@ func TestUpdateSupervisors_EmptySupervisors(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-9")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/{sessionId}/supervisors", ctx.resource.UpdateSupervisorsHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"supervisor_ids": []int64{}, // Empty list
@@ -414,7 +413,7 @@ func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-11")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/activity", ctx.resource.UpdateActivityHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"activity_type": "invalid_type",
@@ -442,7 +441,7 @@ func TestValidateTimeout_MissingTimeoutMinutes(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-12")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"last_activity": time.Now().Format(time.RFC3339),
@@ -465,7 +464,7 @@ func TestValidateTimeout_InvalidTimeoutMinutes(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-13")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"timeout_minutes": 1000, // Too large (max 480)
@@ -494,7 +493,7 @@ func TestGetTimeoutInfo_NoActiveSession(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-14")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/timeout-info", ctx.resource.GetTimeoutInfoHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/timeout-info", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -518,7 +517,7 @@ func TestProcessTimeout_NoActiveSession(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-15")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/timeout", ctx.resource.ProcessTimeoutHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/timeout", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -553,7 +552,7 @@ func TestStartSession_NonExistentActivity(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-16")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/start", ctx.resource.StartSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"activity_id": 999999, // Non-existent activity
@@ -580,7 +579,7 @@ func TestStartSession_WithRealActivity(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "TestSession", "Supervisor")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/start", ctx.resource.StartSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"activity_id":    activity.ID,
@@ -607,7 +606,7 @@ func TestStartSession_WithForceFlag(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Force Session Activity")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/start", ctx.resource.StartSessionHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"activity_id": activity.ID,
@@ -636,7 +635,7 @@ func TestCheckConflict_NoConflict(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "NoConflict Activity")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/check-conflict", ctx.resource.CheckConflictHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"activity_id": activity.ID,
@@ -664,7 +663,7 @@ func TestUpdateSupervisors_NonExistentSession(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateSup", "Test")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/{sessionId}/supervisors", ctx.resource.UpdateSupervisorsHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"supervisor_ids": []int64{staff.ID},
@@ -687,7 +686,7 @@ func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-21")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/{sessionId}/supervisors", ctx.resource.UpdateSupervisorsHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Send invalid JSON body
 	req := httptest.NewRequest("PUT", "/1/supervisors", bytes.NewBufferString("invalid json"))
@@ -711,7 +710,7 @@ func TestUpdateActivity_ValidTypes(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-22")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/activity", ctx.resource.UpdateActivityHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	validTypes := []string{"rfid_scan", "button_press", "ui_interaction"}
 
@@ -741,7 +740,7 @@ func TestUpdateActivity_MissingTimestamp(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-23")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/activity", ctx.resource.UpdateActivityHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Test that timestamp defaults to now when not provided
 	body := map[string]interface{}{
@@ -770,7 +769,7 @@ func TestValidateTimeout_ValidRequest_NoSession(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-24")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"timeout_minutes": 30,
@@ -794,7 +793,7 @@ func TestValidateTimeout_InvalidTimeoutZero(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-25")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Zero timeout is invalid (min is 1)
 	body := map[string]interface{}{
@@ -819,7 +818,7 @@ func TestValidateTimeout_NegativeTimeout(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-26")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"timeout_minutes": -5,
@@ -843,7 +842,7 @@ func TestValidateTimeout_ExceedsMaximum(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-27")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"timeout_minutes": 481, // Exceeds maximum (480)

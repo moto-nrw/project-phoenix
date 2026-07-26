@@ -336,29 +336,6 @@ func TestExtractTimeOfDay(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// TestMergeDecision — insert-only policy. Every non-empty existing status
-// resolves to SkipExisting. decideMerge("") → Insert.
-// -----------------------------------------------------------------------------
-
-func TestMergeDecision(t *testing.T) {
-	cases := []struct {
-		status string
-		want   mergeDecision
-	}{
-		{"", mergeDecisionInsert},
-		{schedule.InstanceStatusPlanned, mergeDecisionSkipExisting},
-		{schedule.InstanceStatusActive, mergeDecisionSkipExisting},
-		{schedule.InstanceStatusCompleted, mergeDecisionSkipExisting},
-		{schedule.InstanceStatusCancelled, mergeDecisionSkipExisting},
-	}
-	for _, tc := range cases {
-		t.Run("status="+tc.status, func(t *testing.T) {
-			assert.Equal(t, tc.want, decideMerge(tc.status))
-		})
-	}
-}
-
-// -----------------------------------------------------------------------------
 // TestPeriodSelection — the WP-B8 period-selection rule.
 // -----------------------------------------------------------------------------
 
@@ -430,6 +407,25 @@ func TestPeriodSelection(t *testing.T) {
 
 	t.Run("nil schedule has no pinned period", func(t *testing.T) {
 		assert.Nil(t, schedulePinnedPeriodID(&activities.Group{}, nil))
+	})
+
+	t.Run("template pinned via Group.CalendarPeriodID, no schedule pin → uses template's period", func(t *testing.T) {
+		pinnedID := holiday.ID
+		tmpl := &activities.Group{CalendarPeriodID: &pinnedID}
+		sch := &activities.Schedule{} // no schedule-level pin
+		got := selectPeriod(tmpl, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
+		require.NotNil(t, got)
+		assert.Equal(t, holiday.ID, got.ID)
+	})
+
+	t.Run("schedule pin wins over template pin when both set", func(t *testing.T) {
+		schedulePinnedID := fallSemester.ID
+		templatePinnedID := holiday.ID
+		tmpl := &activities.Group{CalendarPeriodID: &templatePinnedID}
+		sch := &activities.Schedule{CalendarPeriodID: &schedulePinnedID}
+		got := selectPeriod(tmpl, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday, fallSemester}, logger)
+		require.NotNil(t, got)
+		assert.Equal(t, fallSemester.ID, got.ID, "schedule's own pin must win over the template's")
 	})
 }
 
@@ -606,6 +602,10 @@ func (materializationAllowCalendarService) FindActiveOverlaps(context.Context, *
 	panic("unused")
 }
 
+func (materializationAllowCalendarService) GetUsageCounts(context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	panic("unused")
+}
+
 func (materializationAllowCalendarService) ShouldMaterialize(int, timezone.Date, *schedule.CalendarPeriod) bool {
 	return true
 }
@@ -672,6 +672,8 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeExceptionRepo{},
 			materializationFakeTimeframeRepo{},
 			materializationAllowCalendarService{},
+			nil,
+			nil,
 			slog.Default(),
 		)
 
@@ -701,6 +703,8 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeExceptionRepo{},
 			materializationFakeTimeframeRepo{},
 			materializationAllowCalendarService{},
+			nil,
+			nil,
 			slog.Default(),
 		)
 
@@ -751,6 +755,8 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 			exceptionRepo,
 			timeframeRepo,
 			materializationAllowCalendarService{},
+			nil,
+			nil,
 			slog.Default(),
 		)
 	}
@@ -957,6 +963,10 @@ func (r *materializationCountingStudentRepo) Create(_ context.Context, row *sche
 	return nil
 }
 
+func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+	return 0, nil
+}
+
 type materializationCountingStaffRepo struct {
 	schedule.InstanceStaffRepository
 	rows []*schedule.InstanceStaff
@@ -1013,6 +1023,8 @@ func newMaterializationBranchService(instanceRepo materializationFakeInstanceRep
 			Model:     modelBase.Model{ID: timeframeID},
 		}}},
 		materializationAllowCalendarService{},
+		nil,
+		nil,
 		slog.Default(),
 	)
 

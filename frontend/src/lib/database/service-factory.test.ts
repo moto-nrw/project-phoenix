@@ -7,9 +7,10 @@ import {
   createCrudService,
   createExtendedService,
   getDeleteErrorMessage,
+  MalformedCrudListResponseError,
 } from "./service-factory";
 import type { EntityConfig } from "./types";
-import { databaseThemes } from "@/components/ui/database/themes";
+import { databaseThemes } from "@/lib/database/themes";
 
 // Mock next-auth
 const mockGetSession = vi.fn();
@@ -32,6 +33,10 @@ describe("createCrudService", () => {
       plural: "Test Entities",
     },
     theme: databaseThemes.students,
+    labels: {
+      createModalTitle: "Test erstellen",
+      editModalTitle: "Test bearbeiten",
+    },
     api: {
       basePath: "/api/test",
     },
@@ -169,6 +174,54 @@ describe("createCrudService", () => {
       const result = await service.getList();
 
       expect(result.data[0]?.id).toBe("1");
+    });
+
+    it("throws a typed error for malformed list responses", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ unexpected: true }),
+        headers: new Headers({
+          "content-type": "application/json",
+        }),
+      });
+
+      const service = createCrudService(mockConfig);
+      const caught = await service.getList().catch((error: unknown) => error);
+
+      expect(caught).toBeInstanceOf(MalformedCrudListResponseError);
+      expect((caught as Error).message).toContain(
+        "Malformed CRUD list response for Test Entities from /api/test",
+      );
+      expect(caught).toMatchObject({
+        entity: "Test Entities",
+        endpoint: "/api/test",
+        responseShape: "object keys: unexpected",
+      });
+    });
+
+    it("throws a typed error when paginated response data is not an array", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { id: "1", name: "Not an array" },
+            pagination: {
+              current_page: 1,
+              page_size: 10,
+              total_pages: 1,
+              total_records: 1,
+            },
+          }),
+        headers: new Headers({
+          "content-type": "application/json",
+        }),
+      });
+
+      const service = createCrudService(mockConfig);
+
+      await expect(service.getList()).rejects.toThrow(
+        MalformedCrudListResponseError,
+      );
     });
 
     it("includes filters in query string", async () => {
@@ -466,11 +519,11 @@ describe("createCrudService", () => {
     });
 
     it("calls beforeDelete and afterDelete hooks", async () => {
-      const beforeDelete = vi.fn(
-        (_id: string): Promise<boolean> => Promise.resolve(true),
+      const beforeDelete = vi.fn((_id: string): Promise<boolean> =>
+        Promise.resolve(true),
       );
-      const afterDelete = vi.fn(
-        (_id: string): Promise<void> => Promise.resolve(),
+      const afterDelete = vi.fn((_id: string): Promise<void> =>
+        Promise.resolve(),
       );
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -497,8 +550,8 @@ describe("createCrudService", () => {
     });
 
     it("cancels delete when beforeDelete returns false", async () => {
-      const beforeDelete = vi.fn(
-        (_id: string): Promise<boolean> => Promise.resolve(false),
+      const beforeDelete = vi.fn((_id: string): Promise<boolean> =>
+        Promise.resolve(false),
       );
 
       const configWithHooks: EntityConfig<TestEntity> = {
@@ -599,6 +652,99 @@ describe("createCrudService", () => {
     });
   });
 
+  describe("rejected requests", () => {
+    // The companion-plan 409 is the reason the raw body travels: the backend
+    // reports WHICH children and weekdays conflict as a top-level `conflicts`
+    // array next to `error`. extractErrorMessage keeps only the German
+    // sentence, so a caller reading `message` alone can never name what the
+    // user confirmed — "Ergänzen und speichern" then re-sends an empty
+    // confirmation and earns the identical 409 forever.
+    const conflictBody = JSON.stringify({
+      error:
+        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
+    });
+
+    it("attaches status and the raw response body to the thrown error", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve(conflictBody),
+      });
+
+      const service = createCrudService(mockConfig);
+      const caught = (await service
+        .update("1", { name: "Test" })
+        .catch((error: unknown) => error)) as Error & {
+        status?: number;
+        body?: string;
+      };
+
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught.status).toBe(409);
+      expect(caught.body).toBe(conflictBody);
+      // The human sentence stays exactly what it was — the body is additive,
+      // existing consumers keep reading `message`.
+      expect(caught.message).toBe(
+        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+      );
+      // ...and it is precisely why the body is needed: the structured part of
+      // the answer never survives into the message.
+      expect(caught.message).not.toContain("conflicts");
+    });
+
+    it("keeps the raw body when the message is dug out of the route-handler wrapping", async () => {
+      // The real chain wraps twice (backend → route handler → here). The
+      // message unwraps to the innermost German sentence; the body must stay
+      // the untouched outer text so the caller can still parse it.
+      const routeHandlerError = JSON.stringify({
+        error: `API error (409): ${conflictBody}`,
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve(routeHandlerError),
+      });
+
+      const service = createCrudService(mockConfig);
+      const caught = (await service
+        .create({ name: "Test" })
+        .catch((error: unknown) => error)) as Error & {
+        status?: number;
+        body?: string;
+      };
+
+      expect(caught.status).toBe(409);
+      expect(caught.body).toBe(routeHandlerError);
+      expect(caught.message).toBe(
+        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+      );
+    });
+
+    it("attaches the body of a non-JSON server error too", async () => {
+      // No parsing, no guessing: whatever the server said is preserved, so a
+      // caller that knows the endpoint can still make sense of it while the
+      // generic message stays technical noise.
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("Internal Server Error"),
+      });
+
+      const service = createCrudService(mockConfig);
+      const caught = (await service
+        .getList()
+        .catch((error: unknown) => error)) as Error & {
+        status?: number;
+        body?: string;
+      };
+
+      expect(caught.status).toBe(500);
+      expect(caught.body).toBe("Internal Server Error");
+    });
+  });
+
   describe("authentication", () => {
     it("includes auth token in requests", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -652,6 +798,10 @@ describe("createExtendedService", () => {
         plural: "Tests",
       },
       theme: databaseThemes.students,
+      labels: {
+        createModalTitle: "Test erstellen",
+        editModalTitle: "Test bearbeiten",
+      },
       api: {
         basePath: "/api/test",
       },
@@ -689,6 +839,10 @@ describe("createExtendedService", () => {
         plural: "Tests",
       },
       theme: databaseThemes.students,
+      labels: {
+        createModalTitle: "Test erstellen",
+        editModalTitle: "Test bearbeiten",
+      },
       api: {
         basePath: "/api/test",
       },

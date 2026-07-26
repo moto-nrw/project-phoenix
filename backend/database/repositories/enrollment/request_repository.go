@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/uptrace/bun"
 )
@@ -38,12 +39,23 @@ func (r *RequestRepository) Create(ctx context.Context, req *enrollment.Request)
 }
 
 func (r *RequestRepository) FindByID(ctx context.Context, id int64) (*enrollment.Request, error) {
+	return r.findByID(ctx, id, "")
+}
+
+func (r *RequestRepository) FindByIDForUpdate(ctx context.Context, id int64) (*enrollment.Request, error) {
+	return r.findByID(ctx, id, "UPDATE")
+}
+
+func (r *RequestRepository) findByID(ctx context.Context, id int64, lockClause string) (*enrollment.Request, error) {
 	req := new(enrollment.Request)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(req).
 		ModelTableExpr(requestTableExpr).
-		Where(`"request".id = ?`, id).
-		Scan(ctx)
+		Where(`"request".id = ?`, id)
+	if lockClause != "" {
+		query = query.For(lockClause)
+	}
+	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("enrollment request %d not found", id)
@@ -68,6 +80,12 @@ func (r *RequestRepository) ListAdmin(ctx context.Context, filters enrollment.Re
 	if filters.ChildStatus != "" {
 		q = q.Where(`EXISTS (SELECT 1 FROM enrollment.request_children rc WHERE rc.request_id = "request".id AND rc.status = ?)`, filters.ChildStatus)
 	}
+	if filters.CreatedStudentID > 0 {
+		q = q.Where(`EXISTS (SELECT 1 FROM enrollment.request_children rc WHERE rc.request_id = "request".id AND rc.created_student_id = ?)`, filters.CreatedStudentID)
+	}
+	if len(filters.CreatedStudentIDs) > 0 {
+		q = q.Where(`EXISTS (SELECT 1 FROM enrollment.request_children rc WHERE rc.request_id = "request".id AND rc.created_student_id IN (?))`, bun.List(filters.CreatedStudentIDs))
+	}
 	q = q.OrderExpr(`"request".submitted_at DESC, "request".id DESC`)
 
 	if err := q.Scan(ctx); err != nil {
@@ -85,6 +103,18 @@ func (r *RequestRepository) ListAdmin(ctx context.Context, filters enrollment.Re
 // since the child is already enrolled. Tenant-scoped via RLS — caller
 // must already be in a tenant-tx.
 func (r *RequestRepository) FindActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []enrollment.DuplicateChildKey) ([]enrollment.DuplicateChildKey, error) {
+	return r.findActiveDuplicate(ctx, phaseID, guardianEmail, children, 0)
+}
+
+// FindActiveDuplicateExcludingRequest mirrors FindActiveDuplicate but ignores
+// children belonging to the given request. Change-request approval uses this
+// after locking the current request rows, where deleting/reinserting first
+// would destroy the snapshot conflict guard.
+func (r *RequestRepository) FindActiveDuplicateExcludingRequest(ctx context.Context, phaseID int64, guardianEmail string, children []enrollment.DuplicateChildKey, excludedRequestID int64) ([]enrollment.DuplicateChildKey, error) {
+	return r.findActiveDuplicate(ctx, phaseID, guardianEmail, children, excludedRequestID)
+}
+
+func (r *RequestRepository) findActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []enrollment.DuplicateChildKey, excludedRequestID int64) ([]enrollment.DuplicateChildKey, error) {
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("phase id must be positive")
 	}
@@ -110,6 +140,9 @@ func (r *RequestRepository) FindActiveDuplicate(ctx context.Context, phaseID int
 		Where(`req.phase_id = ?`, phaseID).
 		Where(`LOWER(TRIM(req.guardian_email)) = ?`, email).
 		Where(`rc.status NOT IN (?, ?)`, enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn)
+	if excludedRequestID > 0 {
+		q = q.Where(`req.id <> ?`, excludedRequestID)
+	}
 
 	conds := make([]string, 0, len(children))
 	args := make([]any, 0, len(children)*2)
@@ -190,6 +223,40 @@ func (r *RequestRepository) DeleteByPhaseID(ctx context.Context, phaseID int64) 
 	return int(affected), nil
 }
 
+func (r *RequestRepository) ListFullyRejectedBefore(ctx context.Context, cutoff time.Time) ([]int64, error) {
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`enrollment.requests AS "request"`).
+		ColumnExpr(`"request".id`).
+		Join(`JOIN enrollment.request_children AS rc ON rc.request_id = "request".id`).
+		GroupExpr(`"request".id`).
+		Having(`COUNT(rc.id) > 0`).
+		Having(`BOOL_AND(rc.status = ?)`, enrollment.ChildStatusRejected).
+		Having(`BOOL_AND(rc.reviewed_at IS NOT NULL AND rc.reviewed_at < ?)`, cutoff).
+		OrderExpr(`"request".id`).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list fully rejected enrollment requests: %w", err)
+	}
+	return ids, nil
+}
+
+func (r *RequestRepository) DeleteByID(ctx context.Context, requestID int64) error {
+	result, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Where(`"request".id = ?`, requestID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete enrollment request: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected != 1 {
+		return errors.New("enrollment request not found for cleanup")
+	}
+	return nil
+}
+
 // ExistsBySchemaID returns true if any request row references the
 // schema version. Used to keep historical enrollment submissions
 // auditable when admins delete unused form templates.
@@ -209,12 +276,66 @@ func (r *RequestRepository) ExistsBySchemaID(ctx context.Context, schemaID int64
 // public status/edit page (PR 7). Public route — caller must wrap in
 // WithAdminTx because the token is the only auth signal.
 func (r *RequestRepository) FindByStatusToken(ctx context.Context, token string) (*enrollment.Request, error) {
+	return r.findByStatusToken(ctx, token, "")
+}
+
+func (r *RequestRepository) FindByStatusTokenForUpdate(ctx context.Context, token string) (*enrollment.Request, error) {
+	return r.findByStatusToken(ctx, token, "UPDATE")
+}
+
+// AcquireSubmissionDedupLock serializes concurrent writes for the same
+// (phase, guardian email hash) pair inside the caller's transaction.
+func (r *RequestRepository) AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error {
+	_, err := base.GetDB(ctx, r.db).
+		NewRaw(`SELECT pg_advisory_xact_lock(?, ?)`, int32(phaseID&0x7fffffff), int32(emailHash&0x7fffffff)).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire enrollment submission dedup lock: %w", err)
+	}
+	return nil
+}
+
+// PinDecisionNotificationMode freezes the notification mode for a request.
+// COALESCE makes the first successful pin win even when sibling decisions race;
+// later calls return the existing value without overwriting it.
+func (r *RequestRepository) PinDecisionNotificationMode(ctx context.Context, requestID int64, proposed string) (string, error) {
+	switch proposed {
+	case configModel.EnrollmentNotifyPerDecisionDigest, configModel.EnrollmentNotifyPerDecisionImmediate:
+		// Valid persisted modes.
+	default:
+		return "", fmt.Errorf("invalid enrollment decision notification mode %q", proposed)
+	}
+
+	var mode string
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		UPDATE enrollment.requests
+		SET decision_notification_mode = COALESCE(decision_notification_mode, ?),
+			updated_at = CASE
+				WHEN decision_notification_mode IS NULL THEN NOW()
+				ELSE updated_at
+			END
+		WHERE id = ?
+		RETURNING decision_notification_mode
+	`, proposed, requestID).Scan(ctx, &mode)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("enrollment request %d not found for notification mode pin", requestID)
+		}
+		return "", fmt.Errorf("failed to pin enrollment decision notification mode: %w", err)
+	}
+	return mode, nil
+}
+
+func (r *RequestRepository) findByStatusToken(ctx context.Context, token, lockClause string) (*enrollment.Request, error) {
 	req := new(enrollment.Request)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	q := base.GetDB(ctx, r.db).NewSelect().
 		Model(req).
 		ModelTableExpr(requestTableExpr).
-		Where(`"request".status_token = ?`, token).
-		Scan(ctx)
+		Where(`"request".status_token = ?`, token)
+	if lockClause != "" {
+		q = q.For(lockClause)
+	}
+	err := q.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("enrollment request with token not found")
@@ -229,7 +350,15 @@ func (r *RequestRepository) FindByStatusToken(ctx context.Context, token string)
 // Custom method (backend-conventions Rule 2): fixed multi-column projection
 // for the parent-portal edit flow.
 func (r *RequestRepository) UpdateGuardianData(ctx context.Context, req *enrollment.Request) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	return r.updateGuardianData(ctx, req, false)
+}
+
+func (r *RequestRepository) UpdateGuardianDataWithEmail(ctx context.Context, req *enrollment.Request) error {
+	return r.updateGuardianData(ctx, req, true)
+}
+
+func (r *RequestRepository) updateGuardianData(ctx context.Context, req *enrollment.Request, includeEmail bool) error {
+	q := base.GetDB(ctx, r.db).NewUpdate().
 		Model(req).
 		ModelTableExpr(requestTableExpr).
 		Set("guardian_first_name = ?", req.GuardianFirstName).
@@ -238,8 +367,11 @@ func (r *RequestRepository) UpdateGuardianData(ctx context.Context, req *enrollm
 		Set("consent_flags = ?", req.ConsentFlags).
 		Set("custom_data = ?", req.CustomData).
 		Set("updated_at = NOW()").
-		Where(`"request".id = ?`, req.ID).
-		Exec(ctx)
+		Where(`"request".id = ?`, req.ID)
+	if includeEmail {
+		q = q.Set("guardian_email = ?", req.GuardianEmail)
+	}
+	_, err := q.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to update guardian data: %w", err)
 	}

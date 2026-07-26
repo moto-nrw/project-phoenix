@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Employment type constants
@@ -29,21 +28,6 @@ type Staff struct {
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
-}
-
-func (s *Staff) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.staff AS "staff"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.staff AS "staff"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (s *Staff) TableName() string {
-	return "users.staff"
 }
 
 // Validate ensures staff data is valid
@@ -92,21 +76,6 @@ func (s *Staff) AddNotes(notes string) {
 	} else {
 		s.StaffNotes += "\n" + notes
 	}
-}
-
-// GetID returns the entity's ID
-func (m *Staff) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Staff) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Staff) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }
 
 // StaffWithRoleInfo contains staff data with person info and account details for role-based queries

@@ -5,11 +5,10 @@
 // time-tracking-helpers formatters, so the visual treatment stays consistent
 // regardless of where the cards or calendar are rendered.
 
+import { OriginChip } from "~/components/ui/origin-chip";
 import { formatDuration } from "~/lib/time-tracking-helpers";
-import {
-  computeStaffMetrics,
-  getDeltaStatus,
-} from "~/lib/staff-metrics-helpers";
+import type { PeriodMetrics } from "~/lib/hooks/use-period-metrics";
+import { getDeltaStatus } from "~/lib/staff-metrics-helpers";
 
 export function formatSignedDuration(minutes: number): string {
   const sign = minutes > 0 ? "+" : minutes < 0 ? "−" : "";
@@ -24,12 +23,16 @@ export function KpiCard({
   secondary,
   progressPct,
   color,
+  compactPrimary,
 }: {
   readonly label: string;
   readonly primary: string;
   readonly secondary?: string;
   readonly progressPct?: number;
   readonly color?: "green" | "amber" | "gray" | "red";
+  /** Schulweite Summen sind vierstellig ("1521h 11min") und brechen sonst
+   *  mitten im Wert um. Eine Stufe kleiner und ohne Umbruch. */
+  readonly compactPrimary?: boolean;
 }) {
   const primaryColor = {
     green: "text-[#70b525]",
@@ -48,7 +51,13 @@ export function KpiCard({
       <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
         {label}
       </p>
-      <p className={`mt-2 text-2xl font-bold ${primaryColor}`}>{primary}</p>
+      <p
+        className={`mt-2 font-bold ${primaryColor} ${
+          compactPrimary ? "text-xl whitespace-nowrap" : "text-2xl"
+        }`}
+      >
+        {primary}
+      </p>
       {secondary && <p className="mt-1 text-xs text-gray-500">{secondary}</p>}
       {progressPct !== undefined && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
@@ -65,64 +74,98 @@ export function KpiCard({
 export function KpiCards({
   metrics,
 }: {
-  readonly metrics: ReturnType<typeof computeStaffMetrics>;
+  // Every figure is date-valid, straight from the backend month model
+  // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
+  // historical days at the CURRENT schedule and contradicts the Monatskarte
+  // and the daily rows below it after a contract change. null = loading.
+  readonly metrics: PeriodMetrics;
 }) {
-  const weekPct =
-    metrics.weekSoll > 0 ? (metrics.weekIst / metrics.weekSoll) * 100 : 0;
-  const monthPct =
-    metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
+  const { week, month, accountBalanceMinutes } = metrics;
 
-  const monthDeltaColor = getDeltaStatus(metrics.monthDelta);
-  const accountColor = getDeltaStatus(metrics.accountBalance);
+  const weekPct = week && week.soll > 0 ? (week.ist / week.soll) * 100 : 0;
+  const monthPct = month && month.soll > 0 ? (month.ist / month.soll) * 100 : 0;
+
+  const monthDeltaColor = month === null ? "gray" : getDeltaStatus(month.delta);
+  const accountColor =
+    accountBalanceMinutes === null
+      ? "gray"
+      : getDeltaStatus(accountBalanceMinutes);
 
   // Localized "seit 13. Mai 2026" hint under the Stundenkonto card so users
   // see *which* anchor the cumulative balance is based on. Without it the
   // card silently shifts meaning as schedules get updated, which is exactly
   // the source-of-truth problem we want to surface.
   const accountStartLabel = metrics.accountStart.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 
+  const dash = "–";
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <KpiCard
-        label="Diese Woche"
-        primary={formatDuration(metrics.weekIst)}
-        secondary={`von ${formatDuration(metrics.weekSoll)} Soll`}
-        progressPct={weekPct}
-        color={getDeltaStatus(metrics.weekDelta)}
-      />
-      <KpiCard
-        label="Dieser Monat"
-        primary={formatDuration(metrics.monthIst)}
-        secondary={`von ${formatDuration(metrics.monthSoll)} Soll`}
-        progressPct={monthPct}
-        color={monthDeltaColor}
-      />
-      <KpiCard
-        label="Überstunden Monat"
-        primary={formatSignedDuration(metrics.monthDelta)}
-        secondary={
-          metrics.monthDelta === 0
-            ? "ausgeglichen"
-            : metrics.monthDelta > 0
-              ? "Überstunden"
-              : "Minusstunden"
-        }
-        color={monthDeltaColor}
-      />
-      <KpiCard
-        label="Stundenkonto"
-        primary={formatSignedDuration(metrics.accountBalance)}
-        secondary={
-          metrics.accountBalance === 0
-            ? `Soll und Ist ausgeglichen seit ${accountStartLabel}`
-            : `seit ${accountStartLabel}`
-        }
-        color={accountColor}
-      />
+    <div className="space-y-2">
+      {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2): genau
+          einer pro Oberfläche, solange die Soll-Quellen-Frage offen ist. */}
+      <div className="flex justify-end">
+        <OriginChip
+          label="Soll aus Arbeitszeitmodell"
+          title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Diese Woche"
+          primary={week === null ? dash : formatDuration(week.ist)}
+          secondary={
+            week === null ? undefined : `von ${formatDuration(week.soll)} Soll`
+          }
+          progressPct={week === null ? undefined : weekPct}
+          color={week === null ? "gray" : getDeltaStatus(week.delta)}
+        />
+        <KpiCard
+          label="Dieser Monat"
+          primary={month === null ? dash : formatDuration(month.ist)}
+          secondary={
+            month === null
+              ? undefined
+              : `von ${formatDuration(month.soll)} Soll`
+          }
+          progressPct={month === null ? undefined : monthPct}
+          color={monthDeltaColor}
+        />
+        <KpiCard
+          label="Überstunden Monat"
+          primary={month === null ? dash : formatSignedDuration(month.delta)}
+          secondary={
+            month === null
+              ? undefined
+              : month.delta === 0
+                ? "ausgeglichen"
+                : month.delta > 0
+                  ? "Überstunden"
+                  : "Minusstunden"
+          }
+          color={monthDeltaColor}
+        />
+        <KpiCard
+          label="Stundenkonto"
+          primary={
+            accountBalanceMinutes === null
+              ? dash
+              : formatSignedDuration(accountBalanceMinutes)
+          }
+          secondary={
+            accountBalanceMinutes === null
+              ? `seit ${accountStartLabel}`
+              : accountBalanceMinutes === 0
+                ? `Soll und Ist ausgeglichen seit ${accountStartLabel}`
+                : `seit ${accountStartLabel}`
+          }
+          color={accountColor}
+        />
+      </div>
     </div>
   );
 }

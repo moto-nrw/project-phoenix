@@ -3,6 +3,7 @@ package defaults_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
+		"operations.federal_state",
 		"gdpr.data_cleanup_enabled",
 		"gdpr.data_cleanup_time",
 		"gdpr.data_cleanup_timeout_minutes",
@@ -47,6 +49,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		// Capacity-detail disclosure toggles (issue #1879, devices tab).
+		"checkin.activity_capacity_details_enabled",
+		"checkin.room_capacity_details_enabled",
 		// Device online/offline window for health monitoring (issue #586, Rule 12).
 		"iot.device_online_window_minutes",
 		"tracking.indicators_enabled",
@@ -65,6 +70,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Display range for the admin weekly calendar (Apple-style grid).
 		"timetable.day_start_time",
 		"timetable.day_end_time",
+		// Pickup buckets for timetable-derived lists.
+		"timetable.slot_list_short_day_cutoff",
+		"timetable.slot_list_long_day_cutoff",
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_enabled",
@@ -74,6 +82,10 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.group_mode",
 		"operations.care_concept",
 		"operations.time_tracking_account_start_date",
+		"operations.time_tracking_enforce_planned_start",
+		// F9 deviation-reason gate (Planung redesign, Inkrement 6A).
+		"operations.time_tracking_require_deviation_reason",
+		"operations.time_tracking_deviation_tolerance_minutes",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -95,6 +107,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// enrollment.phases - they're no longer tenant-wide settings.
 		"enrollment.enabled",
 		"enrollment.collect_grade_level",
+		"enrollment.collect_school_class",
 		"enrollment.care_offerings_enabled",
 		"enrollment.default_activation_mode",
 		"enrollment.notification_emails",
@@ -114,7 +127,29 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.grade_level_max",
 		// Parents-portal write features.
 		"operations.parent_sick_note_enabled",
+		"operations.parent_excused_requires_approval",
 		"operations.parent_notes_enabled",
+		"operations.parent_message_staff_name_visible",
+		"operations.parent_pickup_change_enabled",
+		"operations.parent_guardian_management_enabled",
+		"operations.parent_master_data_edit_enabled",
+		"operations.parent_master_data_request_enabled",
+		"operations.parent_news_enabled",
+		"operations.meal_plan_enabled",
+		// Related-accounts management.
+		"guardians.parent_invite_mode",
+		"guardians.parent_can_remove",
+		// Reminders work package (issue #1457): visual-only staff reminders.
+		"reminders.pickup_upcoming_enabled",
+		"reminders.pickup_upcoming_lead_minutes",
+		"reminders.pickup_overdue_enabled",
+		"reminders.activity_start_enabled",
+		"reminders.activity_start_lead_minutes",
+		"reminders.activity_overdue_enabled",
+		// Info-point display feature (issue #1325): opt-in toggle, default off.
+		"display.enabled",
+		// Absence-approval email notifications (issue #1419 4d).
+		"notifications.absence_approval_email",
 	}
 
 	for _, key := range expectedKeys {
@@ -130,6 +165,16 @@ func TestAllSettingsRegistered(t *testing.T) {
 	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
 }
 
+func TestAbsenceApprovalEmailSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyNotificationsAbsenceApprovalEmail)
+	require.NotNil(t, def, "notifications.absence_approval_email should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "absence emails must be opt-in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+}
+
 func TestPresenceModeSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyPresenceMode)
 	require.NotNil(t, def, "operations.presence_mode should be registered")
@@ -142,6 +187,83 @@ func TestPresenceModeSetting(t *testing.T) {
 	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
 	assert.Contains(t, values, config.PresenceModeDetailed)
 	assert.Contains(t, values, config.PresenceModeBinary)
+}
+
+func TestFederalStateSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyFederalState)
+	require.NotNil(t, def, "operations.federal_state should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, holidays.DefaultRegion, def.Default, "default must stay DE-NW - existing schools are NRW")
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "federal_state is operator-only - changing it shifts the whole Arbeitszeitkonto")
+	assert.Equal(t, "operations", def.Tab)
+
+	// The select options and the holiday computation must know the same
+	// regions, or a school could pick a state without a holiday calendar.
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 16)
+	optionValues := make([]string, 0, len(def.Options.Static))
+	for _, opt := range def.Options.Static {
+		value, ok := opt.Value.(string)
+		require.True(t, ok, "federal_state option values must be strings")
+		optionValues = append(optionValues, value)
+	}
+	assert.ElementsMatch(t, holidays.Regions(), optionValues)
+}
+
+func TestDisplayEnabledSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyDisplayEnabled)
+	require.NotNil(t, def, "display.enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "info-point dashboard must be opt-in")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "tenant admins and operators can both enable it")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "operations", def.Tab)
+}
+
+func TestGuardianRelatedAccountsSettings(t *testing.T) {
+	inviteDef := config.GetDefinition(config.KeyGuardianParentInviteMode)
+	require.NotNil(t, inviteDef, "guardians.parent_invite_mode should be registered")
+	assert.Equal(t, config.FieldSelect, inviteDef.Type)
+	assert.Equal(t, config.ParentInviteModeDisabled, inviteDef.Default, "default must be disabled (least privilege)")
+	assert.Equal(t, "config:manage", inviteDef.WritePermission, "controls access to child data -> manage")
+	assert.Equal(t, "operations", inviteDef.Tab)
+	require.NotNil(t, inviteDef.Options)
+	require.Len(t, inviteDef.Options.Static, 3)
+	values := []any{
+		inviteDef.Options.Static[0].Value,
+		inviteDef.Options.Static[1].Value,
+		inviteDef.Options.Static[2].Value,
+	}
+	assert.Contains(t, values, config.ParentInviteModeDisabled)
+	assert.Contains(t, values, config.ParentInviteModeDirect)
+	assert.Contains(t, values, config.ParentInviteModeStaffApproval)
+
+	removeDef := config.GetDefinition(config.KeyGuardianParentCanRemove)
+	require.NotNil(t, removeDef, "guardians.parent_can_remove should be registered")
+	assert.Equal(t, config.FieldBoolean, removeDef.Type)
+	assert.Equal(t, false, removeDef.Default, "default must be false (least privilege)")
+	assert.Equal(t, "config:manage", removeDef.WritePermission)
+	require.NotNil(t, removeDef.DependsOn, "parent_can_remove should be hidden when invites are disabled")
+	assert.Equal(t, config.KeyGuardianParentInviteMode, removeDef.DependsOn.Key)
+	assert.Equal(t, "neq", removeDef.DependsOn.Condition)
+	assert.Equal(t, config.ParentInviteModeDisabled, removeDef.DependsOn.Value)
+}
+
+func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyParentMessageStaffNameVisible)
+	require.NotNil(t, def, "operations.parent_message_staff_name_visible should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	// Default ON: a messaging-active school attributes team replies to a person
+	// by default. "Only from activation" is enforced per-message at send time
+	// (staff_name_visible column), not by a restrictive default here.
+	assert.Equal(t, true, def.Default, "staff-name visibility must default on")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "operations", def.Tab)
+	// Hidden unless messaging itself is on — it only affects those messages.
+	require.NotNil(t, def.DependsOn, "should be hidden when parent messaging is off")
+	assert.Equal(t, config.KeyParentNotesEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 func TestWebCheckinAccessSetting(t *testing.T) {
@@ -227,6 +349,49 @@ func TestTimeTrackingAccountStartDateSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "zeiterfassung", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
+}
+
+func TestTimeTrackingEnforcePlannedStartSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingEnforcePlannedStart)
+	require.NotNil(t, def, "operations.time_tracking_enforce_planned_start should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "planned-start enforcement must be opt-in")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+}
+
+func TestTimeTrackingRequireDeviationReasonSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingRequireDeviationReason)
+	require.NotNil(t, def, "operations.time_tracking_require_deviation_reason should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "deviation-reason gate is on by default (#1844); schools can opt out per tenant")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn)
+}
+
+func TestTimeTrackingDeviationToleranceSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingDeviationToleranceMinutes)
+	require.NotNil(t, def, "operations.time_tracking_deviation_tolerance_minutes should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 15, def.Default, "default mirrors the fixed 15-minute frontend tolerance of getDeltaStatus")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	assert.Equal(t, float64(0), *def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(120), *def.Validation.Max)
+	require.NotNil(t, def.DependsOn, "tolerance is only visible while the gate is active")
+	assert.Equal(t, config.KeyTimeTrackingRequireDeviationReason, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 func TestTimetableSettings_Types(t *testing.T) {
@@ -385,6 +550,28 @@ func TestTimetableSettings_WeekdayOptions(t *testing.T) {
 	}
 }
 
+func TestTimetableChildrenPerStaffRatioSetting(t *testing.T) {
+	def := config.GetDefinition("timetable.children_per_staff_ratio")
+	require.NotNil(t, def, "setting timetable.children_per_staff_ratio should exist")
+
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 12, def.Default, "children-per-staff ratio must default to 12")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "stundenplan", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(1), *def.Validation.Min)
+	assert.Equal(t, float64(30), *def.Validation.Max)
+
+	require.NotNil(t, def.DependsOn, "must be gated behind the top-level timetable toggle")
+	assert.Equal(t, "timetable.enabled", def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+}
+
 func TestOperationsSettings_Types(t *testing.T) {
 	tests := []struct {
 		key      string
@@ -404,7 +591,12 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
+		{"operations.parent_excused_requires_approval", config.FieldBoolean},
 		{"operations.parent_notes_enabled", config.FieldBoolean},
+		{"operations.parent_pickup_change_enabled", config.FieldBoolean},
+		{"operations.parent_guardian_management_enabled", config.FieldBoolean},
+		{"timetable.slot_list_short_day_cutoff", config.FieldTime},
+		{"timetable.slot_list_long_day_cutoff", config.FieldTime},
 	}
 
 	for _, tc := range tests {
@@ -430,6 +622,49 @@ func TestParentPortalSettings_DefaultOn(t *testing.T) {
 	}
 }
 
+// TestParentExcusedRequiresApprovalSetting guards the opt-in excused-approval
+// gate (#1845): unlike the other parents-portal toggles it defaults OFF (so
+// existing schools keep the immediate-write behavior) and is hidden while the
+// sick-note feature it extends is disabled.
+func TestParentExcusedRequiresApprovalSetting(t *testing.T) {
+	def := config.GetDefinition("operations.parent_excused_requires_approval")
+	require.NotNil(t, def, "operations.parent_excused_requires_approval should exist")
+	assert.Equal(t, config.FieldBoolean, def.Type, "excused-approval toggle should be boolean")
+	assert.Equal(t, false, def.Default, "excused-approval toggle must default OFF (opt-in)")
+	assert.Equal(t, "operations", def.Tab, "excused-approval toggle should be on the operations tab")
+	assert.Equal(t, "config:manage", def.WritePermission, "changes the absence-approval workflow -> manage")
+	require.NotNil(t, def.DependsOn, "should be hidden when the sick-note feature is off")
+	assert.Equal(t, config.KeyParentSickNoteEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+}
+
+// TestParentPickupChangeSetting_DefaultOn guards that the pickup-change toggle
+// defaults to true, in line with the other parents-portal write toggles
+// (sick-note/notes). Schools that do not want parents to alter the care
+// schedule must switch it off deliberately.
+func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
+	def := config.GetDefinition("operations.parent_pickup_change_enabled")
+	require.NotNil(t, def, "operations.parent_pickup_change_enabled should exist")
+	assert.Equal(t, config.FieldBoolean, def.Type, "pickup-change toggle should be boolean")
+	assert.Equal(t, true, def.Default, "pickup-change toggle should default to true")
+	assert.Equal(t, "operations", def.Tab, "pickup-change toggle should be on the operations tab")
+}
+
+// TestGuardianManagementSetting guards the guardian contact/pickup management
+// toggle. It defaults ON like the other parents-portal write features - the
+// safety-critical part (pickup authority) is constrained structurally
+// (helpers-only + audit), not by this toggle - but keeps config:manage because
+// enabling it can expose pickup-authority changes.
+func TestGuardianManagementSetting(t *testing.T) {
+	def := config.GetDefinition("operations.parent_guardian_management_enabled")
+	require.NotNil(t, def, "operations.parent_guardian_management_enabled should exist")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "defaults ON; pickup-flag safety is structural, not toggle-based")
+	assert.Equal(t, "config:manage", def.WritePermission, "can expose pickup-authority changes -> manage")
+	assert.Equal(t, "operations", def.Tab)
+}
+
 // TestEnrollmentSettings_AllRegistered_OnEnrollmentTab guards that every
 // enrollment.* user-facing setting lands on the "enrollment" tab. The two
 // system-tab keys (outbox_max_attempts, status_token_ttl_days) are pulled
@@ -439,6 +674,7 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 	enrollmentTabKeys := []string{
 		config.KeyEnrollmentEnabled,
 		config.KeyEnrollmentCollectGradeLevel,
+		config.KeyEnrollmentCollectSchoolClass,
 		config.KeyEnrollmentCareOfferingsEnabled,
 		config.KeyEnrollmentDefaultActivationMode,
 		config.KeyEnrollmentNotificationEmails,
@@ -495,6 +731,31 @@ func TestEnrollmentLegalTexts(t *testing.T) {
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
+
+	documentDef := config.GetDefinition(config.KeyEnrollmentLegalAGBDocumentURL)
+	require.NotNil(t, documentDef, "AGB document URL setting should be registered")
+	assert.Equal(t, config.FieldText, documentDef.Type)
+	assert.Equal(t, "", documentDef.Default)
+	assert.Equal(t, "enrollment", documentDef.Tab)
+	assert.Equal(t, "rechtstexte", documentDef.Category)
+	assert.Equal(t, "config:manage", documentDef.WritePermission)
+	require.NotNil(t, documentDef.DependsOn)
+	assert.Equal(t, config.KeyEnrollmentEnabled, documentDef.DependsOn.Key)
+
+	modeDef := config.GetDefinition(config.KeyEnrollmentLegalAGBDisplayMode)
+	require.NotNil(t, modeDef, "AGB display mode setting should be registered")
+	assert.Equal(t, config.FieldSelect, modeDef.Type)
+	assert.Equal(t, config.EnrollmentLegalAGBDisplayModeText, modeDef.Default)
+	assert.Equal(t, "enrollment", modeDef.Tab)
+	assert.Equal(t, "rechtstexte", modeDef.Category)
+	assert.Equal(t, "config:manage", modeDef.WritePermission)
+	require.NotNil(t, modeDef.DependsOn)
+	assert.Equal(t, config.KeyEnrollmentEnabled, modeDef.DependsOn.Key)
+	require.NotNil(t, modeDef.Options)
+	require.Len(t, modeDef.Options.Static, 2)
+	values := []any{modeDef.Options.Static[0].Value, modeDef.Options.Static[1].Value}
+	assert.Contains(t, values, config.EnrollmentLegalAGBDisplayModeText)
+	assert.Contains(t, values, config.EnrollmentLegalAGBDisplayModePDF)
 }
 
 func TestEnrollmentLegalBlockToggles(t *testing.T) {
@@ -981,6 +1242,34 @@ func TestDevicesSettings(t *testing.T) {
 	assert.Equal(t, false, wc.Default, "wc should default to false (opt-in)")
 }
 
+func TestCheckinCapacityDetailSettings(t *testing.T) {
+	keys := []string{
+		config.KeyCheckinActivityCapacityDetailsEnabled,
+		config.KeyCheckinRoomCapacityDetailsEnabled,
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equal(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
+		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
+		assert.Equal(t, "kapazität", def.Category, "setting %q should be in kapazität category", key)
+		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
+		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
+		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+
+	// Activity defaults to false: the rich kiosk message was never visible
+	// before issue #1879, so it stays opt-in.
+	activity := config.GetDefinition(config.KeyCheckinActivityCapacityDetailsEnabled)
+	assert.Equal(t, false, activity.Default, "activity capacity details should default to false (opt-in)")
+
+	// Room defaults to true: schools already see the rich room message today.
+	room := config.GetDefinition(config.KeyCheckinRoomCapacityDetailsEnabled)
+	assert.Equal(t, true, room.Default, "room capacity details should default to true (preserves existing behavior)")
+}
+
 func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
 	def := config.GetDefinition("operations.student_daily_checkout_time")
 	require.NotNil(t, def)
@@ -1049,10 +1338,14 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"checkout.raumwechsel_enabled", true},
 		{"checkout.schulhof_enabled", false},
 		{"checkout.wc_enabled", false},
+		{"checkin.activity_capacity_details_enabled", false},
+		{"checkin.room_capacity_details_enabled", true},
 		{"tracking.indicators_enabled", false},
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},
 		{"tracking.indicator_3", ""},
+		{"tracking.auto_checkout_enabled", false},
+		{"tracking.auto_checkout_grace_minutes", 15},
 		{"attendance.web_spontaneous_activities_enabled", true},
 		{"operations.student_photos_enabled", false},
 	}
@@ -1131,4 +1424,32 @@ func TestTrackingIndicator_Validation(t *testing.T) {
 	enabledDef := config.GetDefinition("tracking.indicators_enabled")
 	require.NotNil(t, enabledDef)
 	assert.Nil(t, enabledDef.Validation, "boolean toggle should have no validation")
+}
+
+// TestAutoCheckoutSettings guards the #1798 auto-checkout pair: opt-in toggle
+// (must default to OFF so no school auto-closes sessions without consent) and
+// a grace-minutes number gated behind the toggle.
+func TestAutoCheckoutSettings(t *testing.T) {
+	enabled := config.GetDefinition(config.KeyTrackingAutoCheckoutEnabled)
+	require.NotNil(t, enabled, "tracking.auto_checkout_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, false, enabled.Default, "must default to false - pure opt-in")
+	assert.Equal(t, "operations", enabled.Tab)
+	assert.Equal(t, "zeiterfassung", enabled.Category)
+	assert.Equal(t, "config:update", enabled.WritePermission)
+	assert.Nil(t, enabled.DependsOn)
+
+	grace := config.GetDefinition(config.KeyTrackingAutoCheckoutGraceMinutes)
+	require.NotNil(t, grace, "tracking.auto_checkout_grace_minutes should be registered")
+	assert.Equal(t, config.FieldNumber, grace.Type)
+	assert.Equal(t, 15, grace.Default)
+	require.NotNil(t, grace.DependsOn, "grace minutes should be gated behind the toggle")
+	assert.Equal(t, config.KeyTrackingAutoCheckoutEnabled, grace.DependsOn.Key)
+	assert.Equal(t, "eq", grace.DependsOn.Condition)
+	assert.Equal(t, true, grace.DependsOn.Value)
+	require.NotNil(t, grace.Validation)
+	require.NotNil(t, grace.Validation.Min)
+	require.NotNil(t, grace.Validation.Max)
+	assert.Equal(t, float64(0), *grace.Validation.Min)
+	assert.Equal(t, float64(240), *grace.Validation.Max)
 }

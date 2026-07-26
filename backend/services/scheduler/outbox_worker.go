@@ -2,11 +2,9 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
@@ -21,51 +19,13 @@ func (s *Scheduler) scheduleOutboxWorkerTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "email-outbox",
-		Schedule: "interval-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runOutboxWorkerTaskPolling(task)
+	s.registerTask("email-outbox", "interval-poll", s.runOutboxWorkerTaskPolling)
 }
 
 func (s *Scheduler) runOutboxWorkerTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in outbox worker task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("outbox worker using interval polling")
-
-	// Brief startup delay so the rest of the services finish booting
-	// before the first claim. Honor s.done so shutdown during startup
-	// is responsive.
-	select {
-	case <-time.After(15 * time.Second):
-	case <-s.done:
-		return
-	}
-	s.runOutboxOnce(task)
-
-	for {
-		interval := s.resolveOutboxInterval()
-		select {
-		case <-time.After(interval):
-			s.runOutboxOnce(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runIntervalPolling(task, "panic in outbox worker task",
+		"outbox worker using interval polling",
+		15*time.Second, s.resolveOutboxInterval, s.runOutboxOnce)
 }
 
 // resolveOutboxInterval reads the polling interval setting. Falls back

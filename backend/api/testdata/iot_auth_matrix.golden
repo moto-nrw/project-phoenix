@@ -1,0 +1,44 @@
+DELETE /api/iot/*/{id} -> 401 {"status":"error","error":"token unauthorized"}
+DELETE /api/iot/staff/{staffId}/rfid -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/*/ -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/active -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/device/{deviceId} -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/maintenance -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/offline -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/registered-by/{personId} -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/statistics -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/status/{status} -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/type/{type} -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/*/{id} -> 401 {"status":"error","error":"token unauthorized"}
+GET /api/iot/activities -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/attendance/status/{rfid} -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/config -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/rfid/{tagId} -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/rooms/available -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/school-name -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/session/current -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/session/timeout-info -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/status -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/students -> 401 {"status":"error","error":"device API key is required"}
+GET /api/iot/teachers/ -> 401 {"status":"error","error":"device API key is required"}
+PATCH /api/iot/*/{deviceId}/status -> 401 {"status":"error","error":"token unauthorized"}
+POST /api/iot/*/ -> 401 {"status":"error","error":"token unauthorized"}
+POST /api/iot/*/detect-new -> 401 {"status":"error","error":"token unauthorized"}
+POST /api/iot/*/scan-network -> 401 {"status":"error","error":"token unauthorized"}
+POST /api/iot/*/{deviceId}/ping -> 401 {"status":"error","error":"token unauthorized"}
+POST /api/iot/attendance/toggle -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/checkin -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/feedback -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/pickup-query -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/ping -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/session/activity -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/session/check-conflict -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/session/end -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/session/start -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/session/timeout -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/session/validate-timeout -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/staff-clock -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/staff-clock/state -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/staff/{staffId}/rfid -> 401 {"status":"error","error":"device API key is required"}
+PUT /api/iot/*/{id} -> 401 {"status":"error","error":"token unauthorized"}
+PUT /api/iot/session/{sessionId}/supervisors -> 401 {"status":"error","error":"device API key is required"}

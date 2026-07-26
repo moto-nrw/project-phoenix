@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,7 +14,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -22,7 +22,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
+	usercontextsvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // =============================================================================
@@ -94,6 +96,10 @@ func (m *mockUserContextService) GetMyGroups(ctx context.Context) ([]*education.
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockUserContextService) ResolveSSESubscription(context.Context) (*usercontextsvc.SSESubscription, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockUserContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error) {
 	return nil, errors.New("not implemented")
 }
@@ -131,10 +137,6 @@ func (m *mockUserContextService) UpdateCurrentProfile(ctx context.Context, updat
 
 func (m *mockUserContextService) UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error) {
 	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) WithTx(tx bun.Tx) interface{} {
-	return m
 }
 
 // =============================================================================
@@ -498,6 +500,34 @@ func TestToggleSchulhofSupervision_NotCurrentlySupervisingError(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
 	assert.Contains(t, rr.Body.String(), "user is not currently supervising the Schulhof")
+}
+
+func TestToggleSchulhofSupervision_RoomConflict(t *testing.T) {
+	mockSchulhof := &mockSchulhofService{
+		toggleSupervisionFunc: func(ctx context.Context, staffID int64, action string) (*facilities.SupervisionResult, error) {
+			return nil, fmt.Errorf("failed to get/create active group: %w", activeSvc.ErrRoomConflict)
+		},
+	}
+
+	mockUserContext := &mockUserContextService{
+		getCurrentStaffFunc: func(ctx context.Context) (*users.Staff, error) {
+			return &users.Staff{PersonID: 10}, nil
+		},
+	}
+
+	resource := NewSchulhofResource(mockSchulhof, mockUserContext)
+	router := setupSchulhofTestRouter(resource)
+	body := map[string]interface{}{
+		"action": "start",
+	}
+	bodyBytes, _ := json.Marshal(body)
+	req := httptest.NewRequest("POST", "/supervise", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := executeSchulhofRequest(router, req, testutil.AdminTestClaims(1), []string{"schulhof:write"})
+
+	assert.Equal(t, http.StatusConflict, rr.Code)
+	assert.Contains(t, rr.Body.String(), "room is already occupied by another active group")
 }
 
 func TestToggleSchulhofSupervision_ServiceError(t *testing.T) {

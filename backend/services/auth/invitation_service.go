@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -88,10 +89,7 @@ type invitationService struct {
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
 func (s *invitationService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewInvitationService constructs a new invitation service instance.
@@ -122,62 +120,6 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		db:                config.DB,
 		txHandler:         modelBase.NewTxHandler(config.DB),
 		logger:            logger,
-	}
-}
-
-// WithTx clones the service with repositories bound to the provided transaction when supported.
-func (s *invitationService) WithTx(tx bun.Tx) interface{} {
-	var invitationRepo = s.invitationRepo
-	var accountRepo = s.accountRepo
-	var accountTenantRepo = s.accountTenantRepo
-	var roleRepo = s.roleRepo
-	var accountRoleRepo = s.accountRoleRepo
-	var personRepo = s.personRepo
-	var staffRepo = s.staffRepo
-	var teacherRepo = s.teacherRepo
-
-	if txRepo, ok := s.invitationRepo.(modelBase.TransactionalRepository); ok {
-		invitationRepo = txRepo.WithTx(tx).(authModels.InvitationTokenRepository)
-	}
-	if txRepo, ok := s.accountRepo.(modelBase.TransactionalRepository); ok {
-		accountRepo = txRepo.WithTx(tx).(authModels.AccountRepository)
-	}
-	if txRepo, ok := s.accountTenantRepo.(modelBase.TransactionalRepository); ok {
-		accountTenantRepo = txRepo.WithTx(tx).(authModels.AccountTenantRepository)
-	}
-	if txRepo, ok := s.roleRepo.(modelBase.TransactionalRepository); ok {
-		roleRepo = txRepo.WithTx(tx).(authModels.RoleRepository)
-	}
-	if txRepo, ok := s.accountRoleRepo.(modelBase.TransactionalRepository); ok {
-		accountRoleRepo = txRepo.WithTx(tx).(authModels.AccountRoleRepository)
-	}
-	if txRepo, ok := s.personRepo.(modelBase.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
-	}
-	if txRepo, ok := s.staffRepo.(modelBase.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
-	}
-	if txRepo, ok := s.teacherRepo.(modelBase.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
-	}
-
-	return &invitationService{
-		invitationRepo:    invitationRepo,
-		accountRepo:       accountRepo,
-		accountTenantRepo: accountTenantRepo,
-		roleRepo:          roleRepo,
-		accountRoleRepo:   accountRoleRepo,
-		personRepo:        personRepo,
-		staffRepo:         staffRepo,
-		teacherRepo:       teacherRepo,
-		schoolRepo:        s.schoolRepo,
-		dispatcher:        s.dispatcher,
-		frontendURL:       s.frontendURL,
-		defaultFrom:       s.defaultFrom,
-		invitationExpiry:  s.invitationExpiry,
-		db:                s.db,
-		txHandler:         s.txHandler.WithTx(tx),
-		logger:            s.logger,
 	}
 }
 
@@ -301,7 +243,7 @@ func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation
 // ValidateInvitation returns the public details for a token if it is still usable.
 func (s *invitationService) ValidateInvitation(ctx context.Context, token string) (*InvitationValidationResult, error) {
 	var result *InvitationValidationResult
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		invitation, fetchErr := s.fetchValidInvitation(adminCtx, token)
 		if fetchErr != nil {
 			return fetchErr
@@ -332,7 +274,7 @@ func (s *invitationService) ValidateInvitation(ctx context.Context, token string
 // AcceptInvitation converts a token into a real account & person record.
 func (s *invitationService) AcceptInvitation(ctx context.Context, token string, userData UserRegistrationData) (*authModels.Account, error) {
 	var createdAccount *authModels.Account
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		invitation, fetchErr := s.fetchValidInvitation(adminCtx, token)
 		if fetchErr != nil {
 			return fetchErr
@@ -366,12 +308,11 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 
 		invitationCtx := tenant.WithTenantID(adminCtx, invitation.TenantID)
 		return s.txHandler.RunInTx(invitationCtx, func(txCtx context.Context, tx bun.Tx) error {
-			txService := s.WithTx(tx).(*invitationService)
-			account, accountErr := txService.findExistingAccountByEmail(txCtx, invitation.Email)
+			account, accountErr := s.findExistingAccountByEmail(txCtx, invitation.Email)
 			if accountErr != nil {
 				return &AuthError{Op: opAcceptInvitation, Err: accountErr}
 			}
-			created, txErr := txService.createAccountWithRole(txCtx, invitation, passwordHash, firstName, lastName, account)
+			created, txErr := s.createAccountWithRole(txCtx, invitation, passwordHash, firstName, lastName, account)
 			if txErr != nil {
 				return txErr
 			}
@@ -397,18 +338,6 @@ func (s *invitationService) findExistingAccountByEmail(ctx context.Context, emai
 		return nil, nil
 	}
 	return nil, err
-}
-
-func (s *invitationService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		return fn(ctx)
-	}
-	if s.db == nil {
-		return fn(ctx)
-	}
-	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return fn(adminCtx)
-	})
 }
 
 // validateAndHashPassword validates password match and strength, then returns the hash.
@@ -650,7 +579,7 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 		return nil
 	}
 
-	userRole, err := s.resolveSystemRoleByName(ctx, authModels.BaseRoleUser)
+	userRole, err := ResolveSystemRoleByName(ctx, s.roleRepo, authModels.BaseRoleUser)
 	if err != nil {
 		return &AuthError{Op: "assign caregiver role", Err: err}
 	}
@@ -661,8 +590,12 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 	return s.assignRole(ctx, accountID, userRole.ID, invitation.TenantID)
 }
 
-func (s *invitationService) resolveSystemRoleByName(ctx context.Context, name string) (*authModels.Role, error) {
-	roles, err := s.roleRepo.List(ctx, map[string]interface{}{
+// ResolveSystemRoleByName looks up the system (tenant-independent) role with
+// the given name via repo, matching case-insensitively. Returns (nil, nil)
+// when no system role matches. Shared across the invitation, caregiver, and
+// operator-provisioning services (audit B7 — was three private copies).
+func ResolveSystemRoleByName(ctx context.Context, repo authModels.RoleRepository, name string) (*authModels.Role, error) {
+	roles, err := repo.List(ctx, map[string]interface{}{
 		"name":      strings.TrimSpace(strings.ToLower(name)),
 		"is_system": true,
 	})
@@ -896,7 +829,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 	}
 
 	invitationURL := fmt.Sprintf("%s/invite?token=%s", frontend, invitation.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontend)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend)
 	expiryHours := int(s.invitationExpiry / time.Hour)
 
 	subject := "Einladung zu moto"
@@ -953,7 +886,7 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 		errText = &msg
 	}
 
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		return s.invitationRepo.UpdateDeliveryResult(adminCtx, meta.ReferenceID, sentAt, errText, retryCount)
 	})
 	if err != nil {
@@ -1006,6 +939,9 @@ func isNotFoundError(err error) bool {
 	if errors.Is(err, sql.ErrNoRows) {
 		return true
 	}
+	if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+		return true
+	}
 
 	var dbErr *modelBase.DatabaseError
 	if errors.As(err, &dbErr) {
@@ -1015,10 +951,11 @@ func isNotFoundError(err error) bool {
 	return false
 }
 
-// GetTenantSlugForToken resolves the tenant slug from an invitation token.
+// GetTenantSubdomainForToken resolves the tenant subdomain from an invitation
+// token. Tenant routing resolves hosts by subdomain, not slug (#1977).
 // Best-effort: returns "" on any error so the accept response still succeeds.
-func (s *invitationService) GetTenantSlugForToken(ctx context.Context, token string) string {
-	var slug string
+func (s *invitationService) GetTenantSubdomainForToken(ctx context.Context, token string) string {
+	var subdomain string
 	_ = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		invitation, err := s.invitationRepo.FindByToken(txCtx, token)
 		if err != nil {
@@ -1034,8 +971,8 @@ func (s *invitationService) GetTenantSlugForToken(ctx context.Context, token str
 		if school == nil || school.IsDeleted() {
 			return nil
 		}
-		slug = school.Slug
+		subdomain = school.Subdomain
 		return nil
 	})
-	return slug
+	return subdomain
 }

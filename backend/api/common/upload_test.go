@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,7 @@ func TestDetectContentType_JPEG(t *testing.T) {
 	jpegBytes[2] = 0xFF
 
 	reader := bytes.NewReader(jpegBytes)
-	contentType, err := detectContentType(reader)
+	contentType, err := detectImageContentType(reader)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "image/jpeg", contentType)
@@ -32,7 +33,7 @@ func TestDetectContentType_PNG(t *testing.T) {
 	copy(pngBytes, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
 
 	reader := bytes.NewReader(pngBytes)
-	contentType, err := detectContentType(reader)
+	contentType, err := detectImageContentType(reader)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "image/png", contentType)
@@ -43,7 +44,7 @@ func TestDetectContentType_Invalid(t *testing.T) {
 	copy(htmlBytes, []byte("<!DOCTYPE html><html><body>Hello</body></html>"))
 
 	reader := bytes.NewReader(htmlBytes)
-	_, err := detectContentType(reader)
+	_, err := detectImageContentType(reader)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid file type")
@@ -55,7 +56,7 @@ func TestDetectContentType_SmallFile(t *testing.T) {
 	copy(pngBytes, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
 
 	reader := bytes.NewReader(pngBytes)
-	contentType, err := detectContentType(reader)
+	contentType, err := detectImageContentType(reader)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "image/png", contentType)
@@ -63,7 +64,7 @@ func TestDetectContentType_SmallFile(t *testing.T) {
 
 func TestDetectContentType_Empty(t *testing.T) {
 	reader := bytes.NewReader([]byte{})
-	_, err := detectContentType(reader)
+	_, err := detectImageContentType(reader)
 
 	assert.Error(t, err)
 }
@@ -84,12 +85,12 @@ func TestFileExtension_DerivedFromContentType(t *testing.T) {
 }
 
 func TestGenerateRandomString(t *testing.T) {
-	result, err := generateRandomString(8)
+	result, err := randstr.String(8, randstr.Alphanumeric)
 	assert.NoError(t, err)
 	assert.Len(t, result, 8)
 
 	// Uniqueness
-	result2, err := generateRandomString(8)
+	result2, err := randstr.String(8, randstr.Alphanumeric)
 	assert.NoError(t, err)
 	assert.NotEqual(t, result, result2)
 }
@@ -178,6 +179,10 @@ func makeJPEGBytes() []byte {
 	return b
 }
 
+func makePDFBytes() []byte {
+	return []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF")
+}
+
 func TestParseImage_ValidJPEG(t *testing.T) {
 	req := createMultipartRequest(t, "image", "photo.jpg", makeJPEGBytes())
 	w := httptest.NewRecorder()
@@ -236,6 +241,37 @@ func TestParseImageWithLimits_RejectsFileOverAdvertisedLimit(t *testing.T) {
 	assert.Contains(t, err.Error(), "file too large")
 }
 
+func TestParsePDF_ValidDocument(t *testing.T) {
+	req := createMultipartRequest(t, "document", "terms.pdf", makePDFBytes())
+	w := httptest.NewRecorder()
+
+	uploaded, err := ParsePDFWithLimits(w, req, "document", 10<<20, 10<<20)
+	require.NoError(t, err)
+	defer func() { _ = uploaded.File.Close() }()
+
+	assert.Equal(t, "application/pdf", uploaded.ContentType)
+	assert.Equal(t, "terms.pdf", uploaded.Filename)
+}
+
+func TestParsePDF_RejectsNonPDFContent(t *testing.T) {
+	req := createMultipartRequest(t, "document", "terms.pdf", makeJPEGBytes())
+	w := httptest.NewRecorder()
+
+	_, err := ParsePDFWithLimits(w, req, "document", 10<<20, 10<<20)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Only PDF documents are allowed")
+}
+
+func TestParsePDFWithLimits_RejectsFileOverAdvertisedLimit(t *testing.T) {
+	content := append(makePDFBytes(), bytes.Repeat([]byte("x"), 1024)...)
+	req := createMultipartRequest(t, "document", "terms.pdf", content)
+	w := httptest.NewRecorder()
+
+	_, err := ParsePDFWithLimits(w, req, "document", int64(len(content)-1), int64(len(content)+1024))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "file too large")
+}
+
 func TestSaveImage_CreatesFileWithCorrectExtension(t *testing.T) {
 	dir := t.TempDir()
 	content := bytes.NewReader([]byte("fake image data"))
@@ -276,6 +312,21 @@ func TestSaveImage_UnknownContentType(t *testing.T) {
 	assert.NoError(t, statErr, "file should exist on disk")
 }
 
+func TestSavePDF_CreatesFileWithPDFExtension(t *testing.T) {
+	dir := t.TempDir()
+	content := makePDFBytes()
+
+	path, err := SavePDF(bytes.NewReader(content), dir, "agb")
+	require.NoError(t, err)
+
+	assert.True(t, strings.HasSuffix(path, ".pdf"), "expected .pdf extension, got %s", path)
+	assert.True(t, strings.Contains(filepath.Base(path), "agb_"), "filename should have prefix")
+
+	savedContent, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, content, savedContent)
+}
+
 func TestServeImage_ValidFile(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jpg")
@@ -298,6 +349,33 @@ func TestServeImage_PathTraversal(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	ServeImage(w, req, dir, "../../../etc/passwd", "public, max-age=86400")
+
+	assert.Equal(t, http.StatusNotFound, w.Result().StatusCode)
+}
+
+func TestServeFile_ValidPDF(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "terms.pdf")
+	require.NoError(t, os.WriteFile(filePath, makePDFBytes(), 0644))
+
+	req := httptest.NewRequest(http.MethodGet, "/documents/terms.pdf", nil)
+	w := httptest.NewRecorder()
+
+	ServeFile(w, req, dir, "terms.pdf", "public, max-age=3600")
+
+	resp := w.Result()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "public, max-age=3600", resp.Header.Get("Cache-Control"))
+	assert.Equal(t, "application/pdf", resp.Header.Get("Content-Type"))
+}
+
+func TestServeFile_PathTraversal(t *testing.T) {
+	dir := t.TempDir()
+
+	req := httptest.NewRequest(http.MethodGet, "/documents/../../../etc/passwd", nil)
+	w := httptest.NewRecorder()
+
+	ServeFile(w, req, dir, "../../../etc/passwd", "public, max-age=3600")
 
 	assert.Equal(t, http.StatusNotFound, w.Result().StatusCode)
 }

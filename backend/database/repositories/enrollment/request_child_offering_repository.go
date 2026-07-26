@@ -36,6 +36,41 @@ func (r *RequestChildOfferingRepository) Create(ctx context.Context, row *enroll
 	return nil
 }
 
+// ReplaceForRequestChild atomically replaces all offering links for one
+// request child. Callers must run it in the surrounding tenant transaction
+// when the replacement is part of a larger workflow.
+func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Context, requestChildID int64, rows []*enrollment.RequestChildOffering) error {
+	if requestChildID <= 0 {
+		return fmt.Errorf("request_child_id is required")
+	}
+	db := base.GetDB(ctx, r.db)
+	deleteQuery := db.NewDelete().
+		Model((*enrollment.RequestChildOffering)(nil)).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Where(`"request_child_offering".request_child_id = ?`, requestChildID)
+	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "request_child_offering")
+	if _, err := deleteQuery.Exec(ctx); err != nil {
+		return fmt.Errorf("failed to delete request child offerings: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	for _, row := range rows {
+		if row == nil {
+			return fmt.Errorf("request child offering row cannot be nil")
+		}
+		row.RequestChildID = requestChildID
+		base.EnsureTenantID(ctx, row)
+	}
+	if _, err := db.NewInsert().
+		Model(&rows).
+		ModelTableExpr("enrollment.request_child_offerings").
+		Exec(ctx); err != nil {
+		return fmt.Errorf("failed to insert replacement request child offerings: %w", err)
+	}
+	return nil
+}
+
 // ListByRequestChildID returns every offering picked for the given
 // child. Admin review (PR 8) and the parent status page (PR 7) call
 // this.

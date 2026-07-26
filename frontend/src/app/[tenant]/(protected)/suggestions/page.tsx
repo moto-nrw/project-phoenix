@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useMemo, useCallback, Suspense } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import {
-  PageHeaderWithSearch,
-  type FilterConfig,
-} from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type { FilterConfig } from "~/components/ui/page-header/types";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SuggestionCard } from "~/components/suggestions/suggestion-card";
-import { Skeleton } from "~/components/ui/skeleton";
 import { SuggestionForm } from "~/components/suggestions/suggestion-form";
 import { useSWRAuth } from "~/lib/swr";
 import { fetchSuggestions, deleteSuggestion } from "~/lib/suggestions-api";
@@ -18,6 +15,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { STATUS_LABELS } from "~/lib/suggestions-helpers";
 import type { Suggestion, SortOption } from "~/lib/suggestions-helpers";
 import { createLogger } from "~/lib/logger";
+import { SuggestionSkeletons } from "./page-skeleton";
 
 const logger = createLogger({ component: "SuggestionsPage" });
 
@@ -328,48 +326,6 @@ function EmptyState({
   );
 }
 
-function SuggestionSkeletons() {
-  return (
-    <div className="mt-4 space-y-4">
-      {Array.from({ length: 3 }, (_, i) => (
-        <div
-          key={i}
-          className="moto-content-surface rounded-3xl border p-5 shadow-sm"
-        >
-          <div className="flex flex-col gap-3 md:flex-row md:gap-4">
-            <div className="hidden md:flex md:items-start md:pt-1">
-              <Skeleton className="h-20 w-10 rounded-xl" />
-            </div>
-            <div className="min-w-0 flex-1 space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <Skeleton className="h-5 w-3/5 rounded" />
-                <Skeleton className="h-5 w-16 rounded-full" />
-              </div>
-              <Skeleton className="h-4 w-full rounded" />
-              <Skeleton className="h-4 w-4/5 rounded" />
-              <div className="flex items-center gap-2 pt-1">
-                <Skeleton className="h-5 w-5 rounded-full" />
-                <Skeleton className="h-3 w-24 rounded" />
-                <Skeleton className="h-3 w-20 rounded" />
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function SuggestionsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="-mt-1.5 w-full">
-          <SuggestionSkeletons />
-        </div>
-      }
-    >
-      <SuggestionsPageContent />
-    </Suspense>
-  );
+  return <SuggestionsPageContent />;
 }

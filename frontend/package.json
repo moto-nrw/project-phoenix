@@ -6,8 +6,10 @@
   "type": "module",
   "scripts": {
     "build": "next build",
+    "build-storybook": "node scripts/build-storybook.mjs",
     "check": "node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
+    "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
     "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
@@ -17,6 +19,7 @@
     "lint:fix": "oxlint --fix .",
     "preview": "next build && next start",
     "start": "next start",
+    "storybook": "storybook dev -p 6006",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
@@ -26,83 +29,70 @@
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",
-    "@marsidev/react-turnstile": "^1.3.0",
+    "@marsidev/react-turnstile": "^1.5.3",
     "@moto-nrw/design-system": "^0.5.2",
-    "@radix-ui/react-focus-scope": "^1.1.9",
-    "@radix-ui/react-tabs": "^1.1.14",
-    "@sentry/nextjs": "^10.56.0",
+    "@radix-ui/react-focus-scope": "^1.1.12",
+    "@radix-ui/react-tabs": "^1.1.17",
+    "@sentry/nextjs": "^10.65.0",
+    "@simplewebauthn/browser": "^13.3.0",
     "@t3-oss/env-nextjs": "^0.13.11",
-    "axios": "^1.17.0",
+    "axios": "^1.18.1",
     "browser-image-compression": "^2.0.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
-    "framer-motion": "^12.40.0",
+    "framer-motion": "^12.42.2",
     "fuse.js": "^7.4.2",
-    "lucide-react": "^1.17.0",
-    "next": "^16.2.7",
+    "lucide-react": "^1.24.0",
+    "next": "^16.2.10",
     "next-auth": "5.0.0-beta.31",
-    "next-intl": "^4.13.0",
-    "posthog-js": "^1.382.0",
+    "next-intl": "^4.13.2",
+    "posthog-js": "^1.399.2",
     "prom-client": "^15.1.3",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",
-    "recharts": "^3.8.1",
-    "swr": "^2.4.1",
+    "recharts": "^3.9.2",
+    "sharp": "^0.35.3",
+    "swr": "^2.4.2",
     "tailwind-merge": "^3.6.0",
     "vaul": "^1.1.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
-    "@tailwindcss/postcss": "^4.3.0",
+    "@playwright/test": "^1.61.1",
+    "@storybook/addon-a11y": "^10.5.0",
+    "@storybook/nextjs-vite": "^10.5.0",
+    "@tailwindcss/postcss": "^4.3.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@types/node": "^25.9.2",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.2",
-    "@vitest/coverage-v8": "^4.1.8",
-    "happy-dom": "^20.10.2",
+    "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.10",
+    "dependency-cruiser": "^18.1.0",
+    "happy-dom": "^20.10.6",
     "jsdom": "^29.1.1",
-    "knip": "^6.16.1",
-    "lint-staged": "^17.0.7",
-    "oxlint": "^1.68.0",
-    "oxlint-tsgolint": "^0.23.0",
+    "knip": "^6.26.0",
+    "lint-staged": "^17.0.8",
+    "oxlint": "^1.73.0",
+    "oxlint-tsgolint": "^0.24.0",
     "pdf-lib": "^1.17.1",
-    "postcss": "^8.5.15",
-    "prettier": "^3.8.3",
+    "postcss": "^8.5.18",
+    "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.0",
-    "sharp": "^0.34.5",
-    "tailwindcss": "^4.3.0",
+    "storybook": "^10.5.0",
+    "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.8"
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
   },
   "ct3aMetadata": {
     "initVersion": "7.39.3"
   },
-  "packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "unrs-resolver"
-    ],
-    "overrides": {
-      "@radix-ui/react-focus-scope": "^1.1.9",
-      "picomatch@<2.3.2": "2.3.2",
-      "picomatch@>=4 <4.0.4": "4.0.4",
-      "postcss@<8.5.10": "8.5.14",
-      "smol-toml@<1.6.1": "1.6.1"
-    },
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "next-auth>next": ">=14"
-      }
-    }
-  },
+  "packageManager": "pnpm@10.34.4+sha512.8768be55200ae3f2226b6527fcca2687e14bc4e5f12d7721a0f25da3df47915177058648db4177baf348120fa0ba2752d8d8d93f6beaf1fe64ae18da8de961af",
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mdx}": [
       "prettier --write",
@@ -110,31 +100,14 @@
     ]
   },
   "knip": {
-    "entry": [
-      "src/app/**/*.{ts,tsx}",
-      "src/env.js",
-      "src/sentry.client.config.ts",
-      "src/sentry.server.config.ts",
-      "src/lib/utils.ts",
-      "src/lib/image-utils.ts",
-      "src/lib/database/configs/*.{ts,tsx}",
-      "src/lib/swr/index.ts",
-      "src/server/auth/token-refresh.ts",
-      "src/server/auth/shared.ts",
-      "src/server/auth/operator.ts",
-      "src/**/*.test.{ts,tsx}",
-      "src/test/mocks/*.ts",
-      "src/test/fixtures/*.ts",
-      "src/test/helpers/*.ts"
-    ],
-    "project": [
-      "src/**/*.{ts,tsx,js}"
+    "includeEntryExports": true,
+    "ignore": [
+      ".storybook/mocks/**",
+      "doctor.config.js"
     ],
     "ignoreDependencies": [
       "sharp",
-      "lint-staged",
-      "@fontsource/geist-sans",
-      "@moto-nrw/design-system"
+      "lint-staged"
     ]
   }
 }

@@ -3,6 +3,22 @@ import type { ErrorEvent } from "@sentry/nextjs";
 const routerStateParseMessage =
   "The router state header was sent but could not be parsed.";
 
+// The parent calendar-feed capability token rides in the URL path
+// (/api/calendar-feed/{token}, proxied to /public/calendar/{token}). Redact it
+// from any recorded URL/path so a Sentry event can't leak a replayable token —
+// mirrors the backend request-log redactor.
+const feedTokenPatterns = [
+  /(\/api\/calendar-feed\/)[^/?#\s"]+/g,
+  /(\/public\/calendar\/)[^/?#\s"]+/g,
+];
+
+function redactFeedToken(value: string): string {
+  return feedTokenPatterns.reduce(
+    (acc, pattern) => acc.replace(pattern, "$1[REDACTED]"),
+    value,
+  );
+}
+
 /**
  * Shared Sentry beforeSend handler for GDPR-compliant event scrubbing.
  * Used by client, server, and edge configs to keep scrubbing rules in sync.
@@ -28,6 +44,29 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
     delete event.user.ip_address;
     delete event.user.email;
     delete event.user.username;
+  }
+
+  // Redact the calendar-feed token from any URL/path Sentry captured.
+  if (event.request?.url) {
+    event.request.url = redactFeedToken(event.request.url);
+  }
+  if (typeof event.transaction === "string") {
+    event.transaction = redactFeedToken(event.transaction);
+  }
+  const requestPath = getNestedString(event.contexts, "nextjs", "request_path");
+  if (requestPath && isRecord(event.contexts?.nextjs)) {
+    event.contexts.nextjs.request_path = redactFeedToken(requestPath);
+  }
+  if (event.breadcrumbs) {
+    for (const breadcrumb of event.breadcrumbs) {
+      if (typeof breadcrumb.message === "string") {
+        breadcrumb.message = redactFeedToken(breadcrumb.message);
+      }
+      const url = breadcrumb.data?.url;
+      if (typeof url === "string") {
+        breadcrumb.data!.url = redactFeedToken(url);
+      }
+    }
   }
 
   return event;

@@ -1,9 +1,5 @@
-import {
-  createParentGetHandler,
-  createParentPostHandler,
-  parentApiGet,
-  parentApiPost,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet, proxyPost } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface BackendStatusDay {
   id: string;
@@ -18,21 +14,35 @@ interface BackendStatusDay {
 interface SickNoteBody {
   dates: string[];
   reason?: string;
+  status?: string;
+}
+
+interface BackendExcusedRequest {
+  id: string;
+  student_id: string;
+  status: string;
+  dates: string[];
+  note: string;
+  decision_reason?: string;
+  created_at: string;
+  reviewed_at?: string;
+}
+
+// The POST response is the envelope `{ status_days, pending_request? }` — an
+// excused submission behind the approval gate returns an empty status_days and
+// a populated pending_request instead of recording the days immediately.
+interface SickNoteSubmitResponse {
+  status_days: BackendStatusDay[];
+  pending_request?: BackendExcusedRequest;
 }
 
 /**
  * Proxy GET /api/parent/me/children/{studentId}/sick-note → backend.
  * Returns the child's active sick days (today .. +2 months by default).
  */
-export const GET = createParentGetHandler<BackendStatusDay[]>(
-  async (request, token, params) => {
-    const studentId = String(params.studentId);
-    const search = new URL(request.url).search;
-    return parentApiGet<BackendStatusDay[]>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/sick-note${search}`,
-      token,
-    );
-  },
+export const GET = proxyGet<BackendStatusDay[]>(
+  (params) =>
+    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/sick-note`,
 );
 
 /**
@@ -41,13 +51,7 @@ export const GET = createParentGetHandler<BackendStatusDay[]>(
  * the parent session token + 401 retry. The backend verifies the account
  * is a guardian of the child (account id from the JWT, never the URL).
  */
-export const POST = createParentPostHandler<BackendStatusDay[], SickNoteBody>(
-  async (_request, body, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiPost<BackendStatusDay[], SickNoteBody>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
-      token,
-      body,
-    );
-  },
+export const POST = proxyPost<SickNoteSubmitResponse, SickNoteBody>(
+  (params) =>
+    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/sick-note`,
 );

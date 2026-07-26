@@ -223,31 +223,6 @@ func TestGuest_AddNotes(t *testing.T) {
 	})
 }
 
-func TestGuest_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		guest := &Guest{StaffID: 1, ActivityExpertise: "Soccer"}
-		err := guest.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		guest := &Guest{StaffID: 1, ActivityExpertise: "Soccer"}
-		err := guest.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
-func TestGuest_TableName(t *testing.T) {
-	guest := &Guest{}
-	if got := guest.TableName(); got != "users.guests" {
-		t.Errorf("TableName() = %v, want users.guests", got)
-	}
-}
-
 func TestGuest_GetID(t *testing.T) {
 	guest := &Guest{
 		Model:             base.Model{ID: 42},

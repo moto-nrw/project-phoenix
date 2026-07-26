@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -178,7 +179,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 	room := &facilities.Room{
 		Name:     uniqueName,
 		Building: "Test Building",
-		Capacity: intPtr(30),
+		Capacity: IntPtr(30),
 	}
 	room.SetTenantID(1)
 
@@ -204,9 +205,9 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
-		Name:       stringPtr("Test Device"),
+		Name:       StrPtr("Test Device"),
 		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.SetTenantID(1)
 
@@ -231,7 +232,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	device := &iot.Device{
 		DeviceID:   iot.WebManualDeviceID,
 		DeviceType: iot.DeviceTypeVirtual,
-		Name:       stringPtr("Web-Portal (Manuell)"),
+		Name:       StrPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
 	}
 	device.SetTenantID(1)
@@ -929,15 +930,6 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 	return supervisor
 }
 
-// Helper functions for pointer creation
-func stringPtr(s string) *string {
-	return &s
-}
-
-func intPtr(i int) *int {
-	return &i
-}
-
 // CleanupPerson removes a person from the database by ID.
 func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
 	tb.Helper()
@@ -953,6 +945,64 @@ func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
 	tb.Helper()
 
 	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupRoleRecords removes roles and their role-permission/account-role associations.
+// Deliberately separate from CleanupAccount, which never deletes by role ID.
+func CleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
+	tb.Helper()
+	if len(roleIDs) == 0 {
+		return
+	}
+
+	ctx := TenantContext(1)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.role_permissions").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.account_roles").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+
+	_, err := db.NewDelete().
+		TableExpr("auth.roles").
+		Where("id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup roles: %v", err)
+	}
+}
+
+// CleanupPermissionRecords removes permissions and their role/account associations.
+// Deliberately separate from CleanupAccount, which never deletes by permission ID.
+func CleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64) {
+	tb.Helper()
+	if len(permissionIDs) == 0 {
+		return
+	}
+
+	ctx := TenantContext(1)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.role_permissions").
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.account_permissions").
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+
+	_, err := db.NewDelete().
+		TableExpr("auth.permissions").
+		Where("id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup permissions: %v", err)
+	}
 }
 
 // CleanupStaffFixtures removes staff fixtures from the database.
@@ -1287,6 +1337,48 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	return staff, account
 }
 
+// CreateTestCalendarStaff creates a staff member that is reachable for calendar
+// invitations. On top of CreateTestStaffWithAccount it adds an active
+// account_tenants mapping for tenant 1 and the base "user" role (which carries
+// calendar:own via migration 1.15.171), mirroring a real onboarded staff
+// account so FindReachableCalendarStaffIDs treats them as invitable. Use this in
+// calendar tests wherever staff must be selectable recipients. Cleanup: the
+// added rows are removed by CleanupAuthFixtures (account_tenants + account_roles
+// by account_id), which calendar tests already call for the account.
+func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
+
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    1,
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create staff account_tenants mapping")
+
+	var userRoleID int64
+	err = db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleUser).
+		Scan(ctx, &userRoleID)
+	require.NoError(tb, err, "Failed to find seeded user role")
+
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: userRoleID}
+	roleAssignment.SetTenantID(1)
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign user role to staff account")
+
+	return staff, account
+}
+
 // CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
 // Returns the teacher and account for auth context testing.
 func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *auth.Account) {
@@ -1314,33 +1406,6 @@ func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	teacher.Staff = staff
 
 	return teacher, account
-}
-
-// CreateTestStaffWithPIN creates a staff member with account and a hashed PIN.
-// This is required for testing PIN validation flows.
-func CreateTestStaffWithPIN(tb testing.TB, db *bun.DB, firstName, lastName, pin string) (*users.Staff, *auth.Account) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create staff with account
-	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
-
-	// Hash and set the PIN
-	err := account.HashPIN(pin)
-	require.NoError(tb, err, "Failed to hash PIN")
-
-	// Update account with PIN hash
-	_, err = db.NewUpdate().
-		Model(account).
-		ModelTableExpr(`auth.accounts`).
-		Column("pin_hash").
-		Where(whereIDEquals, account.ID).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to update account with PIN")
-
-	return staff, account
 }
 
 // AssignStudentToGroup updates a student's group assignment.
@@ -1725,67 +1790,9 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 	return account
 }
 
-// CreateTestPersonGuardian creates a person-guardian relationship in the database.
-// The guardianAccountID should be a parent account ID (from CreateTestParentAccount).
-func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccountID int64, relType string) *users.PersonGuardian {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	pg := &users.PersonGuardian{
-		PersonID:          personID,
-		GuardianAccountID: guardianAccountID,
-		RelationshipType:  users.RelationshipType(relType),
-		IsPrimary:         true,
-		Permissions:       "{}", // Valid empty JSON object
-	}
-	pg.SetTenantID(1)
-
-	err := db.NewInsert().
-		Model(pg).
-		ModelTableExpr(`users.persons_guardians`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test person guardian relationship")
-
-	return pg
-}
-
 // ============================================================================
 // Schedule Domain Fixtures
 // ============================================================================
-
-// CreateTestTimeframe creates a timeframe in the database.
-// This is used for schedule-related tests that need a timeframe reference.
-func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedule.Timeframe {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make description unique
-	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
-
-	now := time.Now()
-	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
-	endTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
-
-	timeframe := &schedule.Timeframe{
-		StartTime:   startTime,
-		EndTime:     &endTime,
-		IsActive:    true,
-		Description: uniqueDesc,
-	}
-	timeframe.SetTenantID(1)
-
-	err := db.NewInsert().
-		Model(timeframe).
-		ModelTableExpr(`schedule.timeframes`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test timeframe")
-
-	return timeframe
-}
 
 // CleanupScheduleFixtures removes schedule-related fixtures from the database.
 func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
@@ -2198,7 +2205,7 @@ func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name str
 	room := &facilities.Room{
 		Name:     uniqueName,
 		Building: "Test Building",
-		Capacity: intPtr(30),
+		Capacity: IntPtr(30),
 	}
 	room.SetTenantID(tenantID)
 
@@ -2276,9 +2283,9 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
-		Name:       stringPtr("Test Device " + uniqueDeviceID),
+		Name:       StrPtr("Test Device " + uniqueDeviceID),
 		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.SetTenantID(tenantID)
 
@@ -2789,22 +2796,93 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 	return row
 }
 
+// StaffShiftOpts controls optional fields for CreateTestStaffShift.
+type StaffShiftOpts struct {
+	StartHHMM   string // default "08:00"
+	EndHHMM     string // default "16:00"
+	Notes       string
+	Cancelled   bool
+	ShiftTypeID *int64
+}
+
+// CreateTestStaffShift inserts a Dienstplan shift (schedule.staff_shifts) for
+// the staff member on the given date, tenant 1. created_by is stamped with the
+// staff's own id. Cleanup: CleanupTableRecords(t, db, "schedule.staff_shifts", row.ID).
+func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date timezone.Date, opts StaffShiftOpts) *schedule.StaffShift {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	startHHMM := opts.StartHHMM
+	if startHHMM == "" {
+		startHHMM = "08:00"
+	}
+	endHHMM := opts.EndHHMM
+	if endHHMM == "" {
+		endHHMM = "16:00"
+	}
+
+	row := &schedule.StaffShift{
+		StaffID:     staffID,
+		Date:        date,
+		StartTime:   parseTimeHHMM(tb, startHHMM),
+		EndTime:     parseTimeHHMM(tb, endHHMM),
+		Notes:       opts.Notes,
+		Cancelled:   opts.Cancelled,
+		ShiftTypeID: opts.ShiftTypeID,
+		CreatedBy:   staffID,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.staff_shifts`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test staff shift")
+	return row
+}
+
+// InstanceStudentOpts controls optional fields for CreateTestInstanceStudent.
+type InstanceStudentOpts struct {
+	// NotScheduled sets the #1747 non-booking marker ending a block stamps on
+	// children the care plan did not place there that day.
+	NotScheduled bool
+	// StudentStatusDayID records that a broad day status (sick / excused /
+	// class trip) owns this row's outcome, the provenance ApplyStatusDay
+	// writes. A manual decision and a check-in both clear it, so a nil value
+	// is what separates "a human decided this" from "a day status did".
+	StudentStatusDayID *int64
+	// ManualStatusAt reproduces an attendance PATCH: a human set this row's
+	// status by hand. Completion must leave such a row alone rather than stamp
+	// it as a non-booking (#1747).
+	ManualStatusAt *time.Time
+}
+
 // CreateTestInstanceStudent inserts one instance_students row. Status defaults
-// to AttendanceStatusExpected when empty.
-func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string) *schedule.InstanceStudent {
+// to AttendanceStatusExpected when empty; opts is optional and only the first
+// entry is read.
+func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string, opts ...InstanceStudentOpts) *schedule.InstanceStudent {
 	tb.Helper()
 
 	if status == "" {
 		status = schedule.AttendanceStatusExpected
+	}
+	var opt InstanceStudentOpts
+	if len(opts) > 0 {
+		opt = opts[0]
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	row := &schedule.InstanceStudent{
-		InstanceID: instanceID,
-		StudentID:  studentID,
-		Status:     status,
+		InstanceID:         instanceID,
+		StudentID:          studentID,
+		Status:             status,
+		NotScheduled:       opt.NotScheduled,
+		StudentStatusDayID: opt.StudentStatusDayID,
+		ManualStatusAt:     opt.ManualStatusAt,
 	}
 	row.SetTenantID(1)
 
@@ -2814,6 +2892,40 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to create test instance student")
 	return row
+}
+
+// CreateTestStudentStatusDay inserts one reported broad day status (sick /
+// excused / class trip) for a student on a date. Callers that pass its ID into
+// InstanceStudentOpts.StudentStatusDayID reproduce the state ApplyStatusDay
+// leaves behind: a slot absence the day status owns. Clean up with
+// CleanupStudentStatusDays.
+func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *active.StudentStatusDay {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &active.StudentStatusDay{
+		StudentID:  studentID,
+		Date:       date,
+		Status:     status,
+		ReportedAt: time.Now(),
+		Source:     active.StudentStatusSourceManual,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`active.student_status_days`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test student status day")
+	return row
+}
+
+// CleanupStudentStatusDays removes status-day rows by ID. Safe to defer.
+func CleanupStudentStatusDays(tb testing.TB, db *bun.DB, ids ...int64) {
+	tb.Helper()
+	CleanupTableRecords(tb, db, "active.student_status_days", ids...)
 }
 
 // InstanceStaffOpts controls optional fields for CreateTestInstanceStaff.
@@ -2950,11 +3062,12 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 		StudentID:          student.ID,
 		GuardianProfileID:  profile.ID,
 		RelationshipType:   "parent",
-		IsPrimary:          true,
 		IsEmergencyContact: true,
 		CanPickup:          true,
 		EmergencyPriority:  1,
 	}
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
+	link.IsPrimary = true
 	link.SetTenantID(1)
 	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create students_guardians link")
@@ -2968,6 +3081,26 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	}
 	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create account_tenants mapping")
+
+	// Assign the auth guardian role, mirroring production: both
+	// guardianInvitationService.linkProfileToAccount and
+	// guardianService.ensureGuardianRole grant this role, and parent login
+	// (plus reachability checks like FindActivePortalProfilesByIDs) rejects
+	// accounts without it. Without this a portal-capable guardian couldn't
+	// exist in the real system. The 'guardian' role is seeded by migration
+	// 1.7.4, so it always exists in the test DB.
+	var guardianRoleID int64
+	err = db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleGuardian).
+		Scan(ctx, &guardianRoleID)
+	require.NoError(tb, err, "Failed to find seeded guardian role")
+
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
+	roleAssignment.SetTenantID(1)
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign guardian role")
 
 	return ParentChain{
 		AccountID:         account.ID,
@@ -2992,12 +3125,51 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 			tb.Logf("cleanup warning: %v", err)
 		}
 	}
-	exec(`DELETE FROM users.student_parent_notes WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM users.student_data_change_requests WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM users.guardian_phone_numbers WHERE guardian_profile_id = ?`, c.GuardianProfileID)
+	// Parent messaging rows FIRST: threads reference users.students and
+	// auth.accounts WITHOUT ON DELETE CASCADE, so any thread/message/read a test
+	// created on this chain blocks the student/account deletes below with an FK
+	// violation (and leaks rows into the shared test DB). Deleting the threads
+	// would cascade messages + reads via their thread_id FK, but delete all three
+	// explicitly by student so a stray row never survives.
+	exec(`DELETE FROM users.parent_message_reads WHERE thread_id IN (SELECT id FROM users.parent_message_threads WHERE student_id = ?)`, c.StudentID)
+	exec(`DELETE FROM users.parent_messages WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM users.parent_message_threads WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM auth.account_roles WHERE account_id = ?`, c.AccountID)
 	exec(`DELETE FROM auth.account_tenants WHERE account_id = ?`, c.AccountID)
 	exec(`DELETE FROM users.guardian_profiles WHERE id = ?`, c.GuardianProfileID)
 	exec(`DELETE FROM users.students WHERE id = ?`, c.StudentID)
 	exec(`DELETE FROM users.persons WHERE id = ?`, c.PersonID)
 	exec(`DELETE FROM auth.accounts WHERE id = ?`, c.AccountID)
+}
+
+// CleanupParentMessagingForAccount removes parent-messaging rows that reference
+// an account directly: message reads keyed by account_id and messages sent by
+// the account (sender_account_id). Both columns FK auth.accounts(id) WITHOUT ON
+// DELETE CASCADE, so a test that sends a message or records a read from a
+// SEPARATE staff/reader account (distinct from the guardian chain) must clear
+// those rows before deleting that account — otherwise CleanupAuthFixtures hits
+// an FK violation and leaks the account into the shared test DB.
+//
+// CleanupParentGuardianChain already deletes these rows by student_id, but defers
+// run LIFO: the staff-account cleanup is registered last and so runs first.
+// Register this helper as the LAST defer (it then runs FIRST) so it clears the
+// FK ahead of the account delete.
+func CleanupParentMessagingForAccount(tb testing.TB, db *bun.DB, accountIDs ...int64) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	exec := func(query string, arg int64) {
+		if _, err := db.ExecContext(ctx, query, arg); err != nil {
+			tb.Logf("cleanup warning: %v", err)
+		}
+	}
+	for _, id := range accountIDs {
+		exec(`DELETE FROM users.parent_message_reads WHERE account_id = ?`, id)
+		exec(`DELETE FROM users.parent_messages WHERE sender_account_id = ?`, id)
+	}
 }

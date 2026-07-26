@@ -31,15 +31,9 @@ func init() {
 		Tab:             "system",
 		Category:        "datenbereinigung",
 		SortOrder:       21,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyDataCleanupEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
-	minTimeout := float64(5)
-	maxTimeout := float64(120)
 	config.Register(config.Definition{
 		Key:             config.KeyDataCleanupTimeoutMinutes,
 		Label:           "Bereinigung Timeout (Minuten)",
@@ -51,12 +45,8 @@ func init() {
 		Tab:             "system",
 		Category:        "datenbereinigung",
 		SortOrder:       22,
-		Validation:      &config.ValidationRules{Min: &minTimeout, Max: &maxTimeout},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyDataCleanupEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(5, 120),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
 	// --- Anwesenheitsprotokoll / Raumverlauf (per-student attendance history) ---
@@ -74,8 +64,6 @@ func init() {
 		SortOrder:       10,
 	})
 
-	minDays := float64(1)
-	maxDays := float64(365)
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceVisibleDays,
 		Label:           "Sichtbarkeitsdauer Anwesenheit (Tage)",
@@ -87,12 +75,8 @@ func init() {
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       11,
-		Validation:      &config.ValidationRules{Min: &minDays, Max: &maxDays},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceLogEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(1, 365),
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceLogEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -106,12 +90,8 @@ func init() {
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       12,
-		Validation:      &config.ValidationRules{Min: &minDays, Max: &maxDays},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceLogEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(1, 365),
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceLogEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -131,11 +111,7 @@ func init() {
 				{Label: "Alle berechtigten Mitarbeitenden", Value: config.AttendanceLogScopeAllStaff},
 			},
 		},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceLogEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn: config.DependsOnEq(config.KeyAttendanceLogEnabled, true),
 	})
 
 	// --- Zeiterfassung Aufbewahrung (ArbZG + DSGVO retention window) ---
@@ -169,11 +145,7 @@ func init() {
 				{Label: "8 Jahre", Value: 2920},
 			},
 		},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyDataCleanupEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn: config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
 	// --- Datenschutz-Einwilligung: Aufbewahrung der Besuchsdaten ---
@@ -183,8 +155,6 @@ func init() {
 	// Issue #586 (Rule 12): Der frühere fest verdrahtete 30-Tage-Standard
 	// samt 1..31-Grenzen wurde aus dem PrivacyConsent-Modell in diese
 	// per-Schule konfigurierbare Einstellung verschoben.
-	minRetentionDays := float64(1)
-	maxRetentionDays := float64(31)
 	config.Register(config.Definition{
 		Key:             config.KeyPrivacyConsentRetentionDays,
 		Label:           "Standard-Aufbewahrungsdauer Besuchsdaten (Tage)",
@@ -196,7 +166,7 @@ func init() {
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       14,
-		Validation:      &config.ValidationRules{Min: &minRetentionDays, Max: &maxRetentionDays},
+		Validation:      config.Range(1, 31),
 	})
 
 	// --- Änderungsprotokoll pro Kind: Aufbewahrung (issue #1455) ---

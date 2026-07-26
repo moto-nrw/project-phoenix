@@ -31,7 +31,9 @@ vi.mock("./session-cache", () => {
 import { getCachedSession } from "./session-cache";
 import {
   staffAbsenceService,
+  staffBalanceAdjustmentService,
   staffHistoryService,
+  staffMonthSummaryService,
   staffScheduleService,
   staffService,
   staffSessionEditsService,
@@ -201,6 +203,60 @@ describe("staff-api", () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/staff?search=Max",
+        expect.any(Object),
+      );
+    });
+
+    it("appends the strict flag to the base URL (#1840)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      await staffService.getAllStaff(undefined, { strict: true });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff?strict=1",
+        expect.any(Object),
+      );
+    });
+
+    it("appends the strict flag after an existing search query (#1840)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      await staffService.getAllStaff({ search: "Max" }, { strict: true });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff?search=Max&strict=1",
         expect.any(Object),
       );
     });
@@ -869,6 +925,34 @@ describe("staff-api", () => {
       expect(result[0]?.currentLocation).toBe("Fortbildung");
     });
 
+    it("returns Freizeitausgleich for comp-time absence", async () => {
+      const staffOnCompTime: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        absence_type: "comp_time",
+      };
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffOnCompTime]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.currentLocation).toBe("Freizeitausgleich");
+      expect(result[0]?.absenceType).toBe("comp_time");
+    });
+
     it("returns Abwesend for other absence type", async () => {
       const staffAbsent: BackendStaffResponse = {
         ...sampleBackendStaff,
@@ -1201,6 +1285,31 @@ describe("staff-api", () => {
       expect(result.validFrom).toBe("2026-06-01");
     });
 
+    it("maps optional staff schedule start times", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              ...backendSchedule,
+              entries: [
+                {
+                  week_index: 0,
+                  day_of_week: 0,
+                  target_minutes: 480,
+                  start_time: "09:00",
+                },
+              ],
+            },
+          }),
+      } as Response);
+
+      const result = await staffScheduleService.getSchedule("1");
+
+      expect(result.entries[0]?.startTime).toBe("09:00");
+    });
+
     it("sends template updates with numeric model id", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
@@ -1255,6 +1364,50 @@ describe("staff-api", () => {
       );
       expect(result.model).toBeNull();
     });
+
+    it("sends optional custom schedule start times", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { ...backendSchedule, mode: "custom", model: null },
+          }),
+      } as Response);
+
+      await staffScheduleService.updateSchedule("1", {
+        mode: "custom",
+        rotationLength: 1,
+        entries: [
+          {
+            weekIndex: 0,
+            dayOfWeek: 1,
+            targetMinutes: 360,
+            startTime: "09:00",
+          },
+        ],
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/schedule",
+        expect.objectContaining({
+          body: JSON.stringify({
+            mode: "custom",
+            rotation_length: 1,
+            rotation_anchor_date: undefined,
+            entries: [
+              {
+                week_index: 0,
+                day_of_week: 1,
+                target_minutes: 360,
+                start_time: "09:00",
+              },
+            ],
+            save_as_template: undefined,
+          }),
+        }),
+      );
+    });
   });
 
   describe("workTimeModelService", () => {
@@ -1287,6 +1440,148 @@ describe("staff-api", () => {
       );
       expect(result[0]?.id).toBe("9");
       expect(result[0]?.entries[0]?.targetMinutes).toBe(240);
+    });
+
+    it("maps optional work time model start times", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              {
+                id: 9,
+                name: "Halbtag",
+                rotation_length: 1,
+                rotation_anchor_date: "2026-06-01",
+                entries: [
+                  {
+                    week_index: 0,
+                    day_of_week: 0,
+                    target_minutes: 240,
+                    start_time: "09:00",
+                  },
+                ],
+                weekly_totals: [1200],
+              },
+            ],
+          }),
+      } as Response);
+
+      const result = await workTimeModelService.list();
+
+      expect(result[0]?.entries[0]?.startTime).toBe("09:00");
+    });
+  });
+
+  describe("staffMonthSummaryService.getScheduleTargetsRange", () => {
+    // The Übersicht charts price history against these targets and reach back
+    // to the account start ("Gesamt"), which can be years — while the endpoint
+    // rejects anything over MAX_TARGET_RANGE_DAYS. One request would 400 and
+    // the charts would show no Soll at all (#1842).
+    it("splits a range longer than the endpoint window and merges the answers", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockImplementation((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  date: new URL(url, "http://x").searchParams.get("from"),
+                  target_minutes: 480,
+                },
+              ],
+            }),
+        } as unknown as Response),
+      );
+
+      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+        "1",
+        "2024-01-01",
+        "2026-06-01",
+      );
+
+      const requested = mockFetch.mock.calls.map((c) => {
+        const params = new URL(c[0] as string, "http://x").searchParams;
+        return `${params.get("from")}..${params.get("to")}`;
+      });
+      // 2.5 years -> three 366-day windows, contiguous and gapless, the last
+      // one clipped at `to`. 2024 is a leap year, so window one ends 12-31.
+      expect(requested).toEqual([
+        "2024-01-01..2024-12-31",
+        "2025-01-01..2026-01-01",
+        "2026-01-02..2026-06-01",
+      ]);
+      // Every window's answer lands in one map — the stub echoes each
+      // window's first day back.
+      expect(result.get("2024-01-01")).toBe(480);
+      expect(result.get("2025-01-01")).toBe(480);
+      expect(result.get("2026-01-02")).toBe(480);
+      expect(result.size).toBe(3);
+    });
+
+    // A "Gesamt" range on a years-old account fans out into one window per
+    // ~year. A plain Promise.all would fire every window at once — dozens of
+    // simultaneous DB-backed requests from a single overview render. The pool
+    // caps how many are in flight (#1842).
+    it("bounds how many window requests run at once", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      let inFlight = 0;
+      let peak = 0;
+      mockFetch.mockImplementation((url: string) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            inFlight -= 1;
+            resolve({
+              ok: true,
+              json: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      date: new URL(url, "http://x").searchParams.get("from"),
+                      target_minutes: 480,
+                    },
+                  ],
+                }),
+            } as unknown as Response);
+          }, 0);
+        });
+      });
+
+      // ~15 years -> 15 windows, far more than the pool of 4.
+      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+        "1",
+        "2011-01-01",
+        "2026-01-01",
+      );
+
+      expect(mockFetch.mock.calls.length).toBeGreaterThan(4);
+      expect(peak).toBeLessThanOrEqual(4);
+      // Every window still resolves and merges — nothing is dropped by the pool.
+      expect(result.get("2011-01-01")).toBe(480);
+    });
+
+    it("asks once when the range fits the window", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ date: "2026-06-01", target_minutes: 240 }],
+          }),
+      } as Response);
+
+      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+        "1",
+        "2026-06-01",
+        "2026-06-30",
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(result.get("2026-06-01")).toBe(240);
     });
   });
 
@@ -1507,6 +1802,189 @@ describe("staff-api", () => {
         "Missing reason",
       );
     });
+
+    it("loads pending absences and normalizes null data", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const pending = [
+        {
+          id: 7,
+          staff_id: 1,
+          absence_type: "vacation",
+          date_start: "2026-07-14",
+          date_end: "2026-07-16",
+          half_day: false,
+          status: "requested",
+        },
+      ];
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: pending }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: null }),
+        } as Response);
+
+      await expect(staffAbsenceService.listPending()).resolves.toEqual(pending);
+      await expect(staffAbsenceService.listPending()).resolves.toEqual([]);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/absences/pending",
+        expect.any(Object),
+      );
+    });
+
+    it("throws when pending absences cannot be loaded", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffAbsenceService.listPending()).rejects.toThrow(
+        "Failed to fetch pending absences: Forbidden",
+      );
+    });
+
+    it("submits a question with its mandatory decision note", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffAbsenceService.question(7, "Wer übernimmt die Frühschicht?");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/absences/7/question",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            decision_note: "Wer übernimmt die Frühschicht?",
+          }),
+        }),
+      );
+    });
+
+    it("uses response text and the fallback for question errors", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.resolve("Rückfrage nicht möglich"),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.reject(new Error("body read failed")),
+        } as Response);
+
+      await expect(
+        staffAbsenceService.question(7, "Erste Frage"),
+      ).rejects.toThrow("Rückfrage nicht möglich");
+      await expect(
+        staffAbsenceService.question(8, "Zweite Frage"),
+      ).rejects.toThrow("Rückfrage fehlgeschlagen");
+    });
+
+    it("creates a sick absence and returns the created row (#1843)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const createdRow = {
+        id: 42,
+        staff_id: 1,
+        absence_type: "sick",
+        date_start: "2026-07-14",
+        date_end: "2026-07-16",
+        half_day: false,
+        note: "Grippe",
+        status: "reported",
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: createdRow }),
+      } as Response);
+
+      const body = {
+        absence_type: "sick",
+        date_start: "2026-07-14",
+        date_end: "2026-07-16",
+        note: "Grippe",
+      };
+      const result = await staffAbsenceService.createAbsence("1", body);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/absences",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+      expect(result.id).toBe(42);
+      expect(result.status).toBe("reported");
+    });
+
+    it("uses response text when creating an absence fails (#1843)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () => Promise.resolve("overlapping absence"),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.createAbsence("1", {
+          absence_type: "sick",
+          date_start: "2026-07-14",
+          date_end: "2026-07-14",
+        }),
+      ).rejects.toThrow("overlapping absence");
+    });
+
+    it("maps the comp_time overdraft conflict to a German message (#1420)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: "comp_time_exceeds_balance",
+              error: "comp_time absence exceeds accrued balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.createAbsence("1", {
+          absence_type: "comp_time",
+          date_start: "2026-07-27",
+          date_end: "2026-07-28",
+          note: "FZA",
+        }),
+      ).rejects.toThrow(
+        "Der Freizeitausgleich übersteigt die vor dem Startdatum verfügbaren Plus-Stunden.",
+      );
+    });
+
+    it("deletes an absence (#1843)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffAbsenceService.deleteAbsence("1", 42);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/absences/42",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
+    it("uses response text when deleting an absence fails (#1843)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () => Promise.resolve("Nicht gefunden"),
+      } as Response);
+
+      await expect(staffAbsenceService.deleteAbsence("1", 99)).rejects.toThrow(
+        "Nicht gefunden",
+      );
+    });
   });
 
   describe("staffSessionEditsService", () => {
@@ -1610,6 +2088,293 @@ describe("staff-api", () => {
       await expect(
         staffSessionService.createSession("1", payload),
       ).rejects.toThrow("Failed to create session: Bad Request");
+    });
+  });
+
+  describe("staffBalanceAdjustmentService", () => {
+    const backendAdjustment = {
+      id: 17,
+      type: "payout",
+      minutes_delta: -120,
+      effective_date: "2026-07-31",
+      note: "Juligehalt",
+      decided_by: 9,
+      decided_at: "2026-07-24T08:00:00Z",
+    };
+
+    it("lists and maps adjustments, including an empty response", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: [backendAdjustment] }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: null }),
+        } as Response);
+
+      const result = await staffBalanceAdjustmentService.list(
+        "4",
+        "2026-01-01",
+        "9999-12-31",
+      );
+      const empty = await staffBalanceAdjustmentService.list(
+        "4",
+        "2026-01-01",
+        "9999-12-31",
+      );
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/4/time-tracking/adjustments?from=2026-01-01&to=9999-12-31",
+        expect.any(Object),
+      );
+      expect(result).toEqual([
+        {
+          id: "17",
+          type: "payout",
+          minutesDelta: -120,
+          effectiveDate: "2026-07-31",
+          note: "Juligehalt",
+          decidedBy: "9",
+          decidedAt: "2026-07-24T08:00:00Z",
+        },
+      ]);
+      expect(empty).toEqual([]);
+    });
+
+    it("creates and resets adjustments with backend request keys", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: backendAdjustment }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                ...backendAdjustment,
+                id: 18,
+                type: "reset",
+                minutes_delta: 60,
+              },
+            }),
+        } as Response);
+
+      const created = await staffBalanceAdjustmentService.create("4", {
+        type: "payout",
+        minutesDelta: -120,
+        effectiveDate: "2026-07-31",
+        note: "Juligehalt",
+      });
+      const reset = await staffBalanceAdjustmentService.reset("4", {
+        effectiveDate: "2026-07-31",
+        carryoverMinutes: 60,
+        note: "Schuljahreswechsel",
+      });
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/4/time-tracking/adjustments",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            type: "payout",
+            minutes_delta: -120,
+            effective_date: "2026-07-31",
+            note: "Juligehalt",
+          }),
+        }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "/api/staff/4/time-tracking/reset",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            effective_date: "2026-07-31",
+            carryover_minutes: 60,
+            note: "Schuljahreswechsel",
+          }),
+        }),
+      );
+      expect(created.id).toBe("17");
+      expect(reset).toMatchObject({
+        id: "18",
+        type: "reset",
+        minutesDelta: 60,
+      });
+    });
+
+    it("deletes an adjustment", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffBalanceAdjustmentService.delete("4", "17");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/4/time-tracking/adjustments/17",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
+    it("explains when an adjustment exceeds the accrued balance", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.create("4", {
+          type: "payout",
+          minutesDelta: -120,
+          effectiveDate: "2026-07-31",
+          note: "Juligehalt",
+        }),
+      ).rejects.toThrow(
+        "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
+      );
+    });
+
+    it("explains when a reset would invalidate later balance reductions", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "Schuljahreswechsel",
+        }),
+      ).rejects.toThrow(
+        "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
+      );
+    });
+
+    it("explains when deleting a positive reset would overdraw later entries", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.delete("4", "17"),
+      ).rejects.toThrow(
+        "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
+      );
+    });
+
+    it("surfaces list, create, delete, reset, and coded reset conflicts", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Bad Gateway",
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.resolve("Ungültige Buchung"),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.reject(new Error("unreadable")),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "duplicate",
+                code: "balance_already_reset",
+              }),
+            ),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "dependent",
+                code: "dependent_balance_reset",
+              }),
+            ),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve("Ungültiger Reset"),
+        } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.list("4", "2026-01-01", "2026-12-31"),
+      ).rejects.toThrow("Failed to fetch adjustments: Bad Gateway");
+      await expect(
+        staffBalanceAdjustmentService.create("4", {
+          type: "payout",
+          minutesDelta: -60,
+          effectiveDate: "2026-07-31",
+          note: "x",
+        }),
+      ).rejects.toThrow("Ungültige Buchung");
+      await expect(
+        staffBalanceAdjustmentService.delete("4", "17"),
+      ).rejects.toThrow("Löschen fehlgeschlagen");
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "x",
+        }),
+      ).rejects.toThrow(
+        "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
+      );
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "x",
+        }),
+      ).rejects.toThrow(
+        "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
+      );
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "x",
+        }),
+      ).rejects.toThrow("Ungültiger Reset");
     });
   });
 });

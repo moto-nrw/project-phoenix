@@ -97,11 +97,6 @@ func TestOperatorInvitationToken_IsUsed(t *testing.T) {
 	})
 }
 
-func TestOperatorInvitationToken_TableName(t *testing.T) {
-	token := &OperatorInvitationToken{}
-	assert.Equal(t, "platform.operator_invitation_tokens", token.TableName())
-}
-
 func TestOperatorInvitationToken_GetID(t *testing.T) {
 	token := &OperatorInvitationToken{}
 	token.ID = 42

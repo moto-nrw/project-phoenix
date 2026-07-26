@@ -35,6 +35,7 @@ export interface StudentFilters {
   school_class?: string;
   group_id?: string;
   location?: string;
+  location_state?: "present" | "transit";
   guardian_name?: string;
   first_name?: string;
   last_name?: string;
@@ -73,6 +74,27 @@ interface WrappedPaginatedResponse<T> {
   message?: string;
 }
 
+interface StudentEnrollmentExtraFieldOption {
+  label: string;
+  value: string;
+}
+
+interface StudentEnrollmentExtraField {
+  key: string;
+  label: string;
+  type: string;
+  target?: string;
+  options?: StudentEnrollmentExtraFieldOption[];
+  value: unknown;
+}
+
+export interface StudentEnrollmentExtraFieldGroup {
+  request_id: string;
+  phase_name: string;
+  submitted_at: string;
+  fields: StudentEnrollmentExtraField[];
+}
+
 // Error handler using shared utility
 function handleStudentApiError(error: unknown, context: string): never {
   handleDomainApiError(error, context, "STUDENT");
@@ -95,6 +117,8 @@ function buildStudentUrl(
   if (filters.school_class) params.append("school_class", filters.school_class);
   if (filters.group_id) params.append("group_id", filters.group_id);
   if (filters.location) params.append("location", filters.location);
+  if (filters.location_state)
+    params.append("location_state", filters.location_state);
   if (filters.guardian_name)
     params.append("guardian_name", filters.guardian_name);
   if (filters.first_name) params.append("first_name", filters.first_name);
@@ -223,6 +247,35 @@ export async function fetchStudent(id: string): Promise<Student> {
     return mapStudentDetailResponse(response.data.data);
   } catch (error) {
     handleStudentApiError(error, "fetch student");
+  }
+}
+
+export async function fetchStudentEnrollmentExtraFields(
+  id: string,
+): Promise<StudentEnrollmentExtraFieldGroup[]> {
+  const useProxy = isBrowserContext();
+  const url = useProxy
+    ? `/api/students/${id}/enrollment-extra-fields`
+    : `${env.API_URL}/api/students/${id}/enrollment-extra-fields`;
+
+  try {
+    if (useProxy) {
+      const session = await getCachedSession();
+      const responseData = await authFetch<
+        | ApiResponse<StudentEnrollmentExtraFieldGroup[]>
+        | StudentEnrollmentExtraFieldGroup[]
+      >(url, {
+        token: session?.user?.token,
+      });
+      const data = extractApiData(responseData);
+      return Array.isArray(data) ? data : [];
+    }
+
+    const response =
+      await api.get<ApiResponse<StudentEnrollmentExtraFieldGroup[]>>(url);
+    return response.data?.data ?? [];
+  } catch (error) {
+    handleStudentApiError(error, "fetch student enrollment extra fields");
   }
 }
 
@@ -459,8 +512,7 @@ export async function uploadStudentPhoto(
   }
 
   const body = (await response.json()) as
-    | { data: { photo_url: string } }
-    | { photo_url: string };
+    { data: { photo_url: string } } | { photo_url: string };
   const data = "data" in body ? body.data : body;
   return { photoUrl: data.photo_url };
 }

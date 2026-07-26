@@ -2,6 +2,7 @@ package parent_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -51,17 +53,30 @@ func ensureGuardianProfile(t *testing.T, db *bun.DB, accountID, tenantID int64) 
 // (tenant, student, profile) unique index; safe to call multiple times
 // for the same triple.
 func linkChildToAccount(t *testing.T, db *bun.DB, accountID, tenantID, studentID int64) int64 {
+	return linkChildToAccountWithPermissions(t, db, accountID, tenantID, studentID, map[string]bool{
+		authorize.GuardianPermissionPortalAccess: true,
+	})
+}
+
+func linkChildToAccountWithPermissions(
+	t *testing.T,
+	db *bun.DB,
+	accountID, tenantID, studentID int64,
+	permissions map[string]bool,
+) int64 {
 	t.Helper()
 	bg := context.Background()
 	profileID := ensureGuardianProfile(t, db, accountID, tenantID)
+	permissionsJSON, err := json.Marshal(permissions)
+	require.NoError(t, err)
 
-	_, err := db.NewRaw(`
+	_, err = db.NewRaw(`
 		INSERT INTO users.students_guardians
 		  (tenant_id, student_id, guardian_profile_id, relationship_type, is_primary,
-		   can_pickup)
-		VALUES (?, ?, ?, 'parent', TRUE, TRUE)
+		   can_pickup, permissions)
+		VALUES (?, ?, ?, 'parent', TRUE, TRUE, ?::jsonb)
 		ON CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING
-	`, tenantID, studentID, profileID).Exec(bg)
+	`, tenantID, studentID, profileID, string(permissionsJSON)).Exec(bg)
 	require.NoError(t, err)
 	return profileID
 }
@@ -181,6 +196,38 @@ func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
 		return lErr
 	}))
 	assert.Empty(t, list, "inactive account_tenants membership MUST hide the child")
+}
+
+func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "parentchild-noportal")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Noportal", "1a")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("users.students").
+			Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.persons").
+			Where("id = ?", student.PersonID).Exec(context.Background())
+	})
+	linkChildToAccountWithPermissions(t, db, account.ID, tenantID, student.ID, map[string]bool{})
+
+	repo := parentRepo.NewChildRepository(db)
+	var list []*parentModels.ChildSummary
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByAccount(ctx, account.ID)
+		return lErr
+	}))
+	assert.Empty(t, list, "linked guardians without parent_portal.access must not see children")
 }
 
 func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {

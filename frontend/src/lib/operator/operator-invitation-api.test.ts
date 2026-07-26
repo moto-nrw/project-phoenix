@@ -29,6 +29,7 @@ import {
   listOperatorInvitations,
   resendOperatorInvitation,
   revokeOperatorInvitation,
+  establishOperatorInvitationSession,
   validateOperatorInvitation,
   acceptOperatorInvitation,
 } from "./operator-invitation-api";
@@ -136,6 +137,31 @@ describe("operator invitation api", () => {
   });
 });
 
+describe("public invitation session", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("moves the URL token into the server-owned session", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ flow_id: "flow-1" }),
+    });
+
+    await expect(
+      establishOperatorInvitationSession("valid-token"),
+    ).resolves.toBe("flow-1");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/operator/auth/invitations/session",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ token: "valid-token" }),
+      }),
+    );
+  });
+});
+
 describe("validateOperatorInvitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -156,7 +182,7 @@ describe("validateOperatorInvitation", () => {
       }),
     });
 
-    const result = await validateOperatorInvitation("valid-token");
+    const result = await validateOperatorInvitation("flow-1");
 
     expect(result.email).toBe("invited@example.com");
     expect(result.displayName).toBe("Test User");
@@ -164,7 +190,10 @@ describe("validateOperatorInvitation", () => {
       "/api/operator/auth/invitations/validate",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ token: "valid-token" }),
+        headers: expect.objectContaining({
+          "x-operator-invitation-flow": "flow-1",
+        }),
+        body: JSON.stringify({}),
       }),
     );
   });
@@ -178,7 +207,7 @@ describe("validateOperatorInvitation", () => {
       }),
     });
 
-    await expect(validateOperatorInvitation("bad-token")).rejects.toThrow(
+    await expect(validateOperatorInvitation("flow-1")).rejects.toThrow(
       "Dieser Link ist abgelaufen oder ungültig",
     );
   });
@@ -190,7 +219,7 @@ describe("validateOperatorInvitation", () => {
       json: async () => ({}),
     });
 
-    await expect(validateOperatorInvitation("bad-token")).rejects.toThrow(
+    await expect(validateOperatorInvitation("flow-1")).rejects.toThrow(
       "Einladung nicht gefunden oder abgelaufen",
     );
   });
@@ -204,7 +233,7 @@ describe("validateOperatorInvitation", () => {
       },
     });
 
-    await expect(validateOperatorInvitation("bad-token")).rejects.toThrow(
+    await expect(validateOperatorInvitation("flow-1")).rejects.toThrow(
       "Einladung nicht gefunden oder abgelaufen",
     );
   });
@@ -221,7 +250,7 @@ describe("validateOperatorInvitation", () => {
       json: async () => backendData,
     });
 
-    const result = await validateOperatorInvitation("token");
+    const result = await validateOperatorInvitation("flow-1");
     expect(result.email).toBe("direct@example.com");
     expect(result.displayName).toBeUndefined();
   });
@@ -232,10 +261,10 @@ describe("acceptOperatorInvitation", () => {
     vi.clearAllMocks();
   });
 
-  it("sends POST with token and form data", async () => {
+  it("sends POST with form data while the server supplies the token", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true });
 
-    await acceptOperatorInvitation("my-token", {
+    await acceptOperatorInvitation("flow-1", {
       displayName: "New Op",
       password: "Str0ng!Pass",
       confirmPassword: "Str0ng!Pass",
@@ -245,8 +274,10 @@ describe("acceptOperatorInvitation", () => {
       "/api/operator/auth/invitations/accept",
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({
+          "x-operator-invitation-flow": "flow-1",
+        }),
         body: JSON.stringify({
-          token: "my-token",
           display_name: "New Op",
           password: "Str0ng!Pass",
           confirm_password: "Str0ng!Pass",
@@ -263,7 +294,7 @@ describe("acceptOperatorInvitation", () => {
     });
 
     await expect(
-      acceptOperatorInvitation("token", {
+      acceptOperatorInvitation("flow-1", {
         displayName: "Test",
         password: "weak",
         confirmPassword: "weak",
@@ -281,7 +312,7 @@ describe("acceptOperatorInvitation", () => {
     });
 
     await expect(
-      acceptOperatorInvitation("token", {
+      acceptOperatorInvitation("flow-1", {
         displayName: "Test",
         password: "pass",
         confirmPassword: "pass",

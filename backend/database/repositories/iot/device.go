@@ -47,9 +47,7 @@ func (r *DeviceRepository) FindByID(ctx context.Context, id interface{}) (*iot.D
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
 		Where(`"device".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -73,9 +71,7 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
 		Where(whereDeviceIDEqual, deviceID)
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	err := query.Scan(ctx)
 
@@ -97,9 +93,7 @@ func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*io
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where("api_key = ?", apiKey)
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	err := query.Scan(ctx)
 
@@ -121,9 +115,7 @@ func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where("device_type = ?", deviceType)
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	err := query.Scan(ctx)
 
@@ -145,9 +137,7 @@ func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceSt
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where(whereStatusEqual, status)
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	err := query.Scan(ctx)
 
@@ -169,9 +159,7 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where("registered_by_id = ?", personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	err := query.Scan(ctx)
 
@@ -189,43 +177,34 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 // Uses the integer PK (globally unique) rather than device_id (unique per tenant)
 // to ensure cross-tenant safety when called from device auth without tenant context.
 func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, id int64, lastSeen time.Time) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*iot.Device)(nil)).
-		ModelTableExpr(tableIoTDevices).
-		Set("last_seen = ?", lastSeen).
-		Where("id = ?", id)
-
-	result, err := query.Exec(ctx)
-
+	device := &iot.Device{Model: modelBase.Model{ID: id}, LastSeen: &lastSeen}
+	n, err := r.UpdateColumns(ctx, device, "last_seen")
 	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return &modelBase.DatabaseError{
 			Op:  "update last seen",
-			Err: err,
+			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
 		}
 	}
-
-	return base.AssertRowsAffected(result, 1, "update last seen")
+	return nil
 }
 
 // UpdateRoomID updates the room_id for a device by its primary key.
 func (r *DeviceRepository) UpdateRoomID(ctx context.Context, id int64, roomID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*iot.Device)(nil)).
-		ModelTableExpr(tableIoTDevices).
-		Set("room_id = ?", roomID).
-		Set("updated_at = ?", time.Now()).
-		Where("id = ?", id)
-
-	result, err := query.Exec(ctx)
-
+	device := &iot.Device{Model: modelBase.Model{ID: id, UpdatedAt: time.Now()}, RoomID: &roomID}
+	n, err := r.UpdateColumns(ctx, device, "room_id", "updated_at")
 	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return &modelBase.DatabaseError{
 			Op:  "update room id",
-			Err: err,
+			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
 		}
 	}
-
-	return base.AssertRowsAffected(result, 1, "update room id")
+	return nil
 }
 
 // UpdateStatus updates the status for a device
@@ -252,54 +231,6 @@ func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, st
 	return base.AssertRowsAffected(result, 1, "update status")
 }
 
-// FindActiveDevices retrieves all active devices
-func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device, error) {
-	var devices []*iot.Device
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&devices).
-		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereStatusEqual, iot.DeviceStatusActive)
-
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find active devices",
-			Err: err,
-		}
-	}
-
-	return devices, nil
-}
-
-// FindDevicesRequiringMaintenance retrieves all devices requiring maintenance
-func (r *DeviceRepository) FindDevicesRequiringMaintenance(ctx context.Context) ([]*iot.Device, error) {
-	var devices []*iot.Device
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&devices).
-		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereStatusEqual, iot.DeviceStatusMaintenance)
-
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find devices requiring maintenance",
-			Err: err,
-		}
-	}
-
-	return devices, nil
-}
-
 // FindOfflineDevices retrieves devices that have been offline for at least the specified duration
 func (r *DeviceRepository) FindOfflineDevices(ctx context.Context, offlineSince time.Duration) ([]*iot.Device, error) {
 	cutoffTime := time.Now().Add(-offlineSince)
@@ -310,9 +241,7 @@ func (r *DeviceRepository) FindOfflineDevices(ctx context.Context, offlineSince 
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where("last_seen < ? OR (last_seen IS NULL AND created_at < ?)", cutoffTime, cutoffTime)
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	err := query.Scan(ctx)
 
@@ -340,9 +269,7 @@ func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]i
 		Column("device_type").
 		ColumnExpr("COUNT(*) AS count")
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	err := query.
 		Group("device_type").
@@ -365,36 +292,6 @@ func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]i
 	return countMap, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *DeviceRepository) Create(ctx context.Context, device *iot.Device) error {
-	if device == nil {
-		return fmt.Errorf("device cannot be nil")
-	}
-
-	// Validate device
-	if err := device.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, device)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *DeviceRepository) Update(ctx context.Context, device *iot.Device) error {
-	if device == nil {
-		return fmt.Errorf("device cannot be nil")
-	}
-
-	// Validate device
-	if err := device.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, device)
-}
-
 // List retrieves devices matching the provided filters
 func (r *DeviceRepository) List(ctx context.Context, filters map[string]interface{}) ([]*iot.Device, error) {
 	var devices []*iot.Device
@@ -405,9 +302,7 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 		ColumnExpr(`"room".name AS room_name`).
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`)
 
-	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "device")
 
 	// Apply filters
 	for field, value := range filters {

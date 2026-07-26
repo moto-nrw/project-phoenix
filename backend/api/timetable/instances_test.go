@@ -19,14 +19,13 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/services/users/userstest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // -----------------------------------------------------------------------------
@@ -34,26 +33,36 @@ import (
 // -----------------------------------------------------------------------------
 
 type mockInstanceService struct {
-	startResult   *scheduleSvc.StartInstanceResult
-	startErr      error
-	completeRes   *scheduleModel.ActivityInstance
-	completeErr   error
-	cancelRes     *scheduleModel.ActivityInstance
-	cancelErr     error
-	deleteErr     error
-	replanRes     *scheduleSvc.ReplanWeekResult
-	replanErr     error
-	createRes     *scheduleModel.ActivityInstance
-	createErr     error
-	updateRes     *scheduleModel.ActivityInstance
-	updateErr     error
-	lastStartID   int64
-	lastStartedBy int64
-	lastFrom      timezone.Date
-	lastTo        timezone.Date
-	lastReplanGID *int64
-	lastCreate    *scheduleSvc.CreateInstanceInput
-	lastUpdate    *scheduleSvc.UpdateInstanceInput
+	startResult      *scheduleSvc.StartInstanceResult
+	startErr         error
+	completeRes      *scheduleModel.ActivityInstance
+	completeErr      error
+	cancelRes        *scheduleModel.ActivityInstance
+	cancelErr        error
+	deleteErr        error
+	replanRes        *scheduleSvc.ReplanWeekResult
+	replanErr        error
+	createRes        *scheduleModel.ActivityInstance
+	createErr        error
+	updateRes        *scheduleModel.ActivityInstance
+	updateErr        error
+	ackRes           *scheduleModel.ActivityInstance
+	ackErr           error
+	clearAckErr      error
+	lastCancelReason *string
+	lastAckID        int64
+	lastAckValue     bool
+	lastAckNote      *string
+	lastStartID      int64
+	lastStartedBy    int64
+	lastFrom         timezone.Date
+	lastTo           timezone.Date
+	lastReplanGID    *int64
+	lastCreate       *scheduleSvc.CreateInstanceInput
+	lastUpdate       *scheduleSvc.UpdateInstanceInput
+	// real, when set, receives the deviation writes (#1886) so DB-backed
+	// handler tests keep asserting real row effects.
+	real scheduleSvc.InstanceService
 }
 
 func (m *mockInstanceService) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
@@ -76,7 +85,8 @@ func (m *mockInstanceService) Complete(_ context.Context, _ int64) (*scheduleMod
 	return m.completeRes, nil
 }
 
-func (m *mockInstanceService) Cancel(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
+func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
+	m.lastCancelReason = reason
 	if m.cancelErr != nil {
 		return nil, m.cancelErr
 	}
@@ -87,7 +97,21 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
-func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64) (*scheduleSvc.ReplanWeekResult, error) {
+func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID int64, ack bool, note *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
+	m.lastAckID = instanceID
+	m.lastAckValue = ack
+	m.lastAckNote = note
+	if m.ackErr != nil {
+		return nil, m.ackErr
+	}
+	return m.ackRes, nil
+}
+
+func (m *mockInstanceService) ClearUnderstaffedAckIfStaffed(_ context.Context, _ int64, _ *int64) error {
+	return m.clearAckErr
+}
+
+func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64, _ *int64) (*scheduleSvc.ReplanWeekResult, error) {
 	m.lastFrom = from
 	m.lastTo = to
 	m.lastReplanGID = activityGroupID
@@ -106,180 +130,13 @@ func (m *mockInstanceService) Create(_ context.Context, req scheduleSvc.CreateIn
 	return m.createRes, nil
 }
 
-func (m *mockInstanceService) UpdatePlanned(_ context.Context, _ int64, req scheduleSvc.UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+func (m *mockInstanceService) UpdatePlanned(_ context.Context, _ int64, req scheduleSvc.UpdateInstanceInput, _ *int64) (*scheduleModel.ActivityInstance, error) {
 	reqCopy := req
 	m.lastUpdate = &reqCopy
 	if m.updateErr != nil {
 		return nil, m.updateErr
 	}
 	return m.updateRes, nil
-}
-
-// -----------------------------------------------------------------------------
-// Mock StaffRepository — needed for resolveStartedByStaffID coverage.
-// -----------------------------------------------------------------------------
-
-type instMockStaffRepo struct {
-	findByPersonIDFn func(ctx context.Context, personID int64) (*userModels.Staff, error)
-}
-
-func (m *instMockStaffRepo) Create(_ context.Context, _ *userModels.Staff) error { return nil }
-func (m *instMockStaffRepo) FindByID(_ context.Context, _ any) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockStaffRepo) FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
-	if m.findByPersonIDFn != nil {
-		return m.findByPersonIDFn(ctx, personID)
-	}
-	return nil, nil
-}
-func (m *instMockStaffRepo) Update(_ context.Context, _ *userModels.Staff) error { return nil }
-func (m *instMockStaffRepo) Delete(_ context.Context, _ any) error               { return nil }
-func (m *instMockStaffRepo) List(_ context.Context, _ map[string]any) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockStaffRepo) ListAllWithPerson(_ context.Context) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockStaffRepo) UpdateNotes(_ context.Context, _ int64, _ string) error { return nil }
-func (m *instMockStaffRepo) ClearWorkTimeModel(_ context.Context, _ int64) error    { return nil }
-func (m *instMockStaffRepo) FindWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockStaffRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockStaffRepo) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockStaffRepo) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
-	return nil, nil
-}
-
-// -----------------------------------------------------------------------------
-// Mock PersonService — only the two methods the handler touches carry logic.
-// -----------------------------------------------------------------------------
-
-type instMockPersonService struct {
-	findByAccountIDFn func(ctx context.Context, accountID int64) (*userModels.Person, error)
-	staffRepo         userModels.StaffRepository
-}
-
-func (m *instMockPersonService) WithTx(_ bun.Tx) any { return m }
-func (m *instMockPersonService) Get(_ context.Context, _ any) (*userModels.Person, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Person, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) Create(_ context.Context, _ *userModels.Person) error { return nil }
-func (m *instMockPersonService) Update(_ context.Context, _ *userModels.Person) error { return nil }
-func (m *instMockPersonService) Delete(_ context.Context, _ any) error                { return nil }
-func (m *instMockPersonService) DeleteStaff(_ context.Context, _ int64) error         { return nil }
-func (m *instMockPersonService) List(_ context.Context, _ *base.QueryOptions) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) FindByTagID(_ context.Context, _ string) (*userModels.Person, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error) {
-	if m.findByAccountIDFn != nil {
-		return m.findByAccountIDFn(ctx, accountID)
-	}
-	return nil, nil
-}
-func (m *instMockPersonService) FindByName(_ context.Context, _, _ string) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) LinkToAccount(_ context.Context, _ int64, _ int64) error { return nil }
-func (m *instMockPersonService) UnlinkFromAccount(_ context.Context, _ int64) error      { return nil }
-func (m *instMockPersonService) LinkToRFIDCard(_ context.Context, _ int64, _ string) error {
-	return nil
-}
-func (m *instMockPersonService) UnlinkFromRFIDCard(_ context.Context, _ int64) error { return nil }
-func (m *instMockPersonService) GetFullProfile(_ context.Context, _ int64) (*userModels.Person, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) FindByGuardianID(_ context.Context, _ int64) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) ListAvailableRFIDCards(_ context.Context) ([]*userModels.RFIDCard, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) ValidateStaffPIN(_ context.Context, _ string) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) ValidateStaffPINForSpecificStaff(_ context.Context, _ int64, _ string) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStudentsByTeacher(_ context.Context, _ int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context, _ int64) ([]usersSvc.StudentWithGroup, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]usersSvc.StudentWithGroup, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStaffByID(_ context.Context, _ int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
-	if m.staffRepo == nil {
-		return nil, nil
-	}
-	return m.staffRepo.FindByPersonID(ctx, personID)
-}
-func (m *instMockPersonService) GetStaffWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStaffWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) ListStaffWithPerson(_ context.Context) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetTeacherByStaffID(_ context.Context, _ int64) (*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetTeachersByStaffIDs(_ context.Context, _ []int64) (map[int64]*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) ListTeachersWithStaffAndPerson(_ context.Context) ([]*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStudentByID(_ context.Context, _ int64) (*userModels.Student, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStudentByPersonID(_ context.Context, _ int64) (*userModels.Student, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStudentsByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Student, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStudentsByGroupID(_ context.Context, _ int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetStudentsByGroupIDs(_ context.Context, _ []int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetTeachersBySpecialization(_ context.Context, _ string) ([]*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) GetTeacherWithStaffAndPerson(_ context.Context, _ int64) (*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *instMockPersonService) CreateStaffWithTeacher(_ context.Context, _ usersSvc.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
-	return nil, nil, false, nil
-}
-func (m *instMockPersonService) UpdateStaffWithTeacher(_ context.Context, _ *userModels.Staff, _ bool, _, _, _ string) (*userModels.Teacher, usersSvc.TeacherAction, error) {
-	return nil, usersSvc.TeacherActionNone, nil
-}
-func (m *instMockPersonService) CountStudentsByGroupIDs(_ context.Context, _ []int64) (map[int64]int, error) {
-	return nil, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -427,6 +284,17 @@ func TestStartInstance_InvalidTransition(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "invalid_transition")
 }
 
+func TestStartInstance_SchulhofUsesDedicatedConflictCode(t *testing.T) {
+	mock := &mockInstanceService{startErr: scheduleSvc.ErrSchulhofSupervisionRequired}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
+
+	w := doPost(t, router, "/instances/1/start", nil)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"schulhof_supervision_required"`)
+}
+
 func TestStartInstance_InternalError(t *testing.T) {
 	mock := &mockInstanceService{startErr: errors.New("db connection lost")}
 	rs := NewResource(Dependencies{InstanceService: mock})
@@ -563,6 +431,20 @@ func TestCancelInstance_Success(t *testing.T) {
 	assert.Equal(t, "2026-04-20T15:00:00Z", data["completed_at"])
 }
 
+// #1840: cancel accepts an optional reason and forwards it trimmed.
+func TestCancelInstance_WithReason(t *testing.T) {
+	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusCancelled}
+	instance.ID = int64(21)
+	mock := &mockInstanceService{cancelRes: instance}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
+
+	w := doPost(t, router, "/instances/21/cancel", map[string]any{"reason": "  Ausflug  "})
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.lastCancelReason)
+	assert.Equal(t, "Ausflug", *mock.lastCancelReason)
+}
+
 func TestCancelInstance_NoCompletedAt(t *testing.T) {
 	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusCancelled}
 	instance.ID = int64(12)
@@ -676,6 +558,19 @@ func TestDeleteInstance_InvalidTransition(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "invalid_transition")
 }
 
+func TestDeleteInstance_AmbiguousTemplateInstanceDelete(t *testing.T) {
+	mock := &mockInstanceService{deleteErr: &wrappedErr{inner: scheduleSvc.ErrAmbiguousTemplateInstanceDelete}}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := chi.NewRouter()
+	router.Delete("/instances/{id}", rs.deleteInstance)
+
+	w := doDelete(t, router, "/instances/1")
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "ambiguous_template_instance_delete")
+	assert.Contains(t, w.Body.String(), "mehrere Termine")
+}
+
 func TestDeleteInstance_InternalError(t *testing.T) {
 	mock := &mockInstanceService{deleteErr: errors.New("db failure")}
 	rs := NewResource(Dependencies{InstanceService: mock})
@@ -699,14 +594,14 @@ func TestResolveStartedByStaffID_NilPersonService(t *testing.T) {
 }
 
 func TestResolveStartedByStaffID_NoClaimsInContext(t *testing.T) {
-	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: &instMockPersonService{}})
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: &userstest.PersonServiceMock{}})
 	staffID := rs.resolveStartedByStaffID(context.Background())
 	assert.Equal(t, int64(0), staffID)
 }
 
 func TestResolveStartedByStaffID_PersonNotFound(t *testing.T) {
-	ps := &instMockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	ps := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return nil, errors.New("person not found")
 		},
 	}
@@ -719,8 +614,8 @@ func TestResolveStartedByStaffID_PersonNotFound(t *testing.T) {
 }
 
 func TestResolveStartedByStaffID_PersonIsNil(t *testing.T) {
-	ps := &instMockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	ps := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return nil, nil
 		},
 	}
@@ -735,11 +630,11 @@ func TestResolveStartedByStaffID_PersonIsNil(t *testing.T) {
 func TestResolveStartedByStaffID_StaffRepoNil(t *testing.T) {
 	person := &userModels.Person{}
 	person.ID = int64(55)
-	ps := &instMockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	ps := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return person, nil
 		},
-		staffRepo: nil, // GetStaffByPersonID resolves no staff
+		// GetStaffByPersonIDFn left nil — GetStaffByPersonID resolves no staff
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
@@ -752,16 +647,16 @@ func TestResolveStartedByStaffID_StaffRepoNil(t *testing.T) {
 func TestResolveStartedByStaffID_StaffNotFound(t *testing.T) {
 	person := &userModels.Person{}
 	person.ID = int64(55)
-	staffRepo := &instMockStaffRepo{
-		findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+	staffRepo := &testpkg.StaffRepoMock{
+		FindByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
 			return nil, errors.New("not found")
 		},
 	}
-	ps := &instMockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	ps := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return person, nil
 		},
-		staffRepo: staffRepo,
+		GetStaffByPersonIDFn: staffRepo.FindByPersonID,
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
@@ -774,16 +669,16 @@ func TestResolveStartedByStaffID_StaffNotFound(t *testing.T) {
 func TestResolveStartedByStaffID_StaffIsNil(t *testing.T) {
 	person := &userModels.Person{}
 	person.ID = int64(55)
-	staffRepo := &instMockStaffRepo{
-		findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+	staffRepo := &testpkg.StaffRepoMock{
+		FindByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
 			return nil, nil
 		},
 	}
-	ps := &instMockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	ps := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return person, nil
 		},
-		staffRepo: staffRepo,
+		GetStaffByPersonIDFn: staffRepo.FindByPersonID,
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
@@ -798,18 +693,18 @@ func TestResolveStartedByStaffID_Success(t *testing.T) {
 	person.ID = int64(55)
 	staff := &userModels.Staff{}
 	staff.ID = int64(777)
-	staffRepo := &instMockStaffRepo{
-		findByPersonIDFn: func(_ context.Context, personID int64) (*userModels.Staff, error) {
+	staffRepo := &testpkg.StaffRepoMock{
+		FindByPersonIDFn: func(_ context.Context, personID int64) (*userModels.Staff, error) {
 			assert.Equal(t, int64(55), personID)
 			return staff, nil
 		},
 	}
-	ps := &instMockPersonService{
-		findByAccountIDFn: func(_ context.Context, accountID int64) (*userModels.Person, error) {
+	ps := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, accountID int64) (*userModels.Person, error) {
 			assert.Equal(t, int64(123), accountID)
 			return person, nil
 		},
-		staffRepo: staffRepo,
+		GetStaffByPersonIDFn: staffRepo.FindByPersonID,
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
@@ -826,16 +721,16 @@ func TestStartInstance_PassesStartedByFromJWT(t *testing.T) {
 	person.ID = int64(55)
 	staff := &userModels.Staff{}
 	staff.ID = int64(888)
-	staffRepo := &instMockStaffRepo{
-		findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+	staffRepo := &testpkg.StaffRepoMock{
+		FindByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
 			return staff, nil
 		},
 	}
-	ps := &instMockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	ps := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return person, nil
 		},
-		staffRepo: staffRepo,
+		GetStaffByPersonIDFn: staffRepo.FindByPersonID,
 	}
 
 	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
@@ -1038,6 +933,22 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "invalid_transition")
 	})
 
+	t.Run("ambiguous-template-instance-delete", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		renderInstanceLifecycleError(w, r, scheduleSvc.ErrAmbiguousTemplateInstanceDelete)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "ambiguous_template_instance_delete")
+	})
+
+	t.Run("instance-moved", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		renderInstanceLifecycleError(w, r, scheduleSvc.ErrInstanceMoved)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "instance_moved")
+	})
+
 	t.Run("unknown-error-500", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -1074,4 +985,83 @@ func TestReplanWeek_ActivityGroupIDPassThrough(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 	assert.Nil(t, mock.lastReplanGID)
+}
+
+// Deviation writes (#1886): the DB-backed deviations tests assert real row
+// effects, so these delegate to a real InstanceService when `real` is wired
+// (buildDevSetup); the pure mock-backed routes leave it nil (no-op).
+func (m *mockInstanceService) ApplyAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ApplyAbsence(ctx, row, instance, reason, actor, touched)
+	}
+	return nil
+}
+
+// Interface-compile stubs for the #1843 sick-cascade methods; the timetable
+// endpoints under test never call them.
+func (m *mockInstanceService) ApplySickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, sickAbsenceID int64, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ApplySickAbsence(ctx, row, instance, reason, sickAbsenceID, actor, touched)
+	}
+	return nil
+}
+
+func (m *mockInstanceService) ClearSickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, sickAbsenceID int64, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ClearSickAbsence(ctx, row, instance, sickAbsenceID, actor, touched)
+	}
+	return nil
+}
+
+func (m *mockInstanceService) QueueActivityUpdates(ctx context.Context, touched map[int64]*scheduleModel.ActivityInstance) {
+	if m.real != nil {
+		m.real.QueueActivityUpdates(ctx, touched)
+	}
+}
+
+func (m *mockInstanceService) ApplyPresence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ApplyPresence(ctx, row, instance, actor, touched)
+	}
+	return nil
+}
+
+func (m *mockInstanceService) ApplySubstitute(ctx context.Context, op scheduleSvc.SubstituteWriteOp, subID int64, reason *string, now time.Time, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ApplySubstitute(ctx, op, subID, reason, now, actor, touched)
+	}
+	return nil
+}
+
+// ApplyDeviations delegates the atomic save to a real InstanceService when
+// wired (buildDevSetup, DB-backed); the pure mock path is unused today.
+func (m *mockInstanceService) ApplyDeviations(ctx context.Context, id int64, in scheduleSvc.ApplyDeviationsInput) (*scheduleSvc.ApplyDeviationsResult, error) {
+	if m.real != nil {
+		return m.real.ApplyDeviations(ctx, id, in)
+	}
+	return &scheduleSvc.ApplyDeviationsResult{}, nil
+}
+
+// MoveStaffBetweenBlocks delegates to a real InstanceService when wired
+// (interface completeness for #1884; the mock-only path is unused today).
+func (m *mockInstanceService) MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in scheduleSvc.MoveStaffInput) (*scheduleSvc.MoveStaffResult, error) {
+	if m.real != nil {
+		return m.real.MoveStaffBetweenBlocks(ctx, targetID, in)
+	}
+	return &scheduleSvc.MoveStaffResult{}, nil
+}
+
+// AcknowledgeUnderstaffed records the forwarded args for the mock-only handler
+// tests, or delegates to a real service (the DB-backed past-block guard test).
+func (m *mockInstanceService) AcknowledgeUnderstaffed(ctx context.Context, id int64, ack bool, note *string, actor *int64) (*scheduleModel.ActivityInstance, error) {
+	if m.real != nil {
+		return m.real.AcknowledgeUnderstaffed(ctx, id, ack, note, actor)
+	}
+	m.lastAckID = id
+	m.lastAckValue = ack
+	m.lastAckNote = note
+	if m.ackErr != nil {
+		return nil, m.ackErr
+	}
+	return m.ackRes, nil
 }

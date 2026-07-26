@@ -34,7 +34,10 @@ type mockPhaseService struct {
 	listErr           error
 	listPublicOpenRes []*enrollmentModels.Phase
 	listPublicOpenErr error
+	getByIDCalls      int
 	getByIDID         int64
+	getByIDResults    []*enrollmentModels.Phase
+	getByIDErrs       []error
 	getByIDResult     *enrollmentModels.Phase
 	getByIDErr        error
 	createInput       *enrollmentModels.Phase
@@ -56,7 +59,15 @@ func (m *mockPhaseService) ListPublicOpen(_ context.Context, _ time.Time) ([]*en
 	return m.listPublicOpenRes, m.listPublicOpenErr
 }
 func (m *mockPhaseService) GetByID(_ context.Context, id int64) (*enrollmentModels.Phase, error) {
+	m.getByIDCalls++
 	m.getByIDID = id
+	idx := m.getByIDCalls - 1
+	if idx < len(m.getByIDErrs) && m.getByIDErrs[idx] != nil {
+		return nil, m.getByIDErrs[idx]
+	}
+	if idx < len(m.getByIDResults) && m.getByIDResults[idx] != nil {
+		return m.getByIDResults[idx], nil
+	}
 	return m.getByIDResult, m.getByIDErr
 }
 func (m *mockPhaseService) Create(_ context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.Phase, error) {
@@ -314,11 +325,25 @@ func TestCreatePhaseHandler_BadFormSchemaIDReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestCreatePhaseHandler_ServiceErrorReturns400(t *testing.T) {
-	mock := &mockPhaseService{createErr: errors.New("synthetic boom")}
+func TestCreatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
+	mock := &mockPhaseService{createErr: enrollmentService.ErrInvalidPhase}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
+	mock := &mockPhaseService{createErr: enrollmentService.ErrPhaseDuplicateName}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {
+	mock := &mockPhaseService{createErr: errors.New("synthetic boom")}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // --- updatePhase ------------------------------------------------------
@@ -345,6 +370,46 @@ func TestUpdatePhaseHandler_HappyPathRefetchesAfterUpdate(t *testing.T) {
 	assert.Equal(t, int64(1234), mock.getByIDID, "refetch must call GetByID after the update")
 }
 
+func TestUpdatePhaseHandler_OmittedCalendarPeriodIDPreservesExistingLink(t *testing.T) {
+	existing := makePhaseModel(1234, "Existing")
+	periodID := int64(42)
+	existing.CalendarPeriodID = &periodID
+	mock := &mockPhaseService{getByIDResult: existing}
+	router := buildPhaseRouter(mock)
+
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	require.NotNil(t, mock.updateInput.CalendarPeriodID)
+	assert.Equal(t, periodID, *mock.updateInput.CalendarPeriodID)
+}
+
+func TestUpdatePhaseHandler_NullCalendarPeriodIDUnlinks(t *testing.T) {
+	mock := &mockPhaseService{getByIDResult: makePhaseModel(1234, "Updated")}
+	router := buildPhaseRouter(mock)
+	body := validPhaseBody("Updated")
+	body["calendar_period_id"] = nil
+
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.Nil(t, mock.updateInput.CalendarPeriodID)
+}
+
+func TestUpdatePhaseHandler_NullCalendarPeriodIDMissingPhaseReturns404(t *testing.T) {
+	mock := &mockPhaseService{getByIDErr: enrollmentService.ErrPhaseNotFound}
+	router := buildPhaseRouter(mock)
+	body := validPhaseBody("Updated")
+	body["calendar_period_id"] = nil
+
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Nil(t, mock.updateInput, "stale update must fail before PhaseService.Update")
+}
+
 func TestUpdatePhaseHandler_BadDateReturns400(t *testing.T) {
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
@@ -353,18 +418,130 @@ func TestUpdatePhaseHandler_BadDateReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestUpdatePhaseHandler_UpdateErrorReturns400(t *testing.T) {
-	mock := &mockPhaseService{updateErr: errors.New("synthetic boom")}
+func TestUpdatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     enrollmentService.ErrInvalidPhase,
+	}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestUpdatePhaseHandler_RefetchErrorReturns500(t *testing.T) {
-	mock := &mockPhaseService{getByIDErr: errors.New("synthetic refetch boom")}
+func TestUpdatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     enrollmentService.ErrPhaseDuplicateName,
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     enrollmentService.ErrPhaseCareOfferingConflict,
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     errors.New("synthetic boom"),
+	}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// A pre-#1833 client omits the concrete-class fields entirely. Because
+// Update replaces the whole row, the handler must re-hydrate the omitted
+// fields from the stored phase so a partial update never wipes an admin's
+// class pick list / mandatory toggle.
+func TestUpdatePhaseHandler_OmittedClassConfigPreservesExisting(t *testing.T) {
+	existing := makePhaseModel(1234, "Updated")
+	existing.AvailableSchoolClasses = []string{"2a", "2b"}
+	existing.RequireSchoolClass = true
+	mock := &mockPhaseService{getByIDResult: existing}
+	router := buildPhaseRouter(mock)
+
+	// validPhaseBody carries no available_school_classes / require_school_class.
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.Equal(t, []string{"2a", "2b"}, mock.updateInput.AvailableSchoolClasses,
+		"omitted class list must be preserved from the stored phase")
+	assert.True(t, mock.updateInput.RequireSchoolClass,
+		"omitted require flag must be preserved from the stored phase")
+}
+
+// An up-to-date client that explicitly sends the class config must have it
+// applied verbatim — including clearing the list / turning the flag off.
+func TestUpdatePhaseHandler_ExplicitClassConfigApplied(t *testing.T) {
+	existing := makePhaseModel(1234, "Updated")
+	existing.AvailableSchoolClasses = []string{"2a", "2b"}
+	existing.RequireSchoolClass = true
+	mock := &mockPhaseService{getByIDResult: existing}
+	router := buildPhaseRouter(mock)
+
+	body := validPhaseBody("Updated")
+	body["available_school_classes"] = []string{"3a"}
+	body["require_school_class"] = false
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.Equal(t, []string{"3a"}, mock.updateInput.AvailableSchoolClasses,
+		"provided class list must overwrite the stored one")
+	assert.False(t, mock.updateInput.RequireSchoolClass,
+		"provided require=false must overwrite the stored true")
+}
+
+// An explicit empty list is a deliberate clear, not an omission, and must be
+// applied rather than re-hydrated from the stored phase.
+func TestUpdatePhaseHandler_ExplicitEmptyClassListClears(t *testing.T) {
+	existing := makePhaseModel(1234, "Updated")
+	existing.AvailableSchoolClasses = []string{"2a", "2b"}
+	mock := &mockPhaseService{getByIDResult: existing}
+	router := buildPhaseRouter(mock)
+
+	body := validPhaseBody("Updated")
+	body["available_school_classes"] = []string{}
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.Empty(t, mock.updateInput.AvailableSchoolClasses,
+		"an explicit empty list must clear the stored classes")
+}
+
+func TestCreatePhaseHandler_ClassConfigApplied(t *testing.T) {
+	mock := &mockPhaseService{createResult: makePhaseModel(1234, "Schuljahr 2026")}
+	router := buildPhaseRouter(mock)
+	body := validPhaseBody("Schuljahr 2026")
+	body["available_school_classes"] = []string{"2a", " 2a ", "2b", ""}
+	body["require_school_class"] = true
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", body)
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, mock.createInput)
+	assert.Equal(t, []string{"2a", "2b"}, mock.createInput.AvailableSchoolClasses,
+		"class list must be trimmed, de-duped, and emptied of blanks")
+	assert.True(t, mock.createInput.RequireSchoolClass)
+}
+
+func TestUpdatePhaseHandler_RefetchErrorReturns500(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResults: []*enrollmentModels.Phase{makePhaseModel(1234, "Updated")},
+		getByIDErrs:    []error{nil, errors.New("synthetic refetch boom")},
+	}
+	router := buildPhaseRouter(mock)
+	body := validPhaseBody("X")
+	body["calendar_period_id"] = "42"
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, 2, mock.getByIDCalls)
 }
 
 // --- deletePhase ------------------------------------------------------
@@ -428,4 +605,35 @@ func TestPhaseDeleteImpactHandler_NotFoundReturns404(t *testing.T) {
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234/delete-impact", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestCreatePhaseHandler_CalendarPeriodIDRoundtrip(t *testing.T) {
+	created := makePhaseModel(1234, "Schuljahr 2026")
+	periodID := int64(42)
+	created.CalendarPeriodID = &periodID
+	mock := &mockPhaseService{createResult: created}
+	router := buildPhaseRouter(mock)
+
+	body := validPhaseBody("Schuljahr 2026")
+	body["calendar_period_id"] = "42"
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", body)
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, mock.createInput)
+	require.NotNil(t, mock.createInput.CalendarPeriodID)
+	assert.Equal(t, int64(42), *mock.createInput.CalendarPeriodID)
+
+	var envelope struct {
+		Data PhaseResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &envelope))
+	require.NotNil(t, envelope.Data.CalendarPeriodID)
+	assert.Equal(t, "42", *envelope.Data.CalendarPeriodID)
+}
+
+func TestCreatePhaseHandler_BadCalendarPeriodIDReturns400(t *testing.T) {
+	router := buildPhaseRouter(&mockPhaseService{})
+	body := validPhaseBody("X")
+	body["calendar_period_id"] = "not-a-number"
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", body)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }

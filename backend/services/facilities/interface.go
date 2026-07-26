@@ -30,15 +30,11 @@ type Service interface {
 	// duplicate. It does NOT short-circuit the loop, so a tenant with both
 	// aliases will still surface the non-excluded one.
 	FindToiletRoom(ctx context.Context, excludeRoomID int64) (*facilities.Room, error)
-	FindRoomsByBuilding(ctx context.Context, building string) ([]*facilities.Room, error)
 	FindRoomsByCategory(ctx context.Context, category string) ([]*facilities.Room, error)
-	FindRoomsByFloor(ctx context.Context, building string, floor int) ([]*facilities.Room, error)
 
 	// Advanced operations
-	CheckRoomAvailability(ctx context.Context, roomID int64, requiredCapacity int) (bool, error)
 	GetAvailableRooms(ctx context.Context, capacity int) ([]*facilities.Room, error)
 	GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]RoomWithOccupancy, error)
-	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
 	GetBuildingList(ctx context.Context) ([]string, error)
 	GetCategoryList(ctx context.Context) ([]string, error)
 	// GetRoomHistory returns the aggregated session timeline for a room in

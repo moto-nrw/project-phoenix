@@ -8,10 +8,14 @@ import {
 } from "@/lib/guardian-api";
 import { getGuardianFullName, type Guardian } from "@/lib/guardian-helpers";
 import {
+  GuardianRoleSelect,
   RelationshipTypeSelect,
   RelationshipPermissionsFields,
+  defaultGuardianRoleForRelationshipType,
+  guardianRoleOperationalDefaults,
   type RelationshipFlag,
 } from "~/components/guardians/guardian-relationship-fields";
+import type { GuardianRole } from "~/lib/guardian-helpers";
 import type { RelationshipFormData } from "~/components/guardians/guardian-form-modal";
 import { createLogger } from "~/lib/logger";
 
@@ -53,9 +57,10 @@ const EMPTY_PROFILE_IDS: readonly string[] = [];
 // "new" and "existing" paths start from the same place.
 const DEFAULT_RELATIONSHIP: RelationshipFormData = {
   relationshipType: "parent",
+  guardianRole: "legal_guardian",
   isPrimary: false,
   isEmergencyContact: false,
-  canPickup: true,
+  canPickup: false,
   emergencyPriority: 1,
 };
 
@@ -126,6 +131,23 @@ export default function GuardianPickerPanel({
     setRelationship((prev) => ({ ...prev, [field]: value }));
   };
 
+  const updateGuardianRole = (role: GuardianRole) => {
+    const defaults = guardianRoleOperationalDefaults(role);
+    setRelationship((prev) => ({ ...prev, ...defaults, guardianRole: role }));
+  };
+
+  const updateRelationshipType = (relationshipType: string) => {
+    const guardianRole =
+      defaultGuardianRoleForRelationshipType(relationshipType);
+    const defaults = guardianRoleOperationalDefaults(guardianRole);
+    setRelationship((prev) => ({
+      ...prev,
+      ...defaults,
+      relationshipType,
+      guardianRole,
+    }));
+  };
+
   const handleConfirm = () => {
     if (!selected) return;
     onSelect(selected, relationship);
@@ -190,9 +212,12 @@ export default function GuardianPickerPanel({
           <RelationshipTypeSelect
             id="picker-relationship-type"
             value={relationship.relationshipType}
-            onChange={(value) =>
-              setRelationship((prev) => ({ ...prev, relationshipType: value }))
-            }
+            onChange={updateRelationshipType}
+          />
+          <GuardianRoleSelect
+            id="picker-guardian-role"
+            value={relationship.guardianRole}
+            onChange={updateGuardianRole}
           />
           <RelationshipPermissionsFields
             isPrimary={relationship.isPrimary}

@@ -15,7 +15,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 	"testing"
 	"time"
 
@@ -29,45 +28,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// spyBroadcaster captures tenant broadcasts for assertions. BroadcastToGroup is
-// not exercised by the overdue tick (instances are still planned → no
-// active.group yet), and BroadcastToAll is implemented only for the interface.
-type spyBroadcaster struct {
-	mu   sync.Mutex
-	all  []realtime.Event
-	grp  []realtime.Event
-	fail bool
-}
-
-func (b *spyBroadcaster) BroadcastToGroup(_ int64, _ string, e realtime.Event) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.grp = append(b.grp, e)
-	if b.fail {
-		return fmt.Errorf("forced failure")
-	}
-	return nil
-}
-func (b *spyBroadcaster) BroadcastToTenant(_ int64, e realtime.Event) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.all = append(b.all, e)
-	if b.fail {
-		return fmt.Errorf("forced failure")
-	}
-	return nil
-}
-func (b *spyBroadcaster) BroadcastToAll(e realtime.Event) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.fail {
-		return fmt.Errorf("forced failure")
-	}
-	return nil
-}
-
-var _ realtime.Broadcaster = (*spyBroadcaster)(nil)
-
 // overdueSetup wires a scheduler instance just enough to exercise the
 // overdue tick. Real DB + real settings service; only the broadcaster is
 // faked.
@@ -75,7 +35,7 @@ type overdueSetup struct {
 	sched *Scheduler
 	db    *bun.DB
 	ctx   context.Context
-	spy   *spyBroadcaster
+	spy   *testpkg.RecordingBroadcaster
 	room  int64
 	// now is a fixed wall-clock anchor (noon UTC today) used by both seedPlanned
 	// and the test calls to runOverdueForTenant. Anchoring at noon keeps any
@@ -95,13 +55,13 @@ func buildOverdue(t *testing.T) *overdueSetup {
 	t.Cleanup(func() { _ = db.Close() })
 	repoFactory := repositories.NewFactory(db)
 
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	sched := &Scheduler{
 		tasks:  make(map[string]*ScheduledTask),
 		done:   make(chan struct{}),
 		logger: slog.Default(),
 	}
-	sched.SetInstanceOverdueDeps(repoFactory.ActivityInstance, spy)
+	sched.SetInstanceOverdueDeps(repoFactory.ActivityInstance, repoFactory.Room, spy)
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("OVR-Room-%d", time.Now().UnixNano()))
 	today := time.Now().UTC()
@@ -212,14 +172,14 @@ func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
 // spyFilter counts broadcasts whose InstanceID matches the given id. Needed
 // because the test DB is shared across runs and may contain unrelated
 // today-dated rows from other tests; we care only about our fixture's
-// fire count, not the grand total.
-func spyFilter(b *spyBroadcaster, instanceID int64, eventType realtime.EventType) int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+// fire count, not the grand total. The overdue tick only ever calls
+// BroadcastToTenant, so filtering the "tenant" method reproduces the old
+// spy's b.all semantics.
+func spyFilter(b *testpkg.RecordingBroadcaster, instanceID int64, eventType realtime.EventType) int {
 	n := 0
 	needle := fmt.Sprintf("%d", instanceID)
-	for _, e := range b.all {
-		if e.Type == eventType && e.Data.InstanceID != nil && *e.Data.InstanceID == needle {
+	for _, c := range b.CallsByMethod("tenant") {
+		if c.Event.Type == eventType && c.Event.Data.InstanceID != nil && *c.Event.Data.InstanceID == needle {
 			n++
 		}
 	}
@@ -228,13 +188,12 @@ func spyFilter(b *spyBroadcaster, instanceID int64, eventType realtime.EventType
 
 // spyFindByInstance returns the first recorded event matching instanceID,
 // or nil if none. Companion to spyFilter for envelope-shape assertions.
-func spyFindByInstance(b *spyBroadcaster, instanceID int64, eventType realtime.EventType) *realtime.Event {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+func spyFindByInstance(b *testpkg.RecordingBroadcaster, instanceID int64, eventType realtime.EventType) *realtime.Event {
 	needle := fmt.Sprintf("%d", instanceID)
-	for i := range b.all {
-		if b.all[i].Type == eventType && b.all[i].Data.InstanceID != nil && *b.all[i].Data.InstanceID == needle {
-			return &b.all[i]
+	for _, c := range b.CallsByMethod("tenant") {
+		if c.Event.Type == eventType && c.Event.Data.InstanceID != nil && *c.Event.Data.InstanceID == needle {
+			e := c.Event
+			return &e
 		}
 	}
 	return nil

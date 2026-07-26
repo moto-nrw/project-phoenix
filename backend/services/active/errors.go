@@ -24,8 +24,15 @@ var (
 	ErrCannotDeleteActiveGroup   = errors.New("cannot delete active group with active visits")
 	ErrStudentAlreadyActive      = errors.New("student already has an active visit")
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
+	ErrStudentsNotPresent        = errors.New("no requested students are currently present")
+	ErrStudentMoveForbidden      = errors.New("not authorized to move the selected students")
 	ErrInvalidData               = errors.New("invalid data provided")
 	ErrDatabaseOperation         = errors.New("database operation failed")
+	// ErrNoAttendanceRecordForCheckout is returned by ConfirmDailyCheckout when
+	// the student has no attendance record for today — a daily checkout makes no
+	// sense because the student was never checked in. The message is a cross-repo
+	// contract mapped to German UI text in PyrePortal; do not change it.
+	ErrNoAttendanceRecordForCheckout = errors.New("student has no attendance record for today")
 	// Activity session management errors
 	// ErrActivityAlreadyActive  = errors.New("activity is already active on another device") // No longer used - activities can have multiple sessions
 	ErrDeviceAlreadyActive    = errors.New("device is already running an activity session")

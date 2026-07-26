@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -50,10 +51,10 @@ func (rs *Resource) checkStaffRoleFilter(ctx context.Context, person *users.Pers
 
 // matchesNameFilter checks if a person matches the name filters
 func matchesNameFilter(person *users.Person, firstName, lastName string) bool {
-	if firstName != "" && !containsIgnoreCase(person.FirstName, firstName) {
+	if firstName != "" && !strutil.ContainsFold(person.FirstName, firstName) {
 		return false
 	}
-	if lastName != "" && !containsIgnoreCase(person.LastName, lastName) {
+	if lastName != "" && !strutil.ContainsFold(person.LastName, lastName) {
 		return false
 	}
 	return true

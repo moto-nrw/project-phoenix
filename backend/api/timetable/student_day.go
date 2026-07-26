@@ -25,13 +25,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
-
-// maxWeekRangeDays caps /week at 14 days inclusive. Longer spans are
-// rejected at 400 — the frontend has no use case for a longer horizon today.
-const maxWeekRangeDays = 14
 
 // isoWeekday returns 1..7 (Mon..Sun) for the weekday of d.
 func isoWeekday(d timezone.Date) int {
@@ -115,9 +113,9 @@ func (rs *Resource) getStudentWeek(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rangeDays := inclusiveDayCount(from, to)
-	if rangeDays > maxWeekRangeDays {
+	if rangeDays > scheduleModel.MaxTimetableReadRangeDays {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("date range exceeds maximum of %d days", maxWeekRangeDays)))
+			fmt.Errorf("date range exceeds maximum of %d days", scheduleModel.MaxTimetableReadRangeDays)))
 		return
 	}
 
@@ -166,14 +164,14 @@ func parseStudentIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
 func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request, studentID int64) (*usersModel.Student, bool) {
 	ctx := r.Context()
 
-	if rs.timetableData == nil || rs.personService == nil {
+	if rs.TimetableData == nil || rs.PersonService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("student repo not wired")))
 		return nil, false
 	}
 
-	student, err := rs.personService.GetStudentByID(ctx, studentID)
+	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
 	if err != nil {
-		if isNotFoundDBError(err) {
+		if base.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 			return nil, false
 		}
@@ -189,8 +187,8 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 		ctx,
 		jwt.PermissionsFromCtx(ctx),
 		student,
-		rs.userContextService,
-		rs.settingsService,
+		rs.UserContextService,
+		rs.SettingsService,
 		rs.getLogger(),
 	) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("forbidden")))
@@ -200,132 +198,18 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 	return student, true
 }
 
-// weekPreload is the result of the range-wide batch queries used to assemble
-// the response for one or more days. All lookups are keyed by
-// Berlin-local YYYY-MM-DD (dateKey) except activeGroupInst which keys by
-// active_group_id (not date-specific).
-type weekPreload struct {
-	enrolledByDate       map[string][]*scheduleModel.ScheduledInstanceRow
-	instancesByDate      map[string][]*scheduleModel.ActivityInstance
-	visitsByActiveGroup  map[int64][]*activeModel.Visit
-	arrivalSchedByWeekly map[int]*scheduleModel.StudentArrivalSchedule
-	arrivalExcByDate     map[string]*scheduleModel.StudentArrivalException
-	pickupSchedByWeekly  map[int]*scheduleModel.StudentPickupSchedule
-	pickupExcByDate      map[string]*scheduleModel.StudentPickupException
-}
-
-// preloadWeek issues one DB query per category for the full [from, to] range
-// and returns data indexed by date. Replaces the previous N+1 pattern where
-// each day re-queried the same tables.
-func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to timezone.Date) (*weekPreload, error) {
-	out := &weekPreload{
-		enrolledByDate:       map[string][]*scheduleModel.ScheduledInstanceRow{},
-		instancesByDate:      map[string][]*scheduleModel.ActivityInstance{},
-		visitsByActiveGroup:  map[int64][]*activeModel.Visit{},
-		arrivalSchedByWeekly: map[int]*scheduleModel.StudentArrivalSchedule{},
-		arrivalExcByDate:     map[string]*scheduleModel.StudentArrivalException{},
-		pickupSchedByWeekly:  map[int]*scheduleModel.StudentPickupSchedule{},
-		pickupExcByDate:      map[string]*scheduleModel.StudentPickupException{},
-	}
-
-	if rs.timetableData == nil {
-		return nil, errors.New("timetable data service not wired")
-	}
-	enrolledRows, err := rs.timetableData.GetStudentInstancesWithAttendance(
-		ctx, studentID, from, to,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("load enrolled instances: %w", err)
-	}
-	for _, row := range enrolledRows {
-		k := dateKey(row.Instance.Date)
-		out.enrolledByDate[k] = append(out.enrolledByDate[k], row)
-	}
-
-	allInstances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("load all tenant instances: %w", err)
-	}
-
-	// Collect active_group_ids across the entire range for a single visits
-	// lookup. Only active/completed instances are relevant — planned/cancelled
-	// never have visits bridged (per WP-B11 scope).
-	activeGroupIDs := make([]int64, 0, len(allInstances))
-	seenAGID := make(map[int64]bool, len(allInstances))
-	for _, inst := range allInstances {
-		k := dateKey(inst.Date)
-		out.instancesByDate[k] = append(out.instancesByDate[k], inst)
-		if inst.ActiveGroupID == nil {
-			continue
-		}
-		if inst.Status != scheduleModel.InstanceStatusActive &&
-			inst.Status != scheduleModel.InstanceStatusCompleted {
-			continue
-		}
-		if !seenAGID[*inst.ActiveGroupID] {
-			seenAGID[*inst.ActiveGroupID] = true
-			activeGroupIDs = append(activeGroupIDs, *inst.ActiveGroupID)
-		}
-	}
-
-	if len(activeGroupIDs) > 0 {
-		visits, err := rs.timetableData.GetVisitsByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
-		if err != nil {
-			return nil, fmt.Errorf("load student visits: %w", err)
-		}
-		for _, v := range visits {
-			if v == nil {
-				continue
-			}
-			out.visitsByActiveGroup[v.ActiveGroupID] = append(out.visitsByActiveGroup[v.ActiveGroupID], v)
-		}
-	}
-
-	// Arrival/pickup weekly schedules: one query each returns up to 5 rows
-	// total per student (one per weekday). Cheaper than per-weekday queries.
-	arrivalSchedules, err := rs.timetableData.GetArrivalSchedulesByStudent(ctx, studentID)
-	if err != nil {
-		return nil, fmt.Errorf("load arrival schedules: %w", err)
-	}
-	for _, s := range arrivalSchedules {
-		out.arrivalSchedByWeekly[s.Weekday] = s
-	}
-	pickupSchedules, err := rs.timetableData.GetPickupSchedulesByStudent(ctx, studentID)
-	if err != nil {
-		return nil, fmt.Errorf("load pickup schedules: %w", err)
-	}
-	for _, s := range pickupSchedules {
-		out.pickupSchedByWeekly[s.Weekday] = s
-	}
-
-	// Arrival/pickup exceptions: range-scoped (avoid loading unbounded
-	// history).
-	arrivalExcs, err := rs.timetableData.GetArrivalExceptionsByStudentAndDateRange(ctx, studentID, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("load arrival exceptions: %w", err)
-	}
-	for _, e := range arrivalExcs {
-		out.arrivalExcByDate[dateKey(e.ExceptionDate)] = e
-	}
-	pickupExcs, err := rs.timetableData.GetPickupExceptionsByStudentAndDateRange(ctx, studentID, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("load pickup exceptions: %w", err)
-	}
-	for _, e := range pickupExcs {
-		out.pickupExcByDate[dateKey(e.ExceptionDate)] = e
-	}
-
-	return out, nil
-}
-
 // buildStudentDays assembles one StudentDayResponse per day in the inclusive
-// [from, to] range. A single batch round trip per category fills weekPreload;
-// from there the per-day assembly is a pure in-memory slice.
+// [from, to] range. A single batch round trip per category fills the preload
+// (owned by the TimetableData facade); from there the per-day assembly is a
+// pure in-memory slice.
 //
 // Query count (constant in range length): 1 enrolled + 1 all-instances +
 // 1 visits (if any active groups) + 2 schedules + 2 exceptions = max 7.
 func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from, to timezone.Date) ([]StudentDayResponse, error) {
-	pre, err := rs.preloadWeek(ctx, studentID, from, to)
+	if rs.TimetableData == nil {
+		return nil, errors.New("timetable data service not wired")
+	}
+	pre, err := rs.TimetableData.PreloadStudentWeek(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -341,11 +225,11 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 
 // buildStudentDayFromPreload assembles a single day's response from the
 // already-preloaded data. No DB calls.
-func buildStudentDayFromPreload(pre *weekPreload, studentID int64, date timezone.Date) StudentDayResponse {
+func buildStudentDayFromPreload(pre *scheduleSvc.StudentWeekPreload, studentID int64, date timezone.Date) StudentDayResponse {
 	k := dateKey(date)
 
-	enrolledRows := pre.enrolledByDate[k]
-	dayInstances := pre.instancesByDate[k]
+	enrolledRows := pre.EnrolledByDate[k]
+	dayInstances := pre.InstancesByDate[k]
 
 	// Build the base instance list from enrolled rows.
 	enrolledInstanceIDs := make(map[int64]bool, len(enrolledRows))
@@ -355,89 +239,92 @@ func buildStudentDayFromPreload(pre *weekPreload, studentID int64, date timezone
 		enrolledInstanceIDs[row.Instance.ID] = true
 	}
 
-	// Index today's active/completed instances by active_group_id so we can
-	// map visits back to their host instance.
-	instByActiveGroupID := make(map[int64]*scheduleModel.ActivityInstance, len(dayInstances))
+	instances = appendUnplannedInstances(instances, pre, dayInstances, enrolledInstanceIDs)
+
+	sort.SliceStable(instances, func(i, j int) bool {
+		return instances[i].StartTime < instances[j].StartTime
+	})
+
+	return StudentDayResponse{
+		StudentID: studentID,
+		Date:      date.String(),
+		Weekday:   isoWeekday(date),
+		Arrival:   resolveArrivalSlotFromPreload(pre, date),
+		Instances: instances,
+		Pickup:    resolvePickupSlotFromPreload(pre, date),
+	}
+}
+
+// appendUnplannedInstances adds is_unplanned entries: a visit on one of today's
+// active/completed instances with no instance_students row. active_group_id is
+// 1:1 with activity_instance (each instance creates its own group on start), so
+// the map lookup already scopes visits to this date.
+func appendUnplannedInstances(
+	instances []InstanceDayResponse,
+	pre *scheduleSvc.StudentWeekPreload,
+	dayInstances []*scheduleModel.ActivityInstance,
+	enrolledInstanceIDs map[int64]bool,
+) []InstanceDayResponse {
 	for _, inst := range dayInstances {
-		if inst.ActiveGroupID == nil {
+		if inst.ActiveGroupID == nil || enrolledInstanceIDs[inst.ID] {
 			continue
 		}
 		if inst.Status != scheduleModel.InstanceStatusActive &&
 			inst.Status != scheduleModel.InstanceStatusCompleted {
 			continue
 		}
-		instByActiveGroupID[*inst.ActiveGroupID] = inst
+		if v := firstNonNilVisit(pre.VisitsByActiveGroup[*inst.ActiveGroupID]); v != nil {
+			instances = append(instances, mapUnplannedInstance(inst, v))
+		}
 	}
-
-	// Append is_unplanned entries: the student has a visit on one of today's
-	// active/completed instances, but no instance_students row. active_group_id
-	// is 1:1 with activity_instance (each instance creates its own group on
-	// start), so the map lookup already scopes visits to this date.
-	for agID, inst := range instByActiveGroupID {
-		if enrolledInstanceIDs[inst.ID] {
-			continue
-		}
-		visits := pre.visitsByActiveGroup[agID]
-		if len(visits) == 0 {
-			continue
-		}
-		// Pick the first non-nil visit — dedup handled by one-entry-per-agID.
-		var v *activeModel.Visit
-		for _, candidate := range visits {
-			if candidate != nil {
-				v = candidate
-				break
-			}
-		}
-		if v == nil {
-			continue
-		}
-		instances = append(instances, mapUnplannedInstance(inst, v))
-	}
-
-	sort.SliceStable(instances, func(i, j int) bool {
-		return instances[i].StartTime < instances[j].StartTime
-	})
-
-	arrival := resolveArrivalSlotFromPreload(pre, date)
-	pickup := resolvePickupSlotFromPreload(pre, date)
-
-	return StudentDayResponse{
-		StudentID: studentID,
-		Date:      date.String(),
-		Weekday:   isoWeekday(date),
-		Arrival:   arrival,
-		Instances: instances,
-		Pickup:    pickup,
-	}
+	return instances
 }
 
-// resolveArrivalSlotFromPreload implements the exception-over-schedule rule
-// against already-loaded data. An exception on the date wins even when its
-// time is nil (absence signal).
-func resolveArrivalSlotFromPreload(pre *weekPreload, date timezone.Date) SlotResponse {
-	if exc, ok := pre.arrivalExcByDate[dateKey(date)]; ok && exc != nil {
-		return mapArrivalExceptionSlot(exc)
-	}
-	wd := isoWeekday(date)
-	if wd >= scheduleModel.WeekdayMonday && wd <= scheduleModel.WeekdayFriday {
-		if sched, ok := pre.arrivalSchedByWeekly[wd]; ok && sched != nil {
-			return mapArrivalScheduleSlot(sched)
+// firstNonNilVisit returns the first non-nil visit in the slice, or nil. Dedup
+// across instances is handled upstream by the 1:1 active_group_id mapping.
+func firstNonNilVisit(visits []*activeModel.Visit) *activeModel.Visit {
+	for _, candidate := range visits {
+		if candidate != nil {
+			return candidate
 		}
 	}
-	return SlotResponse{Source: SlotSourceNone}
+	return nil
+}
+
+// resolveArrivalSlotFromPreload applies the shared exception-over-schedule rule
+// (ResolveSlotSource) against already-loaded data. An exception on the date
+// wins even when its time is nil (absence signal).
+func resolveArrivalSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date timezone.Date) SlotResponse {
+	exc, hasExc := pre.ArrivalExcByDate[dateKey(date)]
+	hasExc = hasExc && exc != nil
+	wd := isoWeekday(date)
+	sched, hasSched := pre.ArrivalSchedByWeekly[wd]
+	hasSched = hasSched && sched != nil
+
+	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {
+	case SlotSourceException:
+		return mapArrivalExceptionSlot(exc)
+	case SlotSourceSchedule:
+		return mapArrivalScheduleSlot(sched)
+	default:
+		return SlotResponse{Source: SlotSourceNone}
+	}
 }
 
 // resolvePickupSlotFromPreload mirrors resolveArrivalSlotFromPreload.
-func resolvePickupSlotFromPreload(pre *weekPreload, date timezone.Date) SlotResponse {
-	if exc, ok := pre.pickupExcByDate[dateKey(date)]; ok && exc != nil {
-		return mapPickupExceptionSlot(exc)
-	}
+func resolvePickupSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date timezone.Date) SlotResponse {
+	exc, hasExc := pre.PickupExcByDate[dateKey(date)]
+	hasExc = hasExc && exc != nil
 	wd := isoWeekday(date)
-	if wd >= scheduleModel.WeekdayMonday && wd <= scheduleModel.WeekdayFriday {
-		if sched, ok := pre.pickupSchedByWeekly[wd]; ok && sched != nil {
-			return mapPickupScheduleSlot(sched)
-		}
+	sched, hasSched := pre.PickupSchedByWeekly[wd]
+	hasSched = hasSched && sched != nil
+
+	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {
+	case SlotSourceException:
+		return mapPickupExceptionSlot(exc)
+	case SlotSourceSchedule:
+		return mapPickupScheduleSlot(sched)
+	default:
+		return SlotResponse{Source: SlotSourceNone}
 	}
-	return SlotResponse{Source: SlotSourceNone}
 }

@@ -22,5 +22,4 @@ func TestStudentStatusDayModelAccessors(t *testing.T) {
 	assert.Equal(t, int64(42), entry.GetID())
 	assert.Equal(t, now, entry.GetCreatedAt())
 	assert.Equal(t, now.Add(time.Minute), entry.GetUpdatedAt())
-	assert.Equal(t, "active.student_status_days", entry.TableName())
 }

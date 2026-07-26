@@ -9,12 +9,6 @@ vi.mock("@/components/dashboard/modal-context", () => ({
   ),
 }));
 
-vi.mock("~/contexts/AlertContext", () => ({
-  AlertProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="alert-provider">{children}</div>
-  ),
-}));
-
 vi.mock("~/contexts/ToastContext", () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="toast-provider">{children}</div>
@@ -31,7 +25,6 @@ describe("Providers", () => {
 
     // Root providers are auth-free (SessionProvider moved to tenant/operator layouts)
     expect(getByTestId("modal-provider")).toBeInTheDocument();
-    expect(getByTestId("alert-provider")).toBeInTheDocument();
     expect(getByTestId("toast-provider")).toBeInTheDocument();
 
     // Verify children are rendered

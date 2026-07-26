@@ -77,7 +77,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
   };
 });
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
     <div data-testid="page-header">
       <h1>{title}</h1>
@@ -85,6 +85,7 @@ vi.mock("~/components/ui/page-header", () => ({
         <div data-testid="tabs">
           {tabs.items.map((tab: any) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               className={tabs.activeTab === tab.id ? "active" : ""}
@@ -106,7 +107,7 @@ vi.mock("~/components/ui/skeleton", () => ({
   ),
 }));
 
-vi.mock("~/components/teachers", () => ({
+vi.mock("~/components/teachers/caregiver-capability-modal", () => ({
   CaregiverCapabilityModal: ({
     isOpen,
     accountId,
@@ -119,7 +120,9 @@ vi.mock("~/components/teachers", () => ({
         <span>{accountId}</span>
         <span>{accountLabel}</span>
         <span>{schoolName}</span>
-        <button onClick={onClose}>Schließen</button>
+        <button type="button" onClick={onClose}>
+          Schließen
+        </button>
       </div>
     ) : null,
 }));
@@ -129,7 +132,7 @@ import {
   mockOrg,
   mockSchool,
   setupSWR,
-} from "../provisioning/provisioning-test-helpers";
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 // Matches the old provisioning/page.test.tsx Accounts Tab fixtures.
 const mockAccount: {
@@ -571,12 +574,15 @@ describe("OperatorAccountsPage", () => {
       if (key === "orgId") return "1";
       return null;
     });
-    withDefaultSWR({ schoolAccounts: [mockAccount] });
+    withDefaultSWR({
+      schoolAccounts: [mockAccount],
+      orgs: [mockOrg, { ...mockOrg, id: "2", name: "Other Org" }],
+    });
 
     render(<OperatorAccountsPage />);
 
-    const select = screen.getByLabelText(/Träger/) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "2" } });
+    fireEvent.click(screen.getByLabelText(/Träger/));
+    fireEvent.click(screen.getByRole("option", { name: "Other Org" }));
 
     // Navigation happens via router.replace; exact query shape depends on
     // URLSearchParams interaction with the toString mock, so just assert

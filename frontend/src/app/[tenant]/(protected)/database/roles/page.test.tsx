@@ -45,7 +45,7 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -72,7 +72,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     onClearAllFilters,
@@ -88,7 +88,11 @@ vi.mock("~/components/ui/page-header", () => ({
         value={search.value}
         onChange={(event) => search.onChange(event.target.value)}
       />
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -96,73 +100,68 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/roles", () => ({
-  RoleCreateModal: ({
+vi.mock("~/components/ui/database/database-form-modal", () => ({
+  // One mock serves both the create and the edit instance; the edit modal is
+  // the one that receives initialData. Mirrors DatabaseForm: catches the
+  // rejection from onSubmit and renders the message inline. Tests assert
+  // against the resulting message.
+  DatabaseFormModal: ({
     isOpen,
     onClose,
-    onCreate,
+    onSubmit,
+    initialData,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: { name: string }) => Promise<void>;
+    onSubmit: (data: { name: string }) => Promise<void>;
+    initialData?: unknown;
   }) => {
-    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
-    // the message inline. Tests assert against the resulting message.
+    const isEdit = initialData !== undefined;
     const [error, setError] = useState<string | null>(null);
     const submit = (data: { name: string }) => {
       setError(null);
-      void onCreate(data).catch((err: unknown) => {
+      void onSubmit(data).catch((err: unknown) => {
         setError(err instanceof Error ? err.message : String(err));
       });
     };
-    return isOpen ? (
-      <div data-testid="role-create-modal">
-        {error ? <span data-testid="create-error">{error}</span> : null}
-        <button
-          data-testid="submit-create"
-          onClick={() => submit({ name: "Neue Rolle" })}
-        >
-          Submit
-        </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null;
-  },
-  RoleEditModal: ({
-    isOpen,
-    onClose,
-    onSave,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: { name: string }) => Promise<void>;
-  }) => {
-    // Mirrors DatabaseForm: catches the rejection from onSave and renders
-    // the message inline. Tests assert against the resulting message.
-    const [error, setError] = useState<string | null>(null);
-    const submit = (data: { name: string }) => {
-      setError(null);
-      void onSave(data).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-      });
-    };
-    return isOpen ? (
+    if (!isOpen) return null;
+    return isEdit ? (
       <div data-testid="role-edit-modal">
         {error ? <span data-testid="edit-error">{error}</span> : null}
         <button
+          type="button"
           data-testid="submit-edit"
           onClick={() => submit({ name: "Updated" })}
         >
           Save
         </button>
-        <button data-testid="close-edit-modal" onClick={onClose}>
+        <button type="button" data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
       </div>
-    ) : null;
+    ) : (
+      <div data-testid="role-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
+        <button
+          type="button"
+          data-testid="submit-create"
+          onClick={() => submit({ name: "Neue Rolle" })}
+        >
+          Submit
+        </button>
+        <button
+          type="button"
+          data-testid="close-create-modal"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+    );
   },
+}));
+
+vi.mock("@/components/roles/roles-master-detail", () => ({
   RolesMasterDetail: ({
     roles,
     selectedId,
@@ -183,6 +182,7 @@ vi.mock("@/components/roles", () => ({
     <div data-testid="roles-master-detail">
       {roles.map((role) => (
         <button
+          type="button"
           key={role.id}
           data-testid={`role-row-${role.id}`}
           onClick={() => onSelect(role.id)}
@@ -196,19 +196,32 @@ vi.mock("@/components/roles", () => ({
           <span data-testid="detail-role-name">
             {selectedRole?.name ?? "unbekannt"}
           </span>
-          <button data-testid="trigger-edit" onClick={onEditClick}>
+          <button
+            type="button"
+            data-testid="trigger-edit"
+            onClick={onEditClick}
+          >
             Edit
           </button>
-          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+          <button
+            type="button"
+            data-testid="trigger-delete"
+            onClick={onDeleteClick}
+          >
             Delete
           </button>
           <button
+            type="button"
             data-testid="trigger-permissions"
             onClick={onManagePermissions}
           >
             Permissions
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            data-testid="trigger-deselect"
+            onClick={() => onSelect(null)}
+          >
             Close
           </button>
         </div>
@@ -217,7 +230,7 @@ vi.mock("@/components/roles", () => ({
   ),
 }));
 
-vi.mock("@/components/auth", () => ({
+vi.mock("@/components/auth/role-permission-management-modal", () => ({
   RolePermissionManagementModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="role-permission-modal" /> : null,
 }));
@@ -234,10 +247,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>

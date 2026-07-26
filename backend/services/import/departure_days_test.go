@@ -1,7 +1,9 @@
 package importpkg
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -35,6 +37,19 @@ func TestParseDepartureDayColumns(t *testing.T) {
 		assert.Equal(t, "pickup", days["thu"])
 	})
 
+	t.Run("maps the accompanied mode (Mit anderem Kind) values", func(t *testing.T) {
+		mapper := NewColumnMapper(
+			map[string]int{"gehweise.mo": 0, "gehweise.di": 1, "gehweise.mi": 2},
+			[]string{"Mit anderem Kind", "begleitet", "accompanied"},
+		)
+		days, err := parseDepartureDayColumns(mapper)
+		require.NoError(t, err)
+		require.NotNil(t, days)
+		assert.Equal(t, string(usersModel.DepartureAccompanied), days["mon"])
+		assert.Equal(t, string(usersModel.DepartureAccompanied), days["tue"])
+		assert.Equal(t, string(usersModel.DepartureAccompanied), days["wed"])
+	})
+
 	t.Run("rejects unrecognized cell values", func(t *testing.T) {
 		mapper := NewColumnMapper(map[string]int{"gehweise.mo": 0}, []string{"taxi"})
 		days, err := parseDepartureDayColumns(mapper)
@@ -53,6 +68,39 @@ func TestParseDepartureDayColumns(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "gehweise.di")
 		assert.Contains(t, err.Error(), "buss")
+	})
+
+	t.Run("MapStudentRow reads the Begleitung companion note (#1694)", func(t *testing.T) {
+		mapper := NewColumnMapper(
+			map[string]int{"vorname": 0, "nachname": 1, "klasse": 2, "gehweise.mo": 3, "begleitung": 4},
+			[]string{"Max", "Muster", "1a", "mit anderem Kind", "Geschwisterkind Lena"},
+		)
+		row, err := MapStudentRow(mapper)
+		require.NoError(t, err)
+		assert.Equal(t, "Geschwisterkind Lena", row.DepartureCompanionNote)
+	})
+}
+
+// TestBoundedNotePtr covers the import companion-note cap (#1694): trim, drop
+// empty to nil, and truncate by rune count (multibyte-safe) rather than reject.
+func TestBoundedNotePtr(t *testing.T) {
+	t.Run("empty and whitespace become nil", func(t *testing.T) {
+		assert.Nil(t, boundedNotePtr(""))
+		assert.Nil(t, boundedNotePtr("   "))
+	})
+
+	t.Run("trims surrounding whitespace", func(t *testing.T) {
+		got := boundedNotePtr("  Geschwisterkind Lena  ")
+		require.NotNil(t, got)
+		assert.Equal(t, "Geschwisterkind Lena", *got)
+	})
+
+	t.Run("truncates to the rune cap without splitting multibyte runes", func(t *testing.T) {
+		in := strings.Repeat("ä", usersModel.MaxDepartureCompanionNoteLen+50)
+		got := boundedNotePtr(in)
+		require.NotNil(t, got)
+		assert.Equal(t, usersModel.MaxDepartureCompanionNoteLen, utf8.RuneCountInString(*got))
+		assert.True(t, utf8.ValidString(*got))
 	})
 }
 

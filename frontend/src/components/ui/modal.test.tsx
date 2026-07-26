@@ -216,7 +216,7 @@ describe("Modal", () => {
           isOpen={true}
           onClose={vi.fn()}
           title="Test"
-          footer={<button>Footer Button</button>}
+          footer={<button type="button">Footer Button</button>}
         >
           <p>Content</p>
         </Modal>
@@ -230,6 +230,40 @@ describe("Modal", () => {
     expect(
       screen.getByRole("button", { name: "Footer Button" }),
     ).toBeInTheDocument();
+  });
+
+  it("bounds the whole dialog to the viewport and scrolls only the content", async () => {
+    render(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Scrollable modal"
+          footer={<button type="button">Footer Button</button>}
+        >
+          <div>Long content</div>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Scrollable modal" });
+    const content = document.querySelector('[data-modal-content="true"]');
+
+    expect(dialog).toHaveClass("flex", "max-h-[calc(100dvh-2rem)]");
+    expect(content).toHaveClass(
+      "min-h-0",
+      "flex-1",
+      "overflow-y-auto",
+      "overscroll-contain",
+    );
+    expect(screen.getByRole("heading").parentElement).toHaveClass("shrink-0");
+    expect(
+      screen.getByRole("button", { name: "Footer Button" }).parentElement,
+    ).toHaveClass("shrink-0");
   });
 
   it("should have data-modal-content attribute for scroll lock", async () => {
@@ -464,6 +498,84 @@ describe("ConfirmationModal", () => {
       name: /wird geladen/i,
     });
     expect(confirmButton).toBeDisabled();
+  });
+
+  it("should block every dismissal path when isDismissDisabled is set", async () => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={onClose}
+          onConfirm={vi.fn()}
+          title="Confirm"
+          isConfirmLoading={true}
+          isDismissDisabled={true}
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    const close = screen.getByRole("button", { name: "Modal schließen" });
+    const backdrop = screen.getByRole("button", {
+      name: "Hintergrund - Klicken zum Schließen",
+    });
+    expect(cancel).toBeDisabled();
+    expect(close).toBeDisabled();
+    expect(backdrop).toBeDisabled();
+
+    fireEvent.click(cancel);
+    fireEvent.click(close);
+    fireEvent.click(backdrop);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("should keep dismissal open while loading without isDismissDisabled", async () => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={onClose}
+          onConfirm={vi.fn()}
+          title="Confirm"
+          isConfirmLoading={true}
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    expect(cancel).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Hintergrund - Klicken zum Schließen",
+      }),
+    ).not.toBeDisabled();
+
+    fireEvent.click(cancel);
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).toHaveBeenCalled();
   });
 
   it("should apply custom confirmButtonClass", async () => {

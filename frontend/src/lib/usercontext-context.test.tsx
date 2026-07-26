@@ -61,14 +61,14 @@ describe("UserContextProvider", () => {
     {
       id: "1",
       name: "Group A",
-      room_id: "101",
+      roomId: "101",
       room: { id: "101", name: "Room 101" },
       viaSubstitution: false,
     },
     {
       id: "2",
       name: "Group B",
-      room_id: "102",
+      roomId: "102",
       room: { id: "102", name: "Room 102" },
       viaSubstitution: true,
     },
@@ -102,7 +102,7 @@ describe("UserContextProvider", () => {
     vi.mocked(mapEducationalGroupResponse).mockImplementation((group) => ({
       id: group.id.toString(),
       name: group.name,
-      room_id: group.room_id?.toString(),
+      roomId: group.room_id?.toString(),
       room: group.room
         ? {
             id: group.room.id.toString(),
@@ -512,7 +512,7 @@ describe("UserContextProvider", () => {
       });
 
       expect(result.current.educationalGroups).toHaveLength(1);
-      expect(result.current.educationalGroups[0]?.room_id).toBeUndefined();
+      expect(result.current.educationalGroups[0]?.roomId).toBeUndefined();
       expect(result.current.educationalGroups[0]?.room).toBeUndefined();
     });
 

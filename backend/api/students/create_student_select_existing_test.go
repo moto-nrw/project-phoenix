@@ -51,8 +51,6 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 
 	existing := seedExistingGuardian(t, tc, "Sibling", "Parent", "sibling.parent.existing@example.com")
 
-	router := setupRouterUnderTenantTx(tc, tc.resource.CreateStudentHandler())
-
 	body := map[string]interface{}{
 		"first_name":   "Second",
 		"last_name":    "Child",
@@ -70,7 +68,7 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
 	var resp createStudentResponse
@@ -151,8 +149,6 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 
 	existing := seedExistingGuardian(t, tc, "Dup", "Selection", "dup.selection.existing@example.com")
 
-	router := setupRouterUnderTenantTx(tc, tc.resource.CreateStudentHandler())
-
 	body := map[string]interface{}{
 		"first_name":   "DupSelect",
 		"last_name":    "Child",
@@ -164,7 +160,7 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
 	var resp createStudentResponse
@@ -188,8 +184,6 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 
 	existing := seedExistingGuardian(t, tc, "Mixed", "Existing", "mixed.existing@example.com")
 
-	router := setupRouterUnderTenantTx(tc, tc.resource.CreateStudentHandler())
-
 	body := map[string]interface{}{
 		"first_name":   "Mixed",
 		"last_name":    "Child",
@@ -207,7 +201,7 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
 	var resp createStudentResponse

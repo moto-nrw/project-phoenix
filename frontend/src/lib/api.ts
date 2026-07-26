@@ -19,20 +19,12 @@ import {
   mapSingleGroupResponse,
   mapGroupResponse, // Used internally in getGroup
   prepareGroupForBackend,
-  mapSingleCombinedGroupResponse,
-  prepareCombinedGroupForBackend,
   mapGroupsResponse,
-  mapCombinedGroupsResponse,
 } from "./group-helpers";
 
 // Re-export for external consumers
-export { mapGroupResponse, mapCombinedGroupResponse } from "./group-helpers";
-import type {
-  BackendGroup,
-  BackendCombinedGroup,
-  CombinedGroup as ImportedCombinedGroup,
-  Group as ImportedGroup,
-} from "./group-helpers";
+export { mapGroupResponse } from "./group-helpers";
+import type { BackendGroup, Group as ImportedGroup } from "./group-helpers";
 import {
   mapSingleRoomResponse,
   prepareRoomForBackend,
@@ -43,9 +35,73 @@ import {
 export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-failure";
+import {
+  ALL_COMPANION_WEEKDAYS,
+  notifyStudentCompanionsChanged,
+  type CompanionExtensionConfirmation,
+  type CompanionWeekday,
+} from "./student-companion-api";
 
 // Logger instance for API client
 const logger = createLogger({ component: "ApiClient" });
+
+/**
+ * Whether the update that just returned should tell mounted "läuft mit" views
+ * to refetch (#1694).
+ *
+ * The announcement is not a harmless refetch: an open Laufgemeinschaft form
+ * answers it by discarding its draft, or — when the draft is dirty — by
+ * blocking the save until the user reloads. So it has to follow what the write
+ * DID, not what the request looked like: the Stammdaten forms resubmit the whole
+ * departure plan on every save, so the payload shape says "may have changed
+ * links" for a pure name or address edit that changed none, and announcing that
+ * costs some other editor their unsaved work.
+ *
+ * The backend answers the question itself — `companions_changed` on the update
+ * response, the same verdict that decides its `student_companions_changed`
+ * broadcast — so that answer wins whenever it is present. It is absent only from
+ * a response that carries no verdict at all; there we fall back to the
+ * conservative payload heuristic, because a missed announcement leaves a stale
+ * list on screen.
+ */
+function companionsChangedFromResponse(payload: unknown): boolean | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const changed = (payload as { companions_changed?: unknown })
+    .companions_changed;
+  if (typeof changed === "boolean") return changed;
+  // The server-side path hands in the backend's whole { status, data } envelope,
+  // the browser path the already-unwrapped student — accept either.
+  const inner = (payload as { data?: unknown }).data;
+  if (!inner || typeof inner !== "object") return undefined;
+  const nested = (inner as { companions_changed?: unknown }).companions_changed;
+  return typeof nested === "boolean" ? nested : undefined;
+}
+
+/**
+ * The fallback heuristic: whether a student PUT payload can change links at all.
+ *
+ * Three payload shapes CAN, mirroring what the backend broadcasts on: a
+ * submitted list (it replaces the stored one), a confirmed plan extension (it
+ * widens a linked child's plan), and a departure-plan change (the backend trims
+ * links off weekdays the new plan no longer allows). Everything else stays
+ * silent — a genuinely remote change still arrives via the post-commit
+ * `student_companions_changed` SSE event.
+ */
+function studentUpdateMayChangeCompanions(
+  student: Partial<Student> & {
+    companions?: unknown;
+    confirmed_companion_extensions?: CompanionExtensionConfirmation[];
+  },
+): boolean {
+  return (
+    student.companions !== undefined ||
+    (student.confirmed_companion_extensions?.length ?? 0) > 0 ||
+    student.allowed_departure_modes !== undefined ||
+    student.departure_days !== undefined ||
+    student.bus_days !== undefined ||
+    student.pickup_days !== undefined
+  );
+}
 
 // Helper function to safely handle errors
 function handleApiError(error: unknown, context: string): Error {
@@ -167,6 +223,22 @@ function parseStudentsPaginatedResponse(responseData: unknown): StudentsResult {
   return { students: [] };
 }
 
+function parseSchoolClassesResponse(responseData: unknown): string[] {
+  const value =
+    responseData &&
+    typeof responseData === "object" &&
+    "success" in responseData &&
+    "data" in responseData
+      ? (responseData as ApiResponseWrapper<unknown>).data
+      : responseData;
+
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 /**
  * Build query parameters for student API requests
  */
@@ -175,8 +247,14 @@ function buildStudentQueryParams(filters?: {
   inHouse?: boolean;
   groupId?: string;
   roomId?: string;
-  locationState?: "transit";
+  schoolClass?: string;
+  locationState?: "present" | "transit";
   dayStatus?: "comes_today" | "not_coming_today";
+  /**
+   * Planning day (YYYY-MM-DD) the day-planning status, status days, and
+   * planned arrival/pickup times are evaluated for (#1939). Omit for today.
+   */
+  date?: string;
   bus?: "yes" | "no";
   photoConsent?: "yes" | "no";
   pickupStatus?: "self" | "pickedUp" | "none";
@@ -184,12 +262,14 @@ function buildStudentQueryParams(filters?: {
   pageSize?: number;
   includePickupTimes?: boolean;
   includeArrivalTimes?: boolean;
+  includeCompanions?: boolean;
 }): URLSearchParams {
   const params = new URLSearchParams();
   if (filters?.search) params.append("search", filters.search);
   if (filters?.inHouse !== undefined)
     params.append("in_house", filters.inHouse.toString());
   if (filters?.groupId) params.append("group_id", filters.groupId);
+  if (filters?.schoolClass) params.append("school_class", filters.schoolClass);
   // room_id narrows the list to students currently checked-in to any
   // active group taking place in this room (#1323). Backend joins via
   // active.visits → active.groups; see api/students/list_helpers.go.
@@ -197,6 +277,7 @@ function buildStudentQueryParams(filters?: {
   if (filters?.locationState)
     params.append("location_state", filters.locationState);
   if (filters?.dayStatus) params.append("day_status", filters.dayStatus);
+  if (filters?.date) params.append("date", filters.date);
   // Administrative filters (#1492). The backend applies these in-memory in the
   // same pass as day_status, so pagination and counts stay correct server-side.
   if (filters?.bus) params.append("bus", filters.bus);
@@ -211,6 +292,9 @@ function buildStudentQueryParams(filters?: {
     params.append("include_pickup_times", "true");
   if (filters?.includeArrivalTimes)
     params.append("include_arrival_times", "true");
+  // Companion links ("läuft mit") for the shown day, so the Kindersuche can
+  // group by Laufgemeinschaft. Opt-in: it costs an extra query per page.
+  if (filters?.includeCompanions) params.append("include_companions", "true");
   return params;
 }
 
@@ -477,7 +561,6 @@ function parseSingleStudentResponse(
 // Re-export types for external usage
 export type { Student } from "./student-helpers";
 export type Group = ImportedGroup;
-export type CombinedGroup = ImportedCombinedGroup;
 
 // Room-related interfaces
 export interface Room {
@@ -499,6 +582,364 @@ export interface Room {
 }
 
 // API services
+/**
+ * Raised when a student update was refused because a linked child's own
+ * departure plan does not yet allow leaving with another child on the
+ * requested days. Nothing was written; re-send with extend_companion_plans
+ * after the user confirms.
+ */
+export class CompanionPlanConflictError extends Error {
+  /**
+   * The conflicting children and weekdays exactly as the backend reported them.
+   * The confirmation has to name them again on the retry, so the backend can
+   * tell "the user agreed to this" apart from "this appeared afterwards".
+   */
+  readonly conflicts: CompanionExtensionConfirmation[];
+
+  /**
+   * The untouched response body.
+   *
+   * Kept because the refusal is not the only thing the body says: the student
+   * PUT proxy writes the privacy consent of the same request first, so a
+   * refusal can arrive on top of a COMMITTED consent write and carries
+   * `details.privacy_consent_saved` to say so. isPrivacyConsentSaved reads
+   * exactly this field (the message is only the German sentence), and without
+   * it the form reports "nothing was saved" for a request that did change the
+   * stored Datenschutz settings.
+   */
+  readonly body: string;
+
+  constructor(body: string) {
+    super(parseConflictMessage(body));
+    this.name = "CompanionPlanConflictError";
+    this.body = body;
+    this.conflicts = parseConflictExtensions(body);
+  }
+}
+
+/**
+ * Reads the 409 body's conflict list into the confirmation shape. Anything
+ * unparsable yields an empty list, which makes the retry ask again rather than
+ * confirm something we could not read.
+ */
+export function parseConflictExtensions(
+  body: string,
+): CompanionExtensionConfirmation[] {
+  try {
+    const parsed = JSON.parse(body) as {
+      conflicts?: { student_id?: number | string; weekdays?: string[] }[];
+    };
+    return (parsed.conflicts ?? [])
+      .filter((conflict) => conflict.student_id !== undefined)
+      .map((conflict) => ({
+        companion_student_id: String(conflict.student_id),
+        weekdays: (conflict.weekdays ?? []).filter(
+          (day): day is CompanionWeekday =>
+            ALL_COMPANION_WEEKDAYS.includes(day as CompanionWeekday),
+        ),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The backend's stable code for the retriable lock 409 on the student PUT
+ * (api/students: CodeCompanionLockBusy). Kept in sync by hand — the wire
+ * contract is the string.
+ */
+export const COMPANION_LOCK_BUSY_CODE = "companion_lock_busy";
+
+/**
+ * The backend's stable code for the OTHER expected companion refusal
+ * (api/students: CodeCompanionWouldLoseDeparture): removing a link would leave
+ * the linked child with an accompanied departure plan and no note and no other
+ * link. A 400, not a 409 — nothing to confirm, the user has to fix that child's
+ * Heimweg first. Kept in sync by hand — the wire contract is the string.
+ */
+export const COMPANION_WOULD_LOSE_DEPARTURE_CODE =
+  "companion_would_lose_departure";
+
+/**
+ * The backend's stable code for the stale-list 409 (api/students:
+ * CodeCompanionsChanged): the submitted "läuft mit" list was built on a
+ * snapshot someone else has since replaced. Kept in sync by hand — the wire
+ * contract is the string.
+ */
+export const COMPANIONS_CHANGED_CODE = "companions_changed";
+
+/** Shown only when the stale-list refusal arrived without a readable message. */
+const COMPANIONS_CHANGED_FALLBACK =
+  "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.";
+
+/**
+ * Raised when the submitted companion list no longer describes the stored one.
+ *
+ * Typed rather than folded into the generic error path because the retry is
+ * different from every other failure: re-sending the SAME list is exactly what
+ * the refusal prevents — it would delete the change it is protecting. The form
+ * has to reload first and let the user redo the edit on the current state.
+ */
+export class CompanionsChangedError extends Error {
+  /** The untouched response body — see CompanionPlanConflictError.body. */
+  readonly body: string;
+
+  constructor(body: string) {
+    super(parseBackendMessage(body, COMPANIONS_CHANGED_FALLBACK));
+    this.name = "CompanionsChangedError";
+    this.body = body;
+  }
+}
+
+/** Reports whether a response body carries the stale-list code. */
+export function isCompanionsChangedBody(body: string): boolean {
+  return bodyHasCode(body, COMPANIONS_CHANGED_CODE);
+}
+
+/**
+ * Reports whether an error is that refusal, in whichever wrapping it arrived —
+ * the typed error from studentService.updateStudent, or the plain Error the
+ * generic CRUD service throws with the untouched body attached. Keyed off the
+ * CODE, never the status: the student PUT answers 409 for the companion-plan
+ * question and the lock collision too.
+ */
+export function isCompanionsChanged(err: unknown): boolean {
+  if (err instanceof CompanionsChangedError) return true;
+  if (!(err instanceof Error)) return false;
+  const body = (err as Error & { body?: string }).body;
+  if (body && isCompanionsChangedBody(body)) return true;
+  const match = embeddedJsonObject(err.message);
+  return match ? isCompanionsChangedBody(match) : false;
+}
+
+/** The German instruction the stale-list refusal carries. */
+export function companionsChangedMessage(err: unknown): string {
+  if (err instanceof CompanionsChangedError) return err.message;
+  if (err instanceof Error) {
+    const body = (err as Error & { body?: string }).body;
+    if (body) {
+      const fromBody = parseBackendMessage(body, "");
+      if (fromBody) return fromBody;
+    }
+    const match = embeddedJsonObject(err.message);
+    if (match) {
+      const fromMessage = parseBackendMessage(match, "");
+      if (fromMessage) return fromMessage;
+    }
+  }
+  return COMPANIONS_CHANGED_FALLBACK;
+}
+
+/** Shown only when the refusal arrived without a readable message. */
+const COMPANION_DEPARTURE_FALLBACK =
+  "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.";
+
+/**
+ * Raised when a student write was refused because it would strand a linked
+ * child. Typed like the plan conflict so the forms can keep the backend's
+ * German instruction instead of decaying it into "Fehler beim Speichern" — the
+ * message names the precondition, and without it the user has no way to tell
+ * what has to change before the save can succeed.
+ */
+export class CompanionDepartureRefusedError extends Error {
+  /** The untouched response body — see CompanionPlanConflictError.body. */
+  readonly body: string;
+
+  constructor(body: string) {
+    super(parseBackendMessage(body, COMPANION_DEPARTURE_FALLBACK));
+    this.name = "CompanionDepartureRefusedError";
+    this.body = body;
+  }
+}
+
+/**
+ * Reports whether an error is that refusal, in whichever wrapping it arrived:
+ * the typed error from studentService.updateStudent, or the plain Error the
+ * generic CRUD service throws with the untouched body attached (and, for
+ * callers that lost the body, the JSON embedded in the message).
+ *
+ * Keyed off the CODE, never the status: the student PUT answers 400 for every
+ * other rejected field too, and those keep their own generic handling.
+ */
+export function isCompanionDepartureRefusal(err: unknown): boolean {
+  if (err instanceof CompanionDepartureRefusedError) return true;
+  if (!(err instanceof Error)) return false;
+  const body = (err as Error & { body?: string }).body;
+  if (body && isCompanionDepartureBody(body)) return true;
+  const match = embeddedJsonObject(err.message);
+  return match ? isCompanionDepartureBody(match) : false;
+}
+
+/** Reports whether a response body carries the stranded-companion code. */
+export function isCompanionDepartureBody(body: string): boolean {
+  return bodyHasCode(body, COMPANION_WOULD_LOSE_DEPARTURE_CODE);
+}
+
+/** The German instruction the refusal carries, dug out of the same wrappings. */
+export function companionDepartureMessage(err: unknown): string {
+  if (err instanceof CompanionDepartureRefusedError) return err.message;
+  if (err instanceof Error) {
+    const body = (err as Error & { body?: string }).body;
+    if (body) {
+      const fromBody = parseBackendMessage(body, "");
+      if (fromBody) return fromBody;
+    }
+    const match = embeddedJsonObject(err.message);
+    if (match) {
+      const fromMessage = parseBackendMessage(match, "");
+      if (fromMessage) return fromMessage;
+    }
+  }
+  return COMPANION_DEPARTURE_FALLBACK;
+}
+
+/**
+ * The student PUT proxy writes the privacy consent of the same request first,
+ * against a different backend endpoint and therefore a different transaction.
+ * When the student write then fails, the request is a partial success: the
+ * consent is stored, the rest is not. The proxy marks that error with
+ * `details.privacy_consent_saved` (app/api/students/[id]/route.ts) so the form
+ * can say which half landed — reporting the usual blanket failure invites the
+ * user to abandon the retry and leave a consent change behind unknowingly.
+ */
+export function isPrivacyConsentSavedBody(body: string): boolean {
+  const jsonStart = body.indexOf("{");
+  if (jsonStart === -1) return false;
+  try {
+    const parsed = JSON.parse(body.substring(jsonStart)) as {
+      details?: { privacy_consent_saved?: boolean };
+    };
+    return parsed.details?.privacy_consent_saved === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Reports the same in whichever wrapping the error arrived. */
+export function isPrivacyConsentSaved(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const body = (err as Error & { body?: string }).body;
+  if (body && isPrivacyConsentSavedBody(body)) return true;
+  const match = embeddedJsonObject(err.message);
+  return match ? isPrivacyConsentSavedBody(match) : false;
+}
+
+/** Prefixed to the failure text so the saved half is never reported as lost. */
+export const PRIVACY_CONSENT_SAVED_NOTICE =
+  "Die Datenschutzeinstellungen wurden bereits gespeichert, die übrigen Änderungen nicht.";
+
+/**
+ * Returns the message to show for a failed student save, prefixed with the
+ * partial-success notice when the consent half of the request committed.
+ */
+export function withPrivacyConsentSavedNotice(
+  err: unknown,
+  message: string,
+): string {
+  return isPrivacyConsentSaved(err)
+    ? `${PRIVACY_CONSENT_SAVED_NOTICE} ${message}`
+    : message;
+}
+
+/**
+ * Cuts the JSON object out of an error MESSAGE — first "{" to last "}" — for
+ * the callers that no longer hold the response body and have to read the
+ * backend envelope back out of the text the CRUD service built from it.
+ *
+ * Written with indexOf/lastIndexOf rather than the obvious /\{.*\}/s: the
+ * greedy match backtracks over the whole message once per candidate closing
+ * brace, which is quadratic on a long unterminated message. The result is
+ * identical, the scan is linear.
+ */
+export function embeddedJsonObject(message: string): string | null {
+  const start = message.indexOf("{");
+  if (start === -1) return null;
+  const end = message.lastIndexOf("}");
+  if (end < start) return null;
+  return message.substring(start, end + 1);
+}
+
+/** Reads the backend error envelope's message, falling back when unreadable. */
+function parseBackendMessage(body: string, fallback: string): string {
+  const jsonStart = body.indexOf("{");
+  if (jsonStart === -1) return fallback;
+  try {
+    const parsed = JSON.parse(body.substring(jsonStart)) as {
+      error?: string;
+      message?: string;
+    };
+    for (const candidate of [parsed.error, parsed.message]) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Reports whether a complete 409 RESPONSE BODY is the companion-plan question.
+ *
+ * Strict on purpose: the conflict list has to actually be there. The student PUT
+ * answers 409 for several unrelated reasons (companion_lock_busy, the
+ * SICK_EXCUSED_CONFLICT code, and whatever a later feature adds), and typing one
+ * of those as a CompanionPlanConflictError would replace its real contract with
+ * an empty confirmation the user cannot answer. Only the untouched body reaches
+ * this function, so "no list in it" means "not this conflict" — the response
+ * then follows the generic error path and keeps its own message.
+ */
+export function isCompanionPlanConflictResponse(body: string): boolean {
+  return parseConflictExtensions(body).length > 0;
+}
+
+/**
+ * Reports whether a 409 body FRAGMENT is the companion-plan question rather than
+ * the lock collision.
+ *
+ * For callers that no longer hold the untouched response — the generic CRUD
+ * service reduces it to a message and an attached body, either of which may
+ * have lost the list. Use isCompanionPlanConflictResponse whenever the whole
+ * body is available.
+ *
+ * The status alone does not say so: the student PUT also answers 409 for
+ * ErrCompanionLockBusy (a linked child is being edited elsewhere — retriable,
+ * nothing to confirm). A body carrying that code is never the question; a body
+ * carrying conflicts always is. An unreadable body stays the question, which is
+ * the established behavior for this form — the retry then simply confirms
+ * nothing and the backend asks again.
+ */
+export function isCompanionPlanConflictBody(body: string): boolean {
+  if (parseConflictExtensions(body).length > 0) return true;
+  if (bodyHasCode(body, COMPANIONS_CHANGED_CODE)) return false;
+  return !bodyHasCode(body, COMPANION_LOCK_BUSY_CODE);
+}
+
+function bodyHasCode(body: string, code: string): boolean {
+  const jsonStart = body.indexOf("{");
+  if (jsonStart === -1) return false;
+  try {
+    const parsed = JSON.parse(body.substring(jsonStart)) as { code?: string };
+    return parsed.code === code;
+  } catch {
+    return false;
+  }
+}
+
+function parseConflictMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { message?: string; error?: string };
+    return (
+      parsed.message ??
+      parsed.error ??
+      "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht."
+    );
+  } catch {
+    return "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.";
+  }
+}
+
 export const studentService = {
   // Get all students
   // Pass token to skip redundant getSession() call (saves ~600ms per request)
@@ -507,8 +948,10 @@ export const studentService = {
     inHouse?: boolean;
     groupId?: string;
     roomId?: string;
-    locationState?: "transit";
+    schoolClass?: string;
+    locationState?: "present" | "transit";
     dayStatus?: "comes_today" | "not_coming_today";
+    date?: string;
     bus?: "yes" | "no";
     photoConsent?: "yes" | "no";
     pickupStatus?: "self" | "pickedUp" | "none";
@@ -516,6 +959,7 @@ export const studentService = {
     pageSize?: number;
     includePickupTimes?: boolean;
     includeArrivalTimes?: boolean;
+    includeCompanions?: boolean;
     token?: string; // Optional: pass token to skip getSession()
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);
@@ -557,6 +1001,39 @@ export const studentService = {
       };
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
+    }
+  },
+
+  getSchoolClasses: async (filters?: { token?: string }): Promise<string[]> => {
+    const useProxyApi = globalThis.window !== undefined;
+    const url = useProxyApi
+      ? "/api/students/school-classes"
+      : `${env.API_URL}/api/students/school-classes`;
+
+    try {
+      if (useProxyApi) {
+        let authToken = filters?.token;
+        if (!authToken) {
+          const session = await getSession();
+          authToken = session?.user?.token;
+        }
+
+        const { data } = await fetchWithRetry<unknown>(url, authToken, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
+
+        if (data === null) {
+          throw new Error("Authentication failed");
+        }
+
+        return parseSchoolClassesResponse(data);
+      }
+
+      const response = await api.get(url);
+      return parseSchoolClassesResponse(response.data);
+    } catch (error) {
+      throw handleApiError(error, "Error fetching school classes");
     }
   },
 
@@ -652,7 +1129,16 @@ export const studentService = {
   // Update a student
   updateStudent: async (
     id: string,
-    student: Partial<Student>,
+    student: Partial<Student> & {
+      // Laufgemeinschaft rides along with the departure plan it belongs to.
+      // Ids stay strings all the way to the backend, which accepts a quoted
+      // decimal for exactly that reason.
+      companions?: { companion_student_id: string; weekdays: string[] }[];
+      // Fingerprint of the list the caller LOADED — see prepareStudentForBackend.
+      companions_fingerprint?: string;
+      extend_companion_plans?: boolean;
+      confirmed_companion_extensions?: CompanionExtensionConfirmation[];
+    },
   ): Promise<Student> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -683,6 +1169,42 @@ export const studentService = {
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
 
+          // A 409 CARRYING A CONFLICT LIST on the student PUT means a linked
+          // child's own departure plan does not allow the requested "läuft mit"
+          // days. It is a question, not a failure: the caller re-sends with
+          // extend_companion_plans after the user confirms. Typed so the modal
+          // can tell it apart from a real error. Nothing was written — the
+          // handler checks before its first write. A 409 WITHOUT that list is a
+          // different conflict (a linked child locked by a concurrent edit, a
+          // sick/excused clash, …) and falls through to the generic error path,
+          // which shows its own message instead of an unanswerable question.
+          if (
+            response.status === 409 &&
+            isCompanionPlanConflictResponse(errorText)
+          ) {
+            throw new CompanionPlanConflictError(errorText);
+          }
+
+          // The OTHER expected 409: the submitted "läuft mit" list was built on
+          // a snapshot someone else has since replaced. Typed because the retry
+          // must NOT re-send the same list — that is precisely the write this
+          // refusal exists to stop. The form reloads and lets the user redo the
+          // edit on the current links.
+          if (response.status === 409 && isCompanionsChangedBody(errorText)) {
+            throw new CompanionsChangedError(errorText);
+          }
+
+          // A 400 CARRYING THE STRANDED-COMPANION CODE is the other expected
+          // companion refusal: removing a link would leave the linked child
+          // with an accompanied plan and nothing that says who it walks home
+          // with. Nothing was written and the message names what has to be
+          // fixed first, so it is typed too — the generic branch below folds
+          // the body into "API error 400: …", which the forms then replace
+          // with an opaque "Fehler beim Speichern" the user cannot act on.
+          if (response.status === 400 && isCompanionDepartureBody(errorText)) {
+            throw new CompanionDepartureRefusedError(errorText);
+          }
+
           // Try to parse error text as JSON for more detailed error
           try {
             const errorJson = JSON.parse(errorText) as { error?: string };
@@ -710,6 +1232,17 @@ export const studentService = {
         const mappedResponse = mapSingleStudentResponse({
           data: actualData,
         });
+        // The "läuft mit" links are not part of this response, and a departure
+        // plan write can change them even when the caller sent no `companions`
+        // list (the backend trims links the new plan no longer allows). Tell
+        // every mounted companion view to refetch instead of leaving it stale —
+        // but only when the write actually changed them.
+        if (
+          companionsChangedFromResponse(actualData) ??
+          studentUpdateMayChangeCompanions(student)
+        ) {
+          notifyStudentCompanionsChanged();
+        }
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
@@ -719,9 +1252,26 @@ export const studentService = {
         const mappedResponse = mapSingleStudentResponse({
           data: response.data as unknown as BackendStudent,
         });
+        if (
+          companionsChangedFromResponse(response.data) ??
+          studentUpdateMayChangeCompanions(student)
+        ) {
+          notifyStudentCompanionsChanged();
+        }
         return mappedResponse;
       }
     } catch (error) {
+      // The companion conflict is a question for the user, not an API failure —
+      // keep its type so the caller can offer the confirmation instead of a
+      // generic error toast.
+      if (error instanceof CompanionPlanConflictError) throw error;
+      // Same reasoning for the stranded-companion refusal: it is an instruction
+      // for the user, and handleApiError would strip it down to a generic
+      // message.
+      if (error instanceof CompanionDepartureRefusedError) throw error;
+      // Same reasoning for the stale-list refusal: the form has to reload
+      // rather than retry, and handleApiError would hide that instruction.
+      if (error instanceof CompanionsChangedError) throw error;
       throw handleApiError(error, `Error updating student ${id}`);
     }
   },
@@ -1253,369 +1803,6 @@ export const groupService = {
       logger.error("failed to set representative for group", {
         representative_id: representativeId,
         group_id: groupId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-};
-
-// Combined Group service for API operations
-export const combinedGroupService = {
-  // Get all combined groups
-  getCombinedGroups: async (): Promise<CombinedGroup[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/groups/combined"
-      : `${env.API_URL}/api/groups/combined`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as BackendCombinedGroup[];
-        return mapCombinedGroupsResponse(responseData);
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        return mapCombinedGroupsResponse(
-          response.data as BackendCombinedGroup[],
-        );
-      }
-    } catch (error) {
-      logger.error("failed to fetch combined groups", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Get a specific combined group by ID
-  getCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${id}`
-      : `${env.API_URL}/api/groups/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse({ data: responseData });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        return mapSingleCombinedGroupResponse({
-          data: response.data as BackendCombinedGroup,
-        });
-      }
-    } catch (error) {
-      logger.error("failed to fetch combined group", {
-        combined_group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Create a new combined group
-  createCombinedGroup: async (
-    combinedGroup: Omit<CombinedGroup, "id">,
-  ): Promise<CombinedGroup> => {
-    // Transform from frontend model to backend model
-    const backendCombinedGroup = prepareCombinedGroupForBackend(combinedGroup);
-
-    // Basic validation for combined group creation
-    if (!backendCombinedGroup.name) {
-      throw new Error("Missing required field: name");
-    }
-    if (!backendCombinedGroup.access_policy) {
-      throw new Error("Missing required field: access_policy");
-    }
-
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined`
-      : `${env.API_URL}/api/groups/combined`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-          body: JSON.stringify(backendCombinedGroup),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse({ data: responseData });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.post(url, backendCombinedGroup);
-        return mapSingleCombinedGroupResponse({
-          data: response.data as BackendCombinedGroup,
-        });
-      }
-    } catch (error) {
-      logger.error("failed to create combined group", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Update a combined group
-  updateCombinedGroup: async (
-    id: string,
-    combinedGroup: Partial<CombinedGroup>,
-  ): Promise<CombinedGroup> => {
-    // Transform from frontend model to backend model updates
-    const backendUpdates = prepareCombinedGroupForBackend(combinedGroup);
-
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${id}`
-      : `${env.API_URL}/api/groups/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-          body: JSON.stringify(backendUpdates),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse({ data: responseData });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.put(url, backendUpdates);
-        return mapSingleCombinedGroupResponse({
-          data: response.data as BackendCombinedGroup,
-        });
-      }
-    } catch (error) {
-      logger.error("failed to update combined group", {
-        combined_group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Delete a combined group
-  deleteCombinedGroup: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${id}`
-      : `${env.API_URL}/api/groups/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.delete(url);
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to delete combined group", {
-        combined_group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Add a group to a combined group
-  addGroupToCombined: async (
-    combinedGroupId: string,
-    groupId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${combinedGroupId}/groups`
-      : `${env.API_URL}/api/groups/combined/${combinedGroupId}/groups`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-          body: JSON.stringify({ group_id: Number.parseInt(groupId, 10) }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.post(url, { group_id: Number.parseInt(groupId, 10) });
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to add group to combined group", {
-        group_id: groupId,
-        combined_group_id: combinedGroupId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Remove a group from a combined group
-  removeGroupFromCombined: async (
-    combinedGroupId: string,
-    groupId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${combinedGroupId}/groups/${groupId}`
-      : `${env.API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.delete(url);
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to remove group from combined group", {
-        group_id: groupId,
-        combined_group_id: combinedGroupId,
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;

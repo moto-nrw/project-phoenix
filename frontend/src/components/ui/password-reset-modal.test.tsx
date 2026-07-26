@@ -23,14 +23,16 @@ vi.mock("./modal", () => ({
 
     return isOpen ? (
       <div data-testid="modal">
-        <button onClick={onClose}>Close Modal</button>
+        <button type="button" onClick={onClose}>
+          Close Modal
+        </button>
         {children}
       </div>
     ) : null;
   },
 }));
 
-vi.mock("./index", () => ({
+vi.mock("./input", () => ({
   Input: ({
     id,
     value,
@@ -58,6 +60,9 @@ vi.mock("./index", () => ({
       {...props}
     />
   ),
+}));
+
+vi.mock("./alert", () => ({
   Alert: ({ type, message }: { type: string; message: string }) => (
     <div data-testid={`alert-${type}`}>{message}</div>
   ),

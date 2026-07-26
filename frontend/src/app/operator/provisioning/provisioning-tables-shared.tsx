@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomSelect } from "~/components/ui/custom-select";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 
 export function OrgSchoolFilter({
@@ -19,52 +20,54 @@ export function OrgSchoolFilter({
   readonly onOrgChange: (orgId: string) => void;
   readonly onSchoolChange: (schoolId: string) => void;
 }) {
+  const orgOptions = [
+    { value: "", label: "Alle Träger" },
+    ...(organizations?.map((org) => ({ value: org.id, label: org.name })) ??
+      []),
+  ];
+  const schoolOptions = [
+    { value: "", label: filterOrgId ? "Alle Schulen" : "Schule auswählen…" },
+    ...filteredSchools.map((school) => ({
+      value: school.id,
+      label: `${school.name}${
+        school.organization ? ` (${school.organization.name})` : ""
+      }`,
+    })),
+  ];
+
   return (
     <div className="mt-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
       <div className="flex-1">
         <label
+          id={`filter-${idPrefix}-org-label`}
           htmlFor={`filter-${idPrefix}-org`}
           className="mb-1 block text-xs font-medium text-gray-500"
         >
           Träger
         </label>
-        <select
+        <CustomSelect
           id={`filter-${idPrefix}-org`}
+          ariaLabelledBy={`filter-${idPrefix}-org-label`}
           value={filterOrgId}
-          onChange={(e) => onOrgChange(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
-        >
-          <option value="">Alle Träger</option>
-          {organizations?.map((org) => (
-            <option key={org.id} value={org.id}>
-              {org.name}
-            </option>
-          ))}
-        </select>
+          options={orgOptions}
+          onChange={onOrgChange}
+        />
       </div>
       <div className="flex-1">
         <label
+          id={`filter-${idPrefix}-school-label`}
           htmlFor={`filter-${idPrefix}-school`}
           className="mb-1 block text-xs font-medium text-gray-500"
         >
           Schule
         </label>
-        <select
+        <CustomSelect
           id={`filter-${idPrefix}-school`}
+          ariaLabelledBy={`filter-${idPrefix}-school-label`}
           value={selectedSchool?.id ?? ""}
-          onChange={(e) => onSchoolChange(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
-        >
-          <option value="">
-            {filterOrgId ? "Alle Schulen" : "Schule auswählen…"}
-          </option>
-          {filteredSchools.map((school) => (
-            <option key={school.id} value={school.id}>
-              {school.name}
-              {school.organization ? ` (${school.organization.name})` : ""}
-            </option>
-          ))}
-        </select>
+          options={schoolOptions}
+          onChange={onSchoolChange}
+        />
       </div>
     </div>
   );

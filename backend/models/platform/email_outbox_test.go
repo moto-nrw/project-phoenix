@@ -102,11 +102,6 @@ func TestEmailOutbox_Validate_PreservesExplicitNextRetryAt(t *testing.T) {
 // schema-qualified table reference; broken renames would break every
 // outbox write.
 
-func TestEmailOutbox_TableName(t *testing.T) {
-	o := &EmailOutbox{}
-	assert.Equal(t, "platform.email_outbox", o.TableName())
-}
-
 // Kind constants are stable contract: the worker registers per-kind
 // renderers using these strings; a typo in the consumer code would
 // silently send no email at all. The constants exist precisely to
@@ -117,7 +112,6 @@ func TestEmailKind_StableValues(t *testing.T) {
 	assert.Equal(t, "guardian_invitation", EmailKindGuardianInvitation)
 	assert.Equal(t, "enrollment_submitted", EmailKindEnrollmentSubmitted)
 	assert.Equal(t, "enrollment_admin_notification", EmailKindEnrollmentAdminNotify)
-	assert.Equal(t, "enrollment_decision_digest", EmailKindEnrollmentDecisionDigest)
 	assert.Equal(t, "enrollment_approved", EmailKindEnrollmentApproved)
 	assert.Equal(t, "enrollment_waitlisted", EmailKindEnrollmentWaitlisted)
 	assert.Equal(t, "enrollment_rejected", EmailKindEnrollmentRejected)

@@ -6,6 +6,9 @@ export interface BackendWorkSession {
   staff_id: number;
   date: string;
   status: "present" | "home_office";
+  // Channel the row was created on (active.work_sessions.source, Issue #1368).
+  // Optional because pre-#1368 payloads predate the column.
+  source?: "app" | "nfc" | "unknown";
   check_in_time: string;
   check_out_time: string | null;
   break_minutes: number;
@@ -35,6 +38,7 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   rest_period_warning: string | null;
   breaks: BackendWorkSessionBreak[] | null;
   edit_count: number;
+  audit_count?: number;
 }
 
 interface BackendWeeklySummary {
@@ -94,7 +98,8 @@ export interface BackendStaffAbsence {
 }
 
 // Frontend absence type
-export type AbsenceType = "sick" | "vacation" | "training" | "other";
+export type AbsenceType =
+  "sick" | "vacation" | "training" | "other" | "comp_time";
 
 export interface StaffAbsence {
   id: string;
@@ -124,6 +129,7 @@ export const absenceTypeLabels: Record<AbsenceType, string> = {
   vacation: "Urlaub",
   training: "Fortbildung",
   other: "Sonstige",
+  comp_time: "Freizeitausgleich",
 };
 
 export function mapStaffAbsenceResponse(
@@ -159,6 +165,7 @@ export interface WorkSession {
   staffId: string;
   date: string;
   status: "present" | "home_office";
+  source?: "app" | "nfc" | "unknown";
   checkInTime: string;
   checkOutTime: string | null;
   breakMinutes: number;
@@ -186,6 +193,7 @@ export interface WorkSessionHistory extends WorkSession {
   restPeriodWarning: string | null;
   breaks: WorkSessionBreak[];
   editCount: number;
+  auditCount?: number;
 }
 
 export interface WeeklySummary {
@@ -225,6 +233,7 @@ export function mapWorkSessionResponse(data: BackendWorkSession): WorkSession {
     staffId: data.staff_id.toString(),
     date: data.date.split("T")[0] ?? data.date,
     status: data.status,
+    source: data.source,
     checkInTime: data.check_in_time,
     checkOutTime: data.check_out_time ?? null,
     breakMinutes: data.break_minutes,
@@ -267,6 +276,7 @@ export function mapWorkSessionHistoryResponse(
     restPeriodWarning: data.rest_period_warning ?? null,
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
     editCount: data.edit_count ?? 0,
+    auditCount: data.audit_count ?? 0,
   };
 }
 
@@ -473,4 +483,351 @@ export function calculateNetMinutes(
   } catch {
     return null;
   }
+}
+
+/**
+ * Backend shape of the Monatskarte aggregate (#1842).
+ */
+// Poll interval for the current month's Monatskarte (admin tab and own
+// view). A running session keeps growing the Ist server-side, so a card
+// fetched once at mount would freeze at the check-in minute.
+export const OPEN_MONTH_REFRESH_MS = 60_000;
+
+/**
+ * Largest [from, to] window the `schedule-targets` endpoint accepts, mirroring
+ * `maxDailyTargetRangeDays` in `services/active/work_time_month_service.go` —
+ * asking for more is a 400, not a truncated answer. Callers whose range is
+ * user-controlled (the Übersicht charts reach back to the account start) must
+ * split it into windows of at most this many days.
+ */
+export const MAX_TARGET_RANGE_DAYS = 366;
+
+export interface BackendDailyTarget {
+  date: string;
+  target_minutes: number;
+}
+
+/**
+ * Soll-Minuten je Kalendertag, aufgelöst gegen die Plan-Version, die AN
+ * diesem Tag galt (#1842). Key ist der ISO-Tag (YYYY-MM-DD).
+ *
+ * Die Tagestabelle darf das Soll nicht aus dem AKTUELLEN Dienstplan ableiten:
+ * Nach einer Vertragsänderung (z. B. 8h -> 4h) stünden sonst in jeder
+ * vergangenen Zeile 4h, während die Monatskarte darüber die tatsächlich
+ * gültigen 8h summiert — Karte und Tabelle widersprächen sich.
+ */
+export function mapDailyTargetsResponse(
+  data: BackendDailyTarget[] | null | undefined,
+): ReadonlyMap<string, number> {
+  const targets = new Map<string, number>();
+  for (const entry of data ?? []) {
+    targets.set(entry.date.slice(0, 10), entry.target_minutes);
+  }
+  return targets;
+}
+
+export interface BackendHoliday {
+  date: string;
+  name: string;
+}
+
+/**
+ * Gesetzliche Feiertage im Zeitraum, keyed nach ISO-Tag (YYYY-MM-DD),
+ * Wert ist der Feiertagsname (#1418 3a). Quelle ist das Bundesland-Setting
+ * des Tenants; an diesen Tagen liefert das Backend Soll = 0.
+ */
+export function mapHolidaysResponse(
+  data: BackendHoliday[] | null | undefined,
+): ReadonlyMap<string, string> {
+  const holidays = new Map<string, string>();
+  for (const entry of data ?? []) {
+    holidays.set(entry.date.slice(0, 10), entry.name);
+  }
+  return holidays;
+}
+
+export interface BackendClosingDayRange {
+  start_date: string;
+  end_date: string;
+  reason: string;
+}
+
+// The backend accepts a maximum date distance of 400 days. Because both
+// endpoints are inclusive, that window contains up to 401 calendar dates.
+const MAX_CLOSING_DAY_WINDOW_DATES = 401;
+
+/**
+ * OGS-Schließtage im Zeitraum, keyed nach ISO-Tag (YYYY-MM-DD), Wert ist
+ * der Grund (#1418 3b). Das Backend liefert die gespeicherten Zeiträume;
+ * hier werden sie tageweise expandiert. An diesen Tagen liefert das
+ * Backend Soll = 0 — die Map ist reine Anzeige, keine Rechengrundlage.
+ */
+export function mapClosingDaysResponse(
+  data: BackendClosingDayRange[] | null | undefined,
+  from: string,
+  to: string,
+): ReadonlyMap<string, string> {
+  const closingDays = new Map<string, string>();
+  const windowStart = from.slice(0, 10);
+  const windowEnd = to.slice(0, 10);
+  if (windowEnd < windowStart) return closingDays;
+
+  for (const entry of data ?? []) {
+    const storedStart = entry.start_date.slice(0, 10);
+    const storedEnd = entry.end_date.slice(0, 10);
+    const start = storedStart < windowStart ? windowStart : storedStart;
+    const end = storedEnd > windowEnd ? windowEnd : storedEnd;
+    if (end < start) continue;
+
+    const startDate = new Date(`${start}T00:00:00`);
+    const endDate = new Date(`${end}T00:00:00`);
+    // Clamp before applying the hard cap: stored ranges can be much longer
+    // than the requested window. Math.round (not floor) keeps the count
+    // DST-safe across 23/25-hour days; setDate walks local calendar days.
+    const dayCount = Math.min(
+      Math.max(
+        0,
+        Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
+      ),
+      MAX_CLOSING_DAY_WINDOW_DATES,
+    );
+    for (let offset = 0; offset < dayCount; offset++) {
+      const cursor = new Date(startDate);
+      cursor.setDate(cursor.getDate() + offset);
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+      if (!closingDays.has(key)) {
+        closingDays.set(key, entry.reason);
+      }
+    }
+  }
+  return closingDays;
+}
+
+export interface BackendMonthSummary {
+  staff_id: number;
+  year: number;
+  month: number;
+  carry_in_minutes: number;
+  target_minutes: number;
+  target_minutes_to_date: number;
+  actual_minutes: number;
+  credited_sick_minutes: number;
+  credited_vacation_minutes: number;
+  credited_other_minutes: number;
+  sick_days: number;
+  vacation_days: number;
+  planned_shift_minutes?: number | null;
+  adjustment_minutes: number;
+  adjustments?: BackendBalanceAdjustment[] | null;
+  balance_minutes: number;
+  closing_balance_minutes: number;
+  is_closed?: boolean;
+  closed_at?: string | null;
+  closed_by?: number | null;
+  close_reason?: string | null;
+  frozen_closing_balance_minutes?: number | null;
+  drift_minutes?: number | null;
+  carry_in_frozen?: boolean;
+  carry_in_frozen_from_month?: string | null;
+}
+
+/** One Stundenkonto transaction (#1420): payout / comp-time grant / reset. */
+export interface BackendBalanceAdjustment {
+  id: number;
+  type: string;
+  minutes_delta: number;
+  effective_date: string;
+  note: string;
+  decided_by: number;
+  decided_at: string;
+}
+
+export type BalanceAdjustmentType = "payout" | "comp_time" | "reset";
+
+export interface BalanceAdjustment {
+  id: string;
+  type: BalanceAdjustmentType;
+  minutesDelta: number;
+  effectiveDate: string;
+  note: string;
+  decidedBy: string;
+  decidedAt: string;
+}
+
+const balanceAdjustmentTypeLabels: Record<BalanceAdjustmentType, string> = {
+  payout: "Auszahlung",
+  comp_time: "Freizeitausgleich",
+  reset: "Reset",
+};
+
+// Defensive lookup: mapBalanceAdjustmentResponse casts the wire type without
+// validation, so an unknown future type renders as its raw name instead of
+// "undefined".
+export function balanceAdjustmentTypeLabel(
+  type: BalanceAdjustmentType,
+): string {
+  const labels: Record<string, string> = balanceAdjustmentTypeLabels;
+  return labels[type] ?? type;
+}
+
+export function mapBalanceAdjustmentResponse(
+  data: BackendBalanceAdjustment,
+): BalanceAdjustment {
+  return {
+    id: data.id.toString(),
+    type: data.type as BalanceAdjustmentType,
+    minutesDelta: data.minutes_delta,
+    effectiveDate: data.effective_date,
+    note: data.note,
+    decidedBy: data.decided_by.toString(),
+    decidedAt: data.decided_at,
+  };
+}
+
+/**
+ * Monatskarte aggregate for one staff member and month (#1842), computed
+ * live by the backend — the Übertrag updates automatically when past months
+ * are corrected. plannedShiftMinutes is null when no Dienstplan rows exist
+ * for the month ("kein Dienstplan gepflegt").
+ */
+export interface MonthSummary {
+  staffId: string;
+  year: number;
+  month: number;
+  carryInMinutes: number;
+  targetMinutes: number;
+  targetMinutesToDate: number;
+  actualMinutes: number;
+  creditedSickMinutes: number;
+  creditedVacationMinutes: number;
+  creditedOtherMinutes: number;
+  sickDays: number;
+  vacationDays: number;
+  plannedShiftMinutes: number | null;
+  adjustmentMinutes: number;
+  adjustments: BalanceAdjustment[];
+  balanceMinutes: number;
+  closingBalanceMinutes: number;
+  /**
+   * Monatsabschluss state (#1417). A closed month keeps being computed live;
+   * frozenClosingBalanceMinutes is the value the following month's Übertrag
+   * actually uses, and driftMinutes = live closing − frozen value. Non-zero
+   * drift means someone edited times inside the month after it was closed —
+   * shown, never silently reconciled.
+   */
+  isClosed: boolean;
+  closedAt: string | null;
+  closedBy: string | null;
+  closeReason: string | null;
+  frozenClosingBalanceMinutes: number | null;
+  driftMinutes: number;
+  carryInFrozen: boolean;
+  carryInFrozenFromMonth: string | null;
+}
+
+/**
+ * One frozen Monatsabschluss row (#1417) as returned by
+ * GET/POST /api/staff/time-tracking/month-close. The frozen values are what
+ * the following month's Übertrag actually uses; the month itself keeps being
+ * computed live and any divergence surfaces as drift on the MonthSummary.
+ */
+export interface BackendMonthCloseSnapshot {
+  staff_id: number;
+  year: number;
+  month: number;
+  closing_balance_minutes: number;
+  carry_in_minutes: number;
+  target_minutes: number;
+  actual_minutes: number;
+  credited_minutes: number;
+  adjustment_minutes: number;
+  closed_at: string;
+  closed_by: number;
+  close_reason?: string;
+  source: string;
+  reopened_at?: string;
+  reopened_by?: number;
+  reopen_reason?: string;
+}
+
+export interface MonthCloseSnapshot {
+  staffId: string;
+  year: number;
+  month: number;
+  closingBalanceMinutes: number;
+  closedAt: string;
+  closedBy: string;
+  closeReason: string;
+}
+
+export function mapMonthCloseSnapshotResponse(
+  data: BackendMonthCloseSnapshot,
+): MonthCloseSnapshot {
+  return {
+    staffId: data.staff_id.toString(),
+    year: data.year,
+    month: data.month,
+    closingBalanceMinutes: data.closing_balance_minutes,
+    closedAt: data.closed_at,
+    closedBy: data.closed_by.toString(),
+    closeReason: data.close_reason ?? "",
+  };
+}
+
+export interface BackendMonthCloseResult {
+  year: number;
+  month: number;
+  closed_staff: number;
+  skipped_staff: number;
+  snapshots?: BackendMonthCloseSnapshot[] | null;
+}
+
+export interface MonthCloseResult {
+  year: number;
+  month: number;
+  closedStaff: number;
+  skippedStaff: number;
+}
+
+export function mapMonthCloseResultResponse(
+  data: BackendMonthCloseResult,
+): MonthCloseResult {
+  return {
+    year: data.year,
+    month: data.month,
+    closedStaff: data.closed_staff,
+    skippedStaff: data.skipped_staff,
+  };
+}
+
+export function mapMonthSummaryResponse(
+  data: BackendMonthSummary,
+): MonthSummary {
+  return {
+    staffId: data.staff_id.toString(),
+    year: data.year,
+    month: data.month,
+    carryInMinutes: data.carry_in_minutes,
+    targetMinutes: data.target_minutes,
+    targetMinutesToDate: data.target_minutes_to_date,
+    actualMinutes: data.actual_minutes,
+    creditedSickMinutes: data.credited_sick_minutes,
+    creditedVacationMinutes: data.credited_vacation_minutes,
+    creditedOtherMinutes: data.credited_other_minutes,
+    sickDays: data.sick_days,
+    vacationDays: data.vacation_days,
+    plannedShiftMinutes: data.planned_shift_minutes ?? null,
+    adjustmentMinutes: data.adjustment_minutes ?? 0,
+    adjustments: (data.adjustments ?? []).map(mapBalanceAdjustmentResponse),
+    balanceMinutes: data.balance_minutes,
+    closingBalanceMinutes: data.closing_balance_minutes,
+    isClosed: data.is_closed ?? false,
+    closedAt: data.closed_at ?? null,
+    closedBy: data.closed_by != null ? data.closed_by.toString() : null,
+    closeReason: data.close_reason ?? null,
+    frozenClosingBalanceMinutes: data.frozen_closing_balance_minutes ?? null,
+    driftMinutes: data.drift_minutes ?? 0,
+    carryInFrozen: data.carry_in_frozen ?? false,
+    carryInFrozenFromMonth: data.carry_in_frozen_from_month ?? null,
+  };
 }

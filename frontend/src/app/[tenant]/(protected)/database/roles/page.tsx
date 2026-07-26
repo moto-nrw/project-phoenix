@@ -1,30 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { rolesConfig } from "@/lib/database/configs/roles.config";
+import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
-import {
-  RoleCreateModal,
-  RoleEditModal,
-  RolesMasterDetail,
-} from "@/components/roles";
-import { RolePermissionManagementModal } from "@/components/auth";
+import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { RolePermissionManagementModal } from "@/components/auth/role-permission-management-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -44,9 +41,19 @@ function WarningIcon({ className }: { readonly className?: string }) {
 }
 
 export default function RolesPage() {
+  return (
+    <Suspense fallback={null}>
+      <RolesPageContent />
+    </Suspense>
+  );
+}
+
+function RolesPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
+  // The query value only selects an already-loaded row; role mutations still
+  // require authenticated backend authorization and explicit confirmation.
   const selectedId = searchParams.get("role");
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();
@@ -428,10 +435,12 @@ export default function RolesPage() {
         />
       ) : null}
 
-      <RoleCreateModal
+      <DatabaseFormModal<Role>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateRole}
+        mode="create"
+        config={rolesConfig}
+        onSubmit={handleCreateRole}
       />
 
       {selectedRole && (
@@ -455,11 +464,13 @@ export default function RolesPage() {
       )}
 
       {selectedRole && (
-        <RoleEditModal
+        <DatabaseFormModal<Role>
           isOpen={showEditModal}
           onClose={handleCloseEditModal}
-          role={selectedRole}
-          onSave={handleUpdateRole}
+          mode="edit"
+          config={rolesConfig}
+          initialData={selectedRole}
+          onSubmit={handleUpdateRole}
         />
       )}
 

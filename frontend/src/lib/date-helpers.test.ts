@@ -8,7 +8,11 @@ import {
   getStartDateForTimeRange,
   toISODate,
   parseISODate,
+  isValidISODate,
   todayISO,
+  berlinTodayISO,
+  formatChatTime,
+  formatChatDateTime,
 } from "./date-helpers";
 
 describe("toISODate", () => {
@@ -47,10 +51,48 @@ describe("parseISODate", () => {
   });
 });
 
+describe("isValidISODate", () => {
+  it("accepts real YYYY-MM-DD calendar dates", () => {
+    for (const s of ["2026-01-01", "2026-06-10", "2024-02-29"]) {
+      expect(isValidISODate(s)).toBe(true);
+    }
+  });
+
+  it("rejects strings that are not shaped like an ISO date", () => {
+    for (const s of ["foo", "", "2026-7-1", "2026-07-01T00:00:00Z", "<x>"]) {
+      expect(isValidISODate(s)).toBe(false);
+    }
+  });
+
+  it("rejects shape-valid but impossible dates (no silent rollover)", () => {
+    // parseISODate("2026-02-31") rolls over to March 3 — the round-trip
+    // check must catch that instead of accepting the rolled-over date.
+    for (const s of ["2026-02-31", "2026-13-01", "2025-02-29", "2026-00-10"]) {
+      expect(isValidISODate(s)).toBe(false);
+    }
+  });
+});
+
 describe("todayISO", () => {
   it("returns today's local calendar date as YYYY-MM-DD", () => {
     expect(todayISO()).toBe(toISODate(new Date()));
     expect(todayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("berlinTodayISO", () => {
+  it("returns a well-formed YYYY-MM-DD string", () => {
+    expect(berlinTodayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("matches today's date computed directly in the Europe/Berlin timezone", () => {
+    const expected = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Berlin",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date()); // en-CA formats as YYYY-MM-DD
+    expect(berlinTodayISO()).toBe(expected);
   });
 });
 
@@ -369,5 +411,69 @@ describe("getStartDateForTimeRange", () => {
     // Should go back to Monday Jan 29
     expect(result.getMonth()).toBe(0); // January
     expect(result.getDate()).toBe(29);
+  });
+});
+
+describe("formatChatTime", () => {
+  it("returns 'dd.MM., HH:mm' format for a valid ISO timestamp", () => {
+    const result = formatChatTime("2024-01-15T13:30:00Z");
+    expect(result).toBe("15.01., 14:30");
+  });
+
+  it("formats the date and clock in Berlin across midnight", () => {
+    expect(formatChatTime("2026-01-01T23:30:00Z")).toBe("02.01., 00:30");
+  });
+
+  it("returns the raw input string for an invalid ISO (never throws)", () => {
+    expect(formatChatTime("not-a-date")).toBe("not-a-date");
+  });
+
+  it("returns the raw input for an empty string", () => {
+    expect(formatChatTime("")).toBe("");
+  });
+
+  it("includes both day/month and clock parts separated by ', '", () => {
+    const result = formatChatTime("2026-06-10T08:05:00Z");
+    expect(result).toContain(", ");
+    const parts = result.split(", ");
+    expect(parts).toHaveLength(2);
+    // day.month. part
+    expect(parts[0]).toMatch(/^\d{2}\.\d{2}\.$/);
+    // HH:MM part
+    expect(parts[1]).toMatch(/^\d{2}:\d{2}$/);
+  });
+});
+
+describe("formatChatDateTime", () => {
+  it("returns empty string for undefined", () => {
+    expect(formatChatDateTime(undefined)).toBe("");
+  });
+
+  it("returns empty string for empty string", () => {
+    expect(formatChatDateTime("")).toBe("");
+  });
+
+  it("returns the raw input for an invalid ISO string", () => {
+    expect(formatChatDateTime("garbage")).toBe("garbage");
+  });
+
+  it("formats the date and clock in Berlin for a viewer in another timezone", () => {
+    const previousTZ = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      expect(formatChatDateTime("2026-01-01T23:30:00Z")).toBe(
+        "02.01.2026, 00:30",
+      );
+    } finally {
+      if (previousTZ === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTZ;
+    }
+  });
+
+  it("handles a date-only string ('YYYY-MM-DD') without throwing", () => {
+    // date-only strings are valid ISO and should produce a formatted result
+    const result = formatChatDateTime("2026-06-10");
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
   });
 });

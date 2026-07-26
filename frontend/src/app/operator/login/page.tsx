@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
-import { useRouter } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
-import { Alert } from "~/components/ui";
+import { KeyRound } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import {
   AuthShell,
   OperatorBrand,
@@ -22,6 +23,12 @@ import {
   MFAApiError,
   type MFATokenResponse,
 } from "~/lib/mfa-api";
+import {
+  isPasskeySupported,
+  isPasskeyCeremonyIncompleteError,
+  loginWithPasskey,
+  PasskeyApiError,
+} from "~/lib/passkey-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorLoginPage" });
@@ -50,12 +57,17 @@ export default function OperatorLoginPage() {
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const [enrollmentStep, setEnrollmentStep] =
     useState<MFAEnrollmentStep | null>(null);
+  const [passkeySupported, setPasskeySupported] = useState(false);
   const router = useRouter();
   const { data: session, status } = useSession();
   // Ref prevents re-triggering signOut (not in effect deps → no loop).
   // Separate state controls the loading spinner for the UI.
   const cleanupStartedRef = useRef(false);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+
+  useEffect(() => {
+    setPasskeySupported(isPasskeySupported());
+  }, []);
 
   // Redirect if already authenticated as operator, or clear stale sessions
   useEffect(() => {
@@ -77,25 +89,24 @@ export default function OperatorLoginPage() {
         setIsCleaningUp(false);
         return;
       }
-
-      if (
-        status === "authenticated" &&
-        session?.user?.scope === "platform" &&
-        session?.user?.token
-      ) {
-        router.push(operatorPath("/operator/suggestions"));
-      }
     };
     void check();
-  }, [status, session, router]);
+  }, [status, session]);
+
+  if (
+    status === "authenticated" &&
+    session?.user?.scope === "platform" &&
+    session.user.token &&
+    session.error === undefined
+  ) {
+    redirect(operatorPath("/operator/suggestions"));
+  }
 
   // Show loading while checking auth or cleaning stale session
   if (
     status === "loading" ||
     isCleaningUp ||
-    (status === "authenticated" &&
-      session?.user?.scope === "platform" &&
-      session?.user?.token)
+    (status === "authenticated" && session?.error !== undefined)
   ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -185,6 +196,39 @@ export default function OperatorLoginPage() {
     } catch (err) {
       setError(operatorLoginErrorMessage(err));
       logger.error("operator_login_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const response = await loginWithPasskey("operator");
+      await seedSessionWithTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+    } catch (err) {
+      if (isPasskeyCeremonyIncompleteError(err)) {
+        logger.info("operator_passkey_login_not_completed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      }
+      if (err instanceof PasskeyApiError && err.status === 401) {
+        setError("Passkey-Anmeldung fehlgeschlagen.");
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Passkey-Anmeldung fehlgeschlagen.",
+        );
+      }
+      logger.error("operator_passkey_login_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -295,6 +339,17 @@ export default function OperatorLoginPage() {
               {isLoading ? "Anmeldung läuft..." : "Anmelden"}
             </span>
           </button>
+          {passkeySupported && (
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={handlePasskeyLogin}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+            >
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
+              <span>Mit Passkey anmelden</span>
+            </button>
+          )}
         </form>
       )}
     </AuthShell>

@@ -48,6 +48,7 @@ vi.mock("~/components/shared/base-comment-accordion", async (importActual) => {
     }) => (
       <div data-testid="base-comment-accordion">
         <button
+          type="button"
           data-testid="accordion-toggle"
           onClick={() => {
             onOpen?.(postId);
@@ -58,6 +59,7 @@ vi.mock("~/components/shared/base-comment-accordion", async (importActual) => {
           {unreadCount ?? 0})
         </button>
         <button
+          type="button"
           data-testid="create-comment"
           onClick={async () => {
             await createComment(postId, "New comment");
@@ -69,6 +71,7 @@ vi.mock("~/components/shared/base-comment-accordion", async (importActual) => {
           Create Comment
         </button>
         <button
+          type="button"
           data-testid="delete-comment"
           onClick={() => void deleteComment(postId, "comment-1")}
         >

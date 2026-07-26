@@ -3,6 +3,8 @@ import {
   buildHelpSearchIndex,
   fold,
   foldForMatch,
+  GUIDE_SOURCES,
+  helpGuidePaths,
   helpSearchIndex,
   indexedHelpSearchIndex,
 } from "./guide-search";
@@ -12,7 +14,7 @@ describe("buildHelpSearchIndex", () => {
   const index = buildHelpSearchIndex();
 
   it("emits exactly one record per step card (no chapter-level records)", () => {
-    const allChapters = [...setupChapters, ...appChapters, ...nfcChapters];
+    const allChapters = GUIDE_SOURCES.flatMap((guide) => guide.chapters);
     const expected = allChapters.reduce(
       (total, chapter) => total + chapter.steps.length,
       0,
@@ -20,10 +22,20 @@ describe("buildHelpSearchIndex", () => {
     expect(index).toHaveLength(expected);
   });
 
-  it("covers all three guide paths", () => {
+  it("covers all guide paths", () => {
     const paths = new Set(index.map((r) => r.href.split("#")[0]));
-    expect(paths).toEqual(
-      new Set(["/help/setup", "/help/features", "/help/nfc"]),
+    expect(paths).toEqual(new Set(helpGuidePaths));
+  });
+
+  it("indexes the NFC quickstart page", () => {
+    expect(index).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          href: "/help/nfc/erste-schritte#tablet-montieren-und-einschalten",
+          guideLabel: "NFC Erste Schritte",
+          title: "Tablet montieren und einschalten",
+        }),
+      ]),
     );
   });
 

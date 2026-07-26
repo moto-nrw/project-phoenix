@@ -16,3 +16,7 @@ export async function GET() {
     timestamp: new Date().toISOString(),
   });
 }
+
+export async function HEAD() {
+  return new Response(null, { status: 200 });
+}

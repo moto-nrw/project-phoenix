@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -69,6 +70,9 @@ var (
 	// iot package
 	_ base.Entity = (*iot.Device)(nil)
 
+	// platform package
+	_ base.Entity = (*platform.OperatorRefreshToken)(nil)
+
 	// schedule package
 	_ base.Entity = (*schedule.Dateframe)(nil)
 	_ base.Entity = (*schedule.RecurrenceRule)(nil)
@@ -78,7 +82,6 @@ var (
 	_ base.Entity = (*users.Guest)(nil)
 	_ base.Entity = (*users.GuardianProfile)(nil)
 	_ base.Entity = (*users.Person)(nil)
-	_ base.Entity = (*users.PersonGuardian)(nil)
 	_ base.Entity = (*users.PrivacyConsent)(nil)
 	_ base.Entity = (*users.Profile)(nil)
 	_ base.Entity = (*users.RFIDCard)(nil)

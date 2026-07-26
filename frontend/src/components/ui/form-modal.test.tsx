@@ -48,6 +48,24 @@ describe("FormModal", () => {
     expect(screen.getByText("Modal content")).toBeInTheDocument();
   });
 
+  it("uses the visible title as the dialog accessible name", async () => {
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={vi.fn()} title="Test Modal">
+          <p>Modal content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Test Modal" });
+    const title = screen.getByRole("heading", { name: "Test Modal" });
+    expect(dialog).toHaveAttribute("aria-labelledby", title.id);
+  });
+
   it("should call onClose when close button is clicked", async () => {
     const onClose = vi.fn();
     render(
@@ -149,7 +167,7 @@ describe("FormModal", () => {
           isOpen={true}
           onClose={vi.fn()}
           title="Test"
-          footer={<button>Submit</button>}
+          footer={<button type="button">Submit</button>}
         >
           <p>Content</p>
         </FormModal>

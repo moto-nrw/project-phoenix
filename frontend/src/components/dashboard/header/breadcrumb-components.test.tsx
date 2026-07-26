@@ -9,9 +9,7 @@ import {
   DatabaseBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
-  InvitationsBreadcrumb,
   EnrollmentBreadcrumb,
-  ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
@@ -139,26 +137,6 @@ describe("ActiveSupervisionsBreadcrumb", () => {
   });
 });
 
-describe("InvitationsBreadcrumb", () => {
-  it("renders three-level breadcrumb", () => {
-    render(<InvitationsBreadcrumb />);
-
-    expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
-    expect(screen.getByText("Personal")).toBeInTheDocument();
-    expect(screen.getByText("Einladungen")).toBeInTheDocument();
-  });
-
-  it("links correctly", () => {
-    render(<InvitationsBreadcrumb />);
-
-    const databaseLink = screen.getByRole("link", { name: "Datenverwaltung" });
-    expect(databaseLink).toHaveAttribute("href", "/database");
-
-    const teachersLink = screen.getByRole("link", { name: "Personal" });
-    expect(teachersLink).toHaveAttribute("href", "/database/personal");
-  });
-});
-
 describe("EnrollmentBreadcrumb", () => {
   it("renders enrollment parent and current page", () => {
     render(<EnrollmentBreadcrumb current="Anmeldeformulare" />);
@@ -188,22 +166,6 @@ describe("EnrollmentBreadcrumb", () => {
   });
 });
 
-describe("ActivityBreadcrumb", () => {
-  it("renders activity breadcrumb", () => {
-    render(<ActivityBreadcrumb activityName="Fußball AG" />);
-
-    expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
-    expect(screen.getByText("Fußball AG")).toBeInTheDocument();
-  });
-
-  it("links to activities page", () => {
-    render(<ActivityBreadcrumb activityName="Fußball" />);
-
-    const activitiesLink = screen.getByRole("link", { name: "Aktivitäten" });
-    expect(activitiesLink).toHaveAttribute("href", "/activities");
-  });
-});
-
 describe("RoomBreadcrumb", () => {
   it("renders room breadcrumb", () => {
     render(<RoomBreadcrumb roomName="Sporthalle" />);
@@ -226,7 +188,7 @@ describe("StudentHistoryBreadcrumb", () => {
       <StudentHistoryBreadcrumb
         referrer="/students/search"
         breadcrumbLabel="Suche"
-        pathname="/students/123/feedback_history"
+        pathname="/students/123/feedback-history"
         studentName="Emma Müller"
         historyType="Feedbackhistorie"
       />,

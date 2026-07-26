@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,6 +96,79 @@ func TestValidateServeConfig_RejectsRandomJWTSecret(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET=random")
+}
+
+func TestValidateServeConfig_SentryDSNRequiresEnvironment(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("sentry_dsn", "https://example@sentry.io/123")
+
+	err := validateServeConfig()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SENTRY_ENVIRONMENT")
+}
+
+func TestValidateServeConfig_SentryEnvironmentPasses(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("sentry_dsn", "https://example@sentry.io/123")
+	viper.Set("sentry_environment", "staging")
+
+	require.NoError(t, validateServeConfig())
+}
+
+func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
+	event := &sentry.Event{
+		Request: &sentry.Request{
+			Data: `{"notes":"person names and free text"}`,
+			Headers: map[string]string{
+				"X-Staff-PIN":      "1234",
+				"X-Staff-Auth-Pin": "5678",
+				"Accept":           "application/json",
+			},
+		},
+	}
+
+	scrubbed := scrubSentryEvent(event)
+
+	require.NotNil(t, scrubbed.Request)
+	assert.Empty(t, scrubbed.Request.Data)
+	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-PIN"])
+	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-Auth-Pin"])
+	assert.Equal(t, "application/json", scrubbed.Request.Headers["Accept"])
+}
+
+func TestScrubSentryEvent_RedactsCalendarFeedToken(t *testing.T) {
+	const token = "supersecretcapabilitytoken123456"
+	event := &sentry.Event{
+		Message:     "GET /public/calendar/" + token + " failed",
+		Transaction: "/public/calendar/" + token,
+		Request: &sentry.Request{
+			URL:         "https://api.example/public/calendar/" + token,
+			QueryString: "",
+		},
+		Breadcrumbs: []*sentry.Breadcrumb{
+			{
+				Message: "request /public/calendar/" + token,
+				Data:    map[string]any{"url": "https://api.example/public/calendar/" + token},
+			},
+		},
+	}
+
+	scrubbed := scrubSentryEvent(event)
+
+	// The capability token must not survive anywhere the SDK captured the path.
+	assert.NotContains(t, scrubbed.Message, token)
+	assert.NotContains(t, scrubbed.Transaction, token)
+	require.NotNil(t, scrubbed.Request)
+	assert.NotContains(t, scrubbed.Request.URL, token)
+	assert.Contains(t, scrubbed.Request.URL, "[REDACTED]")
+	require.Len(t, scrubbed.Breadcrumbs, 1)
+	assert.NotContains(t, scrubbed.Breadcrumbs[0].Message, token)
+	if url, ok := scrubbed.Breadcrumbs[0].Data["url"].(string); ok {
+		assert.NotContains(t, url, token)
+	}
 }
 
 func resetServeConfig(t *testing.T) {

@@ -37,6 +37,12 @@ type ChildSummary struct {
 	// the frontend can render grouped cards without an extra fetch.
 	SchoolName string `json:"school_name"`
 	SchoolSlug string `json:"school_slug"`
+
+	// GuardianPermissions is the matching users.students_guardians.permissions
+	// map for the calling account's guardian relationship. It is internal to the
+	// parent service; handlers must not serialize it.
+	GuardianPermissions map[string]interface{} `json:"-"`
+	GuardianProfileID   int64                  `json:"-"`
 }
 
 // ChildRepository is the contract for the cross-tenant lookup the

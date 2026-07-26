@@ -11,6 +11,7 @@ import {
   Bus,
   MoreVertical,
 } from "lucide-react";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 
 // Type for the action the user can perform
 type StudentActionType = "checkout" | "checkin" | "none";
@@ -22,8 +23,11 @@ interface StudentCheckoutSectionProps {
 export function StudentCheckoutSection({
   onCheckoutClick,
 }: StudentCheckoutSectionProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  if (!attendanceWebEnabled) return null;
   return (
     <button
+      type="button"
       onClick={onCheckoutClick}
       className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] sm:gap-4 sm:py-6"
     >
@@ -48,8 +52,11 @@ interface StudentCheckinSectionProps {
 export function StudentCheckinSection({
   onCheckinClick,
 }: StudentCheckinSectionProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  if (!attendanceWebEnabled) return null;
   return (
     <button
+      type="button"
       onClick={onCheckinClick}
       className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] sm:gap-4 sm:py-6"
     >
@@ -82,6 +89,7 @@ export function StudentSickReportSection({
 }: StudentSickReportSectionProps) {
   const sickSinceDisplay = sickSince
     ? new Date(sickSince).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -102,6 +110,7 @@ export function StudentSickReportSection({
 
   return (
     <button
+      type="button"
       onClick={onToggle}
       disabled={isLoading}
       className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
@@ -145,6 +154,7 @@ export function StudentExcusedReportSection({
 }: StudentExcusedReportSectionProps) {
   const excusedSinceDisplay = excusedSince
     ? new Date(excusedSince).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -165,6 +175,7 @@ export function StudentExcusedReportSection({
 
   return (
     <button
+      type="button"
       onClick={onToggle}
       disabled={isLoading}
       className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
@@ -209,6 +220,7 @@ export function StudentStatusActionsMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const classTripSinceDisplay = classTripSince
     ? new Date(classTripSince).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",

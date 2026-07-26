@@ -17,6 +17,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
@@ -26,17 +28,36 @@ import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { useToast } from "~/contexts/ToastContext";
 import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
-import { activeService } from "~/lib/active-service";
-import type { ActiveGroup } from "~/lib/active-helpers";
+import {
+  activeService,
+  summarizeStudentMoveResult,
+} from "~/lib/active-service";
+import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
 import type { Room } from "~/lib/room-helpers";
+import { userContextService } from "~/lib/usercontext-api";
+import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
+import {
+  useAttendanceWebEnabled,
+  useOpenCareGroupMode,
+} from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
 const DETAIL_CARD_CLASS =
   "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
+
+function canUseAllMoveTargets(session: Session | null): boolean {
+  const permissions = session?.user?.permissions ?? [];
+  return (
+    session?.user?.isAdmin === true ||
+    session?.user?.roles?.includes("admin") === true ||
+    permissions.includes("admin:*") ||
+    permissions.includes("*:*")
+  );
+}
 
 interface StudentsInRoomSectionProps {
   readonly roomId: string;
@@ -50,6 +71,10 @@ export function StudentsInRoomSection({
   onSelectionActiveChange,
 }: StudentsInRoomSectionProps) {
   const router = useTenantRouter();
+  const { data: session } = useSession();
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const openCare = useOpenCareGroupMode();
+  const showAllTargets = canUseAllMoveTargets(session) || openCare;
   const { success: toastSuccess } = useToast();
   const refreshRoomConsumers = useTenantMutateMatching([
     "room-students-",
@@ -92,6 +117,16 @@ export function StudentsInRoomSection({
     "room-bulk-active-groups",
     () => activeService.getActiveGroups({ active: true }),
   );
+  const { data: currentStaff } = useSWRAuth<Staff>(
+    showAllTargets ? null : "room-bulk-current-staff",
+    () => userContextService.getCurrentStaff(),
+  );
+  const { data: activeSupervisions = [] } = useSWRAuth<Supervisor[]>(
+    showAllTargets || !currentStaff?.id
+      ? null
+      : `room-bulk-active-supervisions-${currentStaff.id}`,
+    () => activeService.getStaffActiveSupervisions(currentStaff?.id ?? ""),
+  );
   const { data: rooms = [] } = useSWRAuth<Room[]>("room-bulk-rooms", () =>
     roomService.getRooms(),
   );
@@ -111,9 +146,46 @@ export function StudentsInRoomSection({
   const selectedVisibleCount = [...selectedStudentIds].filter((studentId) =>
     visibleStudentIds.has(studentId),
   ).length;
+  const supervisedTargetGroupIds = useMemo(
+    () =>
+      new Set(
+        activeSupervisions
+          .filter((supervision) => supervision.isActive)
+          .map((supervision) => supervision.activeGroupId),
+      ),
+    [activeSupervisions],
+  );
+  // The backend (MoveStudentsToActiveGroupAuthorized) rejects the whole
+  // request with 403 unless the caller supervises each student's CURRENT
+  // active group too (admins bypass). Mirror that contract here: without
+  // supervision of every active group in this room, offering the bulk
+  // move would only produce a guaranteed error.
+  const canBulkMove = useMemo(() => {
+    if (!attendanceWebEnabled) return false;
+    if (showAllTargets) return true;
+    const sourceGroups = activeGroups.filter(
+      (group) => group.isActive && group.roomId === roomId,
+    );
+    return (
+      sourceGroups.length > 0 &&
+      sourceGroups.every((group) => supervisedTargetGroupIds.has(group.id))
+    );
+  }, [
+    attendanceWebEnabled,
+    showAllTargets,
+    activeGroups,
+    roomId,
+    supervisedTargetGroupIds,
+  ]);
   const targetOptions = useMemo(
-    () => buildTargetRoomOptions(activeGroups, rooms, roomId),
-    [activeGroups, rooms, roomId],
+    () =>
+      buildTargetRoomOptions(
+        activeGroups,
+        rooms,
+        roomId,
+        showAllTargets ? undefined : supervisedTargetGroupIds,
+      ),
+    [activeGroups, rooms, roomId, showAllTargets, supervisedTargetGroupIds],
   );
   const selectedTarget = targetOptions.find(
     (option) => option.activeGroupId === targetActiveGroupId,
@@ -138,6 +210,17 @@ export function StudentsInRoomSection({
   useEffect(() => {
     onSelectionActiveChange?.(selectedVisibleCount > 0);
   }, [onSelectionActiveChange, selectedVisibleCount]);
+
+  useEffect(() => {
+    if (
+      targetActiveGroupId &&
+      !targetOptions.some(
+        (option) => option.activeGroupId === targetActiveGroupId,
+      )
+    ) {
+      setTargetActiveGroupId("");
+    }
+  }, [targetActiveGroupId, targetOptions]);
 
   const openInSearch = () => {
     const qs = new URLSearchParams({
@@ -194,43 +277,49 @@ export function StudentsInRoomSection({
     }
 
     setBulkMoveState({ type: "loading" });
-    const results = await Promise.allSettled(
-      studentIds.map(async (studentId) => {
-        const visit = await activeService.getStudentCurrentVisit(studentId);
-        if (!visit) {
-          throw new Error(`Kind ${studentId} hat keinen aktiven Besuch.`);
-        }
-        if (visit.activeGroupId === target.activeGroupId) {
-          return;
-        }
-        await activeService.updateVisit(visit.id, {
-          ...visit,
-          activeGroupId: target.activeGroupId,
+    try {
+      const result = await activeService.moveStudentsToActiveGroup(
+        studentIds,
+        target.activeGroupId,
+      );
+      const skipped = result.skipped.length;
+      if (skipped > 0) {
+        logger.warn("room_bulk_move_partial_failure", {
+          selected_count: studentIds.length,
+          skipped_count: skipped,
+          target_active_group_id: target.activeGroupId,
+          skipped_reasons: result.skipped.map((item) => item.reason),
         });
-      }),
-    );
-    const failures = results.filter((result) => result.status === "rejected");
-    if (failures.length > 0) {
+        setBulkMoveState({
+          type: "error",
+          message: `${skipped} von ${studentIds.length} Kindern konnten nicht bewegt werden.`,
+        });
+        await refreshRoomConsumers();
+        return;
+      }
+
+      setSelectedStudentIds(new Set());
+      setTargetActiveGroupId("");
+      setBulkMoveState({ type: "idle" });
+      const successCount = summarizeStudentMoveResult(result).successCount;
+      toastSuccess(
+        `${successCount} ${
+          successCount === 1 ? "Kind" : "Kinder"
+        } nach ${target.roomName} bewegt.`,
+      );
+      await refreshRoomConsumers();
+    } catch (err) {
       logger.warn("room_bulk_move_partial_failure", {
         selected_count: studentIds.length,
-        failed_count: failures.length,
         target_active_group_id: target.activeGroupId,
+        error: err instanceof Error ? err.message : String(err),
       });
       setBulkMoveState({
         type: "error",
-        message: `${failures.length} von ${studentIds.length} Kindern konnten nicht bewegt werden.`,
+        message: "Die ausgewählten Kinder konnten nicht bewegt werden.",
       });
       await refreshRoomConsumers();
-      return;
     }
-
-    setSelectedStudentIds(new Set());
-    setTargetActiveGroupId("");
-    setBulkMoveState({ type: "idle" });
-    toastSuccess(
-      `${studentIds.length} ${studentIds.length === 1 ? "Kind" : "Kinder"} nach ${target.roomName} bewegt.`,
-    );
-    await refreshRoomConsumers();
   };
 
   return (
@@ -279,7 +368,7 @@ export function StudentsInRoomSection({
           the first student card. Without it the button bottom edge sits
           flush with the first card border. Review feedback (#1323). */}
       <div className="mt-4">
-        {students.length > 0 ? (
+        {canBulkMove && students.length > 0 ? (
           <BulkMoveToolbar
             selectedCount={selectedVisibleCount}
             totalCount={students.length}
@@ -300,6 +389,7 @@ export function StudentsInRoomSection({
           loading={isLoading}
           hasError={!!error}
           students={students}
+          selectable={canBulkMove}
           selectedStudentIds={selectedStudentIds}
           onToggleStudentSelection={toggleStudentSelection}
           router={router}
@@ -319,12 +409,14 @@ function buildTargetRoomOptions(
   activeGroups: readonly ActiveGroup[],
   rooms: readonly Room[],
   currentRoomId: string,
+  allowedActiveGroupIds?: ReadonlySet<string>,
 ): TargetRoomOption[] {
   const roomsById = new Map(rooms.map((room) => [room.id, room]));
   const groupsByRoomId = new Map<string, ActiveGroup[]>();
 
   activeGroups.forEach((group) => {
     if (!group.isActive || group.roomId === currentRoomId) return;
+    if (allowedActiveGroupIds && !allowedActiveGroupIds.has(group.id)) return;
     const groupsInRoom = groupsByRoomId.get(group.roomId) ?? [];
     groupsInRoom.push(group);
     groupsByRoomId.set(group.roomId, groupsInRoom);
@@ -352,9 +444,7 @@ interface BulkMoveToolbarProps {
   readonly targetActiveGroupId: string;
   readonly targetOptions: readonly TargetRoomOption[];
   readonly state:
-    | { type: "idle" }
-    | { type: "loading" }
-    | { type: "error"; message: string };
+    { type: "idle" } | { type: "loading" } | { type: "error"; message: string };
   readonly onSelectAll: () => void;
   readonly onClearSelection: () => void;
   readonly onTargetChange: (value: string) => void;
@@ -425,7 +515,6 @@ function BulkMoveToolbar({
             value: option.activeGroupId,
             label: option.roomName,
           }))}
-          focusRingColor="focus:ring-gray-300"
           className="bg-white text-sm md:text-sm"
         />
         <Button
@@ -456,6 +545,7 @@ interface StudentsInRoomBodyProps {
   readonly loading: boolean;
   readonly hasError: boolean;
   readonly students: readonly Student[];
+  readonly selectable: boolean;
   readonly selectedStudentIds: ReadonlySet<string>;
   readonly onToggleStudentSelection: (studentId: string) => void;
   readonly router: ReturnType<typeof useTenantRouter>;
@@ -488,6 +578,7 @@ function StudentsInRoomBody({
   loading,
   hasError,
   students,
+  selectable,
   selectedStudentIds,
   onToggleStudentSelection,
   router,
@@ -546,6 +637,7 @@ function StudentsInRoomBody({
         <SelectableStudentRow
           key={student.id}
           student={student}
+          selectable={selectable}
           isSelected={selectedStudentIds.has(String(student.id))}
           onToggleSelection={() => onToggleStudentSelection(String(student.id))}
           onOpen={() =>
@@ -561,17 +653,31 @@ function StudentsInRoomBody({
 
 function SelectableStudentRow({
   student,
+  selectable,
   isSelected,
   onToggleSelection,
   onOpen,
 }: {
   readonly student: Student;
+  readonly selectable: boolean;
   readonly isSelected: boolean;
   readonly onToggleSelection: () => void;
   readonly onOpen: () => void;
 }) {
   const fullName =
     `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() || "Kind";
+
+  const studentCard = (
+    <CompactStudentCard
+      studentId={student.id}
+      firstName={student.first_name}
+      lastName={student.second_name}
+      schoolClass={student.school_class}
+      groupName={student.group_name ?? undefined}
+      photoUrl={student.photo_url ?? null}
+      chrome="plain"
+    />
+  );
 
   return (
     <div
@@ -581,38 +687,36 @@ function SelectableStudentRow({
           : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
       }`}
     >
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={isSelected}
-        aria-label={`${fullName} auswählen`}
-        onClick={onToggleSelection}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-      >
-        <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-            isSelected
-              ? "border-gray-900 bg-gray-900"
-              : "border-gray-300 bg-white"
-          }`}
-          aria-hidden="true"
+      {selectable ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={isSelected}
+          aria-label={`${fullName} auswählen`}
+          onClick={onToggleSelection}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
         >
-          <Check
-            className={`h-3.5 w-3.5 text-white transition-opacity ${
-              isSelected ? "opacity-100" : "opacity-0"
+          <span
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
+              isSelected
+                ? "border-gray-900 bg-gray-900"
+                : "border-gray-300 bg-white"
             }`}
-          />
-        </span>
-        <CompactStudentCard
-          studentId={student.id}
-          firstName={student.first_name}
-          lastName={student.second_name}
-          schoolClass={student.school_class}
-          groupName={student.group_name ?? undefined}
-          photoUrl={student.photo_url ?? null}
-          chrome="plain"
-        />
-      </button>
+            aria-hidden="true"
+          >
+            <Check
+              className={`h-3.5 w-3.5 text-white transition-opacity ${
+                isSelected ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          </span>
+          {studentCard}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {studentCard}
+        </div>
+      )}
       <Button
         type="button"
         variant="outline"

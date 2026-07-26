@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -59,8 +61,7 @@ func TestOperatorMFAService_Disable_RollsBackOnPartialFailure(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	op := createTestOperatorForMFAService(t, db, "disable-rollback")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	// Issue a trusted-device cookie via the REAL repo (the stub still
@@ -100,8 +101,7 @@ func TestOperatorMFAService_Disable_SuccessClearsEverything(t *testing.T) {
 	ctx := context.Background()
 	svc, repos, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "disable-happy")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	// Build a trusted-device row + bump the lockout counter so all three

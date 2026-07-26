@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -47,13 +48,7 @@ type OperatorSuggestionsService interface {
 }
 
 type operatorSuggestionsService struct {
-	postRepo        suggestions.PostRepository
-	commentRepo     suggestions.CommentRepository
-	commentReadRepo suggestions.CommentReadRepository
-	postReadRepo    suggestions.PostReadRepository
-	auditLogRepo    platform.OperatorAuditLogRepository
-	db              *bun.DB
-	logger          *slog.Logger
+	OperatorSuggestionsServiceConfig
 }
 
 // OperatorSuggestionsServiceConfig holds configuration for the service
@@ -69,62 +64,20 @@ type OperatorSuggestionsServiceConfig struct {
 
 // NewOperatorSuggestionsService creates a new operator suggestions service
 func NewOperatorSuggestionsService(cfg OperatorSuggestionsServiceConfig) OperatorSuggestionsService {
-	return &operatorSuggestionsService{
-		postRepo:        cfg.PostRepo,
-		commentRepo:     cfg.CommentRepo,
-		commentReadRepo: cfg.CommentReadRepo,
-		postReadRepo:    cfg.PostReadRepo,
-		auditLogRepo:    cfg.AuditLogRepo,
-		db:              cfg.DB,
-		logger:          cfg.Logger,
-	}
+	return &operatorSuggestionsService{OperatorSuggestionsServiceConfig: cfg}
 }
 
 func (s *operatorSuggestionsService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
-}
-
-// withAdminTx wraps fn in a BYPASSRLS admin transaction so operator queries
-// can access rows across all tenants. If the context already carries a tx
-// (e.g. in tests) or no DB is configured, fn runs directly.
-func (s *operatorSuggestionsService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		return fn(ctx)
-	}
-	if !s.hasDB() {
-		return fn(ctx)
-	}
-	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return fn(adminCtx)
-	})
-}
-
-// hasDB returns true if s.db is a usable database connection.
-// A zero-value &bun.DB{} (used in unit tests) panics on any operation,
-// so we detect it by attempting a safe method call.
-func (s *operatorSuggestionsService) hasDB() (ok bool) {
-	if s.db == nil {
-		return false
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			ok = false
-		}
-	}()
-	_ = s.db.DBStats()
-	return true
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // ListAllPosts returns all suggestion posts (for operators).
 // Uses WithAdminTx to bypass RLS so operators see posts across all tenants.
 func (s *operatorSuggestionsService) ListAllPosts(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
 	var posts []*suggestions.Post
-	err := s.withAdminTx(ctx, func(ctx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
 		var txErr error
-		posts, txErr = s.postRepo.List(ctx, operatorAccountID, suggestions.ReaderTypeOperator, sortBy, status)
+		posts, txErr = s.PostRepo.List(ctx, operatorAccountID, suggestions.ReaderTypeOperator, sortBy, status)
 		return txErr
 	})
 	return posts, err
@@ -135,9 +88,9 @@ func (s *operatorSuggestionsService) ListAllPosts(ctx context.Context, operatorA
 func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64, operatorAccountID int64) (*suggestions.Post, []*suggestions.Comment, error) {
 	var post *suggestions.Post
 	var comments []*suggestions.Comment
-	err := s.withAdminTx(ctx, func(ctx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
 		var txErr error
-		post, txErr = s.postRepo.FindByIDWithVote(ctx, postID, operatorAccountID, suggestions.ReaderTypeOperator)
+		post, txErr = s.PostRepo.FindByIDWithVote(ctx, postID, operatorAccountID, suggestions.ReaderTypeOperator)
 		if txErr != nil {
 			return txErr
 		}
@@ -145,7 +98,7 @@ func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64, 
 			return &PostNotFoundError{PostID: postID}
 		}
 
-		comments, txErr = s.commentRepo.FindByPostID(ctx, postID)
+		comments, txErr = s.CommentRepo.FindByPostID(ctx, postID)
 		return txErr
 	})
 	if err != nil {
@@ -157,8 +110,8 @@ func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64, 
 // MarkCommentsRead marks all comments on a post as read for the operator.
 // Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) MarkCommentsRead(ctx context.Context, operatorAccountID, postID int64) error {
-	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
+	return tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
+		post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -168,7 +121,7 @@ func (s *operatorSuggestionsService) MarkCommentsRead(ctx context.Context, opera
 
 		// Inject tenant so EnsureTenantID in the repository can set it on the upserted record
 		ctx = tenant.WithTenantID(ctx, post.TenantID)
-		return s.commentReadRepo.Upsert(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
+		return s.CommentReadRepo.Upsert(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
 	})
 }
 
@@ -176,9 +129,9 @@ func (s *operatorSuggestionsService) MarkCommentsRead(ctx context.Context, opera
 // Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) GetTotalUnreadCount(ctx context.Context, operatorAccountID int64) (int, error) {
 	var count int
-	err := s.withAdminTx(ctx, func(ctx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
 		var txErr error
-		count, txErr = s.commentReadRepo.CountTotalUnread(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
+		count, txErr = s.CommentReadRepo.CountTotalUnread(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
 		return txErr
 	})
 	return count, err
@@ -187,8 +140,8 @@ func (s *operatorSuggestionsService) GetTotalUnreadCount(ctx context.Context, op
 // MarkPostViewed marks a post as viewed by the operator.
 // Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) MarkPostViewed(ctx context.Context, operatorAccountID, postID int64) error {
-	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
+	return tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
+		post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -198,7 +151,7 @@ func (s *operatorSuggestionsService) MarkPostViewed(ctx context.Context, operato
 
 		// Inject tenant so EnsureTenantID in the repository can set it on the upserted record
 		ctx = tenant.WithTenantID(ctx, post.TenantID)
-		return s.postReadRepo.MarkViewed(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
+		return s.PostReadRepo.MarkViewed(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
 	})
 }
 
@@ -206,9 +159,9 @@ func (s *operatorSuggestionsService) MarkPostViewed(ctx context.Context, operato
 // Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) GetUnviewedPostCount(ctx context.Context, operatorAccountID int64) (int, error) {
 	var count int
-	err := s.withAdminTx(ctx, func(ctx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
 		var txErr error
-		count, txErr = s.postReadRepo.CountUnviewed(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
+		count, txErr = s.PostReadRepo.CountUnviewed(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
 		return txErr
 	})
 	return count, err
@@ -221,8 +174,8 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 		return &InvalidDataError{Err: fmt.Errorf("invalid status: %s", status)}
 	}
 
-	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
+	return tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
+		post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -231,7 +184,7 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 		}
 
 		oldStatus := post.Status
-		if err := s.postRepo.UpdateStatus(ctx, postID, status); err != nil {
+		if err := s.PostRepo.UpdateStatus(ctx, postID, status); err != nil {
 			return err
 		}
 
@@ -240,9 +193,9 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 
 		// Mark post as viewed when operator changes status (they've interacted with it).
 		// Wrapped in savepoint so a failure here doesn't roll back the status change.
-		if s.postReadRepo != nil {
+		if s.PostReadRepo != nil {
 			s.bestEffort(ctx, "mark_viewed", func() error {
-				return s.postReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
+				return s.PostReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
 			})
 		}
 
@@ -267,9 +220,9 @@ func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *su
 	// Force operator author type
 	comment.AuthorType = suggestions.AuthorTypeOperator
 
-	return s.withAdminTx(ctx, func(ctx context.Context) error {
+	return tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
 		// Verify post exists (operators can comment on hidden posts too)
-		post, err := s.postRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeOperator)
+		post, err := s.PostRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -284,7 +237,7 @@ func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *su
 			return &InvalidDataError{Err: err}
 		}
 
-		if err := s.commentRepo.Create(ctx, comment); err != nil {
+		if err := s.CommentRepo.Create(ctx, comment); err != nil {
 			return err
 		}
 
@@ -302,9 +255,9 @@ func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *su
 // Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	var comments []*suggestions.Comment
-	err := s.withAdminTx(ctx, func(ctx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
 		var txErr error
-		comments, txErr = s.commentRepo.FindByPostID(ctx, postID)
+		comments, txErr = s.CommentRepo.FindByPostID(ctx, postID)
 		return txErr
 	})
 	return comments, err
@@ -313,8 +266,8 @@ func (s *operatorSuggestionsService) GetComments(ctx context.Context, postID int
 // DeleteComment deletes a comment (operators can delete any comment).
 // Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) DeleteComment(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error {
-	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		comment, err := s.commentRepo.FindByID(ctx, commentID)
+	return tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
+		comment, err := s.CommentRepo.FindByID(ctx, commentID)
 		if err != nil {
 			return err
 		}
@@ -322,7 +275,7 @@ func (s *operatorSuggestionsService) DeleteComment(ctx context.Context, commentI
 			return &CommentNotFoundError{CommentID: commentID}
 		}
 
-		if err := s.commentRepo.Delete(ctx, commentID); err != nil {
+		if err := s.CommentRepo.Delete(ctx, commentID); err != nil {
 			return err
 		}
 
@@ -339,8 +292,8 @@ func (s *operatorSuggestionsService) DeleteComment(ctx context.Context, commentI
 // HidePost toggles the visibility of a suggestion post.
 // Idempotent: if the post already has the requested visibility, it's a no-op.
 func (s *operatorSuggestionsService) HidePost(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error {
-	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
+	return tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
+		post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -353,7 +306,7 @@ func (s *operatorSuggestionsService) HidePost(ctx context.Context, postID int64,
 			return nil
 		}
 
-		if err := s.postRepo.UpdateHidden(ctx, postID, hidden); err != nil {
+		if err := s.PostRepo.UpdateHidden(ctx, postID, hidden); err != nil {
 			return err
 		}
 
@@ -361,9 +314,9 @@ func (s *operatorSuggestionsService) HidePost(ctx context.Context, postID int64,
 		ctx = tenant.WithTenantID(ctx, post.TenantID)
 
 		// Mark post as viewed when operator hides/unhides (they've interacted with it).
-		if s.postReadRepo != nil {
+		if s.PostReadRepo != nil {
 			s.bestEffort(ctx, "mark_viewed", func() error {
-				return s.postReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
+				return s.PostReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
 			})
 		}
 
@@ -385,8 +338,8 @@ func (s *operatorSuggestionsService) HidePost(ctx context.Context, postID int64,
 // DeletePost permanently removes a suggestion post and all associated data (votes, comments, reads).
 // Child tables have ON DELETE CASCADE, so cleanup is automatic.
 func (s *operatorSuggestionsService) DeletePost(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error {
-	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
+	return tenant.WithAdminTxOrDirect(ctx, s.DB, func(ctx context.Context) error {
+		post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -397,7 +350,7 @@ func (s *operatorSuggestionsService) DeletePost(ctx context.Context, postID int6
 		// Snapshot title before delete — cascade wipes the row
 		title := post.Title
 
-		if err := s.postRepo.Delete(ctx, postID); err != nil {
+		if err := s.PostRepo.Delete(ctx, postID); err != nil {
 			return err
 		}
 
@@ -470,6 +423,6 @@ func (s *operatorSuggestionsService) logAction(ctx context.Context, operatorID i
 	}
 
 	s.bestEffort(ctx, "audit_log", func() error {
-		return s.auditLogRepo.Create(ctx, entry)
+		return s.AuditLogRepo.Create(ctx, entry)
 	})
 }

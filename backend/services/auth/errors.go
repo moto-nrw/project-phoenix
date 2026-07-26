@@ -11,6 +11,13 @@ var (
 	// ErrInvalidCredentials returned when username/password combo is invalid
 	ErrInvalidCredentials = errors.New("invalid username or password")
 
+	// ErrInvalidStaffPINCredentials hides whether a requested staff/account
+	// exists when kiosk staff-PIN authentication fails.
+	ErrInvalidStaffPINCredentials = errors.New("invalid staff PIN credentials")
+
+	// ErrStaffPINLocked reports an active staff-account PIN lockout.
+	ErrStaffPINLocked = errors.New("staff PIN is temporarily locked")
+
 	// ErrAccountNotFound returned when account doesn't exist
 	ErrAccountNotFound = errors.New("account not found")
 
@@ -77,9 +84,10 @@ var (
 	ErrInvitationNameRequired        = errors.New("first name and last name are required")
 	ErrAccountAlreadyHasTenantAccess = errors.New("account already has access to tenant")
 
-	// Deletion constraint errors
-	ErrRoleInUse       = errors.New("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen")                           //nolint:staticcheck // ST1005: user-facing German message
-	ErrPermissionInUse = errors.New("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen") //nolint:staticcheck // ST1005: user-facing German message
+	// Related-accounts errors
+	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
+	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
+	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
 )
 
 // AuthError represents an authentication-related error

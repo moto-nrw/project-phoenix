@@ -38,6 +38,7 @@ type ArrivalExceptionResponse struct {
 	ExceptionDate   string  `json:"exception_date"`             // YYYY-MM-DD format
 	ExpectedArrival *string `json:"expected_arrival,omitempty"` // HH:MM or null
 	Reason          *string `json:"reason,omitempty"`
+	Source          string  `json:"source"` // "staff" or "guardian" (parent-set)
 	CreatedBy       int64   `json:"created_by"`
 	CreatedAt       string  `json:"created_at"`
 	UpdatedAt       string  `json:"updated_at"`
@@ -94,19 +95,7 @@ type BulkUpsertArrivalScheduleRequest struct {
 
 // Bind implements render.Binder for ArrivalNoteRequest
 func (r *ArrivalNoteRequest) Bind(_ *http.Request) error {
-	if r.NoteDate == "" {
-		return errors.New("note_date is required")
-	}
-	if _, err := time.Parse(dateFormatISO, r.NoteDate); err != nil {
-		return errors.New("invalid note_date format, expected YYYY-MM-DD")
-	}
-	if r.Content == "" {
-		return errors.New("content is required")
-	}
-	if len(r.Content) > 500 {
-		return errors.New("content cannot exceed 500 characters")
-	}
-	return nil
+	return validateCareNoteRequest(r.NoteDate, r.Content)
 }
 
 // Bind implements render.Binder for BulkArrivalScheduleRequest
@@ -119,26 +108,13 @@ func (r *BulkArrivalScheduleRequest) Bind(_ *http.Request) error {
 // bulk-update endpoint and the atomic create-student flow so both paths enforce
 // the same rules.
 func validateArrivalScheduleItems(items []ArrivalScheduleRequestItem) error {
-	seenWeekdays := make(map[int]bool)
-	for i, s := range items {
-		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
-			return fmt.Errorf("schedule %d: weekday must be between 1 (Monday) and 5 (Friday)", i)
+	return validateCareScheduleItems(items, "expected_arrival", func(item ArrivalScheduleRequestItem) careScheduleItem {
+		return careScheduleItem{
+			Weekday: item.Weekday,
+			Time:    item.ExpectedArrival,
+			Notes:   item.Notes,
 		}
-		if seenWeekdays[s.Weekday] {
-			return fmt.Errorf("schedule %d: duplicate weekday %d", i, s.Weekday)
-		}
-		seenWeekdays[s.Weekday] = true
-		if s.ExpectedArrival == "" {
-			return fmt.Errorf("schedule %d: expected_arrival is required", i)
-		}
-		if _, err := time.Parse("15:04", s.ExpectedArrival); err != nil {
-			return fmt.Errorf("schedule %d: invalid expected_arrival format, expected HH:MM", i)
-		}
-		if s.Notes != nil && len(*s.Notes) > 500 {
-			return fmt.Errorf("schedule %d: notes cannot exceed 500 characters", i)
-		}
-	}
-	return nil
+	})
 }
 
 // toArrivalScheduleModels maps request items onto schedule models stamped with
@@ -166,23 +142,12 @@ func toArrivalScheduleModels(items []ArrivalScheduleRequestItem, studentID, staf
 
 // Bind implements render.Binder for ArrivalExceptionRequest
 func (r *ArrivalExceptionRequest) Bind(_ *http.Request) error {
-	if r.ExceptionDate == "" {
-		return errors.New("exception_date is required")
-	}
-	if _, err := time.Parse(dateFormatISO, r.ExceptionDate); err != nil {
-		return errors.New("invalid exception_date format, expected YYYY-MM-DD")
-	}
-	// expected_arrival is optional (nil = absent/not coming)
-	// but if provided, it must be valid HH:MM format
-	if r.ExpectedArrival != nil && *r.ExpectedArrival != "" {
-		if _, err := time.Parse("15:04", *r.ExpectedArrival); err != nil {
-			return errors.New("invalid expected_arrival format, expected HH:MM")
-		}
-	}
-	if r.Reason != nil && len(*r.Reason) > 255 {
-		return errors.New("reason cannot exceed 255 characters")
-	}
-	return nil
+	return validateCareExceptionRequest(
+		r.ExceptionDate,
+		r.ExpectedArrival,
+		r.Reason,
+		"expected_arrival",
+	)
 }
 
 // Bind implements render.Binder for BulkUpsertArrivalScheduleRequest
@@ -234,6 +199,7 @@ func mapArrivalExceptionToResponse(e *schedule.StudentArrivalException) ArrivalE
 		StudentID:     e.StudentID,
 		ExceptionDate: e.ExceptionDate.Format(dateFormatISO),
 		Reason:        e.Reason,
+		Source:        e.Source,
 		CreatedBy:     e.CreatedBy,
 		CreatedAt:     e.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:     e.UpdatedAt.Format(time.RFC3339),
@@ -260,56 +226,40 @@ func mapArrivalNoteToResponse(n *schedule.StudentArrivalNote) ArrivalNoteRespons
 
 // verifyArrivalExceptionOwnership checks that an arrival exception exists and belongs to the given student.
 func (rs *Resource) verifyArrivalExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *schedule.StudentArrivalException {
-	exception, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(r.Context(), exceptionID)
-	if err != nil || exception == nil {
-		renderError(w, r, ErrorNotFound(errors.New("arrival exception not found")))
-		return nil
-	}
-	if exception.StudentID != studentID {
-		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
-		return nil
-	}
-	return exception
+	return verifyCareOwnership(
+		w,
+		r,
+		exceptionID,
+		studentID,
+		"arrival exception not found",
+		"exception does not belong to this student",
+		rs.ArrivalScheduleService.GetStudentArrivalExceptionByID,
+		func(exception *schedule.StudentArrivalException) int64 { return exception.StudentID },
+	)
 }
 
 // verifyArrivalNoteOwnership checks that an arrival note exists and belongs to the given student.
 func (rs *Resource) verifyArrivalNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *schedule.StudentArrivalNote {
-	note, err := rs.ArrivalScheduleService.GetStudentArrivalNoteByID(r.Context(), noteID)
-	if err != nil || note == nil {
-		renderError(w, r, ErrorNotFound(errors.New("arrival note not found")))
-		return nil
-	}
-	if note.StudentID != studentID {
-		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
-		return nil
-	}
-	return note
+	return verifyCareOwnership(
+		w,
+		r,
+		noteID,
+		studentID,
+		"arrival note not found",
+		"note does not belong to this student",
+		rs.ArrivalScheduleService.GetStudentArrivalNoteByID,
+		func(note *schedule.StudentArrivalNote) int64 { return note.StudentID },
+	)
 }
 
 // requireArrivalReadAccess parses the student from URL params and checks read access.
 func (rs *Resource) requireArrivalReadAccess(w http.ResponseWriter, r *http.Request) *users.Student {
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return nil
-	}
-	if !rs.checkStudentReadAccess(r, student) {
-		renderError(w, r, ErrorForbidden(fmt.Errorf("read access required to view arrival schedules")))
-		return nil
-	}
-	return student
+	return rs.requireCareReadAccess(w, r, "arrival")
 }
 
 // requireArrivalWriteAccess parses the student from URL params and verifies full access.
 func (rs *Resource) requireArrivalWriteAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return nil
-	}
-	if !rs.checkStudentFullAccess(r, student) {
-		renderError(w, r, ErrorForbidden(fmt.Errorf("full access required to %s", action)))
-		return nil
-	}
-	return student
+	return rs.requireCareWriteAccess(w, r, action)
 }
 
 // getStudentArrivalSchedules handles GET /students/{id}/arrival-schedules
@@ -321,7 +271,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 
 	data, err := rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -350,6 +300,20 @@ func buildArrivalDataResponse(data *scheduleService.StudentArrivalData) ArrivalD
 	return response
 }
 
+// broadcastArrivalScheduleChanged tells every open staff tab that a child's
+// arrival plan changed.
+//
+// MUST be called from a tenant.RegisterAfterCommit hook, never inline. Handler
+// writes run in a WithTenantTx that merely reuses the still-open
+// TenantTxMiddleware transaction, so at handler return nothing is committed
+// yet: a client woken inline refetches the PREVIOUS plan, and because this is
+// the only invalidation the arrival caches get, nothing corrects it afterwards.
+// A write that a later 5xx rolls back would leave every tab showing data that
+// never existed. RegisterAfterCommit runs the callback immediately when no
+// transaction is registered, so the hook is safe on every path.
+//
+// studentID is for the log line only — the event carries no student id (it is
+// a tenant-wide staff broadcast; see the pickup sibling for the GDPR reasoning).
 func (rs *Resource) broadcastArrivalScheduleChanged(studentID int64) {
 	if rs.Broadcaster == nil {
 		return
@@ -380,33 +344,44 @@ func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http
 
 	req := &BulkArrivalScheduleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	schedules := toArrivalScheduleModels(req.Schedules, student.ID, staffID)
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, schedules)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	data, err := rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// Both wakes defer to the OUTER request tx's commit — the handler
+	// WithTenantTx is a nested reuse of the TenantTxMiddleware tx and has NOT
+	// committed on return, so a woken client must not refetch yet (#1725 review).
+	// This binds the STAFF broadcast as much as the guardian wake: a client that
+	// refetches pre-commit reads the previous plan and nothing invalidates it a
+	// second time, and a later 5xx rolls the write back after every open tab has
+	// already refreshed to it. The guardian fan-out is separate because the
+	// tenant-wide arrival_schedule_changed never reaches the parent SSE stream.
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 	response := buildArrivalDataResponse(data)
 	common.Respond(w, r, http.StatusOK, response, "Arrival schedules updated successfully")
 }
@@ -420,38 +395,43 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 
 	req := &ArrivalExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
-	exception := &schedule.StudentArrivalException{
-		StudentID:     student.ID,
-		ExceptionDate: exceptionDate,
-		Reason:        req.Reason,
-		CreatedBy:     staffID,
-	}
-
+	var arrivalTime *time.Time
 	if req.ExpectedArrival != nil && *req.ExpectedArrival != "" {
-		arrivalTime, _ := parseTimeOnly(*req.ExpectedArrival)
-		exception.ExpectedArrival = &arrivalTime
+		parsed, _ := parseTimeOnly(*req.ExpectedArrival)
+		arrivalTime = &parsed
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ArrivalScheduleService.CreateStudentArrivalException(ctx, exception)
-	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+	exception, err := rs.ArrivalScheduleService.CreateOrReclaimException(
+		r.Context(), student.ID, exceptionDate, arrivalTime, req.Reason, staffID,
+		func() (int64, error) { return rs.getStaffIDFromJWT(r) },
+	)
+	if err != nil {
+		renderExceptionWriteError(w, r, err)
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// Deferred to the outer request tx's commit — the service write runs in a
+	// nested tx that has NOT committed on return, so neither the staff broadcast
+	// nor the guardian wake may fire yet (#1725 review; see the schedules
+	// handler above for why pre-commit staff invalidation strands stale data).
+	// The guardian wake is what makes the "Heute" tile reflect a staff arrival
+	// override (a no-show arrival_absent resolves the tile as absent).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 	common.Respond(w, r, http.StatusCreated, mapArrivalExceptionToResponse(exception), "Arrival exception created successfully")
 }
 
@@ -474,39 +454,36 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 
 	req := &ArrivalExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
+	// existingException was the ownership pre-check; the locked re-read inside the
+	// service is authoritative for the source/author decision.
 	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
-	exception := &schedule.StudentArrivalException{
-		StudentID:     student.ID,
-		ExceptionDate: exceptionDate,
-		Reason:        existingException.Reason,
-		CreatedBy:     existingException.CreatedBy,
-	}
-	exception.ID = exceptionID
-	exception.CreatedAt = existingException.CreatedAt
-	exception.SetTenantID(existingException.TenantID)
-
-	if req.Reason != nil {
-		exception.Reason = req.Reason
-	}
-
+	var arrivalTime *time.Time
 	if req.ExpectedArrival != nil && *req.ExpectedArrival != "" {
-		arrivalTime, _ := parseTimeOnly(*req.ExpectedArrival)
-		exception.ExpectedArrival = &arrivalTime
+		parsed, _ := parseTimeOnly(*req.ExpectedArrival)
+		arrivalTime = &parsed
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ArrivalScheduleService.UpdateStudentArrivalException(ctx, exception)
-	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+	exception, err := rs.ArrivalScheduleService.UpdateException(
+		r.Context(), exceptionID, student.ID, exceptionDate, req.Reason, arrivalTime,
+		func() (int64, error) { return rs.getStaffIDFromJWT(r) },
+	)
+	if err != nil {
+		renderExceptionWriteError(w, r, err)
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// Deferred to the outer request tx's commit so neither the staff broadcast
+	// nor the guardian wake can make a client refetch the pre-edit override (the
+	// service write runs in a nested tx, not committed on return) (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 	common.Respond(w, r, http.StatusOK, mapArrivalExceptionToResponse(exception), "Arrival exception updated successfully")
 }
 
@@ -522,19 +499,39 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
-	if rs.verifyArrivalExceptionOwnership(w, r, exceptionID, student.ID) == nil {
+	existingException := rs.verifyArrivalExceptionOwnership(w, r, exceptionID, student.ID)
+	if existingException == nil {
 		return
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ArrivalScheduleService.DeleteStudentArrivalException(ctx, exceptionID)
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, existingException.ExceptionDate); err != nil {
+			return err
+		}
+		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
+		if err != nil {
+			return err
+		}
+		if freshException == nil {
+			return nil
+		}
+		if freshException.StudentID != student.ID {
+			return ErrExceptionWrongStudent
+		}
+		return rs.ArrivalScheduleService.DeleteStudentArrivalException(ctx, freshException.ID)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderExceptionWriteError(w, r, err)
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// Deferred to the outer request tx's commit so neither the staff broadcast
+	// nor the guardian wake can make a client refetch an override the delete has
+	// not committed yet (nested handler WithTenantTx) (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 	common.Respond(w, r, http.StatusOK, nil, "Arrival exception deleted successfully")
 }
 
@@ -547,13 +544,13 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 
 	req := &ArrivalNoteRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -566,14 +563,19 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.CreateStudentArrivalNote(ctx, note)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// After commit, not inline: the handler WithTenantTx above only reuses the
+	// still-open TenantTxMiddleware tx, so a client woken here would read the
+	// note-less day and never be invalidated again (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+	})
 	common.Respond(w, r, http.StatusCreated, mapArrivalNoteToResponse(note), "Arrival note created successfully")
 }
 
@@ -596,7 +598,7 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 
 	req := &ArrivalNoteRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -612,14 +614,17 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	note.SetTenantID(existingNote.TenantID)
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.UpdateStudentArrivalNote(ctx, note)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// After commit — same nested-tx reason as the create path above.
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+	})
 	common.Respond(w, r, http.StatusOK, mapArrivalNoteToResponse(note), "Arrival note updated successfully")
 }
 
@@ -641,14 +646,17 @@ func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.DeleteStudentArrivalNote(ctx, noteID)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// After commit — same nested-tx reason as the create path above.
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+	})
 	common.Respond(w, r, http.StatusOK, nil, "Arrival note deleted successfully")
 }
 
@@ -656,47 +664,43 @@ func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Request) {
 	req := &BulkUpsertArrivalScheduleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
+	tenantID := tenant.FromContext(r.Context())
 	result, err := rs.ArrivalScheduleService.BulkUpsertBySchoolClass(r.Context(), req.SchoolClass, req.Schedules, staffID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(0)
+	// Deferred to the OUTER request tx's commit: BulkUpsertBySchoolClass runs
+	// inside the TenantTxMiddleware tx, which is still open here, so waking now
+	// would let a client refetch before the writes are visible (#1725 review) —
+	// true for the staff broadcast and the guardian wake alike, and worst here
+	// where one rollback would strand a whole class of stale plans. The guardian
+	// fan-out is separate (tenant-wide events never reach the parent SSE stream,
+	// #1725) and bounded to the one class.
+	affected := result.AffectedStudentIDs
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(0)
+		for _, studentID := range affected {
+			rs.wakeChildGuardians(tenantID, studentID)
+		}
+	})
 	common.Respond(w, r, http.StatusOK, result, "Bulk arrival schedules upserted successfully")
 }
 
-// BulkArrivalTimeRequest represents a request to get arrival times for multiple students
-type BulkArrivalTimeRequest struct {
-	StudentIDs []int64 `json:"student_ids"`
-	Date       *string `json:"date,omitempty"` // Optional date in YYYY-MM-DD format, defaults to today
-}
-
-// Bind implements render.Binder
-func (r *BulkArrivalTimeRequest) Bind(_ *http.Request) error {
-	if len(r.StudentIDs) == 0 {
-		return errors.New("student_ids array cannot be empty")
-	}
-	if len(r.StudentIDs) > 500 {
-		return errors.New("student_ids array cannot exceed 500 items")
-	}
-	if r.Date != nil && *r.Date != "" {
-		if _, err := time.Parse(dateFormatISO, *r.Date); err != nil {
-			return errors.New("invalid date format, expected YYYY-MM-DD")
-		}
-	}
-	return nil
-}
+// BulkArrivalTimeRequest keeps the domain-specific public name while sharing
+// validation and binding with pickup bulk effective-time requests.
+type BulkArrivalTimeRequest = BulkEffectiveTimeRequest
 
 // BulkArrivalDayNoteResponse represents a single day note in bulk arrival time responses
 type BulkArrivalDayNoteResponse struct {
@@ -717,112 +721,39 @@ type BulkArrivalTimeResponse struct {
 
 // getBulkArrivalTimes handles POST /students/arrival-times/bulk
 func (rs *Resource) getBulkArrivalTimes(w http.ResponseWriter, r *http.Request) {
-	req := &BulkArrivalTimeRequest{}
-	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
-		return
-	}
+	handleBulkEffectiveTimes(
+		rs,
+		w,
+		r,
+		"Bulk arrival times retrieved successfully",
+		rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate,
+		mapBulkArrivalTimeResponse,
+	)
+}
 
-	// Filter student IDs to only those the user has access to
-	authorizedIDs, err := rs.filterAuthorizedStudentIDs(r, req.StudentIDs)
-	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
-		return
+func mapBulkArrivalTimeResponse(
+	studentID int64,
+	effectiveTime *scheduleService.EffectiveArrivalTime,
+) BulkArrivalTimeResponse {
+	response := BulkArrivalTimeResponse{
+		StudentID:   studentID,
+		Date:        effectiveTime.Date.Format(dateFormatISO),
+		WeekdayName: effectiveTime.WeekdayName,
+		IsException: effectiveTime.IsException,
+		Notes:       effectiveTime.Notes,
 	}
-
-	if len(authorizedIDs) == 0 {
-		common.Respond(w, r, http.StatusOK, []BulkArrivalTimeResponse{}, "Bulk arrival times retrieved successfully")
-		return
+	if effectiveTime.ArrivalTime != nil {
+		formatted := effectiveTime.ArrivalTime.Format("15:04")
+		response.ExpectedArrival = &formatted
 	}
-
-	date := timezone.TodayDate()
-	if req.Date != nil && *req.Date != "" {
-		parsedDate, _ := timezone.ParseDate(*req.Date)
-		date = parsedDate
-	}
-
-	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(r.Context(), authorizedIDs, date)
-	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	responses := make([]BulkArrivalTimeResponse, 0, len(arrivalTimes))
-	for studentID, eat := range arrivalTimes {
-		resp := BulkArrivalTimeResponse{
-			StudentID:   studentID,
-			Date:        eat.Date.Format(dateFormatISO),
-			WeekdayName: eat.WeekdayName,
-			IsException: eat.IsException,
-			Notes:       eat.Notes,
+	if len(effectiveTime.DayNotes) > 0 {
+		response.DayNotes = make([]BulkArrivalDayNoteResponse, 0, len(effectiveTime.DayNotes))
+		for _, note := range effectiveTime.DayNotes {
+			response.DayNotes = append(response.DayNotes, BulkArrivalDayNoteResponse{
+				ID:      note.ID,
+				Content: note.Content,
+			})
 		}
-		if eat.ArrivalTime != nil {
-			formatted := eat.ArrivalTime.Format("15:04")
-			resp.ExpectedArrival = &formatted
-		}
-		if len(eat.DayNotes) > 0 {
-			resp.DayNotes = make([]BulkArrivalDayNoteResponse, 0, len(eat.DayNotes))
-			for _, note := range eat.DayNotes {
-				resp.DayNotes = append(resp.DayNotes, BulkArrivalDayNoteResponse{
-					ID:      note.ID,
-					Content: note.Content,
-				})
-			}
-		}
-		responses = append(responses, resp)
 	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Bulk arrival times retrieved successfully")
-}
-
-// Handler accessor methods for testing
-
-// GetStudentArrivalSchedulesHandler returns the handler for getting arrival schedules
-func (rs *Resource) GetStudentArrivalSchedulesHandler() http.HandlerFunc {
-	return rs.getStudentArrivalSchedules
-}
-
-// UpdateStudentArrivalSchedulesHandler returns the handler for updating arrival schedules
-func (rs *Resource) UpdateStudentArrivalSchedulesHandler() http.HandlerFunc {
-	return rs.updateStudentArrivalSchedules
-}
-
-// CreateStudentArrivalExceptionHandler returns the handler for creating arrival exceptions
-func (rs *Resource) CreateStudentArrivalExceptionHandler() http.HandlerFunc {
-	return rs.createStudentArrivalException
-}
-
-// UpdateStudentArrivalExceptionHandler returns the handler for updating arrival exceptions
-func (rs *Resource) UpdateStudentArrivalExceptionHandler() http.HandlerFunc {
-	return rs.updateStudentArrivalException
-}
-
-// DeleteStudentArrivalExceptionHandler returns the handler for deleting arrival exceptions
-func (rs *Resource) DeleteStudentArrivalExceptionHandler() http.HandlerFunc {
-	return rs.deleteStudentArrivalException
-}
-
-// CreateStudentArrivalNoteHandler returns the handler for creating arrival notes
-func (rs *Resource) CreateStudentArrivalNoteHandler() http.HandlerFunc {
-	return rs.createStudentArrivalNote
-}
-
-// UpdateStudentArrivalNoteHandler returns the handler for updating arrival notes
-func (rs *Resource) UpdateStudentArrivalNoteHandler() http.HandlerFunc {
-	return rs.updateStudentArrivalNote
-}
-
-// DeleteStudentArrivalNoteHandler returns the handler for deleting arrival notes
-func (rs *Resource) DeleteStudentArrivalNoteHandler() http.HandlerFunc {
-	return rs.deleteStudentArrivalNote
-}
-
-// BulkUpsertArrivalSchedulesHandler returns the handler for bulk upserting arrival schedules
-func (rs *Resource) BulkUpsertArrivalSchedulesHandler() http.HandlerFunc {
-	return rs.bulkUpsertArrivalSchedules
-}
-
-// GetBulkArrivalTimesHandler returns the handler for getting bulk arrival times
-func (rs *Resource) GetBulkArrivalTimesHandler() http.HandlerFunc {
-	return rs.getBulkArrivalTimes
+	return response
 }

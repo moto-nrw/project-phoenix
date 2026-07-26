@@ -3,7 +3,6 @@ package education
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -38,9 +37,7 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*educati
 		ModelTableExpr(`education.groups AS "group"`).
 		Where("LOWER(name) = LOWER(?)", name)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -51,29 +48,6 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*educati
 	}
 
 	return group, nil
-}
-
-// FindByRoom retrieves groups by their room ID
-func (r *GroupRepository) FindByRoom(ctx context.Context, roomID int64) ([]*education.Group, error) {
-	var groups []*education.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`education.groups AS "group"`).
-		Where("room_id = ?", roomID)
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by room",
-			Err: err,
-		}
-	}
-
-	return groups, nil
 }
 
 // FindByIDs retrieves multiple groups by their IDs in a single query
@@ -88,9 +62,7 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 		ModelTableExpr(`education.groups AS "group"`).
 		Where(`"group".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -118,9 +90,7 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 		Join("JOIN education.group_teacher gt ON gt.group_id = \"group\".id").
 		Where("gt.teacher_id = ?", teacherID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -154,9 +124,7 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
 		Where(`"group".id = ?`, groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 
@@ -174,36 +142,6 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 	}
 
 	return group, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *GroupRepository) Create(ctx context.Context, group *education.Group) error {
-	if group == nil {
-		return fmt.Errorf("group cannot be nil")
-	}
-
-	// Validate group
-	if err := group.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, group)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *GroupRepository) Update(ctx context.Context, group *education.Group) error {
-	if group == nil {
-		return fmt.Errorf("group cannot be nil")
-	}
-
-	// Validate group
-	if err := group.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, group)
 }
 
 // List retrieves groups matching the provided query options
@@ -264,9 +202,7 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 		ColumnExpr(`"room".capacity AS "room__capacity", "room".category AS "room__category", "room".color AS "room__color"`).
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	// Apply query options (ensure table alias for JOINed queries to avoid ambiguous columns)
 	if options != nil {

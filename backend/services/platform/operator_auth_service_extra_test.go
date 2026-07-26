@@ -35,6 +35,7 @@ func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_HappyPath(t *te
 		},
 	}
 	var auditCalls int
+	refreshRepo := &mockOperatorRefreshTokenRepo{}
 	auditRepo := &mockAuditLogRepoShared{
 		createFn: func(_ context.Context, _ *platform.OperatorAuditLog) error {
 			auditCalls++
@@ -42,10 +43,11 @@ func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_HappyPath(t *te
 		},
 	}
 	svc, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
+		OperatorRepo:     operatorRepo,
+		AuditLogRepo:     auditRepo,
+		RefreshTokenRepo: refreshRepo,
+		DB:               &bun.DB{},
+		Logger:           slog.Default(),
 	})
 	require.NoError(t, err)
 
@@ -55,6 +57,9 @@ func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_HappyPath(t *te
 	assert.NotEmpty(t, refresh)
 	assert.Equal(t, 1, auditCalls,
 		"successful post-MFA mint must still write an audit row so login events stay visible")
+	require.Len(t, refreshRepo.created, 1)
+	assert.NotEqual(t, "operator-refresh-70010001", refreshRepo.created[0].Token,
+		"operator refresh sessions must use random server-side handles, not deterministic operator IDs")
 }
 
 func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_NotFound(t *testing.T) {

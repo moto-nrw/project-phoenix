@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +22,25 @@ const (
 type AccountRepository struct {
 	*base.Repository[*auth.Account]
 	db *bun.DB
+}
+
+// FindByIDForUpdate retrieves an account with a row lock. Refresh uses this
+// before locking token rows so login and refresh share one lock order.
+func (r *AccountRepository) FindByIDForUpdate(ctx context.Context, id int64) (*auth.Account, error) {
+	account := new(auth.Account)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(account).
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, id).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: err}
+	}
+	return account, nil
 }
 
 // NewAccountRepository creates a new AccountRepository
@@ -50,6 +71,86 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 	return account, nil
 }
 
+// FindByCalendarFeedToken resolves the account owning an iCalendar subscription
+// feed. The stored calendar_feed_token is the SHA-256 HASH of the raw token
+// (the service hashes both on write and before this lookup), so callers pass
+// the hash, not the raw token — a DB read exposes no replayable URL. Returns
+// (nil, nil) when no account matches so the public feed endpoint can answer 404
+// without leaking whether a token exists.
+func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, tokenHash string) (*auth.Account, error) {
+	if tokenHash == "" {
+		return nil, nil
+	}
+	account := new(auth.Account)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(accountTable).
+		Where("calendar_feed_token = ?", tokenHash).
+		Scan(ctx, account)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "find by calendar feed token", Err: err}
+	}
+	return account, nil
+}
+
+// EnsureCalendarFeedToken atomically claims newTokenHash for the account only if
+// it has no feed token yet, then returns whatever hash is persisted. The value
+// is the SHA-256 hash of the raw token (the service hashes before calling), not
+// the raw token itself. The conditional UPDATE takes a row lock, so of two
+// concurrent first-time callers exactly one wins the write; the loser matches no
+// row and reads back the winner's hash via the follow-up SELECT. Nobody is ever
+// handed a hash a later write overwrote.
+func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, accountID int64, newTokenHash string) (string, error) {
+	db := base.GetDB(ctx, r.db)
+	res, err := db.NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("calendar_feed_token = ?", newTokenHash).
+		Where(whereID, accountID).
+		Where("(calendar_feed_token IS NULL OR calendar_feed_token = '')").
+		Exec(ctx)
+	if err != nil {
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
+	}
+	if n, err := res.RowsAffected(); err == nil && n > 0 {
+		return newTokenHash, nil
+	}
+	// Row already had a token, or a concurrent request won the write: return the
+	// persisted value.
+	account := new(auth.Account)
+	if err := db.NewSelect().
+		ModelTableExpr(accountTable).
+		Where(whereID, accountID).
+		Scan(ctx, account); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
+	}
+	if account.CalendarFeedToken == nil {
+		return "", nil
+	}
+	return *account.CalendarFeedToken, nil
+}
+
+// SetCalendarFeedToken sets or rotates the account's calendar feed token. The
+// value stored is the SHA-256 hash of the raw token, not the raw token itself
+// (the service hashes before calling).
+func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID int64, tokenHash string) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("calendar_feed_token = ?", tokenHash).
+		Where(whereID, accountID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set calendar feed token", Err: err}
+	}
+	return nil
+}
+
 // FindByUsername retrieves an account by username
 func (r *AccountRepository) FindByUsername(ctx context.Context, username string) (*auth.Account, error) {
 	account := new(auth.Account)
@@ -72,41 +173,18 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 
 // UpdateLastLogin updates the last login timestamp for an account
 func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("last_login = ?", time.Now()).
-		Where(whereID, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update last login",
-			Err: err,
-		}
-	}
-
-	return nil
+	now := time.Now()
+	account := &auth.Account{Model: modelBase.Model{ID: id}, LastLogin: &now}
+	_, err := r.UpdateColumns(ctx, account, "last_login")
+	return err
 }
 
-// UpdatePassword updates the password hash for an account
+// UpdatePassword updates the password hash for an account and resets the
+// OTP flag (a permanent password replaces any one-time password).
 func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("password_hash = ?", passwordHash).
-		Set("is_password_otp = ?", false). // Reset OTP flag when setting a permanent password
-		Where(whereID, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update password",
-			Err: err,
-		}
-	}
-
-	return nil
+	account := &auth.Account{Model: modelBase.Model{ID: id}, PasswordHash: &passwordHash, IsPasswordOTP: false}
+	_, err := r.UpdateColumns(ctx, account, "password_hash", "is_password_otp")
+	return err
 }
 
 // IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
@@ -229,26 +307,6 @@ func (r *AccountRepository) ResetPINAttempts(ctx context.Context, id int64) erro
 	return nil
 }
 
-// ClearPIN atomically removes the PIN credential and resets the PIN lockout
-// counter in a single UPDATE.
-func (r *AccountRepository) ClearPIN(ctx context.Context, id int64) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("pin_hash = NULL").
-		Set("pin_attempts = 0").
-		Set("pin_locked_until = NULL").
-		Where(whereID, id).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "clear pin",
-			Err: err,
-		}
-	}
-	return nil
-}
-
 // SetActive toggles only the active flag for an account. Targeted update so
 // it does not clobber password_hash or other in-memory stale fields.
 func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool) error {
@@ -271,21 +329,9 @@ func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool
 
 // UpdateAvatar updates the global avatar path for an account.
 func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("avatar = ?", avatar).
-		Where(whereID, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update avatar",
-			Err: err,
-		}
-	}
-
-	return nil
+	account := &auth.Account{Model: modelBase.Model{ID: id}, Avatar: avatar}
+	_, err := r.UpdateColumns(ctx, account, "avatar")
+	return err
 }
 
 // FindByRole retrieves accounts that have a specific role
@@ -609,21 +655,6 @@ func (r *AccountRepository) mergePermissions(directPermissions, rolePermissions 
 		allPermissions = append(allPermissions, p)
 	}
 	return allPermissions
-}
-
-// Create overrides the base Create method for validation
-func (r *AccountRepository) Create(ctx context.Context, account *auth.Account) error {
-	if account == nil {
-		return fmt.Errorf("account cannot be nil")
-	}
-
-	// Validate account - this will also normalize the email
-	if err := account.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, account)
 }
 
 // Update overrides the base Update method to handle email normalization

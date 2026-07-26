@@ -16,16 +16,22 @@ type CreatePostRequest struct {
 
 // Bind validates the create request
 func (req *CreatePostRequest) Bind(_ *http.Request) error {
-	if req.Title == "" {
+	return validatePostFields(req.Title, req.Description)
+}
+
+// validatePostFields holds the shared title/description rules of the
+// create and update post payloads.
+func validatePostFields(title, description string) error {
+	if title == "" {
 		return errors.New("title is required")
 	}
-	if len(req.Title) > 200 {
+	if len(title) > 200 {
 		return errors.New("title must not exceed 200 characters")
 	}
-	if req.Description == "" {
+	if description == "" {
 		return errors.New("description is required")
 	}
-	if len(req.Description) > 5000 {
+	if len(description) > 5000 {
 		return errors.New("description must not exceed 5000 characters")
 	}
 	return nil
@@ -39,19 +45,7 @@ type UpdatePostRequest struct {
 
 // Bind validates the update request
 func (req *UpdatePostRequest) Bind(_ *http.Request) error {
-	if req.Title == "" {
-		return errors.New("title is required")
-	}
-	if len(req.Title) > 200 {
-		return errors.New("title must not exceed 200 characters")
-	}
-	if req.Description == "" {
-		return errors.New("description is required")
-	}
-	if len(req.Description) > 5000 {
-		return errors.New("description must not exceed 5000 characters")
-	}
-	return nil
+	return validatePostFields(req.Title, req.Description)
 }
 
 // VoteRequest represents a request to cast a vote

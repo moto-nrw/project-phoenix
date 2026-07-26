@@ -396,6 +396,9 @@ describe("buildBackendStudentRequest", () => {
       second_name: "Mustermann",
       school_class: "1a",
       bus_days: { mon: true, fri: true },
+      address_street: "Musterstraße 12",
+      address_city: "Köln",
+      address_postal_code: "50667",
       extra_info: "Special needs",
       birthday: "2015-06-15",
       health_info: "Allergies",
@@ -416,6 +419,9 @@ describe("buildBackendStudentRequest", () => {
       // bus_days is the single source of truth (#1582); the legacy bus boolean
       // is no longer sent.
       bus_days: { mon: true, fri: true },
+      address_street: "Musterstraße 12",
+      address_city: "Köln",
+      address_postal_code: "50667",
       extra_info: "Special needs",
       birthday: "2015-06-15",
       health_info: "Allergies",

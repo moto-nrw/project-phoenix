@@ -8,8 +8,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableSettingAudit = "config.setting_audit"
-
 // SettingAuditEntry records a change to a setting value. Append-only.
 // Does NOT embed base.Model because the table has no created_at/updated_at columns.
 type SettingAuditEntry struct {
@@ -40,9 +38,6 @@ func (e *SettingAuditEntry) GetCreatedAt() time.Time { return e.ChangedAt }
 
 // GetUpdatedAt returns the creation timestamp (audit entries are never updated).
 func (e *SettingAuditEntry) GetUpdatedAt() time.Time { return e.ChangedAt }
-
-// TableName returns the database table name.
-func (e *SettingAuditEntry) TableName() string { return tableSettingAudit }
 
 // Validate checks that all required fields are set.
 func (e *SettingAuditEntry) Validate() error {

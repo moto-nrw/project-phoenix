@@ -4,18 +4,19 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableActivitiesCategories is the schema-qualified table name for categories
-const tableActivitiesCategories = "activities.categories"
 
 // DefaultCategoryColor is the fallback display color used when a category has
 // no color set.
 const DefaultCategoryColor = "#CCCCCC"
+
+// ErrUnknownCategoryIDs is returned when a Kategorie↔Schichtart mapping write
+// references category IDs that do not all exist in the current tenant. It must
+// abort the write rather than silently clearing existing mappings (#1837
+// follow-up). Callers map it to a 400.
+var ErrUnknownCategoryIDs = errors.New("one or more category IDs do not exist in this tenant")
 
 // Category represents a category for activities
 type Category struct {
@@ -24,36 +25,11 @@ type Category struct {
 	Name        string `bun:"name,notnull" json:"name"`
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`
-}
-
-func (c *Category) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActivitiesCategories)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActivitiesCategories)
-	}
-	return nil
-}
-
-// GetID returns the entity's ID
-func (c *Category) GetID() interface{} {
-	return c.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (c *Category) GetCreatedAt() time.Time {
-	return c.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (c *Category) GetUpdatedAt() time.Time {
-	return c.UpdatedAt
-}
-
-// TableName returns the database table name
-func (c *Category) TableName() string {
-	return tableActivitiesCategories
+	IsSystem    bool   `bun:"is_system,notnull,default:false" json:"is_system"`
+	// ShiftTypeID optionally maps this Timetable-Kategorie to a Dienstplan
+	// Schichtart (schedule.shift_types, #1836). NULL = no mapping. Managed from
+	// the "Schichtarten verwalten" modal; see #1837 follow-up.
+	ShiftTypeID *int64 `bun:"shift_type_id" json:"shift_type_id,omitempty"`
 }
 
 // Validate ensures category data is valid

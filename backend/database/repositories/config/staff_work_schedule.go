@@ -69,9 +69,59 @@ func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, s
 	return entries, nil
 }
 
+// FindByStaffIDsValidInRange returns every schedule entry for the given staff
+// members whose validity window intersects [from, to] (valid_until exclusive,
+// matching GetByStaffIDAndDate).
+func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*config.StaffWorkSchedule, error) {
+	if len(staffIDs) == 0 {
+		return nil, nil
+	}
+	var entries []*config.StaffWorkSchedule
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&entries).
+		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
+		Where("staff_id IN (?)", bun.List(staffIDs)).
+		Where("valid_from <= ?", to).
+		Where("(valid_until IS NULL OR valid_until > ?)", from).
+		OrderExpr("staff_id ASC, day_of_week ASC")
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to get schedules for staff range: %w", err)
+	}
+	return entries, nil
+}
+
+// HasScheduleHistory reports whether the staff member has ever had a schedule
+// snapshot, closed-out versions included.
+func (r *StaffWorkScheduleRepository) HasScheduleHistory(ctx context.Context, staffID int64) (bool, error) {
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model((*config.StaffWorkSchedule)(nil)).
+		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
+		Where("staff_id = ?", staffID)
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	exists, err := query.Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check schedule history: %w", err)
+	}
+	return exists, nil
+}
+
 // ReplaceSchedule atomically replaces all current schedule entries for a staff member.
 // It sets valid_until on existing entries and inserts the new ones.
-func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule) error {
+func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule, anchor timezone.Date) error {
+	if err := repoBase.AcquireStaffBalanceLock(ctx, r.db, staffID); err != nil {
+		return err
+	}
 	db := repoBase.GetDB(ctx, r.db)
 	tenantID := tenant.FromContext(ctx)
 	now := time.Now()
@@ -83,6 +133,11 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 		e.ValidUntil = nil
 		e.CreatedAt = now
 		e.UpdatedAt = now
+		e.RotationAnchorDate = nil
+		if !anchor.IsZero() {
+			versionAnchor := anchor
+			e.RotationAnchorDate = &versionAnchor
+		}
 		if tenantID > 0 {
 			e.SetTenantID(tenantID)
 		}
@@ -120,4 +175,37 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 	}
 
 	return nil
+}
+
+// FindStaffIDsWithScheduleHistory is HasScheduleHistory for many staff members
+// in one round trip. A batched DISTINCT the generic filter API cannot express
+// as a single query. Deliberately date-unbounded, exactly like its single-staff
+// twin: the answer is "did this staff member EVER have a schedule version",
+// which is what decides whether the assigned work-time model may stand in.
+func (r *StaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(ctx context.Context, staffIDs []int64) (map[int64]bool, error) {
+	result := make(map[int64]bool, len(staffIDs))
+	if len(staffIDs) == 0 {
+		// bun renders an empty IN list as invalid SQL.
+		return result, nil
+	}
+
+	var rows []struct {
+		StaffID int64 `bun:"staff_id"`
+	}
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr("DISTINCT staff_id").
+		TableExpr(tableStaffWorkSchedules).
+		Where("staff_id IN (?)", bun.List(staffIDs))
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("failed to check schedule history for staff batch: %w", err)
+	}
+	for _, row := range rows {
+		result[row.StaffID] = true
+	}
+	return result, nil
 }

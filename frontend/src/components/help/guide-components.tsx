@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Info, ListChecks } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -12,6 +13,25 @@ import { HelpHashScroll, HelpSearchInline } from "./help-search";
 import { HelpBackButton, helpBackButtonClassName } from "./help-back-button";
 
 type ActivePath = "ersteinrichtung" | "funktionen" | "nfc";
+
+const LANDSCAPE_NFC_SCREENSHOTS = new Set([
+  "/help/screens/nfc-einstellungen-betrieb.webp",
+  "/help/screens/nfc-einstellungen-geraete.webp",
+  "/help/screens/nfc-geraete-pruefen.webp",
+]);
+
+function getGuideScreenshotDimensions(image: string): {
+  width: number;
+  height: number;
+} {
+  if (image === "/help/screens/anmeldung-loeschen.png") {
+    return { width: 1440, height: 1100 };
+  }
+  if (image.includes("/nfc-") && !LANDSCAPE_NFC_SCREENSHOTS.has(image)) {
+    return { width: 1024, height: 1024 };
+  }
+  return { width: 1440, height: 900 };
+}
 
 // Maps each guide to its pre-generated PDF under /help/pdfs (see
 // scripts/generate-guides.ts). The served paths stay ASCII (route slugs are
@@ -138,21 +158,23 @@ const toneClasses: Record<
 };
 
 function InlineText({ text }: { readonly text: string }) {
-  const parts = text.split(/(`[^`]+`)/g);
+  const parts = Array.from(text.matchAll(/`[^`]+`|[^`]+/g));
   return (
     <>
-      {parts.map((part, index) =>
-        part.startsWith("`") && part.endsWith("`") ? (
+      {parts.map((match) => {
+        const part = match[0];
+        const offset = match.index;
+        return part.startsWith("`") && part.endsWith("`") ? (
           <code
-            key={`${part}-${index}`}
+            key={offset}
             className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[0.92em] font-semibold text-gray-800 print:bg-white print:px-0"
           >
             {part.slice(1, -1)}
           </code>
         ) : (
-          <span key={`${part}-${index}`}>{part}</span>
-        ),
-      )}
+          <span key={offset}>{part}</span>
+        );
+      })}
     </>
   );
 }
@@ -210,7 +232,14 @@ export function HelpHeader({
 }) {
   return (
     <header className="sticky top-3 z-30 print:hidden">
-      <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/92 p-3 shadow-sm backdrop-blur-md sm:relative sm:flex-row sm:items-center sm:justify-between sm:p-4">
+      <div
+        className={[
+          "rounded-2xl border border-gray-200 bg-white/92 p-3 shadow-sm backdrop-blur-md sm:relative sm:p-4",
+          pdf
+            ? "flex items-center justify-between gap-3"
+            : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+        ].join(" ")}
+      >
         <div className="flex w-full min-w-0 items-center justify-between gap-3">
           {pdf ? (
             <Link href="/help" className={helpBackButtonClassName}>
@@ -224,13 +253,17 @@ export function HelpHeader({
           {!pdf ? (
             <Link
               href="/help"
-              className="flex w-fit items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:gap-3"
+              className="flex w-fit items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:gap-2.5"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-950 shadow-sm">
-                m
-              </span>
+              <Image
+                src="/images/moto_transparent.webp"
+                alt=""
+                width={1283}
+                height={884}
+                className="h-7 w-auto shrink-0 object-contain"
+              />
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-950">
+                <span className="block [font-family:var(--font-moto)] text-xl leading-none font-bold text-gray-950">
                   moto
                 </span>
                 <span className="block text-xs text-gray-500">Anleitung</span>
@@ -240,7 +273,7 @@ export function HelpHeader({
         </div>
 
         {pdf ? (
-          <div className="flex min-h-10 w-full items-center sm:w-fit">
+          <div className="flex min-h-10 w-fit shrink-0 items-center">
             <GuidePdfButton href={pdf.href} download={pdf.download} />
           </div>
         ) : null}
@@ -393,13 +426,14 @@ function GuidePrintCover({
     <section className="hidden print:flex print:min-h-[calc(297mm-36mm)] print:[break-after:page] print:flex-col">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/images/moto_transparent.png"
+          <Image
+            src="/images/moto_transparent.webp"
             alt=""
+            width={1283}
+            height={884}
             className="h-12 w-auto object-contain"
           />
-          <span className="text-3xl font-semibold tracking-normal text-gray-950">
+          <span className="[font-family:var(--font-moto)] text-3xl leading-none font-bold text-gray-950">
             moto
           </span>
           <div className="h-10 w-px bg-gray-300" />
@@ -449,10 +483,12 @@ function GuidePrintCover({
             moto-app.de
           </p>
         </div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src="/help/screens/konto-erstellen.webp"
           alt="moto Login-Screen."
+          width={1440}
+          height={900}
+          sizes="(max-width: 1024px) 100vw, 896px"
           className="block h-auto w-full"
         />
       </div>
@@ -600,7 +636,7 @@ function StepCard({
               className={`mt-4 space-y-2.5 ${compactPrint ? "print:mt-3 print:space-y-1.5" : ""}`}
             >
               {item.steps.map((step, index) => (
-                <li key={index} className="flex gap-3">
+                <li key={step} className="flex gap-3">
                   <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 print:border print:border-gray-300 print:bg-white">
                     {index + 1}
                   </span>
@@ -640,8 +676,8 @@ function Checklist({ items }: { readonly items: readonly string[] }) {
         <h4 className="text-sm font-semibold text-gray-950">Checkliste</h4>
       </div>
       <ul className="space-y-2.5 text-sm leading-6 text-gray-700">
-        {items.map((item, index) => (
-          <li key={`${item}-${index}`} className="flex gap-3">
+        {items.map((item) => (
+          <li key={item} className="flex gap-3">
             <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#83CD2D]/16 text-[#3F6F12] print:border print:border-gray-300 print:bg-white">
               <Check className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
@@ -693,13 +729,15 @@ function Screenshot({
     !image.includes("/nfc-") ||
     image.includes("/nfc-geraete-pruefen") ||
     image.includes("/nfc-einstellungen");
+  const dimensions = getGuideScreenshotDimensions(image);
   return (
     <figure className="mt-4 overflow-hidden rounded-xl border border-gray-200 shadow-sm print:[break-inside:avoid] print:border-gray-300 print:shadow-none">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={image}
         alt={caption}
-        loading="lazy"
+        width={dimensions.width}
+        height={dimensions.height}
+        sizes="(max-width: 1024px) 100vw, 896px"
         className={`block w-full print:max-h-none print:object-contain ${trimRightEdge ? "print:w-[102%] print:max-w-none" : "print:w-full"}`}
       />
     </figure>
@@ -720,16 +758,16 @@ function ScreenshotGallery({
     <div
       className={`mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2 ${compactPrint ? "print:mt-3 print:gap-2" : "print:gap-3"}`}
     >
-      {items.map((item, index) => (
+      {items.map((item) => (
         <figure
-          key={`${item.image}-${index}`}
+          key={item.image}
           className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm print:[break-inside:avoid] print:border-gray-300 print:shadow-none"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={item.image}
             alt={item.caption}
-            loading="lazy"
+            {...getGuideScreenshotDimensions(item.image)}
+            sizes="(max-width: 640px) 100vw, 448px"
             className="block w-full print:max-h-none print:w-full print:object-contain"
           />
           <figcaption

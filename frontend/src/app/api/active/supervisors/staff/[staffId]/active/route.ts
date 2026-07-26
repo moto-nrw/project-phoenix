@@ -1,29 +1,14 @@
 // app/api/active/supervisors/staff/[staffId]/active/route.ts
-import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers.server";
-import { createGetHandler } from "~/lib/route-wrapper.server";
-
-/**
- * Type guard to check if parameter exists and is a string
- */
-function isStringParam(param: unknown): param is string {
-  return typeof param === "string";
-}
+import { proxyGet } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**
  * Handler for GET /api/active/supervisors/staff/[staffId]/active
- * Returns active supervisions for a specific staff member
+ * Returns active supervisions for a specific staff member.
+ * The backend wraps the list in { status, data, message } — proxyGet unwraps it
+ * so clients receive the plain array (coreFetch reads response.data once).
  */
-export const GET = createGetHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.staffId)) {
-      throw new Error("Invalid staffId parameter");
-    }
-
-    // Fetch active supervisions for the staff member from the API
-    return await apiGet(
-      `/api/active/supervisors/staff/${params.staffId}/active`,
-      token,
-    );
-  },
+export const GET = proxyGet(
+  (p) =>
+    `/api/active/supervisors/staff/${requirePathSegmentParam(p, "staffId")}/active`,
 );

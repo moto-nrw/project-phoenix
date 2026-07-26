@@ -65,7 +65,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	}
 
 	// Get active visits
-	activeVisits, err := s.visitRepo.FindActiveVisits(ctx)
+	activeVisits, err := s.VisitRepo.FindActiveVisits(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	}
 
 	// Get today's attendance
-	todaysAttendance, err := s.attendanceRepo.FindForDate(ctx, today)
+	todaysAttendance, err := s.AttendanceRepo.FindForDate(ctx, today)
 	if err != nil {
 		return nil, err
 	}
@@ -98,21 +98,21 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	}
 
 	// Get all rooms
-	allRooms, err := s.roomRepo.List(ctx, nil)
+	allRooms, err := s.RoomRepo.List(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	data.allRooms = allRooms
 
 	// Get active groups
-	activeGroups, err := s.groupRepo.FindActiveGroups(ctx)
+	activeGroups, err := s.GroupRepo.FindActiveGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
 	data.activeGroups = activeGroups
 
 	// Get education groups
-	allEducationGroups, err := s.educationGroupRepo.List(ctx, nil)
+	allEducationGroups, err := s.EducationGroupRepo.List(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 
 	// Get activity groups (loaded once, used by name resolution and current activities).
 	// Non-critical: if this fails, dashboard still shows core metrics with fallback names.
-	allActivityGroups, err := s.activityGroupRepo.List(ctx, nil)
+	allActivityGroups, err := s.ActivityGroupRepo.List(ctx, nil)
 	if err == nil {
 		data.allActivityGroups = allActivityGroups
 		for _, ag := range allActivityGroups {
@@ -132,7 +132,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	}
 
 	// Get activity categories count
-	activityCategories, err := s.activityCatRepo.List(ctx, nil)
+	activityCategories, err := s.ActivityCatRepo.List(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 // countSupervisorsToday counts unique staff members who had any supervision today.
 // Uses the repository's optimized query instead of loading all supervisors.
 func (s *service) countSupervisorsToday(ctx context.Context) (int, error) {
-	staffIDs, err := s.supervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
+	staffIDs, err := s.SupervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -183,7 +183,7 @@ func (s *service) loadStudentsWithGroups(ctx context.Context, studentIDs []int64
 		return nil, nil
 	}
 
-	studentsByID, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	studentsByID, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -430,6 +430,7 @@ func buildCurrentActivities(allActivityGroups []*activitiesModels.Group, activeG
 		status := determineActivityStatus(participantCount, actGroup.MaxParticipants)
 
 		activity := CurrentActivity{
+			ID:           actGroup.ID,
 			Name:         actGroup.Name,
 			Category:     categoryName,
 			Participants: participantCount,

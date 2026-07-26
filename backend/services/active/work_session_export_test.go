@@ -248,6 +248,22 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 	assert.Contains(t, rows[0].Row[8], "Flu")                       // Bemerkungen
 }
 
+func TestWSBuildExportRows_CompTimeUsesGermanLabel(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+	date := timezone.NewDate(2026, time.July, 24)
+
+	rows := svc.buildExportRows(nil, []*activeModels.StaffAbsence{{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   date,
+		DateEnd:     date,
+		Status:      activeModels.AbsenceStatusApproved,
+	}})
+
+	require.Len(t, rows, 1)
+	assert.Contains(t, rows[0].Row[6], "Freizeitausgleich")
+}
+
 func TestWSBuildExportRows_Mixed(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
@@ -348,7 +364,11 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 			Source:       activeModels.WorkSessionSourceApp,
 			Notes:        "Regular day",
 		},
-		NetMinutes: 480, // 8h 0min
+		// Response-level total, as GetHistory populates it (totalBreakMinutes).
+		// For a closed session it equals the model cache; sessionToRow reads
+		// THIS field so the Pause column pairs with the live Netto (#1842).
+		BreakMinutes: 45,
+		NetMinutes:   480, // 8h 0min
 	}
 
 	row := svc.sessionToRow(sr)
@@ -363,6 +383,37 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 	assert.Equal(t, "Vor Ort", row[6])     // Status (Issue #1368)
 	assert.Equal(t, "App", row[7])         // Quelle (Issue #1368)
 	assert.Equal(t, "Regular day", row[8]) // Bemerkungen
+}
+
+// An open session with a running break: the model cache (WorkSession.BreakMinutes)
+// still holds only ENDED breaks (0 here), while GetHistory has already put the
+// live total (35) on the response and deducted it from Netto. The export must
+// print the live total, not the stale cache — otherwise the row reads "Pause 0"
+// next to a Netto that visibly excludes those 35 minutes (#1842).
+func TestWSSessionToRow_RunningBreakUsesLiveTotal(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	date := timezone.NewDate(2024, 1, 15)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	sr := &SessionResponse{
+		WorkSession: &activeModels.WorkSession{
+			Model:        base.Model{ID: 1},
+			Date:         date,
+			CheckInTime:  checkIn,
+			CheckOutTime: nil, // still open
+			BreakMinutes: 0,   // cache: no ENDED breaks yet
+			Status:       activeModels.WorkSessionStatusPresent,
+			Source:       activeModels.WorkSessionSourceApp,
+		},
+		BreakMinutes: 35,  // live total incl. the running break
+		NetMinutes:   385, // already deducts the 35 min
+	}
+
+	row := svc.sessionToRow(sr)
+
+	assert.Equal(t, "35", row[4], "Pause must show the live break total, not the ended-break cache")
+	assert.Equal(t, "6h 25min", row[5])
 }
 
 func TestWSSessionToRow_NFC(t *testing.T) {
@@ -1033,8 +1084,8 @@ func TestWSCleanupOpenSessions_CloseSessionError(t *testing.T) {
 		}, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return errors.New("close error")
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return false, errors.New("close error")
 	}
 
 	count, err := svc.CleanupOpenSessions(context.Background())
@@ -1156,7 +1207,7 @@ func TestWSCheckOut_BreakCheckError(t *testing.T) {
 		return nil, errors.New("break check error")
 	}
 
-	session, err := svc.CheckOut(context.Background(), 100)
+	session, err := svc.CheckOut(context.Background(), 100, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to check active break")
@@ -1177,11 +1228,11 @@ func TestWSCheckOut_CloseSessionError(t *testing.T) {
 		return nil, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return errors.New("close error")
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return false, errors.New("close error")
 	}
 
-	session, err := svc.CheckOut(context.Background(), 100)
+	session, err := svc.CheckOut(context.Background(), 100, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to close session")
@@ -1202,8 +1253,8 @@ func TestWSCheckOut_FindByIDError(t *testing.T) {
 		return nil, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return nil
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
 	}
 
 	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
@@ -1214,7 +1265,7 @@ func TestWSCheckOut_FindByIDError(t *testing.T) {
 		return nil, errors.New("find error")
 	}
 
-	session, err := svc.CheckOut(context.Background(), 100)
+	session, err := svc.CheckOut(context.Background(), 100, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to retrieve updated session")
@@ -1347,7 +1398,7 @@ func TestWSCheckIn_CreateError(t *testing.T) {
 		return errors.New("create error")
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to create work session")

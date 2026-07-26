@@ -13,6 +13,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/email"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -99,10 +100,7 @@ func TestPersistEmailChangeDelivery_Success(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	sentTime := time.Now().Truncate(time.Second)
 	result := email.DeliveryResult{
@@ -134,10 +132,7 @@ func TestPersistEmailChangeDelivery_Failure(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	result := email.DeliveryResult{
 		Status:  email.DeliveryStatusFailed,
@@ -162,10 +157,7 @@ func TestPersistEmailChangeDelivery_UpdateError(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	// Should not panic — just logs the error
 	result := email.DeliveryResult{Status: email.DeliveryStatusSent, SentAt: time.Now()}
@@ -185,10 +177,7 @@ func TestPersistEmailChangeDelivery_PendingStatus(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	// Neither sent nor error — pending/retrying status with nil error
 	result := email.DeliveryResult{
@@ -208,10 +197,7 @@ func TestPersistEmailChangeDelivery_PendingStatus(t *testing.T) {
 // =============================================================================
 
 func TestDispatchVerificationEmail_NilDispatcher(t *testing.T) {
-	svc := &operatorAuthService{
-		dispatcher: nil,
-		logger:     slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: nil, Logger: slog.Default()}}
 
 	token := &platform.OperatorEmailChangeToken{OperatorID: 42, Token: "test-token"}
 	// Should not panic
@@ -219,10 +205,7 @@ func TestDispatchVerificationEmail_NilDispatcher(t *testing.T) {
 }
 
 func TestDispatchNotificationEmail_NilDispatcher(t *testing.T) {
-	svc := &operatorAuthService{
-		dispatcher: nil,
-		logger:     slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: nil, Logger: slog.Default()}}
 
 	op := &platform.Operator{Email: "old@example.com", DisplayName: "Test"}
 	// Should not panic
@@ -230,10 +213,7 @@ func TestDispatchNotificationEmail_NilDispatcher(t *testing.T) {
 }
 
 func TestDispatchChangeConfirmedEmail_NilDispatcher(t *testing.T) {
-	svc := &operatorAuthService{
-		dispatcher: nil,
-		logger:     slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: nil, Logger: slog.Default()}}
 
 	// Should not panic
 	svc.dispatchChangeConfirmedEmail(context.Background(), "old@example.com", "Test")
@@ -244,10 +224,7 @@ func TestDispatchChangeConfirmedEmail_NilDispatcher(t *testing.T) {
 // =============================================================================
 
 func TestCleanupExpiredEmailChangeTokens_NilRepo(t *testing.T) {
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: nil,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: nil, Logger: slog.Default()}}
 
 	count, err := svc.CleanupExpiredEmailChangeTokens(context.Background())
 	require.NoError(t, err)
@@ -261,10 +238,7 @@ func TestCleanupExpiredEmailChangeTokens_InvalidateError(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	_, err := svc.CleanupExpiredEmailChangeTokens(context.Background())
 	require.Error(t, err)
@@ -281,10 +255,7 @@ func TestCleanupExpiredEmailChangeTokens_Success(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	count, err := svc.CleanupExpiredEmailChangeTokens(context.Background())
 	require.NoError(t, err)
@@ -301,10 +272,7 @@ func TestCleanupExpiredEmailChangeTokens_NoInvalidated(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	count, err := svc.CleanupExpiredEmailChangeTokens(context.Background())
 	require.NoError(t, err)
@@ -316,12 +284,7 @@ func TestCleanupExpiredEmailChangeTokens_NoInvalidated(t *testing.T) {
 // =============================================================================
 
 func TestInitiateEmailChange_MissingFrontendURL(t *testing.T) {
-	svc := &operatorAuthService{
-		frontendURL:          "",
-		emailChangeTokenRepo: &mockEmailChangeTokenRepo{},
-		dispatcher:           &email.Dispatcher{},
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{FrontendURL: "", EmailChangeTokenRepo: &mockEmailChangeTokenRepo{}, Dispatcher: &email.Dispatcher{}, Logger: slog.Default()}}
 
 	err := svc.InitiateEmailChange(context.Background(), 1, "new@example.com", "pass", net.IPv4(127, 0, 0, 1))
 	require.Error(t, err)
@@ -329,12 +292,7 @@ func TestInitiateEmailChange_MissingFrontendURL(t *testing.T) {
 }
 
 func TestInitiateEmailChange_MissingTokenRepo(t *testing.T) {
-	svc := &operatorAuthService{
-		frontendURL:          "https://example.com",
-		emailChangeTokenRepo: nil,
-		dispatcher:           &email.Dispatcher{},
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{FrontendURL: "https://example.com", EmailChangeTokenRepo: nil, Dispatcher: &email.Dispatcher{}, Logger: slog.Default()}}
 
 	err := svc.InitiateEmailChange(context.Background(), 1, "new@example.com", "pass", net.IPv4(127, 0, 0, 1))
 	require.Error(t, err)
@@ -342,12 +300,7 @@ func TestInitiateEmailChange_MissingTokenRepo(t *testing.T) {
 }
 
 func TestInitiateEmailChange_MissingDispatcher(t *testing.T) {
-	svc := &operatorAuthService{
-		frontendURL:          "https://example.com",
-		emailChangeTokenRepo: &mockEmailChangeTokenRepo{},
-		dispatcher:           nil,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{FrontendURL: "https://example.com", EmailChangeTokenRepo: &mockEmailChangeTokenRepo{}, Dispatcher: nil, Logger: slog.Default()}}
 
 	err := svc.InitiateEmailChange(context.Background(), 1, "new@example.com", "pass", net.IPv4(127, 0, 0, 1))
 	require.Error(t, err)
@@ -355,10 +308,7 @@ func TestInitiateEmailChange_MissingDispatcher(t *testing.T) {
 }
 
 func TestConfirmEmailChange_MissingTokenRepo(t *testing.T) {
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: nil,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: nil, Logger: slog.Default()}}
 
 	_, err := svc.ConfirmEmailChange(context.Background(), "some-token", net.IPv4(127, 0, 0, 1))
 	require.Error(t, err)
@@ -370,11 +320,11 @@ func TestConfirmEmailChange_MissingTokenRepo(t *testing.T) {
 // =============================================================================
 
 func TestIsUniqueViolation_NilError(t *testing.T) {
-	assert.False(t, isUniqueViolation(nil))
+	assert.False(t, modelBase.IsUniqueViolation(nil))
 }
 
 func TestIsUniqueViolation_NonPgError(t *testing.T) {
-	assert.False(t, isUniqueViolation(errors.New("some generic error")))
+	assert.False(t, modelBase.IsUniqueViolation(errors.New("some generic error")))
 }
 
 // =============================================================================
@@ -382,15 +332,22 @@ func TestIsUniqueViolation_NonPgError(t *testing.T) {
 // =============================================================================
 
 func TestGetLogger_NilLogger(t *testing.T) {
-	svc := &operatorAuthService{logger: nil}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Logger: nil}}
 	logger := svc.getLogger()
 	assert.NotNil(t, logger, "should return slog.Default() when logger is nil")
 }
 
 func TestGetLogger_WithLogger(t *testing.T) {
 	customLogger := slog.Default().With("test", true)
-	svc := &operatorAuthService{logger: customLogger}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Logger: customLogger}}
 	assert.Equal(t, customLogger, svc.getLogger())
+}
+
+func TestLogOperatorRefreshDecision_NilLoggerDoesNotPanic(t *testing.T) {
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Logger: nil}}
+	assert.NotPanics(t, func() {
+		svc.logOperatorRefreshDecision("expired", 42, 3)
+	})
 }
 
 // =============================================================================
@@ -437,14 +394,7 @@ func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 	defaultFrom := email.NewEmail("moto", "noreply@example.com")
 	expiry := 30 * time.Minute
 
-	svc := &operatorAuthService{
-		dispatcher:           dispatcher,
-		frontendURL:          frontendURL,
-		defaultFrom:          defaultFrom,
-		emailChangeExpiry:    expiry,
-		emailChangeTokenRepo: &mockEmailChangeTokenRepo{},
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: dispatcher, FrontendURL: frontendURL, DefaultFrom: defaultFrom, EmailChangeExpiry: expiry, EmailChangeTokenRepo: &mockEmailChangeTokenRepo{}, Logger: slog.Default()}}
 
 	token := &platform.OperatorEmailChangeToken{
 		OperatorID: 42,
@@ -469,7 +419,7 @@ func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 	assert.Equal(t, expectedVerifyURL, content["VerifyURL"])
 	assert.Equal(t, int(expiry.Minutes()), content["ExpiryMinutes"])
 
-	expectedLogoURL := frontendURL + "/images/moto_transparent.png"
+	expectedLogoURL := frontendURL + "/images/moto-logo-mit-schriftzug.png"
 	assert.Equal(t, expectedLogoURL, content["LogoURL"])
 }
 
@@ -490,12 +440,7 @@ func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
 	frontendURL := "https://app.example.com"
 	defaultFrom := email.NewEmail("moto", "noreply@example.com")
 
-	svc := &operatorAuthService{
-		dispatcher:  dispatcher,
-		frontendURL: frontendURL,
-		defaultFrom: defaultFrom,
-		logger:      slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: dispatcher, FrontendURL: frontendURL, DefaultFrom: defaultFrom, Logger: slog.Default()}}
 
 	operator := &platform.Operator{
 		Email:       "operator@example.com",
@@ -519,7 +464,7 @@ func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
 	assert.Equal(t, maskedNewEmail, content["MaskedNewEmail"])
 	assert.Equal(t, operator.DisplayName, content["DisplayName"])
 
-	expectedLogoURL := frontendURL + "/images/moto_transparent.png"
+	expectedLogoURL := frontendURL + "/images/moto-logo-mit-schriftzug.png"
 	assert.Equal(t, expectedLogoURL, content["LogoURL"])
 }
 
@@ -540,12 +485,7 @@ func TestDispatchChangeConfirmedEmail_MessageContent(t *testing.T) {
 	frontendURL := "https://app.example.com"
 	defaultFrom := email.NewEmail("moto", "noreply@example.com")
 
-	svc := &operatorAuthService{
-		dispatcher:  dispatcher,
-		frontendURL: frontendURL,
-		defaultFrom: defaultFrom,
-		logger:      slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: dispatcher, FrontendURL: frontendURL, DefaultFrom: defaultFrom, Logger: slog.Default()}}
 
 	oldEmail := "old@example.com"
 	displayName := "Test Admin"
@@ -563,7 +503,7 @@ func TestDispatchChangeConfirmedEmail_MessageContent(t *testing.T) {
 	content, ok := captured.Content.(map[string]any)
 	require.True(t, ok, "content should be map[string]any")
 
-	expectedLogoURL := frontendURL + "/images/moto_transparent.png"
+	expectedLogoURL := frontendURL + "/images/moto-logo-mit-schriftzug.png"
 	assert.Equal(t, expectedLogoURL, content["LogoURL"])
 	assert.Equal(t, displayName, content["DisplayName"])
 }
@@ -590,14 +530,7 @@ func TestDispatchVerificationEmail_CallbackWiring(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		dispatcher:           dispatcher,
-		frontendURL:          "https://app.example.com",
-		defaultFrom:          email.NewEmail("moto", "noreply@example.com"),
-		emailChangeExpiry:    30 * time.Minute,
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: dispatcher, FrontendURL: "https://app.example.com", DefaultFrom: email.NewEmail("moto", "noreply@example.com"), EmailChangeExpiry: 30 * time.Minute, EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	token := &platform.OperatorEmailChangeToken{
 		OperatorID: 42,
@@ -633,13 +566,7 @@ func TestDispatchNotificationEmail_NoCallback(t *testing.T) {
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(1, []time.Duration{0})
 
-	svc := &operatorAuthService{
-		dispatcher:           dispatcher,
-		frontendURL:          "https://app.example.com",
-		defaultFrom:          email.NewEmail("moto", "noreply@example.com"),
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: dispatcher, FrontendURL: "https://app.example.com", DefaultFrom: email.NewEmail("moto", "noreply@example.com"), EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	operator := &platform.Operator{
 		Email:       "operator@example.com",
@@ -671,10 +598,7 @@ func TestPersistEmailChangeDelivery_FinalFailure(t *testing.T) {
 		},
 	}
 
-	svc := &operatorAuthService{
-		emailChangeTokenRepo: repo,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: repo, Logger: slog.Default()}}
 
 	result := email.DeliveryResult{
 		Status:  email.DeliveryStatusFailed,
@@ -858,17 +782,7 @@ func newEmailChangeTestService(t *testing.T, opts ...func(*emailChangeTestSetup)
 		opt(setup)
 	}
 
-	svc := &operatorAuthService{
-		operatorRepo:         setup.OperatorRepo,
-		auditLogRepo:         setup.AuditLogRepo,
-		emailChangeTokenRepo: setup.TokenRepo,
-		dispatcher:           setup.Dispatcher,
-		db:                   bunDB,
-		frontendURL:          "https://app.example.com",
-		defaultFrom:          email.NewEmail("moto", "noreply@example.com"),
-		emailChangeExpiry:    30 * time.Minute,
-		logger:               slog.Default(),
-	}
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{OperatorRepo: setup.OperatorRepo, AuditLogRepo: setup.AuditLogRepo, EmailChangeTokenRepo: setup.TokenRepo, Dispatcher: setup.Dispatcher, DB: bunDB, FrontendURL: "https://app.example.com", DefaultFrom: email.NewEmail("moto", "noreply@example.com"), EmailChangeExpiry: 30 * time.Minute, Logger: slog.Default()}}
 
 	return svc, mock, setup
 }

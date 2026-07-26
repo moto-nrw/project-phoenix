@@ -12,12 +12,12 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
   ActiveFilter,
   OverflowMenuItem,
-} from "~/components/ui/page-header";
+} from "~/components/ui/page-header/types";
 import {
   formatFloor,
   getRoomCategoryColor,
@@ -32,9 +32,8 @@ import {
   Footprints,
 } from "lucide-react";
 
-import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
-import { RoomDetailModal } from "~/components/rooms";
+import { RoomDetailModal } from "~/components/rooms/room-detail-modal";
 import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
@@ -43,6 +42,7 @@ import {
   exportRoomSnapshot,
   type RoomSnapshotExportFormat,
 } from "~/lib/room-export-api";
+import { RoomsGridSkeleton } from "./page-skeleton";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -59,55 +59,6 @@ interface Room {
   supervisorName?: string;
   deviceId?: string;
   studentCount?: number;
-}
-
-// Brand color hex codes via LOCATION_COLORS (CLAUDE.md §0,
-// lib/location-helper.ts): OTHER_ROOM (#5080D8) for blue accents,
-// HOME (#FF3130) for occupied/error, GROUP_ROOM (#83CD2D) for free
-// (with #4a7a15 text for AA contrast on the tinted background).
-
-// Single skeleton card that matches the populated room card's outer
-// shell: same rounded-3xl, same min-h-[180px], same flex layout so the
-// page doesn't reshuffle on swap. Pulse blocks stand in for title row,
-// meta line, status pill, two middle rows, and the footer hint.
-function RoomCardSkeleton() {
-  return (
-    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md">
-      <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
-      <div className="relative flex min-h-[180px] flex-col p-6">
-        <div className="mb-3 flex items-start justify-between">
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-5 w-2/3 animate-pulse rounded bg-gray-200" />
-            <div className="h-3 w-1/3 animate-pulse rounded bg-gray-200" />
-          </div>
-          <div className="ml-3 h-6 w-16 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
-        </div>
-        <div className="flex-1 space-y-2">
-          <div className="h-3 w-3/4 animate-pulse rounded bg-gray-200" />
-          <div className="h-3 w-1/2 animate-pulse rounded bg-gray-200" />
-        </div>
-        <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-200" />
-      </div>
-    </div>
-  );
-}
-
-function RoomsGridSkeleton() {
-  // Eight cards covers two rows on the largest grid (2xl: 4 columns);
-  // smaller breakpoints fill more rows naturally. Same gap + column
-  // breakpoints as the populated grid below so the swap is purely a
-  // child-level change, not a container reshape.
-  return (
-    <output
-      aria-label="Räume werden geladen"
-      data-testid="rooms-grid-skeleton"
-      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-    >
-      {Array.from({ length: 8 }).map((_, i) => (
-        <RoomCardSkeleton key={i} />
-      ))}
-    </output>
-  );
 }
 
 function TransitAssignmentCard({
@@ -245,14 +196,15 @@ function RoomsPageContent() {
   } = useSWRAuth<Room[]>(
     "rooms-list",
     async () => {
-      const response = await fetch("/api/rooms");
+      // include_system: this page is the live occupancy view — system rooms
+      // (Schulhof, WC) must stay visible here and in the Wer-ist-wo export.
+      const response = await fetch("/api/rooms?include_system=true");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = (await response.json()) as
-        | BackendRoom[]
-        | { data: BackendRoom[] };
+        BackendRoom[] | { data: BackendRoom[] };
 
       // Use mapping helper to transform backend data to frontend format
       let roomsData: Room[];
@@ -552,11 +504,12 @@ function RoomsPageContent() {
     [exportTargetCount, handleExport, isExporting, loading],
   );
 
-  // Auth-loading: nothing to render until NextAuth resolves the session
-  // (the `useSession({ required: true })` callback redirects on
-  // unauthenticated). Keep the existing loader for this branch.
+  // Auth-loading: show the same skeleton as the Suspense fallback and the
+  // data-loading branch, so the cold-load sequence stays skeleton -> content
+  // without a spinner flash in between. The `useSession({ required: true })`
+  // callback redirects on unauthenticated.
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return <RoomsGridSkeleton />;
   }
 
   return (
@@ -844,7 +797,7 @@ function RoomsPageContent() {
 export default function RoomsPage() {
   return (
     <BinaryModeGuard>
-      <Suspense fallback={<Loading fullPage={false} />}>
+      <Suspense fallback={<RoomsGridSkeleton />}>
         <RoomsPageContent />
       </Suspense>
     </BinaryModeGuard>

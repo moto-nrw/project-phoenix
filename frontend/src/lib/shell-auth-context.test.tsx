@@ -231,6 +231,30 @@ describe("TeacherShellProvider", () => {
     vi.unstubAllGlobals();
   });
 
+  it("clears the Auth.js cookie only after the response-aware backend logout finishes", async () => {
+    let finishBackendLogout: ((response: Response) => void) | undefined;
+    const backendLogout = new Promise<Response>((resolve) => {
+      finishBackendLogout = resolve;
+    });
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(backendLogout));
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+    const logout = result.current.logout();
+
+    await Promise.resolve();
+    expect(mockSignOut).not.toHaveBeenCalled();
+
+    finishBackendLogout?.(new Response(null));
+    await logout;
+
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    vi.unstubAllGlobals();
+  });
+
   it("provides empty roles array when not specified", () => {
     mockUseSession.mockReturnValue({
       data: {
@@ -296,7 +320,7 @@ describe("OperatorShellProvider", () => {
     expect(result.current.status).toBe("authenticated");
     expect(result.current.mode).toBe("operator");
     expect(result.current.homeUrl).toBe("/operator/suggestions");
-    expect(result.current.profileUrl).toBeNull();
+    expect(result.current.profileUrl).toBe("/operator/settings");
   });
 
   it("splits display name into first and last name", () => {

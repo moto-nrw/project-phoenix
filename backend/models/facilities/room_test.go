@@ -193,34 +193,6 @@ func TestRoom_GetFullName(t *testing.T) {
 	}
 }
 
-func TestRoom_TableName(t *testing.T) {
-	room := &Room{}
-	if got := room.TableName(); got != "facilities.rooms" {
-		t.Errorf("TableName() = %v, want facilities.rooms", got)
-	}
-}
-
-func TestRoom_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		room := &Room{Name: "Test Room"}
-		err := room.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		room := &Room{Name: "Test Room"}
-		err := room.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestRoom_GetID(t *testing.T) {
 	room := &Room{
 		Model: base.Model{ID: 42},

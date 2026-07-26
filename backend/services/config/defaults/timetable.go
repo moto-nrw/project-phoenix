@@ -19,11 +19,7 @@ import (
 func init() {
 	// --- Materialization (operations tab) ---
 
-	timetableEnabledDependency := &config.Dependency{
-		Key:       config.KeyTimetableEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	timetableEnabledDependency := config.DependsOnEq(config.KeyTimetableEnabled, true)
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableEnabled,
@@ -76,15 +72,9 @@ func init() {
 				{Label: "Sonntag", Value: 7},
 			},
 		},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyTimetableMaterializationEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn: config.DependsOnEq(config.KeyTimetableMaterializationEnabled, true),
 	})
 
-	minWeeksAhead := float64(1)
-	maxWeeksAhead := float64(4)
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableMaterializationWeeksAhead,
 		Label:           "Vorlauf (Wochen)",
@@ -97,12 +87,8 @@ func init() {
 		Category:        "stundenplan",
 		SortOrder:       32,
 		AccessPolicy:    config.AccessOperatorOnly,
-		Validation:      &config.ValidationRules{Min: &minWeeksAhead, Max: &maxWeeksAhead},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyTimetableMaterializationEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(1, 4),
+		DependsOn:       config.DependsOnEq(config.KeyTimetableMaterializationEnabled, true),
 	})
 
 	// --- Auto-start & staff UX (operations tab) ---
@@ -121,8 +107,6 @@ func init() {
 		DependsOn:       timetableEnabledDependency,
 	})
 
-	minOverdue := float64(1)
-	maxOverdue := float64(30)
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableOverdueThresholdMinutes,
 		Label:           "Als überfällig markieren nach (Minuten)",
@@ -134,7 +118,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       34,
-		Validation:      &config.ValidationRules{Min: &minOverdue, Max: &maxOverdue},
+		Validation:      config.Range(1, 30),
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -152,6 +136,21 @@ func init() {
 		DependsOn:       timetableEnabledDependency,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableChildrenPerStaffRatio,
+		Label:           "Betreuungsschlüssel (Kinder pro Betreuer)",
+		Description:     "Anzahl der Kinder, die eine Betreuungskraft in einem Termin höchstens allein betreuen soll. Wird verwendet, um eine mögliche Unterbesetzung anzuzeigen.",
+		Type:            config.FieldNumber,
+		Default:         12,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       36,
+		Validation:      config.Range(1, 30),
+		DependsOn:       timetableEnabledDependency,
+	})
+
 	// --- GDPR retention (gdpr tab) ---
 
 	// Timetable retention is an independent window from KeyDataCleanupEnabled:
@@ -159,8 +158,6 @@ func init() {
 	// attendance data cleaned up by the scheduler job. Gate visibility on the
 	// existing data-cleanup toggle so the GDPR UI surfaces both settings as a
 	// coherent unit when cleanup is enabled.
-	minRetention := float64(30)
-	maxRetention := float64(1825) // 5 years
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimetableRetentionDays,
 		Label:           "Aufbewahrungsdauer Betreuungsplan (Tage)",
@@ -172,12 +169,8 @@ func init() {
 		Tab:             "gdpr",
 		Category:        "stundenplan",
 		SortOrder:       30,
-		Validation:      &config.ValidationRules{Min: &minRetention, Max: &maxRetention},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyTimetableEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(30, 1825),
+		DependsOn:       config.DependsOnEq(config.KeyTimetableEnabled, true),
 	})
 
 	// --- Display range (operations tab) ---
@@ -211,6 +204,36 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       41,
+		DependsOn:       timetableEnabledDependency,
+	})
+
+	// --- Slot-list pickup buckets (operations tab) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeySlotListShortDayCutoff,
+		Label:           "Kurzer Ganztag bis",
+		Description:     "Abholzeit-Grenze für die kurze Ganztagsliste. Kinder mit Abholzeit bis einschließlich dieser Uhrzeit erscheinen in dieser Kohorte.",
+		Type:            config.FieldTime,
+		Default:         "14:30",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       42,
+		DependsOn:       timetableEnabledDependency,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeySlotListLongDayCutoff,
+		Label:           "Langer Ganztag bis",
+		Description:     "Abholzeit-Grenze für die lange Ganztagsliste. Kinder nach dem kurzen Ganztag und bis einschließlich dieser Uhrzeit erscheinen in dieser Kohorte.",
+		Type:            config.FieldTime,
+		Default:         "16:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       43,
 		DependsOn:       timetableEnabledDependency,
 	})
 }

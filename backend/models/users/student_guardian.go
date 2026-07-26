@@ -3,11 +3,15 @@ package users
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
+
+// ErrStudentGuardianNotFound is returned when no students_guardians row joins a
+// given student and guardian profile. Mirrors ErrGuardianProfileNotFound so
+// callers can map a missing relationship to a stable sentinel instead of
+// matching sql.ErrNoRows.
+var ErrStudentGuardianNotFound = errors.New("student guardian relationship not found")
 
 // GuardianLinkedChild is a minimal projection of a child currently linked to a
 // guardian, used by the guardian picker search to show which children a guardian
@@ -27,6 +31,7 @@ type StudentGuardian struct {
 	StudentID          int64                  `bun:"student_id,notnull" json:"student_id"`
 	GuardianProfileID  int64                  `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	RelationshipType   string                 `bun:"relationship_type,notnull" json:"relationship_type"`
+	GuardianRole       string                 `bun:"guardian_role,notnull,default:'custom'" json:"guardian_role"`
 	IsPrimary          bool                   `bun:"is_primary,notnull" json:"is_primary"`
 	IsEmergencyContact bool                   `bun:"is_emergency_contact,notnull" json:"is_emergency_contact"`
 	CanPickup          bool                   `bun:"can_pickup,notnull" json:"can_pickup"`
@@ -35,23 +40,7 @@ type StudentGuardian struct {
 	Permissions        map[string]interface{} `bun:"permissions,type:jsonb,nullzero" json:"permissions,omitempty"`
 
 	// Relations not stored in the database
-	Student         *Student         `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
-	GuardianProfile *GuardianProfile `bun:"rel:belongs-to,join:guardian_profile_id=id" json:"guardian_profile,omitempty"`
-}
-
-func (sg *StudentGuardian) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (sg *StudentGuardian) TableName() string {
-	return "users.students_guardians"
+	Student *Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 }
 
 // Validate ensures student guardian data is valid
@@ -75,6 +64,11 @@ func (sg *StudentGuardian) Validate() error {
 	// Validate against the shared allowed set (single source of truth)
 	if !IsValidRelationshipType(sg.RelationshipType) {
 		return errors.New("invalid relationship type")
+	}
+
+	sg.GuardianRole = strings.ToLower(strings.TrimSpace(sg.GuardianRole))
+	if sg.GuardianRole == "" {
+		sg.GuardianRole = "custom"
 	}
 
 	// Initialize permissions with empty object if nil
@@ -125,19 +119,4 @@ func (sg *StudentGuardian) GetRelationshipName() string {
 	default:
 		return "Unknown"
 	}
-}
-
-// GetID implements the base.Entity interface
-func (sg *StudentGuardian) GetID() interface{} {
-	return sg.ID
-}
-
-// GetCreatedAt implements the base.Entity interface
-func (sg *StudentGuardian) GetCreatedAt() time.Time {
-	return sg.CreatedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface
-func (sg *StudentGuardian) GetUpdatedAt() time.Time {
-	return sg.UpdatedAt
 }

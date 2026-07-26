@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { Suspense, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { EnrollmentStatusView } from "~/components/enrollment/enrollment-status-view";
 import {
@@ -9,17 +9,26 @@ import {
   PublicEnrollmentPageShell,
   PublicEnrollmentSteps,
 } from "~/components/enrollment/public-enrollment-shell";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; token: string }>;
 }
 
 export default function EnrollmentStatusPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <EnrollmentStatusPageContent params={params} />
+    </Suspense>
+  );
+}
+
+function EnrollmentStatusPageContent({ params }: PageProps) {
   const { token } = use(params);
   const searchParams = useSearchParams();
   const { tenant } = useTenant();
   const justSubmitted = searchParams.get("submitted") === "1";
+  const duplicateWarning = searchParams.get("duplicate_warning") === "1";
 
   return (
     <PublicEnrollmentPageShell withInlineSwitcher>
@@ -30,7 +39,11 @@ export default function EnrollmentStatusPage({ params }: PageProps) {
           <PublicEnrollmentLocaleSwitcher />
         </div>
       </div>
-      <EnrollmentStatusView token={token} justSubmitted={justSubmitted} />
+      <EnrollmentStatusView
+        token={token}
+        justSubmitted={justSubmitted}
+        duplicateWarning={duplicateWarning}
+      />
     </PublicEnrollmentPageShell>
   );
 }

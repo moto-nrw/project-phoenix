@@ -26,21 +26,33 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	checkinsvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// intPtr returns a pointer to an int value.
-func intPtr(i int) *int {
-	return &i
-}
 
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *checkinAPI.Resource
+}
+
+// injectFailingUsers points both the handler's UsersService AND its extracted
+// CheckinService at the given (usually failing) person service. Person/student/
+// staff resolution moved into the CheckinService (issue #575 B8), so fault
+// injection must reach that seam — setting resource.UsersService alone no longer
+// affects the pickup-query/checkin resolution path.
+func (ctx *testContext) injectFailingUsers(users usersSvc.PersonService) {
+	ctx.resource.UsersService = users
+	ctx.resource.Checkin = checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
+		Active:     ctx.services.Active,
+		Users:      users,
+		Facilities: ctx.services.Facilities,
+		Activities: ctx.services.Activities,
+		Logger:     slog.Default(),
+	})
 }
 
 type failingPickupScheduleService struct {
@@ -110,9 +122,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.IoT,
 		svc.Users,
 		svc.Active,
-		svc.Facilities,
-		svc.Activities,
-		svc.Education,
+		svc.Checkin,
 		svc.PickupSchedule,
 		nil, // settings service (nil = env var fallback)
 		slog.Default(),
@@ -146,9 +156,9 @@ func TestDevicePing_Success(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/ping", ctx.resource.DevicePingHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/ping", nil,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -171,10 +181,10 @@ func TestDevicePing_Unauthorized(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/ping", ctx.resource.DevicePingHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request without device context
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/ping", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -194,9 +204,9 @@ func TestDeviceStatus_Success(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/checkin/status", ctx.resource.DeviceStatusHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/checkin/status", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/status", nil,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -217,10 +227,10 @@ func TestDeviceStatus_Unauthorized(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/checkin/status", ctx.resource.DeviceStatusHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request without device context
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/checkin/status", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/status", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -236,14 +246,14 @@ func TestDeviceCheckin_Unauthorized(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request without device context
 	body := map[string]interface{}{
 		"student_rfid": "12345",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -259,14 +269,14 @@ func TestDeviceCheckin_MissingRFID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request without student_rfid
 	body := map[string]interface{}{
 		"action": "checkin",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -284,14 +294,14 @@ func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": "nonexistent-rfid-tag",
 		"action":       "checkin",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -326,7 +336,7 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -334,7 +344,7 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -383,7 +393,7 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Perform checkout by scanning RFID without room_id
 	body := map[string]interface{}{
@@ -391,7 +401,7 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 		"action":       "checkout", // Explicit checkout action
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -434,7 +444,7 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -442,7 +452,7 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -495,14 +505,14 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 		assert.NoError(t, err)
 
 		router := testutil.NewTenantRouter(ctx.db)
-		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+		router.Mount("/", ctx.resource.Router())
 
 		body := map[string]interface{}{
 			"student_rfid": card.ID,
 			"action":       "checkin",
 		}
 
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 			testutil.WithDeviceContext(createTestDeviceContext(device)),
 		)
 
@@ -537,14 +547,14 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 		testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
 
 		router := testutil.NewTenantRouter(ctx.db)
-		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+		router.Mount("/", ctx.resource.Router())
 
 		body := map[string]interface{}{
 			"student_rfid": card.ID,
 			"action":       "checkin",
 		}
 
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 			testutil.WithDeviceContext(createTestDeviceContext(device)),
 		)
 
@@ -591,14 +601,14 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, ctx.db, "active.group_supervisors", sup.ID)
 
 		router := testutil.NewTenantRouter(ctx.db)
-		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+		router.Mount("/", ctx.resource.Router())
 
 		body := map[string]interface{}{
 			"student_rfid": card.ID,
 			"action":       "checkin",
 		}
 
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 			testutil.WithDeviceContext(createTestDeviceContext(device)),
 		)
 
@@ -648,14 +658,14 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 		assert.NoError(t, err)
 
 		router := testutil.NewTenantRouter(ctx.db)
-		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+		router.Mount("/", ctx.resource.Router())
 
 		body := map[string]interface{}{
 			"student_rfid": card.ID,
 			"action":       "checkin",
 		}
 
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 			testutil.WithDeviceContext(createTestDeviceContext(device)),
 		)
 
@@ -697,14 +707,14 @@ func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
 		"action":       "checkin",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -757,7 +767,7 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Try to transfer to room 2 which has no active group
 	body := map[string]interface{}{
@@ -766,7 +776,7 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 		"room_id":      room2.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -789,7 +799,7 @@ func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Send invalid JSON using the standard method with an invalid body type
 	// The handler expects JSON, so sending a map with invalid structure
@@ -797,7 +807,7 @@ func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 		"student_rfid": 12345, // wrong type - should be string
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -818,13 +828,13 @@ func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": "",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -925,7 +935,7 @@ func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -933,7 +943,7 @@ func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -997,7 +1007,7 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Transfer to room 2
 	body := map[string]interface{}{
@@ -1006,7 +1016,7 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 		"room_id":      room2.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1035,9 +1045,9 @@ func TestDevicePing_SessionActiveStatus(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/ping", ctx.resource.DevicePingHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/ping", nil,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -1065,14 +1075,14 @@ func TestDeviceCheckin_InvalidAction(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": "test-rfid",
 		"action":       "invalid",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -1104,14 +1114,14 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
 		"action":       "checkout",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -1187,6 +1197,7 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	room := &facilities.Room{
 		Name:     "Schulhof",
 		Building: "Test Building",
+		IsSystem: true,
 	}
 	room.SetTenantID(1)
 
@@ -1243,7 +1254,7 @@ func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -1251,7 +1262,7 @@ func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1317,7 +1328,7 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -1325,7 +1336,7 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1390,7 +1401,7 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Check in first student
 	body1 := map[string]interface{}{
@@ -1398,7 +1409,7 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 		"action":       "checkin",
 		"room_id":      room.ID,
 	}
-	req1 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body1,
+	req1 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body1,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1411,7 +1422,7 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 		"action":       "checkin",
 		"room_id":      room.ID,
 	}
-	req2 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body2,
+	req2 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body2,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1476,7 +1487,7 @@ func TestDeviceCheckin_ActiveStudentsStayScopedToDeviceSessionInSharedRoom(t *te
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, scannedVisit.ID, sessionVisit.ID, otherVisit.ID)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": scannedCard.ID,
@@ -1484,7 +1495,7 @@ func TestDeviceCheckin_ActiveStudentsStayScopedToDeviceSessionInSharedRoom(t *te
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1539,7 +1550,7 @@ func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Scan with the SAME room_id - this should checkout + skip re-checkin
 	body := map[string]interface{}{
@@ -1548,7 +1559,7 @@ func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1585,7 +1596,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	capacityRoom := &facilities.Room{
 		Name:     fmt.Sprintf("Tiny Room-%d", time.Now().UnixNano()),
 		Building: "Test Building",
-		Capacity: intPtr(1),
+		Capacity: testpkg.IntPtr(1),
 	}
 	capacityRoom.SetTenantID(1)
 	err := ctx.db.NewInsert().
@@ -1618,7 +1629,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, newStudent.PersonID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -1626,7 +1637,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 		"room_id":      capacityRoom.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1670,14 +1681,14 @@ func TestDeviceCheckin_CheckoutResponseIncludesRoomName(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
 		"action":       "checkout",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -1715,7 +1726,7 @@ func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// No room_id, no active visit - should fail
 	body := map[string]interface{}{
@@ -1723,7 +1734,7 @@ func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
 		"action":       "checkin",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -1794,7 +1805,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, newStudent.PersonID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -1802,7 +1813,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1849,7 +1860,7 @@ func TestDeviceCheckin_ActiveStudentsFallbackWithoutDeviceLink(t *testing.T) {
 	// NOTE: device_id is NOT set on the active group - this forces the fallback path
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -1857,7 +1868,7 @@ func TestDeviceCheckin_ActiveStudentsFallbackWithoutDeviceLink(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -1930,7 +1941,7 @@ func TestDeviceCheckin_UpdatesSessionActivity(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -1938,7 +1949,7 @@ func TestDeviceCheckin_UpdatesSessionActivity(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2070,7 +2081,7 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -2078,7 +2089,7 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2145,7 +2156,7 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// First checkin - triggers auto-create
 	body1 := map[string]interface{}{
@@ -2154,7 +2165,7 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req1 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body1,
+	req1 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body1,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2169,7 +2180,7 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req2 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body2,
+	req2 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body2,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2208,7 +2219,7 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Step 1: Check in to WC room (triggers auto-create)
 	checkinBody := map[string]interface{}{
@@ -2217,7 +2228,7 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	checkinReq := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", checkinBody,
+	checkinReq := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", checkinBody,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2236,7 +2247,7 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 		"action":       "checkout",
 	}
 
-	checkoutReq := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", checkoutBody,
+	checkoutReq := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", checkoutBody,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -2291,7 +2302,7 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	defer func() { testpkg.CleanupTableRecords(t, ctx.db, "active.attendance", attendanceID) }()
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -2300,7 +2311,7 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	}
 
 	// No staff context — simulates a student scanning at the WC reader without a PIN.
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -2352,7 +2363,7 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	defer func() { testpkg.CleanupTableRecords(t, ctx.db, "active.attendance", attendanceID) }()
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -2361,7 +2372,7 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	}
 
 	// No staff context — simulates a student scanning at the Schulhof reader without a PIN.
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -2404,7 +2415,7 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// First checkin - triggers auto-create
 	body1 := map[string]interface{}{
@@ -2413,7 +2424,7 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req1 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body1,
+	req1 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body1,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2428,7 +2439,7 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req2 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body2,
+	req2 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body2,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2497,7 +2508,7 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 	defer cleanupWCInfrastructure(t, ctx.db, wcRoom.ID)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Send student to WC — this triggers auto-creation of a WC active group
 	body := map[string]interface{}{
@@ -2506,7 +2517,7 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 		"room_id":      wcRoom.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2563,7 +2574,7 @@ func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -2571,7 +2582,7 @@ func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2650,7 +2661,7 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 	require.NoError(t, err, "Failed to create pickup schedule")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -2658,7 +2669,7 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2703,7 +2714,7 @@ func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
@@ -2711,7 +2722,7 @@ func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2779,13 +2790,13 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	require.NoError(t, err)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)
@@ -2824,9 +2835,9 @@ func TestDevicePickupQuery_OmitsPickupInfoWhenNoScheduleOrNote(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": card.ID,
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -2862,9 +2873,9 @@ func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": card.ID,
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -2903,9 +2914,9 @@ func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
 	}
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": card.ID,
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -2927,15 +2938,15 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupRFIDFailure", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
-	ctx.resource.UsersService = &failingPersonService{
+	ctx.injectFailingUsers(&failingPersonService{
 		PersonService:  ctx.services.Users,
 		findByTagIDErr: errors.New("rfid lookup exploded"),
-	}
+	})
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": "BROKENRFID",
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -2964,18 +2975,18 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
-	ctx.resource.UsersService = &failingPersonService{
+	ctx.injectFailingUsers(&failingPersonService{
 		PersonService: ctx.services.Users,
 		studentRepo: &failingStudentRepository{
 			StudentRepository: repositories.NewFactory(ctx.db).Student,
 			err:               errors.New("student lookup exploded"),
 		},
-	}
+	})
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": card.ID,
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -3043,9 +3054,9 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	require.NoError(t, err)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": card.ID,
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -3113,9 +3124,9 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 	require.NoError(t, err)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": card.ID,
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -3138,10 +3149,10 @@ func TestDevicePickupQuery_Unauthorized(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request without device context
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", nil)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -3156,10 +3167,10 @@ func TestDevicePickupQuery_InvalidRequestBody(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Send request with empty body (missing required student_rfid)
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{},
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -3176,9 +3187,9 @@ func TestDevicePickupQuery_UnknownRFIDReturnsNotFound(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": "NONEXISTENT_RFID_TAG_XYZ",
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -3205,19 +3216,19 @@ func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
 
-	// Override UsersService with a failing staff repository
-	ctx.resource.UsersService = &failingPersonService{
+	// Override person resolution with a failing staff repository
+	ctx.injectFailingUsers(&failingPersonService{
 		PersonService: ctx.services.Users,
 		staffRepo: &failingStaffRepository{
 			StaffRepository: repositories.NewFactory(ctx.db).Staff,
 			err:             errors.New("staff lookup exploded"),
 		},
-	}
+	})
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": card.ID,
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -3244,9 +3255,9 @@ func TestDevicePickupQuery_PersonNeitherStudentNorStaffReturnsNotFound(t *testin
 	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+	router.Mount("/", ctx.resource.Router())
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-query", map[string]interface{}{
 		"student_rfid": card.ID,
 	},
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
@@ -3336,28 +3347,38 @@ func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetai
 	existingVisit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroupA.ID, existingEntry, nil)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, existingVisit.ID)
 
-	// Build a Resource that injects the duplicate-visit failure path.
+	// Build a Resource that injects the duplicate-visit failure path. The
+	// check-in logic (and its active-service dependency) now lives in the
+	// extracted CheckinService (issue #575 B8), so the wrapped active service
+	// is injected there; the handler's own ActiveService receives the same
+	// wrapper for consistency.
+	wrappedActive := &duplicateVisitActiveService{Service: ctx.services.Active}
+	wrappedCheckin := checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
+		Active:     wrappedActive,
+		Users:      ctx.services.Users,
+		Facilities: ctx.services.Facilities,
+		Activities: ctx.services.Activities,
+		Logger:     slog.Default(),
+	})
 	wrappedResource := checkinAPI.NewResource(
 		ctx.services.IoT,
 		ctx.services.Users,
-		&duplicateVisitActiveService{Service: ctx.services.Active},
-		ctx.services.Facilities,
-		ctx.services.Activities,
-		ctx.services.Education,
+		wrappedActive,
+		wrappedCheckin,
 		ctx.services.PickupSchedule,
 		nil,
 		slog.Default(),
 	)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/checkin/checkin", wrappedResource.DeviceCheckinHandler())
+	router.Mount("/", wrappedResource.Router())
 
 	body := map[string]interface{}{
 		"student_rfid": card.ID,
 		"action":       "checkin",
 		"room_id":      roomB.ID,
 	}
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 		testutil.WithStaffContext(staff),
 	)

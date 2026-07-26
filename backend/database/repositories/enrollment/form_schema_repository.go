@@ -140,6 +140,25 @@ func (r *FormSchemaRepository) NextVersionForName(ctx context.Context, name stri
 	return maxVersion + 1, nil
 }
 
+// ExistsByName reports whether any version row already carries name for
+// the tenant in context. RenameSchema uses it to reject a rename onto an
+// existing logical schema before touching the (tenant_id, name, version)
+// unique index.
+func (r *FormSchemaRepository) ExistsByName(ctx context.Context, name string) (bool, error) {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.FormSchema)(nil)).
+		ModelTableExpr(formSchemaTableExpr).
+		Where(`"form_schema".name = ?`, name)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	exists, err := query.Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check form schema name %q: %w", name, err)
+	}
+	return exists, nil
+}
+
 // DeactivatePrevious flips is_active=false on every schema for the tenant
 // in context. Used by the schema service before activating a new version.
 // The partial unique index uq_form_schemas_one_active_per_tenant enforces
@@ -182,6 +201,50 @@ func (r *FormSchemaRepository) UpdateActiveFlag(ctx context.Context, id int64, i
 	return nil
 }
 
+// RenameByName updates the name on every version row of a logical
+// schema for the tenant in context, keeping the whole version lineage
+// under one shared name. The service guarantees newName doesn't collide
+// with another lineage before calling this, so the
+// (tenant_id, name, version) unique index is never violated.
+func (r *FormSchemaRepository) RenameByName(ctx context.Context, oldName, newName string) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.FormSchema)(nil)).
+		ModelTableExpr(formSchemaTableExpr).
+		Set("name = ?", newName).
+		Set("updated_at = NOW()").
+		Where(`"form_schema".name = ?`, oldName)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	res, err := query.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to rename form schema %q to %q: %w", oldName, newName, err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("form schema %q not found", oldName)
+	}
+	return nil
+}
+
+// LockLineages takes the per-tenant, transaction-scoped advisory lock that
+// serializes form-schema lineage mutations (publish, rename, delete) against
+// one another. Without it a rename and a concurrent version-publish can split
+// a lineage: the publish reads the pre-rename name and inserts a new row under
+// it while the rename moves the existing rows to the new name, leaving the
+// lineage's name no longer shared (migration 1.15.74's whole-lineage
+// invariant). Callers must already be inside the request's tenant transaction
+// (runInTenantTx / WithTenantTx); the lock releases automatically at
+// COMMIT/ROLLBACK. The key is namespaced per tenant so it never collides with
+// other advisory locks.
+func (r *FormSchemaRepository) LockLineages(ctx context.Context) error {
+	key := fmt.Sprintf("enrollment.form_schema_lineage:%d", tenant.FromContext(ctx))
+	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
+		return fmt.Errorf("failed to lock form schema lineages: %w", err)
+	}
+	return nil
+}
+
 // DeleteByName removes every version of a logical schema. Callers must
 // check phase and request references first.
 func (r *FormSchemaRepository) DeleteByName(ctx context.Context, name string) error {
@@ -201,4 +264,40 @@ func (r *FormSchemaRepository) DeleteByName(ctx context.Context, name string) er
 		return fmt.Errorf("form schema %q not found", name)
 	}
 	return nil
+}
+
+// HasLegalDocumentReference reports whether any saved form-schema legal block
+// still links to a stored AGB document. Callers pass both accepted URL shapes:
+// the stored upload URL and the public route URL rendered into legal_blocks.
+func (r *FormSchemaRepository) HasLegalDocumentReference(ctx context.Context, storedURL, publicURL string) (bool, error) {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return false, errors.New("tenant context is required")
+	}
+
+	var referenced bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM enrollment.form_schemas AS "form_schema"
+			CROSS JOIN LATERAL jsonb_array_elements(
+				CASE
+					WHEN jsonb_typeof("form_schema".legal_blocks) = 'array'
+					THEN "form_schema".legal_blocks
+					ELSE '[]'::jsonb
+				END
+			) AS block(elem)
+			WHERE "form_schema".tenant_id = ?
+				AND (
+					strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+					OR strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+					OR COALESCE(block.elem->>'document_url', '') = ?
+					OR COALESCE(block.elem->>'document_url', '') = ?
+				)
+		)
+	`, tenantID, storedURL, publicURL, storedURL, publicURL).Scan(ctx, &referenced)
+	if err != nil {
+		return false, fmt.Errorf("check legal document references: %w", err)
+	}
+	return referenced, nil
 }

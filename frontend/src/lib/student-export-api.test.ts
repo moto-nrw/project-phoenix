@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   STUDENT_EXPORT_COLUMNS,
   STUDENT_EXPORT_PRESETS,
+  buildStudentExportColumns,
+  buildStudentExportPresets,
   exportStudents,
   type StudentExportRequest,
 } from "./student-export-api";
@@ -66,6 +68,108 @@ describe("student export metadata", () => {
     );
     expect(pickupPreset?.columns).toContain("departure");
   });
+
+  it("offers Tagesstatus and includes it in the Tagesplanung preset", () => {
+    const dailyStatus = STUDENT_EXPORT_COLUMNS.find(
+      (column) => column.id === "daily_status",
+    );
+    expect(dailyStatus?.label).toBe("Tagesstatus");
+
+    const dailyPreset = STUDENT_EXPORT_PRESETS.find(
+      (preset) => preset.id === "daily_planning",
+    );
+    expect(dailyPreset?.columns).toContain("daily_status");
+  });
+
+  it("offers a class roster preset with enrollment status", () => {
+    const ids = STUDENT_EXPORT_COLUMNS.map((column) => column.id);
+    expect(ids).toContain("enrollment_summary");
+
+    const classRoster = STUDENT_EXPORT_PRESETS.find(
+      (preset) => preset.id === "class_roster",
+    );
+    expect(classRoster?.columns).toEqual([
+      "name",
+      "school_class",
+      "group",
+      "enrollment_summary",
+      "care_days",
+      "weekly_monday",
+      "weekly_tuesday",
+      "weekly_wednesday",
+      "weekly_thursday",
+      "weekly_friday",
+      "departure",
+    ]);
+  });
+});
+
+describe("planning-date export copy (#1939)", () => {
+  it("returns the today constants verbatim when no date is given", () => {
+    expect(buildStudentExportColumns()).toBe(STUDENT_EXPORT_COLUMNS);
+    expect(buildStudentExportPresets()).toBe(STUDENT_EXPORT_PRESETS);
+  });
+
+  it("names the selected day instead of 'heute' in day-scoped columns", () => {
+    const columns = buildStudentExportColumns("2026-07-20");
+    const dayScoped = new Set([
+      "planned_arrival",
+      "planned_pickup",
+      "daily_status",
+      "daily_notes",
+      // Age is calculated against the selected day too, so its description must
+      // name that day rather than claim "heute" (#1939).
+      "age",
+    ]);
+    for (const column of columns) {
+      if (dayScoped.has(column.id)) {
+        expect(column.description).toContain("20.07.2026");
+        expect(column.description.toLowerCase()).not.toContain("heut");
+      }
+    }
+    // Order is preserved and only the copy changes — except the live-location
+    // snapshot column, which cannot describe a future day and is dropped (#1939).
+    expect(columns.map((column) => column.id)).toEqual(
+      STUDENT_EXPORT_COLUMNS.filter(
+        (column) => column.group !== "snapshot",
+      ).map((column) => column.id),
+    );
+  });
+
+  it("drops live-location snapshot columns and presets for a dated export", () => {
+    const columns = buildStudentExportColumns("2026-07-20");
+    const presets = buildStudentExportPresets("2026-07-20");
+
+    // The current-location column reads from today's live snapshot even for a
+    // dated request, so it must not be offered on a future planning day.
+    expect(columns.some((column) => column.id === "current_location")).toBe(
+      false,
+    );
+    // The snapshot preset is built on that column — it disappears too.
+    expect(presets.some((preset) => preset.id === "attendance_snapshot")).toBe(
+      false,
+    );
+    // Non-snapshot presets still expose all their (non-snapshot) columns.
+    expect(presets.some((preset) => preset.id === "daily_planning")).toBe(true);
+  });
+
+  it("names the selected day in the day-scoped presets", () => {
+    const presets = buildStudentExportPresets("2026-07-20");
+    const daily = presets.find((preset) => preset.id === "daily_planning");
+    const compact = presets.find((preset) => preset.id === "ogs_compact");
+
+    expect(daily?.description).toContain("20.07.2026");
+    expect(daily?.description.toLowerCase()).not.toContain("heut");
+    expect(compact?.description).toContain("20.07.2026");
+    expect(compact?.description.toLowerCase()).not.toContain("heut");
+
+    // The date-neutral presets keep their base description.
+    const weekly = presets.find((preset) => preset.id === "ogs_weekly");
+    expect(weekly?.description).toBe(
+      STUDENT_EXPORT_PRESETS.find((preset) => preset.id === "ogs_weekly")
+        ?.description,
+    );
+  });
 });
 
 describe("exportStudents", () => {
@@ -126,5 +230,22 @@ describe("exportStudents", () => {
     });
 
     await expect(exportStudents(request)).rejects.toThrow("keine Berechtigung");
+  });
+
+  it("unwraps the JSON error envelope from the export proxy", async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error:
+              "die Auswahl umfasst 6000 Kinder, ein Export ist auf höchstens 5000 Kinder begrenzt",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+
+    await expect(exportStudents(request)).rejects.toThrow(
+      "die Auswahl umfasst 6000 Kinder",
+    );
   });
 });

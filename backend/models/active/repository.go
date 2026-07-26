@@ -35,15 +35,9 @@ type GroupRepository interface {
 	// EndSession marks a group session as ended at the current time
 	EndSession(ctx context.Context, id int64) error
 
-	// Relations methods
-	FindWithRelations(ctx context.Context, id int64) (*Group, error)
-	FindWithVisits(ctx context.Context, id int64) (*Group, error)
 	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 
-	// Activity session conflict detection methods
-	FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*Group, error)
 	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
-	FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*Group, error)
 	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*Group, error)
 
 	// Room conflict detection methods
@@ -52,8 +46,6 @@ type GroupRepository interface {
 	// Session timeout methods
 	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
 	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
-	FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*Group, error)
-
 	// Unclaimed groups (for frontend claiming feature)
 	FindUnclaimed(ctx context.Context) ([]*Group, error)
 
@@ -62,6 +54,10 @@ type GroupRepository interface {
 
 	// FindByIDs finds active groups by their IDs
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+
+	// FindByIDForUpdate finds an active group by ID and locks the row for
+	// the current transaction.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Group, error)
 
 	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
 	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
@@ -113,6 +109,11 @@ type VisitRepository interface {
 	// FindByActiveGroupID finds all visits for a specific active group
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*Visit, error)
 
+	// FindByActiveGroupIDs finds all visits belonging to any of the given active
+	// groups in a single query — the bulk form of FindByActiveGroupID for callers
+	// resolving many groups at once (e.g. a full day of slots).
+	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*Visit, error)
+
 	// FindByTimeRange finds all visits active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Visit, error)
 
@@ -145,9 +146,6 @@ type VisitRepository interface {
 	// Cleanup operations for data retention
 	// DeleteExpiredVisits deletes visits older than retention days for a specific student
 	DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error)
-
-	// DeleteVisitsBeforeDate deletes visits created before a specific date for a student
-	DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error)
 
 	// GetVisitRetentionStats gets statistics about visits that are candidates for deletion
 	GetVisitRetentionStats(ctx context.Context) (map[int64]int, error)
@@ -185,9 +183,6 @@ type VisitRepository interface {
 	// CountActiveByGroupID counts currently active visits in a single active group.
 	CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error)
 
-	// CountActiveByStudentID counts active visits for a student.
-	CountActiveByStudentID(ctx context.Context, studentID int64) (int, error)
-
 	// FindActiveVisits finds all visits with no exit time (currently active)
 	FindActiveVisits(ctx context.Context) ([]*Visit, error)
 
@@ -210,9 +205,6 @@ type GroupSupervisorRepository interface {
 
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
-
-	// FindAllActive finds all currently active supervisions across all staff
-	FindAllActive(ctx context.Context) ([]*GroupSupervisor, error)
 
 	// FindByActiveGroupID finds supervisors for a specific active group
 	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
@@ -239,10 +231,6 @@ type GroupSupervisorRepository interface {
 	// touching their supervisions elsewhere. Idempotent: zero rows matched
 	// is not an error (staff already ended or never supervised this group).
 	EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error)
-
-	// CreateBulk inserts multiple supervisors in a single query.
-	// All supervisors must have valid fields and tenant IDs set before calling.
-	CreateBulk(ctx context.Context, supervisors []*GroupSupervisor) error
 
 	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
 	// Returns the number of supervisions ended.
@@ -302,14 +290,37 @@ type GroupMappingRepository interface {
 type WorkSessionRepository interface {
 	base.Repository[*WorkSession]
 
+	// LockStaffBalanceWrites serializes all work-session and break mutations
+	// with absence and adjustment mutations for the same staff member.
+	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
 	// GetByStaffAndDate returns the work session for a staff member on a given date
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
 
 	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
 	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
 
+	// GetLatestOpenByStaffID returns the most recent not-checked-out session of
+	// a staff member across all days. Callers that must not lose sight of a
+	// session opened before midnight use this instead of GetCurrentByStaffID.
+	GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
+
+	// GetOpenByStaffAndDate returns the not-checked-out session of a staff
+	// member on an explicit calendar day, for callers that must not re-derive
+	// "today" while the request is running.
+	GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
+
+	// GetOpenByStaffAndDateForUpdate is GetOpenByStaffAndDate with a row lock.
+	GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
+
+	// LockOpenByIDForUpdate returns and locks an open session row by ID.
+	LockOpenByIDForUpdate(ctx context.Context, id int64) (*WorkSession, error)
+
 	// GetHistoryByStaffID returns work sessions for a staff member in a date range
 	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*WorkSession, error)
+
+	// GetHistoryByStaffIDs is GetHistoryByStaffID batched over many staff
+	// members, keyed by staff ID, for the cross-staff Stundenkonto overview.
+	GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*WorkSession, error)
 
 	// GetOpenSessions returns all sessions without check-out before a given date
 	GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*WorkSession, error)
@@ -317,8 +328,9 @@ type WorkSessionRepository interface {
 	// GetTodayPresenceMap returns a map of staff IDs to their work status for today
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 
-	// CloseSession sets the check-out time and auto_checked_out flag
-	CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+	// CloseSession sets the check-out time and auto_checked_out flag.
+	// The boolean reports whether an open row was actually closed.
+	CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
 
 	// UpdateBreakMinutes sets the break_minutes cache field on a session
 	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error
@@ -334,28 +346,34 @@ type WorkSessionRepository interface {
 type StaffAbsenceRepository interface {
 	base.Repository[*StaffAbsence]
 
+	// LockStaffAbsenceWrites serializes absence lifecycle writes for one staff
+	// member inside the ambient tenant transaction. It also takes the shared
+	// balance lock before the absence-specific lock. Callers must acquire it
+	// before any overlap read-check-write sequence.
+	LockStaffAbsenceWrites(ctx context.Context, staffID int64) error
+
 	// GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error)
+
+	// GetByStaffIDsAndDateRange is GetByStaffAndDateRange batched over many
+	// staff members, keyed by staff ID (same overlap semantics).
+	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffAbsence, error)
 
 	// GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error)
 
-	// GetByDateRange returns all absences overlapping the given date range
-	GetByDateRange(ctx context.Context, from, to timezone.Date) ([]*StaffAbsence, error)
+	// GetAbsenceMapForDate returns a map of staff IDs to their absence type for the given date.
+	// Priority order when multiple absences exist:
+	// sick > training > vacation > comp_time > other.
+	GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error)
 
-	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
-	// Priority order when multiple absences exist: sick > training > vacation > other
-	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
-
-	// ListByStatus returns all absences with the given status (used for inbox view)
-	ListByStatus(ctx context.Context, status string) ([]*StaffAbsence, error)
-
-	// ListByStaffAndStatuses returns absences for one staff member filtered by status set
-	ListByStaffAndStatuses(ctx context.Context, staffID int64, statuses []string) ([]*StaffAbsence, error)
+	// ListByStatuses returns all absences whose status is in the given set,
+	// ordered by requested_at (used for the /staff inbox: requested + question)
+	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
 
 	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-	// ('requested') or not yet over (date_end >= from). Past decided absences
-	// stay as history. Used by staff offboarding.
+	// ('requested' or 'question') or not yet over (date_end >= from). Past
+	// decided absences stay as history. Used by staff offboarding.
 	DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 
 	// Generic query helpers promoted from the embedded base repository.
@@ -369,12 +387,61 @@ type StaffAbsenceAuditRepository interface {
 	Create(ctx context.Context, audit *StaffAbsenceAudit) error
 }
 
+// StaffBalanceAdjustmentRepository defines operations for Stundenkonto
+// correction transactions (#1420).
+type StaffBalanceAdjustmentRepository interface {
+	base.Repository[*StaffBalanceAdjustment]
+
+	// LockStaffBalanceWrites serializes balance-adjustment writes for one
+	// staff member inside the ambient tenant transaction. Every adjustment
+	// mutation acquires it before its first read or write.
+	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
+
+	// GetByStaffAndDateRange returns adjustments whose effective_date lies in
+	// [from, to], ordered by effective_date.
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
+
+	// GetByStaffIDsAndDateRange is GetByStaffAndDateRange batched over many
+	// staff members, keyed by staff ID.
+	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffBalanceAdjustment, error)
+}
+
+// StaffMonthBalanceSnapshotRepository defines operations for frozen month
+// closing balances (#1417).
+type StaffMonthBalanceSnapshotRepository interface {
+	base.Repository[*StaffMonthBalanceSnapshot]
+
+	// GetLatestClosedThrough returns the newest ACTIVE snapshot whose
+	// (year, month) is at or before the given one, or nil.
+	//
+	// Not expressible as a filter: the ordering key is the composite
+	// year*12+month expression, and "active" is the partial predicate
+	// reopened_at IS NULL.
+	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*StaffMonthBalanceSnapshot, error)
+
+	// GetByMonth lists the ACTIVE snapshots of one month for the whole tenant.
+	// Backs the close-status view.
+	GetByMonth(ctx context.Context, year, month int) ([]*StaffMonthBalanceSnapshot, error)
+
+	// LockStaffBalanceWrites takes the same per-staff advisory lock the
+	// adjustment ledger uses, so a close cannot interleave with a payout.
+	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
+
+	// UpdateColumns writes selected columns only. Reopening must touch the
+	// reopen fields without rewriting the frozen values next to them.
+	UpdateColumns(ctx context.Context, snapshot *StaffMonthBalanceSnapshot, columns ...string) (int64, error)
+}
+
 // StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement
 type StaffVacationQuotaRepository interface {
 	base.Repository[*StaffVacationQuota]
 
 	// GetByStaffAndYear returns the quota row for a specific staff/year, or nil
 	GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationQuota, error)
+
+	// GetByStaffIDsAndYear is GetByStaffAndYear batched over many staff
+	// members, keyed by staff ID. Missing rows are absent from the map.
+	GetByStaffIDsAndYear(ctx context.Context, staffIDs []int64, year int) (map[int64]*StaffVacationQuota, error)
 
 	// Upsert creates or updates the quota for a staff/year combination
 	Upsert(ctx context.Context, quota *StaffVacationQuota) error
@@ -389,6 +456,10 @@ type WorkSessionBreakRepository interface {
 
 	// GetActiveBySessionID returns the currently active (no ended_at) break for a session, or nil
 	GetActiveBySessionID(ctx context.Context, sessionID int64) (*WorkSessionBreak, error)
+
+	// GetActiveBySessionIDs is GetActiveBySessionID batched over many
+	// sessions, keyed by session ID. Sessions without an open break are absent.
+	GetActiveBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]*WorkSessionBreak, error)
 
 	// EndBreak sets ended_at and duration_minutes on a break
 	EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error

@@ -3,7 +3,6 @@ package students
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -13,20 +12,6 @@ import (
 
 func boolPtrValue(v *bool) bool {
 	return v != nil && *v
-}
-
-// normalizeSickReason trims a caller-supplied reason and returns nil when
-// it's empty, so a blank/absent reason never overwrites an existing note
-// (the upsert COALESCEs nil notes to keep the prior value).
-func normalizeSickReason(reason *string) *string {
-	if reason == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*reason)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 func statusReportedAt(now time.Time, existing *time.Time) time.Time {
