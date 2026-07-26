@@ -141,6 +141,38 @@ describe("StaffDetailContent permissions", () => {
     expect(
       screen.queryByRole("button", { name: "Arbeitszeitmodell" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Stammdaten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnung" }),
+    ).not.toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("links payroll settings for managers with config permission", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["time_tracking:manage", "config:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(screen.getByRole("link", { name: "Abrechnung" })).toHaveAttribute(
+      "href",
+      "/payroll",
+    );
   });
 });

@@ -149,6 +149,7 @@ func (m *SchoolRepoMock) CountNonDeletedByOrganizationID(ctx context.Context, or
 type StaffRepoMock struct {
 	CreateFn                        func(ctx context.Context, entity *users.Staff) error
 	FindByIDFn                      func(ctx context.Context, id any) (*users.Staff, error)
+	FindByIDForUpdateFn             func(ctx context.Context, id int64) (*users.Staff, error)
 	UpdateFn                        func(ctx context.Context, entity *users.Staff) error
 	DeleteFn                        func(ctx context.Context, id any) error
 	ListFn                          func(ctx context.Context, filters map[string]any) ([]*users.Staff, error)
@@ -178,6 +179,13 @@ func (m *StaffRepoMock) FindByID(ctx context.Context, id any) (*users.Staff, err
 		return m.FindByIDFn(ctx, id)
 	}
 	return nil, nil
+}
+
+func (m *StaffRepoMock) FindByIDForUpdate(ctx context.Context, id int64) (*users.Staff, error) {
+	if m.FindByIDForUpdateFn != nil {
+		return m.FindByIDForUpdateFn(ctx, id)
+	}
+	return m.FindByID(ctx, id)
 }
 
 func (m *StaffRepoMock) Update(ctx context.Context, entity *users.Staff) error {

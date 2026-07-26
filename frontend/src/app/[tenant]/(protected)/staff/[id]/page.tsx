@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
+import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
@@ -124,6 +125,7 @@ export default function StaffDetailContent() {
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
 
   const {
@@ -234,15 +236,13 @@ export default function StaffDetailContent() {
               )}
             </span>
           </TabsTrigger>
+          {canManageTimeTracking ? (
+            <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
+          ) : null}
           {canEdit ? (
-            <>
-              <TabsTrigger value="stammdaten" disabled>
-                Stammdaten
-              </TabsTrigger>
-              <TabsTrigger value="dokumente" disabled>
-                Dokumente
-              </TabsTrigger>
-            </>
+            <TabsTrigger value="dokumente" disabled>
+              Dokumente
+            </TabsTrigger>
           ) : null}
         </TabsList>
 
@@ -273,16 +273,20 @@ export default function StaffDetailContent() {
           />
         </TabsPrimitive.Content>
 
-        {canEdit ? (
-          <>
-            <TabsPrimitive.Content value="stammdaten">
-              <PlaceholderTab title="Stammdaten" />
-            </TabsPrimitive.Content>
+        {canManageTimeTracking ? (
+          <TabsPrimitive.Content value="stammdaten">
+            <StammdatenTab
+              staffId={staffId}
+              canManagePayroll={canManageTimeTracking}
+              canManagePayrollSettings={canManagePayrollSettings}
+            />
+          </TabsPrimitive.Content>
+        ) : null}
 
-            <TabsPrimitive.Content value="dokumente">
-              <PlaceholderTab title="Dokumente" />
-            </TabsPrimitive.Content>
-          </>
+        {canEdit ? (
+          <TabsPrimitive.Content value="dokumente">
+            <PlaceholderTab title="Dokumente" />
+          </TabsPrimitive.Content>
         ) : null}
       </Tabs>
     </div>

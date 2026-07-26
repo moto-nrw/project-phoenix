@@ -189,6 +189,9 @@ type StudentRepository interface {
 type StaffRepository interface {
 	base.CRUDRepository[*Staff]
 
+	// FindByIDForUpdate retrieves and locks a staff row for a transaction.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Staff, error)
+
 	// FindByPersonID retrieves a staff member by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*Staff, error)
 

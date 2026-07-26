@@ -65,6 +65,7 @@ func setupSettingsTest(t *testing.T) *settingsTestContext {
 	db, svc := testutil.SetupAPITest(t)
 
 	resource := configAPI.NewSettingsResource(svc.Settings, db, nil)
+	resource.SetPayrollStatusService(svc.PayrollStatus)
 
 	return &settingsTestContext{
 		db:       db,

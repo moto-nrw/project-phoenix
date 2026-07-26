@@ -32,6 +32,28 @@ func NewStaffRepository(db *bun.DB) users.StaffRepository {
 	}
 }
 
+// FindByIDForUpdate retrieves a staff row with a SELECT … FOR UPDATE lock.
+// Payroll-number changes use the lock to derive their audit old_value from
+// the last committed value when concurrent updates target the same staff row.
+func (r *StaffRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Staff, error) {
+	staff := new(users.Staff)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(`"staff".id = ?`, id).
+		For("UPDATE")
+
+	query = base.WithTenantFilter(ctx, query, "staff")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find staff by id for update",
+			Err: err,
+		}
+	}
+	return staff, nil
+}
+
 // FindByPersonID retrieves a staff member by their person ID
 func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*users.Staff, error) {
 	staff := new(users.Staff)

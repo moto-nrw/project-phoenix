@@ -1427,7 +1427,60 @@ class StaffMonthCloseService {
   }
 }
 
+// Personalnummer (#1417): payroll identifier maintained on the Stammdaten
+// tab. time_tracking:manage backend-side — callers gate rendering on the
+// permission so no request fires without it.
+class StaffPayrollNumberService {
+  async get(staffId: string): Promise<string | null> {
+    const response = await sessionFetch(`/api/staff/${staffId}/payroll-number`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch payroll number: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: { personnel_number: string | null };
+    };
+    return json.data.personnel_number;
+  }
+
+  async update(
+    staffId: string,
+    personnelNumber: string | null,
+    note: string,
+  ): Promise<string | null> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/payroll-number`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personnel_number: personnelNumber, note }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Personalnummer konnte nicht gespeichert werden",
+      );
+      if (error.code === "personnel_number_taken") {
+        throw new Error(
+          "Diese Personalnummer ist in dieser Schule bereits vergeben.",
+        );
+      }
+      if (error.code === "personnel_number_invalid") {
+        throw new Error(
+          "Ungültige Personalnummer: nur Ziffern, höchstens 9 Stellen.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as {
+      data: { personnel_number: string | null };
+    };
+    return json.data.personnel_number;
+  }
+}
+
 export const staffService = new StaffService();
+export const staffPayrollNumberService = new StaffPayrollNumberService();
 export const staffScheduleService = new StaffScheduleService();
 export const workTimeModelService = new WorkTimeModelService();
 export const staffHistoryService = new StaffHistoryService();

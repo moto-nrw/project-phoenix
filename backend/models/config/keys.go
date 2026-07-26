@@ -331,3 +331,35 @@ const (
 	KeyRemindersActivityStartLeadMinutes  = "reminders.activity_start_lead_minutes"
 	KeyRemindersActivityOverdueEnabled    = "reminders.activity_overdue_enabled"
 )
+
+// Payroll foundation settings (#1417 Tranche 2b). Lohnartnummern are
+// mandant-specific DATEV numbers — there are NO defaults on purpose: a
+// plausible-looking preset would silently bill wrong. Empty means "not
+// configured yet"; the later DATEV writers refuse to produce a file until
+// the configuration is complete. Definitions live in defaults/payroll.go.
+const (
+	KeyPayrollLohnartRegelarbeit       = "payroll.lohnart_regelarbeit"
+	KeyPayrollLohnartPlusStunden       = "payroll.lohnart_plus_stunden"
+	KeyPayrollLohnartAuszahlung        = "payroll.lohnart_auszahlung"
+	KeyPayrollLohnartFreizeitausgleich = "payroll.lohnart_freizeitausgleich"
+	KeyPayrollLohnartKrank             = "payroll.lohnart_krank"
+	KeyPayrollLohnartUrlaub            = "payroll.lohnart_urlaub"
+	KeyPayrollLohnartFortbildung       = "payroll.lohnart_fortbildung"
+
+	// Unit per category, only where day values exist (sick/vacation/training).
+	// The remaining categories are minute sums with no day representation, so
+	// they are always exported in hours and carry no unit setting.
+	KeyPayrollEinheitKrank       = "payroll.einheit_krank"
+	KeyPayrollEinheitUrlaub      = "payroll.einheit_urlaub"
+	KeyPayrollEinheitFortbildung = "payroll.einheit_fortbildung"
+
+	// LODAS file-header identifiers; Lohn und Gehalt does not need them.
+	KeyPayrollDatevBeraternummer   = "payroll.datev_beraternummer"
+	KeyPayrollDatevMandantennummer = "payroll.datev_mandantennummer"
+)
+
+// Payroll unit select values.
+const (
+	PayrollUnitHours = "stunden"
+	PayrollUnitDays  = "tage"
+)

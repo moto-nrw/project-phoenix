@@ -265,6 +265,7 @@ GET /api/schedules/timeframes/active
 GET /api/schedules/timeframes/by-range
 GET /api/schedules/timeframes/{id}
 GET /api/settings/login-image
+GET /api/settings/payroll-status
 GET /api/settings/schema
 GET /api/settings/values/{key}/reveal
 GET /api/shift-types/
@@ -286,6 +287,7 @@ GET /api/staff/{id}
 GET /api/staff/{id}/absences
 GET /api/staff/{id}/avatar
 GET /api/staff/{id}/groups
+GET /api/staff/{id}/payroll-number
 GET /api/staff/{id}/schedule
 GET /api/staff/{id}/substitutions
 GET /api/staff/{id}/time-tracking/adjustments
@@ -758,6 +760,7 @@ PUT /api/staff-shifts/{id}/cancellation
 PUT /api/staff-shifts/{id}/move
 PUT /api/staff/pin
 PUT /api/staff/{id}
+PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/schedule
 PUT /api/staff/{id}/time-tracking/sessions/{sessionId}
 PUT /api/staff/{id}/vacation/quota

@@ -188,7 +188,16 @@ func TestGetCurrentStaff_Success(t *testing.T) {
 	tc := setupTestContext(t)
 	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Staff", "Test")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Staff", "Test")
+	personnelNumber := "90001"
+	teacher.Staff.PersonnelNumber = &personnelNumber
+	_, err := tc.db.NewUpdate().
+		Model(teacher.Staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Column("personnel_number").
+		WherePK().
+		Exec(context.Background())
+	require.NoError(t, err)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
@@ -198,6 +207,7 @@ func TestGetCurrentStaff_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.NotContains(t, rr.Body.String(), "personnel_number")
 }
 
 func TestGetCurrentStaff_NotStaff(t *testing.T) {

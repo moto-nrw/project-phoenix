@@ -745,6 +745,27 @@ export const appChapters: readonly GuideChapter[] = [
           "Gruppenzugriff mit verfügbaren Fachkräften und Dialog Zugriff gewähren.",
         image: "/help/screens/vertretungen.webp",
       },
+      {
+        id: "abrechnung-vorbereiten",
+        title: "Abrechnung vorbereiten (DATEV)",
+        icon: ClipboardList,
+        summary:
+          "Lohnarten, DATEV-Mandantendaten und Personalnummern pflegen, damit Zeiterfassungsdaten später an die Lohnabrechnung übergeben werden können (nur mit Berechtigung `config:manage`).",
+        steps: [
+          "`Abrechnung` in der Seitenleiste öffnen. Die Karte `Vollständigkeit` zeigt, welche Angaben noch fehlen.",
+          "Unter `Lohnarten` für jede Kategorie (Regelarbeit, Plus-Stunden, Auszahlung, Freizeitausgleich, Krank, Urlaub, Fortbildung) die Lohnartnummer aus dem Lohnsystem des Trägers eintragen. Die Nummern liefert das Lohnbüro; es gibt bewusst keine Vorbelegung. Eine Kategorie ohne Nummer wird später einfach nicht exportiert.",
+          "Bei Krank, Urlaub und Fortbildung zusätzlich die `Einheit` wählen: ob die Lohnart im Lohnsystem Stunden oder Tage erwartet.",
+          "Unter `DATEV-Mandant` die Beraternummer und Mandantennummer eintragen. Beide stehen im DATEV-Bestand des Lohnbüros und werden nur für den LODAS-Export benötigt.",
+          "Für jede Person die Personalnummer aus dem Lohnsystem hinterlegen: `Mitarbeiter` -> Person öffnen -> Reiter `Stammdaten` -> `Bearbeiten`. Die Nummer ist pro Schule eindeutig; Änderungen erscheinen im Änderungsprotokoll.",
+        ],
+        callout: {
+          title: "Keine Nummern erfinden",
+          body: "Lohnartnummern und Personalnummern müssen exakt den Werten im Lohnsystem des Trägers entsprechen. Eine plausibel aussehende, aber falsche Nummer führt zu still falscher Abrechnung. Im Zweifel beim Lohnbüro nachfragen und Felder leer lassen.",
+          tone: "red",
+        },
+        screenshot:
+          "Abrechnungsseite mit Vollständigkeits-Karte, Lohnarten-Tabelle und DATEV-Mandantendaten.",
+      },
     ],
   },
   {

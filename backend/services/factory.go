@@ -90,6 +90,7 @@ type Factory struct {
 	Checkin                  *iotcheckin.CheckinService
 	StaffClock               *staffclock.Service
 	Settings                 config.SettingsService
+	PayrollStatus            config.PayrollStatusGetter
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
 	StaffShiftSeries         schedule.StaffShiftSeriesService
@@ -313,15 +314,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo:      repos.Person,
-		RFIDRepo:        repos.RFIDCard,
-		AccountRepo:     repos.Account,
-		StudentRepo:     repos.Student,
-		StaffRepo:       repos.Staff,
-		TeacherRepo:     repos.Teacher,
-		DB:              db,
-		SettingsService: settingsService,
-		Logger:          logger.With("service", "users"),
+		PersonRepo:           repos.Person,
+		RFIDRepo:             repos.RFIDCard,
+		AccountRepo:          repos.Account,
+		StudentRepo:          repos.Student,
+		StaffRepo:            repos.Staff,
+		TeacherRepo:          repos.Teacher,
+		PersonnelNumberAudit: repos.PersonnelNumberChange,
+		DB:                   db,
+		SettingsService:      settingsService,
+		Logger:               logger.With("service", "users"),
 	})
 
 	// Initialize guardian service
@@ -1731,6 +1733,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Checkin:                  checkinService,
 		StaffClock:               staffClockService,
 		Settings:                 settingsService,
+		PayrollStatus:            config.NewPayrollStatusService(settingsService, repos.Staff),
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
 		StaffShiftSeries:         staffShiftSeriesService,
