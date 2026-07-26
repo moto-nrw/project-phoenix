@@ -1610,7 +1610,9 @@ func (s *changeRequestService) reconcileMatchedStudent(
 	if err := assertExistingStudentMatchResolved(phase, pin, eligibilityEnforced, index); err != nil {
 		return err
 	}
-	if err := rs.assertGuardianMayReEnrollStudent(ctx, req.GuardianAccountID, pin, req.GetTenantID(), index); err != nil {
+	if err := rs.assertGuardianMayReEnrollStudent(ctx,
+		reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail),
+		pin, req.GetTenantID(), index); err != nil {
 		return err
 	}
 	if childStatusCountsForCapacity(postApprovalChildStatus(row, existing, overrides, index)) {

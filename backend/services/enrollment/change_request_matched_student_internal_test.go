@@ -26,15 +26,23 @@ func (s *stubMatchedStudentChildRepo) UpdateMatchedStudent(_ context.Context, _ 
 	return s.err
 }
 
-// stubReEnrollAuthorizer answers the per-student re-enrollment permission probe.
+// stubReEnrollAuthorizer answers the per-student re-enrollment permission probe
+// for both identities (account and guardian email).
 type stubReEnrollAuthorizer struct {
 	granted     bool
 	err         error
 	gotStudents []int64
+	gotEmails   []string
 }
 
 func (s *stubReEnrollAuthorizer) AccountHasStudentPermission(_ context.Context, _, studentID, _ int64, _ string) (bool, error) {
 	s.gotStudents = append(s.gotStudents, studentID)
+	return s.granted, s.err
+}
+
+func (s *stubReEnrollAuthorizer) GuardianEmailHasStudentPermission(_ context.Context, email string, studentID, _ int64, _ string) (bool, error) {
+	s.gotStudents = append(s.gotStudents, studentID)
+	s.gotEmails = append(s.gotEmails, email)
 	return s.granted, s.err
 }
 

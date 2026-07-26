@@ -413,21 +413,43 @@ func TestValidatePhaseEligibility_NewStudentsLookupErrorPropagates(t *testing.T)
 
 // --- assertGuardianMayReEnrollStudent (per-child re-enrollment gate, #1663) ---
 
-// stubGuardianAuthorizer records its call and returns a fixed verdict/error.
+// stubGuardianAuthorizer records its calls and returns a fixed verdict/error for
+// both identity probes (account and guardian email).
 type stubGuardianAuthorizer struct {
-	granted    bool
-	err        error
-	called     bool
-	gotAccount int64
-	gotStudent int64
-	gotTenant  int64
-	gotPerm    string
+	granted      bool
+	err          error
+	called       bool
+	emailCalled  bool
+	gotAccount   int64
+	gotEmail     string
+	gotStudent   int64
+	gotTenant    int64
+	gotPerm      string
+	emailGranted *bool
+	emailErr     error
 }
 
 func (s *stubGuardianAuthorizer) AccountHasStudentPermission(_ context.Context, accountID, studentID, tenantID int64, permission string) (bool, error) {
 	s.called = true
 	s.gotAccount, s.gotStudent, s.gotTenant, s.gotPerm = accountID, studentID, tenantID, permission
 	return s.granted, s.err
+}
+
+func (s *stubGuardianAuthorizer) GuardianEmailHasStudentPermission(_ context.Context, email string, studentID, tenantID int64, permission string) (bool, error) {
+	s.emailCalled = true
+	s.gotEmail, s.gotStudent, s.gotTenant, s.gotPerm = email, studentID, tenantID, permission
+	if s.emailErr != nil {
+		return false, s.emailErr
+	}
+	if s.emailGranted != nil {
+		return *s.emailGranted, nil
+	}
+	return s.granted, s.err
+}
+
+// portalSubmitter is the authenticated parents-portal identity.
+func portalSubmitter(accountID int64) reEnrollmentSubmitter {
+	return reEnrollmentSubmitter{GuardianAccountID: int64PtrEligibility(accountID), GuardianEmail: "parent@example.test"}
 }
 
 // A guardian holding parent_portal.enrollment.submit on the MATCHED student may
@@ -437,9 +459,10 @@ func TestAssertGuardianMayReEnrollStudent_GrantedPasses(t *testing.T) {
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
 	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		int64PtrEligibility(4711), int64PtrEligibility(555), int64(9001), 0)
+		portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 0)
 	require.NoError(t, err)
 	require.True(t, auth.called)
+	assert.False(t, auth.emailCalled, "an authenticated account is decided by the account probe alone")
 	assert.Equal(t, int64(4711), auth.gotAccount)
 	assert.Equal(t, int64(555), auth.gotStudent)
 	assert.Equal(t, int64(9001), auth.gotTenant)
@@ -447,15 +470,19 @@ func TestAssertGuardianMayReEnrollStudent_GrantedPasses(t *testing.T) {
 }
 
 // A guardian WITHOUT the submit permission on the matched student is rejected —
-// the core P1 fix: authority over child A must not renew child B.
+// the core P1 fix: authority over child A must not renew child B. An email that
+// WOULD pass must not rescue the denied account: the account is the identity
+// approval attaches, so it is the identity that has to hold the permission.
 func TestAssertGuardianMayReEnrollStudent_NotGrantedRejected(t *testing.T) {
-	auth := &stubGuardianAuthorizer{granted: false}
+	emailGranted := true
+	auth := &stubGuardianAuthorizer{granted: false, emailGranted: &emailGranted}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
 	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		int64PtrEligibility(4711), int64PtrEligibility(555), int64(9001), 3)
+		portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 3)
 	require.ErrorIs(t, err, ErrChildEnrollmentNotPermitted)
 	assert.NotErrorIs(t, err, ErrInvalidSubmission, "not-permitted is a 403, not a 400")
+	assert.False(t, auth.emailCalled, "no email fallback for an account submission")
 }
 
 // No matched student (fresh create) skips the probe entirely.
@@ -464,30 +491,97 @@ func TestAssertGuardianMayReEnrollStudent_NoMatchSkips(t *testing.T) {
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
 	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		int64PtrEligibility(4711), nil, int64(9001), 0)
+		portalSubmitter(4711), nil, int64(9001), 0)
 	require.NoError(t, err)
 	assert.False(t, auth.called, "no matched student → no per-child probe")
+	assert.False(t, auth.emailCalled)
 }
 
-// An anonymous public submission (no guardian account) skips the probe: the
-// name+birthday audience gate is the only best-effort check there, unchanged.
-func TestAssertGuardianMayReEnrollStudent_AnonymousSkips(t *testing.T) {
+// An accountless submission (the late-invite path) is authorized by the guardian
+// EMAIL the request is bound to: the invited parent may renew a child they are
+// already a permitted guardian of.
+func TestAssertGuardianMayReEnrollStudent_EmailIdentityGrantedPasses(t *testing.T) {
+	auth := &stubGuardianAuthorizer{granted: true}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 0)
+	require.NoError(t, err)
+	require.True(t, auth.emailCalled)
+	assert.False(t, auth.called, "no account → no account probe")
+	assert.Equal(t, "invited@example.test", auth.gotEmail)
+	assert.Equal(t, int64(555), auth.gotStudent)
+	assert.Equal(t, int64(9001), auth.gotTenant)
+	assert.Equal(t, authorize.GuardianPermissionEnrollmentSubmit, auth.gotPerm)
+}
+
+// The reviewed P1: a late-invite recipient naming a child they have no guardian
+// relationship with is rejected. The invite proves the school invited this email
+// into the closed phase, never authority over one enrolled child.
+func TestAssertGuardianMayReEnrollStudent_EmailIdentityNotGrantedRejected(t *testing.T) {
 	auth := &stubGuardianAuthorizer{granted: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
 	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		nil, int64PtrEligibility(555), int64(9001), 0)
-	require.NoError(t, err)
-	assert.False(t, auth.called, "no guardian account → no per-child probe")
+		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 2)
+	require.ErrorIs(t, err, ErrChildEnrollmentNotPermitted)
+	require.True(t, auth.emailCalled)
 }
 
-// Fail closed: a guardian submission that resolved an existing student with no
-// authorizer wired is a misconfiguration, never a silent bypass.
+// A submission carrying NO identity at all cannot be authorized against
+// anything, so it may not pin a live student.
+func TestAssertGuardianMayReEnrollStudent_NoIdentityFailsClosed(t *testing.T) {
+	auth := &stubGuardianAuthorizer{granted: true}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		reEnrollmentSubmitter{}, int64PtrEligibility(555), int64(9001), 0)
+	require.ErrorIs(t, err, ErrChildEnrollmentNotPermitted)
+	assert.False(t, auth.called)
+	assert.False(t, auth.emailCalled)
+}
+
+// Admin manual enrollment is the one deliberate bypass: staff act with their own
+// authorization and must be able to re-enroll a child whose guardian is not yet
+// recorded, exactly like the paper form.
+func TestAssertGuardianMayReEnrollStudent_AdminManagedBypasses(t *testing.T) {
+	auth := &stubGuardianAuthorizer{granted: false}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		reEnrollmentSubmitterFor(enrollmentModels.RequestSourceAdminManual, nil, "office@example.test"),
+		int64PtrEligibility(555), int64(9001), 0)
+	require.NoError(t, err)
+	assert.False(t, auth.called)
+	assert.False(t, auth.emailCalled)
+}
+
+// A late invite is NOT an admin override: it stays subject to the per-child gate.
+func TestReEnrollmentSubmitterFor_OnlyAdminManualOverrides(t *testing.T) {
+	assert.True(t, reEnrollmentSubmitterFor(enrollmentModels.RequestSourceAdminManual, nil, "a@b.test").AdminManaged)
+	assert.False(t, reEnrollmentSubmitterFor(enrollmentModels.RequestSourceLateInvite, nil, "a@b.test").AdminManaged)
+	assert.False(t, reEnrollmentSubmitterFor(enrollmentModels.RequestSourcePublic, nil, "a@b.test").AdminManaged)
+	assert.False(t, reEnrollmentSubmitterFor("", nil, "a@b.test").AdminManaged)
+	// The email is normalized so the probe hits the LOWER(email) unique index.
+	assert.Equal(t, "a@b.test", reEnrollmentSubmitterFor("", nil, "  A@B.Test ").GuardianEmail)
+}
+
+// Fail closed: a submission that resolved an existing student with no authorizer
+// wired is a misconfiguration, never a silent bypass.
 func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosed(t *testing.T) {
 	svc := &requestService{}
 
 	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		int64PtrEligibility(4711), int64PtrEligibility(555), int64(9001), 1)
+		portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 1)
+	require.ErrorIs(t, err, ErrChildEnrollmentNotPermitted)
+}
+
+// Same for the accountless identity: no authorizer, no pin.
+func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosedForEmail(t *testing.T) {
+	svc := &requestService{}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 1)
 	require.ErrorIs(t, err, ErrChildEnrollmentNotPermitted)
 }
 
@@ -497,7 +591,19 @@ func TestAssertGuardianMayReEnrollStudent_ProbeErrorPropagates(t *testing.T) {
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
 	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		int64PtrEligibility(4711), int64PtrEligibility(555), int64(9001), 0)
+		portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 0)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrChildEnrollmentNotPermitted)
+}
+
+// The email probe's errors get the same treatment: unknown is not "denied", and
+// never silently "allowed" either.
+func TestAssertGuardianMayReEnrollStudent_EmailProbeErrorPropagates(t *testing.T) {
+	auth := &stubGuardianAuthorizer{emailErr: errors.New("boom")}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 0)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrChildEnrollmentNotPermitted)
 }

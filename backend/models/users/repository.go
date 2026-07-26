@@ -348,6 +348,16 @@ type StudentGuardianRepository interface {
 	// deactivated guardian's lingering relationship rows report false.
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
 
+	// GuardianEmailHasStudentPermission is the accountless sibling of
+	// AccountHasStudentPermission: the same per-child probe keyed on the
+	// guardian's EMAIL, for flows whose submitter has no portal account — a late
+	// enrollment invite names a guardian email and may reach a guardian who never
+	// logged in (#1663). guardian_profiles is unique on (tenant_id, LOWER(email)),
+	// so at most one profile per school answers. An active account_tenants mapping
+	// is required only when the profile carries an account, so a deactivated
+	// guardian's lingering relationship rows still report false.
+	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
+
 	// FindByStudentAndGuardianForUpdate returns the relationship row joining the
 	// student and guardian profile, locked FOR UPDATE for the current
 	// transaction, or ErrStudentGuardianNotFound when none exists. The row lock

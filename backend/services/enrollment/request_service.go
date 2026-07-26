@@ -499,10 +499,13 @@ type RequestSettingsResolver interface {
 // GuardianStudentAuthorizer is the narrow slice of the student-guardian
 // repository the submit path needs: a per-child parent-portal permission probe.
 // It backs the existing_students re-enrollment authorization gate (#1663) — the
-// only place Submit resolves a concrete existing student a guardian account
-// could renew.
+// only place Submit resolves a concrete existing student a submission could
+// renew. Two probes, one per identity the enrollment flows can carry: the
+// authenticated portal account, and (for the accountless late-invite path) the
+// guardian email the request is bound to.
 type GuardianStudentAuthorizer interface {
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
+	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
 }
 
 // RequestServiceConfig is the dep-injection bundle.
@@ -522,14 +525,17 @@ type RequestServiceConfig struct {
 	// skipped (relevant for narrow test setups only; the factory always
 	// wires it).
 	StudentRepo users.StudentRepository
-	// GuardianAuthorizer verifies per-child parent-portal permissions for the
-	// authenticated parent submit path. It gates existing_students re-enrollment
-	// (#1663): a guardian account may renew the SPECIFIC matched student only when
-	// its own relationship grants parent_portal.enrollment.submit — the
-	// school-wide GuardianSubmitEligible flag admits the parent to the phase but
-	// cannot prove authority over one child. The submit path fails closed when the
-	// authorizer is nil and a guardian submission resolves an existing student, so
-	// only anonymous-only test setups leave it unset (the factory always wires it).
+	// GuardianAuthorizer verifies per-child parent-portal permissions for every
+	// submit path that can pin an existing student. It gates existing_students
+	// re-enrollment (#1663): the matched student may be renewed only when the
+	// request's own guardian identity — the authenticated account, or the bound
+	// guardian email on the accountless late-invite path — holds
+	// parent_portal.enrollment.submit on ITS relationship to that student. The
+	// school-wide GuardianSubmitEligible flag and a late-invite token both admit
+	// the submitter to the phase but neither proves authority over one child. The
+	// submit path fails closed when the authorizer is nil and a submission
+	// resolves an existing student, so only tests that never pin one leave it
+	// unset (the factory always wires it).
 	GuardianAuthorizer GuardianStudentAuthorizer
 	RateLimitRepo      enrollmentModels.SubmissionRateLimitRepository
 	OutboxEnqueuer     platformModels.OutboxEnqueuer
@@ -799,6 +805,13 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			sourceMetadata["late_invite_id"] = invite.ID
 		}
 
+		// Identity the per-child re-enrollment gate below authorizes against.
+		// emailLC is the invite's own guardian email on the late-invite path —
+		// findLateInviteForSubmit rejects the submission when the two differ — so a
+		// token holder cannot shop for an email that happens to be an authorized
+		// guardian of the child they want to claim (#1663).
+		reEnrollSubmitter := reEnrollmentSubmitterFor(submissionSource, req.GuardianAccountID, emailLC)
+
 		// Dedup check runs inside the lock so the result is stable for
 		// the rest of the tx. Different parents or different child
 		// names slip past untouched; rejected/withdrawn rows are
@@ -895,7 +908,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			if err := assertExistingStudentMatchResolved(phase, matchedStudentID, !req.AllowClosedPhase, i); err != nil {
 				return err
 			}
-			if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
+			if err := s.assertGuardianMayReEnrollStudent(txCtx, reEnrollSubmitter, matchedStudentID, req.TenantID, i); err != nil {
 				return err
 			}
 			if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, 0, i); err != nil {
@@ -2304,7 +2317,12 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				if err := assertExistingStudentMatchResolved(phase, matchedStudentID, eligibilityEnforced, i); err != nil {
 					return err
 				}
-				if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
+				// Authorized against the PERSISTED request's identity, so an edit
+				// cannot re-point the pin at a child the request's guardian holds no
+				// re-enrollment permission on (#1663).
+				if err := s.assertGuardianMayReEnrollStudent(txCtx,
+					reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail),
+					matchedStudentID, req.TenantID, i); err != nil {
 					return err
 				}
 				if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, 0, i); err != nil {
@@ -3479,6 +3497,17 @@ func EffectiveFormCapabilities(capabilities FormCapabilities, offerings []*enrol
 // the paper form), and a late invite is an explicit personal invitation
 // that outranks the phase's audience config.
 //
+// That bypass covers the AUDIENCE gate only. It does not extend to the
+// per-child re-enrollment authorization in
+// assertGuardianMayReEnrollStudent: whichever path pins a live student,
+// the request's guardian identity must already hold
+// parent_portal.enrollment.submit on that student (admin manual excepted,
+// since staff act with their own authorization). A late-invite token is
+// minted per phase and email and proves nothing about WHICH child, so
+// letting it through both gates would have handed an invited parent the
+// child of anyone whose name and birthday they could read off a class
+// list (#1663).
+//
 //   - linked_parents audience: requires an authenticated parent whose
 //     guardian relationship at the tenant grants
 //     parent_portal.enrollment.submit. The parent handler resolves that
@@ -3795,28 +3824,93 @@ func assertExistingStudentMatchResolved(
 	return fmt.Errorf("%w: child %d", ErrChildNotEnrolled, childIndex)
 }
 
+// reEnrollmentSubmitter is the identity a pinned existing-student re-enrollment
+// is authorized against. Exactly one of the two identities decides, and which
+// one is a property of the flow, never of the payload: a parents-portal submit
+// carries the authenticated account, every other flow carries only the guardian
+// email the request is bound to (for a late invite, the email the school minted
+// the token for — findLateInviteForSubmit rejects any mismatch).
+//
+// AdminManaged marks the staff-authorized manual-enrollment flow, the one path
+// that may deliberately pin a student the submitting guardian has no
+// relationship with yet. It is derived from the submission source, which is set
+// by the service (Submit for late invites, CreateManualApprovedEnrollment for
+// admin manual) and is never bound from the wire.
+type reEnrollmentSubmitter struct {
+	GuardianAccountID *int64
+	GuardianEmail     string
+	AdminManaged      bool
+}
+
+// reEnrollmentSubmitterFor builds the identity from a submission's source and
+// guardian fields. Any source other than admin_manual is self-service as far as
+// this gate is concerned — a late invite proves the school invited THIS EMAIL
+// into a closed phase, which is not the same fact as authority over a specific
+// enrolled child.
+func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64, guardianEmail string) reEnrollmentSubmitter {
+	return reEnrollmentSubmitter{
+		GuardianAccountID: guardianAccountID,
+		GuardianEmail:     strings.ToLower(strings.TrimSpace(guardianEmail)),
+		AdminManaged:      normalizedSubmissionSource(submissionSource) == enrollmentModels.RequestSourceAdminManual,
+	}
+}
+
 // assertGuardianMayReEnrollStudent enforces the per-child authorization gate for
 // existing_students re-enrollment (#1663). resolveMatchedStudentID may pin a
-// concrete already-enrolled student that approval would RENEW (and attach the
-// guardian account to); when that submission comes from an authenticated parent,
-// the parent must actually hold parent_portal.enrollment.submit on THAT student's
-// own relationship — not merely on some other child at the same school. Without
-// this, the coarse school-wide GuardianSubmitEligible flag would let a parent
-// permitted for child A renew (and bind themselves to) child B.
+// concrete already-enrolled student that approval would RENEW and attach the
+// submitting guardian to. The invariant this gate holds is therefore:
 //
-// No-ops when there is no match (nil studentID → fresh create) or no guardian
-// account (nil → anonymous public submission, gated only by the best-effort
-// name+birthday audience rules, exactly like the paper form). Fails closed: a
-// guardian submission that resolved an existing student with no authorizer wired
-// is a misconfiguration, not a bypass.
-func (s *requestService) assertGuardianMayReEnrollStudent(ctx context.Context, guardianAccountID, matchedStudentID *int64, tenantID int64, childIndex int) error {
-	if matchedStudentID == nil || guardianAccountID == nil {
+//	a request may renew student S only if the guardian identity ON THAT REQUEST
+//	already holds parent_portal.enrollment.submit on its own relationship to S.
+//
+// Because approval attaches that same identity (account ID when present, else
+// guardian email — see decision_service), an approved renewal can never widen
+// anyone's access: whoever gets attached already had authority over S.
+//
+// Both identities are checked, never mixed:
+//
+//   - Authenticated parent submit: the account must hold the permission on S.
+//     The coarse school-wide GuardianSubmitEligible flag admits the parent to the
+//     phase but would otherwise let a parent permitted for child A renew — and
+//     bind themselves to — child B.
+//   - Accountless submit (a late invite, whose recipient typically has no portal
+//     account): the request's guardian email must resolve to a guardian profile at
+//     the school whose relationship to S grants the permission. A late-invite
+//     token is minted per phase and email and says nothing about WHICH child, so
+//     without this probe an invited parent could type a stranger's enrolled child's
+//     name and birthday — both readable off a class list — and be attached to that
+//     child on approval.
+//
+// The single deliberate bypass is AdminManaged: staff act with their own
+// authorization and must be able to re-enroll a child whose guardian is not yet
+// recorded, exactly like the paper form.
+//
+// No-ops when there is no match (nil studentID → fresh create). Fails closed
+// otherwise: no authorizer wired, or a submission carrying neither identity, is
+// a misconfiguration, not a bypass.
+func (s *requestService) assertGuardianMayReEnrollStudent(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, tenantID int64, childIndex int) error {
+	if matchedStudentID == nil || submitter.AdminManaged {
 		return nil
 	}
 	if s.GuardianAuthorizer == nil {
 		return fmt.Errorf("%w: child %d", ErrChildEnrollmentNotPermitted, childIndex)
 	}
-	granted, err := s.GuardianAuthorizer.AccountHasStudentPermission(ctx, *guardianAccountID, *matchedStudentID, tenantID, authorize.GuardianPermissionEnrollmentSubmit)
+	var (
+		granted bool
+		err     error
+	)
+	switch {
+	case submitter.GuardianAccountID != nil:
+		granted, err = s.GuardianAuthorizer.AccountHasStudentPermission(ctx, *submitter.GuardianAccountID,
+			*matchedStudentID, tenantID, authorize.GuardianPermissionEnrollmentSubmit)
+	case submitter.GuardianEmail != "":
+		granted, err = s.GuardianAuthorizer.GuardianEmailHasStudentPermission(ctx, submitter.GuardianEmail,
+			*matchedStudentID, tenantID, authorize.GuardianPermissionEnrollmentSubmit)
+	default:
+		// No identity at all on a submission that pinned a live student: nothing
+		// to authorize against, so nothing may be renewed.
+		return fmt.Errorf("%w: child %d", ErrChildEnrollmentNotPermitted, childIndex)
+	}
 	if err != nil {
 		return fmt.Errorf("submit: verify guardian re-enrollment permission for child %d: %w", childIndex, err)
 	}
