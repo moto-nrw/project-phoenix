@@ -144,14 +144,14 @@ Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`,
 
 ## Detection
 
-**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on three drift patterns in files not on its shrink-only allowlists — `ui-kit/no-generic-brand-colors` (generic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` outside `ui/`), and `ui-kit/no-rounded-3xl` (off-scale card radius). When you migrate a file, delete its allowlist entry; never add one. Test/stories files are exempt (several assert on the legacy classes — the brand-hex fix for the kit primitives themselves is a deliberate rule change requiring test updates in the same PR).
+**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on three drift patterns beyond its shrink-only, per-match baselines — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), and `ui-kit/no-rounded-3xl` (off-scale card radius). Each legacy utility is tracked by value and count, so existing files cannot add violations. When you migrate a file, reduce its baseline; never increase one. Test/stories files are exempt (several assert on the legacy classes — the brand-hex fix for the kit primitives themselves is a deliberate rule change requiring test updates in the same PR).
 
 ```bash
 # Components imported from the design-system package — should be ZERO (tokens only)
 rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
 
 # Generic Tailwind brand-color utilities — prefer LOCATION_COLORS hex or a kit component
-rg -n "(text|bg|border)-(red|green|blue|orange|purple|amber|yellow|emerald)-[0-9]" frontend/src -g '*.tsx'
+rg -n "(text|bg|border)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]" frontend/src -g '*.tsx'
 ```
 
 ## Mandatory visual check — do not skip
