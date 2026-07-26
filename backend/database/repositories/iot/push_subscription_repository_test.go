@@ -9,6 +9,7 @@ import (
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -41,6 +42,47 @@ func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID in
 		ModelTableExpr("auth.account_tenants").
 		Exec(context.Background())
 	require.NoError(t, err)
+}
+
+func createPushTestSchool(t *testing.T, db *bun.DB) *platformModels.School {
+	t.Helper()
+	var organizationID int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("platform.organizations").
+		OrderExpr("id ASC").
+		Limit(1).
+		Scan(context.Background(), &organizationID))
+
+	suffix := time.Now().UnixNano()
+	school := &platformModels.School{
+		OrganizationID: organizationID,
+		Name:           fmt.Sprintf("Push Test School %d", suffix),
+		Slug:           fmt.Sprintf("push-test-%d", suffix),
+		Subdomain:      fmt.Sprintf("push-test-%d", suffix),
+		Active:         true,
+	}
+	_, err := db.NewInsert().
+		Model(school).
+		ModelTableExpr("platform.schools").
+		Exec(context.Background())
+	require.NoError(t, err)
+	require.Positive(t, school.ID)
+
+	t.Cleanup(func() {
+		_, err := db.NewDelete().
+			Model((*iotModels.PushSubscription)(nil)).
+			ModelTableExpr("iot.push_subscriptions").
+			Where("tenant_id = ?", school.ID).
+			Exec(context.Background())
+		require.NoError(t, err)
+		_, err = db.NewDelete().
+			TableExpr("platform.schools").
+			Where("id = ?", school.ID).
+			Exec(context.Background())
+		require.NoError(t, err)
+	})
+	return school
 }
 
 func setAccountTenantStatus(t *testing.T, db *bun.DB, status string, accountIDs ...int64) {
@@ -184,6 +226,29 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		subs, err = repo.FindForGuardians(ctx, []int64{account.ID})
 		require.NoError(t, err)
 		assert.Empty(t, subs)
+	})
+
+	t.Run("parent endpoint cleanup spans tenants", func(t *testing.T) {
+		otherSchool := createPushTestSchool(t, db)
+		otherSchoolCtx := tenant.WithTenantID(context.Background(), otherSchool.ID)
+		sharedEndpoint := endpoint + "/shared-parent-device"
+		tenantOneSub := newSubscription(guardian.ID, iotModels.PushPortalParent, sharedEndpoint)
+		tenantTwoSub := newSubscription(guardian.ID, iotModels.PushPortalParent, sharedEndpoint)
+		tenantTwoSub.SetTenantID(otherSchool.ID)
+		require.NoError(t, repo.Upsert(ctx, tenantOneSub))
+		require.NoError(t, repo.Upsert(otherSchoolCtx, tenantTwoSub))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteParentByEndpoint(adminCtx, sharedEndpoint)
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".endpoint = ?`, sharedEndpoint).
+			Scan(context.Background()))
+		assert.Empty(t, remaining)
 	})
 
 	t.Run("admin finder returns only admin-role accounts", func(t *testing.T) {

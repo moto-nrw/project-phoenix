@@ -88,6 +88,26 @@ func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, accou
 	return nil
 }
 
+// DeleteParentByEndpoint serializes rebinds, then removes every parent-portal
+// binding for an endpoint across tenants. The caller must supply an admin
+// transaction because a parent device can be linked to several schools.
+func (r *PushSubscriptionRepository) DeleteParentByEndpoint(ctx context.Context, endpoint string) error {
+	db := base.GetDB(ctx, r.DB)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", endpoint); err != nil {
+		return &modelBase.DatabaseError{Op: "lock parent push subscription endpoint", Err: err}
+	}
+	_, err := db.NewDelete().
+		Model((*iot.PushSubscription)(nil)).
+		ModelTableExpr(tablePushSubscriptions).
+		Where("endpoint = ?", endpoint).
+		Where(pushPortalFilter, iot.PushPortalParent).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete parent push subscriptions by endpoint", Err: err}
+	}
+	return nil
+}
+
 // DeleteStaffByAccountID removes every staff-portal subscription for an
 // account across tenants. The caller must supply an admin transaction because
 // this intentionally crosses tenant boundaries during server-side logout.

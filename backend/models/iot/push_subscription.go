@@ -99,6 +99,9 @@ type PushSubscriptionRepository interface {
 	Upsert(ctx context.Context, sub *PushSubscription) error
 	// DeleteByEndpoint removes the caller's subscription for the current tenant.
 	DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error
+	// DeleteParentByEndpoint removes every parent-portal binding for an endpoint
+	// across tenants. Callers must use an admin transaction.
+	DeleteParentByEndpoint(ctx context.Context, endpoint string) error
 	// DeleteStaffByAccountID removes every staff-portal subscription for an
 	// account across tenants. Callers must use an admin transaction.
 	DeleteStaffByAccountID(ctx context.Context, accountID int64) error

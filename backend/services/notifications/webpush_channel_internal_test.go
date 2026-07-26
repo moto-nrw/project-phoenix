@@ -157,7 +157,7 @@ func TestWebPushPayloadIsGDPRSafe(t *testing.T) {
 	// Urgency/TTL mapping for high priority.
 	assert.Equal(t, webpush.UrgencyHigh, sender.sent[0].options.Urgency)
 	assert.Equal(t, 3600, sender.sent[0].options.TTL)
-	assert.Equal(t, "mailto:test@example.org", sender.sent[0].options.Subscriber)
+	assert.Equal(t, "test@example.org", sender.sent[0].options.Subscriber)
 }
 
 func TestWebPushPrunesExpiredSubscriptions(t *testing.T) {

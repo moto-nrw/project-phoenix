@@ -1584,9 +1584,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	vapidConfig := notifications.VAPIDConfig{
-		PublicKey:  viper.GetString("vapid_public_key"),
-		PrivateKey: viper.GetString("vapid_private_key"),
-		Subscriber: viper.GetString("vapid_subscriber"),
+		PublicKey:  strings.TrimSpace(viper.GetString("vapid_public_key")),
+		PrivateKey: strings.TrimSpace(viper.GetString("vapid_private_key")),
+		Subscriber: strings.TrimSpace(viper.GetString("vapid_subscriber")),
+	}
+	if err := vapidConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
 	}
 	if !vapidConfig.Configured() {
 		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")

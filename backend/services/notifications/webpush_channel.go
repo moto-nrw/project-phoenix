@@ -15,21 +15,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// VAPIDConfig carries the Voluntary Application Server Identification keys
-// (RFC 8292) for Web Push. When any field is empty the channel is inert:
-// Deliver becomes a no-op so dev stacks run without keys. Keys come from the
-// environment (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER).
-type VAPIDConfig struct {
-	PublicKey  string
-	PrivateKey string
-	Subscriber string // contact URI, e.g. "mailto:ops@example.org"
-}
-
-// Configured reports whether all VAPID fields are set.
-func (c VAPIDConfig) Configured() bool {
-	return c.PublicKey != "" && c.PrivateKey != "" && c.Subscriber != ""
-}
-
 // pushSender abstracts the actual Web Push HTTP request so tests can fake the
 // push service. The production implementation wraps webpush-go.
 type pushSender interface {
@@ -229,7 +214,7 @@ func (c *webPushChannel) sendOne(
 		Endpoint: sub.Endpoint,
 		Keys:     webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth},
 	}, payload, &webpush.Options{
-		Subscriber:      c.vapid.Subscriber,
+		Subscriber:      c.vapid.webPushSubscriber(),
 		VAPIDPublicKey:  c.vapid.PublicKey,
 		VAPIDPrivateKey: c.vapid.PrivateKey,
 		TTL:             ttl,

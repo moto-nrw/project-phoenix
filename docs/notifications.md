@@ -76,9 +76,10 @@ closed/locked devices.
 ### Web Push (#2003)
 
 - **Keys**: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBSCRIBER`
-  (mailto contact). With any of them unset the channel is inert and the
-  subscribe endpoints return an error — nothing else changes. Generate a pair
-  with `npx web-push generate-vapid-keys`.
+  (mailto contact). With all three unset the channel is inert and the subscribe
+  endpoints return an error. Partial configs, malformed or mismatched P-256
+  keys, and invalid contact URIs prevent server startup. Generate a pair with
+  `npx web-push generate-vapid-keys`.
 - **Subscriptions** live in `iot.push_subscriptions` (RLS, unique per
   `(tenant_id, endpoint)`, multiple devices per account, `portal` =
   `staff`/`parent`). Staff endpoints: `GET /api/notifications/push/public-key`,

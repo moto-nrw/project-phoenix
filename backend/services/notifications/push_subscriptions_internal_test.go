@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -25,13 +26,17 @@ type recordingPushRepository struct {
 	deletedAccount  int64
 	deletedEndpoint string
 	deletedTenants  []int64
+	reboundEndpoint string
+	operations      []string
 	err             error
+	deleteParentErr error
 	failAfter       int
 	deleteFailAfter int
 }
 
 func (r *recordingPushRepository) Upsert(_ context.Context, sub *iot.PushSubscription) error {
 	r.upserted = append(r.upserted, sub)
+	r.operations = append(r.operations, fmt.Sprintf("upsert:%d", sub.TenantID))
 	if r.failAfter > 0 && len(r.upserted) < r.failAfter {
 		return nil
 	}
@@ -46,6 +51,12 @@ func (r *recordingPushRepository) DeleteByEndpoint(ctx context.Context, accountI
 		return nil
 	}
 	return r.err
+}
+
+func (r *recordingPushRepository) DeleteParentByEndpoint(_ context.Context, endpoint string) error {
+	r.reboundEndpoint = endpoint
+	r.operations = append(r.operations, "clear")
+	return r.deleteParentErr
 }
 
 type accountTenantRepositoryStub struct {
@@ -159,6 +170,8 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 		require.Len(t, repo.upserted, 1)
 		assert.Equal(t, tenantID, repo.upserted[0].TenantID)
 		assert.Equal(t, iot.PushPortalParent, repo.upserted[0].Portal)
+		assert.Equal(t, validPushInput().Endpoint, repo.reboundEndpoint)
+		assert.Equal(t, []string{"clear", fmt.Sprintf("upsert:%d", tenantID)}, repo.operations)
 
 		require.NoError(t, service.UnsubscribeParent(context.Background(), 42, validPushInput().Endpoint))
 		assert.Equal(t, int64(42), repo.deletedAccount)
@@ -182,6 +195,16 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 		err = service.UnsubscribeParent(context.Background(), 42, validPushInput().Endpoint)
 		require.ErrorIs(t, err, errPushRepository)
 		assert.ErrorContains(t, err, "removing push subscription for tenant")
+	})
+
+	t.Run("reports previous binding cleanup errors", func(t *testing.T) {
+		repo := &recordingPushRepository{deleteParentErr: errPushRepository}
+		service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
+
+		err := service.SubscribeParent(context.Background(), 42, validPushInput())
+		require.ErrorIs(t, err, errPushRepository)
+		assert.ErrorContains(t, err, "clearing previous parent push subscription bindings")
+		assert.Empty(t, repo.upserted)
 	})
 
 	t.Run("reports unsubscribe mapping lookup errors", func(t *testing.T) {

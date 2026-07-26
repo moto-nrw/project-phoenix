@@ -42,7 +42,8 @@ type PushSubscriptionService interface {
 	Unsubscribe(ctx context.Context, accountID int64, endpoint string) error
 	// SubscribeParent registers a guardian device for every school the account
 	// is actively linked to. Pending-enrollment-only schools are excluded until
-	// the account has an active guardian mapping there.
+	// the account has an active guardian mapping there. Rebinding replaces every
+	// previous parent-account owner of the browser endpoint across tenants.
 	SubscribeParent(ctx context.Context, accountID int64, input PushSubscriptionInput) error
 	// UnsubscribeParent removes a guardian device across all linked schools.
 	UnsubscribeParent(ctx context.Context, accountID int64, endpoint string) error
@@ -123,6 +124,13 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 		}
 		if len(mappings) == 0 {
 			return errors.New("account has no active school mapping")
+		}
+
+		// A browser endpoint belongs to exactly one authenticated parent account.
+		// Clear bindings left by another guardian on a shared device before
+		// writing the current account's complete tenant set.
+		if err := s.repo.DeleteParentByEndpoint(txCtx, prototype.Endpoint); err != nil {
+			return fmt.Errorf("clearing previous parent push subscription bindings: %w", err)
 		}
 
 		for _, mapping := range mappings {
