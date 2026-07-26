@@ -60,6 +60,7 @@ type PersonServiceMock struct {
 	CountStudentsByGroupIDsFn        func(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	CreateStaffWithTeacherFn         func(ctx context.Context, input users.CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
 	UpdateStaffWithTeacherFn         func(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, users.TeacherAction, error)
+	UpdatePersonnelNumberFn          func(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
 	GetStudentsWithGroupsByTeacherFn func(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error)
 	GetAllStudentsWithGroupsFn       func(ctx context.Context) ([]users.StudentWithGroup, error)
 }
@@ -316,6 +317,13 @@ func (m *PersonServiceMock) UpdateStaffWithTeacher(ctx context.Context, staff *u
 		return m.UpdateStaffWithTeacherFn(ctx, staff, isTeacher, specialization, role, qualifications)
 	}
 	return nil, users.TeacherActionNone, nil
+}
+
+func (m *PersonServiceMock) UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error) {
+	if m.UpdatePersonnelNumberFn != nil {
+		return m.UpdatePersonnelNumberFn(ctx, staffID, value, changedByStaffID, note)
+	}
+	return nil, nil
 }
 
 func (m *PersonServiceMock) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error) {

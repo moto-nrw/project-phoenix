@@ -83,6 +83,7 @@ type Definition struct {
 // ValidationRules defines constraints on a setting value.
 type ValidationRules struct {
 	Required        bool           `json:"required,omitempty"`
+	AllowEmpty      bool           `json:"allow_empty,omitempty"` // Permit an empty string without applying Pattern
 	Min             *float64       `json:"min,omitempty"`
 	Max             *float64       `json:"max,omitempty"`
 	Pattern         *string        `json:"pattern,omitempty"` // Regex pattern for string/password fields

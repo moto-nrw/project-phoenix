@@ -169,6 +169,7 @@ type Factory struct {
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
+	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)
@@ -361,6 +362,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentFieldEdit:             audit.NewStudentFieldEditRepository(db),
 		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
+		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 
 		// Platform repositories

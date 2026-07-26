@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	// 1.15.230 is this branch's previous migration; see the version note in
-	// 001015229 for why this branch sits above development's 1.15.228.
-	gradeTransitionRosterBaselineVersion     = "1.15.231"
+	// 1.15.231 is this branch's previous migration; see the version note in
+	// 001015230 for why this branch sits above development's 1.15.229.
+	gradeTransitionRosterBaselineVersion     = "1.15.232"
 	gradeTransitionRosterBaselineDescription = "Record which timetable instances already existed when a grade transition was applied"
 )
 

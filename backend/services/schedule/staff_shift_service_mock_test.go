@@ -146,6 +146,9 @@ func (m *shiftMockStaffRepo) FindByID(ctx context.Context, id interface{}) (*use
 
 // The remaining StaffRepository methods are unused by the shift service.
 func (m *shiftMockStaffRepo) Create(context.Context, *usersModels.Staff) error { return nil }
+func (m *shiftMockStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Staff, error) {
+	return m.FindByID(ctx, id)
+}
 func (m *shiftMockStaffRepo) FindByPersonID(context.Context, int64) (*usersModels.Staff, error) {
 	return nil, errors.New("not implemented")
 }

@@ -444,18 +444,14 @@ func validateValue(def *config.Definition, value any) error {
 			return err
 		}
 
-	case config.FieldText, config.FieldTextarea:
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("expected a string")
-		}
-
-	case config.FieldPassword:
+	case config.FieldText, config.FieldTextarea, config.FieldPassword:
 		str, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("expected a string")
 		}
-		// Apply pattern validation from registry definition if present
-		if def.Validation != nil && def.Validation.CompiledPattern != nil && str != "" {
+		if def.Validation != nil &&
+			def.Validation.CompiledPattern != nil &&
+			(str != "" || !def.Validation.AllowEmpty) {
 			if !def.Validation.CompiledPattern.MatchString(str) {
 				return fmt.Errorf("value does not match required pattern")
 			}

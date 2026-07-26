@@ -864,6 +864,21 @@ describe("Sidebar", () => {
       expect(screen.getByText("Einstellungen")).toBeInTheDocument();
     });
 
+    // Abrechnung (#1417) gates on config:manage; the shared hasPermission
+    // mock grants permissions to admins only.
+    it("renders Abrechnung only for config:manage holders", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      const { unmount } = render(<Sidebar />);
+      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
+      unmount();
+
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      render(<Sidebar />);
+      expect(screen.queryByText("Abrechnung")).not.toBeInTheDocument();
+    });
+
     it("highlights active icon color for active links", () => {
       mockUsePathname.mockReturnValue("/activities");
 

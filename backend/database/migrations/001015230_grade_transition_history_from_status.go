@@ -7,23 +7,26 @@ import (
 )
 
 const (
-	// development occupies everything up to and including 1.15.228 (staff
+	// development occupies everything up to and including 1.15.229 (staff
 	// balance adjustments, month balance snapshots, audit append-only grants,
 	// nullable attendance staff, time-tracking deletion tombstones, student
-	// field edits), so this branch's four migrations start above it at
-	// 1.15.229.
+	// field edits, DATEV payroll foundation), so this branch's four migrations
+	// start above it at 1.15.230.
 	//
-	// Renumbered twice already: 1.15.222/1.15.226 were free when this branch was
-	// written, then 1.15.227/1.15.228 were free at the previous renumber, and
-	// development took all four since. A duplicate version panics
-	// SafeMigrationMap.Register at package init — the binary would not boot
-	// after the merge — and, worse, bun tracks applied migrations by FILENAME
-	// PREFIX, so a database that ran development's file first silently skips
-	// ours and ends up without the column while reporting success. That is not
-	// hypothetical: the local test DB recorded 001015227-001015230 from this
-	// branch and consequently never created audit.student_field_edits.
-	// Re-check this range against development before merging.
-	gradeTransitionHistoryFromStatusVersion     = "1.15.229"
+	// Renumbered three times already: 1.15.222/1.15.226 were free when this
+	// branch was written, then 1.15.227/1.15.228, then 1.15.229 — development
+	// took every one of them while this branch was open. A duplicate version
+	// panics SafeMigrationMap.Register at package init — the binary would not
+	// boot after the merge, which is what CI caught — and, worse, bun tracks
+	// applied migrations by FILENAME PREFIX, so a database that ran
+	// development's file first silently skips ours and ends up without the
+	// column while reporting success. That is not hypothetical: the local test
+	// DB recorded 001015227-001015230 from this branch and consequently never
+	// created audit.student_field_edits.
+	//
+	// Re-check this range against development immediately before merging; the
+	// window has closed three times now.
+	gradeTransitionHistoryFromStatusVersion     = "1.15.230"
 	gradeTransitionHistoryFromStatusDescription = "Record each graduate's pre-transition lifecycle status so a revert restores it exactly"
 )
 
