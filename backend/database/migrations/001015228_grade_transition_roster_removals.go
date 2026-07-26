@@ -10,10 +10,9 @@ import (
 )
 
 const (
-	// 1.15.222 is this branch's previous migration; 1.15.223 is the next unused
-	// version so SafeMigrationMap.Register does not panic at package init on
-	// merge.
-	gradeTransitionRosterRemovalsVersion     = "1.15.223"
+	// 1.15.227 is this branch's previous migration; see the version note there
+	// for why this branch sits above development's 1.15.226.
+	gradeTransitionRosterRemovalsVersion     = "1.15.228"
 	gradeTransitionRosterRemovalsDescription = "Record which timetable roster rows a grade transition removed so a revert restores exactly those rows"
 )
 

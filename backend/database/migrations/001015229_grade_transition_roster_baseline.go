@@ -7,10 +7,9 @@ import (
 )
 
 const (
-	// 1.15.223 is this branch's previous migration; 1.15.224 is the next unused
-	// version so SafeMigrationMap.Register does not panic at package init on
-	// merge.
-	gradeTransitionRosterBaselineVersion     = "1.15.224"
+	// 1.15.228 is this branch's previous migration; see the version note in
+	// 001015227 for why this branch sits above development's 1.15.226.
+	gradeTransitionRosterBaselineVersion     = "1.15.229"
 	gradeTransitionRosterBaselineDescription = "Record which timetable instances already existed when a grade transition was applied"
 )
 
