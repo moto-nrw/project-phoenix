@@ -168,10 +168,10 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
-// Mock Alert
+// Mock Alert — mirrors the real message-prop API
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="alert">{children}</div>
+  Alert: ({ message }: { message: string }) => (
+    <div data-testid="alert">{message}</div>
   ),
 }));
 

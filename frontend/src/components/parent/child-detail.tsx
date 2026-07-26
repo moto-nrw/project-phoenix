@@ -165,7 +165,7 @@ export function ChildDetail({ studentId }: Props) {
   if (!child) {
     return (
       <div className="mx-auto max-w-7xl">
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
           <BackBar />
           <div className="p-6 text-sm leading-6 text-gray-600">
             {t("notFound")}
@@ -282,7 +282,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         onAction={openAction}
       />
 
-      <section className="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm lg:block">
+      <section className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.8fr)]">
           <div>
             <BackBar />
@@ -328,7 +328,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(24rem,0.8fr)]">
-        <section className="min-w-0 rounded-2xl border border-gray-200 bg-white shadow-sm max-lg:hidden">
+        <section className="moto-content-surface min-w-0 rounded-2xl border shadow-sm max-lg:hidden">
           <div className="p-5 sm:p-6">
             <PanelHeader
               eyebrow={t("masterDataEyebrow")}
@@ -413,7 +413,7 @@ function MobileChildAppView({
 
   return (
     <div className="space-y-5 lg:hidden">
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <BackBar />
         <div className="p-5">
           <div className="flex min-w-0 items-center gap-4">
