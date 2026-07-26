@@ -2212,7 +2212,10 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 
 	switch format {
 	case "pdf":
-		doc := s.buildTimeTrackingDocument(ctx, staffID, rows, from, to)
+		doc, err := s.buildTimeTrackingDocument(ctx, staffID, rows, from, to)
+		if err != nil {
+			return nil, err
+		}
 		file, err := listexport.NewService().Render(doc, listexport.FormatPDF, "zeiterfassung")
 		if err != nil {
 			return nil, err
@@ -2250,13 +2253,15 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 // buildTimeTrackingDocument shapes the merged export rows into the shared
 // listexport document: title block with the staff member's name, the
 // requested period as a filter pill, and the confidentiality footer.
-func (s *workSessionService) buildTimeTrackingDocument(ctx context.Context, staffID int64, rows []exportRow, from, to timezone.Date) listexport.Document {
+func (s *workSessionService) buildTimeTrackingDocument(ctx context.Context, staffID int64, rows []exportRow, from, to timezone.Date) (listexport.Document, error) {
 	subtitle := "Arbeitszeiten und Abwesenheiten"
 	if s.staffRepo != nil {
-		if staffMap, err := s.staffRepo.FindWithPersonByIDs(ctx, []int64{staffID}); err == nil {
-			if staff, ok := staffMap[staffID]; ok && staff != nil && staff.Person != nil {
-				subtitle = staff.Person.FirstName + " " + staff.Person.LastName
-			}
+		staffMap, err := s.staffRepo.FindWithPersonByIDs(ctx, []int64{staffID})
+		if err != nil {
+			return listexport.Document{}, fmt.Errorf("failed to load staff for export: %w", err)
+		}
+		if staff, ok := staffMap[staffID]; ok && staff != nil && staff.Person != nil {
+			subtitle = staff.Person.FirstName + " " + staff.Person.LastName
 		}
 	}
 
@@ -2280,7 +2285,7 @@ func (s *workSessionService) buildTimeTrackingDocument(ctx context.Context, staf
 		Columns:     columns,
 		Rows:        docRows,
 		Footer:      timeTrackingConfidentialityNote,
-	}
+	}, nil
 }
 
 // clampAbsencesToRange returns shallow copies whose expanded day ranges stay

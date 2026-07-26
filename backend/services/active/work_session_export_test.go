@@ -14,6 +14,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
@@ -22,6 +23,15 @@ import (
 // ============================================================================
 // Helper to create test service with absence repo
 // ============================================================================
+
+type wsMockStaffRepository struct {
+	userModels.StaffRepository
+	findWithPersonByIDsFunc func(context.Context, []int64) (map[int64]*userModels.Staff, error)
+}
+
+func (m *wsMockStaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+	return m.findWithPersonByIDsFunc(ctx, ids)
+}
 
 func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessionRepository, *wsMockWorkSessionBreakRepository, *wsMockWorkSessionEditRepository, *wsMockStaffAbsenceRepository, *wsMockGroupSupervisorRepository) {
 	sessionRepo := &wsMockWorkSessionRepository{}
@@ -885,7 +895,8 @@ func TestWSBuildTimeTrackingDocument_ShapesRows(t *testing.T) {
 		},
 	}
 
-	doc := service.buildTimeTrackingDocument(context.Background(), 100, rows, date, date)
+	doc, err := service.buildTimeTrackingDocument(context.Background(), 100, rows, date, date)
+	require.NoError(t, err)
 	assert.Equal(t, "Zeiterfassung", doc.Title)
 	assert.NotEmpty(t, doc.Footer)
 	require.Len(t, doc.Rows, 1)
@@ -918,6 +929,33 @@ func TestWSExportSessions_PDF_Success(t *testing.T) {
 	assert.Contains(t, file.Filename, ".pdf")
 	assert.Equal(t, "application/pdf", file.ContentType)
 	assert.True(t, bytes.HasPrefix(file.Data, []byte("%PDF")))
+}
+
+func TestWSExportSessions_PDF_StaffLookupError(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	svc.staffRepo = &wsMockStaffRepository{
+		findWithPersonByIDsFunc: func(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+			return nil, errors.New("database error")
+		},
+	}
+
+	file, err := svc.ExportSessions(context.Background(), 100, timezone.NewDate(2024, 1, 1), timezone.NewDate(2024, 1, 7), "pdf")
+	require.Error(t, err)
+	assert.Nil(t, file)
+	assert.ErrorContains(t, err, "failed to load staff for export")
 }
 
 // ============================================================================
