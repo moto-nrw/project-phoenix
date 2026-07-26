@@ -151,7 +151,7 @@ Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`,
 rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
 
 # Generic Tailwind brand-color utilities — prefer LOCATION_COLORS hex or a kit component
-rg -n "(text|bg|border)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]" frontend/src -g '*.tsx'
+rg -n "(text|bg|border|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]" frontend/src -g '*.tsx'
 ```
 
 ## Mandatory visual check — do not skip
