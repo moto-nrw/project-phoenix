@@ -643,7 +643,7 @@ export function ISODatePicker({
       )}
       {picker}
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-red-600">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-[#FF3130]">
           {error}
         </p>
       )}
