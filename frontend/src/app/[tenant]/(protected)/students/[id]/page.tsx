@@ -8,6 +8,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useSWRConfig } from "swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -287,6 +288,7 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
+  const { mutate } = useSWRConfig();
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -660,6 +662,7 @@ function StudentDetailPageContent() {
       pickup_days: editedStudent.pickup_days,
     });
 
+    await mutate(`/api/students/${studentId}/change-history`);
     refreshData();
     toast.success("Persönliche Informationen erfolgreich aktualisiert");
   };

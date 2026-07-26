@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -612,6 +613,7 @@ func (rs *Resource) reconcileCompanions(ctx context.Context, student *userModels
 		AccompaniedDays:      accompaniedDays,
 		ExtendCompanionPlans: req.ExtendCompanionPlans,
 		AuthorizedExtensions: authorizedExtensions,
+		ActorAccountID:       int64(jwt.ClaimsFromCtx(ctx).ID),
 	})
 	if err != nil {
 		return nil, err

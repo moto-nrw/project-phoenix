@@ -10,6 +10,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
 import { useSession } from "next-auth/react";
 
+const { mockSWRMutate } = vi.hoisted(() => ({
+  mockSWRMutate: vi.fn(),
+}));
+vi.mock("swr", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("swr")>();
+  return {
+    ...actual,
+    useSWRConfig: () => ({ mutate: mockSWRMutate }),
+  };
+});
+
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
@@ -565,6 +576,7 @@ describe("StudentDetailPage", () => {
     ]);
     mockCreateStudentStatusDays.mockResolvedValue([]);
     mockFetchStudentStatusDays.mockResolvedValue([]);
+    mockSWRMutate.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -826,6 +838,26 @@ describe("StudentDetailPage", () => {
         );
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
+      });
+    });
+
+    it("revalidates field history after saving personal info", async () => {
+      mockUpdateStudent.mockResolvedValue({});
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("edit-personal-info"));
+      await waitFor(() => {
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("save-personal-info"));
+      });
+
+      await waitFor(() => {
+        expect(mockSWRMutate).toHaveBeenCalledWith(
+          "/api/students/1/change-history",
+        );
       });
     });
 

@@ -1371,6 +1371,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRoleRepo:          repos.AccountRole,
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
+		StudentAudit:             studentAuditService,
 		Broadcaster:              realtimeHub,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
@@ -1420,7 +1421,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Created before the change-request service: its multi-child approval takes
 	// the companion lock order through this service.
-	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion)
+	studentService := users.NewStudentService(
+		repos.Student,
+		repos.PrivacyConsent,
+		repos.StudentCompanion,
+		studentAuditService,
+	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,

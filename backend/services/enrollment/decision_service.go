@@ -302,6 +302,13 @@ type DecisionSettingsResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
+// StudentRolloverAuditor records the only audited profile field a rollover
+// changes: the existing student's lifecycle status.
+type StudentRolloverAuditor interface {
+	RecordChangesForActor(ctx context.Context, before, after *users.Student, editedBy int64) error
+	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after users.StudentStatus) error
+}
+
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
@@ -332,6 +339,7 @@ type DecisionServiceConfig struct {
 	AccountRoleRepo          authModels.AccountRoleRepository
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
+	StudentAudit             StudentRolloverAuditor
 	// Broadcaster announces student_updated + student_companions_changed after
 	// an approved enrollment sync replaced a child's departure plan (the write
 	// that can trim "läuft mit" links). Nil-safe: without it the sync still
@@ -1129,7 +1137,7 @@ func (s *decisionService) applyApproval(
 	// year's care offerings and link the new request_child to the
 	// same student so the admin UI still navigates correctly.
 	if child.RolloverSourceChildID != nil {
-		return s.applyApprovalRollover(ctx, request, child, phase)
+		return s.applyApprovalRollover(ctx, request, child, phase, reviewedBy)
 	}
 
 	// 1. Resolve or create the guardian profile (per-tenant).
@@ -1334,6 +1342,7 @@ func (s *decisionService) applyApprovalRollover(
 	request *enrollmentModels.Request,
 	child *enrollmentModels.RequestChild,
 	phase *enrollmentModels.Phase,
+	reviewedBy int64,
 ) (*PendingGuardianInvite, error) {
 	source, err := s.RequestChildRepo.FindByID(ctx, *child.RolloverSourceChildID)
 	if err != nil || source == nil || source.CreatedStudentID == nil {
@@ -1348,10 +1357,7 @@ func (s *decisionService) applyApprovalRollover(
 		// shows the row was a rollover.
 		clone := *child
 		clone.RolloverSourceChildID = nil
-		// reviewedBy isn't tracked on this code path; falling back to
-		// 0 keeps the audit row consistent (UpdateStatus already
-		// handles 0 by skipping the column).
-		return s.applyApproval(ctx, request, &clone, phase, 0)
+		return s.applyApproval(ctx, request, &clone, phase, reviewedBy)
 	}
 
 	studentID := *source.CreatedStudentID
@@ -1359,6 +1365,7 @@ func (s *decisionService) applyApprovalRollover(
 	if err != nil {
 		return nil, fmt.Errorf("decision: rollover load existing student %d: %w", studentID, err)
 	}
+	beforeStatus := existing.Status
 
 	activationPlan := s.approvalActivationPlan(ctx, phase)
 
@@ -1376,6 +1383,23 @@ func (s *decisionService) applyApprovalRollover(
 	}
 	if err := s.StudentRepo.Update(ctx, existing); err != nil {
 		return nil, fmt.Errorf("decision: rollover update student: %w", err)
+	}
+	if beforeStatus != existing.Status && s.StudentAudit != nil {
+		if reviewedBy > 0 {
+			before := &users.Student{Status: beforeStatus}
+			after := &users.Student{Status: existing.Status}
+			after.ID = existing.ID
+			if err := s.StudentAudit.RecordChangesForActor(ctx, before, after, reviewedBy); err != nil {
+				return nil, fmt.Errorf("decision: audit rollover student status: %w", err)
+			}
+		} else if err := s.StudentAudit.RecordSystemStatusChange(
+			ctx,
+			existing.ID,
+			beforeStatus,
+			existing.Status,
+		); err != nil {
+			return nil, fmt.Errorf("decision: audit rollover student status: %w", err)
+		}
 	}
 
 	// Materialize the new year's care offerings under this student.
