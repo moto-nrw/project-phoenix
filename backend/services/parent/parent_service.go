@@ -49,6 +49,12 @@ type Service interface {
 	// first.
 	ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error)
 
+	// GetEnrollmentSubmitStatus resolves whether the account is linked
+	// to the school and whether its guardian relationships grant
+	// parent_portal.enrollment.submit there (#1663). Reuses a caller-
+	// provided admin transaction when one is in context.
+	GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error)
+
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined
 	// to phase + school + child summaries. Used by the dashboard to
@@ -540,6 +546,30 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 		slog.Int("count", len(phases)),
 	)
 	return phases, nil
+}
+
+// GetEnrollmentSubmitStatus resolves the (account, school) submit
+// facts for the parent enrollment path (#1663). Uses
+// WithAdminTxOrDirect so the parent submit handler's existing admin
+// transaction is reused instead of opening a nested one.
+func (s *service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error) {
+	if accountID <= 0 || schoolID <= 0 {
+		return nil, fmt.Errorf("parent: account_id and school_id must be positive")
+	}
+
+	var status *parentModels.GuardianSubmitStatus
+	err := tenant.WithAdminTxOrDirect(ctx, s.DB, func(adminCtx context.Context) error {
+		st, stErr := s.EnrollablePhaseRepo.GuardianSubmitStatus(adminCtx, accountID, schoolID)
+		if stErr != nil {
+			return stErr
+		}
+		status = st
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("parent: enrollment submit status: %w", err)
+	}
+	return status, nil
 }
 
 // ListEnrollmentsForAccount returns the parent's enrollment.requests

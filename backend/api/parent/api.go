@@ -135,6 +135,14 @@ func (rs *Resource) Router() chi.Router {
 		// any students already linked to the guardian profile.
 		r.Get("/enrollments/{tenantSlug}/profile", rs.getEnrollmentProfile)
 
+		// Authenticated form-load bootstrap for the embedded enrollment
+		// form. Mirrors the anonymous public /form-bootstrap endpoint but
+		// runs the enrollee phase gate, so audience-restricted
+		// (linked_parents) phases load here for a logged-in guardian while
+		// the public path refuses them (#1663). Tenant from {tenantSlug},
+		// account from the parent JWT; captcha skipped.
+		r.Get("/enrollments/{tenantSlug}/bootstrap/{phaseId}", rs.getEnrollmentBootstrap)
+
 		// Authenticated submit. Stamps guardian_account_id on the
 		// resulting enrollment.requests row, skips captcha (parent
 		// already authenticated), and forwards to the same

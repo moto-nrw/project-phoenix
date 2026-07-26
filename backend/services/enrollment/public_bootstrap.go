@@ -55,7 +55,14 @@ func isPublicGateError(err error) bool {
 	return errors.Is(err, ErrInvalidSubmission) ||
 		errors.Is(err, ErrEnrollmentDisabled) ||
 		errors.Is(err, ErrEnrollmentWindowClosed) ||
-		errors.Is(err, ErrLateInviteInvalid)
+		errors.Is(err, ErrLateInviteInvalid) ||
+		// An admin can flip a phase from open to linked_parents between the
+		// bootstrap's initial phase load and its later legal-text phase reload.
+		// The reload then returns ErrPhaseAudienceRestricted, which is the same
+		// anonymous not-found gate the initial load already renders as a 404 —
+		// classify it here too so the legal stage does not wrap it as a
+		// BootstrapStageError and surface it as a 500 (#1663).
+		errors.Is(err, ErrPhaseAudienceRestricted)
 }
 
 func (s *requestService) assemblePublicBootstrap(
@@ -117,6 +124,27 @@ func (s *requestService) LoadPublicFormBootstrap(ctx context.Context, phaseID in
 			classifyStages: true,
 			legalLoader: func(ctx context.Context) (LegalTexts, error) {
 				return s.LegalTextsForPhaseWithLateInvite(ctx, phaseID, lateInviteToken)
+			},
+		})
+}
+
+// LoadEnrolleeFormBootstrap mirrors LoadPublicFormBootstrap for the
+// authenticated parents-portal form load. It uses the enrollee phase gate
+// (which admits the audience-restricted phases the caller's resolved access
+// covers) and the matching legal loader; everything else — schema, offerings,
+// capabilities, stage error classification — is identical to the public path.
+// Caller must be inside a tenant-tx.
+func (s *requestService) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error) {
+	return s.assemblePublicBootstrap(ctx,
+		func(ctx context.Context) (*enrollmentModels.Phase, error) {
+			return s.LoadEnrolleePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, access)
+		},
+		publicBootstrapOptions{
+			loadSchema:     true,
+			loadLegal:      true,
+			classifyStages: true,
+			legalLoader: func(ctx context.Context) (LegalTexts, error) {
+				return s.LegalTextsForEnrolleePhaseWithLateInvite(ctx, phaseID, lateInviteToken, access)
 			},
 		})
 }

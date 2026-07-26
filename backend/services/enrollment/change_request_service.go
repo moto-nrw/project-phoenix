@@ -116,14 +116,24 @@ type ChangeRequestServiceConfig struct {
 	SchoolRepo               platformModels.SchoolRepository
 	GuardianProfileRepo      userModels.GuardianProfileRepository
 	GuardianPhoneRepo        userModels.GuardianPhoneNumberRepository
-	DecisionService          ChangeRequestDecisionApplier
-	CompanionGraphLocker     CompanionGraphCoordinator
-	Settings                 RequestSettingsResolver
-	OutboxEnqueuer           platformModels.OutboxEnqueuer
-	FrontendURL              string
-	ParentsURL               string
-	DB                       *bun.DB
-	Logger                   *slog.Logger
+	// StudentRepo and GuardianAuthorizer back the existing_students pin
+	// reconciliation on approval (#1663): an approved change request may edit a
+	// child's name/birthday, and the pinned matched student must follow that
+	// edit — the same resolution + per-student permission gate Submit and
+	// ReplaceEditable run. Both fail CLOSED like the submit path: an unwired
+	// authorizer refuses a pinned re-enrollment rather than waving it through,
+	// and an unwired StudentRepo cannot re-resolve an edited identity. The
+	// factory always wires both; only narrow test setups leave them nil.
+	StudentRepo          userModels.StudentRepository
+	GuardianAuthorizer   GuardianStudentAuthorizer
+	DecisionService      ChangeRequestDecisionApplier
+	CompanionGraphLocker CompanionGraphCoordinator
+	Settings             RequestSettingsResolver
+	OutboxEnqueuer       platformModels.OutboxEnqueuer
+	FrontendURL          string
+	ParentsURL           string
+	DB                   *bun.DB
+	Logger               *slog.Logger
 }
 
 type changeRequestService struct {
@@ -868,6 +878,33 @@ func (s *changeRequestService) prepareProposed(
 	if err := rs.validateAndNormalizeSchoolClasses(ctx, phase, editReq.Children); err != nil {
 		return editReq, nil, nil, nil, err
 	}
+	// eligible_school_classes may be a proper SUBSET of
+	// available_school_classes, so the normalization above (which validates
+	// against the available list) is not enough: without this a parent could
+	// propose an available-but-ineligible class once the request is in
+	// change-request mode and staff approval would persist it, silently
+	// defeating the phase restriction Submit and ReplaceEditable enforce
+	// (#1663). Runs on both create and approve — prepareProposed is the single
+	// path both take. The trusted-source / rollover exemptions mirror
+	// ReplaceEditable: those creation paths bypassed eligibility deliberately
+	// and an edit must not newly reject what creation allowed.
+	// The grade restriction rides along for the same reason: a phase limited to
+	// whole grades must not be defeated by a change request that moves the
+	// child into another grade (#1663).
+	// validateChangedChildIdentityEligibility closes the third hole: the
+	// audience's enrolled-status gate, re-applied to exactly the children whose
+	// identity this edit REWRITES.
+	if !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children) {
+		if err := validateChildGradeEligibility(phase, editReq.Children); err != nil {
+			return editReq, nil, nil, nil, err
+		}
+		if err := validateChildClassEligibility(phase, editReq.Children); err != nil {
+			return editReq, nil, nil, nil, err
+		}
+		if err := s.validateChangedChildIdentityEligibility(ctx, phase, editReq, children); err != nil {
+			return editReq, nil, nil, nil, err
+		}
+	}
 	if err := s.validateAccountLinkedGuardianEdits(ctx, req, editReq); err != nil {
 		return editReq, nil, nil, nil, err
 	}
@@ -1254,9 +1291,21 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 	// against the final plans of every child (#1694).
 	ctx = s.beginCompanionStrandingBatch(ctx)
 
+	// Same exemption set ReplaceEditable uses: trusted creation paths (admin
+	// manual / late invite) and generated rollover requests bypassed the
+	// self-service eligibility gates deliberately and must keep that override.
+	eligibilityEnforced := !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children)
+
 	newlyWaitlisted := make(map[int64]struct{})
 	for i, existing := range children {
 		next := prepared.Children[i]
+		// Before the proposed identity overwrites the row: re-point the
+		// existing_students pin at whoever the row now names, and re-run the
+		// phase-wide uniqueness guard for anything that ends this approval
+		// active (a reopened rejection is newly in competition again) (#1663).
+		if err := s.reconcileMatchedStudent(ctx, req, phase, row, existing, next, childStatusOverrides, eligibilityEnforced, i); err != nil {
+			return err
+		}
 		existing.FirstName = strings.TrimSpace(next.FirstName)
 		existing.LastName = strings.TrimSpace(next.LastName)
 		existing.DateOfBirth = next.DateOfBirth
@@ -1423,6 +1472,174 @@ func (s *changeRequestService) approvedChildUsesDecisionSync(child *enrollmentMo
 		child.Status == enrollmentModels.ChildStatusApproved &&
 		child.CreatedStudentID != nil &&
 		s.DecisionService != nil
+}
+
+// matchResolverShim exposes the requestService helpers that own the
+// existing_students matching rules (resolve → per-student permission →
+// phase-wide uniqueness). The change-request path reuses them verbatim instead
+// of growing a second, drifting copy of the same three gates.
+func (s *changeRequestService) matchResolverShim() *requestService {
+	return &requestService{RequestServiceConfig: RequestServiceConfig{
+		RequestRepo:        s.RequestRepo,
+		StudentRepo:        s.StudentRepo,
+		GuardianAuthorizer: s.GuardianAuthorizer,
+		Logger:             s.Logger,
+	}}
+}
+
+// validateChangedChildIdentityEligibility re-applies the audience's
+// enrolled-status gate (new_students / existing_students) to the children whose
+// submitted identity a change request actually REWRITES (#1663).
+//
+// validateChangeRequestChildIdentity pins the child ROW ids, not the human they
+// name: an edit may freely change first name, last name and birthday on a
+// persisted row. Without this gate a pending or rejected child could be
+// retargeted onto an already-enrolled student's name+birthday, and approval
+// would then take the fresh-create branch and add a duplicate Person/Student for
+// a child the school already has — precisely what the new_students audience
+// exists to prevent. Submit and ReplaceEditable both run the same probe; only
+// this path was missing it.
+//
+// Scoped to CHANGED identities on purpose. prepareProposed also runs on
+// approval, and a change request may be filed against an already-approved
+// request whose own approval created the matching student: probing an unchanged
+// child would make it fail the gate against its own record and would reject
+// every later change request on it. That is exactly the case the earlier
+// "enrolled gates stay out of the change-request path" note was protecting, and
+// filtering by identity keeps it working while closing the hole it left.
+//
+// Children are paired positionally: validateChangeRequestChildIdentity has
+// already proven the two slices are the same length and in the same row-id
+// order. An unpaired index (defensive: a shorter persisted slice) counts as
+// changed and is probed.
+func (s *changeRequestService) validateChangedChildIdentityEligibility(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	editReq SubmitRequest,
+	children []*enrollmentModels.RequestChild,
+) error {
+	rs := s.matchResolverShim()
+	for i := range editReq.Children {
+		if i < len(children) && sameSubmittedIdentity(children[i], editReq.Children[i]) {
+			continue
+		}
+		if err := rs.validateChildEnrolledStatus(ctx, phase, editReq.TenantID, editReq.Children[i], i); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// postApprovalChildStatus predicts the status a child ends this approval with,
+// mirroring the status decisions the write loop makes further down: a capacity
+// override wins, otherwise a rejected child whose own data changed is reopened
+// to under_review, otherwise the status is unchanged.
+func postApprovalChildStatus(row *enrollmentModels.ChangeRequest, existing *enrollmentModels.RequestChild, overrides map[int]string, index int) string {
+	if status, ok := overrides[index]; ok {
+		return status
+	}
+	if existing.Status == enrollmentModels.ChildStatusRejected &&
+		childSnapshotChanged(row.BaseSnapshot, row.ProposedSnapshot, existing.ID) {
+		return enrollmentModels.ChildStatusUnderReview
+	}
+	return existing.Status
+}
+
+// reconcileMatchedStudent keeps an existing_students child's pinned
+// matched_student_id honest across an approved change request (#1663).
+//
+// Two gaps this closes, both invisible to the identity validation (which only
+// pins the child ROW id, not the human it names):
+//
+//  1. An approved change request may rewrite first name, last name and
+//     birthday. The row keeps its submission-time pin, so the decision service
+//     would renew the ORIGINALLY matched student even though the reviewed
+//     request now describes a different child. Re-resolve exactly as
+//     ReplaceEditable does — drop the pin on an identity change, re-resolve
+//     against the new identity, and re-check the guardian's per-student
+//     re-enrollment permission before the new pin can stand.
+//  2. HasActiveRequestForMatchedStudent ignores rejected rows, so while this
+//     request sat rejected another guardian could legitimately pin the same
+//     student. Approving a change request can reopen it to under_review; the
+//     uniqueness guard must therefore run again for every child that ends this
+//     approval in an active state, not just at insert time.
+//
+// Skipped for children that already materialized a student (approval created or
+// renewed it — SyncApprovedChildData owns that live record now, and the pin is
+// history) and for rollover children (the rollover source chain takes
+// precedence at approval, so the pin is dead data there).
+//
+// Must be called BEFORE the loop copies the proposed identity onto `existing`,
+// while the row still carries its persisted name/birthday.
+func (s *changeRequestService) reconcileMatchedStudent(
+	ctx context.Context,
+	req *enrollmentModels.Request,
+	phase *enrollmentModels.Phase,
+	row *enrollmentModels.ChangeRequest,
+	existing *enrollmentModels.RequestChild,
+	next SubmitChild,
+	overrides map[int]string,
+	eligibilityEnforced bool,
+	index int,
+) error {
+	if existing.CreatedStudentID != nil || existing.RolloverSourceChildID != nil {
+		return nil
+	}
+	if phase.Audience != enrollmentModels.PhaseAudienceExistingStudents && existing.MatchedStudentID == nil {
+		return nil
+	}
+
+	rs := s.matchResolverShim()
+	pin := existing.MatchedStudentID
+	// An edited identity invalidates the carried pin: keeping it would renew a
+	// student the reviewed request no longer describes. An unchanged identity
+	// keeps it (dropping it would send approval down the fresh-create branch and
+	// duplicate the very student this audience exists to renew).
+	if pin != nil && !sameSubmittedIdentity(existing, next) {
+		pin = nil
+	}
+	if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents {
+		resolved, err := rs.resolveMatchedStudentID(ctx, req.GetTenantID(), phase, index, next)
+		if err != nil {
+			return err
+		}
+		if resolved != nil {
+			pin = resolved
+		}
+	}
+	if err := assertExistingStudentMatchResolved(phase, pin, eligibilityEnforced, index); err != nil {
+		return err
+	}
+	if err := rs.assertGuardianMayReEnrollStudent(ctx,
+		reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail),
+		pin, req.GetTenantID(), index); err != nil {
+		return err
+	}
+	if childStatusCountsForCapacity(postApprovalChildStatus(row, existing, overrides, index)) {
+		if err := rs.guardMatchedStudentUnique(ctx, phase.ID, pin, existing.ID, index); err != nil {
+			return err
+		}
+	}
+	if ptrInt64Equal(pin, existing.MatchedStudentID) {
+		return nil
+	}
+	if err := s.RequestChildRepo.UpdateMatchedStudent(ctx, existing.ID, pin); err != nil {
+		return fmt.Errorf("change request approve: update matched student for child %d: %w", index, err)
+	}
+	s.Logger.Info("change request approve: re-pinned existing-student match",
+		slog.Int64("request_child_id", existing.ID),
+		slog.Bool("had_pin", existing.MatchedStudentID != nil),
+		slog.Bool("has_pin", pin != nil),
+	)
+	existing.MatchedStudentID = pin
+	return nil
+}
+
+func ptrInt64Equal(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 func childStatusCountsForCapacity(status string) bool {

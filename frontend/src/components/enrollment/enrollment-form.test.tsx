@@ -327,6 +327,10 @@ function profile(): MeProfileResponse {
         last_name: "Muster",
         school_class: "2a",
         grade_level: 2,
+        // The backend always emits the lifecycle status alongside the
+        // permission flag; the reuse picker requires both (#1663).
+        status: "active",
+        enrollment_submit: true,
       },
     ],
   };
@@ -1159,9 +1163,68 @@ describe("EnrollmentForm", () => {
     await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
   });
 
+  // Grade-level eligibility (#1663): a phase aimed at whole grades must offer
+  // only those grades, otherwise the parent fills in the entire form and is
+  // rejected with grade_not_eligible on submit.
+  it("offers only the phase's eligible grade levels", async () => {
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        eligibleGradeLevels: [3],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByLabelText("Klassenstufe *"));
+    expect(
+      await screen.findByRole("option", { name: "3. Klasse" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "2. Klasse" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers every grade when the phase carries no grade restriction", async () => {
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        eligibleGradeLevels: [],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByLabelText("Klassenstufe *"));
+    // gradeLevelMax is 4 in renderForm.
+    for (const grade of ["1. Klasse", "2. Klasse", "3. Klasse", "4. Klasse"]) {
+      expect(
+        await screen.findByRole("option", { name: grade }),
+      ).toBeInTheDocument();
+    }
+  });
+
   it("prefills from a parent profile and adopts an existing child", async () => {
-    mockFetchMyEnrollmentProfile.mockResolvedValueOnce(profile());
-    renderForm();
+    // Reuse is scoped to existing_students phases (#1663): on other audiences
+    // adopting a linked child would fresh-create a duplicate on approval, so
+    // the panel only appears here.
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        audience: "existing_students",
+      },
+    });
     await waitForLoaded();
 
     expect(screen.getByDisplayValue("Mara")).toBeInTheDocument();
@@ -1176,6 +1239,137 @@ describe("EnrollmentForm", () => {
     expect(screen.getByLabelText("Klassenstufe *")).toHaveTextContent(
       "2. Klasse",
     );
+  });
+
+  it("drops an adopted child's grade when the phase does not accept it", async () => {
+    // The reused child sits in grade 2 but the phase is restricted to grade 3
+    // (#1663). Keeping the prefill would put a value in the draft that the
+    // select never offers: invisible to the parent, accepted by the
+    // client-side "grade is set" check, and rejected at submit with
+    // grade_not_eligible for the whole form. It has to fall back to empty so
+    // the required-field check forces an eligible grade.
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        audience: "existing_students",
+        eligibleGradeLevels: [3],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
+
+    expect(screen.getAllByDisplayValue("Lina")[0]).toBeInTheDocument();
+    const gradeSelect = screen.getByLabelText("Klassenstufe *");
+    expect(gradeSelect).not.toHaveTextContent("2. Klasse");
+    expect(gradeSelect).toHaveTextContent("Bitte wählen");
+  });
+
+  it("hides a linked child the guardian may not enroll (no submit permission)", async () => {
+    // Portal visibility is not enrollment-submit permission (#1663): a child
+    // whose relationship lacks parent_portal.enrollment.submit must not be
+    // offered as reusable, else it would 403 only after the form is filled.
+    const noSubmit = profile();
+    noSubmit.children = noSubmit.children.map((c) => ({
+      ...c,
+      enrollment_submit: false,
+    }));
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: noSubmit,
+        audience: "existing_students",
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Übernehmen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides a linked child that is no longer enrolled (inactive)", async () => {
+    // The profile lists every non-alumnus child, but the existing_students
+    // gate only accepts active/pending students (#1663): an inactive child
+    // offered as reusable would be adopted into the form and only then
+    // rejected as "nicht eingeschrieben" by the backend.
+    const inactive = profile();
+    inactive.children = inactive.children.map((c) => ({
+      ...c,
+      status: "inactive",
+    }));
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: inactive,
+        audience: "existing_students",
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Übernehmen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides linked-child reuse and explains it on a new_students phase", async () => {
+    // Parent portal path: a new_students phase rejects any already-enrolled
+    // child at submit, so the reuse panel must not be offered (#1663).
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        audience: "new_students",
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Übernehmen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/richtet sich nur an neue Kinder/),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps linked-child reuse on an existing_students phase", async () => {
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        audience: "existing_students",
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.getByText("Bestehende Kinder")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/richtet sich nur an neue Kinder/),
+    ).not.toBeInTheDocument();
   });
 
   it("requires care offerings and parent-choice days before submit", async () => {

@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   listMyChildren,
   listMyEnrollments,
+  listEnrollableSchools,
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
   fetchParentProfile,
@@ -154,6 +155,47 @@ describe("listMyEnrollments", () => {
   it("throws on non-OK", async () => {
     mockFetch(async () => jsonResponse({ error: "boom" }, { status: 500 }));
     await expect(listMyEnrollments()).rejects.toThrow(/boom/);
+  });
+});
+
+// --- listEnrollableSchools -------------------------------------------
+
+describe("listEnrollableSchools", () => {
+  it("hits the enrollable-schools endpoint and unwraps the data array", async () => {
+    const seen: string[] = [];
+    mockFetch(async (input) => {
+      seen.push(String(input));
+      return jsonResponse({
+        data: [{ phase_id: "5", school_slug: "ogs", audience: "open" }],
+      });
+    });
+
+    const out = await listEnrollableSchools();
+
+    expect(seen).toEqual(["/api/parent/me/enrollable-schools"]);
+    expect(out).toHaveLength(1);
+  });
+
+  it("preserves the backend order, which the picker renders as-is", async () => {
+    // The backend pre-sorts (linked schools first); re-sorting on the client
+    // would silently undo that contract (#1663).
+    mockFetch(async () =>
+      jsonResponse({
+        data: [
+          { phase_id: "2", school_slug: "linked" },
+          { phase_id: "1", school_slug: "unlinked" },
+        ],
+      }),
+    );
+
+    const out = await listEnrollableSchools();
+
+    expect(out.map((p) => p.phase_id)).toEqual(["2", "1"]);
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () => jsonResponse({ error: "boom" }, { status: 500 }));
+    await expect(listEnrollableSchools()).rejects.toThrow(/boom/);
   });
 });
 

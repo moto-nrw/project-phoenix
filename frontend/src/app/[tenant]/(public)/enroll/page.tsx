@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, Check, Clock, ShieldCheck } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  Clock,
+  RefreshCw,
+  ShieldCheck,
+  UserPlus,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useTenant } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
@@ -140,6 +147,18 @@ export default function EnrollPhasePickerPage() {
                                     locale,
                                   ),
                                 })}
+                              </span>
+                            )}
+                            {phase.audience === "new_students" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-3 py-1 text-xs font-semibold text-[#3D63B0]">
+                                <UserPlus className="h-3.5 w-3.5" />
+                                {t("audienceNewStudents")}
+                              </span>
+                            )}
+                            {phase.audience === "existing_students" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-3 py-1 text-xs font-semibold text-[#3D63B0]">
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                {t("audienceExistingStudents")}
                               </span>
                             )}
                           </div>

@@ -156,9 +156,13 @@ func (rs *Resource) listMyChildren(w http.ResponseWriter, r *http.Request) {
 // EnrollablePhaseResponse is the wire shape for /me/enrollable-schools.
 // Mirrors models/parent.EnrollablePhase but stringifies int64 ids.
 type EnrollablePhaseResponse struct {
-	SchoolID          string        `json:"school_id"`
-	SchoolName        string        `json:"school_name"`
-	SchoolSlug        string        `json:"school_slug"`
+	SchoolID   string `json:"school_id"`
+	SchoolName string `json:"school_name"`
+	SchoolSlug string `json:"school_slug"`
+	// SchoolSubdomain is the identifier the picker must put in enrollment
+	// links: both /auth/tenant/resolve and /api/parent/enrollments/{tenantSlug}/*
+	// resolve tenants by subdomain (#1663).
+	SchoolSubdomain   string        `json:"school_subdomain"`
 	PhaseID           string        `json:"phase_id"`
 	PhaseName         string        `json:"phase_name"`
 	PhaseKind         string        `json:"phase_kind"`
@@ -167,6 +171,7 @@ type EnrollablePhaseResponse struct {
 	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
 	AlreadyLinked     bool          `json:"already_linked"`
+	Audience          string        `json:"audience"`
 }
 
 // listEnrollableSchools returns every (school, open phase) pair the
@@ -192,6 +197,7 @@ func (rs *Resource) listEnrollableSchools(w http.ResponseWriter, r *http.Request
 			SchoolID:          strconv.FormatInt(p.SchoolID, 10),
 			SchoolName:        p.SchoolName,
 			SchoolSlug:        p.SchoolSlug,
+			SchoolSubdomain:   p.SchoolSubdomain,
 			PhaseID:           strconv.FormatInt(p.PhaseID, 10),
 			PhaseName:         p.PhaseName,
 			PhaseKind:         p.PhaseKind,
@@ -200,6 +206,7 @@ func (rs *Resource) listEnrollableSchools(w http.ResponseWriter, r *http.Request
 			EnrollmentOpenAt:  p.EnrollmentOpenAt,
 			EnrollmentCloseAt: p.EnrollmentCloseAt,
 			AlreadyLinked:     p.AlreadyLinked,
+			Audience:          p.Audience,
 		})
 	}
 

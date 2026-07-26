@@ -275,6 +275,8 @@ func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error)
 		errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
 		errors.Is(err, enrollmentService.ErrDecisionInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, enrollmentService.ErrGuardianAccountMismatch):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch"))
 	case common.IsTransientDatabaseError(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
