@@ -288,7 +288,11 @@ export function DatePicker({
         aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
         disabled={isDisabled}
         onClick={toggleOpen}
-        className={`flex w-full items-center justify-between rounded-lg border bg-white transition-all ${
+        // The background is picked in exactly one place: a base `bg-white` plus
+        // a conditional `bg-gray-50` are two utilities of equal specificity, and
+        // which one wins depends on Tailwind's output order — the disabled state
+        // silently rendered white.
+        className={`flex w-full items-center justify-between rounded-lg border transition-all ${
           TRIGGER_SIZE_CLASS[
             (isMultiple ? undefined : props.controlSize) ?? "sm"
           ]
@@ -299,7 +303,7 @@ export function DatePicker({
             ? "cursor-not-allowed bg-gray-50 text-gray-400"
             : isOpen
               ? "border-gray-300 bg-gray-50"
-              : "hover:bg-gray-50"
+              : "bg-white hover:bg-gray-50"
         }`}
       >
         <span className={displayValue ? "text-gray-900" : "text-gray-500"}>
