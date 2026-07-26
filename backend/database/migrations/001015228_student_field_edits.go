@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	studentFieldEditsVersion     = "1.15.227"
+	studentFieldEditsVersion     = "1.15.228"
 	studentFieldEditsDescription = "Create audit.student_field_edits for per-child change history (issue #1455)"
 )
 
@@ -35,7 +35,7 @@ func init() {
 }
 
 func createStudentFieldEditsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.227: Creating audit.student_field_edits...")
+	fmt.Println("Migration 1.15.228: Creating audit.student_field_edits...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -95,7 +95,7 @@ func createStudentFieldEditsTable(ctx context.Context, db *bun.DB) error {
 }
 
 func dropStudentFieldEditsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.227: Dropping audit.student_field_edits...")
+	fmt.Println("Rolling back migration 1.15.228: Dropping audit.student_field_edits...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
