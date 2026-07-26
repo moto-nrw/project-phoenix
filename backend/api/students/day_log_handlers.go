@@ -239,11 +239,7 @@ func (rs *Resource) dayLogGroupsForDate(ctx context.Context, date timezone.Date)
 		if groupsErr != nil {
 			return nil, groupsErr
 		}
-		for _, group := range groups {
-			if group != nil {
-				groupsByID[group.ID] = group
-			}
-		}
+		addDayLogGroups(groupsByID, groups)
 	} else if !errors.Is(err, userContextService.ErrUserNotLinkedToTeacher) {
 		return nil, err
 	}
@@ -251,16 +247,28 @@ func (rs *Resource) dayLogGroupsForDate(ctx context.Context, date timezone.Date)
 	if err != nil {
 		return nil, err
 	}
-	for _, substitution := range substitutions {
-		if substitution != nil && substitution.SubstituteStaffID == staff.ID && substitution.Group != nil {
-			groupsByID[substitution.Group.ID] = substitution.Group
-		}
-	}
+	addDayLogSubstitutionGroups(groupsByID, substitutions, staff.ID)
 	groups := make([]*educationModel.Group, 0, len(groupsByID))
 	for _, group := range groupsByID {
 		groups = append(groups, group)
 	}
 	return groups, nil
+}
+
+func addDayLogGroups(groupsByID map[int64]*educationModel.Group, groups []*educationModel.Group) {
+	for _, group := range groups {
+		if group != nil {
+			groupsByID[group.ID] = group
+		}
+	}
+}
+
+func addDayLogSubstitutionGroups(groupsByID map[int64]*educationModel.Group, substitutions []*educationModel.GroupSubstitution, staffID int64) {
+	for _, substitution := range substitutions {
+		if substitution != nil && substitution.SubstituteStaffID == staffID && substitution.Group != nil {
+			groupsByID[substitution.Group.ID] = substitution.Group
+		}
+	}
 }
 
 // renderDayLogGroupError separates the two failure classes of
