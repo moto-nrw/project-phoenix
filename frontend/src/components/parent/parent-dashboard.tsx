@@ -18,6 +18,7 @@ import {
   NewsCard,
   NewsDetailModal,
 } from "~/components/parent/news/news-components";
+import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
@@ -227,6 +228,8 @@ export function ParentDashboard() {
       </section>
 
       <StartNewsPanel />
+
+      <PushNotificationSection portal="parent" />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import {
   Activity,
+  BellRing,
   Building2,
   CalendarDays,
   CalendarRange,
@@ -1453,6 +1454,75 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Zeilenmenü eines Displays mit den Aktionen Umbenennen, Neuen Link erstellen, Deaktivieren und Löschen.",
+      },
+    ],
+  },
+  {
+    id: "app-installieren",
+    title: "App installieren & Benachrichtigungen",
+    description:
+      "moto ist eine Web-App und braucht keinen App Store: Sie wird direkt aus dem Browser zum Home-Bildschirm hinzugefügt und verhält sich danach wie eine normale App. Auf dem iPhone und iPad ist dieser Schritt außerdem die Voraussetzung für Push-Benachrichtigungen.",
+    icon: TabletSmartphone,
+    tone: "green",
+    steps: [
+      {
+        id: "android-installieren",
+        title: "Auf Android zum Startbildschirm hinzufügen",
+        icon: TabletSmartphone,
+        printCompact: true,
+        summary:
+          "In Chrome auf Android lässt sich moto in wenigen Schritten installieren. Danach öffnet sich die App vom Startbildschirm aus im Vollbild, ohne Browserleiste.",
+        steps: [
+          "moto in Chrome öffnen und anmelden.",
+          "Oben rechts das Menü (drei Punkte) antippen.",
+          "`App installieren` bzw. `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "Die App künftig über das neue moto-Symbol auf dem Startbildschirm öffnen.",
+        ],
+        callout: {
+          title: "Kein App Store nötig",
+          body: "moto steht nicht im Play Store. Die Installation läuft direkt über den Browser; Updates kommen automatisch, es muss nichts aktualisiert werden.",
+        },
+        screenshot:
+          "Chrome-Menü auf Android mit dem Eintrag zum Installieren der App.",
+      },
+      {
+        id: "iphone-ipad-installieren",
+        title: "Auf iPhone und iPad zum Home-Bildschirm hinzufügen",
+        icon: TabletSmartphone,
+        printCompact: true,
+        summary:
+          "Auf iPhone und iPad läuft die Installation über Safari. Wichtig: Nur die vom Home-Bildschirm geöffnete App kann Push-Benachrichtigungen empfangen.",
+        steps: [
+          "moto in Safari öffnen und anmelden.",
+          "Das Teilen-Symbol (Quadrat mit Pfeil nach oben) antippen.",
+          "In der Liste `Zum Home-Bildschirm` wählen und mit `Hinzufügen` bestätigen.",
+          "Die App künftig über das neue moto-Symbol auf dem Home-Bildschirm öffnen.",
+        ],
+        callout: {
+          title: "Nicht im App Store",
+          body: "moto steht nicht im App Store — das ist so gewollt. Der Weg über `Zum Home-Bildschirm` ist die offizielle Installation als Web-App.",
+        },
+        screenshot:
+          "Teilen-Menü in Safari mit dem Eintrag Zum Home-Bildschirm.",
+      },
+      {
+        id: "push-benachrichtigungen-aktivieren",
+        title: "Push-Benachrichtigungen aktivieren",
+        icon: BellRing,
+        printCompact: true,
+        summary:
+          "Erinnerungen (z. B. anstehende Abholungen) kommen auf Wunsch als Systembenachrichtigung an, auch wenn die App geschlossen ist. Aktiviert wird das pro Gerät im eigenen Profil.",
+        steps: [
+          "Im eigenen Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
+          "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
+          "Fertig: Neue Erinnerungen erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
+        ],
+        callout: {
+          title: "iPhone/iPad: erst installieren",
+          body: "Auf iPhone und iPad funktioniert das nur in der zum Home-Bildschirm hinzugefügten App (siehe die Schritte oben). Im normalen Safari-Tab bietet Apple keine Push-Benachrichtigungen an. Zusätzlich muss die Schule die Benachrichtigungen in den Einstellungen eingeschaltet haben.",
+        },
+        screenshot:
+          "Profilseite mit dem Abschnitt Push-Benachrichtigungen und der Schaltfläche Aktivieren.",
       },
     ],
   },

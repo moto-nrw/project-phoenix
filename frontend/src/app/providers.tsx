@@ -2,6 +2,7 @@
 
 import { ModalProvider } from "@/components/dashboard/modal-context";
 import { NotificationBridge } from "~/components/notifications/notification-bridge";
+import { ServiceWorkerRegistrar } from "~/components/notifications/service-worker-registrar";
 import { ToastProvider } from "~/contexts/ToastContext";
 
 /**
@@ -20,6 +21,7 @@ export function Providers({
     <ModalProvider>
       <ToastProvider>
         <NotificationBridge />
+        <ServiceWorkerRegistrar />
         {children}
       </ToastProvider>
     </ModalProvider>
