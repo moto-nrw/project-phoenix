@@ -168,14 +168,16 @@ export function OverflowMenu({
     };
   }, [isOpen]);
 
-  // Decide alignment when opening. The menu is min 220px wide; we need to
-  // ensure it stays inside the viewport regardless of where the trigger sits.
+  // Decide alignment when opening. The menu is 220px wide when the viewport
+  // permits; constrain it on smaller viewports so every action stays reachable.
   //
   // - Default to right-anchored (`right-0` → menu extends LEFT from the
   //   trigger's right edge). This is safe in the common case where the
   //   kebab sits near the right edge of the page (action area).
-  // - Only flip to left-anchored (`left-0` → menu extends RIGHT) when the
-  //   trigger sits near the LEFT edge with not enough room on its left.
+  // - Flip to left-anchored (`left-0` → menu extends RIGHT) when the trigger
+  //   sits near the LEFT edge with not enough room on its left.
+  // - If neither side fits, use the side with more room and clamp to the
+  //   viewport inset.
   const handleOpen = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect != null) {
@@ -216,13 +218,31 @@ export function OverflowMenu({
           width: cr.width - inset * 2,
         });
       } else {
-        // Default to right-anchored (menu extends LEFT from the trigger's right
-        // edge); flip to left-anchored only when the trigger sits too close to
-        // the left edge for the menu to extend leftward.
-        const style: CSSProperties =
-          rect.left >= 220
-            ? { ...vertical, right: window.innerWidth - rect.right }
-            : { ...vertical, left: rect.left };
+        const menuWidth = 220;
+        const availableWidth = Math.max(
+          0,
+          window.innerWidth - viewportInset * 2,
+        );
+        const renderedWidth = Math.min(menuWidth, availableWidth);
+        const roomLeft = rect.right - viewportInset;
+        const roomRight = window.innerWidth - rect.left - viewportInset;
+        const size: CSSProperties = {
+          minWidth: renderedWidth,
+          maxWidth: availableWidth,
+        };
+        const maxOffset = Math.max(
+          viewportInset,
+          window.innerWidth - renderedWidth - viewportInset,
+        );
+        const clampOffset = (offset: number) =>
+          Math.min(Math.max(viewportInset, offset), maxOffset);
+        const alignRight =
+          roomLeft >= renderedWidth ||
+          (roomRight < renderedWidth && roomLeft >= roomRight);
+        const horizontal: CSSProperties = alignRight
+          ? { right: clampOffset(window.innerWidth - rect.right) }
+          : { left: clampOffset(rect.left) };
+        const style: CSSProperties = { ...vertical, ...size, ...horizontal };
         setMenuStyle(style);
       }
     }
