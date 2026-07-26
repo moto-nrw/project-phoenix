@@ -7,8 +7,9 @@
  * showed two different behaviours, and neither guaranteed a flush edge.
  *
  * The rule:
- *   1. A panel that can adapt takes the trigger's width, clamped to a legible
- *      range — so the calendar's edges line up with the field's edges.
+ *   1. A panel that can adapt takes the trigger's width, so the calendar's
+ *      edges line up with the field's edges. The only limits are physical: a
+ *      legible minimum day-cell size, and the viewport.
  *   2. A panel that cannot adapt (the two-month range calendar with its preset
  *      column) keeps its content width.
  *   3. The panel's LEFT edge sits on the trigger's left edge. If that would
@@ -25,13 +26,6 @@ export const CALENDAR_PANEL_MARGIN = 8;
  */
 export const CALENDAR_MIN_WIDTH = 168;
 
-/**
- * Widest a stretchable calendar gets. Past roughly 65px per day cell the grid
- * reads as a sparse table rather than a calendar, so a full-width field (the
- * parent master-data birthday spans 1062px) stops the growth here.
- */
-export const CALENDAR_MAX_WIDTH = 480;
-
 /** Height used for the flip-up decision. */
 export const CALENDAR_PANEL_HEIGHT = 340;
 
@@ -41,16 +35,19 @@ export interface PanelGeometry {
   readonly width: number;
 }
 
-/** Width a stretchable panel adopts under a trigger of `triggerWidth`. */
+/**
+ * Width a stretchable panel adopts under a trigger of `triggerWidth`.
+ *
+ * The panel matches the field, full stop — there is no taste-based ceiling. The
+ * only bounds are physical: it cannot be narrower than a legible day grid, and
+ * it cannot be wider than the viewport.
+ */
 export function clampCalendarWidth(
   triggerWidth: number,
   viewportWidth: number,
 ): number {
   const available = viewportWidth - 2 * CALENDAR_PANEL_MARGIN;
-  return Math.min(
-    Math.max(CALENDAR_MIN_WIDTH, Math.min(triggerWidth, CALENDAR_MAX_WIDTH)),
-    available,
-  );
+  return Math.min(Math.max(CALENDAR_MIN_WIDTH, triggerWidth), available);
 }
 
 /**

@@ -777,9 +777,9 @@ function getCalendarContainerClass(calendarLayout: CalendarLayout): string {
   const base = "rounded-xl border border-gray-200 bg-white p-3 shadow-lg";
   // The floating layouts get their width from the portal wrapper, which is
   // sized to the trigger; inline takes its parent's width and only needs the
-  // same bounds so a very wide or very narrow panel stays legible.
+  // legible-minimum floor.
   if (calendarLayout === "inline") {
-    return `${base} mt-2 w-full max-w-[min(480px,100%)] min-w-[168px]`;
+    return `${base} mt-2 w-full min-w-[168px]`;
   }
   return `${base} w-full`;
 }
