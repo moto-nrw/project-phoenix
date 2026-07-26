@@ -147,6 +147,7 @@ interface MultipleDatePickerCalendarProps {
   readonly values: Date[];
   readonly onChangeDates: (dates: Date[]) => void;
   readonly disabledDates?: Date[];
+  readonly compact: boolean;
   readonly calendarLayout: CalendarLayout;
 }
 
@@ -174,6 +175,10 @@ export function DatePicker({
   const isPopover = calendarLayout !== "inline";
   const isMultiple = props.mode === "multiple";
   const isDisabled = !isMultiple && props.disabled === true;
+  // Known only after the trigger is measured; until then assume the roomy
+  // variant, which is what every field wider than a filter chip gets.
+  const isCompactPanel =
+    popoverPosition !== null && popoverPosition.width < COMPACT_CARD_MAX_WIDTH;
   const locale = isMultiple ? de : (props.locale ?? de);
   const labels = resolveLabels(isMultiple ? undefined : props.labels);
   const displayValue = isMultiple
@@ -279,6 +284,7 @@ export function DatePicker({
       values={props.values}
       onChangeDates={props.onChangeDates}
       disabledDates={props.disabledDates}
+      compact={isCompactPanel}
       calendarLayout={calendarLayout}
     />
   ) : (
@@ -289,6 +295,7 @@ export function DatePicker({
       monthYearNavigation={props.monthYearNavigation}
       locale={locale}
       labels={labels}
+      compact={isCompactPanel}
       calendarLayout={calendarLayout}
       onChange={(date) => {
         props.onChange(date);
@@ -435,6 +442,7 @@ function DatePickerCalendar({
   monthYearNavigation,
   locale,
   labels,
+  compact,
   calendarLayout,
   onChange,
 }: {
@@ -444,14 +452,16 @@ function DatePickerCalendar({
   readonly monthYearNavigation?: boolean;
   readonly locale: Locale;
   readonly labels: Required<DatePickerLabels>;
+  readonly compact: boolean;
   readonly calendarLayout: CalendarLayout;
   readonly onChange: (date: Date | null) => void;
 }) {
   const [month, setMonth] = useState(value ?? new Date());
 
   return (
-    <div className={getCalendarContainerClass(calendarLayout)}>
+    <div className={getCalendarContainerClass(calendarLayout, compact)}>
       <CalendarNavHeader
+        compact={compact}
         month={month}
         onMonthChange={setMonth}
         monthYearNavigation={monthYearNavigation}
@@ -502,12 +512,13 @@ function MultipleDatePickerCalendar({
   values,
   onChangeDates,
   disabledDates = EMPTY_DISABLED_DATES,
+  compact,
   calendarLayout,
 }: MultipleDatePickerCalendarProps) {
   const [month, setMonth] = useState(values[0] ?? new Date());
 
   return (
-    <div className={getCalendarContainerClass(calendarLayout)}>
+    <div className={getCalendarContainerClass(calendarLayout, compact)}>
       <CalendarNavHeader month={month} onMonthChange={setMonth} />
       <DayPicker
         mode="multiple"
@@ -696,6 +707,7 @@ function buildYearOptions(
 // static caption. Day-level bounds stay with the DayPicker matchers, so
 // navigating to a partly out-of-range month simply shows disabled days.
 function CalendarNavHeader({
+  compact = false,
   month,
   onMonthChange,
   monthYearNavigation = false,
@@ -704,6 +716,7 @@ function CalendarNavHeader({
   locale = de,
   labels = DEFAULT_LABELS,
 }: {
+  readonly compact?: boolean;
   readonly month: Date;
   readonly onMonthChange: (month: Date) => void;
   readonly monthYearNavigation?: boolean;
@@ -715,7 +728,11 @@ function CalendarNavHeader({
   const monthLabels = useMemo(() => buildMonthLabels(locale), [locale]);
 
   return (
-    <div className="mb-4 flex items-center justify-between gap-2">
+    <div
+      className={`flex items-center justify-between ${
+        compact ? "mb-3 gap-1" : "mb-4 gap-2"
+      }`}
+    >
       <button
         type="button"
         aria-label={labels.previousMonth}
@@ -819,8 +836,18 @@ function buildSingleDisabledMatchers(
   return matchers;
 }
 
-function getCalendarContainerClass(calendarLayout: CalendarLayout): string {
-  const base = "rounded-xl border border-gray-200 bg-white p-4 shadow-lg";
+// A panel narrower than this cannot afford the roomier padding: at 176px, p-4
+// leaves 20px day cells and truncates the "Juli 2026" caption. Below the
+// threshold the card falls back to p-3 and spends the space on the grid instead.
+const COMPACT_CARD_MAX_WIDTH = 240;
+
+function getCalendarContainerClass(
+  calendarLayout: CalendarLayout,
+  compact: boolean,
+): string {
+  const base = `rounded-xl border border-gray-200 bg-white shadow-lg ${
+    compact ? "p-3" : "p-4"
+  }`;
   // The floating layouts get their width from the portal wrapper, which is
   // sized to the trigger; inline takes its parent's width and only needs the
   // legible-minimum floor.
