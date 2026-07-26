@@ -14,12 +14,12 @@ export function Alert({ type, message, announce }: Readonly<AlertProps>) {
   const announcement = announce ?? (isAssertive ? "assertive" : "polite");
 
   // Brand hexes from LOCATION_COLORS (red HOME, orange SCHOOLYARD, blue
-  // OTHER_ROOM), same tint recipe as ToastContext.
+  // OTHER_ROOM), with darker foregrounds for WCAG AA on the tinted surfaces.
   const styles = {
     error: "bg-[#FF3130]/10 text-[#CC2626] border-[#FF3130]/20",
-    success: "bg-[#83CD2D]/10 text-[#6BA023] border-[#83CD2D]/20",
-    warning: "bg-[#F78C10]/10 text-[#C56F0D] border-[#F78C10]/20",
-    info: "bg-[#5080D8]/10 text-[#4070C8] border-[#5080D8]/20",
+    success: "bg-[#83CD2D]/10 text-[#4A7A15] border-[#83CD2D]/20",
+    warning: "bg-[#F78C10]/10 text-[#8A5600] border-[#F78C10]/20",
+    info: "bg-[#5080D8]/10 text-[#355A9A] border-[#5080D8]/20",
   };
 
   // Improved styling with icon indicators

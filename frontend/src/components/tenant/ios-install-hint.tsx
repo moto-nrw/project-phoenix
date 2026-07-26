@@ -12,6 +12,18 @@ export function isIosDevice(nav: Navigator): boolean {
   return nav.platform === "MacIntel" && nav.maxTouchPoints > 1;
 }
 
+/** True only for Safari on iOS/iPadOS, excluding other browsers and webviews. */
+export function isIosSafari(nav: Navigator): boolean {
+  if (!isIosDevice(nav)) return false;
+  const userAgent = nav.userAgent;
+  const isSafari = /version\/[\d.]+.*safari/i.test(userAgent);
+  const isOtherBrowser =
+    /crios|fxios|edgios|opios|duckduckgo|gsa|instagram|fban|fbav/i.test(
+      userAgent,
+    );
+  return isSafari && !isOtherBrowser;
+}
+
 /** True when running inside an installed PWA (standalone display mode). */
 export function isStandaloneDisplay(win: Window): boolean {
   if (win.matchMedia("(display-mode: standalone)").matches) return true;
@@ -30,7 +42,7 @@ export function IosInstallHint() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!isIosDevice(window.navigator)) return;
+    if (!isIosSafari(window.navigator)) return;
     if (isStandaloneDisplay(window)) return;
     try {
       if (window.localStorage.getItem(DISMISS_KEY) === "1") return;

@@ -45,7 +45,7 @@ describe("Alert", () => {
     render(<Alert type="success" message="Success message" />);
 
     const alert = screen.getByText("Success message").parentElement;
-    expect(alert?.className).toContain("text-[#6BA023]");
+    expect(alert?.className).toContain("text-[#4A7A15]");
   });
 
   it("applies warning styles", () => {
@@ -53,7 +53,7 @@ describe("Alert", () => {
 
     const alert = screen.getByText("Warning message").parentElement;
     expect(alert?.className).toContain("bg-[#F78C10]/10");
-    expect(alert?.className).toContain("text-[#C56F0D]");
+    expect(alert?.className).toContain("text-[#8A5600]");
   });
 
   it("applies info styles", () => {
@@ -61,7 +61,7 @@ describe("Alert", () => {
 
     const alert = screen.getByText("Info message").parentElement;
     expect(alert?.className).toContain("bg-[#5080D8]/10");
-    expect(alert?.className).toContain("text-[#4070C8]");
+    expect(alert?.className).toContain("text-[#355A9A]");
   });
 
   it("renders with icon for error type", () => {
