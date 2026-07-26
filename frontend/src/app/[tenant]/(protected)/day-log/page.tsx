@@ -296,15 +296,9 @@ export default function DayLogPage() {
     [data, openGroupId],
   );
 
-  // The retrospective window follows the tenant's gdpr.attendance_visible_days
-  // cap (backend-enforced; 30 by default).
-  const minDate = useMemo(() => {
-    const capDays = data?.caps.attendance_days ?? 30;
-    const today = parseISODate(berlinTodayISO());
-    const min = new Date(today);
-    min.setDate(min.getDate() - (capDays - 1));
-    return min;
-  }, [data]);
+  // Group membership has no dated source of truth. Keep the selector on the
+  // current day so a later transfer cannot relabel historical attendance.
+  const minDate = useMemo(() => parseISODate(berlinTodayISO()), []);
   const maxDate = useMemo(() => parseISODate(berlinTodayISO()), []);
 
   const downloadExport = useCallback(
@@ -447,7 +441,7 @@ export default function DayLogPage() {
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
               Wer war anwesend, krank, entschuldigt oder fehlt ohne Meldung –
-              für heute oder rückwirkend.
+              für heute.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

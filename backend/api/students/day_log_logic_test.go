@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -67,6 +68,19 @@ func TestClassifyDayLogStudent_NotScheduledAndAbsent(t *testing.T) {
 	classifyDayLogStudent(&row, nil, nil, scheduleService.CareDayUnknown)
 	assert.Equal(t, dayLogStatusAbsent, row.Status)
 	assert.Equal(t, "Abwesend", dayLogStatusLabel(row.Status, ""))
+}
+
+func TestParseDayLogDateRejectsHistoryWithoutDatedGroupAssignments(t *testing.T) {
+	today := timezone.TodayDate()
+	request := httptest.NewRequest("GET", "/day-log?date="+today.AddDays(-1).String(), nil)
+
+	_, err := parseDayLogDate(request)
+	require.ErrorContains(t, err, "dated group assignments")
+
+	request = httptest.NewRequest("GET", "/day-log?date="+today.String(), nil)
+	date, err := parseDayLogDate(request)
+	require.NoError(t, err)
+	assert.Equal(t, today, date)
 }
 
 func TestDayLogArrivalIsStillPending(t *testing.T) {

@@ -131,7 +131,7 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	attendanceCap := configService.ResolveIntOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceVisibleDays, 30, logger)
-	date, err := parseDayLogDate(r, attendanceCap)
+	date, err := parseDayLogDate(r)
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -171,10 +171,12 @@ func (rs *Resource) dayLogLogger() *slog.Logger {
 	return slog.Default().With("handler", "day_log")
 }
 
-// parseDayLogDate reads the date query param (default: today) and enforces the
-// retrospective visibility cap. Future dates are rejected — this is a log, not
-// a planner.
-func parseDayLogDate(r *http.Request, attendanceCap int) (timezone.Date, error) {
+// parseDayLogDate reads the date query param (default: today). The student
+// record stores only its current group assignment, so a retrospective group
+// roster cannot be reconstructed safely after a transfer. Until group
+// assignments have a dated source of truth, the day log is deliberately a
+// live-day view rather than attributing historical attendance to a wrong group.
+func parseDayLogDate(r *http.Request) (timezone.Date, error) {
 	today := timezone.TodayDate()
 	date := today
 	if raw := strings.TrimSpace(r.URL.Query().Get("date")); raw != "" {
@@ -187,8 +189,8 @@ func parseDayLogDate(r *http.Request, attendanceCap int) (timezone.Date, error) 
 	if date.After(today) {
 		return timezone.Date{}, errors.New("date must not be in the future")
 	}
-	if attendanceCap > 0 && date.Before(today.AddDays(-(attendanceCap - 1))) {
-		return timezone.Date{}, errors.New("date is outside the visible attendance window")
+	if date.Before(today) {
+		return timezone.Date{}, errors.New("historical day logs require dated group assignments")
 	}
 	return date, nil
 }

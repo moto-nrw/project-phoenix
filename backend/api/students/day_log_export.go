@@ -45,8 +45,7 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	attendanceCap := configService.ResolveIntOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceVisibleDays, 30, logger)
-	date, err := parseDayLogDate(r, attendanceCap)
+	date, err := parseDayLogDate(r)
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
