@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -154,6 +156,17 @@ type staffAbsenceService struct {
 	// nil means no absence emails are sent (#1419 4d).
 	emailDeps   *AbsenceEmailDeps
 	broadcaster realtime.Broadcaster
+	// deletionRepo writes append-only tombstones for deleted absences
+	// (#1417): the absence's own audit trail is ON DELETE CASCADE, so
+	// without the tombstone a delete erases its whole history. Setter
+	// injection (SetDeletionAudit) like SetBroadcaster; nil makes deletes
+	// fail.
+	deletionRepo auditModels.TimeTrackingDeletionRepository
+}
+
+// SetDeletionAudit wires the deletion tombstone writer (#1417).
+func (s *staffAbsenceService) SetDeletionAudit(repo auditModels.TimeTrackingDeletionRepository) {
+	s.deletionRepo = repo
 }
 
 // SetShiftPlanSyncer wires the #1843 plan cascade (setter injection because
@@ -846,6 +859,26 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 		return fmt.Errorf("absence not deleted — plan cascade reversal failed: %w", err)
 	}
 
+	// Tombstone first, delete second, same tenant tx: the absence's own
+	// audit rows CASCADE away with it, so this row is the only surviving
+	// trace (#1417).
+	if s.deletionRepo == nil {
+		return fmt.Errorf("time tracking deletion audit repository is not configured")
+	}
+	payload, err := json.Marshal(absence)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot absence for deletion audit: %w", err)
+	}
+	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+		StaffID:   absence.StaffID,
+		Source:    auditModels.TimeTrackingDeletionSourceAbsence,
+		SourceID:  absence.ID,
+		DeletedBy: actorStaffID,
+		Payload:   payload,
+		Note:      absence.Note,
+	}); err != nil {
+		return fmt.Errorf("failed to write deletion audit: %w", err)
+	}
 	if err := s.absenceRepo.Delete(ctx, absenceID); err != nil {
 		return fmt.Errorf("failed to delete absence: %w", err)
 	}

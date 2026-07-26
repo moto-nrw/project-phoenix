@@ -28,6 +28,7 @@ type Resource struct {
 	BalanceAdjustService    activeSvc.StaffBalanceAdjustmentService
 	MonthCloseService       activeSvc.StaffMonthCloseService
 	StaffOverviewService    activeSvc.StaffOverviewService
+	AuditLogService         activeSvc.TimeTrackingAuditLogService
 	db                      *bun.DB
 	logger                  *slog.Logger
 }
@@ -44,6 +45,7 @@ func NewResource(
 	balanceAdjustService activeSvc.StaffBalanceAdjustmentService,
 	monthCloseService activeSvc.StaffMonthCloseService,
 	staffOverviewService activeSvc.StaffOverviewService,
+	auditLogService activeSvc.TimeTrackingAuditLogService,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -58,6 +60,7 @@ func NewResource(
 		BalanceAdjustService:    balanceAdjustService,
 		MonthCloseService:       monthCloseService,
 		StaffOverviewService:    staffOverviewService,
+		AuditLogService:         auditLogService,
 		db:                      db,
 		logger:                  logger,
 	}
@@ -123,6 +126,11 @@ func (rs *Resource) Router() chi.Router {
 		// Monatsabschluss (#1417): freezing the carry chain is school-wide,
 		// reopening is per staff member. Static segments before /{id} are
 		// safe — chi prefers them over the wildcard.
+		// Cross-staff audit feed (#1417). Every event names an affected and an
+		// acting person plus free-text reasons — personal data end to end, so
+		// the whole feed sits behind time_tracking:manage with no users:read tier.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/audit-log", rs.getTimeTrackingAuditLog)
+
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/month-close", rs.listMonthCloseStatus)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/time-tracking/month-close", rs.closeMonth)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/month-close/reopen", rs.reopenMonth)

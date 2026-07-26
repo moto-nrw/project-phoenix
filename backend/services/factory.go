@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -71,6 +72,7 @@ type Factory struct {
 	StaffBalanceAdjust       active.StaffBalanceAdjustmentService
 	StaffMonthClose          active.StaffMonthCloseService
 	StaffOverview            active.StaffOverviewService
+	TimeTrackingAuditLog     active.TimeTrackingAuditLogService
 	Activities               activities.ActivityService
 	Education                education.Service
 	GradeTransition          *education.GradeTransitionService
@@ -411,6 +413,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// A booking inside a closed month (#1417) could not move its frozen
 	// closing balance, so the ledger rejects it.
 	staffBalanceAdjustService.SetSnapshotReader(repos.StaffMonthSnapshot)
+	// Deletes leave an append-only tombstone in the cross-staff audit log
+	// (#1417). Both services fail their delete paths without this wiring.
+	if deletionAware, ok := staffBalanceAdjustService.(interface {
+		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+	}); ok {
+		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
+	}
+	if deletionAware, ok := staffAbsenceService.(interface {
+		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+	}); ok {
+		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
+	}
 
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
@@ -445,6 +459,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		activeLogger,
 	)
 	staffOverviewService.SetHolidayReader(nonWorkingDayService)
+
+	// Cross-staff audit feed (#1417): merges the four change trails into one
+	// keyset-paginated view. Read-only; permission gating at the route.
+	timeTrackingAuditLogService := active.NewTimeTrackingAuditLogService(
+		repos.TimeTrackingAuditLog,
+		repos.Staff,
+		settingsService,
+	)
 
 	// Absence email notifications (#1419 4d). Setter injection keeps the
 	// constructor stable and unit tests email-free (mirrors SetShiftPlanSyncer);
@@ -1646,6 +1668,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffBalanceAdjust:       staffBalanceAdjustService,
 		StaffMonthClose:          staffMonthCloseService,
 		StaffOverview:            staffOverviewService,
+		TimeTrackingAuditLog:     timeTrackingAuditLogService,
 		Activities:               activitiesService,
 		Education:                educationService,
 		GradeTransition:          gradeTransitionService,

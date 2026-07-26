@@ -328,6 +328,9 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 		workSessionRepo: workRepo,
 		quotaRepo:       quotaRepo,
 		auditRepo:       auditRepo,
+		// Deletes require the tombstone writer (#1417); assertions stay on
+		// the absence repo.
+		deletionRepo: noopDeletionAuditRepo{},
 	}
 	return svc, absRepo, workRepo
 }

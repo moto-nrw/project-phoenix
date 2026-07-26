@@ -167,6 +167,8 @@ type Factory struct {
 	DataImport                   auditModels.DataImportRepository
 	WorkSessionEdit              auditModels.WorkSessionEditRepository
 	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
+	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
+	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)
 	Organization             platformModels.OrganizationRepository
@@ -356,6 +358,8 @@ func NewFactory(db *bun.DB) *Factory {
 		DataImport:                   audit.NewDataImportRepository(db),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),
 		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
+		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
+		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 
 		// Platform repositories
 		Organization:             platformRepo.NewOrganizationRepository(db),
