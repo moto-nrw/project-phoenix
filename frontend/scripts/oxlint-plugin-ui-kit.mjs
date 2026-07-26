@@ -219,7 +219,7 @@ const ROUNDED_3XL_ALLOWLIST = new Set([
 
 const BRAND_COLOR_RE =
   /\b(?:text|bg|border)-(?:red|green|blue|orange|purple|amber|yellow|emerald)-\d/;
-const OVERLAY_RE = /\bfixed\b.*\binset-0\b|\binset-0\b.*\bfixed\b/;
+const OVERLAY_RE = /(?:\bfixed\b.*\binset-0\b)|(?:\binset-0\b.*\bfixed\b)/;
 const ROUNDED_3XL_RE = /\brounded-3xl\b/;
 
 const EXEMPT_FILE_RE = /\.(?:test|stories)\.|\.d\.ts$/;
@@ -228,7 +228,7 @@ const UI_KIT_DIR = "src/components/ui/";
 /** Repo-relative posix path ("src/…"), or "" when unavailable. */
 function fileKey(context) {
   const raw = String(context.physicalFilename ?? context.filename ?? "");
-  const posix = raw.replace(/\\/g, "/");
+  const posix = raw.replaceAll("\\", "/");
   const idx = posix.lastIndexOf("/src/");
   return idx === -1 ? posix : posix.slice(idx + 1);
 }
