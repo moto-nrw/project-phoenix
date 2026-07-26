@@ -62,75 +62,16 @@ import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-b
 import { createLogger } from "~/lib/logger";
 import { studentService } from "~/lib/api";
 import { useSWRAuth } from "~/lib/swr";
+import {
+  CHILD_STATUS_LABELS,
+  ChildStatusBadge,
+} from "~/components/enrollment/child-status-badge";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
 const ALL_STATUS_FILTER = "all";
 const ALL_VALUE = "all";
 const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
-
-const STATUS_LABELS: Record<ChildStatus, string> = {
-  submitted: "Eingegangen",
-  under_review: "In Prüfung",
-  approved: "Bestätigt",
-  waitlisted: "Warteliste",
-  rejected: "Abgelehnt",
-  withdrawn: "Zurückgezogen",
-  pending_renewal: "Wartet auf Verlängerung",
-  auto_renewed: "Vorgemerkt",
-  pending_admin_review: "Manuelle Prüfung",
-};
-
-const STATUS_COLORS: Record<
-  ChildStatus,
-  { bg: string; dot: string; text: string }
-> = {
-  submitted: {
-    bg: "#EEF3FF",
-    dot: "#5080D8",
-    text: "#355A9A",
-  },
-  under_review: {
-    bg: "#EEF3FF",
-    dot: "#5080D8",
-    text: "#355A9A",
-  },
-  approved: {
-    bg: "#83CD2D1A",
-    dot: "#83CD2D",
-    text: "#5A8B1F",
-  },
-  waitlisted: {
-    bg: "#FFF4E6",
-    dot: "#F78C10",
-    text: "#8A5600",
-  },
-  rejected: {
-    bg: "#FF31301A",
-    dot: "#FF3130",
-    text: "#9F1F1E",
-  },
-  withdrawn: {
-    bg: "#F3F4F6",
-    dot: "#9CA3AF",
-    text: "#4B5563",
-  },
-  pending_renewal: {
-    bg: "#FFF4E6",
-    dot: "#F78C10",
-    text: "#8A5600",
-  },
-  auto_renewed: {
-    bg: "#EEF3FF",
-    dot: "#5080D8",
-    text: "#355A9A",
-  },
-  pending_admin_review: {
-    bg: "#F3F4F6",
-    dot: "#9CA3AF",
-    text: "#4B5563",
-  },
-};
 
 const OPEN_STATUSES = new Set<ChildStatus>([
   "submitted",
@@ -430,7 +371,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       try {
         await decideAdminChild(row.request_id, row.child_id, status);
         toast.success(
-          `Entscheidung gespeichert: ${STATUS_LABELS[status as ChildStatus]}`,
+          `Entscheidung gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}`,
         );
         await loadData();
         await loadReport(reportFilters);
@@ -496,8 +437,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       {
         key: "status",
         header: "Status",
-        render: (row) => <StatusBadge status={row.status} />,
-        sortValue: (row) => STATUS_LABELS[row.status],
+        render: (row) => <ChildStatusBadge status={row.status} />,
+        sortValue: (row) => CHILD_STATUS_LABELS[row.status],
       },
       {
         key: "offerings",
@@ -677,10 +618,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                 }
                 options={[
                   { value: ALL_STATUS_FILTER, label: "Alle" },
-                  ...Object.entries(STATUS_LABELS).map(([value, label]) => ({
-                    value,
-                    label,
-                  })),
+                  ...Object.entries(CHILD_STATUS_LABELS).map(
+                    ([value, label]) => ({
+                      value,
+                      label,
+                    }),
+                  ),
                 ]}
               />
             </SelectField>
@@ -1356,23 +1299,6 @@ function PhaseChildActions({
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </Link>
     </div>
-  );
-}
-
-function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
-  const styles = STATUS_COLORS[status];
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-      style={{ backgroundColor: styles.bg, color: styles.text }}
-    >
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-        aria-hidden="true"
-      />
-      {STATUS_LABELS[status]}
-    </span>
   );
 }
 

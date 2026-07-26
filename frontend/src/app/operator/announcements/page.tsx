@@ -4,8 +4,9 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
 import useSWR from "swr";
-import { MoreVertical, Pencil, Trash2, Send, Check } from "lucide-react";
+import { Pencil, Trash2, Send, Check } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -1076,10 +1077,8 @@ function AnnouncementCard({
   readonly onPublish: (a: Announcement) => void;
 }) {
   const currentTimestamp = useCurrentTimestamp();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [isClamped, setIsClamped] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
@@ -1089,59 +1088,26 @@ function AnnouncementCard({
     }
   }, [announcement.content]);
 
-  // Close menu on click outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    if (menuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () =>
-        document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [menuOpen]);
-
   return (
     <div className="relative rounded-3xl border border-gray-100/50 bg-white/90 p-5 pr-12 shadow-sm backdrop-blur-md transition-all duration-150">
       {/* Kebab menu - absolute top right */}
-      <div className="absolute top-3 right-3" ref={menuRef}>
-        <button
-          type="button"
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-          aria-label="Menü öffnen"
-        >
-          <MoreVertical className="h-5 w-5" />
-        </button>
-
-        {menuOpen && (
-          <div className="absolute top-full right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onEdit(announcement);
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              <Pencil className="h-4 w-4" />
-              Bearbeiten
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onDelete(announcement);
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
-            >
-              <Trash2 className="h-4 w-4" />
-              Löschen
-            </button>
-          </div>
-        )}
+      <div className="absolute top-3 right-3">
+        <OverflowMenu
+          ariaLabel="Menü öffnen"
+          items={[
+            {
+              label: "Bearbeiten",
+              icon: <Pencil className="h-4 w-4" />,
+              onClick: () => onEdit(announcement),
+            },
+            {
+              label: "Löschen",
+              icon: <Trash2 className="h-4 w-4" />,
+              destructive: true,
+              onClick: () => onDelete(announcement),
+            },
+          ]}
+        />
       </div>
 
       {/* Type label */}

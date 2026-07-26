@@ -77,6 +77,9 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
 | Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
+| Semantic status pill (fixed tone set) | `StatusBadge` — tinted pill + dot, `tone` = `blue` `green` `orange` `red` `gray` (brand hexes) | `~/components/ui/status-badge` |
+| Data-driven status pill (raw hex) | `StatusDotBadge` | `~/components/ui/status-dot-badge` |
+| Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
 | Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
 | Overlay / side panel | `Drawer`, slide-over | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | API error message text | `getApiErrorMessage` | `~/lib/api-error-message` |
@@ -131,7 +134,7 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`, `size="compact"`, `size="icon"`) — use those for dense toolbar/menu/icon chrome instead of hand-rolling. A modal-footer / in-form action height now EXISTS too: `size="md"` (`px-4 py-2 text-sm`) — use it for slide-over / modal footers and dense form actions instead of the oversized page sizes (`sm`/`base`/`lg`/`xl` are all `px-5 py-3`). A shared `Checkbox` (brand-green checked state) now EXISTS at `ui/checkbox` — never hand-roll a raw `<input type="checkbox">` with an ad-hoc accent color. The kit still does **not** have a generic `DropdownMenu`/popover-menu or a `Select` (native `<select>` styled to the kit `Input` look via the `moto-select` utility is the current convention). When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`, `size="compact"`, `size="icon"`) — use those for dense toolbar/menu/icon chrome instead of hand-rolling. A modal-footer / in-form action height now EXISTS too: `size="md"` (`px-4 py-2 text-sm`) — use it for slide-over / modal footers and dense form actions instead of the oversized page sizes (`sm`/`base`/`lg`/`xl` are all `px-5 py-3`). A shared `Checkbox` (brand-green checked state) now EXISTS at `ui/checkbox` — never hand-roll a raw `<input type="checkbox">` with an ad-hoc accent color. A generic kebab/dropdown menu now EXISTS: `ui/page-header/OverflowMenu` covers action menus fully (portal-rendered, header/radio/separator entries, `href` link items incl. `external`, destructive tone, badges) — never hand-roll a `menuOpen` + click-outside menu again. Semantic status pills (`ui/status-badge`, tone-based) and empty states (`ui/empty-state`) now EXIST too. The kit still does **not** have a `Select` (native `<select>` styled to the kit `Input` look via the `moto-select` utility is the current convention). When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 

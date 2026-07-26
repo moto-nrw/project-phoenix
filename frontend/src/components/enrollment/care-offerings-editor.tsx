@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   Check,
   ClipboardList,
   Copy,
-  MoreVertical,
   Pencil,
   Plus,
   Trash2,
@@ -48,6 +46,7 @@ import {
   type DataTableColumn,
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1073,12 +1072,6 @@ interface CareOfferingActionsProps {
   readonly onDelete: () => void;
 }
 
-interface MenuPosition {
-  top: number;
-  left: number;
-  alignRight: boolean;
-}
-
 function CareOfferingActions({
   offering,
   saving,
@@ -1087,138 +1080,33 @@ function CareOfferingActions({
   onClone,
   onDelete,
 }: CareOfferingActionsProps) {
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState<MenuPosition>({
-    top: 0,
-    left: 0,
-    alignRight: false,
-  });
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!open || !buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = 224;
-    const alignRight = rect.left + menuWidth > window.innerWidth - 16;
-    setPosition({
-      top: rect.bottom + 6,
-      left: alignRight ? rect.right : rect.left,
-      alignRight,
-    });
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        menuRef.current &&
-        event.target instanceof Node &&
-        !menuRef.current.contains(event.target)
-      ) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleScroll() {
-      setOpen(false);
-    }
-
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [open]);
-
-  const menu = open && mounted && (
-    <div
-      ref={menuRef}
-      role="menu"
-      tabIndex={-1}
-      aria-label={`Aktionen für ${offering.name}`}
-      className="fixed z-[9999] w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 text-left shadow-lg"
-      style={{
-        top: position.top,
-        left: position.alignRight ? "auto" : position.left,
-        right: position.alignRight ? window.innerWidth - position.left : "auto",
-      }}
-    >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onEdit();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <Pencil className="h-4 w-4 text-gray-500" aria-hidden />
-        Bearbeiten
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onClone();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <Copy className="h-4 w-4 text-gray-500" aria-hidden />
-        Duplizieren
-      </button>
-      <div className="my-1 h-px bg-gray-100" />
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onDelete();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={deleting || saving}
-      >
-        <Trash2 className="h-4 w-4" aria-hidden />
-        {deleting ? "Löscht..." : "Löschen"}
-      </button>
-    </div>
-  );
-
   return (
     <div className="flex justify-end">
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-label={`Aktionen für ${offering.name}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <MoreVertical className="h-4 w-4" aria-hidden="true" />
-      </button>
-      {mounted ? createPortal(menu, document.body) : null}
+      <OverflowMenu
+        ariaLabel={`Aktionen für ${offering.name}`}
+        items={[
+          {
+            label: "Bearbeiten",
+            icon: <Pencil className="h-4 w-4" aria-hidden />,
+            disabled: saving,
+            onClick: onEdit,
+          },
+          {
+            label: "Duplizieren",
+            icon: <Copy className="h-4 w-4" aria-hidden />,
+            disabled: saving,
+            onClick: onClone,
+          },
+          { kind: "separator" },
+          {
+            label: deleting ? "Löscht..." : "Löschen",
+            icon: <Trash2 className="h-4 w-4" aria-hidden />,
+            destructive: true,
+            disabled: deleting || saving,
+            onClick: onDelete,
+          },
+        ]}
+      />
     </div>
   );
 }
