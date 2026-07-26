@@ -155,11 +155,17 @@ func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
 			return
 
 		case event := <-conn.client.Channel:
+			if ctx.Err() != nil {
+				return
+			}
 			if conn.sendEvent(event) != nil {
 				return // Client disconnected
 			}
 
 		case <-heartbeat.C:
+			if ctx.Err() != nil {
+				return
+			}
 			if conn.sendHeartbeat() != nil {
 				return // Client disconnected
 			}

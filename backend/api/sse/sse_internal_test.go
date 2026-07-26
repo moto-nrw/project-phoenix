@@ -169,6 +169,32 @@ func TestSSEConnection_SendEvent(t *testing.T) {
 	assert.Contains(t, body, "Test Student")
 }
 
+func TestRunEventLoopDoesNotSendBufferedEventAfterDeadline(t *testing.T) {
+	for range 32 {
+		hub := realtime.NewHub(slog.Default())
+		rs := &Resource{hub: hub}
+		mf := newMockFlusher()
+		client := &realtime.Client{
+			Channel:          make(chan realtime.Event, 1),
+			SubscribedGroups: make(map[string]bool),
+		}
+		conn := &sseConnection{
+			writer:  mf,
+			flusher: mf,
+			client:  client,
+		}
+		hub.Register(client, 1, nil)
+		client.Channel <- realtime.Event{Type: realtime.EventStudentCheckIn}
+
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		rs.runEventLoop(ctx, conn)
+		cancel()
+
+		assert.Empty(t, mf.Body.String())
+		assert.Zero(t, mf.flushCount)
+	}
+}
+
 // =============================================================================
 // SETUP CONNECTION TESTS
 // =============================================================================
