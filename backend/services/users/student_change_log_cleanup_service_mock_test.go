@@ -60,3 +60,15 @@ func TestStudentChangeLogCleanup_StopsWhenRetentionResolutionFails(t *testing.T)
 	assert.Nil(t, result)
 	assert.False(t, repo.countCalled, "cleanup must not inspect or delete rows without a retention value")
 }
+
+func TestStudentChangeLogCleanup_StopsWhenSettingsAreNotConfigured(t *testing.T) {
+	repo := &trackingStudentFieldEditRepo{}
+	service := NewStudentChangeLogCleanupService(repo, nil, nil, nil)
+	ctx := tenant.WithTenantID(context.Background(), 42)
+
+	result, err := service.CleanupExpiredChangeLog(ctx)
+
+	require.ErrorContains(t, err, "settings service not configured")
+	assert.Nil(t, result)
+	assert.False(t, repo.countCalled, "cleanup must not inspect or delete rows without configured settings")
+}

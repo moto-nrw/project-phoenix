@@ -13,10 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// studentChangeLogRetentionDefaultDays keeps the service callable in tests
-// without settings wiring. Production always injects the settings service.
-const studentChangeLogRetentionDefaultDays = 90
-
 // StudentChangeLogCleanupResult summarises one cleanup run for a single tenant.
 type StudentChangeLogCleanupResult struct {
 	Success          bool
@@ -43,8 +39,9 @@ type studentChangeLogCleanupService struct {
 }
 
 // NewStudentChangeLogCleanupService constructs the cleanup service. auditRepo
-// receives one data_deletions row per affected student; settings may be nil in
-// tests, in which case retention resolves to the last-resort default.
+// receives one data_deletions row per affected student. Cleanup fails closed
+// when settings is unavailable so it never applies an unverified retention
+// policy.
 func NewStudentChangeLogCleanupService(
 	repo auditModels.StudentFieldEditRepository,
 	auditRepo auditModels.DataDeletionRepository,
@@ -164,13 +161,12 @@ func (s *studentChangeLogCleanupService) writeStudentAuditRows(
 // resolveRetentionDays picks the tenant's retention days: tenant DB override or
 // registry default. This setting has no env-var fallback, so ResolveInt already
 // returns the registry default (90) when no tenant override exists — there is no
-// "no override" case to distinguish, hence no HasTenantOverride check. The
-// literal fallback is only reached when the settings service is not wired in
-// tests. A resolution error aborts cleanup so a transient settings failure
-// cannot shorten a tenant's configured retention period.
+// "no override" case to distinguish, hence no HasTenantOverride check. Missing
+// settings wiring or a resolution error aborts cleanup so no unverified
+// retention period can delete tenant data.
 func (s *studentChangeLogCleanupService) resolveRetentionDays(ctx context.Context) (int, error) {
 	if s.settings == nil {
-		return studentChangeLogRetentionDefaultDays, nil
+		return 0, fmt.Errorf("resolve student change-log retention: settings service not configured")
 	}
 	v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRStudentChangeLogRetentionDays)
 	if err != nil {

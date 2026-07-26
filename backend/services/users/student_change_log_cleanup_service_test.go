@@ -2,11 +2,14 @@ package users_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -70,6 +73,17 @@ func cleanupChangeLogRows(tb testing.TB, db *bun.DB, studentID int64) {
 	_, _ = db.NewRaw(`DELETE FROM audit.student_field_edits WHERE student_id = ?`, studentID).Exec(ctx)
 }
 
+func changeLogSettings(retentionDays int) *configtest.Mock {
+	return &configtest.Mock{
+		ResolveIntFn: func(_ context.Context, key string) (int, error) {
+			if key != configModel.KeyGDPRStudentChangeLogRetentionDays {
+				return 0, fmt.Errorf("unexpected setting key %q", key)
+			}
+			return retentionDays, nil
+		},
+	}
+}
+
 func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -85,8 +99,12 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db)
-	// Nil settings → registry default is bypassed; service falls back to 90.
-	svc := usersSvc.NewStudentChangeLogCleanupService(repos.StudentFieldEdit, repos.DataDeletion, nil, nil)
+	svc := usersSvc.NewStudentChangeLogCleanupService(
+		repos.StudentFieldEdit,
+		repos.DataDeletion,
+		changeLogSettings(90),
+		nil,
+	)
 
 	result, err := svc.CleanupExpiredChangeLog(ctx)
 	require.NoError(t, err)
@@ -112,7 +130,12 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(30))
 
 	repos := repoFactory.NewFactory(db)
-	svc := usersSvc.NewStudentChangeLogCleanupService(repos.StudentFieldEdit, repos.DataDeletion, nil, nil)
+	svc := usersSvc.NewStudentChangeLogCleanupService(
+		repos.StudentFieldEdit,
+		repos.DataDeletion,
+		changeLogSettings(90),
+		nil,
+	)
 
 	result, err := svc.CleanupExpiredChangeLog(ctx)
 	require.NoError(t, err)
