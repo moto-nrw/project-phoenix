@@ -5,6 +5,7 @@
 package admin_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -775,6 +776,139 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 			assert.Nil(t, response["data"], "Expected nil or empty array for history with no records")
 		}
 	})
+}
+
+// Editing or deleting a draft that server state has moved past is a normal
+// concurrent-admin outcome, and a bad mapping is a correctable input — the
+// handler must answer 409/404/400 so the UI can refresh or prompt, never a
+// bare 500 (#405 review).
+func TestGradeTransitionResource_UpdateDelete_ErrorMapping(t *testing.T) {
+	tc := setupTestContext(t)
+
+	account := testpkg.CreateTestAccount(t, tc.db, "update-errors-test@example.com")
+	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
+
+	t.Run("update applied transition returns 409 not_draft", func(t *testing.T) {
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
+		// A mapped class with no students: applies cleanly, moves nobody.
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, fmt.Sprintf("leer-%s", suffix), nil)
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
+
+		applyReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/apply", transition.ID), nil,
+			testutil.WithJWTBearer(token),
+		)
+		require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, applyReq).Code)
+
+		body := map[string]interface{}{"notes": "zu spät"}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", transition.ID), body,
+			testutil.WithJWTBearer(token),
+		)
+		rr := testutil.ExecuteRequest(router, req)
+		require.Equal(t, http.StatusConflict, rr.Code)
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		assert.Equal(t, "not_draft", response["code"])
+
+		delReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", transition.ID), nil,
+			testutil.WithJWTBearer(token),
+		)
+		delRR := testutil.ExecuteRequest(router, delReq)
+		require.Equal(t, http.StatusConflict, delRR.Code)
+		delResponse := testutil.ParseJSONResponse(t, delRR.Body.Bytes())
+		assert.Equal(t, "not_draft", delResponse["code"])
+	})
+
+	t.Run("update deleted transition returns 404", func(t *testing.T) {
+		body := map[string]interface{}{"notes": "weg"}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", "/999999", body,
+			testutil.WithJWTBearer(token),
+		)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+	})
+
+	t.Run("update with invalid mapping returns 400", func(t *testing.T) {
+		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
+
+		// from_class == to_class is rejected by mapping validation.
+		body := map[string]interface{}{
+			"mappings": []map[string]interface{}{
+				{"from_class": "3a", "to_class": "3a"},
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", transition.ID), body,
+			testutil.WithJWTBearer(token),
+		)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+}
+
+// The route requires only grade_transitions:read, which does not imply the
+// right to read children's RFID identifiers — the ledger's rfid_tag column
+// exists for the server-side tag restore on revert and must never cross this
+// wire (#405 review).
+func TestGradeTransitionResource_GetHistory_OmitsRFIDTag(t *testing.T) {
+	tc := setupTestContext(t)
+
+	account := testpkg.CreateTestAccount(t, tc.db, "history-rfid-test@example.com")
+	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+
+	router := tc.resource.Router()
+	token := mintAdminToken(t, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	graduateClass := fmt.Sprintf("4r-%s", suffix)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Tag", "Traeger", graduateClass)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, tc.db, "HIST")
+	testpkg.LinkRFIDToStudent(t, tc.db, student.PersonID, card.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, graduateClass, nil)
+	defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
+
+	applyReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/apply", transition.ID), nil,
+		testutil.WithJWTBearer(token),
+	)
+	applyRR := testutil.ExecuteRequest(router, applyReq)
+	require.Equal(t, http.StatusOK, applyRR.Code)
+
+	// Guard against a vacuous pass: the ledger row must actually carry the tag.
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	defer cancel()
+	var ledgerTag *string
+	require.NoError(t, tc.db.NewSelect().
+		TableExpr(`education.grade_transition_history`).
+		Column("rfid_tag").
+		Where("transition_id = ?", transition.ID).
+		Where("student_id = ?", student.ID).
+		Scan(ctx, &ledgerTag))
+	require.NotNil(t, ledgerTag, "apply must record the released tag in the ledger")
+	require.Equal(t, card.ID, *ledgerTag)
+
+	historyReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/%d/history", transition.ID), nil,
+		testutil.WithJWTBearer(token),
+	)
+	historyRR := testutil.ExecuteRequest(router, historyReq)
+	testutil.AssertSuccessResponse(t, historyRR, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, historyRR.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok)
+	require.NotEmpty(t, data)
+	for _, raw := range data {
+		row, ok := raw.(map[string]interface{})
+		require.True(t, ok)
+		_, present := row["rfid_tag"]
+		assert.False(t, present, "history response must not expose rfid_tag")
+	}
 }
 
 // ============================================================================

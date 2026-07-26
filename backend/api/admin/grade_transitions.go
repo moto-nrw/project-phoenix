@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -168,6 +169,11 @@ type MappingResponse struct {
 // this API; rendering the model directly would emit them as JSON numbers (the
 // json tags on models/education.GradeTransitionHistory and base.Model are shared
 // with persistence and are not this endpoint's to change).
+//
+// The ledger's rfid_tag column is deliberately NOT part of this shape: this
+// route requires only grade_transitions:read, which does not imply the right to
+// read children's RFID identifiers, and the UI has no use for the value — it
+// exists solely so a revert can re-link the released tags server-side.
 type HistoryResponse struct {
 	ID           int64   `json:"id,string"`
 	TransitionID int64   `json:"transition_id,string"`
@@ -177,7 +183,6 @@ type HistoryResponse struct {
 	ToClass      *string `json:"to_class,omitempty"`
 	Action       string  `json:"action"`
 	FromStatus   *string `json:"from_status,omitempty"`
-	RFIDTag      *string `json:"rfid_tag,omitempty"`
 	CreatedAt    string  `json:"created_at"`
 	// StudentState is the child's state TODAY ("alumnus" | "restored" |
 	// "purged"), not what the ledger recorded. The ledger is append-only, so a
@@ -207,7 +212,6 @@ func toHistoryResponses(rows []*education.GradeTransitionHistory, states map[int
 			ToClass:      h.ToClass,
 			Action:       h.Action,
 			FromStatus:   h.FromStatus,
-			RFIDTag:      h.RFIDTag,
 			CreatedAt:    h.CreatedAt.UTC().Format(timeFormatISO8601),
 		})
 	}
@@ -342,6 +346,10 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 		transition, txErr = rs.service.Create(ctx, createReq)
 		return txErr
 	}); err != nil {
+		if errors.Is(err, educationService.ErrInvalidTransitionData) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -404,7 +412,7 @@ func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request
 		transition, txErr = rs.service.Update(ctx, id, updateReq)
 		return txErr
 	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderDraftMutationError(w, r, err)
 		return
 	}
 
@@ -422,11 +430,30 @@ func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.service.Delete(ctx, id)
 	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderDraftMutationError(w, r, err)
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Grade transition deleted successfully")
+}
+
+// renderDraftMutationError classifies the expected outcomes of editing or
+// deleting a loaded draft that the server state has since moved past: the
+// draft was applied or reverted by another admin (409, so the UI refreshes the
+// stale editor), it was deleted entirely (404), or the submitted data is
+// invalid (400, so the admin corrects it). Everything else is a real server
+// fault and stays 500 (#405 review).
+func (rs *GradeTransitionResource) renderDraftMutationError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, educationService.ErrTransitionNotDraft):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_draft"))
+	case errors.Is(err, sql.ErrNoRows):
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("grade transition not found")))
+	case errors.Is(err, educationService.ErrInvalidTransitionData):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
 }
 
 // preview returns a preview of what will happen when the transition is applied

@@ -14,6 +14,8 @@ import {
   createGradeTransition,
   fetchSuggestedMappings,
   fetchTransitionClasses,
+  NOT_DRAFT_CODE,
+  TransitionRequestError,
   updateGradeTransition,
   type GradeTransition,
   type MappingInput,
@@ -208,8 +210,13 @@ export function TransitionEditor({
       logger.error("draft_save_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
+      // A not_draft conflict means another admin applied this draft since the
+      // editor loaded: retrying can never succeed, so say what happened
+      // instead of suggesting a retry (#405 review).
       setSaveError(
-        "Der Entwurf konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        error instanceof TransitionRequestError && error.code === NOT_DRAFT_CODE
+          ? "Der Entwurf wurde inzwischen angewendet oder gelöscht und kann nicht mehr bearbeitet werden. Bitte das Fenster schließen und die Liste aktualisieren."
+          : "Der Entwurf konnte nicht gespeichert werden. Bitte erneut versuchen.",
       );
       setSaving(false);
     }

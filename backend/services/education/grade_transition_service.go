@@ -47,6 +47,19 @@ var ErrNotLatestApplied = errors.New("only the most recently applied transition 
 // never a 500 (#405).
 var ErrPreviewStale = errors.New("the preview is out of date: the affected classes or children have changed")
 
+// ErrTransitionNotDraft is returned by Update/Delete when the targeted
+// transition is no longer a draft — another admin applied (or reverted) it
+// between the editor's load and this write. A normal concurrent-edit outcome,
+// not a server fault: handlers map it to 409 Conflict so the UI refreshes the
+// stale editor instead of showing a generic failure (#405 review).
+var ErrTransitionNotDraft = errors.New("must be in draft status")
+
+// ErrInvalidTransitionData wraps client-correctable validation failures in a
+// submitted transition or its mappings (bad academic-year format, empty
+// from_class, from_class equal to to_class). Handlers map it to 400 Bad
+// Request so the admin can fix the input, never a 500 (#405 review).
+var ErrInvalidTransitionData = errors.New("invalid transition data")
+
 // CreateTransitionRequest contains data for creating a new transition
 type CreateTransitionRequest struct {
 	AcademicYear string           `json:"academic_year"`
@@ -194,7 +207,7 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTr
 // Create creates a new grade transition with mappings
 func (s *GradeTransitionService) Create(ctx context.Context, req CreateTransitionRequest) (*education.GradeTransition, error) {
 	if req.AcademicYear == "" {
-		return nil, errors.New("academic_year is required")
+		return nil, fmt.Errorf("%w: academic_year is required", ErrInvalidTransitionData)
 	}
 
 	transition := &education.GradeTransition{
@@ -205,7 +218,7 @@ func (s *GradeTransitionService) Create(ctx context.Context, req CreateTransitio
 	}
 
 	if err := transition.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrInvalidTransitionData, err)
 	}
 
 	transition.SetTenantID(tenant.FromContext(ctx))
@@ -258,7 +271,7 @@ func (s *GradeTransitionService) buildMappings(transitionID int64, inputs []Mapp
 			ToClass:      m.ToClass,
 		}
 		if err := mapping.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid mapping for class %s: %w", m.FromClass, err)
+			return nil, fmt.Errorf("%w: invalid mapping for class %s: %w", ErrInvalidTransitionData, m.FromClass, err)
 		}
 		mappings = append(mappings, mapping)
 	}
@@ -292,13 +305,13 @@ func (s *GradeTransitionService) Update(ctx context.Context, id int64, req Updat
 	}
 
 	if !transition.CanModify() {
-		return nil, errors.New("cannot modify transition: must be in draft status")
+		return nil, fmt.Errorf("cannot modify transition: %w", ErrTransitionNotDraft)
 	}
 
 	applyTransitionUpdates(transition, req)
 
 	if err := transition.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrInvalidTransitionData, err)
 	}
 
 	if err := s.transitionRepo.Update(ctx, transition); err != nil {
@@ -373,7 +386,7 @@ func (s *GradeTransitionService) Delete(ctx context.Context, id int64) error {
 	}
 
 	if !transition.CanModify() {
-		return errors.New("cannot delete transition: must be in draft status")
+		return fmt.Errorf("cannot delete transition: %w", ErrTransitionNotDraft)
 	}
 
 	return s.transitionRepo.Delete(ctx, id)
@@ -1377,10 +1390,11 @@ func (s *GradeTransitionService) executeRevert(
 
 	// Re-add the restored children to already-materialized rosters they were
 	// dropped from (replayed from the archive, with today's day statuses) or
-	// never added to (materialized while alumni) (#405 review). Only the children this revert
-	// actually reactivated — a graduate whose status was changed by hand since
-	// the apply is deliberately left as-is, and putting them back on future
-	// rosters would contradict that decision.
+	// never added to (materialized while alumni) (#405 review). Only the children
+	// this revert restored AS ACTIVE — a graduate whose status was changed by
+	// hand since the apply is deliberately left as-is, and one restored to the
+	// pending or inactive state it held before the transition belongs off
+	// actionable future rosters just like any other non-active child.
 	if err := s.reconcileRestoredRosters(ctx, transition, reactivated); err != nil {
 		return err
 	}
@@ -1392,10 +1406,11 @@ func (s *GradeTransitionService) executeRevert(
 // transition took them off, and fills the instances materialized after the apply
 // from enrollments. No-op when no reconciler is wired.
 //
-// `ids` are the students whose lifecycle status this revert actually restored —
-// never the whole graduated history. A child who is no longer an alumnus for
-// another reason (manually set inactive, say) is skipped by the reactivation and
-// must stay off the rosters too (#405 review).
+// `ids` are the students this revert restored as active — never the whole
+// graduated history. A child who is no longer an alumnus for another reason
+// (manually set inactive, say) is skipped by the reactivation, and one restored
+// to its recorded pending/inactive pre-transition status stays off the rosters
+// for the same reason: neither is an active child (#405 review).
 func (s *GradeTransitionService) reconcileRestoredRosters(
 	ctx context.Context,
 	transition *education.GradeTransition,
@@ -1469,9 +1484,10 @@ func (s *GradeTransitionService) revertPromotedStudents(
 // students whose rows were deleted or manually changed since cannot be restored
 // and are reported as a warning.
 //
-// Returns the ids actually restored, so the caller reconciles rosters for
-// exactly those children and not for the ones it deliberately skipped
-// (#405 review).
+// Returns the ids restored AS ACTIVE, and only those: the caller feeds them to
+// the roster reconciler, and a child restored to pending or inactive must not
+// reappear on actionable future rosters — the roster removal is exactly what
+// those lifecycle states mean (#405 review).
 func (s *GradeTransitionService) revertGraduatedStudents(
 	ctx context.Context,
 	graduated []*education.GradeTransitionHistory,
@@ -1492,12 +1508,16 @@ func (s *GradeTransitionService) revertGraduatedStudents(
 	}
 
 	restored := make([]int64, 0, len(graduated))
+	restoredActive := make([]int64, 0, len(graduated))
 	for status, ids := range byStatus {
 		reactivated, err := s.transitionRepo.ReactivateStudentsToStatus(ctx, ids, status)
 		if err != nil {
 			return nil, fmt.Errorf("failed to reactivate graduated students: %w", err)
 		}
 		restored = append(restored, reactivated...)
+		if status == string(users.StudentStatusActive) {
+			restoredActive = append(restoredActive, reactivated...)
+		}
 	}
 	result.StudentsGraduated = len(restored)
 
@@ -1507,11 +1527,12 @@ func (s *GradeTransitionService) revertGraduatedStudents(
 				notRestored))
 	}
 
-	// Hand the bracelets back to exactly the children this revert reactivated.
+	// Hand the bracelets back to exactly the children this revert reactivated —
+	// including the pending/inactive ones, whose tag link the apply released too.
 	if err := s.restoreGraduateTags(ctx, graduated, restored, result); err != nil {
 		return nil, err
 	}
-	return restored, nil
+	return restoredActive, nil
 }
 
 // restoreGraduateTags re-links the RFID tags the apply released, for the

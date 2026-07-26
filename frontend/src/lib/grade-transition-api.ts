@@ -349,6 +349,14 @@ export const NOT_LATEST_TRANSITION_CODE = "not_latest_transition";
 export const PREVIEW_STALE_CODE = "preview_stale";
 
 /**
+ * Stable backend error code returned (409) when an update or delete targets a
+ * transition that is no longer a draft — another administrator applied it since
+ * this page loaded. Retrying is pointless; the caller must reload the list.
+ * Mirrors the code the Go handler sets via ErrorConflictWithCode (#405).
+ */
+export const NOT_DRAFT_CODE = "not_draft";
+
+/**
  * Error thrown by {@link applyGradeTransition} and {@link revertGradeTransition}
  * that preserves the backend's stable error `code`, so the caller can
  * distinguish a recoverable conflict (graduates still checked in, stale revert
@@ -459,6 +467,13 @@ export async function updateGradeTransition(
       mappings: input.mappings ? toBackendMappings(input.mappings) : undefined,
     }),
   });
+  if (!response.ok) {
+    // Keep the stable code: a NOT_DRAFT_CODE conflict means the loaded draft
+    // was applied by another admin, and the editor must say so instead of
+    // suggesting a retry that can never succeed (#405 review).
+    const { message, code } = await readErrorWithCode(response);
+    throw new TransitionRequestError(message, code);
+  }
   return mapTransition(await readJSON<BackendGradeTransition>(response));
 }
 
@@ -467,7 +482,8 @@ export async function deleteGradeTransition(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) {
-    throw new Error(await readError(response));
+    const { message, code } = await readErrorWithCode(response);
+    throw new TransitionRequestError(message, code);
   }
 }
 

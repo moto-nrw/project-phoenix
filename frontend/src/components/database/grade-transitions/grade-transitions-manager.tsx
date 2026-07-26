@@ -14,6 +14,7 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   deleteGradeTransition,
   listGradeTransitions,
+  NOT_DRAFT_CODE,
   NOT_LATEST_TRANSITION_CODE,
   revertGradeTransition,
   TransitionRequestError,
@@ -291,7 +292,21 @@ export function GradeTransitionsManager({
         transition_id: deleteTarget.id,
         error: error instanceof Error ? error.message : String(error),
       });
-      toast.error("Löschen fehlgeschlagen. Bitte erneut versuchen.");
+      // A not_draft conflict means another admin applied this draft since the
+      // list was fetched. Retrying the delete can never succeed, so reload the
+      // list and close the dialog instead of suggesting a retry (#405 review).
+      if (
+        error instanceof TransitionRequestError &&
+        error.code === NOT_DRAFT_CODE
+      ) {
+        setDeleteTarget(null);
+        void refresh();
+        toast.error(
+          "Der Entwurf wurde inzwischen angewendet und kann nicht mehr gelöscht werden. Die Liste wurde neu geladen.",
+        );
+      } else {
+        toast.error("Löschen fehlgeschlagen. Bitte erneut versuchen.");
+      }
     } finally {
       setBusy(false);
     }

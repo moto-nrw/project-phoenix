@@ -1287,6 +1287,65 @@ func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *test
 		"the manual status decision survives the revert")
 }
 
+// A graduate whose recorded from_status was pending or inactive IS restored by
+// the revert — to exactly that status — but must NOT be replayed onto future
+// rosters: being off actionable rosters is what those lifecycle states mean,
+// and the apply's roster removal is the correct end state for them (#405
+// review).
+func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	reconciler := &recordingRosterReconciler{}
+	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
+		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
+		StudentRepo:      usersRepo.NewStudentRepository(db),
+		PersonRepo:       usersRepo.NewPersonRepository(db),
+		RosterReconciler: reconciler,
+		DB:               db,
+	})
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-revert-pending@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	graduateClass := fmt.Sprintf("4pend-%s", suffix)
+
+	activeChild := testpkg.CreateTestStudent(t, db, "Aktiv", "Zurueck", graduateClass)
+	pendingChild := testpkg.CreateTestStudent(t, db, "Wartet", "Noch", graduateClass)
+	defer testpkg.CleanupActivityFixtures(t, db, activeChild.ID, pendingChild.ID)
+
+	// A future enrollment that never started: the child graduates with
+	// from_status = pending and must come back as exactly that.
+	_, err := db.NewRaw(`UPDATE users.students SET status = 'pending' WHERE id = ?`, pendingChild.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err = service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	result, err := service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.StudentsGraduated, "both graduates are restored")
+	assert.Empty(t, result.Warnings)
+
+	assert.Equal(t, []int64{activeChild.ID}, reconciler.restored,
+		"only the child restored as active is replayed onto future rosters")
+
+	var status string
+	require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("status").
+		Where("id = ?", pendingChild.ID).Scan(ctx, &status))
+	assert.Equal(t, string(users.StudentStatusPending), status,
+		"the pending child returns to pending, not active")
+}
+
 func TestGradeTransitionService_Preview_NoMappings(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
