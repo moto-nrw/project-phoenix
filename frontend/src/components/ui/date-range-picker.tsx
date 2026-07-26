@@ -43,6 +43,7 @@ export function DateRangePicker({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -50,7 +51,7 @@ export function DateRangePicker({
       // The panel now lives in a portal outside containerRef, so it has to be
       // treated as "inside" explicitly — otherwise clicking a day would close
       // the panel before the selection lands.
-      if (document.querySelector("[data-range-panel]")?.contains(target)) {
+      if (panelRef.current?.contains(target)) {
         return;
       }
       if (containerRef.current && !containerRef.current.contains(target)) {
@@ -90,6 +91,7 @@ export function DateRangePicker({
       {isOpen && (
         <RangeCalendar
           triggerRef={triggerRef}
+          panelRef={panelRef}
           value={value}
           presets={presets}
           fromMin={fromMin}
@@ -125,11 +127,12 @@ function formatRangeLabel(range: DateRange | undefined): string {
 // instead of always hugging the right via `sm:right-0`.
 function RangeCalendar({
   triggerRef,
+  panelRef,
   ...props
 }: RangeCalendarProps & {
   readonly triggerRef: React.RefObject<HTMLElement | null>;
+  readonly panelRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
   const [geometry, setGeometry] = useState<PanelGeometry | null>(null);
   const [isNarrowViewport, setIsNarrowViewport] = useState<boolean | null>(
     null,
@@ -161,7 +164,7 @@ function RangeCalendar({
     );
     // `mounted` gates the portal, so the panel only exists to measure once it
     // is true — the effect below has to re-run at that point.
-  }, [triggerRef, mounted]);
+  }, [triggerRef, panelRef, mounted]);
 
   useEffect(() => {
     setMounted(true);

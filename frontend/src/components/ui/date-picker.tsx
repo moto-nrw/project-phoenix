@@ -189,6 +189,13 @@ export function DatePicker({
     setMounted(true);
   }, []);
 
+  // A caller can disable the field while an async submission is in flight.
+  // The portal lives outside the disabled trigger, so close it explicitly and
+  // keep it out of the render tree in the same commit.
+  useEffect(() => {
+    if (isDisabled) setIsOpen(false);
+  }, [isDisabled]);
+
   const syncPopoverPosition = useCallback(() => {
     if (!containerRef.current) return;
     setPopoverPosition(
@@ -410,8 +417,13 @@ export function DatePicker({
           the calendar into document.body at a viewport-fixed position. Portals
           only exist client-side, hence the `mounted` guard on that branch, and
           the position guard keeps the first paint from landing at the origin. */}
-      {isOpen && !isPopover && calendar}
-      {isOpen && isPopover && mounted && popoverPosition && portalContainer
+      {isOpen && !isDisabled && !isPopover && calendar}
+      {isOpen &&
+      !isDisabled &&
+      isPopover &&
+      mounted &&
+      popoverPosition &&
+      portalContainer
         ? createPortal(
             needsPortalledFocusScope ? (
               <FocusScope asChild loop trapped>

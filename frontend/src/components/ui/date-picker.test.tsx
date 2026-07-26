@@ -354,6 +354,19 @@ describe("DatePicker", () => {
     });
   });
 
+  it("closes an open calendar when the picker becomes disabled", async () => {
+    const { rerender } = render(
+      <DatePicker value={null} onChange={mockOnChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+
+    rerender(<DatePicker value={null} onChange={mockOnChange} disabled />);
+
+    expect(screen.queryByTestId("day-picker")).not.toBeInTheDocument();
+  });
+
   it("changes text color when date is selected", () => {
     const testDate = new Date("2024-01-15T00:00:00Z");
     const { rerender } = render(
