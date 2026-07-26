@@ -243,11 +243,20 @@ func (c *webPushChannel) handleResponse(ctx context.Context, event Event, sub *i
 		return
 	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
 		// The push service says this subscription no longer exists — prune it.
-		if err := c.deleteExpiredSubscription(ctx, sub); err != nil {
+		deleted, err := c.deleteExpiredSubscription(ctx, sub)
+		if err != nil {
 			c.getLogger().Warn("failed to prune expired push subscription",
 				"subscription_id", sub.ID,
 				"tenant_id", sub.TenantID,
 				"error", err.Error(),
+			)
+			return
+		}
+		if !deleted {
+			c.getLogger().Debug("kept refreshed push subscription after stale expiry response",
+				"subscription_id", sub.ID,
+				"tenant_id", sub.TenantID,
+				"status", resp.StatusCode,
 			)
 			return
 		}
@@ -266,15 +275,19 @@ func (c *webPushChannel) handleResponse(ctx context.Context, event Event, sub *i
 	}
 }
 
-func (c *webPushChannel) deleteExpiredSubscription(ctx context.Context, sub *iot.PushSubscription) error {
+func (c *webPushChannel) deleteExpiredSubscription(ctx context.Context, sub *iot.PushSubscription) (bool, error) {
 	// Unit tests use repository fakes without a database. Production always
 	// opens a short tenant transaction so RLS applies to the cleanup.
 	if c.db == nil {
-		return c.repo.Delete(ctx, sub.ID)
+		return c.repo.DeleteExpiredIfUnchanged(ctx, sub)
 	}
-	return tenant.WithTenantTx(ctx, c.db, sub.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return c.repo.Delete(txCtx, sub.ID)
+	var deleted bool
+	err := tenant.WithTenantTx(ctx, c.db, sub.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		deleted, err = c.repo.DeleteExpiredIfUnchanged(txCtx, sub)
+		return err
 	})
+	return deleted, err
 }
 
 // pushOptionsForPriority maps the abstraction's priority to Web Push TTL and

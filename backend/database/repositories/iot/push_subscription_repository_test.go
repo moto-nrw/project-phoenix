@@ -311,6 +311,61 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.False(t, hasSubscriptionEndpoint(subs, endpoint))
 	})
 
+	t.Run("expired cleanup preserves a refreshed subscription", func(t *testing.T) {
+		raceEndpoint := endpoint + "/refresh-race"
+		require.NoError(t, repo.Upsert(ctx, newSubscription(account.ID, iotModels.PushPortalStaff, raceEndpoint)))
+
+		var sentSnapshot iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&sentSnapshot).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".tenant_id = ?`, tenant.FromContext(ctx)).
+			Where(`"push_subscription".endpoint = ?`, raceEndpoint).
+			Scan(context.Background()))
+
+		refreshed := newSubscription(account.ID, iotModels.PushPortalStaff, raceEndpoint)
+		refreshed.P256dh = "refreshed-p256dh"
+		refreshed.Auth = "refreshed-auth"
+		require.NoError(t, repo.Upsert(ctx, refreshed))
+
+		deleted, err := repo.DeleteExpiredIfUnchanged(ctx, &sentSnapshot)
+		require.NoError(t, err)
+		assert.False(t, deleted)
+
+		var current iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&current).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".tenant_id = ?`, tenant.FromContext(ctx)).
+			Where(`"push_subscription".endpoint = ?`, raceEndpoint).
+			Scan(context.Background()))
+		assert.Equal(t, "refreshed-p256dh", current.P256dh)
+		assert.Equal(t, "refreshed-auth", current.Auth)
+
+		rebound := newSubscription(guardian.ID, iotModels.PushPortalParent, raceEndpoint)
+		rebound.P256dh = current.P256dh
+		rebound.Auth = current.Auth
+		require.NoError(t, repo.Upsert(ctx, rebound))
+
+		deleted, err = repo.DeleteExpiredIfUnchanged(ctx, &current)
+		require.NoError(t, err)
+		assert.False(t, deleted)
+
+		var reboundCurrent iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&reboundCurrent).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".tenant_id = ?`, tenant.FromContext(ctx)).
+			Where(`"push_subscription".endpoint = ?`, raceEndpoint).
+			Scan(context.Background()))
+		assert.Equal(t, guardian.ID, reboundCurrent.AccountID)
+		assert.Equal(t, iotModels.PushPortalParent, reboundCurrent.Portal)
+
+		deleted, err = repo.DeleteExpiredIfUnchanged(ctx, &reboundCurrent)
+		require.NoError(t, err)
+		assert.True(t, deleted)
+	})
+
 	t.Run("account-wide staff deletion preserves parent subscriptions", func(t *testing.T) {
 		staffEndpoint := endpoint + "/logout-staff"
 		parentEndpoint := endpoint + "/logout-parent"

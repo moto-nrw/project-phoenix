@@ -88,6 +88,34 @@ func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, accou
 	return nil
 }
 
+// DeleteExpiredIfUnchanged removes an expired subscription only while it still
+// matches the snapshot sent to the push service. A concurrent refresh or
+// account rebind changes at least one predicate and preserves the current row.
+func (r *PushSubscriptionRepository) DeleteExpiredIfUnchanged(ctx context.Context, sub *iot.PushSubscription) (bool, error) {
+	query := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*iot.PushSubscription)(nil)).
+		ModelTableExpr(tablePushSubscriptions).
+		Where("id = ?", sub.ID).
+		Where("account_id = ?", sub.AccountID).
+		Where("portal = ?", sub.Portal).
+		Where("endpoint = ?", sub.Endpoint).
+		Where("p256dh = ?", sub.P256dh).
+		Where("auth = ?", sub.Auth).
+		Where("updated_at = ?", sub.UpdatedAt)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "delete unchanged expired push subscription", Err: err}
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "count deleted expired push subscriptions", Err: err}
+	}
+	return rows > 0, nil
+}
+
 // DeleteParentByEndpoint serializes rebinds, then removes every parent-portal
 // binding for an endpoint across tenants. The caller must supply an admin
 // transaction because a parent device can be linked to several schools.

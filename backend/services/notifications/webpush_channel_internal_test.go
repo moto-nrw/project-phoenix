@@ -26,12 +26,14 @@ import (
 // embedded interface panics on anything else (nothing else may be called).
 type fakePushRepo struct {
 	iot.PushSubscriptionRepository
-	staff     []*iot.PushSubscription
-	admins    []*iot.PushSubscription
-	guardians map[int64][]*iot.PushSubscription
-	deleted   []any
-	deleteErr error
-	mu        sync.Mutex
+	staff          []*iot.PushSubscription
+	admins         []*iot.PushSubscription
+	guardians      map[int64][]*iot.PushSubscription
+	deleted        []any
+	deleteAttempts []*iot.PushSubscription
+	keepExpired    bool
+	deleteErr      error
+	mu             sync.Mutex
 }
 
 func (f *fakePushRepo) FindForTenantStaff(context.Context) ([]*iot.PushSubscription, error) {
@@ -50,11 +52,18 @@ func (f *fakePushRepo) FindForGuardians(_ context.Context, accountIDs []int64) (
 	return subscriptions, nil
 }
 
-func (f *fakePushRepo) Delete(_ context.Context, id any) error {
+func (f *fakePushRepo) DeleteExpiredIfUnchanged(_ context.Context, sub *iot.PushSubscription) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.deleted = append(f.deleted, id)
-	return f.deleteErr
+	f.deleteAttempts = append(f.deleteAttempts, sub)
+	if f.deleteErr != nil {
+		return false, f.deleteErr
+	}
+	if f.keepExpired {
+		return false, nil
+	}
+	f.deleted = append(f.deleted, sub.ID)
+	return true, nil
 }
 
 // fakeSender records every push request and replies with a scripted status
@@ -176,6 +185,22 @@ func TestWebPushPrunesExpiredSubscriptions(t *testing.T) {
 	assert.Equal(t, int64(11), repo.deleted[0])
 }
 
+func TestWebPushKeepsSubscriptionRefreshedDuringDelivery(t *testing.T) {
+	sentSnapshot := testSub(11, 41, "https://fcm.googleapis.com/refreshed")
+	repo := &fakePushRepo{keepExpired: true}
+	channel := testChannel(repo, &fakeSender{})
+	event := Event{Type: "test", Audience: Audience{TenantID: 41, Scope: ScopeTenant}, Priority: PriorityNormal, Title: "t"}
+
+	channel.handleResponse(context.Background(), event, sentSnapshot, &http.Response{
+		StatusCode: http.StatusGone,
+		Body:       io.NopCloser(strings.NewReader("")),
+	})
+
+	require.Len(t, repo.deleteAttempts, 1)
+	assert.Same(t, sentSnapshot, repo.deleteAttempts[0])
+	assert.Empty(t, repo.deleted)
+}
+
 func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	staff := []*iot.PushSubscription{testSub(1, 41, "https://fcm.googleapis.com/s")}
 	admins := []*iot.PushSubscription{testSub(2, 41, "https://fcm.googleapis.com/a")}
@@ -258,7 +283,9 @@ func TestWebPushHandlesDeliveryFailures(t *testing.T) {
 	channel.handleResponse(context.Background(), event, rejected, nil)
 
 	require.Len(t, sender.sent, 3)
-	assert.Equal(t, []any{int64(22)}, repo.deleted)
+	require.Len(t, repo.deleteAttempts, 1)
+	assert.Equal(t, int64(22), repo.deleteAttempts[0].ID)
+	assert.Empty(t, repo.deleted)
 }
 
 func TestWebPushRejectsOversizedPayload(t *testing.T) {
