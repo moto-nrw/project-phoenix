@@ -1189,7 +1189,7 @@ describe("StudentDetailPage", () => {
     });
   });
 
-  describe("Guardian Manager Updates", () => {
+  describe("Embedded Manager Updates", () => {
     it("refreshes data when guardian manager triggers update", async () => {
       render(<StudentDetailPage />);
 
@@ -1198,6 +1198,19 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(mockRefreshData).toHaveBeenCalled();
+      });
+    });
+
+    it("revalidates field history when the care schedule triggers an update", async () => {
+      render(<StudentDetailPage />);
+
+      fireEvent.click(screen.getByTestId("update-care-schedule"));
+
+      await waitFor(() => {
+        expect(mockRefreshData).toHaveBeenCalled();
+        expect(mockSWRMutate).toHaveBeenCalledWith(
+          "/api/students/1/change-history",
+        );
       });
     });
   });

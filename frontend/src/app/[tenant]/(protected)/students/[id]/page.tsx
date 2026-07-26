@@ -341,6 +341,15 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  const refreshDataAndHistory = useCallback(() => {
+    refreshData();
+    return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
+      logger.debug("change_history_revalidation_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+    });
+  }, [mutate, refreshData, studentId]);
   const canViewEnrollments =
     sessionStatus === "authenticated" &&
     hasPermission(session, "config:manage");
@@ -662,8 +671,7 @@ function StudentDetailPageContent() {
       pickup_days: editedStudent.pickup_days,
     });
 
-    await mutate(`/api/students/${studentId}/change-history`);
-    refreshData();
+    await refreshDataAndHistory();
     toast.success("Persönliche Informationen erfolgreich aktualisiert");
   };
 
@@ -1012,7 +1020,7 @@ function StudentDetailPageContent() {
             onOpenPersonalInfoModal={() => setShowPersonalInfoModal(true)}
             onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
-            onRefreshData={refreshData}
+            onRefreshData={refreshDataAndHistory}
             onSickClick={handleSickClick}
             sickLoading={sickLoading}
             isQuickExcused={isQuickExcused}
