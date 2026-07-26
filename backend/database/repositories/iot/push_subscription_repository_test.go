@@ -54,6 +54,35 @@ func setAccountTenantStatus(t *testing.T, db *bun.DB, status string, accountIDs 
 	require.NoError(t, err)
 }
 
+func setAccountActive(t *testing.T, db *bun.DB, active bool, accountIDs ...int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("auth.accounts").
+		Set("active = ?", active).
+		Where("id IN (?)", bun.List(accountIDs)).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+func assignSystemRole(t *testing.T, db *bun.DB, accountID, tenantID int64, roleName string) {
+	t.Helper()
+	var roleID int64
+	err := db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", roleName).
+		Scan(context.Background(), &roleID)
+	require.NoError(t, err)
+
+	roleAssignment := &authModels.AccountRole{AccountID: accountID, RoleID: roleID}
+	roleAssignment.SetTenantID(tenantID)
+	_, err = db.NewInsert().
+		Model(roleAssignment).
+		ModelTableExpr("auth.account_roles").
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
 func newSubscription(accountID int64, portal, endpoint string) *iotModels.PushSubscription {
 	sub := &iotModels.PushSubscription{
 		AccountID: accountID,
@@ -100,6 +129,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	defer cleanupPushSubscriptions(t, db, account.ID, guardian.ID)
 	createAccountTenantMapping(t, db, account.ID, 1)
 	createAccountTenantMapping(t, db, guardian.ID, 1)
+	assignSystemRole(t, db, account.ID, 1, authModels.BaseRoleUser)
+	assignSystemRole(t, db, guardian.ID, 1, authModels.BaseRoleGuardian)
 
 	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/%d", time.Now().UnixNano())
 
@@ -132,10 +163,27 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.Len(t, subs, 1)
 		assert.Equal(t, parentEndpoint, subs[0].Endpoint)
 
-		// The staff finder must not return parent-portal rows.
+		// A stale staff-portal row must not restore tenant delivery after the
+		// account becomes guardian-only.
+		require.NoError(t, repo.Upsert(ctx, newSubscription(
+			guardian.ID,
+			iotModels.PushPortalStaff,
+			endpoint+"/guardian-staff",
+		)))
 		staffSubs, err := repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
 		assert.Empty(t, subscriptionsForAccount(staffSubs, guardian.ID))
+
+		// Conversely, a parent-portal row for a staff-only account is not a
+		// guardian recipient.
+		require.NoError(t, repo.Upsert(ctx, newSubscription(
+			account.ID,
+			iotModels.PushPortalParent,
+			endpoint+"/staff-parent",
+		)))
+		subs, err = repo.FindForGuardian(ctx, account.ID)
+		require.NoError(t, err)
+		assert.Empty(t, subs)
 	})
 
 	t.Run("admin finder returns only admin-role accounts", func(t *testing.T) {
@@ -144,18 +192,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.Empty(t, subscriptionsForAccount(subs, account.ID), "account without admin role must not appear")
 
 		// Grant the seeded admin role and expect the subscription to appear.
-		var adminRoleID int64
-		err = db.NewSelect().
-			ColumnExpr("id").
-			TableExpr("auth.roles").
-			Where("name = ?", authModels.BaseRoleAdmin).
-			Scan(context.Background(), &adminRoleID)
-		require.NoError(t, err)
-
-		roleAssignment := &authModels.AccountRole{AccountID: account.ID, RoleID: adminRoleID}
-		roleAssignment.SetTenantID(1)
-		_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
-		require.NoError(t, err)
+		assignSystemRole(t, db, account.ID, 1, authModels.BaseRoleAdmin)
 
 		subs, err = repo.FindForTenantAdmins(ctx)
 		require.NoError(t, err)
@@ -165,6 +202,23 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	t.Run("recipient finders exclude inactive tenant mappings", func(t *testing.T) {
 		setAccountTenantStatus(t, db, authModels.AccountTenantStatusInactive, account.ID, guardian.ID)
 		defer setAccountTenantStatus(t, db, authModels.AccountTenantStatusActive, account.ID, guardian.ID)
+
+		staffSubs, err := repo.FindForTenantStaff(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, subscriptionsForAccount(staffSubs, account.ID))
+
+		adminSubs, err := repo.FindForTenantAdmins(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, subscriptionsForAccount(adminSubs, account.ID))
+
+		guardianSubs, err := repo.FindForGuardian(ctx, guardian.ID)
+		require.NoError(t, err)
+		assert.Empty(t, guardianSubs)
+	})
+
+	t.Run("recipient finders exclude inactive accounts", func(t *testing.T) {
+		setAccountActive(t, db, false, account.ID, guardian.ID)
+		defer setAccountActive(t, db, true, account.ID, guardian.ID)
 
 		staffSubs, err := repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
@@ -211,6 +265,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		ordinary.ID:    "ordinary",
 	} {
 		createAccountTenantMapping(t, db, accountID, 1)
+		assignSystemRole(t, db, accountID, 1, authModels.BaseRoleUser)
 		require.NoError(t, repo.Upsert(ctx, newSubscription(
 			accountID,
 			iotModels.PushPortalStaff,

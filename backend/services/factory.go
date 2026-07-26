@@ -1583,10 +1583,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                  logger.With("service", "parent"),
 	})
 
+	vapidConfig := notifications.VAPIDConfig{
+		PublicKey:  viper.GetString("vapid_public_key"),
+		PrivateKey: viper.GetString("vapid_private_key"),
+		Subscriber: viper.GetString("vapid_subscriber"),
+	}
+	if !vapidConfig.Configured() {
+		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
+	}
+	notificationsService := notifications.NewService(
+		settingsService,
+		logger.With("service", "notifications"),
+		notifications.NewSSEChannel(realtimeHub),
+		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
+	)
+
 	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
 		Repo:       repos.ParentAnnouncement,
 		Settings:   settingsService,
 		Outbox:     emailOutboxService,
+		Notifier:   notificationsService,
 		ParentsURL: parentsURL,
 		Logger:     logger.With("service", "announcement"),
 	})
@@ -1641,20 +1657,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              logger.With("service", "slot_lists"),
 	})
 
-	vapidConfig := notifications.VAPIDConfig{
-		PublicKey:  viper.GetString("vapid_public_key"),
-		PrivateKey: viper.GetString("vapid_private_key"),
-		Subscriber: viper.GetString("vapid_subscriber"),
-	}
-	if !vapidConfig.Configured() {
-		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
-	}
-	notificationsService := notifications.NewService(
-		settingsService,
-		logger.With("service", "notifications"),
-		notifications.NewSSEChannel(realtimeHub),
-		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
-	)
 	pushSubscriptionsService := notifications.NewPushSubscriptionService(
 		db,
 		repos.PushSubscription,

@@ -19,6 +19,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -41,6 +42,10 @@ const (
 	// relatedEntityTypeAnnouncement links an outbox row back to its announcement.
 	// Shared by the enqueue and cancel paths so they never drift apart.
 	relatedEntityTypeAnnouncement = "parent_announcement"
+
+	parentAnnouncementNotificationType  = "parent_announcement"
+	parentAnnouncementNotificationTitle = "Neue Elternmitteilung"
+	parentAnnouncementNotificationBody  = "Eine neue Mitteilung ist im Elternportal verfügbar."
 )
 
 // Sentinel errors mapped to HTTP status by the handler.
@@ -90,12 +95,13 @@ type Service interface {
 	Recipients(ctx context.Context, id int64) ([]*usersModels.AnnouncementRecipientStatus, error)
 }
 
-// ServiceConfig is the dependency bundle. Outbox + ParentsURL are optional: a
-// nil Outbox disables e-mail notification (the in-app feed still works).
+// ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
+// optional: nil delivery dependencies leave the in-app feed working.
 type ServiceConfig struct {
 	Repo       usersModels.ParentAnnouncementRepository
 	Settings   configService.SettingsService
 	Outbox     OutboxEnqueuer
+	Notifier   notifications.Service
 	ParentsURL string
 	Logger     *slog.Logger
 }
@@ -104,6 +110,7 @@ type service struct {
 	repo       usersModels.ParentAnnouncementRepository
 	settings   configService.SettingsService
 	outbox     OutboxEnqueuer
+	notifier   notifications.Service
 	parentsURL string
 	logger     *slog.Logger
 }
@@ -118,6 +125,7 @@ func NewService(cfg ServiceConfig) Service {
 		repo:       cfg.Repo,
 		settings:   cfg.Settings,
 		outbox:     cfg.Outbox,
+		notifier:   cfg.Notifier,
 		parentsURL: cfg.ParentsURL,
 		logger:     logger,
 	}
@@ -322,6 +330,9 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 				return nil, fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
 			}
 			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
+			if err := s.notifyAnnouncementGuardians(ctx, fresh); err != nil {
+				return nil, fmt.Errorf("announcement: publish push notifications: %w", err)
+			}
 			if fresh.SendEmail {
 				if err := s.enqueueAnnouncementEmails(ctx, fresh); err != nil {
 					return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
@@ -330,6 +341,41 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 		}
 	}
 	return s.Get(ctx, id)
+}
+
+func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+	if s.notifier == nil {
+		return nil
+	}
+	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
+	if err != nil {
+		return fmt.Errorf("resolve guardian recipients: %w", err)
+	}
+	priority := notifications.PriorityNormal
+	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
+		priority = notifications.PriorityHigh
+	}
+	for _, recipient := range recipients {
+		err := s.notifier.Notify(ctx, notifications.Event{
+			Type:     parentAnnouncementNotificationType,
+			Title:    parentAnnouncementNotificationTitle,
+			Body:     parentAnnouncementNotificationBody,
+			DeepLink: "/",
+			Priority: priority,
+			Audience: notifications.Audience{
+				TenantID:          a.GetTenantID(),
+				Scope:             notifications.ScopeGuardian,
+				GuardianAccountID: recipient.AccountID,
+			},
+		})
+		if errors.Is(err, notifications.ErrDisabled) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("notify guardian account %d: %w", recipient.AccountID, err)
+		}
+	}
+	return nil
 }
 
 // enqueueAnnouncementEmails queues one outbox e-mail per targeted guardian with
