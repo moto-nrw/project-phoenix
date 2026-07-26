@@ -29,6 +29,7 @@ import {
   useStaffPendingInbox,
 } from "~/components/staff/staff-pending-inbox";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
+import { StaffAuditLog } from "~/components/staff/staff-audit-log";
 import {
   StaffTimeAccountsTable,
   saldoPresets,
@@ -62,9 +63,9 @@ function StaffPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
-  const [selectedView, setSelectedView] = useState<"status" | "accounts">(
-    "status",
-  );
+  const [selectedView, setSelectedView] = useState<
+    "status" | "accounts" | "audit"
+  >("status");
   const [employmentFilter, setEmploymentFilter] = useState("all");
   // Angezeigter Monat der Zeitkonten (#1417): Default ist der laufende Monat;
   // zurückblättern erlaubt der Endpoint seit #1988, vorwärts über heute hinaus
@@ -350,8 +351,14 @@ function StaffPageContent() {
     [locationFilter],
   );
 
+  // Das Änderungsprotokoll bringt seine eigenen Filter mit (MA, Editor,
+  // Bereich, Zeitraum) — Header-Filter würden dort ins Leere laufen.
   const filterConfigs: FilterConfig[] =
-    view === "accounts" ? [employmentFilterConfig] : [locationFilterConfig];
+    view === "audit"
+      ? []
+      : view === "accounts"
+        ? [employmentFilterConfig]
+        : [locationFilterConfig];
 
   // Prepare active filters for display
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -450,11 +457,17 @@ function StaffPageContent() {
           count:
             view === "accounts" ? accountRows.length : filteredStaff.length,
         }}
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Name suchen...",
-        }}
+        search={
+          // Im Änderungsprotokoll filtert die Komponente selbst; ein
+          // wirkungsloses Suchfeld wäre irreführend.
+          view === "audit"
+            ? undefined
+            : {
+                value: searchTerm,
+                onChange: setSearchTerm,
+                placeholder: "Name suchen...",
+              }
+        }
         filters={filterConfigs}
         activeFilters={activeFilters}
         onClearAllFilters={() => {
@@ -485,15 +498,24 @@ function StaffPageContent() {
         <Tabs
           value={view}
           onValueChange={(value) =>
-            setSelectedView(value as "status" | "accounts")
+            setSelectedView(value as "status" | "accounts" | "audit")
           }
           className="mb-4"
         >
           <TabsList variant="line">
             <TabsTrigger value="status">Status</TabsTrigger>
             <TabsTrigger value="accounts">Zeitkonten</TabsTrigger>
+            <TabsTrigger value="audit">Änderungsprotokoll</TabsTrigger>
           </TabsList>
         </Tabs>
+      )}
+
+      {/* Änderungsprotokoll (#1417): cross-MA audit feed, eigene Filter in der
+          Komponente. Nur mit time_tracking:manage erreichbar (Tab-Gate oben). */}
+      {view === "audit" && canManageTimeTracking && (
+        <StaffAuditLog
+          staffOptions={staff.map((s) => ({ id: s.id, name: s.name }))}
+        />
       )}
 
       {view === "accounts" && (
