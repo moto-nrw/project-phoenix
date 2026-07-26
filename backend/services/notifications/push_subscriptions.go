@@ -30,9 +30,9 @@ type PushSubscriptionInput struct {
 }
 
 // PushSubscriptionService manages Web Push device registrations. Staff
-// methods run inside tenant middleware (tenant tx present). Parent subscribe
-// spans every active tenant mapping in one admin transaction so all device
-// rows commit or roll back together.
+// methods run inside tenant middleware (tenant tx present). Parent operations
+// span every active tenant mapping in one admin transaction so mapping reads
+// and device-row changes share the same RLS context and commit atomically.
 type PushSubscriptionService interface {
 	// PublicKey returns the VAPID public key the browser subscribes with.
 	PublicKey() (string, error)
@@ -111,18 +111,18 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 	if err != nil {
 		return err
 	}
-	mappings, err := s.accountTenants.FindActiveByAccountID(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("resolving guardian tenant mappings: %w", err)
-	}
-	if len(mappings) == 0 {
-		return errors.New("account has no active school mapping")
-	}
-
 	// One admin transaction keeps all tenant rows atomic. The account ID comes
 	// from the authenticated parent token and mappings limit writes to active
 	// schools; each row still carries its explicit tenant ID.
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		mappings, err := s.accountTenants.FindActiveByAccountID(txCtx, accountID)
+		if err != nil {
+			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
+		}
+		if len(mappings) == 0 {
+			return errors.New("account has no active school mapping")
+		}
+
 		for _, mapping := range mappings {
 			sub := *prototype
 			sub.TenantID = mapping.TenantID
@@ -135,17 +135,17 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 }
 
 func (s *pushSubscriptionService) UnsubscribeParent(ctx context.Context, accountID int64, endpoint string) error {
-	mappings, err := s.accountTenants.FindActiveByAccountID(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("resolving guardian tenant mappings: %w", err)
-	}
-	for _, mapping := range mappings {
-		err = tenant.WithTenantTx(ctx, s.db, mapping.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-			return s.repo.DeleteByEndpoint(txCtx, accountID, endpoint)
-		})
+	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		mappings, err := s.accountTenants.FindActiveByAccountID(txCtx, accountID)
 		if err != nil {
-			return fmt.Errorf("removing push subscription for tenant %d: %w", mapping.TenantID, err)
+			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}
-	}
-	return nil
+		for _, mapping := range mappings {
+			tenantCtx := tenant.WithTenantID(txCtx, mapping.TenantID)
+			if err := s.repo.DeleteByEndpoint(tenantCtx, accountID, endpoint); err != nil {
+				return fmt.Errorf("removing push subscription for tenant %d: %w", mapping.TenantID, err)
+			}
+		}
+		return nil
+	})
 }

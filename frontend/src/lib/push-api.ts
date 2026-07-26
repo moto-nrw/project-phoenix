@@ -148,9 +148,15 @@ export async function getExistingSubscription(): Promise<PushSubscription | null
  * gesture), creates the browser subscription, and persists it server-side.
  */
 export async function subscribePush(portal: PushPortal): Promise<void> {
-  // Check server configuration before showing the browser permission prompt.
-  const publicKey = await getPushPublicKey(portal);
-  const permission = await Notification.requestPermission();
+  // The settings UI preflights server configuration before enabling this
+  // action. Invoke permission directly in the click path so Safari preserves
+  // the transient user activation while the key is fetched again.
+  const permissionPromise = Notification.requestPermission();
+  const publicKeyPromise = getPushPublicKey(portal);
+  const [permission, publicKey] = await Promise.all([
+    permissionPromise,
+    publicKeyPromise,
+  ]);
   if (permission !== "granted") {
     throw new PushApiError(403, "Benachrichtigungen wurden nicht erlaubt.");
   }
@@ -234,11 +240,14 @@ export async function syncExistingPushSubscription(
 export async function unsubscribePush(portal: PushPortal): Promise<void> {
   const subscription = await getExistingSubscription();
   if (!subscription) return;
-  await requestJson<void>(
-    `${basePath(portal)}/subscriptions?endpoint=${encodeURIComponent(subscription.endpoint)}`,
-    { method: "DELETE" },
-  );
-  await subscription.unsubscribe();
+  try {
+    await requestJson<void>(
+      `${basePath(portal)}/subscriptions?endpoint=${encodeURIComponent(subscription.endpoint)}`,
+      { method: "DELETE" },
+    );
+  } finally {
+    await subscription.unsubscribe();
+  }
 }
 
 /**
@@ -251,7 +260,7 @@ export async function unsubscribePushSilently(
   try {
     await unsubscribePush(portal);
   } catch {
-    // Dead subscriptions are pruned server-side on the next 410 anyway.
+    // A server row left behind after browser cleanup is pruned on 404/410.
   }
 }
 

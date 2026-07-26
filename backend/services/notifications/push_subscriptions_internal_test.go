@@ -7,7 +7,9 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,8 +24,10 @@ type recordingPushRepository struct {
 	upserted        []*iot.PushSubscription
 	deletedAccount  int64
 	deletedEndpoint string
+	deletedTenants  []int64
 	err             error
 	failAfter       int
+	deleteFailAfter int
 }
 
 func (r *recordingPushRepository) Upsert(_ context.Context, sub *iot.PushSubscription) error {
@@ -34,9 +38,13 @@ func (r *recordingPushRepository) Upsert(_ context.Context, sub *iot.PushSubscri
 	return r.err
 }
 
-func (r *recordingPushRepository) DeleteByEndpoint(_ context.Context, accountID int64, endpoint string) error {
+func (r *recordingPushRepository) DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error {
 	r.deletedAccount = accountID
 	r.deletedEndpoint = endpoint
+	r.deletedTenants = append(r.deletedTenants, tenant.FromContext(ctx))
+	if r.deleteFailAfter > 0 && len(r.deletedTenants) < r.deleteFailAfter {
+		return nil
+	}
 	return r.err
 }
 
@@ -44,9 +52,13 @@ type accountTenantRepositoryStub struct {
 	authModels.AccountTenantRepository
 	mappings []authModels.AccountTenant
 	err      error
+	find     func(context.Context, int64) ([]authModels.AccountTenant, error)
 }
 
-func (r accountTenantRepositoryStub) FindActiveByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
+func (r accountTenantRepositoryStub) FindActiveByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenant, error) {
+	if r.find != nil {
+		return r.find(ctx, accountID)
+	}
 	return r.mappings, r.err
 }
 
@@ -112,17 +124,6 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 		require.ErrorIs(t, err, ErrWebPushNotConfigured)
 	})
 
-	t.Run("reports mapping lookup errors and missing mappings", func(t *testing.T) {
-		service := NewPushSubscriptionService(nil, nil, accountTenantRepositoryStub{err: errPushRepository}, testVAPID(), nil)
-		err := service.SubscribeParent(context.Background(), 42, validPushInput())
-		require.ErrorIs(t, err, errPushRepository)
-		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
-
-		service = NewPushSubscriptionService(nil, nil, accountTenantRepositoryStub{}, testVAPID(), nil)
-		err = service.SubscribeParent(context.Background(), 42, validPushInput())
-		require.EqualError(t, err, "account has no active school mapping")
-	})
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -138,6 +139,17 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 	mappings := accountTenantRepositoryStub{
 		mappings: []authModels.AccountTenant{{TenantID: tenantID}},
 	}
+
+	t.Run("reports mapping lookup errors and missing mappings", func(t *testing.T) {
+		service := NewPushSubscriptionService(db, nil, accountTenantRepositoryStub{err: errPushRepository}, testVAPID(), nil)
+		err := service.SubscribeParent(context.Background(), 42, validPushInput())
+		require.ErrorIs(t, err, errPushRepository)
+		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
+
+		service = NewPushSubscriptionService(db, nil, accountTenantRepositoryStub{}, testVAPID(), nil)
+		err = service.SubscribeParent(context.Background(), 42, validPushInput())
+		require.EqualError(t, err, "account has no active school mapping")
+	})
 
 	t.Run("stores and removes a parent subscription in each tenant", func(t *testing.T) {
 		repo := &recordingPushRepository{}
@@ -194,17 +206,58 @@ func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
 	mock.ExpectRollback()
 
 	repo := &recordingPushRepository{err: errPushRepository, failAfter: 2}
-	mappings := accountTenantRepositoryStub{mappings: []authModels.AccountTenant{
-		{TenantID: 41},
-		{TenantID: 42},
-	}}
+	mappingLookupInTx := false
+	mappings := accountTenantRepositoryStub{
+		find: func(ctx context.Context, _ int64) ([]authModels.AccountTenant, error) {
+			_, mappingLookupInTx = modelBase.TxFromContext(ctx)
+			return []authModels.AccountTenant{
+				{TenantID: 41},
+				{TenantID: 42},
+			}, nil
+		},
+	}
 	service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
 
 	err = service.SubscribeParent(context.Background(), 77, validPushInput())
 
 	require.ErrorIs(t, err, errPushRepository)
+	assert.True(t, mappingLookupInTx)
 	require.Len(t, repo.upserted, 2)
 	assert.Equal(t, int64(41), repo.upserted[0].TenantID)
 	assert.Equal(t, int64(42), repo.upserted[1].TenantID)
 	require.NoError(t, mock.ExpectationsWereMet(), "a later tenant failure must roll back the whole registration")
+}
+
+func TestPushSubscriptionServiceParentUnsubscribeIsAtomic(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		_ = db.Close()
+		_ = sqlDB.Close()
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	repo := &recordingPushRepository{err: errPushRepository, deleteFailAfter: 2}
+	mappingLookupInTx := false
+	mappings := accountTenantRepositoryStub{
+		find: func(ctx context.Context, _ int64) ([]authModels.AccountTenant, error) {
+			_, mappingLookupInTx = modelBase.TxFromContext(ctx)
+			return []authModels.AccountTenant{
+				{TenantID: 41},
+				{TenantID: 42},
+			}, nil
+		},
+	}
+	service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
+
+	err = service.UnsubscribeParent(context.Background(), 77, validPushInput().Endpoint)
+
+	require.ErrorIs(t, err, errPushRepository)
+	assert.True(t, mappingLookupInTx)
+	assert.Equal(t, []int64{41, 42}, repo.deletedTenants)
+	require.NoError(t, mock.ExpectationsWereMet(), "a later tenant failure must roll back the whole removal")
 }

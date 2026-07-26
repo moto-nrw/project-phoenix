@@ -165,7 +165,7 @@ describe("push-api", () => {
     );
   });
 
-  it("validates server configuration before requesting denied permission", async () => {
+  it("requests permission synchronously before awaiting server configuration", async () => {
     requestPermission.mockResolvedValue("denied");
     fetchMock.mockResolvedValueOnce(response({ public_key: vapidPublicKey }));
 
@@ -176,6 +176,9 @@ describe("push-api", () => {
     });
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(requestPermission).toHaveBeenCalledOnce();
+    expect(requestPermission.mock.invocationCallOrder.at(0)).toBeLessThan(
+      fetchMock.mock.invocationCallOrder.at(0) as number,
+    );
   });
 
   it("reports missing keys and malformed server errors", async () => {
@@ -210,14 +213,14 @@ describe("push-api", () => {
     });
   });
 
-  it("rejects a malformed VAPID key before requesting permission", async () => {
+  it("rejects a malformed VAPID key", async () => {
     fetchMock.mockResolvedValueOnce(response({ public_key: "YWJj" }));
 
     await expect(subscribePush("tenant")).rejects.toMatchObject({
       status: 502,
       message: "Der Web-Push-Schlüssel des Servers ist ungültig.",
     });
-    expect(requestPermission).not.toHaveBeenCalled();
+    expect(requestPermission).toHaveBeenCalledOnce();
   });
 
   it("replaces a subscription created with an old VAPID key", async () => {
@@ -315,7 +318,15 @@ describe("push-api", () => {
     fetchMock.mockRejectedValue(new Error("offline"));
 
     await expect(unsubscribePushSilently("parent")).resolves.toBeUndefined();
-    expect(unsubscribeBrowser).not.toHaveBeenCalled();
+    expect(unsubscribeBrowser).toHaveBeenCalledOnce();
+  });
+
+  it("reports server cleanup failures after removing the browser subscription", async () => {
+    getSubscription.mockResolvedValue(subscription);
+    fetchMock.mockRejectedValue(new Error("offline"));
+
+    await expect(unsubscribePush("parent")).rejects.toThrow("offline");
+    expect(unsubscribeBrowser).toHaveBeenCalledOnce();
   });
 
   it("detects iOS installation requirements", () => {
