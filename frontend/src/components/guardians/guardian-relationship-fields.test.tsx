@@ -20,9 +20,8 @@ describe("GuardianRoleSelect", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Portalrolle"), {
-      target: { value: "pickup_only" },
-    });
+    fireEvent.click(screen.getByLabelText("Portalrolle"));
+    fireEvent.click(screen.getByRole("option", { name: "Nur Abholung" }));
 
     expect(onChange).toHaveBeenCalledWith("pickup_only");
   });
@@ -40,9 +39,8 @@ describe("RelationshipTypeSelect", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Beziehung zum Kind"), {
-      target: { value: "relative" },
-    });
+    fireEvent.click(screen.getByLabelText("Beziehung zum Kind"));
+    fireEvent.click(screen.getByRole("option", { name: "Verwandte/r" }));
 
     expect(onChange).toHaveBeenCalledWith("relative");
   });

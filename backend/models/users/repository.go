@@ -145,6 +145,10 @@ type StudentRepository interface {
 	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
 	UpdateStatus(ctx context.Context, studentID int64, newStatus StudentStatus) error
 
+	// TransitionStatus changes a student's lifecycle status only when its
+	// current status matches expected. Returns false for a stale transition.
+	TransitionStatus(ctx context.Context, studentID int64, expected, next StudentStatus) (bool, error)
+
 	// FindPendingDueForActivation returns students whose status='pending' AND
 	// enrolled_from <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick.
@@ -203,6 +207,9 @@ type StudentRepository interface {
 // StaffRepository defines operations for managing staff members
 type StaffRepository interface {
 	base.CRUDRepository[*Staff]
+
+	// FindByIDForUpdate retrieves and locks a staff row for a transaction.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Staff, error)
 
 	// FindByPersonID retrieves a staff member by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*Staff, error)

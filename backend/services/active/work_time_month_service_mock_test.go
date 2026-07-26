@@ -580,6 +580,109 @@ func TestWTMDailyTargets_SumMatchesCardForMidMonthStart(t *testing.T) {
 	assert.Equal(t, 3*480, sum, "Mondays from the start day on: Jul 13, 20, 27")
 }
 
+func TestWTMRangeAggregate_ZeroesBalanceBeforeMidWeekAccountStart(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-08"
+
+	aggregate, err := f.svc.GetRangeAggregate(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2026, time.July, 6),
+		timezone.NewDate(2026, time.July, 12),
+	)
+	require.NoError(t, err)
+
+	assert.Zero(t, aggregate.TargetMinutes,
+		"the Monday before the Wednesday account start carries no Soll")
+	assert.Zero(t, aggregate.BalanceMinutes,
+		"a day excluded from Soll must also be excluded from the balance delta")
+}
+
+func TestWTMRangeAggregate_ExcludesActualBeforeMidWeekAccountStart(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-08"
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 6), 8, 480, 0),
+		wtmSession(timezone.NewDate(2026, time.July, 8), 8, 120, 0),
+	}
+
+	aggregate, err := f.svc.GetRangeAggregate(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2026, time.July, 6),
+		timezone.NewDate(2026, time.July, 12),
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, 120, aggregate.ActualMinutes,
+		"only work on or after the Wednesday account start counts")
+	assert.Equal(t, 120, aggregate.BalanceMinutes,
+		"the displayed Ist and balance cover the same account-start range")
+}
+
+func TestWTMRangeAggregate_ExcludesPreviousMonthBeforeAccountStart(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.June, 29), 8, 60, 0),
+		wtmSession(timezone.NewDate(2026, time.July, 1), 8, 120, 0),
+	}
+
+	aggregate, err := f.svc.GetRangeAggregate(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2026, time.June, 29),
+		timezone.NewDate(2026, time.July, 5),
+	)
+	require.NoError(t, err)
+
+	assert.Zero(t, aggregate.TargetMinutes, "the Monday before the account start carries no Soll")
+	assert.Equal(t, 120, aggregate.ActualMinutes, "only work on or after the account start counts")
+	assert.Equal(t, 120, aggregate.BalanceMinutes, "the weekly delta starts at the account anchor")
+}
+
+func TestWTMRangeAggregate_UnsetAccountStartUsesPeriodEndYear(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = ""
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2025, time.December, 29), 8, 120, 0),
+	}
+
+	aggregate, err := f.svc.GetRangeAggregate(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2025, time.December, 29),
+		timezone.NewDate(2026, time.January, 4),
+	)
+	require.NoError(t, err)
+
+	assert.Zero(t, aggregate.TargetMinutes, "the default account starts on January 1 of the period-end year")
+	assert.Zero(t, aggregate.ActualMinutes, "December work before that default account start is excluded")
+	assert.Zero(t, aggregate.BalanceMinutes, "the ISO week aggregate starts with the new account year")
+}
+
+func TestPrefetchedMonthService_FiltersSessionsToRequestedRange(t *testing.T) {
+	accountStart := timezone.NewDate(2026, time.July, 8)
+	prefetch := &monthPrefetch{
+		staff: map[int64]*userModels.Staff{
+			wtmStaffID: {Model: base.Model{ID: wtmStaffID}},
+		},
+		sessions: map[int64][]*activeModels.WorkSession{
+			wtmStaffID: {
+				wtmSession(accountStart.AddDays(-2), 8, 60, 0),
+				wtmSession(accountStart, 8, 120, 0),
+			},
+		},
+		settings: newMemoSettingsResolver(&wtmMockSettings{accountStart: accountStart.String()}),
+	}
+	svc := newPrefetchedMonthService(prefetch, nil)
+
+	summary, err := svc.GetMonthSummaryAtMonthEnd(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 120, summary.ActualMinutes,
+		"the prefetched session before the account start must not enter the month bucket")
+}
+
 // An unset account start must not zero anything: chainAnchor then falls back to
 // January 1st, and no day can precede January 1st of its own year.
 func TestWTMDailyTargets_UnsetAccountStartZeroesNothing(t *testing.T) {

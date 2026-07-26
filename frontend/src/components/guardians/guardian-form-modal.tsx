@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Plus, Star, Trash2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import type {
   GuardianFormData,
@@ -701,29 +702,26 @@ export default function GuardianFormModal({
                   >
                     {/* Phone Type Select */}
                     <div className="w-full sm:w-32">
-                      <select
+                      <CustomSelect
                         id={`phone-type-${entry.id}-${phone.id}`}
                         value={phone.phoneType}
-                        onChange={(e) =>
+                        options={(
+                          Object.keys(PHONE_TYPE_LABELS) as PhoneType[]
+                        ).map((type) => ({
+                          value: type,
+                          label: PHONE_TYPE_LABELS[type],
+                        }))}
+                        onChange={(next) =>
                           updatePhone(
                             entry.id,
                             phone.id,
                             "phoneType",
-                            e.target.value as PhoneType,
+                            next as PhoneType,
                           )
                         }
-                        className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
                         disabled={isLoading}
-                        aria-label={`Telefontyp ${phoneIndex + 1}`}
-                      >
-                        {(Object.keys(PHONE_TYPE_LABELS) as PhoneType[]).map(
-                          (type) => (
-                            <option key={type} value={type}>
-                              {PHONE_TYPE_LABELS[type]}
-                            </option>
-                          ),
-                        )}
-                      </select>
+                        ariaLabel={`Telefontyp ${phoneIndex + 1}`}
+                      />
                     </div>
 
                     {/* Phone Number Input */}
@@ -936,47 +934,22 @@ export default function GuardianFormModal({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                 <div>
                   <label
+                    id={`guardian-language-${entry.id}-label`}
                     htmlFor={`guardian-language-${entry.id}`}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
                     Bevorzugte Sprache
                   </label>
-                  <div className="relative">
-                    <select
-                      id={`guardian-language-${entry.id}`}
-                      value={entry.languagePreference}
-                      onChange={(e) =>
-                        updateEntry(
-                          entry.id,
-                          "languagePreference",
-                          e.target.value,
-                        )
-                      }
-                      className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-                      disabled={isLoading}
-                    >
-                      {LANGUAGE_PREFERENCES.map((lang) => (
-                        <option key={lang.value} value={lang.value}>
-                          {lang.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </div>
-                  </div>
+                  <CustomSelect
+                    id={`guardian-language-${entry.id}`}
+                    ariaLabelledBy={`guardian-language-${entry.id}-label`}
+                    value={entry.languagePreference}
+                    options={LANGUAGE_PREFERENCES}
+                    onChange={(next) =>
+                      updateEntry(entry.id, "languagePreference", next)
+                    }
+                    disabled={isLoading}
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label

@@ -32,6 +32,7 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -384,6 +385,7 @@ type ServiceConfig struct {
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).
 	PersonRepo        usersModels.PersonRepository
 	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
+	StudentAudit      usersSvc.StudentChangeRecorder
 
 	// Guardian contact + pickup editing (#1667). The phone repo backs both the
 	// caller's primary-phone master-data edit and the wholesale phone-list replace

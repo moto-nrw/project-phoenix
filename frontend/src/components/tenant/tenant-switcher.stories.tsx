@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
-import { TenantSwitcher } from "./tenant-switcher";
+import { BrandTenantSwitcher } from "./tenant-switcher";
 
 /** Minimal shape returned by the backend's `/api/auth/account-tenants` endpoint. */
 interface AccountTenantBackendFixture {
@@ -63,8 +63,8 @@ function mockAccountTenants(tenants: AccountTenantBackendFixture[]) {
 }
 
 const meta = {
-  title: "tenant/TenantSwitcher",
-  component: TenantSwitcher,
+  title: "tenant/BrandTenantSwitcher",
+  component: BrandTenantSwitcher,
   parameters: {
     docs: {
       description: {
@@ -73,16 +73,16 @@ const meta = {
       },
     },
   },
-} satisfies Meta<typeof TenantSwitcher>;
+} satisfies Meta<typeof BrandTenantSwitcher>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
  * The account only has access to one tenant (the storybook default), so the
- * switcher intentionally renders nothing.
+ * brand renders as a plain link — name shown, no dropdown (#2011).
  */
-export const SingleTenantRendersNothing: Story = {
+export const SingleTenantPlainBrand: Story = {
   beforeEach: () => mockAccountTenants(singleTenant),
 };
 

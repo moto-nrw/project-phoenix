@@ -68,6 +68,7 @@ function renderModal(
   overrides: Partial<{
     onClose: () => void;
     onCreated: (a: unknown) => void;
+    absenceType: "sick" | "comp_time";
   }> = {},
 ) {
   const onClose = overrides.onClose ?? vi.fn();
@@ -76,6 +77,7 @@ function renderModal(
     <SickReportModal
       isOpen
       staff={staff}
+      absenceType={overrides.absenceType}
       onClose={onClose}
       onCreated={onCreated}
     />,
@@ -190,6 +192,41 @@ describe("SickReportModal", () => {
 
     expect(await screen.findByText("overlapping absence")).toBeInTheDocument();
     expect(onCreated).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Zur Vertretung" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("creates manager-controlled comp time and explains half-day accounting", async () => {
+    mocks.createAbsence.mockResolvedValue({
+      ...createdRow,
+      absence_type: "comp_time",
+      half_day: true,
+    });
+    renderModal({ absenceType: "comp_time" });
+
+    expect(
+      screen.getByText(/andere Hälfte als Arbeitszeit erfasst/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Halber Tag" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Freizeitausgleich eintragen",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.createAbsence).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          absence_type: "comp_time",
+          half_day: true,
+        }),
+      ),
+    );
+    expect(
+      await screen.findByText(/keine Sollzeit gutgeschrieben/),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Zur Vertretung" }),
     ).not.toBeInTheDocument();

@@ -25,6 +25,7 @@ import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import {
   deviationEventLabel,
   getActivityTypeBadge,
+  getGermanWeekdayAdverb,
   getGermanWeekdayLong,
   getStatusLabel,
   staffLabel,
@@ -1145,12 +1146,6 @@ function changeSummary(
   return null;
 }
 
-/** Wochentag als Wiederkehr-Adverb ("Montag" → "montags") für den Slot-Anker. */
-function weekdayAdverb(dateISO: string): string {
-  const long = getGermanWeekdayLong(parseISODate(dateISO));
-  return long ? `${long.toLowerCase()}s` : "";
-}
-
 function HistoryTab({
   instance,
   staffNames,
@@ -1183,7 +1178,7 @@ function HistoryTab({
   // Block-Anker behauptet, während tagesweit geladen wird (Instanzwechsel
   // ohne activityGroupId bei offenem Verlaufs-Reiter).
   const contextChip = slotFiltered
-    ? `Diese Position: ${instance.title}, ${weekdayAdverb(instance.date)} ${instance.startTime}`
+    ? `Diese Position: ${instance.title}, ${getGermanWeekdayAdverb(getGermanWeekdayLong(parseISODate(instance.date)))} ${instance.startTime}`
     : formatDate(instance.date);
 
   return (

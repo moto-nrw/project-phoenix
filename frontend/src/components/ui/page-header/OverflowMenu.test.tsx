@@ -264,6 +264,50 @@ describe("OverflowMenu", () => {
     }
   });
 
+  it("keeps the menu inside a narrow viewport when neither side has enough room", () => {
+    const originalInnerWidth = window.innerWidth;
+    const originalGetRect = window.HTMLElement.prototype.getBoundingClientRect;
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 320,
+    });
+    window.HTMLElement.prototype.getBoundingClientRect = () =>
+      ({
+        left: 150,
+        right: 190,
+        top: 0,
+        bottom: 0,
+        width: 40,
+        height: 0,
+        x: 150,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    try {
+      render(
+        <OverflowMenu
+          items={[{ label: "Export", onClick: () => undefined }]}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: /Weitere Aktionen/i }),
+      );
+      const menu = screen.getByRole("menu");
+
+      expect(menu.style.right).toBe(`${window.innerWidth - 220 - 8}px`);
+      expect(menu.style.left).toBe("");
+      expect(menu.style.minWidth).toBe("220px");
+      expect(menu.style.maxWidth).toBe("304px");
+    } finally {
+      Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        value: originalInnerWidth,
+      });
+      window.HTMLElement.prototype.getBoundingClientRect = originalGetRect;
+    }
+  });
+
   it("flips the menu above the trigger when it sits near the viewport bottom", () => {
     // A trigger low in the viewport (little room below it) must anchor the menu
     // by `bottom` (above the trigger) instead of `top`, so it never drops below

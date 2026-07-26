@@ -13,10 +13,14 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,12 +53,51 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Servi
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		StudentAudit:        userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		Settings:            masterDataSettings(editEnabled, false, true),
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
 	return svc, db
+}
+
+func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
+	svc, db := buildMasterDataService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{
+		ID:        int(chain.AccountID),
+		FirstName: "Petra",
+		LastName:  "Parent",
+	})
+	_, err := svc.UpdateMasterDataField(
+		ctx,
+		chain.AccountID,
+		chain.StudentID,
+		usersModels.DataChangeTargetStudent,
+		"health_info",
+		json.RawMessage(`"Neue Information"`),
+	)
+	require.NoError(t, err)
+
+	repos := repositories.NewFactory(db)
+	edits, err := repos.StudentFieldEdit.GetByStudentID(
+		tenant.WithTenantID(context.Background(), chain.TenantID),
+		chain.StudentID,
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, edits)
+	var healthEditFound bool
+	for _, edit := range edits {
+		if edit.FieldName == auditModels.StudentFieldHealthInfo {
+			healthEditFound = true
+			assert.Equal(t, chain.AccountID, edit.EditedBy)
+			assert.Equal(t, "Petra Parent", edit.EditedByName)
+		}
+	}
+	assert.True(t, healthEditFound)
 }
 
 func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *testing.T) {

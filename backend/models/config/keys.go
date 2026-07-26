@@ -37,6 +37,11 @@ const (
 	// fixes the floor at 2 years; §147 AO / §257 HGB cap the legally
 	// defensible ceiling at 8 years.
 	KeyGDPRTimeTrackingRetentionDays = "gdpr.time_tracking_retention_days"
+	// Retention window (days) for the per-child change history
+	// (audit.student_field_edits, issue #1455). The log answers concrete
+	// day-to-day Rückfragen ("wer hat das geändert"), not long-term archival,
+	// so the window is short and admin-configurable.
+	KeyGDPRStudentChangeLogRetentionDays = "gdpr.student_change_log_retention_days"
 	// Default visit-data retention window (days) applied when a student's
 	// privacy consent does not set its own data_retention_days. Issue #586
 	// (Rule 12): the 30-day default + 1..31 bounds moved off the
@@ -160,6 +165,10 @@ const (
 	// KeyNotificationsAbsenceApprovalEmail toggles the absence-request email
 	// notifications (request received / approved / declined / Rückfrage, #1419).
 	KeyNotificationsAbsenceApprovalEmail = "notifications.absence_approval_email"
+	// KeyNotificationsDispatchEnabled is the feature flag for the notification
+	// abstraction (#1624). When off (the default), Notify(ctx, event) is a
+	// no-op and no channel delivers anything.
+	KeyNotificationsDispatchEnabled = "notifications.dispatch_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.
@@ -321,4 +330,36 @@ const (
 	KeyRemindersActivityStartEnabled      = "reminders.activity_start_enabled"
 	KeyRemindersActivityStartLeadMinutes  = "reminders.activity_start_lead_minutes"
 	KeyRemindersActivityOverdueEnabled    = "reminders.activity_overdue_enabled"
+)
+
+// Payroll foundation settings (#1417 Tranche 2b). Lohnartnummern are
+// mandant-specific DATEV numbers — there are NO defaults on purpose: a
+// plausible-looking preset would silently bill wrong. Empty means "not
+// configured yet"; the later DATEV writers refuse to produce a file until
+// the configuration is complete. Definitions live in defaults/payroll.go.
+const (
+	KeyPayrollLohnartRegelarbeit       = "payroll.lohnart_regelarbeit"
+	KeyPayrollLohnartPlusStunden       = "payroll.lohnart_plus_stunden"
+	KeyPayrollLohnartAuszahlung        = "payroll.lohnart_auszahlung"
+	KeyPayrollLohnartFreizeitausgleich = "payroll.lohnart_freizeitausgleich"
+	KeyPayrollLohnartKrank             = "payroll.lohnart_krank"
+	KeyPayrollLohnartUrlaub            = "payroll.lohnart_urlaub"
+	KeyPayrollLohnartFortbildung       = "payroll.lohnart_fortbildung"
+
+	// Unit per category, only where day values exist (sick/vacation/training).
+	// The remaining categories are minute sums with no day representation, so
+	// they are always exported in hours and carry no unit setting.
+	KeyPayrollEinheitKrank       = "payroll.einheit_krank"
+	KeyPayrollEinheitUrlaub      = "payroll.einheit_urlaub"
+	KeyPayrollEinheitFortbildung = "payroll.einheit_fortbildung"
+
+	// LODAS file-header identifiers; Lohn und Gehalt does not need them.
+	KeyPayrollDatevBeraternummer   = "payroll.datev_beraternummer"
+	KeyPayrollDatevMandantennummer = "payroll.datev_mandantennummer"
+)
+
+// Payroll unit select values.
+const (
+	PayrollUnitHours = "stunden"
+	PayrollUnitDays  = "tage"
 )

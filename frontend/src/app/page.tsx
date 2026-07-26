@@ -12,9 +12,9 @@ import { ArrowRight } from "lucide-react";
 import {
   AuthShell,
   MotoIconBrand,
-  authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { listAllTenants } from "~/lib/tenant-api";
 import type { TenantListResult, TenantSummary } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
@@ -91,27 +91,30 @@ export default function RootPage() {
           <>
             <div className="text-left">
               <label
+                id="tenant-select-label"
                 htmlFor="tenant-select"
                 className="mb-1 block text-sm font-medium text-gray-700"
               >
                 Einrichtung
               </label>
-              <select
+              <CustomSelect
                 id="tenant-select"
+                ariaLabelledBy="tenant-select-label"
                 value={selectedSlug}
                 disabled={loading || isNavigating}
-                onChange={(e) => setSelectedSlug(e.target.value)}
-                className={`moto-select ${authInputClassName}`}
-              >
-                <option value="">
-                  {loading ? "Laden..." : "Bitte auswählen..."}
-                </option>
-                {tenants.map((tenant) => (
-                  <option key={tenant.slug} value={tenant.slug}>
-                    {tenant.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedSlug}
+                placeholder={loading ? "Laden..." : "Bitte auswählen..."}
+                options={[
+                  {
+                    value: "",
+                    label: loading ? "Laden..." : "Bitte auswählen...",
+                  },
+                  ...tenants.map((tenant) => ({
+                    value: tenant.slug,
+                    label: tenant.name,
+                  })),
+                ]}
+              />
             </div>
 
             <button

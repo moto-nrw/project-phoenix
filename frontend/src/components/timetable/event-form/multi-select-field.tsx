@@ -2,17 +2,16 @@ import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { getSchoolYear } from "~/lib/student-helpers";
 
 import {
   timetableMutedSurface,
   timetableNestedSurface,
   timetableSearchClass,
-  timetableSelectClass,
 } from "../timetable-style";
 import type { PersonOption } from "./form-model";
 
-const FORM_SELECT_CLASS = timetableSelectClass;
 const FORM_SEARCH_CLASS = timetableSearchClass;
 
 export function MultiSelectField({
@@ -152,49 +151,46 @@ export function MultiSelectField({
           />
         </label>
         {metadata === "student" && gradeOptions.length > 0 && (
-          <select
+          <CustomSelect
             value={gradeFilter}
-            onChange={(event) => setGradeFilter(event.target.value)}
-            className={FORM_SELECT_CLASS}
-            aria-label="Nach Jahrgang filtern"
-          >
-            <option value="all">Alle Jahrgänge</option>
-            {gradeOptions.map((gradeLevel) => (
-              <option key={gradeLevel} value={gradeLevel}>
-                Jahrgang {gradeLevel}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "all", label: "Alle Jahrgänge" },
+              ...gradeOptions.map((gradeLevel) => ({
+                value: gradeLevel,
+                label: `Jahrgang ${gradeLevel}`,
+              })),
+            ]}
+            onChange={setGradeFilter}
+            ariaLabel="Nach Jahrgang filtern"
+          />
         )}
         {metadata === "student" && classOptions.length > 0 && (
-          <select
+          <CustomSelect
             value={classFilter}
-            onChange={(event) => setClassFilter(event.target.value)}
-            className={FORM_SELECT_CLASS}
-            aria-label="Nach Klasse filtern"
-          >
-            <option value="all">Alle Klassen</option>
-            {classOptions.map((schoolClass) => (
-              <option key={schoolClass} value={schoolClass}>
-                {schoolClass}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "all", label: "Alle Klassen" },
+              ...classOptions.map((schoolClass) => ({
+                value: schoolClass,
+                label: schoolClass,
+              })),
+            ]}
+            onChange={setClassFilter}
+            ariaLabel="Nach Klasse filtern"
+          />
         )}
         {metadata === "student" && groupOptions.length > 0 && (
-          <select
+          <CustomSelect
             value={groupFilter}
-            onChange={(event) => setGroupFilter(event.target.value)}
-            className={FORM_SELECT_CLASS}
-            aria-label="Nach Gruppe filtern"
-          >
-            <option value="all">Alle Gruppen</option>
-            {groupOptions.map((groupName) => (
-              <option key={groupName} value={groupName}>
-                {groupName}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "all", label: "Alle Gruppen" },
+              ...groupOptions.map((groupName) => ({
+                value: groupName,
+                label: groupName,
+              })),
+            ]}
+            onChange={setGroupFilter}
+            ariaLabel="Nach Gruppe filtern"
+          />
         )}
       </div>
 
@@ -210,27 +206,21 @@ export function MultiSelectField({
         {bulkOptions && bulkOptions.length > 0 && (
           // Pinned to "" so picking an entry adds its members and the
           // select snaps back to the placeholder.
-          <select
+          <CustomSelect
             value=""
-            onChange={(event) => {
-              const entry = bulkOptions.find(
-                (option) => option.key === event.target.value,
-              );
+            options={bulkOptions.map((option) => ({
+              value: option.key,
+              label: option.label,
+            }))}
+            onChange={(next) => {
+              const entry = bulkOptions.find((option) => option.key === next);
               if (!entry) return;
               onChange(Array.from(new Set([...value, ...entry.memberIds])));
             }}
-            aria-label="Jahrgang, Klasse oder Gruppe komplett hinzufügen"
-            className="moto-select rounded-lg border border-gray-200 bg-white py-1.5 pr-7 pl-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value="" disabled>
-              Jahrgang/Klasse/Gruppe komplett hinzufügen …
-            </option>
-            {bulkOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            ariaLabel="Jahrgang, Klasse oder Gruppe komplett hinzufügen"
+            placeholder="Jahrgang/Klasse/Gruppe komplett hinzufügen …"
+            triggerClassName="h-8 border-gray-200 bg-white font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-100"
+          />
         )}
         {value.length > 0 && (
           <button

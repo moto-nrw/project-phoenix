@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -232,6 +233,12 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	}
 	if len(staffIDs) == 0 {
 		return nil
+	}
+	slices.Sort(staffIDs)
+	for _, staffID := range staffIDs {
+		if err := repoBase.AcquireStaffBalanceLock(ctx, r.db, staffID); err != nil {
+			return err
+		}
 	}
 
 	now := time.Now()

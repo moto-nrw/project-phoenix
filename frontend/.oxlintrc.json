@@ -8,7 +8,8 @@
     "promise"
   ],
   "jsPlugins": [
-    "./scripts/oxlint-plugin-date-safety.mjs"
+    "./scripts/oxlint-plugin-date-safety.mjs",
+    "./scripts/oxlint-plugin-ui-kit.mjs"
   ],
   "categories": {
     "correctness": "error",
@@ -17,6 +18,9 @@
   },
   "rules": {
     "date-safety/no-utc-date-extraction": "error",
+    "ui-kit/no-generic-brand-colors": "error",
+    "ui-kit/no-hand-rolled-overlay": "error",
+    "ui-kit/no-rounded-3xl": "error",
     "react/react-in-jsx-scope": "off",
     "no-unsafe-type-assertion": "off",
     "import/no-unassigned-import": "off",

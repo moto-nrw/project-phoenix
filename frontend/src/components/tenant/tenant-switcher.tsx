@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import {
@@ -13,12 +14,27 @@ import { createLogger } from "~/lib/logger";
 import { trackEvent } from "~/lib/analytics";
 import { env } from "~/env";
 import { Alert } from "~/components/ui/alert";
+import {
+  BrandLink,
+  BrandLogo,
+  brandLabelClass,
+} from "~/components/dashboard/header/brand-link";
 
-const logger = createLogger({ component: "TenantSwitcher" });
+const logger = createLogger({ component: "BrandTenantSwitcher" });
+
+interface BrandTenantSwitcherProps {
+  readonly isScrolled?: boolean;
+  readonly href?: string;
+  readonly label?: string | null;
+}
 
 /**
- * Dropdown component that lets users switch between tenants they have access to.
- * Only renders when the user has more than one available tenant.
+ * Brand area (logo + facility name) that doubles as the tenant switcher.
+ *
+ * With one (or zero) available tenants it renders the plain BrandLink —
+ * name shown, no dropdown. With multiple tenants the brand itself becomes
+ * the dropdown trigger (#2011), replacing the separate switcher element
+ * that used to overflow the header on mobile.
  *
  * Switch flow (per spec 04-frontend.md):
  * 1. Call switchTenant(slug) to get new JWT tokens
@@ -27,7 +43,11 @@ const logger = createLogger({ component: "TenantSwitcher" });
  * 4. Clear session cache for fresh token resolution
  * 5. Hard-navigate to new tenant URL
  */
-export function TenantSwitcher() {
+export function BrandTenantSwitcher({
+  isScrolled = false,
+  href = "/dashboard",
+  label,
+}: BrandTenantSwitcherProps) {
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
@@ -106,15 +126,16 @@ export function TenantSwitcher() {
     [isSwitching, currentSlug],
   );
 
-  // Only render when user has multiple tenants
+  // Single (or unknown) tenant: plain brand link, no dropdown
   if (tenants.length <= 1) {
-    return null;
+    return <BrandLink isScrolled={isScrolled} href={href} label={label} />;
   }
 
   // currentSlug comes from the URL, which is the tenant's subdomain — so
   // match against subdomain, not the independent slug column (#1975).
   const currentTenant = tenants.find((t) => t.subdomain === currentSlug);
   const otherTenants = tenants.filter((t) => t.subdomain !== currentSlug);
+  const displayLabel = currentTenant?.name ?? label?.trim() ?? currentSlug;
 
   // Group other tenants by organization
   const grouped = new Map<string, TenantSummary[]>();
@@ -126,8 +147,8 @@ export function TenantSwitcher() {
   }
 
   return (
-    <div ref={dropdownRef} className="relative">
-      {/* Trigger button */}
+    <div ref={dropdownRef} className="relative min-w-0">
+      {/* Brand as trigger */}
       <button
         type="button"
         onClick={() => {
@@ -135,10 +156,14 @@ export function TenantSwitcher() {
           setIsOpen(!isOpen);
         }}
         disabled={isSwitching}
-        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-label="Einrichtung wechseln"
+        className="-mx-1.5 flex max-w-[200px] min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
       >
-        <span className="max-w-[140px] truncate">
-          {currentTenant?.name ?? currentSlug}
+        <BrandLogo />
+        <span className={brandLabelClass(isScrolled, true)}>
+          {displayLabel}
         </span>
         <svg
           className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
@@ -157,7 +182,29 @@ export function TenantSwitcher() {
 
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-1 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="absolute left-0 z-50 mt-1 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+          {currentTenant && (
+            <Link
+              href={href}
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-2 border-b border-gray-100 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+            >
+              <span className="truncate">{currentTenant.name}</span>
+              <svg
+                className="ml-auto h-4 w-4 shrink-0 text-[#83CD2D]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </Link>
+          )}
           {[...grouped.entries()].map(([orgName, orgTenants]) => (
             <div key={orgName}>
               {grouped.size > 1 && (
@@ -184,7 +231,7 @@ export function TenantSwitcher() {
       {/* Visible feedback when a switch fails — a silent no-op here caused
           #1975 to go unnoticed. */}
       {switchError && !isOpen && (
-        <div className="absolute right-0 z-50 mt-1 w-72">
+        <div className="absolute left-0 z-50 mt-1 w-72">
           <Alert type="error" message={switchError} />
         </div>
       )}

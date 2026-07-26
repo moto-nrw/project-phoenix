@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useParams, redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
@@ -9,6 +9,7 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
 import {
+  employmentTypeLabels,
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
@@ -16,8 +17,13 @@ import { getInitials } from "~/lib/format-utils";
 import { useSWRAuth } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
+import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
@@ -25,25 +31,13 @@ import { StaffDetailSkeleton } from "./page-skeleton";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
 
-const employmentTypeLabels: Record<string, string> = {
-  full_time: "Vollzeit",
-  part_time: "Teilzeit",
-  minijob: "Minijob",
-};
-
 // ─── Rich Header ─────────────────────────────────────────────────────────────
 
 function StaffHeader({
   staff,
-  onOpenMenu,
-  menuOpen,
-  menuButtonRef,
   menu,
 }: {
   readonly staff: Staff;
-  readonly onOpenMenu: () => void;
-  readonly menuOpen: boolean;
-  readonly menuButtonRef: React.RefObject<HTMLButtonElement | null>;
   readonly menu: React.ReactNode;
 }) {
   const locationStatus = getStaffLocationStatus(staff);
@@ -101,103 +95,9 @@ function StaffHeader({
           <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80" />
           {locationStatus.label}
         </span>
-        <div className="relative">
-          <button
-            ref={menuButtonRef}
-            type="button"
-            onClick={onOpenMenu}
-            aria-label="Weitere Aktionen"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-              />
-            </svg>
-          </button>
-          {menu}
-        </div>
+        {menu}
       </div>
     </div>
-  );
-}
-
-// ─── Overflow (kebab) menu ───────────────────────────────────────────────────
-
-interface MenuItem {
-  readonly label: string;
-  readonly onClick?: () => void;
-  readonly disabled?: boolean;
-  readonly destructive?: boolean;
-}
-
-function OverflowMenu({
-  isOpen,
-  onClose,
-  items,
-}: {
-  readonly isOpen: boolean;
-  readonly onClose: () => void;
-  readonly items: ReadonlyArray<MenuItem | "divider">;
-}) {
-  if (!isOpen) return null;
-
-  return (
-    <>
-      <button
-        type="button"
-        className="fixed inset-0 z-40 cursor-default"
-        onClick={onClose}
-        aria-label="Menue schliessen"
-      />
-      <div
-        role="menu"
-        className="absolute top-full right-0 z-50 mt-2 w-64 rounded-2xl border border-gray-200/50 bg-white/95 p-2 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md"
-      >
-        {items.map((item, idx) => {
-          if (item === "divider") {
-            return (
-              <div
-                key={`divider-${idx}`}
-                className="my-1 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"
-              />
-            );
-          }
-          const baseClasses =
-            "group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-150 ease-out";
-          const stateClasses = item.disabled
-            ? "cursor-not-allowed text-gray-300"
-            : item.destructive
-              ? "text-red-600 hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
-              : "text-gray-700 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white";
-          return (
-            <button
-              key={item.label}
-              type="button"
-              disabled={item.disabled}
-              onClick={() => {
-                if (item.disabled || !item.onClick) return;
-                item.onClick();
-                onClose();
-              }}
-              className={`${baseClasses} ${stateClasses}`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-    </>
   );
 }
 
@@ -224,7 +124,9 @@ export default function StaffDetailContent() {
   const params = useParams();
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
-  const canManageSickReports = hasPermission(session, "time_tracking:manage");
+  const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canManagePayrollSettings = hasPermission(session, "config:manage");
+  const canViewTimeTracking = canEdit || canManageTimeTracking;
 
   const {
     data: staff,
@@ -257,9 +159,6 @@ export default function StaffDetailContent() {
     staffName: staff ? `${staff.firstName} ${staff.lastName}` : undefined,
   });
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-
   // Radix Tabs auto-focuses the active TabsContent on mount, which the
   // browser then scrolls into view, leaving the staff header partially
   // clipped above the viewport. Snap to the top of the page after the
@@ -268,21 +167,11 @@ export default function StaffDetailContent() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [staffId]);
 
-  // Close menu on Escape
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [menuOpen]);
-
   if (sessionStatus === "loading" || isLoading) {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canEdit && !canManageSickReports) {
+  if (!canViewTimeTracking) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
@@ -297,30 +186,16 @@ export default function StaffDetailContent() {
     );
   }
 
-  const menuItems: ReadonlyArray<MenuItem | "divider"> = [
-    {
-      label: "PIN zuruecksetzen",
-      disabled: true,
-    },
-    {
-      label: "Passwort zuruecksetzen",
-      disabled: true,
-    },
-    {
-      label: "Abwesenheit eintragen",
-      disabled: true,
-    },
-    "divider",
-    {
-      label: "Deaktivieren",
-      disabled: true,
-      destructive: true,
-    },
-    {
-      label: "Loeschen",
-      disabled: true,
-      destructive: true,
-    },
+  // All actions are placeholders until their flows land; noop keeps the
+  // kit item shape (onClick is required) while disabled suppresses it anyway.
+  const noop = () => undefined;
+  const menuItems: readonly OverflowMenuEntry[] = [
+    { label: "PIN zurücksetzen", onClick: noop, disabled: true },
+    { label: "Passwort zurücksetzen", onClick: noop, disabled: true },
+    { label: "Abwesenheit eintragen", onClick: noop, disabled: true },
+    { kind: "separator" },
+    { label: "Deaktivieren", onClick: noop, disabled: true, destructive: true },
+    { label: "Löschen", onClick: noop, disabled: true, destructive: true },
   ];
 
   return (
@@ -328,35 +203,28 @@ export default function StaffDetailContent() {
       {/* Rich Header with kebab trigger */}
       <StaffHeader
         staff={staff}
-        onOpenMenu={() => setMenuOpen((v) => !v)}
-        menuOpen={menuOpen}
-        menuButtonRef={menuButtonRef}
-        menu={
-          <OverflowMenu
-            isOpen={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            items={menuItems}
-          />
-        }
+        menu={<OverflowMenu items={menuItems} ariaLabel="Weitere Aktionen" />}
       />
 
       {/* Tabs */}
       <Tabs
-        defaultValue={canEdit ? "uebersicht" : "abwesenheiten"}
+        defaultValue={canViewTimeTracking ? "uebersicht" : "abwesenheiten"}
         className="w-full"
       >
         <TabsList
           variant="line"
           className="mb-6 w-full [scrollbar-width:none] justify-start overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden"
         >
+          {canViewTimeTracking ? (
+            <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
+          ) : null}
+          {canViewTimeTracking ? (
+            <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
+          ) : null}
           {canEdit ? (
-            <>
-              <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
-              <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
-              <TabsTrigger value="arbeitszeitmodell">
-                Arbeitszeitmodell
-              </TabsTrigger>
-            </>
+            <TabsTrigger value="arbeitszeitmodell">
+              Arbeitszeitmodell
+            </TabsTrigger>
           ) : null}
           <TabsTrigger value="abwesenheiten">
             <span className="inline-flex items-center gap-1.5">
@@ -368,53 +236,57 @@ export default function StaffDetailContent() {
               )}
             </span>
           </TabsTrigger>
+          {canManageTimeTracking ? (
+            <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
+          ) : null}
           {canEdit ? (
-            <>
-              <TabsTrigger value="stammdaten" disabled>
-                Stammdaten
-              </TabsTrigger>
-              <TabsTrigger value="dokumente" disabled>
-                Dokumente
-              </TabsTrigger>
-            </>
+            <TabsTrigger value="dokumente" disabled>
+              Dokumente
+            </TabsTrigger>
           ) : null}
         </TabsList>
 
+        {canViewTimeTracking ? (
+          <TabsPrimitive.Content value="uebersicht">
+            <UebersichtTab staffId={staffId} />
+          </TabsPrimitive.Content>
+        ) : null}
+
+        {canViewTimeTracking ? (
+          <TabsPrimitive.Content value="zeiterfassung">
+            <ZeiterfassungTab staffId={staffId} />
+          </TabsPrimitive.Content>
+        ) : null}
+
         {canEdit ? (
-          <>
-            <TabsPrimitive.Content value="uebersicht">
-              <UebersichtTab staffId={staffId} />
-            </TabsPrimitive.Content>
-
-            <TabsPrimitive.Content value="zeiterfassung">
-              <ZeiterfassungTab staffId={staffId} />
-            </TabsPrimitive.Content>
-
-            <TabsPrimitive.Content value="arbeitszeitmodell">
-              <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
-            </TabsPrimitive.Content>
-          </>
+          <TabsPrimitive.Content value="arbeitszeitmodell">
+            <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
+          </TabsPrimitive.Content>
         ) : null}
 
         <TabsPrimitive.Content value="abwesenheiten">
           <AbwesenheitenTab
             staffId={staffId}
             canEdit={canEdit}
-            canManageSickReports={canManageSickReports}
+            canManageSickReports={canManageTimeTracking}
             staff={staff}
           />
         </TabsPrimitive.Content>
 
-        {canEdit ? (
-          <>
-            <TabsPrimitive.Content value="stammdaten">
-              <PlaceholderTab title="Stammdaten" />
-            </TabsPrimitive.Content>
+        {canManageTimeTracking ? (
+          <TabsPrimitive.Content value="stammdaten">
+            <StammdatenTab
+              staffId={staffId}
+              canManagePayroll={canManageTimeTracking}
+              canManagePayrollSettings={canManagePayrollSettings}
+            />
+          </TabsPrimitive.Content>
+        ) : null}
 
-            <TabsPrimitive.Content value="dokumente">
-              <PlaceholderTab title="Dokumente" />
-            </TabsPrimitive.Content>
-          </>
+        {canEdit ? (
+          <TabsPrimitive.Content value="dokumente">
+            <PlaceholderTab title="Dokumente" />
+          </TabsPrimitive.Content>
         ) : null}
       </Tabs>
     </div>

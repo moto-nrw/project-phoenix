@@ -2693,11 +2693,12 @@ function GradeLevelSelect({
 }) {
   const grades = selectableGradeLevels(max, allowedGrades);
   return (
-    <label className="block" htmlFor={id}>
+    <label className="block" htmlFor={id} id={`${id}-label`}>
       <span className="block text-sm font-semibold text-gray-700">
         {tr("fields.gradeLevel")}
       </span>
       <CustomSelect
+        ariaLabelledBy={`${id}-label`}
         id={id}
         value={value}
         required
@@ -2805,11 +2806,12 @@ function SchoolClassSelect({
   readonly tr: EnrollmentFormTranslator;
 }) {
   return (
-    <label className="block" htmlFor={id}>
+    <label className="block" htmlFor={id} id={`${id}-label`}>
       <span className="block text-sm font-semibold text-gray-700">
         {tr(required ? "fields.schoolClassRequired" : "fields.schoolClass")}
       </span>
       <CustomSelect
+        ariaLabelledBy={`${id}-label`}
         id={id}
         value={value}
         required={required}
@@ -3382,6 +3384,7 @@ function CustomFieldInput({
       <label className="block">
         {labelEl}
         <CustomSelect
+          ariaLabel={field.label}
           value={valueStr}
           onChange={onChange}
           name={field.key}

@@ -284,3 +284,37 @@ func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staf
 	}
 	return rows, nil
 }
+
+// FindByStaffIDsAndDateRange is FindByStaffAndDateRange for many staff members
+// in one round trip, keyed by staff ID. A batched IN-lookup the generic filter
+// API cannot express as a single query. Wall-clock normalization is applied
+// exactly as in the single-staff twin — shiftNetMinutes depends on it.
+func (r *StaffShiftRepository) FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, start, end timezone.Date) (map[int64][]*schedule.StaffShift, error) {
+	result := make(map[int64][]*schedule.StaffShift, len(staffIDs))
+	if len(staffIDs) == 0 {
+		// bun renders an empty IN list as invalid SQL.
+		return result, nil
+	}
+
+	var shifts []*schedule.StaffShift
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&shifts).
+		ModelTableExpr(tableExprStaffShiftsAsShift).
+		Where(`"staff_shift".staff_id IN (?)`, bun.List(staffIDs)).
+		Where(`"staff_shift".date >= ?`, start).
+		Where(`"staff_shift".date <= ?`, end).
+		OrderExpr(`"staff_shift".staff_id ASC`).
+		OrderExpr(`"staff_shift".date ASC`).
+		OrderExpr(`"staff_shift".start_time ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "staff_shift")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff IDs and date range", Err: err}
+	}
+	normalizeShiftWallClock(shifts)
+	for _, shift := range shifts {
+		result[shift.StaffID] = append(result[shift.StaffID], shift)
+	}
+	return result, nil
+}

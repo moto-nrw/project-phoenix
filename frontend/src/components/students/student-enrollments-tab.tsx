@@ -17,10 +17,10 @@ import {
   ChildOfferingAdjustment,
   ChildOfferings,
   RequestExtraSection,
-  StatusBadge,
   formatDateTime,
   formatPlainDate,
 } from "~/components/enrollment/admin-enrollment-detail";
+import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentEnrollmentsTab" });
@@ -199,7 +199,7 @@ function EnrollmentRequestCard({
                   ) : null}
                 </div>
               </div>
-              <StatusBadge status={child.status} />
+              <ChildStatusBadge status={child.status} />
             </div>
 
             {child.status_reason ? (

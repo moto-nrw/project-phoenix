@@ -136,6 +136,13 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    href: "/payroll",
+    label: "Abrechnung",
+    icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
+    activeColor: "text-[#83CD2D]",
+    requiresPermission: "config:manage",
+  },
+  {
     href: "#",
     label: "Berichte",
     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
@@ -1241,8 +1248,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
             .filter((item) => item.href === "/dashboard")
             .map(renderNavItem)}
 
-          {/* Meine Gruppen accordion (staff only) */}
-          {showStaffAccordions && (
+          {/* Meine Gruppen accordion (staff only; hidden in open-care group
+              mode because there is no concept of "meine Gruppe" — staff work
+              with all children instead, #1544) */}
+          {showStaffAccordions && !openCareGroupMode && (
             <SidebarAccordionSection
               icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
               label={

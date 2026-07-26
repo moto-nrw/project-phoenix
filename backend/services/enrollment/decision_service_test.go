@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -23,6 +24,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -124,6 +126,7 @@ func newDecisionServiceForTest(
 		AccountRoleRepo:          repoFactory.AccountRole,
 		RoleRepo:                 repoFactory.Role,
 		OutboxEnqueuer:           env.outbox,
+		StudentAudit:             usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
 		FrontendURL:              "http://localhost:3000",
 		ParentsURL:               "http://parents.localhost:3000",
 		Settings:                 settings,
@@ -2286,6 +2289,129 @@ func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmit
 	require.NoError(t, err)
 	require.NotNil(t, student.HealthInfo)
 	assert.Equal(t, "Asthma", *student.HealthInfo)
+}
+
+func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "student-health-audit", []enrollmentModels.FormField{{
+		Key:         "health_info",
+		Label:       "Gesundheit",
+		Type:        enrollmentModels.FormFieldTextarea,
+		AppliesToCh: true,
+		Target:      enrollmentModels.TargetStudentHealthInfo,
+		SortOrder:   0,
+	}})
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "health-audit@example.com", "Anna", "Audit", map[string]any{
+		"health_info": "Asthma",
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{"health_info": "Diabetes"}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, auditModels.StudentFieldHealthInfo, history[0].FieldName)
+	assert.Equal(t, env.creatorID, history[0].EditedBy)
+	require.NotNil(t, history[0].OldValue)
+	require.NotNil(t, history[0].NewValue)
+	assert.Equal(t, "Asthma", *history[0].OldValue)
+	assert.Equal(t, "Diabetes", *history[0].NewValue)
+}
+
+func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTargetError(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "partial-student-health-audit", []enrollmentModels.FormField{
+		{
+			Key:         "health_info",
+			Label:       "Gesundheit",
+			Type:        enrollmentModels.FormFieldTextarea,
+			AppliesToCh: true,
+			Target:      enrollmentModels.TargetStudentHealthInfo,
+			SortOrder:   0,
+		},
+		{
+			Key:          "pickup_times",
+			Label:        "Abholzeiten",
+			Type:         enrollmentModels.FormFieldWeekdaySchedule,
+			AppliesToCh:  true,
+			Target:       enrollmentModels.TargetSchedulePickup,
+			AllowedTimes: []string{"14:45"},
+			SortOrder:    1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "partial-health-audit@example.com", "Anna", "Audit", map[string]any{
+		"health_info":  "Asthma",
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{
+		"health_info":  "Diabetes",
+		"pickup_times": map[string]any{"mon": "14:45"},
+	}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	actor := testpkg.CreateTestAccount(t, env.db, "partial-health-audit-reviewer")
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: actor.ID,
+	})
+	require.NoError(t, err, "a best-effort schedule error must not discard a persisted student update")
+
+	student, err := env.repos.Student.FindByID(ctx, studentID)
+	require.NoError(t, err)
+	require.NotNil(t, student.HealthInfo)
+	assert.Equal(t, "Diabetes", *student.HealthInfo)
+
+	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, auditModels.StudentFieldHealthInfo, history[0].FieldName)
+	assert.Equal(t, actor.ID, history[0].EditedBy)
+	require.NotNil(t, history[0].OldValue)
+	require.NotNil(t, history[0].NewValue)
+	assert.Equal(t, "Asthma", *history[0].OldValue)
+	assert.Equal(t, "Diabetes", *history[0].NewValue)
 }
 
 func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {

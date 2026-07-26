@@ -39,6 +39,7 @@ DELETE /api/staff-shifts/series/{id}
 DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
 DELETE /api/staff/{id}/absences/{absenceId}
+DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
@@ -264,6 +265,7 @@ GET /api/schedules/timeframes/active
 GET /api/schedules/timeframes/by-range
 GET /api/schedules/timeframes/{id}
 GET /api/settings/login-image
+GET /api/settings/payroll-status
 GET /api/settings/schema
 GET /api/settings/values/{key}/reveal
 GET /api/shift-types/
@@ -275,13 +277,20 @@ GET /api/staff/absences/pending
 GET /api/staff/available
 GET /api/staff/available-for-substitution
 GET /api/staff/by-role
+GET /api/staff/dashboard-summary
 GET /api/staff/pin
+GET /api/staff/time-tracking/audit-log
+GET /api/staff/time-tracking/export
+GET /api/staff/time-tracking/month-close
+GET /api/staff/time-tracking/overview
 GET /api/staff/{id}
 GET /api/staff/{id}/absences
 GET /api/staff/{id}/avatar
 GET /api/staff/{id}/groups
+GET /api/staff/{id}/payroll-number
 GET /api/staff/{id}/schedule
 GET /api/staff/{id}/substitutions
+GET /api/staff/{id}/time-tracking/adjustments
 GET /api/staff/{id}/time-tracking/export
 GET /api/staff/{id}/time-tracking/history
 GET /api/staff/{id}/time-tracking/month-summary
@@ -298,6 +307,7 @@ GET /api/students/{id}
 GET /api/students/{id}/arrival-schedules
 GET /api/students/{id}/attendance-history
 GET /api/students/{id}/attendance-history/export
+GET /api/students/{id}/change-history
 GET /api/students/{id}/companions
 GET /api/students/{id}/current-location
 GET /api/students/{id}/current-visit
@@ -548,6 +558,7 @@ POST /api/me/profile/avatar
 POST /api/messages/threads
 POST /api/messages/threads/open
 POST /api/messages/threads/{threadId}
+POST /api/notifications/test
 POST /api/parent-announcements/
 POST /api/parent-announcements/{announcementId}/publish
 POST /api/parent-announcements/{announcementId}/unpublish
@@ -571,7 +582,11 @@ POST /api/staff/
 POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
+POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
+POST /api/staff/{id}/time-tracking/adjustments
+POST /api/staff/{id}/time-tracking/month-close/reopen
+POST /api/staff/{id}/time-tracking/reset
 POST /api/staff/{id}/time-tracking/sessions
 POST /api/students/
 POST /api/students/arrival-schedules/bulk
@@ -746,6 +761,7 @@ PUT /api/staff-shifts/{id}/cancellation
 PUT /api/staff-shifts/{id}/move
 PUT /api/staff/pin
 PUT /api/staff/{id}
+PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/schedule
 PUT /api/staff/{id}/time-tracking/sessions/{sessionId}
 PUT /api/staff/{id}/vacation/quota

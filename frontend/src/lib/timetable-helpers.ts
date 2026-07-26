@@ -252,6 +252,11 @@ export function getGermanWeekdayLong(d: Date): string {
   return GERMAN_WEEKDAY_LONG[d.getDay()] ?? "";
 }
 
+/** Converts a German weekday name to its recurring adverb ("Montag" → "montags"). */
+export function getGermanWeekdayAdverb(weekday: string): string {
+  return weekday ? `${weekday.toLowerCase()}s` : "";
+}
+
 export function getGermanWeekdayShort(d: Date): string {
   return GERMAN_WEEKDAY_SHORT[d.getDay()] ?? "";
 }

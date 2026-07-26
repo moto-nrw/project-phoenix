@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	remindersService "github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/uptrace/bun"
@@ -63,8 +62,7 @@ func (rs *Resource) listReminders(w http.ResponseWriter, r *http.Request) {
 	// wrong 403 for accounts without a staff row, or caregiver-scoped reminders
 	// for a full admin. This mirrors CanReadStudent and the rest of the
 	// authorization layer.
-	claims := jwt.ClaimsFromCtx(ctx)
-	isAdmin := claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
+	isAdmin := authorize.HasEffectiveAdminScope(ctx)
 	scope := remindersService.Scope{IsAdmin: isAdmin}
 
 	if !isAdmin {

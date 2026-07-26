@@ -2,9 +2,12 @@ package users_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,7 +21,7 @@ import (
 // the mock.
 func newCompanionTestService(db *bun.DB) usersService.StudentService {
 	factory := repositories.NewFactory(db)
-	return usersService.NewStudentService(factory.Student, factory.PrivacyConsent, factory.StudentCompanion)
+	return usersService.NewStudentService(factory.Student, factory.PrivacyConsent, factory.StudentCompanion, nil)
 }
 
 // cleanupCompanionEdges removes every edge touching the given students. The
@@ -212,6 +215,60 @@ func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *test
 	allowed := userModels.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
 	assert.True(t, allowed["mon"], "Monday must have been added")
 	assert.True(t, allowed["fri"], "Friday must survive — extension is additive")
+}
+
+func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+
+	ctx := context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, jwt.AppClaims{
+		ID:        int(account.ID),
+		FirstName: "Clara",
+		LastName:  "Confirm",
+	})
+	factory := repositories.NewFactory(db)
+	audit := usersService.NewStudentAuditService(factory.StudentFieldEdit, slog.Default())
+	service := usersService.NewStudentService(
+		factory.Student,
+		factory.PrivacyConsent,
+		factory.StudentCompanion,
+		audit,
+	)
+
+	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "AuditCompanion", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
+	setAccompaniedDays(t, db, ctx, companion.ID, "fri")
+
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links:           []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
+		AccompaniedDays: map[string]bool{"mon": true},
+	})
+	require.NoError(t, err)
+	require.Len(t, conflicts, 1)
+
+	conflicts, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links:                []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
+		AccompaniedDays:      map[string]bool{"mon": true},
+		ExtendCompanionPlans: true,
+		ActorAccountID:       account.ID,
+	})
+	require.NoError(t, err)
+	require.Empty(t, conflicts)
+
+	history, err := audit.GetChangeHistory(ctx, companion.ID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, auditModels.StudentFieldDepartureDays, history[0].FieldName)
+	assert.Equal(t, account.ID, history[0].EditedBy)
+	assert.Equal(t, "Clara Confirm", history[0].EditedByName)
 }
 
 // TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement pins that a child

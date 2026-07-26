@@ -10,6 +10,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
 import { useSession } from "next-auth/react";
 
+const { mockSWRMutate } = vi.hoisted(() => ({
+  mockSWRMutate: vi.fn(),
+}));
+vi.mock("swr", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("swr")>();
+  return {
+    ...actual,
+    useSWRConfig: () => ({ mutate: mockSWRMutate }),
+  };
+});
+
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
@@ -565,6 +576,7 @@ describe("StudentDetailPage", () => {
     ]);
     mockCreateStudentStatusDays.mockResolvedValue([]);
     mockFetchStudentStatusDays.mockResolvedValue([]);
+    mockSWRMutate.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -829,6 +841,26 @@ describe("StudentDetailPage", () => {
       });
     });
 
+    it("revalidates field history after saving personal info", async () => {
+      mockUpdateStudent.mockResolvedValue({});
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("edit-personal-info"));
+      await waitFor(() => {
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("save-personal-info"));
+      });
+
+      await waitFor(() => {
+        expect(mockSWRMutate).toHaveBeenCalledWith(
+          "/api/students/1/change-history",
+        );
+      });
+    });
+
     it("sends explicit departure_days when saving personal info", async () => {
       mockUpdateStudent.mockResolvedValue({});
       mockUseStudentData.mockReturnValue({
@@ -1033,7 +1065,10 @@ describe("StudentDetailPage", () => {
 
       // Wait for active groups to load and select one
       const select = await screen.findByRole("combobox");
-      fireEvent.change(select, { target: { value: "1" } });
+      fireEvent.click(select);
+      fireEvent.click(
+        screen.getByRole("option", { name: "Raum 101 (Gruppe A)" }),
+      );
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {
@@ -1063,7 +1098,10 @@ describe("StudentDetailPage", () => {
 
       // Select a room first
       const select = await screen.findByRole("combobox");
-      fireEvent.change(select, { target: { value: "1" } });
+      fireEvent.click(select);
+      fireEvent.click(
+        screen.getByRole("option", { name: "Raum 101 (Gruppe A)" }),
+      );
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {
@@ -1151,7 +1189,7 @@ describe("StudentDetailPage", () => {
     });
   });
 
-  describe("Guardian Manager Updates", () => {
+  describe("Embedded Manager Updates", () => {
     it("refreshes data when guardian manager triggers update", async () => {
       render(<StudentDetailPage />);
 
@@ -1160,6 +1198,19 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(mockRefreshData).toHaveBeenCalled();
+      });
+    });
+
+    it("revalidates field history when the care schedule triggers an update", async () => {
+      render(<StudentDetailPage />);
+
+      fireEvent.click(screen.getByTestId("update-care-schedule"));
+
+      await waitFor(() => {
+        expect(mockRefreshData).toHaveBeenCalled();
+        expect(mockSWRMutate).toHaveBeenCalledWith(
+          "/api/students/1/change-history",
+        );
       });
     });
   });
@@ -1695,6 +1746,90 @@ describe("StudentDetailPage", () => {
       expect(
         screen.queryByRole("tab", { name: "Anmeldungen" }),
       ).not.toBeInTheDocument();
+    });
+
+    it("hides the Betreuungsplan tab without schedules:read", () => {
+      // Default mock session is config:manage only -> no schedules:read.
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Betreuungsplan tab with schedules:read", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the Betreuungsplan tab in the limited-access view despite schedules:read", () => {
+      // Deliberate, not an oversight: has_full_access on the student response is
+      // authorize.CanReadStudent, the SAME predicate the backend applies inside
+      // GET /timetable/student/{id}/{day,week} (api/timetable/api.go gates the
+      // route on schedules:read, resolveStudentForRead then runs CanReadStudent).
+      // A limited-access viewer therefore gets 403 from the care-plan endpoints,
+      // so showing the tab would only offer a permanently failing panel.
+      mockUseStudentData.mockReturnValue(limitedAccess);
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Betreuungsplan tab to a non-supervisor under gdpr.student_data_scope=all_staff", () => {
+      // The complement of the test above, and the case worth pinning: under
+      // `all_staff` the backend's read predicate (authorize.CanReadStudent)
+      // returns true for EVERY staff member, so has_full_access arrives true
+      // even for someone who supervises none of this child's groups — and the
+      // care-plan endpoints, gated on that same predicate, will serve them.
+      // The tab must therefore appear. It is gated on read access, never on the
+      // stricter supervisor/admin write predicate (has_write_access).
+      mockUseStudentData.mockReturnValue({
+        ...limitedAccess,
+        hasFullAccess: true, // all_staff scope grants read access…
+        hasWriteAccess: false, // …while writes stay supervisor-only
+        myGroups: [],
+        mySupervisedRooms: [],
+      });
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toBeInTheDocument();
     });
 
     it("defaults to the Stammdaten tab when no tab param is set", () => {

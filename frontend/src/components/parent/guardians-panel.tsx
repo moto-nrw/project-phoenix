@@ -24,6 +24,7 @@ import {
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { Modal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -597,18 +598,17 @@ function ContactModal({
                     controlSize="compact"
                   />
                 </div>
-                <select
-                  value={p.phone_type}
-                  onChange={(e) => setPhone(i, { phone_type: e.target.value })}
-                  className="moto-select rounded-md border border-gray-300 px-2 py-2 text-sm"
-                  aria-label={t("guardians.phoneTypeLabel")}
-                >
-                  {PHONE_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {t(`guardians.phoneTypes.${type}`)}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-32 shrink-0">
+                  <CustomSelect
+                    value={p.phone_type}
+                    options={PHONE_TYPES.map((type) => ({
+                      value: type,
+                      label: t(`guardians.phoneTypes.${type}`),
+                    }))}
+                    onChange={(next) => setPhone(i, { phone_type: next })}
+                    ariaLabel={t("guardians.phoneTypeLabel")}
+                  />
+                </div>
                 {phones.length > 1 && (
                   <button
                     type="button"

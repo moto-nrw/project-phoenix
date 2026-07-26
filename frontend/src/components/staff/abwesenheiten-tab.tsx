@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { useSWRConfig } from "swr";
-import { Thermometer, Trash2 } from "lucide-react";
+import { Clock3, Thermometer, Trash2 } from "lucide-react";
 
 import {
   DenyAbsenceModal,
@@ -157,6 +157,9 @@ export function AbwesenheitenTab({
   // refetches the page data, and a conditional `{staff && <Modal/>}` render
   // would then unmount the modal mid-success-state (#1843).
   const [sickStaff, setSickStaff] = useState<SickReportStaff | null>(null);
+  const [managedAbsenceType, setManagedAbsenceType] = useState<
+    "sick" | "comp_time"
+  >("sick");
   const [deleteTarget, setDeleteTarget] = useState<StaffAbsenceRow | null>(
     null,
   );
@@ -294,15 +297,32 @@ export function AbwesenheitenTab({
 
       <div className="flex items-center justify-between gap-3">
         {canManageSickReports && staff ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => setSickStaff(staff ?? null)}
-          >
-            <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
-            Krank melden
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setManagedAbsenceType("sick");
+                setSickStaff(staff);
+              }}
+            >
+              <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
+              Krank melden
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setManagedAbsenceType("comp_time");
+                setSickStaff(staff);
+              }}
+            >
+              <Clock3 className="mr-1.5 h-4 w-4" aria-hidden />
+              Freizeitausgleich eintragen
+            </Button>
+          </div>
         ) : (
           <span />
         )}
@@ -377,6 +397,7 @@ export function AbwesenheitenTab({
         <SickReportModal
           isOpen
           staff={sickStaff}
+          absenceType={managedAbsenceType}
           onClose={() => setSickStaff(null)}
           onCreated={() => {
             Promise.all([refreshPlanCaches(), reload({ silent: true })]).catch(

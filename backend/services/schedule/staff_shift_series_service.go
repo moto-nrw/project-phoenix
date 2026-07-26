@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
 
@@ -80,6 +81,7 @@ type staffShiftSeriesService struct {
 	periodRepo    scheduleModels.CalendarPeriodRepository
 	shiftTypes    ShiftTypeService
 	db            *bun.DB
+	broadcaster   realtime.Broadcaster
 	logger        *slog.Logger
 }
 
@@ -109,6 +111,16 @@ func NewStaffShiftSeriesService(
 
 func (s *staffShiftSeriesService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster used to invalidate
+// time-tracking views after committed series writes.
+func (s *staffShiftSeriesService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
+func (s *staffShiftSeriesService) broadcastTimeTrackingChanged(ctx context.Context) {
+	realtime.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func (s *staffShiftSeriesService) lockShiftWrites(ctx context.Context, staffID int64) error {
@@ -288,6 +300,7 @@ func (s *staffShiftSeriesService) CreateSeries(ctx context.Context, series *sche
 		"created", created,
 		"skipped", len(skipped),
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return &SeriesResult{Series: series, Created: created, SkippedDates: skipped}, nil
 }
 
@@ -422,6 +435,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		"created", created,
 		"skipped", len(skipped),
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return &SeriesResult{Series: successor, OldSeriesID: old.ID, Created: created, Deleted: deleted, SkippedDates: skipped}, nil
 }
 
@@ -454,5 +468,6 @@ func (s *staffShiftSeriesService) EndSeries(ctx context.Context, seriesID int64,
 		"effective", effective.String(),
 		"deleted", deleted,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return &SeriesResult{Series: series, Deleted: deleted}, nil
 }

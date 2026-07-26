@@ -53,6 +53,10 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 vi.mock("~/lib/tenant-context", () => ({
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  // OpenCareModeGuard (#1544) wraps the page; fixed_groups keeps it inert.
+  // Its useTenantAwarePath call needs the routing-mode selector too.
+  useOpenCareGroupMode: vi.fn(() => false),
+  useTenantRoutingModeSafe: vi.fn(() => "subdomain"),
   // useStudentPhotosEnabled (used by ogs-groups for the avatar-clearance
   // spacer) reads tenant.studentPhotosEnabled via this selector. The mock
   // returns null which makes the hook resolve to enabled=false — fine for

@@ -12,6 +12,7 @@ import {
 } from "~/components/calendar/personal-calendar";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -609,7 +610,7 @@ export default function StaffCalendarPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="w-full">
       <PersonalCalendar
         title="Mein Kalender"
         subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
@@ -754,66 +755,59 @@ export default function StaffCalendarPage() {
               Beschreibung
             </span>
             <textarea
-              className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               disabled={submitting}
             />
           </label>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}>
             {!editingId ? (
-              <label className="block">
+              <label htmlFor="calendar-delivery-mode" className="block">
                 <span className="mb-2 block text-sm font-medium text-gray-700">
                   Antwortregel
                 </span>
-                <select
-                  className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                <CustomSelect
+                  id="calendar-delivery-mode"
+                  ariaLabel="Antwortregel"
                   value={deliveryMode}
-                  onChange={(event) =>
-                    setDeliveryMode(event.target.value as CalendarDeliveryMode)
+                  onChange={(next) =>
+                    setDeliveryMode(next as CalendarDeliveryMode)
                   }
                   disabled={submitting}
-                >
-                  <option value="rsvp_required">
-                    Antwort erforderlich: Zusage oder Absage
-                  </option>
-                  <option value="informational">
-                    Nur informieren: ohne Rückmeldung eintragen
-                  </option>
-                </select>
+                  options={[
+                    {
+                      value: "rsvp_required",
+                      label: "Antwort erforderlich: Zusage oder Absage",
+                    },
+                    {
+                      value: "informational",
+                      label: "Nur informieren: ohne Rückmeldung eintragen",
+                    },
+                  ]}
+                />
               </label>
             ) : null}
-            <label className="block">
+            <label htmlFor="calendar-overview-visibility" className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">
                 Teilnehmerübersicht
               </span>
-              <select
-                className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              <CustomSelect
+                id="calendar-overview-visibility"
+                ariaLabel="Teilnehmerübersicht"
                 value={overviewVisibility}
-                onChange={(event) =>
-                  setOverviewVisibility(
-                    event.target.value as CalendarOverviewVisibility,
-                  )
+                onChange={(next) =>
+                  setOverviewVisibility(next as CalendarOverviewVisibility)
                 }
                 disabled={submitting}
-              >
-                <option value="organizer">Nur ich</option>
-                <option value="staff">Mitarbeitende mit Termin</option>
-                <option value="all">Alle Eingeladenen</option>
-              </select>
-            </label>
-            {!editingId ? (
-              <Input
-                label="Ziele suchen"
-                name="calendar-target-search"
-                controlSize="compact"
-                value={targetSearch}
-                onChange={(event) => setTargetSearch(event.target.value)}
-                disabled={submitting}
-                placeholder="Name, Klasse oder Gruppe"
+                options={[
+                  { value: "organizer", label: "Nur ich" },
+                  { value: "staff", label: "Mitarbeitende mit Termin" },
+                  { value: "all", label: "Alle Eingeladenen" },
+                ]}
               />
-            ) : null}
+            </label>
           </div>
 
           {!editingId ? (
@@ -826,6 +820,16 @@ export default function StaffCalendarPage() {
                   {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
                   ausgewählt
                 </span>
+              </div>
+              <div className="mb-3">
+                <Input
+                  label="Ziele suchen"
+                  name="calendar-target-search"
+                  value={targetSearch}
+                  onChange={(event) => setTargetSearch(event.target.value)}
+                  disabled={submitting}
+                  placeholder="Name, Klasse oder Gruppe"
+                />
               </div>
               <div className="grid gap-3 lg:grid-cols-2">
                 {targetGroups.map((group) => (
@@ -907,24 +911,24 @@ export default function StaffCalendarPage() {
           ) : null}
 
           <div className="grid gap-4 md:grid-cols-3">
-            <label className="block">
+            <label htmlFor="calendar-frequency" className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">
                 Wiederholung
               </span>
-              <select
-                className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              <CustomSelect
+                id="calendar-frequency"
+                ariaLabel="Wiederholung"
                 value={frequency}
-                onChange={(event) =>
-                  setFrequency(event.target.value as RecurrenceFrequency)
-                }
+                onChange={(next) => setFrequency(next as RecurrenceFrequency)}
                 disabled={submitting}
-              >
-                <option value="none">Keine</option>
-                <option value="daily">Täglich</option>
-                <option value="weekly">Wöchentlich</option>
-                <option value="monthly">Monatlich</option>
-                <option value="yearly">Jährlich</option>
-              </select>
+                options={[
+                  { value: "none", label: "Keine" },
+                  { value: "daily", label: "Täglich" },
+                  { value: "weekly", label: "Wöchentlich" },
+                  { value: "monthly", label: "Monatlich" },
+                  { value: "yearly", label: "Jährlich" },
+                ]}
+              />
             </label>
             <Input
               label="Intervall"
@@ -1091,6 +1095,6 @@ export default function StaffCalendarPage() {
           </div>
         ) : null}
       </Modal>
-    </main>
+    </div>
   );
 }

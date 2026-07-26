@@ -237,6 +237,10 @@ function absenceCreditForDay(
   key: string,
   range: EffectiveAbsenceRange,
 ): number {
+  // Freizeitausgleich (#1420 5b) wird bewusst NICHT gutgeschrieben: der Tag
+  // behält sein Soll, der Saldo sinkt um das Tagessoll. Der Tag gilt trotzdem
+  // als verbraucht (seen), gespiegelt zum Server (creditAbsenceDays).
+  if (absence.absence_type === "comp_time") return 0;
   const target = targetFor(day);
   return isHalfAbsenceBoundary(absence, key, range.startKey, range.endKey)
     ? Math.floor(target / 2)
@@ -247,20 +251,18 @@ function isEffectiveAbsenceStatus(status: string): boolean {
   return status === "reported" || status === "approved";
 }
 
-function isHalfAbsenceBoundary(
+export function isHalfAbsenceBoundary(
   absence: StaffAbsenceRow,
   key: string,
   startKey: string,
   endKey: string,
 ): boolean {
-  const hasBoundaryFields =
-    absence.start_half_day !== undefined || absence.end_half_day !== undefined;
-  const startHalf = hasBoundaryFields
-    ? Boolean(absence.start_half_day)
-    : absence.half_day;
-  const endHalf = hasBoundaryFields
-    ? Boolean(absence.end_half_day)
-    : absence.half_day;
+  // Mirrors backend effectiveAbsenceBoundaryHalves: older/admin-created rows
+  // store only half_day=true while the newer boundary columns remain false.
+  const legacyHalfDay =
+    absence.half_day && !absence.start_half_day && !absence.end_half_day;
+  const startHalf = legacyHalfDay || Boolean(absence.start_half_day);
+  const endHalf = legacyHalfDay || Boolean(absence.end_half_day);
   if (startKey === endKey) {
     return key === startKey && (startHalf || endHalf);
   }

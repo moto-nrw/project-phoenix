@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DatabaseSelect, GroupSelect } from "./database-select";
 
+// The select renders as the kit listbox (CustomSelect): a combobox trigger
+// button plus an option list that only exists while the menu is open.
+function openMenu() {
+  fireEvent.click(screen.getByRole("combobox"));
+}
+
 // =============================================================================
 // DatabaseSelect Tests
 // =============================================================================
@@ -24,11 +30,10 @@ describe("DatabaseSelect", () => {
     });
 
     it("renders with correct name attribute", () => {
-      render(<DatabaseSelect {...defaultProps} />);
-      expect(screen.getByRole("combobox")).toHaveAttribute(
-        "name",
-        "test-select",
-      );
+      const { container } = render(<DatabaseSelect {...defaultProps} />);
+      expect(
+        container.querySelector('input[name="test-select"]'),
+      ).toBeInTheDocument();
     });
 
     it("renders label when provided", () => {
@@ -62,9 +67,14 @@ describe("DatabaseSelect", () => {
         { value: "b", label: "Option B" },
       ];
       render(<DatabaseSelect {...defaultProps} options={options} />);
+      openMenu();
 
-      expect(screen.getByText("Option A")).toBeInTheDocument();
-      expect(screen.getByText("Option B")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Option A" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Option B" }),
+      ).toBeInTheDocument();
     });
 
     it("renders empty option by default", () => {
@@ -95,7 +105,10 @@ describe("DatabaseSelect", () => {
           includeEmpty={false}
         />,
       );
-      expect(screen.queryByText("Bitte wählen")).not.toBeInTheDocument();
+      openMenu();
+      expect(
+        screen.queryByRole("option", { name: "Bitte wählen" }),
+      ).not.toBeInTheDocument();
     });
 
     it("renders disabled options correctly", () => {
@@ -104,8 +117,9 @@ describe("DatabaseSelect", () => {
         { value: "b", label: "Disabled", disabled: true },
       ];
       render(<DatabaseSelect {...defaultProps} options={options} />);
+      openMenu();
 
-      const disabledOption = screen.getByText("Disabled");
+      const disabledOption = screen.getByRole("option", { name: "Disabled" });
       expect(disabledOption).toBeDisabled();
     });
   });
@@ -118,7 +132,7 @@ describe("DatabaseSelect", () => {
       ];
       render(<DatabaseSelect {...defaultProps} options={options} value="b" />);
 
-      expect(screen.getByRole("combobox")).toHaveValue("b");
+      expect(screen.getByRole("combobox")).toHaveTextContent("Option B");
     });
 
     it("calls onChange when selection changes", () => {
@@ -135,9 +149,8 @@ describe("DatabaseSelect", () => {
         />,
       );
 
-      fireEvent.change(screen.getByRole("combobox"), {
-        target: { value: "b" },
-      });
+      openMenu();
+      fireEvent.click(screen.getByRole("option", { name: "Option B" }));
       expect(onChange).toHaveBeenCalledWith("b");
     });
   });
@@ -168,8 +181,10 @@ describe("DatabaseSelect", () => {
 
     it("applies disabled styles", () => {
       render(<DatabaseSelect {...defaultProps} disabled />);
-      expect(screen.getByRole("combobox")).toHaveClass("bg-gray-50");
-      expect(screen.getByRole("combobox")).toHaveClass("cursor-not-allowed");
+      expect(screen.getByRole("combobox")).toHaveClass("disabled:bg-gray-100");
+      expect(screen.getByRole("combobox")).toHaveClass(
+        "disabled:cursor-not-allowed",
+      );
     });
   });
 
@@ -181,7 +196,7 @@ describe("DatabaseSelect", () => {
 
     it("applies error styles to select", () => {
       render(<DatabaseSelect {...defaultProps} error="Error" />);
-      expect(screen.getByRole("combobox")).toHaveClass("border-red-300");
+      expect(screen.getByRole("combobox")).toHaveClass("border-[#FF3130]");
     });
   });
 
@@ -218,9 +233,19 @@ describe("DatabaseSelect", () => {
       // Should show loading state initially
       expect(screen.getByText("Lädt...")).toBeInTheDocument();
 
+      // The trigger is disabled while loading; open once loading finished
       await waitFor(() => {
-        expect(screen.getByText("Loaded Option 1")).toBeInTheDocument();
-        expect(screen.getByText("Loaded Option 2")).toBeInTheDocument();
+        expect(screen.getByRole("combobox")).not.toBeDisabled();
+      });
+      openMenu();
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("option", { name: "Loaded Option 1" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("option", { name: "Loaded Option 2" }),
+        ).toBeInTheDocument();
       });
 
       expect(loadOptions).toHaveBeenCalledTimes(1);
@@ -256,8 +281,11 @@ describe("DatabaseSelect", () => {
         />,
       );
 
+      openMenu();
       expect(loadOptions).not.toHaveBeenCalled();
-      expect(screen.getByText("Static Option")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Static Option" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -267,19 +295,11 @@ describe("DatabaseSelect", () => {
       expect(screen.getByRole("combobox")).toHaveClass("custom-class");
     });
 
-    it("applies custom focus ring color", () => {
-      render(
-        <DatabaseSelect
-          {...defaultProps}
-          focusRingColor="focus:ring-green-500"
-        />,
-      );
-      expect(screen.getByRole("combobox")).toHaveClass("focus:ring-green-500");
-    });
-
-    it("uses default blue focus ring color", () => {
+    it("uses the standard kit focus styling", () => {
       render(<DatabaseSelect {...defaultProps} />);
-      expect(screen.getByRole("combobox")).toHaveClass("focus:ring-blue-500");
+      expect(screen.getByRole("combobox")).toHaveClass(
+        "focus-visible:ring-gray-400",
+      );
     });
   });
 
@@ -361,8 +381,17 @@ describe("GroupSelect", () => {
     render(<GroupSelect {...defaultProps} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Klasse 1a")).toBeInTheDocument();
-      expect(screen.getByText("Klasse 2b")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    openMenu();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Klasse 1a" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Klasse 2b" }),
+      ).toBeInTheDocument();
     });
 
     expect(global.fetch).toHaveBeenCalledWith("/api/groups");
@@ -415,8 +444,17 @@ describe("GroupSelect", () => {
     render(<GroupSelect {...defaultProps} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Group 1")).toBeInTheDocument();
-      expect(screen.getByText("Group 2")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    openMenu();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Group 1" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Group 2" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -432,7 +470,14 @@ describe("GroupSelect", () => {
     render(<GroupSelect {...defaultProps} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Numeric ID Group")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    openMenu();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Numeric ID Group" }),
+      ).toBeInTheDocument();
     });
   });
 

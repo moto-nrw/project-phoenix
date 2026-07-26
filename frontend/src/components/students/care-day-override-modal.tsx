@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   CalendarDays,
   Clock,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useToast } from "~/contexts/ToastContext";
 import {
   type ArrivalDayData,
@@ -83,6 +84,7 @@ export function CareDayOverrideModal({
   // dialogs never stack. Kept separate from the `isOpen` prop on purpose: the
   // reset effect keys on `isOpen`, so toggling this preserves the form's state.
   const [formVisible, setFormVisible] = useState(true);
+  const noteTargetId = useId();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -411,20 +413,20 @@ export function CareDayOverrideModal({
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-            <label className="block">
+            <label htmlFor={noteTargetId} className="block">
               <span className="mb-1 block text-xs font-medium text-gray-500">
                 Bereich
               </span>
-              <select
+              <CustomSelect
+                id={noteTargetId}
                 value={noteTarget}
-                onChange={(event) =>
-                  setNoteTarget(event.target.value as NoteTarget)
-                }
-                className="moto-select h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
-              >
-                <option value="arrival">Ankunft</option>
-                <option value="pickup">Abholung</option>
-              </select>
+                options={[
+                  { value: "arrival", label: "Ankunft" },
+                  { value: "pickup", label: "Abholung" },
+                ]}
+                onChange={(next) => setNoteTarget(next as NoteTarget)}
+                ariaLabel="Bereich"
+              />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-gray-500">
