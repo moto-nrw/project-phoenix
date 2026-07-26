@@ -1,13 +1,16 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  IosInstallHint,
+  PwaInstallHint,
+  isAndroidDevice,
   isIosDevice,
   isStandaloneDisplay,
-} from "./ios-install-hint";
+} from "./pwa-install-hint";
 
 const IPHONE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+const ANDROID_UA =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.71 Mobile Safari/537.36";
 const DESKTOP_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
@@ -58,6 +61,17 @@ describe("isIosDevice", () => {
   });
 });
 
+describe("isAndroidDevice", () => {
+  it("detects Android user agents", () => {
+    expect(isAndroidDevice({ userAgent: ANDROID_UA } as Navigator)).toBe(true);
+  });
+
+  it("rejects iOS and desktop user agents", () => {
+    expect(isAndroidDevice({ userAgent: IPHONE_UA } as Navigator)).toBe(false);
+    expect(isAndroidDevice({ userAgent: DESKTOP_UA } as Navigator)).toBe(false);
+  });
+});
+
 describe("isStandaloneDisplay", () => {
   it("detects the standalone display-mode media query", () => {
     stubMatchMedia(true);
@@ -75,7 +89,7 @@ describe("isStandaloneDisplay", () => {
   });
 });
 
-describe("IosInstallHint", () => {
+describe("PwaInstallHint", () => {
   beforeEach(() => {
     localStorage.clear();
   });
@@ -84,36 +98,52 @@ describe("IosInstallHint", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders on iOS in browser mode", () => {
+  it("renders Safari instructions on iOS in browser mode", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
-    render(<IosInstallHint />);
+    render(<PwaInstallHint />);
     expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
+    expect(screen.getByText("Zum Home-Bildschirm")).toBeInTheDocument();
   });
 
-  it("does not render on non-iOS devices", () => {
+  it("renders browser-menu instructions on Android in browser mode", () => {
+    stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
+    stubMatchMedia(false);
+    render(<PwaInstallHint />);
+    expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
+    expect(screen.getByText("App installieren")).toBeInTheDocument();
+  });
+
+  it("does not render on desktop devices", () => {
     stubNavigator({ userAgent: DESKTOP_UA });
     stubMatchMedia(false);
-    render(<IosInstallHint />);
+    render(<PwaInstallHint />);
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
   });
 
   it("does not render inside an installed PWA", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(true);
-    render(<IosInstallHint />);
+    render(<PwaInstallHint />);
+    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
+  });
+
+  it("does not render inside an installed PWA on Android", () => {
+    stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
+    stubMatchMedia(true);
+    render(<PwaInstallHint />);
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
   });
 
   it("stays hidden after dismissal", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
-    const { unmount } = render(<IosInstallHint />);
+    const { unmount } = render(<PwaInstallHint />);
     fireEvent.click(screen.getByLabelText("Hinweis schließen"));
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
     unmount();
 
-    render(<IosInstallHint />);
+    render(<PwaInstallHint />);
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
   });
 });

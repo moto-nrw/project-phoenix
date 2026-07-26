@@ -272,6 +272,25 @@ export const setupChapters: readonly GuideChapter[] = [
         printCompact: true,
       },
       {
+        id: "app-zum-startbildschirm-android",
+        title: "moto zum Startbildschirm hinzufügen (Android)",
+        summary:
+          "Auch auf Android-Geräten lässt sich moto als App installieren und startet dann im Vollbild ohne Browserleisten.",
+        steps: [
+          "moto in Chrome öffnen und in der eigenen Einrichtung anmelden.",
+          "Auf der Seite der Einrichtung das Browser-Menü mit den drei Punkten öffnen.",
+          "`App installieren` oder `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "moto künftig über das neue Symbol auf dem Startbildschirm starten.",
+        ],
+        callout: {
+          title: "Erst anmelden, dann installieren",
+          body: "Wie auf dem iPhone gilt: moto erst nach der Anmeldung in der eigenen Einrichtung installieren. Wer für mehrere Einrichtungen arbeitet, legt für jede Einrichtung ein eigenes Symbol an.",
+          tone: "blue",
+        },
+        screenshot: "Chrome-Menü auf Android mit der Option App installieren.",
+        printCompact: true,
+      },
+      {
         id: "mitarbeitende-anlegen",
         title: "Mitarbeitende anlegen und einladen",
         summary:
