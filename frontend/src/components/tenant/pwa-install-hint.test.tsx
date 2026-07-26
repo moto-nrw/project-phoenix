@@ -22,6 +22,10 @@ const IOS_WEBVIEW_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 const ANDROID_UA =
   "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.71 Mobile Safari/537.36";
+const ANDROID_WEBVIEW_UA =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A.240705.005; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.6478.71 Mobile Safari/537.36";
+const ANDROID_WEBVIEW_WITHOUT_WV_UA =
+  "Mozilla/5.0 (Linux; Android 8.1; Pixel 2 Build/OPM1.171019.011) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/67.0.3396.87 Mobile Safari/537.36";
 const DESKTOP_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
@@ -99,8 +103,19 @@ describe("isIosSafari", () => {
 });
 
 describe("isAndroidDevice", () => {
-  it("detects Android user agents", () => {
+  it("detects Android browser user agents", () => {
     expect(isAndroidDevice({ userAgent: ANDROID_UA } as Navigator)).toBe(true);
+  });
+
+  it("rejects Android WebView user agents", () => {
+    expect(
+      isAndroidDevice({ userAgent: ANDROID_WEBVIEW_UA } as Navigator),
+    ).toBe(false);
+    expect(
+      isAndroidDevice({
+        userAgent: ANDROID_WEBVIEW_WITHOUT_WV_UA,
+      } as Navigator),
+    ).toBe(false);
   });
 
   it("rejects iOS and desktop user agents", () => {
@@ -135,15 +150,15 @@ describe("PwaInstallHint", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders Safari instructions on iOS in browser mode", () => {
+  it("renders Safari instructions above mobile check-in controls", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
     const { container } = render(<PwaInstallHint />);
     expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
     expect(screen.getByText("Zum Home-Bildschirm")).toBeInTheDocument();
     expect(container.firstElementChild).toHaveClass(
-      "bottom-[calc(5.5rem+env(safe-area-inset-bottom))]",
-      "lg:bottom-6",
+      "bottom-[calc(10.5rem+env(safe-area-inset-bottom))]",
+      "xl:bottom-6",
     );
   });
 
@@ -167,6 +182,16 @@ describe("PwaInstallHint", () => {
     render(<PwaInstallHint />);
     expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
     expect(screen.getByText("App installieren")).toBeInTheDocument();
+  });
+
+  it("does not render inside Android WebViews", () => {
+    stubNavigator({
+      userAgent: ANDROID_WEBVIEW_UA,
+      platform: "Linux armv81",
+    });
+    stubMatchMedia(false);
+    render(<PwaInstallHint />);
+    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
   });
 
   it("does not render on desktop devices", () => {

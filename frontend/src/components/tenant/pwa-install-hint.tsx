@@ -23,9 +23,12 @@ export function isIosSafari(nav: Navigator): boolean {
   );
 }
 
-/** True on Android phones and tablets. */
+/** True in Android browsers that can expose an install action. */
 export function isAndroidDevice(nav: Navigator): boolean {
-  return /android/i.test(nav.userAgent);
+  return (
+    /android/i.test(nav.userAgent) &&
+    !/(?:;\s*wv\b|version\/4\.0)/i.test(nav.userAgent)
+  );
 }
 
 /** True when running inside an installed PWA (standalone display mode). */
@@ -73,8 +76,10 @@ export function PwaInstallHint() {
 
   const PlatformIcon = platform === "ios" ? Share : EllipsisVertical;
 
+  // Below xl, reserve the bottom nav (5.5rem), the tallest fixed check-in
+  // control (3.5rem), and a 1.5rem gap. Those controls are hidden at xl.
   return (
-    <div className="moto-content-surface fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border p-4 shadow-lg sm:right-6 sm:left-auto sm:max-w-sm lg:bottom-6">
+    <div className="moto-content-surface fixed inset-x-4 bottom-[calc(10.5rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border p-4 shadow-lg sm:right-6 sm:left-auto sm:max-w-sm xl:bottom-6">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10">
           <PlatformIcon className="h-4 w-4 text-[#669f21]" aria-hidden="true" />
