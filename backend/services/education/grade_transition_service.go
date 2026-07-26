@@ -220,6 +220,9 @@ func (s *GradeTransitionService) Create(ctx context.Context, req CreateTransitio
 	if err := transition.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidTransitionData, err)
 	}
+	if err := validateMappingRequests(req.Mappings); err != nil {
+		return nil, err
+	}
 
 	transition.SetTenantID(tenant.FromContext(ctx))
 
@@ -278,6 +281,23 @@ func (s *GradeTransitionService) buildMappings(transitionID int64, inputs []Mapp
 	return mappings, nil
 }
 
+// validateMappingRequests validates replacement mappings before any transition
+// or mapping rows are changed. A request rejected as invalid must leave an
+// existing draft intact, even when the caller's transaction commits 4xx errors.
+func validateMappingRequests(inputs []MappingRequest) error {
+	for _, input := range inputs {
+		mapping := &education.GradeTransitionMapping{
+			TransitionID: 1, // Validation requires a positive ID; it is assigned on persistence.
+			FromClass:    input.FromClass,
+			ToClass:      input.ToClass,
+		}
+		if err := mapping.Validate(); err != nil {
+			return fmt.Errorf("%w: invalid mapping for class %s: %w", ErrInvalidTransitionData, input.FromClass, err)
+		}
+	}
+	return nil
+}
+
 // Update updates a grade transition
 func (s *GradeTransitionService) Update(ctx context.Context, id int64, req UpdateTransitionRequest) (*education.GradeTransition, error) {
 	// Take the tenant transition gate BEFORE reading the row. An apply loads the
@@ -306,6 +326,9 @@ func (s *GradeTransitionService) Update(ctx context.Context, id int64, req Updat
 
 	if !transition.CanModify() {
 		return nil, fmt.Errorf("cannot modify transition: %w", ErrTransitionNotDraft)
+	}
+	if err := validateMappingRequests(req.Mappings); err != nil {
+		return nil, err
 	}
 
 	applyTransitionUpdates(transition, req)

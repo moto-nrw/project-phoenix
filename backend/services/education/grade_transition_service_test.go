@@ -930,9 +930,12 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 
 	t.Run("update fails with invalid mapping (same from and to)", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", testpkg.StrPtr("2a"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
+		notes := "must not be saved"
 		req := educationService.UpdateTransitionRequest{
+			Notes: &notes,
 			Mappings: []educationService.MappingRequest{
 				{FromClass: "1a", ToClass: testpkg.StrPtr("1a")},
 			},
@@ -941,6 +944,14 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 		_, err := service.Update(ctx, transition.ID, req)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be the same")
+
+		unchanged, err := service.GetByID(ctx, transition.ID)
+		require.NoError(t, err)
+		assert.Nil(t, unchanged.Notes)
+		require.Len(t, unchanged.Mappings, 1)
+		assert.Equal(t, "1a", unchanged.Mappings[0].FromClass)
+		require.NotNil(t, unchanged.Mappings[0].ToClass)
+		assert.Equal(t, "2a", *unchanged.Mappings[0].ToClass)
 	})
 
 	t.Run("update fails with empty from_class", func(t *testing.T) {
@@ -981,6 +992,13 @@ func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
 		_, err := service.Create(ctx, req)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "from_class")
+
+		count, err := db.NewSelect().
+			Model((*education.GradeTransition)(nil)).
+			Where("academic_year = ?", req.AcademicYear).
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Zero(t, count)
 	})
 }
 
