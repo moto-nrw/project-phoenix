@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,6 +24,7 @@ type fakePushRepo struct {
 	admins    []*iot.PushSubscription
 	guardians map[int64][]*iot.PushSubscription
 	deleted   []any
+	deleteErr error
 }
 
 func (f *fakePushRepo) FindForTenantStaff(context.Context) ([]*iot.PushSubscription, error) {
@@ -39,13 +41,14 @@ func (f *fakePushRepo) FindForGuardian(_ context.Context, accountID int64) ([]*i
 
 func (f *fakePushRepo) Delete(_ context.Context, id any) error {
 	f.deleted = append(f.deleted, id)
-	return nil
+	return f.deleteErr
 }
 
 // fakeSender records every push request and replies with a scripted status
 // per endpoint (default 201).
 type fakeSender struct {
 	statusByEndpoint map[string]int
+	errorByEndpoint  map[string]error
 	sent             []sentPush
 }
 
@@ -57,6 +60,9 @@ type sentPush struct {
 
 func (f *fakeSender) Send(_ context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error) {
 	f.sent = append(f.sent, sentPush{endpoint: sub.Endpoint, payload: payload, options: opts})
+	if err := f.errorByEndpoint[sub.Endpoint]; err != nil {
+		return nil, err
+	}
 	status := f.statusByEndpoint[sub.Endpoint]
 	if status == 0 {
 		status = http.StatusCreated
@@ -190,4 +196,48 @@ func TestWebPushPriorityMapping(t *testing.T) {
 	ttl, urgency = pushOptionsForPriority(PriorityLow)
 	assert.Equal(t, 86400, ttl)
 	assert.Equal(t, webpush.UrgencyLow, urgency)
+}
+
+func TestWebPushHandlesDeliveryFailures(t *testing.T) {
+	sendFailure := testSub(21, 41, "https://push.example/send-failure")
+	pruneFailure := testSub(22, 41, "https://push.example/prune-failure")
+	rejected := testSub(23, 41, "https://push.example/rejected")
+	repo := &fakePushRepo{
+		deleteErr: errors.New("delete failed"),
+	}
+	sender := &fakeSender{
+		statusByEndpoint: map[string]int{
+			pruneFailure.Endpoint: http.StatusGone,
+			rejected.Endpoint:     http.StatusBadRequest,
+		},
+		errorByEndpoint: map[string]error{
+			sendFailure.Endpoint: errors.New("send failed"),
+		},
+	}
+	channel := testChannel(repo, sender)
+	event := Event{Type: "test", Audience: Audience{TenantID: 41}, Priority: PriorityNormal}
+
+	channel.sendAll(context.Background(), event, []byte(`{"title":"test"}`), []*iot.PushSubscription{
+		sendFailure,
+		pruneFailure,
+		rejected,
+	})
+	channel.handleResponse(context.Background(), event, rejected, nil)
+
+	require.Len(t, sender.sent, 3)
+	assert.Equal(t, []any{int64(22)}, repo.deleted)
+}
+
+func TestWebPushRejectsOversizedPayload(t *testing.T) {
+	channel := testChannel(&fakePushRepo{}, &fakeSender{})
+	event := Event{
+		Type:     "test",
+		Audience: Audience{TenantID: 41, Scope: ScopeTenant},
+		Title:    strings.Repeat("x", maxPushPayloadBytes),
+	}
+
+	err := channel.Deliver(context.Background(), event)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "web push payload exceeds")
 }

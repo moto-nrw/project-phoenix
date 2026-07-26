@@ -487,6 +487,7 @@ export function proxy(request: NextRequest): NextResponse {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|sw\\.js|favicons/|icons/|images/).*)",
+    // Next.js requires a literal so it can statically analyze the matcher.
+    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|sw\\.js|favicons/|icons/|images/).*)", // NOSONAR
   ],
 };

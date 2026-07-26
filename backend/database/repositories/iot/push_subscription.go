@@ -10,7 +10,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tablePushSubscriptions = "iot.push_subscriptions"
+const (
+	tablePushSubscriptions = "iot.push_subscriptions"
+	pushPortalFilter       = "portal = ?"
+)
 
 // PushSubscriptionRepository implements iot.PushSubscriptionRepository.
 type PushSubscriptionRepository struct {
@@ -69,7 +72,7 @@ func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
-		Where("portal = ?", iot.PushPortalStaff)
+		Where(pushPortalFilter, iot.PushPortalStaff)
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff push subscriptions", Err: err}
@@ -86,7 +89,7 @@ func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
-		Where("portal = ?", iot.PushPortalStaff).
+		Where(pushPortalFilter, iot.PushPortalStaff).
 		Where(`EXISTS (
 			SELECT 1
 			FROM auth.account_roles AS "ar"
@@ -109,7 +112,7 @@ func (r *PushSubscriptionRepository) FindForGuardian(ctx context.Context, guardi
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
-		Where("portal = ?", iot.PushPortalParent).
+		Where(pushPortalFilter, iot.PushPortalParent).
 		Where("account_id = ?", guardianAccountID)
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {

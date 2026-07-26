@@ -26,6 +26,7 @@ DELETE /api/iot/*/{id}
 DELETE /api/iot/staff/{staffId}/rfid
 DELETE /api/me/profile/avatar
 DELETE /api/meal-plan/{date}
+DELETE /api/notifications/push/subscriptions
 DELETE /api/parent-announcements/{announcementId}
 DELETE /api/rooms/{id}
 DELETE /api/schedules/dateframes/{id}
@@ -88,6 +89,7 @@ DELETE /operator/suggestions/{id}/comments/{commentId}
 DELETE /parent/me/children/{studentId}/care-exception
 DELETE /parent/me/children/{studentId}/excused-requests/{requestId}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
+DELETE /parent/me/push/subscriptions
 GET /
 GET /api/active/analytics/dashboard
 GET /api/active/combined/
@@ -237,6 +239,7 @@ GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
 GET /api/messages/threads/{threadId}
 GET /api/messages/unread-count
+GET /api/notifications/push/public-key
 GET /api/parent-announcements/
 GET /api/parent-announcements/{announcementId}
 GET /api/parent-announcements/{announcementId}/recipients
@@ -445,6 +448,7 @@ GET /parent/me/messages/unread-count
 GET /parent/me/news
 GET /parent/me/news/unread-count
 GET /parent/me/profile
+GET /parent/me/push/public-key
 GET /public/calendar/{token}
 GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
@@ -553,6 +557,7 @@ POST /api/me/profile/avatar
 POST /api/messages/threads
 POST /api/messages/threads/open
 POST /api/messages/threads/{threadId}
+POST /api/notifications/push/subscriptions
 POST /api/notifications/test
 POST /api/parent-announcements/
 POST /api/parent-announcements/{announcementId}/publish
@@ -719,6 +724,7 @@ POST /parent/me/children/{studentId}/sick-note
 POST /parent/me/messages/children/{studentId}
 POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
+POST /parent/me/push/subscriptions
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}

@@ -47,7 +47,7 @@ sw.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
   /** @type {unknown} */
-  const rawUrl = event.notification.data && event.notification.data.deepLink;
+  const rawUrl = event.notification.data?.deepLink;
   // Defense in depth: only app-relative paths may be opened.
   const url =
     typeof rawUrl === "string" &&

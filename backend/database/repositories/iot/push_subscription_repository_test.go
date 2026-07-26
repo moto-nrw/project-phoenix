@@ -40,6 +40,25 @@ func newSubscription(accountID int64, portal, endpoint string) *iotModels.PushSu
 	return sub
 }
 
+func subscriptionsForAccount(subs []*iotModels.PushSubscription, accountID int64) []*iotModels.PushSubscription {
+	var matches []*iotModels.PushSubscription
+	for _, sub := range subs {
+		if sub.AccountID == accountID {
+			matches = append(matches, sub)
+		}
+	}
+	return matches
+}
+
+func hasSubscriptionEndpoint(subs []*iotModels.PushSubscription, endpoint string) bool {
+	for _, sub := range subs {
+		if sub.Endpoint == endpoint {
+			return true
+		}
+	}
+	return false
+}
+
 func TestPushSubscriptionRepository(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -64,12 +83,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		subs, err := repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
-		var mine []*iotModels.PushSubscription
-		for _, s := range subs {
-			if s.AccountID == account.ID {
-				mine = append(mine, s)
-			}
-		}
+		mine := subscriptionsForAccount(subs, account.ID)
 		require.Len(t, mine, 1, "upsert must not duplicate the endpoint")
 		assert.Equal(t, "rotated-p256dh", mine[0].P256dh)
 	})
@@ -77,9 +91,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	t.Run("tenant filter hides rows from other tenants", func(t *testing.T) {
 		subs, err := repo.FindForTenantStaff(otherTenantCtx)
 		require.NoError(t, err)
-		for _, s := range subs {
-			assert.NotEqual(t, account.ID, s.AccountID)
-		}
+		assert.Empty(t, subscriptionsForAccount(subs, account.ID))
 	})
 
 	t.Run("guardian finder returns only parent-portal rows of that account", func(t *testing.T) {
@@ -94,17 +106,13 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		// The staff finder must not return parent-portal rows.
 		staffSubs, err := repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
-		for _, s := range staffSubs {
-			assert.NotEqual(t, guardian.ID, s.AccountID)
-		}
+		assert.Empty(t, subscriptionsForAccount(staffSubs, guardian.ID))
 	})
 
 	t.Run("admin finder returns only admin-role accounts", func(t *testing.T) {
 		subs, err := repo.FindForTenantAdmins(ctx)
 		require.NoError(t, err)
-		for _, s := range subs {
-			assert.NotEqual(t, account.ID, s.AccountID, "account without admin role must not appear")
-		}
+		assert.Empty(t, subscriptionsForAccount(subs, account.ID), "account without admin role must not appear")
 
 		// Grant the seeded admin role and expect the subscription to appear.
 		var adminRoleID int64
@@ -122,13 +130,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		subs, err = repo.FindForTenantAdmins(ctx)
 		require.NoError(t, err)
-		found := false
-		for _, s := range subs {
-			if s.AccountID == account.ID {
-				found = true
-			}
-		}
-		assert.True(t, found, "admin-role account's staff subscription must appear")
+		assert.NotEmpty(t, subscriptionsForAccount(subs, account.ID), "admin-role account's staff subscription must appear")
 	})
 
 	t.Run("delete by endpoint is scoped to the account", func(t *testing.T) {
@@ -136,19 +138,11 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, repo.DeleteByEndpoint(ctx, guardian.ID, endpoint))
 		subs, err := repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
-		stillThere := false
-		for _, s := range subs {
-			if s.Endpoint == endpoint {
-				stillThere = true
-			}
-		}
-		require.True(t, stillThere)
+		require.True(t, hasSubscriptionEndpoint(subs, endpoint))
 
 		require.NoError(t, repo.DeleteByEndpoint(ctx, account.ID, endpoint))
 		subs, err = repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
-		for _, s := range subs {
-			assert.NotEqual(t, endpoint, s.Endpoint)
-		}
+		assert.False(t, hasSubscriptionEndpoint(subs, endpoint))
 	})
 }
