@@ -156,6 +156,9 @@ func (r stubStaffAccountTenantRepo) Deactivate(context.Context, int64, int64) er
 func (r stubStaffAccountTenantRepo) FindActiveByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
 	panic("not implemented")
 }
+func (r stubStaffAccountTenantRepo) FindActiveGuardianByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
+	panic("not implemented")
+}
 func (r stubStaffAccountTenantRepo) ExistsByAccountAndTenant(context.Context, int64, int64) (bool, error) {
 	return r.exists, r.err
 }

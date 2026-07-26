@@ -118,7 +118,7 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 	// schools. This deliberately excludes pending-enrollment-only schools from
 	// Web Push until guardian access is active there.
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		mappings, err := s.accountTenants.FindActiveByAccountID(txCtx, accountID)
+		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}
@@ -146,7 +146,7 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 
 func (s *pushSubscriptionService) UnsubscribeParent(ctx context.Context, accountID int64, endpoint string) error {
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		mappings, err := s.accountTenants.FindActiveByAccountID(txCtx, accountID)
+		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}

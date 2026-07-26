@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -66,7 +67,7 @@ type accountTenantRepositoryStub struct {
 	find     func(context.Context, int64) ([]authModels.AccountTenant, error)
 }
 
-func (r accountTenantRepositoryStub) FindActiveByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenant, error) {
+func (r accountTenantRepositoryStub) FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenant, error) {
 	if r.find != nil {
 		return r.find(ctx, accountID)
 	}
@@ -213,6 +214,59 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 		require.ErrorIs(t, err, errPushRepository)
 		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
 	})
+}
+
+func TestPushSubscriptionServiceParentFiltersNonGuardianMappings(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	account := testpkg.CreateTestAccount(t, db, "push-parent-mixed-roles")
+	guardianTenantID := account.ID + 4000
+	staffTenantID := account.ID + 4001
+	testpkg.EnsureTestTenant(t, db, guardianTenantID)
+	testpkg.EnsureTestTenant(t, db, staffTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
+		_ = db.Close()
+	})
+
+	testpkg.MapAccountToTenant(t, db, account.ID, guardianTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, staffTenantID)
+
+	var guardianRoleID, staffRoleID int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", authModels.BaseRoleGuardian).
+		Scan(context.Background(), &guardianRoleID))
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", authModels.BaseRoleUser).
+		Scan(context.Background(), &staffRoleID))
+
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
+		VALUES (?, ?, ?), (?, ?, ?)`,
+		account.ID, guardianRoleID, guardianTenantID,
+		account.ID, staffRoleID, staffTenantID)
+	require.NoError(t, err)
+
+	repo := &recordingPushRepository{}
+	service := NewPushSubscriptionService(
+		db,
+		repo,
+		authRepo.NewAccountTenantRepository(db),
+		testVAPID(),
+		nil,
+	)
+
+	require.NoError(t, service.SubscribeParent(context.Background(), account.ID, validPushInput()))
+	require.Len(t, repo.upserted, 1)
+	assert.Equal(t, guardianTenantID, repo.upserted[0].TenantID)
+
+	require.NoError(t, service.UnsubscribeParent(context.Background(), account.ID, validPushInput().Endpoint))
+	assert.Equal(t, []int64{guardianTenantID}, repo.deletedTenants)
 }
 
 func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
