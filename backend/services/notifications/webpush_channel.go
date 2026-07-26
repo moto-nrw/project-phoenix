@@ -2,42 +2,220 @@ package notifications
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
+	"net/http"
+
+	webpush "github.com/SherClockHolmes/webpush-go"
+	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
-// webPushChannel is the planned Web Push channel (#1624). It is a deliberate
-// stub: per the issue, device/browser subscription persistence and VAPID
-// delivery are only added when Web Push is actually activated. Registering
-// the stub now fixes the extension point so producers already fan out to it
-// and activating push later changes no caller.
-//
-// Activation plan (documented in docs/notifications.md):
-//  1. Add an iot/notifications push_subscriptions table (account + tenant +
-//     device endpoint, multiple devices per account) via migration.
-//  2. Add a VAPID webpush dependency and keys via env/SOPS.
-//  3. Replace Deliver below: load the audience's subscriptions and send ONLY
-//     Title/Body/DeepLink — never Data — as the push payload (GDPR: sensitive
-//     details are fetched authenticated after the app opens).
-//  4. Add the frontend service worker + permission prompt.
+// VAPIDConfig carries the Voluntary Application Server Identification keys
+// (RFC 8292) for Web Push. When any field is empty the channel is inert:
+// Deliver becomes a no-op so dev stacks run without keys. Keys come from the
+// environment (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER).
+type VAPIDConfig struct {
+	PublicKey  string
+	PrivateKey string
+	Subscriber string // contact URI, e.g. "mailto:ops@example.org"
+}
+
+// Configured reports whether all VAPID fields are set.
+func (c VAPIDConfig) Configured() bool {
+	return c.PublicKey != "" && c.PrivateKey != "" && c.Subscriber != ""
+}
+
+// pushSender abstracts the actual Web Push HTTP request so tests can fake the
+// push service. The production implementation wraps webpush-go.
+type pushSender interface {
+	Send(ctx context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error)
+}
+
+type webpushGoSender struct{}
+
+func (webpushGoSender) Send(ctx context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error) {
+	return webpush.SendNotificationWithContext(ctx, payload, sub, opts)
+}
+
+// webPushPayload is the wire format the service worker receives. GDPR
+// contract: ONLY display-safe fields — never Event.Data, never child names.
+// Details are loaded authenticated after the user follows the deep link.
+type webPushPayload struct {
+	Title    string `json:"title"`
+	Body     string `json:"body,omitempty"`
+	DeepLink string `json:"deepLink,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Priority string `json:"priority,omitempty"`
+}
+
+// maxPushPayloadBytes is a defensive bound well under the ~4KB Web Push
+// limit; our payloads are a few hundred bytes.
+const maxPushPayloadBytes = 3800
+
+// webPushChannel delivers notifications as Web Push messages (#2003) to the
+// devices registered in iot.push_subscriptions. Delivery is fire-and-forget:
+// per-subscription failures are logged, expired subscriptions (HTTP 404/410)
+// are pruned, and Deliver only returns an error for whole-audience failures.
 type webPushChannel struct {
+	db     *bun.DB
+	repo   iot.PushSubscriptionRepository
+	vapid  VAPIDConfig
+	sender pushSender
 	logger *slog.Logger
 }
 
-// NewWebPushChannel returns the not-yet-active Web Push channel stub.
-func NewWebPushChannel(logger *slog.Logger) Channel {
-	return &webPushChannel{logger: logger}
+// NewWebPushChannel returns the Web Push channel. With unset VAPID keys the
+// channel stays inert (no-op Deliver) so environments without push keep
+// today's behavior.
+func NewWebPushChannel(db *bun.DB, repo iot.PushSubscriptionRepository, vapid VAPIDConfig, logger *slog.Logger) Channel {
+	return &webPushChannel{db: db, repo: repo, vapid: vapid, sender: webpushGoSender{}, logger: logger}
 }
 
 func (c *webPushChannel) Name() string { return "web_push" }
 
-func (c *webPushChannel) Deliver(_ context.Context, event Event) error {
-	logger := c.logger
-	if logger == nil {
-		logger = slog.Default()
+func (c *webPushChannel) getLogger() *slog.Logger {
+	if c.logger == nil {
+		return slog.Default()
 	}
-	logger.Debug("web push channel not yet activated, skipping delivery",
-		"notification_type", event.Type,
-		"tenant_id", event.Audience.TenantID,
-	)
-	return nil
+	return c.logger
+}
+
+func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
+	if !c.vapid.Configured() {
+		c.getLogger().Debug("web push channel has no VAPID keys configured, skipping delivery",
+			"notification_type", event.Type,
+			"tenant_id", event.Audience.TenantID,
+		)
+		return nil
+	}
+
+	payload, err := json.Marshal(webPushPayload{
+		Title:    event.Title,
+		Body:     event.Body,
+		DeepLink: event.DeepLink,
+		Type:     event.Type,
+		Priority: event.Priority,
+	})
+	if err != nil {
+		return fmt.Errorf("marshaling web push payload: %w", err)
+	}
+	if len(payload) > maxPushPayloadBytes {
+		return fmt.Errorf("web push payload exceeds %d bytes (%d)", maxPushPayloadBytes, len(payload))
+	}
+
+	// Delivery runs after commit, outside any tenant transaction, so the
+	// subscription reads open their own tenant-scoped transaction for RLS.
+	return tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		subs, err := c.resolveSubscriptions(txCtx, event.Audience)
+		if err != nil {
+			return err
+		}
+		if len(subs) == 0 {
+			return nil
+		}
+		c.sendAll(txCtx, event, payload, subs)
+		return nil
+	})
+}
+
+// resolveSubscriptions maps the audience scope to registered devices.
+// ScopeGroup is deliberately unsupported: unlike SSE there is no persisted
+// device-to-group membership, and no producer targets groups with
+// push-worthy events yet. Documented follow-up in docs/notifications.md.
+func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audience) ([]*iot.PushSubscription, error) {
+	switch audience.Scope {
+	case ScopeTenant:
+		return c.repo.FindForTenantStaff(ctx)
+	case ScopeAdmin:
+		return c.repo.FindForTenantAdmins(ctx)
+	case ScopeGuardian:
+		return c.repo.FindForGuardian(ctx, audience.GuardianAccountID)
+	case ScopeGroup:
+		c.getLogger().Debug("web push does not support group scope, skipping",
+			"tenant_id", audience.TenantID,
+			"active_group_id", audience.ActiveGroupID,
+		)
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unknown audience scope %q", audience.Scope)
+	}
+}
+
+// sendAll pushes the payload to every subscription. Per-subscription errors
+// never abort the loop; 404/410 responses prune the dead subscription.
+func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) {
+	ttl, urgency := pushOptionsForPriority(event.Priority)
+	for _, sub := range subs {
+		resp, err := c.sender.Send(ctx, &webpush.Subscription{
+			Endpoint: sub.Endpoint,
+			Keys:     webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth},
+		}, payload, &webpush.Options{
+			Subscriber:      c.vapid.Subscriber,
+			VAPIDPublicKey:  c.vapid.PublicKey,
+			VAPIDPrivateKey: c.vapid.PrivateKey,
+			TTL:             ttl,
+			Urgency:         urgency,
+		})
+		if err != nil {
+			c.getLogger().Warn("web push send failed",
+				"notification_type", event.Type,
+				"tenant_id", sub.TenantID,
+				"subscription_id", sub.ID,
+				"error", err.Error(),
+			)
+			continue
+		}
+		c.handleResponse(ctx, event, sub, resp)
+	}
+}
+
+func (c *webPushChannel) handleResponse(ctx context.Context, event Event, sub *iot.PushSubscription, resp *http.Response) {
+	if resp == nil {
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch {
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		return
+	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
+		// The push service says this subscription no longer exists — prune it.
+		if err := c.repo.Delete(ctx, sub.ID); err != nil {
+			c.getLogger().Warn("failed to prune expired push subscription",
+				"subscription_id", sub.ID,
+				"tenant_id", sub.TenantID,
+				"error", err.Error(),
+			)
+			return
+		}
+		c.getLogger().Info("pruned expired push subscription",
+			"subscription_id", sub.ID,
+			"tenant_id", sub.TenantID,
+			"status", resp.StatusCode,
+		)
+	default:
+		c.getLogger().Warn("web push service rejected notification",
+			"notification_type", event.Type,
+			"subscription_id", sub.ID,
+			"tenant_id", sub.TenantID,
+			"status", resp.StatusCode,
+		)
+	}
+}
+
+// pushOptionsForPriority maps the abstraction's priority to Web Push TTL and
+// urgency. High-priority events (something is overdue NOW) expire after an
+// hour — delivering them a day later would mislead; normal/low keep a day.
+func pushOptionsForPriority(priority string) (ttl int, urgency webpush.Urgency) {
+	switch priority {
+	case PriorityHigh:
+		return 3600, webpush.UrgencyHigh
+	case PriorityLow:
+		return 86400, webpush.UrgencyLow
+	default:
+		return 86400, webpush.UrgencyNormal
+	}
 }

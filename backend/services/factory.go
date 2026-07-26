@@ -121,6 +121,7 @@ type Factory struct {
 	SlotLists                slotlists.Service
 	Reminders                reminders.Service
 	Notifications            notifications.Service
+	PushSubscriptions        notifications.PushSubscriptionService
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
 	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
 	Mailer                   email.Mailer
@@ -1640,11 +1641,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              logger.With("service", "slot_lists"),
 	})
 
+	vapidConfig := notifications.VAPIDConfig{
+		PublicKey:  viper.GetString("vapid_public_key"),
+		PrivateKey: viper.GetString("vapid_private_key"),
+		Subscriber: viper.GetString("vapid_subscriber"),
+	}
+	if !vapidConfig.Configured() {
+		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
+	}
 	notificationsService := notifications.NewService(
 		settingsService,
 		logger.With("service", "notifications"),
 		notifications.NewSSEChannel(realtimeHub),
-		notifications.NewWebPushChannel(logger.With("channel", "web_push")),
+		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
+	)
+	pushSubscriptionsService := notifications.NewPushSubscriptionService(
+		db,
+		repos.PushSubscription,
+		repos.AccountTenant,
+		vapidConfig,
+		logger.With("service", "push_subscriptions"),
 	)
 
 	remindersService := reminders.NewService(reminders.Dependencies{
@@ -1725,6 +1741,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SlotLists:                slotListsService,
 		Reminders:                remindersService,
 		Notifications:            notificationsService,
+		PushSubscriptions:        pushSubscriptionsService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Tracker:                  tracker,     // Product analytics (PostHog)
 		Invitation:               invitationService,

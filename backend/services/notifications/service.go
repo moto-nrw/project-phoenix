@@ -13,8 +13,9 @@
 //     caller (fire-and-forget, mirroring SSE broadcasting).
 //   - Channels are pluggable: today an SSE/in-app channel (wrapping the
 //     existing realtime.Broadcaster — the existing SSE cache-invalidation
-//     events are untouched) and a web-push stub. E-mail and real Web Push are
-//     future channels; see docs/notifications.md.
+//     events are untouched) and the Web Push channel (#2003, VAPID-signed
+//     pushes to registered devices). E-mail is a future channel; see
+//     docs/notifications.md.
 //
 // GDPR contract: Title, Body and DeepLink are the ONLY user-visible fields and
 // must be display-safe — no student names or other sensitive child data. The

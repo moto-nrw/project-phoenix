@@ -266,18 +266,21 @@ func TestSSEChannelRejectsUnknownAudienceScope(t *testing.T) {
 	require.EqualError(t, err, `sse channel cannot route audience scope "unknown" (tenant 41)`)
 }
 
-func TestWebPushChannelStub(t *testing.T) {
+// TestWebPushChannelUnconfigured replaces the former TestWebPushChannelStub:
+// with #2003 the channel is real, and the guaranteed no-op case is now
+// "VAPID keys not configured" (the behavior every keyless environment gets).
+func TestWebPushChannelUnconfigured(t *testing.T) {
 	event := tenantEvent(41)
 
-	defaultLoggerChannel := notifications.NewWebPushChannel(nil)
+	defaultLoggerChannel := notifications.NewWebPushChannel(nil, nil, notifications.VAPIDConfig{}, nil)
 	assert.Equal(t, "web_push", defaultLoggerChannel.Name())
 	require.NoError(t, defaultLoggerChannel.Deliver(context.Background(), event))
 
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	channel := notifications.NewWebPushChannel(logger)
+	channel := notifications.NewWebPushChannel(nil, nil, notifications.VAPIDConfig{}, logger)
 	require.NoError(t, channel.Deliver(context.Background(), event))
-	assert.Contains(t, logs.String(), "web push channel not yet activated")
+	assert.Contains(t, logs.String(), "no VAPID keys configured")
 	assert.Contains(t, logs.String(), "notification_type=test")
 	assert.Contains(t, logs.String(), "tenant_id=41")
 }

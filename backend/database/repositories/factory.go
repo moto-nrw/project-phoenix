@@ -141,7 +141,8 @@ type Factory struct {
 	FeedbackEntry feedbackModels.EntryRepository
 
 	// IoT domain
-	Device iotModels.DeviceRepository
+	Device           iotModels.DeviceRepository
+	PushSubscription iotModels.PushSubscriptionRepository
 
 	// Config domain
 	SettingValue      configModels.SettingValueRepository
@@ -332,7 +333,8 @@ func NewFactory(db *bun.DB) *Factory {
 		FeedbackEntry: feedback.NewEntryRepository(db),
 
 		// IoT repositories
-		Device: iot.NewDeviceRepository(db),
+		Device:           iot.NewDeviceRepository(db),
+		PushSubscription: iot.NewPushSubscriptionRepository(db),
 
 		// Config repositories
 		SettingValue:      config.NewSettingValueRepository(db),
