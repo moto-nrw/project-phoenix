@@ -15,14 +15,25 @@ const (
 	EmploymentTypeMinijob  = "minijob"
 )
 
+// PersonnelNumberUniqueConstraintName is the partial unique index enforcing
+// one Personalnummer per person within a tenant (migration 1.15.229). The
+// service layer maps 23505 on it to a stable conflict error.
+const PersonnelNumberUniqueConstraintName = "uq_staff_tenant_personnel_number"
+
 // Staff represents a staff member in the system
 type Staff struct {
 	base.Model `bun:"schema:users,table:staff"`
 	base.TenantModel
-	PersonID           int64          `bun:"person_id,notnull" json:"person_id"`
-	StaffNotes         string         `bun:"staff_notes" json:"staff_notes,omitempty"`
-	EmploymentType     *string        `bun:"employment_type" json:"employment_type,omitempty"`
-	WorkTimeModelID    *int64         `bun:"work_time_model_id" json:"work_time_model_id,omitempty"`
+	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
+	StaffNotes      string  `bun:"staff_notes" json:"staff_notes,omitempty"`
+	EmploymentType  *string `bun:"employment_type" json:"employment_type,omitempty"`
+	WorkTimeModelID *int64  `bun:"work_time_model_id" json:"work_time_model_id,omitempty"`
+	// PersonnelNumber is the payroll system's Personalnummer (DATEV LODAS /
+	// Lohn und Gehalt match employees by it, #1417). Unique per tenant via
+	// partial index; NULL means "not assigned yet". School-scoped like the
+	// row itself — a person at two schools of one Träger should carry the
+	// same value in both rows, which RLS cannot enforce (documented gap).
+	PersonnelNumber    *string        `bun:"personnel_number" json:"personnel_number,omitempty"`
 	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
 	DeletedAt          *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
