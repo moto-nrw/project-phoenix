@@ -121,17 +121,22 @@ func datevRequest(format string) active.TimeExportRequest {
 	return active.TimeExportRequest{Year: 2026, Month: 6, Format: format}
 }
 
+// checkDatevGolden compares CONTENT with LF-normalized goldens: the repo
+// ignores .gitattributes and core.autocrlf=input would silently rewrite a
+// CRLF golden on commit. The CRLF wire requirement is pinned separately by
+// an explicit assertion on the produced bytes.
 func checkDatevGolden(t *testing.T, name string, data []byte) {
 	t.Helper()
+	normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
 	path := filepath.Join("testdata", name)
 	if *updateDatevGoldens {
 		require.NoError(t, os.MkdirAll("testdata", 0o755))
-		require.NoError(t, os.WriteFile(path, data, 0o644))
+		require.NoError(t, os.WriteFile(path, []byte(normalized), 0o644))
 		return
 	}
 	expected, err := os.ReadFile(path)
 	require.NoError(t, err, "golden %s missing — regenerate with -update-datev-goldens", name)
-	assert.Equal(t, string(expected), string(data),
+	assert.Equal(t, string(expected), normalized,
 		"golden diff for %s — if intentional, regenerate with -update-datev-goldens and justify in the PR", name)
 }
 
