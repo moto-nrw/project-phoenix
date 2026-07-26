@@ -38,9 +38,11 @@ type MonthSummary struct {
 	ActualMinutes           int     `json:"actual_minutes"`
 	CreditedSickMinutes     int     `json:"credited_sick_minutes"`
 	CreditedVacationMinutes int     `json:"credited_vacation_minutes"`
+	CreditedTrainingMinutes int     `json:"credited_training_minutes"`
 	CreditedOtherMinutes    int     `json:"credited_other_minutes"`
 	SickDays                float64 `json:"sick_days"`
 	VacationDays            float64 `json:"vacation_days"`
+	TrainingDays            float64 `json:"training_days"`
 
 	// PlannedShiftMinutes is the Dienstplan coverage (display only, never
 	// saldo-relevant); nil = no shifts maintained in this month.
@@ -391,9 +393,11 @@ type monthAggregates struct {
 	actual           int
 	creditedSick     int
 	creditedVacation int
+	creditedTraining int
 	creditedOther    int
 	sickDays         float64
 	vacationDays     float64
+	trainingDays     float64
 	hasShifts        bool
 	plannedShift     int
 	adjustment       int
@@ -401,7 +405,7 @@ type monthAggregates struct {
 }
 
 func (a *monthAggregates) creditedTotal() int {
-	return a.creditedSick + a.creditedVacation + a.creditedOther
+	return a.creditedSick + a.creditedVacation + a.creditedTraining + a.creditedOther
 }
 
 func (a *monthAggregates) balance() int {
@@ -688,6 +692,12 @@ func (s *workTimeMonthService) creditAbsenceDays(absence *activeModels.StaffAbse
 		case activeModels.AbsenceTypeVacation:
 			agg.creditedVacation += credit
 			agg.vacationDays += fraction
+		case activeModels.AbsenceTypeTraining:
+			// Fortbildung split (#1417 2b writers): a Lohnart "Fortbildung"
+			// needs hours OR days separately from "Sonstige" — same credit
+			// math, own counters.
+			agg.creditedTraining += credit
+			agg.trainingDays += fraction
 		case activeModels.AbsenceTypeCompTime:
 			// Freizeitausgleich (#1420 5b) deliberately credits NOTHING: the
 			// day keeps its Soll, so the balance drops by the day's target.
@@ -1454,9 +1464,11 @@ func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staff
 		ActualMinutes:           agg.actual,
 		CreditedSickMinutes:     agg.creditedSick,
 		CreditedVacationMinutes: agg.creditedVacation,
+		CreditedTrainingMinutes: agg.creditedTraining,
 		CreditedOtherMinutes:    agg.creditedOther,
 		SickDays:                agg.sickDays,
 		VacationDays:            agg.vacationDays,
+		TrainingDays:            agg.trainingDays,
 		BalanceMinutes:          agg.balance(),
 	}
 	if agg.hasShifts {

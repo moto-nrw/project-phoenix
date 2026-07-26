@@ -66,9 +66,11 @@ type MonthExportRow struct {
 	ActualMinutes           int
 	CreditedSickMinutes     int
 	CreditedVacationMinutes int
+	CreditedTrainingMinutes int
 	CreditedOtherMinutes    int
 	SickDays                float64
 	VacationDays            float64
+	TrainingDays            float64
 
 	PayoutMinutes   int
 	CompTimeMinutes int

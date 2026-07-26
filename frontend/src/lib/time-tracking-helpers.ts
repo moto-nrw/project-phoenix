@@ -613,9 +613,11 @@ export interface BackendMonthSummary {
   actual_minutes: number;
   credited_sick_minutes: number;
   credited_vacation_minutes: number;
+  credited_training_minutes: number;
   credited_other_minutes: number;
   sick_days: number;
   vacation_days: number;
+  training_days: number;
   planned_shift_minutes?: number | null;
   adjustment_minutes: number;
   adjustments?: BackendBalanceAdjustment[] | null;
@@ -700,9 +702,11 @@ export interface MonthSummary {
   actualMinutes: number;
   creditedSickMinutes: number;
   creditedVacationMinutes: number;
+  creditedTrainingMinutes: number;
   creditedOtherMinutes: number;
   sickDays: number;
   vacationDays: number;
+  trainingDays: number;
   plannedShiftMinutes: number | null;
   adjustmentMinutes: number;
   adjustments: BalanceAdjustment[];
@@ -813,9 +817,11 @@ export function mapMonthSummaryResponse(
     actualMinutes: data.actual_minutes,
     creditedSickMinutes: data.credited_sick_minutes,
     creditedVacationMinutes: data.credited_vacation_minutes,
+    creditedTrainingMinutes: data.credited_training_minutes,
     creditedOtherMinutes: data.credited_other_minutes,
     sickDays: data.sick_days,
     vacationDays: data.vacation_days,
+    trainingDays: data.training_days,
     plannedShiftMinutes: data.planned_shift_minutes ?? null,
     adjustmentMinutes: data.adjustment_minutes ?? 0,
     adjustments: (data.adjustments ?? []).map(mapBalanceAdjustmentResponse),

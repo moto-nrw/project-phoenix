@@ -198,6 +198,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     const credited =
       monthSummary.creditedSickMinutes +
       monthSummary.creditedVacationMinutes +
+      monthSummary.creditedTrainingMinutes +
       monthSummary.creditedOtherMinutes;
     return {
       // Full month Soll, mirroring the week card's "Ist von Soll" reading.
