@@ -68,21 +68,28 @@ function resolveLabels(labels?: DatePickerLabels) {
   return { ...DEFAULT_LABELS, ...labels };
 }
 
-// Viewport gap and calendar footprint used to flip/clamp the popover. The
-// calendar is a fixed 7x6 grid of 32px days plus header and padding, so a
-// constant is accurate enough and avoids a measure-then-reposition flash.
+// Viewport gap and calendar footprint used to flip/clamp the popover.
 const POPOVER_MARGIN = 8;
-const POPOVER_WIDTH = 268;
+// Narrowest the card gets: 7 × 32px day cells + 12px padding per side + the
+// 1px border. This is the measured rendered width — the previous 268 was 18px
+// too generous, which pulled the card left of its own trigger near the right
+// viewport edge instead of leaving it flush.
+const CALENDAR_MIN_WIDTH = 250;
 const POPOVER_HEIGHT = 340;
 
 interface PopoverPosition {
   top: number;
   left: number;
+  width: number;
 }
 
 // Places the calendar below the trigger, flipping above when the viewport
 // bottom would cut it off, and clamps both axes into the viewport so the
 // calendar stays fully reachable on small screens.
+//
+// The card also adopts the trigger's width when that is wider, so the calendar
+// under a half-modal-wide date field lines up with both of its edges instead of
+// hugging the left one at a third of the width.
 function computePopoverPosition(rect: DOMRect): PopoverPosition {
   let top = rect.bottom + 4;
   if (top + POPOVER_HEIGHT > window.innerHeight - POPOVER_MARGIN) {
@@ -95,9 +102,11 @@ function computePopoverPosition(rect: DOMRect): PopoverPosition {
             window.innerHeight - POPOVER_MARGIN - POPOVER_HEIGHT,
           );
   }
-  const maxLeft = window.innerWidth - POPOVER_MARGIN - POPOVER_WIDTH;
+  const available = window.innerWidth - 2 * POPOVER_MARGIN;
+  const width = Math.min(Math.max(CALENDAR_MIN_WIDTH, rect.width), available);
+  const maxLeft = window.innerWidth - POPOVER_MARGIN - width;
   const left = Math.max(POPOVER_MARGIN, Math.min(rect.left, maxLeft));
-  return { top, left };
+  return { top, left, width };
 }
 
 type DatePickerProps =
@@ -382,7 +391,11 @@ export function DatePicker({
             <div
               ref={popoverRef}
               className="fixed z-[10001]"
-              style={{ top: popoverPosition.top, left: popoverPosition.left }}
+              style={{
+                top: popoverPosition.top,
+                left: popoverPosition.left,
+                width: popoverPosition.width,
+              }}
             >
               {calendar}
             </div>,
@@ -460,11 +473,15 @@ function DatePickerCalendar({
           month_caption: "hidden",
           month_grid: "w-full border-collapse",
           weekdays: "flex",
-          weekday: "text-gray-500 w-8 font-normal text-xs text-center",
+          // flex-1 lets the seven columns share whatever width the card has,
+          // so a wide field gets a wide grid instead of a 224px block floating
+          // in it; min-w-8 keeps the natural 32px cell as the floor.
+          weekday:
+            "text-gray-500 flex-1 min-w-8 font-normal text-xs text-center",
           week: "flex w-full mt-1",
-          day: "w-8 h-8 text-center text-sm p-0 relative",
+          day: "flex-1 min-w-8 h-8 text-center text-sm p-0 relative",
           day_button:
-            "w-8 h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
+            "w-full h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected: "bg-gray-900 text-white hover:bg-gray-800 rounded-lg",
           today: "font-bold text-blue-600",
           outside: "text-gray-300",
@@ -507,11 +524,15 @@ function MultipleDatePickerCalendar({
           month_caption: "hidden",
           month_grid: "w-full border-collapse",
           weekdays: "flex",
-          weekday: "text-gray-500 w-8 font-normal text-xs text-center",
+          // flex-1 lets the seven columns share whatever width the card has,
+          // so a wide field gets a wide grid instead of a 224px block floating
+          // in it; min-w-8 keeps the natural 32px cell as the floor.
+          weekday:
+            "text-gray-500 flex-1 min-w-8 font-normal text-xs text-center",
           week: "flex w-full mt-1",
-          day: "w-8 h-8 text-center text-sm p-0 relative",
+          day: "flex-1 min-w-8 h-8 text-center text-sm p-0 relative",
           day_button:
-            "w-8 h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
+            "w-full h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected: "bg-gray-900 text-white hover:bg-gray-800 rounded-lg",
           today: "font-bold text-blue-600",
           outside: "text-gray-300",
@@ -779,14 +800,17 @@ function getCalendarContainerClass(
   calendarLayout: CalendarLayout,
 ): string {
   const base = "rounded-xl border border-gray-200 bg-white p-3 shadow-lg";
+  // In every layout the card spans at least the trigger's width, so its edges
+  // line up with the field instead of stopping a third of the way across.
+  // Popover: the portal wrapper is already sized to the trigger, so w-full
+  // adopts it. Overlay/inline: the offset parent IS the picker container.
   if (calendarLayout === "inline") {
-    return `${base} mt-2 w-fit max-w-full`;
+    return `${base} mt-2 w-full min-w-fit max-w-full`;
   }
-  // The portal wrapper owns placement; the card only needs its own surface.
   if (calendarLayout === "popover") {
-    return `${base} w-fit`;
+    return `${base} w-full`;
   }
   const placement =
     dropdownPlacement === "down" ? "top-full mt-1" : "bottom-full mb-1";
-  return `${base} absolute left-0 z-[10001] ${placement}`;
+  return `${base} absolute left-0 z-[10001] w-full min-w-fit ${placement}`;
 }
