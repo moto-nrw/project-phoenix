@@ -76,15 +76,15 @@ describe("Button", () => {
     render(<Button variant="outline_danger">Danger Outline</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-red-50");
-    expect(button.className).toContain("text-red-600");
+    expect(button.className).toContain("bg-[#FF3130]/10");
+    expect(button.className).toContain("text-[#CC2626]");
   });
 
   it("applies danger variant styles", () => {
     render(<Button variant="danger">Danger</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-red-600");
+    expect(button.className).toContain("bg-[#FF3130]");
     expect(button.className).toContain("text-white");
   });
 
@@ -92,7 +92,7 @@ describe("Button", () => {
     render(<Button variant="success">Success</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-green-600");
+    expect(button.className).toContain("bg-[#83CD2D]");
     expect(button.className).toContain("text-white");
   });
 

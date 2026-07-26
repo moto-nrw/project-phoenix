@@ -13,11 +13,13 @@ export function Alert({ type, message, announce }: Readonly<AlertProps>) {
   const isAssertive = type === "error" || type === "warning";
   const announcement = announce ?? (isAssertive ? "assertive" : "polite");
 
+  // Brand hexes from LOCATION_COLORS (red HOME, orange SCHOOLYARD, blue
+  // OTHER_ROOM), same tint recipe as ToastContext.
   const styles = {
-    error: "bg-red-50 text-red-700 border-red-100",
+    error: "bg-[#FF3130]/10 text-[#CC2626] border-[#FF3130]/20",
     success: "bg-[#83CD2D]/10 text-[#6BA023] border-[#83CD2D]/20",
-    warning: "bg-yellow-50 text-yellow-700 border-yellow-100",
-    info: "bg-blue-50 text-blue-700 border-blue-100",
+    warning: "bg-[#F78C10]/10 text-[#C56F0D] border-[#F78C10]/20",
+    info: "bg-[#5080D8]/10 text-[#4070C8] border-[#5080D8]/20",
   };
 
   // Improved styling with icon indicators

@@ -1,6 +1,7 @@
 "use client";
 
 import { OverflowMenu } from "./OverflowMenu";
+import { StatusIndicator } from "./StatusIndicator";
 import type { PageHeaderProps } from "./types";
 
 export function PageHeader({
@@ -12,18 +13,6 @@ export function PageHeader({
   className = "",
 }: Readonly<PageHeaderProps>) {
   const hasOverflowMenu = overflowMenu !== undefined && overflowMenu.length > 0;
-  const getStatusColor = (color: "green" | "yellow" | "red" | "gray") => {
-    switch (color) {
-      case "green":
-        return "bg-green-500";
-      case "yellow":
-        return "bg-yellow-500";
-      case "red":
-        return "bg-red-500";
-      case "gray":
-        return "bg-gray-400";
-    }
-  };
 
   // Don't render anything if no title (conditional title pattern)
   if (!title) {
@@ -46,9 +35,9 @@ export function PageHeader({
               <>
                 {/* Status Indicator Dot */}
                 {statusIndicator && (
-                  <div
-                    className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${getStatusColor(statusIndicator.color)} ${statusIndicator.color === "green" ? "animate-pulse" : ""}`}
-                    title={statusIndicator.tooltip}
+                  <StatusIndicator
+                    color={statusIndicator.color}
+                    tooltip={statusIndicator.tooltip}
                   />
                 )}
 
