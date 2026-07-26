@@ -424,6 +424,23 @@ describe("DatePicker", () => {
     // frame; this pins the resulting placement.
     const portal = screen.getByTestId("day-picker").closest(".fixed");
     expect(portal).toHaveStyle({ top: "244px", left: "120px" });
+    expect(portal).toHaveClass("max-h-[calc(100dvh-1rem)]", "overflow-y-auto");
+  });
+
+  it("keeps the calendar open while its short-viewport panel scrolls", () => {
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="popover"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    const panel = screen.getByTestId("day-picker").closest(".fixed")!;
+    fireEvent.scroll(panel);
+
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
   });
 
   it("portals the calendar into the surrounding modal focus scope", () => {

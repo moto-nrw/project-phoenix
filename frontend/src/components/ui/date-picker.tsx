@@ -229,6 +229,12 @@ export function DatePicker({
       // portal of our own header, and closing on its scroll would make the
       // dropdown unusable.
       const target = event.target;
+      // The panel itself becomes scrollable on short viewports. Its internal
+      // scroll must not count as page movement, or lower calendar weeks would
+      // disappear again before their day buttons can be reached.
+      if (target instanceof Node && popoverRef.current?.contains(target)) {
+        return;
+      }
       if (
         target instanceof Element &&
         target.closest('[role="listbox"]') !== null
@@ -429,7 +435,7 @@ export function DatePicker({
               <FocusScope asChild loop trapped>
                 <div
                   ref={popoverRef}
-                  className="fixed z-[10001]"
+                  className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain"
                   style={{
                     top: popoverPosition.top,
                     left: popoverPosition.left,
@@ -443,7 +449,7 @@ export function DatePicker({
             ) : (
               <div
                 ref={popoverRef}
-                className="fixed z-[10001]"
+                className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain"
                 style={{
                   top: popoverPosition.top,
                   left: popoverPosition.left,
