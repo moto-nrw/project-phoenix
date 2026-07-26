@@ -110,6 +110,9 @@ vi.mock("~/components/staff/staff-export-button", async () => {
               <button type="button" onClick={() => setOpen(false)}>
                 Excel
               </button>
+              <button type="button" onClick={() => setOpen(false)}>
+                PDF
+              </button>
             </div>
           )}
         </div>
@@ -1266,12 +1269,13 @@ describe("TimeTrackingPage", () => {
       expect(screen.getByText("Zeitraum exportieren")).toBeInTheDocument();
     });
 
-    it("shows CSV and Excel buttons", () => {
+    it("shows CSV, Excel and PDF buttons", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       fireEvent.click(screen.getByLabelText("Export"));
       expect(screen.getByText("CSV")).toBeInTheDocument();
       expect(screen.getByText("Excel")).toBeInTheDocument();
+      expect(screen.getByText("PDF")).toBeInTheDocument();
     });
 
     it("shows MiniCalendar month navigation", () => {

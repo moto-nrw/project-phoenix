@@ -83,20 +83,22 @@ func TestWSExportSessions_CSV_Success(t *testing.T) {
 		return nil, nil
 	}
 
-	data, filename, err := svc.ExportSessions(ctx, staffID, from, to, "csv")
+	file, err := svc.ExportSessions(ctx, staffID, from, to, "csv")
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
-	assert.Contains(t, filename, ".csv")
-	assert.Contains(t, filename, "2024-01-01")
-	assert.Contains(t, filename, "2024-01-07")
+	require.NotNil(t, file)
+	assert.NotEmpty(t, file.Data)
+	assert.Contains(t, file.Filename, ".csv")
+	assert.Contains(t, file.Filename, "2024-01-01")
+	assert.Contains(t, file.Filename, "2024-01-07")
+	assert.Contains(t, file.ContentType, "text/csv")
 
 	// Verify UTF-8 BOM
-	assert.Equal(t, byte(0xEF), data[0])
-	assert.Equal(t, byte(0xBB), data[1])
-	assert.Equal(t, byte(0xBF), data[2])
+	assert.Equal(t, byte(0xEF), file.Data[0])
+	assert.Equal(t, byte(0xBB), file.Data[1])
+	assert.Equal(t, byte(0xBF), file.Data[2])
 
 	// Verify semicolon separator
-	content := string(data[3:])
+	content := string(file.Data[3:])
 	assert.Contains(t, content, "Datum;Wochentag;Start;Ende")
 }
 
@@ -123,14 +125,16 @@ func TestWSExportSessions_XLSX_Success(t *testing.T) {
 		return nil, nil
 	}
 
-	data, filename, err := svc.ExportSessions(ctx, staffID, from, to, "xlsx")
+	file, err := svc.ExportSessions(ctx, staffID, from, to, "xlsx")
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
-	assert.Contains(t, filename, ".xlsx")
+	require.NotNil(t, file)
+	assert.NotEmpty(t, file.Data)
+	assert.Contains(t, file.Filename, ".xlsx")
+	assert.Contains(t, file.ContentType, "spreadsheetml")
 
 	// Verify ZIP magic bytes (XLSX is a ZIP file)
-	assert.Equal(t, byte(0x50), data[0]) // 'P'
-	assert.Equal(t, byte(0x4B), data[1]) // 'K'
+	assert.Equal(t, byte(0x50), file.Data[0]) // 'P'
+	assert.Equal(t, byte(0x4B), file.Data[1]) // 'K'
 }
 
 func TestWSExportSessions_GetHistoryError(t *testing.T) {
@@ -140,10 +144,9 @@ func TestWSExportSessions_GetHistoryError(t *testing.T) {
 		return nil, errors.New("database error")
 	}
 
-	data, filename, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
+	file, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
 	require.Error(t, err)
-	assert.Nil(t, data)
-	assert.Empty(t, filename)
+	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), "failed to get sessions for export")
 }
 
@@ -166,10 +169,9 @@ func TestWSExportSessions_GetAbsencesError(t *testing.T) {
 		return nil, errors.New("absence repo error")
 	}
 
-	data, filename, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
+	file, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
 	require.Error(t, err)
-	assert.Nil(t, data)
-	assert.Empty(t, filename)
+	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), "failed to get absences for export")
 }
 
@@ -793,14 +795,11 @@ func TestWSSessionToRow_GermanWeekdays(t *testing.T) {
 }
 
 // ============================================================================
-// exportCSV Tests
+// Single-staff CSV serialization Tests
 // ============================================================================
 
 func TestWSExportCSV_Headers(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
-
-	rows := []exportRow{}
-	data, err := svc.exportCSV(rows)
+	data, err := writeExportCSV(timeTrackingHeaders(), nil, []int{8})
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, data)
@@ -827,9 +826,7 @@ func TestWSExportCSV_Headers(t *testing.T) {
 }
 
 func TestWSExportCSV_UTF8BOM(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
-
-	data, err := svc.exportCSV([]exportRow{})
+	data, err := writeExportCSV(timeTrackingHeaders(), nil, []int{8})
 	require.NoError(t, err)
 
 	assert.Equal(t, byte(0xEF), data[0])
@@ -838,17 +835,11 @@ func TestWSExportCSV_UTF8BOM(t *testing.T) {
 }
 
 func TestWSExportCSV_SemicolonSeparator(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
-
-	date := timezone.NewDate(2024, 1, 15)
-	rows := []exportRow{
-		{
-			Date: date,
-			Row:  []string{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "Test"},
-		},
+	rows := [][]string{
+		{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "App", "Test"},
 	}
 
-	data, err := svc.exportCSV(rows)
+	data, err := writeExportCSV(timeTrackingHeaders(), rows, []int{8})
 	require.NoError(t, err)
 
 	content := string(data[3:])
@@ -857,39 +848,76 @@ func TestWSExportCSV_SemicolonSeparator(t *testing.T) {
 	assert.False(t, strings.Contains(lines[1], ","))
 }
 
-// ============================================================================
-// exportXLSX Tests
-// ============================================================================
+// TestWSExportCSV_SanitizesNotes: the Bemerkungen column carries untrusted
+// free text — a note starting with a formula trigger must be escaped so
+// spreadsheet software cannot evaluate it (#1568 migration hardening; the
+// cross-staff CSV always did this, the single-staff CSV now shares the path).
+func TestWSExportCSV_SanitizesNotes(t *testing.T) {
+	rows := [][]string{
+		{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "App", "=1+1"},
+	}
 
-func TestWSExportXLSX_ValidZipFormat(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
-
-	rows := []exportRow{}
-	data, err := svc.exportXLSX(rows)
-
+	data, err := writeExportCSV(timeTrackingHeaders(), rows, []int{8})
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
 
-	// Verify ZIP magic bytes
-	assert.Equal(t, byte(0x50), data[0]) // 'P'
-	assert.Equal(t, byte(0x4B), data[1]) // 'K'
+	reader := csv.NewReader(bytes.NewReader(data[3:]))
+	reader.Comma = ';'
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+	assert.Equal(t, "'=1+1", records[1][8])
+	// Absence sentinel cells ("--") sit outside the untrusted column list
+	// and must stay verbatim.
+	assert.Equal(t, "15.01.2024", records[1][0])
 }
 
-func TestWSExportXLSX_WithData(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+// ============================================================================
+// Single-staff XLSX/PDF document Tests
+// ============================================================================
+
+func TestWSBuildTimeTrackingDocument_ShapesRows(t *testing.T) {
+	service, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := timezone.NewDate(2024, 1, 15)
 	rows := []exportRow{
 		{
 			Date: date,
-			Row:  []string{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "Test"},
+			Row:  []string{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "App", "Test"},
 		},
 	}
 
-	data, err := svc.exportXLSX(rows)
+	doc := service.buildTimeTrackingDocument(context.Background(), 100, rows, date, date)
+	assert.Equal(t, "Zeiterfassung", doc.Title)
+	assert.NotEmpty(t, doc.Footer)
+	require.Len(t, doc.Rows, 1)
+	require.Len(t, doc.Columns, 9)
+	assert.Equal(t, "15.01.2024", doc.Rows[0].Values[doc.Columns[0].ID])
+	assert.Equal(t, "Test", doc.Rows[0].Values[doc.Columns[8].ID])
+	require.Len(t, doc.Filters, 1)
+	assert.Contains(t, doc.Filters[0], "15.01.2024")
+}
+
+func TestWSExportSessions_PDF_Success(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{}, nil
+	}
+	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+
+	file, err := svc.ExportSessions(context.Background(), 100, timezone.NewDate(2024, 1, 1), timezone.NewDate(2024, 1, 7), "pdf")
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
-	assert.True(t, len(data) > 100) // Should be substantial file
+	require.NotNil(t, file)
+	assert.Contains(t, file.Filename, ".pdf")
+	assert.Equal(t, "application/pdf", file.ContentType)
+	assert.True(t, bytes.HasPrefix(file.Data, []byte("%PDF")))
 }
 
 // ============================================================================
