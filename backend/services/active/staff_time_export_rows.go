@@ -3,9 +3,11 @@ package active
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -127,25 +129,100 @@ type DayExportRow struct {
 	Cells []string
 }
 
-// DayExportRows exposes the single-staff export's merged session/absence rows
-// (#1417 2b): same data loading, same cell rendering, so a day in the
-// cross-staff file is identical to the per-staff download.
+// DayExportRows exposes the single-staff export's merged session/absence rows.
+// It delegates to the batched path so both export forms use the same loading
+// and rendering code.
 func (s *workSessionService) DayExportRows(ctx context.Context, staffID int64, from, to timezone.Date) ([]DayExportRow, error) {
-	historyResp, err := s.GetHistory(ctx, staffID, from, to)
+	rowsByStaff, err := s.DayExportRowsByStaffIDs(ctx, []int64{staffID}, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return rowsByStaff[staffID], nil
+}
+
+// DayExportRowsByStaffIDs builds all cross-staff evidence rows with a constant
+// number of repository calls. It intentionally skips weekly summaries because
+// the export only consumes the per-session cells.
+func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]DayExportRow, error) {
+	result := make(map[int64][]DayExportRow, len(staffIDs))
+	if len(staffIDs) == 0 {
+		return result, nil
+	}
+
+	sessionsByStaff, err := s.repo.GetHistoryByStaffIDs(ctx, staffIDs, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sessions for export: %w", err)
 	}
-	var absences []*activeModels.StaffAbsence
+
+	absencesByStaff := make(map[int64][]*activeModels.StaffAbsence, len(staffIDs))
 	if s.absenceRepo != nil {
-		absences, err = s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+		absencesByStaff, err = s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get absences for export: %w", err)
 		}
 	}
-	merged := s.buildExportRows(historyResp.Sessions, absences)
-	rows := make([]DayExportRow, 0, len(merged))
-	for _, row := range merged {
-		rows = append(rows, DayExportRow{Date: row.Date, Cells: row.Row})
+
+	allSessions := make([]*activeModels.WorkSession, 0)
+	for _, staffID := range staffIDs {
+		allSessions = append(allSessions, sessionsByStaff[staffID]...)
 	}
-	return rows, nil
+	responses, err := s.buildDayExportSessionResponses(ctx, allSessions)
+	if err != nil {
+		return nil, err
+	}
+	responsesByStaff := make(map[int64][]*SessionResponse, len(staffIDs))
+	for _, response := range responses {
+		responsesByStaff[response.StaffID] = append(responsesByStaff[response.StaffID], response)
+	}
+
+	for _, staffID := range staffIDs {
+		absences := clampAbsencesToRange(absencesByStaff[staffID], from, to)
+		merged := s.buildExportRows(responsesByStaff[staffID], absences)
+		rows := make([]DayExportRow, 0, len(merged))
+		for _, row := range merged {
+			rows = append(rows, DayExportRow{Date: row.Date, Cells: row.Row})
+		}
+		result[staffID] = rows
+	}
+	return result, nil
+}
+
+func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context, sessions []*activeModels.WorkSession) ([]*SessionResponse, error) {
+	sessionIDs := make([]int64, len(sessions))
+	sessionIDValues := make([]interface{}, len(sessions))
+	for i, session := range sessions {
+		sessionIDs[i] = session.ID
+		sessionIDValues[i] = session.ID
+	}
+
+	editCounts, err := s.auditRepo.CountManualBySessionIDs(ctx, sessionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get edit counts: %w", err)
+	}
+
+	breaksBySession := make(map[int64][]*activeModels.WorkSessionBreak, len(sessions))
+	if len(sessionIDValues) > 0 {
+		options := modelBase.NewQueryOptions()
+		options.Filter.In("session_id", sessionIDValues...)
+		breaks, err := s.breakRepo.List(ctx, options)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get breaks for export: %w", err)
+		}
+		for _, brk := range breaks {
+			breaksBySession[brk.SessionID] = append(breaksBySession[brk.SessionID], brk)
+		}
+	}
+
+	now := time.Now()
+	responses := make([]*SessionResponse, len(sessions))
+	for i, session := range sessions {
+		breaks := breaksBySession[session.ID]
+		responses[i] = &SessionResponse{
+			WorkSession:  session,
+			BreakMinutes: totalBreakMinutes(session, breaks, now),
+			NetMinutes:   netMinutesWithBreaks(session, breaks, now),
+			EditCount:    editCounts[session.ID],
+		}
+	}
+	return responses, nil
 }

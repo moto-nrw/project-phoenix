@@ -261,9 +261,6 @@ func (s *staffTimeExportService) exportMonths(ctx context.Context, req TimeExpor
 
 // exportDays renders the ArbZG evidence view: the per-day rows of the existing
 // single-staff export, one block per staff member, prefixed with the name.
-// This intentionally reuses WorkSessionService.DayExportRows so a day here is
-// byte-identical to the same day in the per-staff download; the cost is one
-// query pair per staff member, acceptable for a manually triggered export.
 func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportRequest, from, to timezone.Date) (*ExportFile, int, int, error) {
 	staffMembers, err := s.staffRepo.ListAllWithPerson(ctx)
 	if err != nil {
@@ -271,14 +268,19 @@ func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportR
 	}
 	sortStaffByName(staffMembers)
 
+	staffIDs := make([]int64, len(staffMembers))
+	for i, staff := range staffMembers {
+		staffIDs[i] = staff.ID
+	}
+	dayRowsByStaff, err := s.sessions.DayExportRowsByStaffIDs(ctx, staffIDs, from, to)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to build day export rows: %w", err)
+	}
+
 	var rows []dayExportBlockRow
 	for _, staff := range staffMembers {
-		dayRows, err := s.sessions.DayExportRows(ctx, staff.ID, from, to)
-		if err != nil {
-			return nil, 0, 0, fmt.Errorf("failed to build day rows for staff %d: %w", staff.ID, err)
-		}
 		firstName, lastName := staffNames(staff)
-		for _, dayRow := range dayRows {
+		for _, dayRow := range dayRowsByStaff[staff.ID] {
 			rows = append(rows, dayExportBlockRow{
 				LastName:  lastName,
 				FirstName: firstName,

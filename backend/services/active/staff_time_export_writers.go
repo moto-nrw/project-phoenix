@@ -103,15 +103,38 @@ func writeMonthCSV(rows []MonthExportRow, timeFormat string) ([]byte, error) {
 	for _, row := range rows {
 		cells = append(cells, monthExportCells(row, timeFormat))
 	}
-	return writeExportCSV(monthExportHeaders, cells)
+	return writeExportCSV(monthExportHeaders, cells, []int{0, 1, 2})
 }
 
 func writeMonthXLSX(rows []MonthExportRow, timeFormat string) ([]byte, error) {
-	cells := make([][]string, 0, len(rows))
+	cells := make([][]any, 0, len(rows))
 	for _, row := range rows {
-		cells = append(cells, monthExportCells(row, timeFormat))
+		values := stringsToAny(monthExportCells(row, timeFormat))
+		values[3] = row.Year
+		values[4] = row.Month
+		values[11] = row.SickDays
+		values[12] = row.VacationDays
+		if timeFormat == ExportTimeDecimal {
+			values[5] = float64(row.CarryInMinutes) / 60
+			values[6] = float64(row.TargetMinutes) / 60
+			values[7] = float64(row.ActualMinutes) / 60
+			values[8] = float64(row.CreditedSickMinutes) / 60
+			values[9] = float64(row.CreditedVacationMinutes) / 60
+			values[10] = float64(row.CreditedOtherMinutes) / 60
+			values[13] = float64(row.PayoutMinutes) / 60
+			values[14] = float64(row.CompTimeMinutes) / 60
+			values[15] = float64(row.ResetMinutes) / 60
+			values[16] = float64(row.BalanceMinutes) / 60
+			values[17] = float64(row.ClosingBalanceMinutes) / 60
+			values[18] = float64(row.DriftMinutes) / 60
+		}
+		cells = append(cells, values)
 	}
-	return writeExportXLSX("Zeiterfassung", monthExportHeaders, cells)
+	var decimalColumns []int
+	if timeFormat == ExportTimeDecimal {
+		decimalColumns = []int{6, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 19}
+	}
+	return writeExportXLSX("Zeiterfassung", monthExportHeaders, cells, decimalColumns)
 }
 
 // --- day granularity -------------------------------------------------------
@@ -141,16 +164,30 @@ func dayExportCells(rows []dayExportBlockRow) [][]string {
 }
 
 func writeDayCSV(rows []dayExportBlockRow) ([]byte, error) {
-	return writeExportCSV(dayExportHeaders, dayExportCells(rows))
+	return writeExportCSV(dayExportHeaders, dayExportCells(rows), []int{0, 1, len(dayExportHeaders) - 1})
 }
 
 func writeDayXLSX(rows []dayExportBlockRow) ([]byte, error) {
-	return writeExportXLSX("Zeiterfassung", dayExportHeaders, dayExportCells(rows))
+	return writeExportXLSX("Zeiterfassung", dayExportHeaders, stringsRowsToAny(dayExportCells(rows)), nil)
 }
 
 // --- shared serializers ----------------------------------------------------
 
-func writeExportCSV(headers []string, rows [][]string) ([]byte, error) {
+// sanitizeCSVFormula prevents spreadsheet software from evaluating untrusted
+// text as a formula. The apostrophe is Excel's explicit text marker.
+func sanitizeCSVFormula(value string) string {
+	if value == "" {
+		return value
+	}
+	switch value[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + value
+	default:
+		return value
+	}
+}
+
+func writeExportCSV(headers []string, rows [][]string, untrustedColumns []int) ([]byte, error) {
 	var buf bytes.Buffer
 	// UTF-8 BOM for Excel compatibility, like the single-staff export.
 	buf.Write([]byte{0xEF, 0xBB, 0xBF})
@@ -160,7 +197,13 @@ func writeExportCSV(headers []string, rows [][]string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to write CSV header: %w", err)
 	}
 	for _, row := range rows {
-		if err := w.Write(row); err != nil {
+		safeRow := append([]string(nil), row...)
+		for _, column := range untrustedColumns {
+			if column >= 0 && column < len(safeRow) {
+				safeRow[column] = sanitizeCSVFormula(safeRow[column])
+			}
+		}
+		if err := w.Write(safeRow); err != nil {
 			return nil, fmt.Errorf("failed to write CSV row: %w", err)
 		}
 	}
@@ -171,7 +214,23 @@ func writeExportCSV(headers []string, rows [][]string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func writeExportXLSX(sheet string, headers []string, rows [][]string) ([]byte, error) {
+func stringsToAny(values []string) []any {
+	result := make([]any, len(values))
+	for i, value := range values {
+		result[i] = value
+	}
+	return result
+}
+
+func stringsRowsToAny(rows [][]string) [][]any {
+	result := make([][]any, len(rows))
+	for i, row := range rows {
+		result[i] = stringsToAny(row)
+	}
+	return result
+}
+
+func writeExportXLSX(sheet string, headers []string, rows [][]any, decimalColumns []int) ([]byte, error) {
 	f := excelize.NewFile()
 	defer func() { _ = f.Close() }()
 
@@ -193,10 +252,25 @@ func writeExportXLSX(sheet string, headers []string, rows [][]string) ([]byte, e
 		_ = f.SetCellValue(sheet, cell, header)
 		_ = f.SetCellStyle(sheet, cell, cell, headerStyle)
 	}
+	decimalColumnSet := make(map[int]bool, len(decimalColumns))
+	for _, column := range decimalColumns {
+		decimalColumnSet[column] = true
+	}
+	decimalStyle := 0
+	if len(decimalColumnSet) > 0 {
+		numberFormat := "0.00"
+		decimalStyle, err = f.NewStyle(&excelize.Style{CustomNumFmt: &numberFormat})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create decimal cell style: %w", err)
+		}
+	}
 	for rowIdx, row := range rows {
 		for colIdx, value := range row {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
 			_ = f.SetCellValue(sheet, cell, value)
+			if decimalColumnSet[colIdx+1] {
+				_ = f.SetCellStyle(sheet, cell, cell, decimalStyle)
+			}
 		}
 	}
 	for i := range headers {

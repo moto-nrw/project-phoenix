@@ -150,6 +150,10 @@ func (m *mockWorkSessionService) ExportSessions(ctx context.Context, staffID int
 func (m *mockWorkSessionService) DayExportRows(context.Context, int64, timezone.Date, timezone.Date) ([]activeSvc.DayExportRow, error) {
 	return nil, nil
 }
+
+func (m *mockWorkSessionService) DayExportRowsByStaffIDs(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]activeSvc.DayExportRow, error) {
+	return nil, nil
+}
 func (m *mockWorkSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, error) {
 	if m.autoEndExpiredBreaks != nil {
 		return m.autoEndExpiredBreaks(ctx)
