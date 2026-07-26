@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { DayPicker, type DateRange, type Matcher } from "react-day-picker";
 import { addDays, addMonths, format, subMonths } from "date-fns";
 import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
+import {
+  CALENDAR_PANEL_MARGIN,
+  computeCalendarPanelPosition,
+  type PanelGeometry,
+} from "~/components/ui/calendar-panel-position";
 
 interface Preset {
   readonly label: string;
@@ -36,13 +42,18 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      // The panel now lives in a portal outside containerRef, so it has to be
+      // treated as "inside" explicitly — otherwise clicking a day would close
+      // the panel before the selection lands.
+      if (document.querySelector("[data-range-panel]")?.contains(target)) {
+        return;
+      }
+      if (containerRef.current && !containerRef.current.contains(target)) {
         setIsOpen(false);
       }
     }
@@ -53,6 +64,7 @@ export function DateRangePicker({
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         className={`inline-flex h-8 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors ${
@@ -77,6 +89,7 @@ export function DateRangePicker({
 
       {isOpen && (
         <RangeCalendar
+          triggerRef={triggerRef}
           value={value}
           presets={presets}
           fromMin={fromMin}
@@ -106,11 +119,75 @@ function formatRangeLabel(range: DateRange | undefined): string {
   return `${format(range.from, "d. MMM yyyy", { locale: de })} - ${format(range.to, "d. MMM yyyy", { locale: de })}`;
 }
 
-function RangeCalendar(props: RangeCalendarProps) {
-  return (
-    <div className="fixed inset-x-4 top-20 z-[10001] max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:max-h-none sm:overflow-visible">
+// The panel keeps its content width — a two-month grid with a preset column
+// cannot shrink to a chip-sized trigger — but it is placed by the same shared
+// geometry as the single-date panel, so an edge is flush with the trigger
+// instead of always hugging the right via `sm:right-0`.
+function RangeCalendar({
+  triggerRef,
+  ...props
+}: RangeCalendarProps & {
+  readonly triggerRef: React.RefObject<HTMLElement | null>;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [geometry, setGeometry] = useState<PanelGeometry | null>(null);
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+
+  // Content width is only known after the first paint, so measure the panel and
+  // place it from that — using a guessed width is what previously left the
+  // single-date card 22px off its own trigger.
+  const sync = useCallback(() => {
+    const trigger = triggerRef.current;
+    const panel = panelRef.current;
+    if (!trigger || !panel) return;
+    if (window.innerWidth < 640) {
+      setIsNarrowViewport(true);
+      return;
+    }
+    setIsNarrowViewport(false);
+    const rect = trigger.getBoundingClientRect();
+    setGeometry(
+      computeCalendarPanelPosition(
+        rect,
+        panel.getBoundingClientRect().width,
+        { width: window.innerWidth, height: window.innerHeight },
+        panel.getBoundingClientRect().height,
+      ),
+    );
+  }, [triggerRef]);
+
+  useEffect(() => {
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("scroll", sync, true);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("scroll", sync, true);
+    };
+  }, [sync]);
+
+  // Below the sm breakpoint the panel is too wide for any alignment to help, so
+  // it spans the viewport with a margin, as before.
+  const narrowStyle = {
+    left: CALENDAR_PANEL_MARGIN,
+    right: CALENDAR_PANEL_MARGIN,
+    top: 80,
+  } as const;
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      data-range-panel
+      className="fixed z-[10001] max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:max-h-none sm:overflow-visible"
+      style={
+        isNarrowViewport || !geometry
+          ? narrowStyle
+          : { top: geometry.top, left: geometry.left }
+      }
+    >
       <RangeCalendarInline {...props} />
-    </div>
+    </div>,
+    document.body,
   );
 }
 

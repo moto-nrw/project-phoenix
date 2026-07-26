@@ -7,6 +7,11 @@ import { format, addMonths, subMonths, type Locale } from "date-fns";
 import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  clampCalendarWidth,
+  computeCalendarPanelPosition,
+  type PanelGeometry,
+} from "~/components/ui/calendar-panel-position";
 
 // How the calendar is placed relative to the trigger:
 // - "overlay": absolutely positioned inside the picker's own stacking context.
@@ -68,54 +73,17 @@ function resolveLabels(labels?: DatePickerLabels) {
   return { ...DEFAULT_LABELS, ...labels };
 }
 
-// Viewport gap and calendar footprint used to flip/clamp the popover.
-const POPOVER_MARGIN = 8;
-// Hard floor, reached only by a trigger narrower than this: 7 × 20px day cells
-// + 12px padding per side + the 1px border. Two-digit day numbers still fit at
-// 20px; below that the grid would start clipping, so the card stops shrinking
-// and overhangs instead. Every real field in the app is wider than this, so in
-// practice the card is exactly as wide as the field it belongs to.
-const CALENDAR_MIN_WIDTH = 168;
-// Ceiling, reached only by the two full-width fields in the app (the parent
-// master-data birthday spans 1062px). Past roughly 65px per day cell the grid
-// stops reading as a calendar and becomes a sparse table, so the card stops
-// growing there and aligns to the field's left edge like any other dropdown.
-const CALENDAR_MAX_WIDTH = 480;
-const POPOVER_HEIGHT = 340;
+// Geometry lives in calendar-panel-position.ts so this picker and the range
+// picker cannot drift apart again.
+type PopoverPosition = PanelGeometry;
 
-interface PopoverPosition {
-  top: number;
-  left: number;
-  width: number;
-}
-
-// Places the calendar below the trigger, flipping above when the viewport
-// bottom would cut it off, and clamps both axes into the viewport so the
-// calendar stays fully reachable on small screens.
-//
-// The card takes the trigger's width in both directions — it grows under a
-// half-modal-wide field and shrinks under a narrow one — so the calendar lines
-// up with the field's edges instead of hugging the left one.
 function computePopoverPosition(rect: DOMRect): PopoverPosition {
-  let top = rect.bottom + 4;
-  if (top + POPOVER_HEIGHT > window.innerHeight - POPOVER_MARGIN) {
-    const above = rect.top - 4 - POPOVER_HEIGHT;
-    top =
-      above >= POPOVER_MARGIN
-        ? above
-        : Math.max(
-            POPOVER_MARGIN,
-            window.innerHeight - POPOVER_MARGIN - POPOVER_HEIGHT,
-          );
-  }
-  const available = window.innerWidth - 2 * POPOVER_MARGIN;
-  const width = Math.min(
-    Math.max(CALENDAR_MIN_WIDTH, Math.min(rect.width, CALENDAR_MAX_WIDTH)),
-    available,
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  return computeCalendarPanelPosition(
+    rect,
+    clampCalendarWidth(rect.width, viewport.width),
+    viewport,
   );
-  const maxLeft = window.innerWidth - POPOVER_MARGIN - width;
-  const left = Math.max(POPOVER_MARGIN, Math.min(rect.left, maxLeft));
-  return { top, left, width };
 }
 
 type DatePickerProps =
@@ -125,6 +93,11 @@ type DatePickerProps =
       readonly onChange: (date: Date | null) => void;
       readonly placeholder?: string;
       readonly className?: string;
+      /**
+       * @deprecated No longer read. The panel measures the viewport and flips
+       * up or down on its own; callers cannot know which side fits. Kept so the
+       * existing call sites keep compiling.
+       */
       readonly dropdownPlacement?: "up" | "down";
       readonly calendarLayout?: CalendarLayout;
       // Earliest selectable day (inclusive). Days before it are disabled — used
@@ -163,6 +136,7 @@ type DatePickerProps =
       readonly onChangeDates: (dates: Date[]) => void;
       readonly placeholder?: string;
       readonly className?: string;
+      /** @deprecated No longer read — see the single-mode prop. */
       readonly dropdownPlacement?: "up" | "down";
       readonly calendarLayout?: CalendarLayout;
       readonly disabledDates?: Date[];
@@ -172,7 +146,6 @@ interface MultipleDatePickerCalendarProps {
   readonly values: Date[];
   readonly onChangeDates: (dates: Date[]) => void;
   readonly disabledDates?: Date[];
-  readonly dropdownPlacement: "up" | "down";
   readonly calendarLayout: CalendarLayout;
 }
 
@@ -181,7 +154,6 @@ const EMPTY_DISABLED_DATES: Date[] = [];
 export function DatePicker({
   placeholder = "Datum auswählen",
   className = "",
-  dropdownPlacement = "up",
   calendarLayout = "overlay",
   ...props
 }: DatePickerProps) {
@@ -194,7 +166,11 @@ export function DatePicker({
   // before an effect moves it into place.
   const [popoverPosition, setPopoverPosition] =
     useState<PopoverPosition | null>(null);
-  const isPopover = calendarLayout === "popover";
+  // "overlay" used to position itself with CSS alone (absolute left-0), which
+  // meant no viewport awareness and a second alignment rule in the kit. Both
+  // floating layouts now go through the measured portal path, so every calendar
+  // panel in the app obeys the same geometry; "inline" stays in normal flow.
+  const isPopover = calendarLayout !== "inline";
   const isMultiple = props.mode === "multiple";
   const isDisabled = !isMultiple && props.disabled === true;
   const locale = isMultiple ? de : (props.locale ?? de);
@@ -281,7 +257,6 @@ export function DatePicker({
       values={props.values}
       onChangeDates={props.onChangeDates}
       disabledDates={props.disabledDates}
-      dropdownPlacement={dropdownPlacement}
       calendarLayout={calendarLayout}
     />
   ) : (
@@ -292,7 +267,6 @@ export function DatePicker({
       monthYearNavigation={props.monthYearNavigation}
       locale={locale}
       labels={labels}
-      dropdownPlacement={dropdownPlacement}
       calendarLayout={calendarLayout}
       onChange={(date) => {
         props.onChange(date);
@@ -435,7 +409,6 @@ function DatePickerCalendar({
   monthYearNavigation,
   locale,
   labels,
-  dropdownPlacement,
   calendarLayout,
   onChange,
 }: {
@@ -445,16 +418,13 @@ function DatePickerCalendar({
   readonly monthYearNavigation?: boolean;
   readonly locale: Locale;
   readonly labels: Required<DatePickerLabels>;
-  readonly dropdownPlacement: "up" | "down";
   readonly calendarLayout: CalendarLayout;
   readonly onChange: (date: Date | null) => void;
 }) {
   const [month, setMonth] = useState(value ?? new Date());
 
   return (
-    <div
-      className={getCalendarContainerClass(dropdownPlacement, calendarLayout)}
-    >
+    <div className={getCalendarContainerClass(calendarLayout)}>
       <CalendarNavHeader
         month={month}
         onMonthChange={setMonth}
@@ -506,15 +476,12 @@ function MultipleDatePickerCalendar({
   values,
   onChangeDates,
   disabledDates = EMPTY_DISABLED_DATES,
-  dropdownPlacement,
   calendarLayout,
 }: MultipleDatePickerCalendarProps) {
   const [month, setMonth] = useState(values[0] ?? new Date());
 
   return (
-    <div
-      className={getCalendarContainerClass(dropdownPlacement, calendarLayout)}
-    >
+    <div className={getCalendarContainerClass(calendarLayout)}>
       <CalendarNavHeader month={month} onMonthChange={setMonth} />
       <DayPicker
         mode="multiple"
@@ -806,22 +773,13 @@ function buildSingleDisabledMatchers(
   return matchers;
 }
 
-function getCalendarContainerClass(
-  dropdownPlacement: "up" | "down",
-  calendarLayout: CalendarLayout,
-): string {
+function getCalendarContainerClass(calendarLayout: CalendarLayout): string {
   const base = "rounded-xl border border-gray-200 bg-white p-3 shadow-lg";
-  // In every layout the card spans at least the trigger's width, so its edges
-  // line up with the field instead of stopping a third of the way across.
-  // Popover: the portal wrapper is already sized to the trigger, so w-full
-  // adopts it. Overlay/inline: the offset parent IS the picker container.
+  // The floating layouts get their width from the portal wrapper, which is
+  // sized to the trigger; inline takes its parent's width and only needs the
+  // same bounds so a very wide or very narrow panel stays legible.
   if (calendarLayout === "inline") {
     return `${base} mt-2 w-full max-w-[min(480px,100%)] min-w-[168px]`;
   }
-  if (calendarLayout === "popover") {
-    return `${base} w-full`;
-  }
-  const placement =
-    dropdownPlacement === "down" ? "top-full mt-1" : "bottom-full mb-1";
-  return `${base} absolute left-0 z-[10001] w-full max-w-[480px] min-w-[168px] ${placement}`;
+  return `${base} w-full`;
 }
