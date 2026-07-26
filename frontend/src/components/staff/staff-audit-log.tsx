@@ -36,7 +36,7 @@ const log = createLogger({ component: "StaffAuditLog" });
 
 const PAGE_SIZE = 50;
 
-export interface AuditLogStaffOption {
+interface AuditLogStaffOption {
   id: string;
   name: string;
 }
