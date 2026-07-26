@@ -40,6 +40,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DayLogPage" });
@@ -258,6 +259,8 @@ export default function DayLogPage() {
   // Berlin, not browser-local: the backend validates against
   // timezone.TodayDate() (Europe/Berlin), so a browser in another timezone
   // must not default to a day the server considers future or already past.
+  const now = useMinuteClock();
+  const todayISO = berlinTodayISO(now);
   const [dateISO, setDateISO] = useState<string>(() => berlinTodayISO());
   const [data, setData] = useState<DayLogResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -265,6 +268,13 @@ export default function DayLogPage() {
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Keep an open page on the Berlin calendar day. The backend only accepts
+  // today's roster, so a tab spanning midnight must refetch rather than retain
+  // yesterday's now-invalid date.
+  useEffect(() => {
+    setDateISO((selected) => (selected === todayISO ? selected : todayISO));
+  }, [todayISO]);
 
   useEffect(() => {
     let cancelled = false;
@@ -298,8 +308,8 @@ export default function DayLogPage() {
 
   // Group membership has no dated source of truth. Keep the selector on the
   // current day so a later transfer cannot relabel historical attendance.
-  const minDate = useMemo(() => parseISODate(berlinTodayISO()), []);
-  const maxDate = useMemo(() => parseISODate(berlinTodayISO()), []);
+  const minDate = useMemo(() => parseISODate(todayISO), [todayISO]);
+  const maxDate = useMemo(() => parseISODate(todayISO), [todayISO]);
 
   const downloadExport = useCallback(
     async (format: ExportFormat, groupId?: string) => {
