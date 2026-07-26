@@ -1044,3 +1044,77 @@ func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, stude
 
 	return affected > 0, nil
 }
+
+// PurgedStudentPlaceholder replaces a graduate's name in the ledger once the
+// child has been hard-deleted. The row itself stays: it is what makes the
+// applied transition's own count ("11 Abgänge") still add up afterwards, and
+// the revert reads it to know which children it must NOT try to restore.
+const PurgedStudentPlaceholder = "Gelöschtes Kind"
+
+// FindStudentStatesByIDs maps each given student id to its current lifecycle
+// status. Ids missing from the result no longer have a row at all — they were
+// hard-deleted after graduation.
+//
+// Deliberately WITHOUT the alumnus filter every other student read carries:
+// this is the one query whose entire purpose is to see graduates. It stays in
+// the grade-transition repository rather than users.StudentRepository so the
+// exception cannot be reached from an ordinary staff list by accident.
+func (r *GradeTransitionRepository) FindStudentStatesByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+	if len(studentIDs) == 0 {
+		return map[int64]string{}, nil
+	}
+
+	type stateRow struct {
+		ID     int64  `bun:"id"`
+		Status string `bun:"status"`
+	}
+	var rows []stateRow
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*struct{})(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Column("id", "status").
+		Where(`"student".id IN (?)`, bun.List(studentIDs))
+
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find student states by IDs",
+			Err: err,
+		}
+	}
+
+	states := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		states[row.ID] = row.Status
+	}
+	return states, nil
+}
+
+// AnonymizeHistoryForStudent replaces the stored name on every ledger row of a
+// student that has just been hard-deleted.
+//
+// Without it the "endgültig löschen" the UI promises would be a half-truth:
+// grade_transition_history.person_name is a denormalized copy of the child's
+// name that carries no foreign key, so it survives the delete of both the
+// student and the person row and would keep naming the child indefinitely.
+func (r *GradeTransitionRepository) AnonymizeHistoryForStudent(ctx context.Context, studentID int64) error {
+	updQuery := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*struct{})(nil)).
+		ModelTableExpr(`education.grade_transition_history AS "history"`).
+		Set("person_name = ?", PurgedStudentPlaceholder).
+		Set("updated_at = NOW()").
+		Where(`"history".student_id = ?`, studentID).
+		Where(`"history".person_name <> ?`, PurgedStudentPlaceholder)
+
+	updQuery = base.WithTenantFilter(ctx, updQuery, "history")
+
+	if _, err := updQuery.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "anonymize grade transition history for student",
+			Err: err,
+		}
+	}
+	return nil
+}

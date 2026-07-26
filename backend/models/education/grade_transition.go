@@ -223,6 +223,16 @@ type GradeTransitionRepository interface {
 	// caller must treat them as not reverted — including for roster
 	// reconciliation (#405 review).
 	ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) ([]int64, error)
+	// FindStudentStatesByIDs maps each id to its current lifecycle status. Ids
+	// absent from the result have no student row left — they were hard-deleted
+	// after graduation. It is the ONE student read without the alumnus filter,
+	// because listing graduates is exactly its purpose.
+	FindStudentStatesByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error)
+	// AnonymizeHistoryForStudent replaces the denormalized name on the student's
+	// ledger rows. Those rows carry no foreign key and outlive both the student
+	// and the person row, so without this the "endgültig löschen" would leave
+	// the child's name in the database.
+	AnonymizeHistoryForStudent(ctx context.Context, studentID int64) error
 	// ReleaseStudentTagsByIDs clears the RFID tag on the given students' person
 	// rows and returns what each of them was holding, keyed by student id.
 	// Graduation must free the bracelet: an alumnus is invisible to every

@@ -391,3 +391,44 @@ describe("status labels", () => {
     expect(screen.getByText("Angewendet")).toBeInTheDocument();
   });
 });
+
+// The Abgänge view is the only way to reach a child graduation soft-deleted:
+// they are filtered out of every staff list and every per-student route answers
+// 404 for them. If this entry point is missing or offered on a draft, a school
+// has no path to honour a retention rule or an erasure request (#405).
+describe("Abgänge entry point", () => {
+  it("opens the Abgänge view for a transition that ran", async () => {
+    api.listGradeTransitions.mockResolvedValue([appliedTransition]);
+    api.fetchTransitionHistory.mockResolvedValue([
+      {
+        id: "1",
+        transitionId: "8",
+        studentId: "100",
+        personName: "Alma Alumna",
+        fromClass: "4a",
+        toClass: null,
+        action: "graduated" as const,
+        createdAt: "2026-08-01T06:00:00Z",
+        studentState: "alumnus" as const,
+      },
+    ]);
+    render(<GradeTransitionsManager />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Abgänge$/i }));
+
+    expect(await screen.findByText("Alma Alumna")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.fetchTransitionHistory).toHaveBeenCalledWith("8");
+    });
+  });
+
+  it("does not offer it for a draft, which has no Abgänge yet", async () => {
+    api.listGradeTransitions.mockResolvedValue([draftTransition]);
+    render(<GradeTransitionsManager />);
+
+    await screen.findByText("Entwurf");
+    expect(
+      screen.queryByRole("button", { name: /^Abgänge$/i }),
+    ).not.toBeInTheDocument();
+  });
+});

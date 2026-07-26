@@ -1688,3 +1688,90 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 func (s *GradeTransitionService) GetHistory(ctx context.Context, transitionID int64) ([]*education.GradeTransitionHistory, error) {
 	return s.transitionRepo.GetHistory(ctx, transitionID)
 }
+
+// Graduate lifecycle states reported alongside a transition's ledger. They
+// describe what is left of a graduated child TODAY, which is what decides
+// which actions the Abgänge view may offer.
+const (
+	// GraduateStateAlumnus: still soft-deleted. Revertable, and the only state
+	// in which an endgültige Löschung is possible.
+	GraduateStateAlumnus = "alumnus"
+	// GraduateStateRestored: back in the roster — either this transition was
+	// reverted, or the status was changed by hand since.
+	GraduateStateRestored = "restored"
+	// GraduateStatePurged: hard-deleted. Nothing left to restore or delete; the
+	// ledger row survives only as the count of what this transition did.
+	GraduateStatePurged = "purged"
+)
+
+// GetHistoryWithStudentStates returns a transition's ledger together with the
+// CURRENT state of every student it names.
+//
+// The ledger alone cannot drive the Abgänge view: it is an append-only record
+// of what the apply did, so a child who has since been reverted or hard-deleted
+// still reads as "graduated" in it. The state map is resolved fresh on every
+// call and is keyed by student id.
+func (s *GradeTransitionService) GetHistoryWithStudentStates(
+	ctx context.Context,
+	transitionID int64,
+) ([]*education.GradeTransitionHistory, map[int64]string, error) {
+	history, err := s.transitionRepo.GetHistory(ctx, transitionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(history) == 0 {
+		return history, map[int64]string{}, nil
+	}
+
+	ids := make([]int64, 0, len(history))
+	seen := make(map[int64]struct{}, len(history))
+	for _, h := range history {
+		if _, dup := seen[h.StudentID]; dup {
+			continue
+		}
+		seen[h.StudentID] = struct{}{}
+		ids = append(ids, h.StudentID)
+	}
+
+	statuses, err := s.transitionRepo.FindStudentStatesByIDs(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	states := make(map[int64]string, len(ids))
+	for _, id := range ids {
+		status, exists := statuses[id]
+		switch {
+		case !exists:
+			states[id] = GraduateStatePurged
+		case status == string(users.StudentStatusAlumnus):
+			states[id] = GraduateStateAlumnus
+		default:
+			states[id] = GraduateStateRestored
+		}
+	}
+	return history, states, nil
+}
+
+// ErrGraduateStillPresent is returned when the ledger anonymization is asked to
+// run for a student whose row still exists.
+var ErrGraduateStillPresent = errors.New("student row still exists, refusing to anonymize its ledger")
+
+// AnonymizePurgedGraduate strips the child's name from the transition ledger
+// after the student and person rows have been hard-deleted.
+//
+// It verifies the row is really gone first, because that is the whole
+// justification for losing the name: while the student still exists the ledger
+// name is the only human-readable label a revert or an Abgänge list has, and
+// blanking it there would break both for a child who is still restorable.
+// Callers run this INSIDE the delete transaction, so the check sees the delete.
+func (s *GradeTransitionService) AnonymizePurgedGraduate(ctx context.Context, studentID int64) error {
+	statuses, err := s.transitionRepo.FindStudentStatesByIDs(ctx, []int64{studentID})
+	if err != nil {
+		return err
+	}
+	if _, stillThere := statuses[studentID]; stillThere {
+		return ErrGraduateStillPresent
+	}
+	return s.transitionRepo.AnonymizeHistoryForStudent(ctx, studentID)
+}

@@ -182,7 +182,35 @@ describe("mapHistoryEntry", () => {
       toClass: null,
       action: "graduated",
       createdAt: "2026-08-01T06:00:00Z",
+      // A response without student_state degrades to "alumnus": that is the
+      // state every graduated ledger row had before purging existed, so an old
+      // backend leaves the child shown and deletable rather than mislabelled.
+      studentState: "alumnus",
     });
+  });
+
+  it("carries the current student state through", () => {
+    // The ledger is append-only, so action stays "graduated" for a child a
+    // revert brought back or a purge removed. Only student_state distinguishes
+    // them, and the Abgänge view decides from it whether "endgültig löschen" is
+    // offered at all — dropping it here would offer the action for a child that
+    // is back in the roster.
+    const states = ["alumnus", "restored", "purged"] as const;
+
+    for (const state of states) {
+      const backend: BackendTransitionHistoryEntry = {
+        id: 3,
+        transition_id: 7,
+        student_id: 99,
+        person_name: "Mika Muster",
+        from_class: "4a",
+        to_class: null,
+        action: "graduated",
+        created_at: "2026-08-01T06:00:00Z",
+        student_state: state,
+      };
+      expect(mapHistoryEntry(backend).studentState).toBe(state);
+    }
   });
 });
 

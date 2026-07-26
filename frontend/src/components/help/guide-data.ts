@@ -1031,10 +1031,11 @@ export const appChapters: readonly GuideChapter[] = [
           "`Weiter zur Vorschau` zeigt vor dem Anwenden, wie viele Kinder versetzt werden, wie viele die OGS verlassen und welche Klassen nicht berücksichtigt sind.",
           "`Jahrgangswechsel anwenden` führt den Wechsel nach einer Sicherheitsabfrage für alle Kinder auf einmal durch.",
           "Falls etwas nicht stimmt: In der Liste beim angewendeten Jahrgangswechsel `Zurücksetzen` wählen. Versetzte Kinder kehren in ihre alte Klasse zurück, Abgänge werden wiederhergestellt.",
+          "`Abgänge` beim angewendeten Jahrgangswechsel zeigt alle Kinder, die die OGS verlassen haben. Dort lassen sich einzelne Kinder auch endgültig löschen, wenn ihre Daten wirklich verschwinden sollen.",
         ],
         callout: {
           title: "Abgänge sind kein Löschen",
-          body: "Kinder mit `Abgang` werden nur ausgeblendet, nicht gelöscht. Sie tauchen in Kinderlisten, Gruppen und an den Tablets nicht mehr auf, bleiben aber für ein `Zurücksetzen` erhalten. Endgültiges Löschen bleibt ein separater Schritt in der Kindersuche.",
+          body: "Kinder mit `Abgang` werden nur ausgeblendet, nicht gelöscht. Sie tauchen in Kinderlisten, Gruppen und an den Tablets nicht mehr auf, bleiben aber für ein `Zurücksetzen` erhalten. Wer die Daten endgültig entfernen will, tut das gezielt über `Abgänge` beim angewendeten Jahrgangswechsel — danach kann `Zurücksetzen` diese Kinder nicht mehr zurückholen.",
           tone: "orange",
         },
         screenshot:

@@ -179,13 +179,26 @@ type HistoryResponse struct {
 	FromStatus   *string `json:"from_status,omitempty"`
 	RFIDTag      *string `json:"rfid_tag,omitempty"`
 	CreatedAt    string  `json:"created_at"`
+	// StudentState is the child's state TODAY ("alumnus" | "restored" |
+	// "purged"), not what the ledger recorded. The ledger is append-only, so a
+	// graduated child who has since been reverted or hard-deleted still reads as
+	// "graduated" in Action — only this field tells the Abgänge view which
+	// actions are still possible.
+	StudentState string `json:"student_state"`
 }
 
-// toHistoryResponses converts the ledger rows to their API shape.
-func toHistoryResponses(rows []*education.GradeTransitionHistory) []HistoryResponse {
+// toHistoryResponses converts the ledger rows to their API shape. states maps a
+// student id to its current lifecycle state; an id missing from it is reported
+// as purged, which is what an absent student row means.
+func toHistoryResponses(rows []*education.GradeTransitionHistory, states map[int64]string) []HistoryResponse {
 	out := make([]HistoryResponse, 0, len(rows))
 	for _, h := range rows {
+		state, ok := states[h.StudentID]
+		if !ok {
+			state = educationService.GraduateStatePurged
+		}
 		out = append(out, HistoryResponse{
+			StudentState: state,
 			ID:           h.ID,
 			TransitionID: h.TransitionID,
 			StudentID:    h.StudentID,
@@ -554,11 +567,11 @@ func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	history, err := rs.service.GetHistory(r.Context(), id)
+	history, states, err := rs.service.GetHistoryWithStudentStates(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, toHistoryResponses(history), "Transition history retrieved successfully")
+	common.Respond(w, r, http.StatusOK, toHistoryResponses(history, states), "Transition history retrieved successfully")
 }

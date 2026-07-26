@@ -45,6 +45,7 @@ DELETE /api/students/{id}/arrival-notes/{noteId}
 DELETE /api/students/{id}/photo
 DELETE /api/students/{id}/pickup-exceptions/{exceptionId}
 DELETE /api/students/{id}/pickup-notes/{noteId}
+DELETE /api/students/{id}/purge
 DELETE /api/students/{id}/rfid
 DELETE /api/students/{id}/status-days/{statusDayId}
 DELETE /api/substitutions/{id}

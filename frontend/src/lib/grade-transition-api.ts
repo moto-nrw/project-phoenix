@@ -109,6 +109,7 @@ export interface BackendTransitionHistoryEntry {
   to_class?: string | null;
   action: HistoryAction;
   created_at: string;
+  student_state?: GraduateState;
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +180,13 @@ export interface SuggestedMapping {
   ambiguous?: boolean;
 }
 
+/**
+ * What is left of a graduated child today. The ledger is append-only, so its
+ * `action` still says "graduated" for a child a revert brought back or a purge
+ * removed — only this decides which actions the Abgänge list may offer.
+ */
+export type GraduateState = "alumnus" | "restored" | "purged";
+
 export interface TransitionHistoryEntry {
   id: string;
   transitionId: string;
@@ -188,6 +196,12 @@ export interface TransitionHistoryEntry {
   toClass: string | null;
   action: HistoryAction;
   createdAt: string;
+  /**
+   * Defaults to "alumnus" when a backend predating the field answers: that is
+   * the state every graduated ledger row had before purging existed, so an old
+   * response degrades to "shown, deletable" rather than to a wrong state.
+   */
+  studentState: GraduateState;
 }
 
 export interface MappingInput {
@@ -291,6 +305,7 @@ export function mapHistoryEntry(
     toClass: data.to_class ?? null,
     action: data.action,
     createdAt: data.created_at,
+    studentState: data.student_state ?? "alumnus",
   };
 }
 
@@ -544,4 +559,25 @@ export async function fetchTransitionHistory(
   });
   const data = await readJSON<BackendTransitionHistoryEntry[]>(response);
   return (data ?? []).map(mapHistoryEntry);
+}
+
+/**
+ * Permanently deletes a child that a grade transition graduated — student row,
+ * person row, photo, and their name in the transition ledger.
+ *
+ * This is the counterpart to the soft delete graduation performs: the child is
+ * hidden everywhere and every ordinary student route answers 404 for them, so
+ * without this there is no way to honour a retention rule or an erasure
+ * request for a departed child. Not reversible by `Zurücksetzen` afterwards —
+ * the ledger row survives to keep the transition's count honest, but there is
+ * nothing left to restore.
+ */
+export async function purgeGraduatedStudent(studentId: string): Promise<void> {
+  const response = await fetch(
+    `/api/students/${encodeURIComponent(studentId)}/purge`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
 }

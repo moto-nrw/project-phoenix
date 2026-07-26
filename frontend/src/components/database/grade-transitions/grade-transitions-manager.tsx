@@ -21,6 +21,7 @@ import {
   type TransitionResult,
   type TransitionStatus,
 } from "~/lib/grade-transition-api";
+import { GraduatesModal } from "./graduates-modal";
 import { TransitionEditor } from "./transition-editor";
 import { TransitionPreviewModal } from "./transition-preview-modal";
 
@@ -189,6 +190,9 @@ export function GradeTransitionsManager({
     null,
   );
   const [deleteTarget, setDeleteTarget] = useState<GradeTransition | null>(
+    null,
+  );
+  const [graduatesFor, setGraduatesFor] = useState<GradeTransition | null>(
     null,
   );
   const [busy, setBusy] = useState(false);
@@ -389,6 +393,19 @@ export function GradeTransitionsManager({
                 Zurücksetzen
               </Button>
             )}
+            {/* Every transition that ran has Abgänge worth inspecting, including
+                a reverted one — a child hard-deleted before the revert stays
+                gone, and this is the only place that says so. */}
+            {t.status !== "draft" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => setGraduatesFor(t)}
+              >
+                Abgänge
+              </Button>
+            )}
           </div>
         ),
       },
@@ -470,6 +487,15 @@ export function GradeTransitionsManager({
             openEditorFor(previewFor);
           }}
           onApplied={handleApplied}
+        />
+      )}
+
+      {graduatesFor && (
+        <GraduatesModal
+          transition={graduatesFor}
+          canDelete={permissions.canDelete}
+          onClose={() => setGraduatesFor(null)}
+          onPurged={() => void refresh()}
         />
       )}
 
