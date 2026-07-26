@@ -108,6 +108,12 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 
+		// Personnel number (payroll identifier, #1417): time_tracking:manage
+		// like every payroll-relevant per-person write of this issue —
+		// deliberately not the users:read/update tier of the directory.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/payroll-number", rs.getPayrollNumber)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/payroll-number", rs.updatePayrollNumber)
+
 		// Work schedule endpoints expose contractual target hours.
 		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.TimeTrackingOwn), withTx).Get("/{id}/schedule", rs.getSchedule)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/schedule", rs.updateSchedule)

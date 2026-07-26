@@ -272,6 +272,25 @@ export const setupChapters: readonly GuideChapter[] = [
         printCompact: true,
       },
       {
+        id: "app-zum-startbildschirm-android",
+        title: "moto zum Startbildschirm hinzufügen (Android)",
+        summary:
+          "Auch auf Android-Geräten lässt sich moto als App installieren und startet dann im Vollbild ohne Browserleisten.",
+        steps: [
+          "moto in Chrome öffnen und in der eigenen Einrichtung anmelden.",
+          "Auf der Seite der Einrichtung das Browser-Menü mit den drei Punkten öffnen.",
+          "`App installieren` oder `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "moto künftig über das neue Symbol auf dem Startbildschirm starten.",
+        ],
+        callout: {
+          title: "Erst anmelden, dann installieren",
+          body: "Wie auf dem iPhone gilt: moto erst nach der Anmeldung in der eigenen Einrichtung installieren. Wer für mehrere Einrichtungen arbeitet, legt für jede Einrichtung ein eigenes Symbol an.",
+          tone: "blue",
+        },
+        screenshot: "Chrome-Menü auf Android mit der Option App installieren.",
+        printCompact: true,
+      },
+      {
         id: "mitarbeitende-anlegen",
         title: "Mitarbeitende anlegen und einladen",
         summary:
@@ -764,6 +783,27 @@ export const appChapters: readonly GuideChapter[] = [
           "Gruppenzugriff mit verfügbaren Fachkräften und Dialog Zugriff gewähren.",
         image: "/help/screens/vertretungen.webp",
       },
+      {
+        id: "abrechnung-vorbereiten",
+        title: "Abrechnung vorbereiten (DATEV)",
+        icon: ClipboardList,
+        summary:
+          "Lohnarten, DATEV-Mandantendaten und Personalnummern pflegen, damit Zeiterfassungsdaten später an die Lohnabrechnung übergeben werden können (nur mit Berechtigung `config:manage`).",
+        steps: [
+          "`Abrechnung` in der Seitenleiste öffnen. Die Karte `Vollständigkeit` zeigt, welche Angaben noch fehlen.",
+          "Unter `Lohnarten` für jede Kategorie (Regelarbeit, Plus-Stunden, Auszahlung, Freizeitausgleich, Krank, Urlaub, Fortbildung) die Lohnartnummer aus dem Lohnsystem des Trägers eintragen. Die Nummern liefert das Lohnbüro; es gibt bewusst keine Vorbelegung. Eine Kategorie ohne Nummer wird später einfach nicht exportiert.",
+          "Bei Krank, Urlaub und Fortbildung zusätzlich die `Einheit` wählen: ob die Lohnart im Lohnsystem Stunden oder Tage erwartet.",
+          "Unter `DATEV-Mandant` die Beraternummer und Mandantennummer eintragen. Beide stehen im DATEV-Bestand des Lohnbüros und werden nur für den LODAS-Export benötigt.",
+          "Für jede Person die Personalnummer aus dem Lohnsystem hinterlegen: `Mitarbeiter` -> Person öffnen -> Reiter `Stammdaten` -> `Bearbeiten`. Die Nummer ist pro Schule eindeutig; Änderungen erscheinen im Änderungsprotokoll.",
+        ],
+        callout: {
+          title: "Keine Nummern erfinden",
+          body: "Lohnartnummern und Personalnummern müssen exakt den Werten im Lohnsystem des Trägers entsprechen. Eine plausibel aussehende, aber falsche Nummer führt zu still falscher Abrechnung. Im Zweifel beim Lohnbüro nachfragen und Felder leer lassen.",
+          tone: "red",
+        },
+        screenshot:
+          "Abrechnungsseite mit Vollständigkeits-Karte, Lohnarten-Tabelle und DATEV-Mandantendaten.",
+      },
     ],
   },
   {
@@ -1179,6 +1219,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Formular` das `Basisformular` lassen oder eine eigene Vorlage wählen.",
           "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen. Ist die Warteliste tenantweit ausgeschaltet, nimmt `Warteliste` bei Überbelegung weitere Anmeldungen ohne Wartelistenstatus an.",
           "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
+          "Unter `Zielgruppe` festlegen, wer sich anmelden darf: `Offen für alle`, `Nur neue Kinder` (bereits angemeldete Kinder werden abgewiesen), `Nur bereits angemeldete Kinder` (für Wiederanmeldungen; neue Kinder werden abgewiesen) oder `Nur Eltern mit Konto an der Schule`. Phasen mit dieser letzten Option erscheinen nicht in der öffentlichen Anmeldeliste; Eltern erreichen sie im Elternportal über `Neue Anmeldung`. Optional die Phase mit `Nur für Klassenstufen` auf einzelne Jahrgänge beschränken, zum Beispiel nur den 3. Jahrgang; dafür genügt die Klassenstufen-Abfrage. Mit `Nur für Klassen` lässt sich die Phase zusätzlich auf einzelne Klassen ab der 2. Klasse beschränken; Kinder müssen dann eine dieser Klassen angeben.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",

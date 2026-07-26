@@ -101,6 +101,15 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       legalTexts: bootstrap.legal_texts,
       profile: bootstrap.profile ?? null,
       schoolClass: bootstrap.school_class,
+      // Carry the phase audience through so the form can suppress the
+      // existing-child reuse panel on a new_students phase — a signed-in
+      // dual-role guardian on the tenant-public path can have linked
+      // children the server would always reject (#1663). Mirrors the
+      // parent-portal mapper.
+      audience: bootstrap.phase.audience,
+      // Same for the grade restriction, so the grade select offers only the
+      // grades the phase accepts (#1663).
+      eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
     };
   }, [bootstrap]);
 

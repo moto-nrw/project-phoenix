@@ -289,7 +289,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 
 	var guardian *users.GuardianProfile
 	if input.ReplaceTargetedData && s.GuardianProfileRepo != nil {
-		guardian, err = s.reconcilePrimaryGuardianLink(ctx, req, student.ID)
+		guardian, err = s.reconcilePrimaryGuardianLink(ctx, req, student.ID, true)
 		if err != nil {
 			return nil, err
 		}

@@ -479,6 +479,8 @@ func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, enrollmentService.ErrWaitlistDisabled):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled"))
+	case errors.Is(err, enrollmentService.ErrGuardianAccountMismatch):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch"))
 	case common.IsTransientDatabaseError(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:

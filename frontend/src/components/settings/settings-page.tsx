@@ -328,11 +328,16 @@ export function useSettingsTabs(): {
         label: tabLabels[key] ?? key,
         icon: tabIcons[key] ?? defaultTabIcon,
       }))
-    : (schema?.tabs ?? []).map((tab) => ({
-        id: `settings-${tab.key}`,
-        label: tabLabels[tab.key] ?? tab.label,
-        icon: tabIcons[tab.key] ?? defaultTabIcon,
-      }));
+    : (schema?.tabs ?? [])
+        // Payroll settings (#1417) have their own maintenance page under
+        // /payroll — rendering the auto-generated tab here would create a
+        // second, worse surface for the same values.
+        .filter((tab) => tab.key !== "abrechnung")
+        .map((tab) => ({
+          id: `settings-${tab.key}`,
+          label: tabLabels[tab.key] ?? tab.label,
+          icon: tabIcons[tab.key] ?? defaultTabIcon,
+        }));
 
   // Personalisierung is always available (permission-gated inside the component)
   const personalizationTab = {

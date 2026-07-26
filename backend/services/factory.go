@@ -90,6 +90,7 @@ type Factory struct {
 	Checkin                  *iotcheckin.CheckinService
 	StaffClock               *staffclock.Service
 	Settings                 config.SettingsService
+	PayrollStatus            config.PayrollStatusGetter
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
 	StaffShiftSeries         schedule.StaffShiftSeriesService
@@ -310,18 +311,49 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger,
 	)
+	// Wire the enrollment class-restriction probe so the settings service can
+	// refuse disabling concrete-class collection while an active phase
+	// restricts eligibility to specific classes (#1663). Runs inside the
+	// caller's tenant tx, so the phase lookup is RLS-scoped.
+	if guarded, ok := settingsService.(interface {
+		SetClassRestrictionGuard(func(context.Context) (bool, error))
+	}); ok {
+		guarded.SetClassRestrictionGuard(func(ctx context.Context) (bool, error) {
+			return repos.Phase.ExistsActiveWithEligibleClasses(ctx)
+		})
+	}
+	// Same for the grade-level restriction, which survives concrete-class
+	// collection being off but not grade-level collection (#1663).
+	if guarded, ok := settingsService.(interface {
+		SetGradeRestrictionGuard(func(context.Context) (bool, error))
+	}); ok {
+		guarded.SetGradeRestrictionGuard(func(ctx context.Context) (bool, error) {
+			return repos.Phase.ExistsActiveWithEligibleGradeLevels(ctx)
+		})
+	}
+	// And the cap probe, so enrollment.grade_level_max cannot be lowered below
+	// a grade an active phase already restricts itself to — which would leave
+	// that phase with no selectable eligible grade at all (#1663).
+	if guarded, ok := settingsService.(interface {
+		SetGradeCapGuard(func(context.Context) (int, error))
+	}); ok {
+		guarded.SetGradeCapGuard(func(ctx context.Context) (int, error) {
+			return repos.Phase.MaxActiveEligibleGradeLevel(ctx)
+		})
+	}
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo:      repos.Person,
-		RFIDRepo:        repos.RFIDCard,
-		AccountRepo:     repos.Account,
-		StudentRepo:     repos.Student,
-		StaffRepo:       repos.Staff,
-		TeacherRepo:     repos.Teacher,
-		DB:              db,
-		SettingsService: settingsService,
-		Logger:          logger.With("service", "users"),
+		PersonRepo:           repos.Person,
+		RFIDRepo:             repos.RFIDCard,
+		AccountRepo:          repos.Account,
+		StudentRepo:          repos.Student,
+		StaffRepo:            repos.Staff,
+		TeacherRepo:          repos.Teacher,
+		PersonnelNumberAudit: repos.PersonnelNumberChange,
+		DB:                   db,
+		SettingsService:      settingsService,
+		Logger:               logger.With("service", "users"),
 	})
 
 	// Initialize guardian service
@@ -1369,6 +1401,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
 		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
+		Settings:                        settingsService,
 		DB:                              db,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
@@ -1429,6 +1462,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		FormSchemaRepo:           repos.FormSchema,
 		PhaseRepo:                repos.Phase,
 		SchoolRepo:               repos.School,
+		StudentRepo:              repos.Student,
+		GuardianAuthorizer:       repos.StudentGuardian,
 		RateLimitRepo:            repos.SubmissionRateLimit,
 		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
@@ -1478,6 +1513,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SchoolRepo:               repos.School,
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
+		StudentRepo:              repos.Student,
+		GuardianAuthorizer:       repos.StudentGuardian,
 		DecisionService:          enrollmentDecisionApplier,
 		CompanionGraphLocker:     studentService,
 		Settings:                 settingsService,
@@ -1731,6 +1768,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Checkin:                  checkinService,
 		StaffClock:               staffClockService,
 		Settings:                 settingsService,
+		PayrollStatus:            config.NewPayrollStatusService(settingsService, repos.Staff),
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
 		StaffShiftSeries:         staffShiftSeriesService,

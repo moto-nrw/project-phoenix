@@ -125,11 +125,17 @@ type PersonService interface {
 	// staff row still persists, mirroring the historical api/staff behaviour.
 	CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
 
-	// UpdateStaffWithTeacher persists the (already mutated) staff row,
-	// reloads it with person data, and applies the requested teacher-record
-	// change. Teacher-record failures are non-fatal and reported through the
-	// returned TeacherAction; the staff update always persists.
+	// UpdateStaffWithTeacher applies the already-mutated directory fields to
+	// a freshly locked staff row, reloads it with person data, and applies the
+	// requested teacher-record change. Teacher-record failures are non-fatal
+	// and reported through the returned TeacherAction.
 	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
+
+	// UpdatePersonnelNumber sets or clears (nil / empty) the staff member's
+	// payroll Personalnummer (#1417). Writes an audit row in the same tenant
+	// transaction; returns ErrPersonnelNumberTaken on a per-tenant duplicate
+	// and ErrPersonnelNumberInvalid on a malformed value.
+	UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
 
 	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)

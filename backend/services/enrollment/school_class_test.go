@@ -67,11 +67,38 @@ func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
 			wantClass: nil,
 		},
 		{
-			name:      "grade 1 never keeps a class even when required",
+			name:      "grade 1 stays classless when the phase offers no grade-1 class",
 			collect:   true,
 			phase:     phaseWithClasses(classes, true),
 			child:     SubmitChild{TargetGradeLevel: grade(1), TargetSchoolClass: classPtr("2a")},
 			wantClass: nil,
+		},
+		{
+			// #1663: when the phase offers a grade-1 class, grade 1 collects
+			// and keeps its concrete class just like grade >= 2.
+			name:      "grade 1 keeps its class when the phase offers a grade-1 class",
+			collect:   true,
+			phase:     phaseWithClasses([]string{"1a", "2a"}, true),
+			child:     SubmitChild{TargetGradeLevel: grade(1), TargetSchoolClass: classPtr("  1a  ")},
+			wantClass: classPtr("1a"),
+		},
+		{
+			// The grade-1 pick is mandatory once a grade-1 class is offered
+			// and the phase requires a class (#1663).
+			name:    "grade 1 required with a grade-1 class offered rejects empty",
+			collect: true,
+			phase:   phaseWithClasses([]string{"1a"}, true),
+			child:   SubmitChild{TargetGradeLevel: grade(1), TargetSchoolClass: nil},
+			wantErr: true,
+		},
+		{
+			// A grade-1 phase offers grade-1 classes; a mismatched grade-2
+			// class must still be rejected by the prefix check (#1663).
+			name:    "grade 1 rejects a class from another grade",
+			collect: true,
+			phase:   phaseWithClasses([]string{"1a", "2a"}, true),
+			child:   SubmitChild{TargetGradeLevel: grade(1), TargetSchoolClass: classPtr("2a")},
+			wantErr: true,
 		},
 		{
 			name:      "grade 2 optional, empty allowed (Klasse offen)",

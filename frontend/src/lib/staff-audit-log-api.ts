@@ -14,7 +14,8 @@ export type AuditLogSource =
   | "adjustment"
   | "month_close"
   | "month_reopen"
-  | "deletion";
+  | "deletion"
+  | "personnel_number";
 
 export interface BackendAuditLogEvent {
   occurred_at: string;
@@ -68,6 +69,7 @@ export const auditLogSourceLabels: Record<AuditLogSource, string> = {
   month_close: "Monatsabschluss",
   month_reopen: "Monat geöffnet",
   deletion: "Löschung",
+  personnel_number: "Personalnummer",
 };
 
 export function mapAuditLogEvent(data: BackendAuditLogEvent): AuditLogEvent {
