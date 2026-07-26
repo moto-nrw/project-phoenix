@@ -25,7 +25,7 @@ const (
 )
 
 // exportStudentsDayLog handles GET /students/day-log/export?date=&group_id=&format=.
-// Same gate, scope, cap, and audit rules as the JSON endpoint; renders one
+// Same gate, scope, and audit rules as the JSON endpoint; renders one
 // section per group via the shared listexport pipeline.
 func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -110,9 +110,9 @@ func buildDayLogExportDocument(log dayLogResponse, date timezone.Date) listexpor
 	grouped := len(log.Groups) > 1
 	for _, group := range log.Groups {
 		doc.Filters = append(doc.Filters, fmt.Sprintf(
-			"%s: %d Anwesend · %d Krank · %d Entschuldigt · %d Klassenfahrt · %d Abwesend",
+			"%s: %d Anwesend · %d Krank · %d Entschuldigt · %d Klassenfahrt · %d Nicht eingeplant · %d Abwesend",
 			group.Name, group.Counters.Present, group.Counters.Sick,
-			group.Counters.Excused, group.Counters.ClassTrip, group.Counters.Absent,
+			group.Counters.Excused, group.Counters.ClassTrip, group.Counters.NotScheduled, group.Counters.Absent,
 		))
 		// Group sections use the marker-row convention of the listexport
 		// renderers: a Values-less row carrying only GroupTitle opens the

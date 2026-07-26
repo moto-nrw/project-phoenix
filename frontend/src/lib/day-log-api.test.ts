@@ -55,7 +55,6 @@ const dayLogPayload: DayLogResponse = {
     not_scheduled: 0,
     total: 1,
   },
-  caps: { attendance_days: 30 },
 };
 
 describe("fetchDayLog", () => {

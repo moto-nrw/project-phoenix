@@ -47,9 +47,6 @@ type dayLogTestBody struct {
 			Absent  int `json:"absent"`
 			Total   int `json:"total"`
 		} `json:"counters"`
-		Caps struct {
-			AttendanceDays int `json:"attendance_days"`
-		} `json:"caps"`
 	} `json:"data"`
 }
 
@@ -100,7 +97,6 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 
 	assert.Equal(t, today.String(), body.Data.Date)
-	assert.Equal(t, 30, body.Data.Caps.AttendanceDays)
 	require.Len(t, body.Data.Groups, 1, "group_id filter should return exactly one group")
 
 	got := body.Data.Groups[0]

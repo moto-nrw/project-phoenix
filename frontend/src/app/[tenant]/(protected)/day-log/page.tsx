@@ -53,7 +53,7 @@ const ERROR_MESSAGES: Record<DayLogErrorCode, string> = {
   no_permitted_groups:
     "Ihrem Konto ist keine Gruppe zugeordnet. Die Tagesauswertung zeigt nur Gruppen, die Sie betreuen.",
   invalid_request:
-    "Das gewählte Datum liegt außerhalb des sichtbaren Zeitraums.",
+    "Die Tagesauswertung ist nur für den aktuellen Tag verfügbar.",
   unknown: "Die Tagesauswertung konnte nicht geladen werden.",
 };
 

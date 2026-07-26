@@ -30,7 +30,7 @@ import (
 // or all permitted groups, every child with a single day verdict — present,
 // sick, class trip, excused, absent, or not scheduled. Read-only; shares the
 // GDPR envelope of the per-student attendance history (feature gate, scope,
-// visibility cap, audit-or-refuse).
+// audit-or-refuse).
 
 const (
 	dayLogStatusPresent      = "present"
@@ -49,11 +49,6 @@ type dayLogResponse struct {
 	Date     string         `json:"date"`
 	Groups   []dayLogGroup  `json:"groups"`
 	Counters dayLogCounters `json:"counters"`
-	Caps     dayLogCaps     `json:"caps"`
-}
-
-type dayLogCaps struct {
-	AttendanceDays int `json:"attendance_days"`
 }
 
 type dayLogGroup struct {
@@ -130,7 +125,6 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attendanceCap := configService.ResolveIntOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceVisibleDays, 30, logger)
 	date, err := parseDayLogDate(r)
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
@@ -154,7 +148,6 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := buildDayLogResponse(date, groups, data)
-	resp.Caps = dayLogCaps{AttendanceDays: attendanceCap}
 
 	if err := rs.writeDayLogAudit(r, date, groups, logger); err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to record audit trail", err))

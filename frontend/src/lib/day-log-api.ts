@@ -1,6 +1,6 @@
 // Tagesauswertung (#1456): client for GET /api/students/day-log.
 // The proxy route forwards to the Go backend, which enforces the
-// gdpr.attendance_log_enabled gate, group scope, and visibility cap.
+// gdpr.attendance_log_enabled gate and group scope.
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
@@ -42,7 +42,6 @@ export interface DayLogResponse {
   date: string;
   groups: DayLogGroup[];
   counters: DayLogCounters;
-  caps: { attendance_days: number };
 }
 
 export type DayLogErrorCode =

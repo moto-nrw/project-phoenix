@@ -153,7 +153,7 @@ func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 // PDF render shipped empty because every row did).
 func TestBuildDayLogExportDocument_UsesMarkerRowConvention(t *testing.T) {
 	multi := dayLogResponse{Groups: []dayLogGroup{
-		{Name: "Gruppe A", Students: []dayLogStudent{{FirstName: "Mia", LastName: "Bauer", Status: dayLogStatusPresent, Label: "Anwesend"}}},
+		{Name: "Gruppe A", Counters: dayLogCounters{Present: 1, NotScheduled: 2}, Students: []dayLogStudent{{FirstName: "Mia", LastName: "Bauer", Status: dayLogStatusPresent, Label: "Anwesend"}}},
 		{Name: "Gruppe B", Students: []dayLogStudent{{FirstName: "Paul", LastName: "Wolf", Status: dayLogStatusAbsent, Label: "Abwesend"}}},
 	}}
 	doc := buildDayLogExportDocument(multi, timezone.TodayDate())
@@ -164,6 +164,7 @@ func TestBuildDayLogExportDocument_UsesMarkerRowConvention(t *testing.T) {
 	assert.Equal(t, "Bauer, Mia", doc.Rows[1].Values["name"])
 	assert.Equal(t, "Gruppe B", doc.Rows[2].GroupTitle)
 	assert.Equal(t, "Wolf, Paul", doc.Rows[3].Values["name"])
+	assert.Equal(t, "Gruppe A: 1 Anwesend · 0 Krank · 0 Entschuldigt · 0 Klassenfahrt · 2 Nicht eingeplant · 0 Abwesend", doc.Filters[0])
 
 	single := dayLogResponse{Groups: multi.Groups[:1]}
 	doc = buildDayLogExportDocument(single, timezone.TodayDate())
