@@ -6,10 +6,10 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
 import {
-  getExistingSubscription,
   isPushSupported,
   needsIOSInstall,
   subscribePush,
+  syncExistingPushSubscription,
   unsubscribePush,
   type PushPortal,
 } from "~/lib/push-api";
@@ -55,7 +55,7 @@ export function PushNotificationSection({
       return;
     }
     try {
-      const subscription = await getExistingSubscription();
+      const subscription = await syncExistingPushSubscription(portal);
       setState(subscription ? "subscribed" : "unsubscribed");
     } catch (err) {
       logger.error("push_state_check_failed", {
@@ -63,7 +63,7 @@ export function PushNotificationSection({
       });
       setState("unsubscribed");
     }
-  }, []);
+  }, [portal]);
 
   useEffect(() => {
     void refresh();

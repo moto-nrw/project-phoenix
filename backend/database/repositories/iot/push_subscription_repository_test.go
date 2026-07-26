@@ -72,7 +72,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID, guardian.ID)
 	defer cleanupPushSubscriptions(t, db, account.ID, guardian.ID)
 
-	endpoint := fmt.Sprintf("https://push.example.org/%d", time.Now().UnixNano())
+	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/%d", time.Now().UnixNano())
 
 	t.Run("upsert inserts and refreshes by (tenant, endpoint)", func(t *testing.T) {
 		require.NoError(t, repo.Upsert(ctx, newSubscription(account.ID, iotModels.PushPortalStaff, endpoint)))
@@ -145,4 +145,68 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, hasSubscriptionEndpoint(subs, endpoint))
 	})
+}
+
+func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := iotRepo.NewPushSubscriptionRepository(db)
+	ctx := tenant.WithTenantID(context.Background(), 1)
+	directAdmin := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-direct-admin-%d@example.com", time.Now().UnixNano()))
+	roleAdmin := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-role-admin-%d@example.com", time.Now().UnixNano()))
+	ordinary := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-ordinary-%d@example.com", time.Now().UnixNano()))
+	defer testpkg.CleanupAuthFixtures(t, db, directAdmin.ID, roleAdmin.ID, ordinary.ID)
+	defer cleanupPushSubscriptions(t, db, directAdmin.ID, roleAdmin.ID, ordinary.ID)
+
+	for accountID, suffix := range map[int64]string{
+		directAdmin.ID: "direct-admin",
+		roleAdmin.ID:   "role-admin",
+		ordinary.ID:    "ordinary",
+	} {
+		require.NoError(t, repo.Upsert(ctx, newSubscription(
+			accountID,
+			iotModels.PushPortalStaff,
+			"https://fcm.googleapis.com/fcm/send/"+suffix,
+		)))
+	}
+
+	var adminWildcardID, fullAccessID int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.permissions").
+		Where("resource = 'admin' AND action = '*'").
+		Scan(context.Background(), &adminWildcardID))
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.permissions").
+		Where("resource = '*' AND action = '*'").
+		Scan(context.Background(), &fullAccessID))
+
+	directGrant := &authModels.AccountPermission{
+		AccountID:    directAdmin.ID,
+		PermissionID: adminWildcardID,
+		Granted:      true,
+	}
+	directGrant.SetTenantID(1)
+	_, err := db.NewInsert().Model(directGrant).ModelTableExpr("auth.account_permissions").Exec(context.Background())
+	require.NoError(t, err)
+
+	wildcardRole := testpkg.CreateTestRole(t, db, "Push Full Access")
+	defer testpkg.CleanupRoleRecords(t, db, wildcardRole.ID)
+	_, err = db.NewInsert().
+		Model(&authModels.RolePermission{RoleID: wildcardRole.ID, PermissionID: fullAccessID}).
+		ModelTableExpr("auth.role_permissions").
+		Exec(context.Background())
+	require.NoError(t, err)
+	roleGrant := &authModels.AccountRole{AccountID: roleAdmin.ID, RoleID: wildcardRole.ID}
+	roleGrant.SetTenantID(1)
+	_, err = db.NewInsert().Model(roleGrant).ModelTableExpr("auth.account_roles").Exec(context.Background())
+	require.NoError(t, err)
+
+	subs, err := repo.FindForTenantAdmins(ctx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, subscriptionsForAccount(subs, directAdmin.ID), "direct admin:* permission must grant admin push")
+	assert.NotEmpty(t, subscriptionsForAccount(subs, roleAdmin.ID), "role-based *:* permission must grant admin push")
+	assert.Empty(t, subscriptionsForAccount(subs, ordinary.ID), "ordinary staff must not receive admin push")
 }

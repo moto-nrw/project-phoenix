@@ -8,12 +8,17 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // fakePushRepo implements the subscription lookups the channel needs; the
@@ -25,6 +30,7 @@ type fakePushRepo struct {
 	guardians map[int64][]*iot.PushSubscription
 	deleted   []any
 	deleteErr error
+	mu        sync.Mutex
 }
 
 func (f *fakePushRepo) FindForTenantStaff(context.Context) ([]*iot.PushSubscription, error) {
@@ -40,6 +46,8 @@ func (f *fakePushRepo) FindForGuardian(_ context.Context, accountID int64) ([]*i
 }
 
 func (f *fakePushRepo) Delete(_ context.Context, id any) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.deleted = append(f.deleted, id)
 	return f.deleteErr
 }
@@ -50,6 +58,9 @@ type fakeSender struct {
 	statusByEndpoint map[string]int
 	errorByEndpoint  map[string]error
 	sent             []sentPush
+	sendFn           func(context.Context)
+	done             chan struct{}
+	mu               sync.Mutex
 }
 
 type sentPush struct {
@@ -58,8 +69,16 @@ type sentPush struct {
 	options  *webpush.Options
 }
 
-func (f *fakeSender) Send(_ context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error) {
+func (f *fakeSender) Send(ctx context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error) {
+	if f.sendFn != nil {
+		f.sendFn(ctx)
+	}
+	f.mu.Lock()
 	f.sent = append(f.sent, sentPush{endpoint: sub.Endpoint, payload: payload, options: opts})
+	f.mu.Unlock()
+	if f.done != nil {
+		close(f.done)
+	}
 	if err := f.errorByEndpoint[sub.Endpoint]; err != nil {
 		return nil, err
 	}
@@ -97,7 +116,7 @@ func testChannel(repo *fakePushRepo, sender *fakeSender) *webPushChannel {
 }
 
 func TestWebPushPayloadIsGDPRSafe(t *testing.T) {
-	repo := &fakePushRepo{staff: []*iot.PushSubscription{testSub(1, 41, "https://push.example/a")}}
+	repo := &fakePushRepo{staff: []*iot.PushSubscription{testSub(1, 41, "https://fcm.googleapis.com/a")}}
 	sender := &fakeSender{}
 	channel := testChannel(repo, sender)
 
@@ -136,10 +155,10 @@ func TestWebPushPayloadIsGDPRSafe(t *testing.T) {
 }
 
 func TestWebPushPrunesExpiredSubscriptions(t *testing.T) {
-	dead := testSub(11, 41, "https://push.example/dead")
-	alive := testSub(12, 41, "https://push.example/alive")
+	dead := testSub(11, 41, "https://fcm.googleapis.com/dead")
+	alive := testSub(12, 41, "https://fcm.googleapis.com/alive")
 	repo := &fakePushRepo{staff: []*iot.PushSubscription{dead, alive}}
-	sender := &fakeSender{statusByEndpoint: map[string]int{"https://push.example/dead": http.StatusGone}}
+	sender := &fakeSender{statusByEndpoint: map[string]int{"https://fcm.googleapis.com/dead": http.StatusGone}}
 	channel := testChannel(repo, sender)
 
 	event := Event{Type: "test", Audience: Audience{TenantID: 41, Scope: ScopeTenant}, Priority: PriorityNormal, Title: "t"}
@@ -152,9 +171,9 @@ func TestWebPushPrunesExpiredSubscriptions(t *testing.T) {
 }
 
 func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
-	staff := []*iot.PushSubscription{testSub(1, 41, "https://push.example/s")}
-	admins := []*iot.PushSubscription{testSub(2, 41, "https://push.example/a")}
-	guardian := testSub(3, 41, "https://push.example/g")
+	staff := []*iot.PushSubscription{testSub(1, 41, "https://fcm.googleapis.com/s")}
+	admins := []*iot.PushSubscription{testSub(2, 41, "https://fcm.googleapis.com/a")}
+	guardian := testSub(3, 41, "https://fcm.googleapis.com/g")
 	guardian.Portal = iot.PushPortalParent
 	repo := &fakePushRepo{
 		staff:     staff,
@@ -199,9 +218,9 @@ func TestWebPushPriorityMapping(t *testing.T) {
 }
 
 func TestWebPushHandlesDeliveryFailures(t *testing.T) {
-	sendFailure := testSub(21, 41, "https://push.example/send-failure")
-	pruneFailure := testSub(22, 41, "https://push.example/prune-failure")
-	rejected := testSub(23, 41, "https://push.example/rejected")
+	sendFailure := testSub(21, 41, "https://fcm.googleapis.com/send-failure")
+	pruneFailure := testSub(22, 41, "https://fcm.googleapis.com/prune-failure")
+	rejected := testSub(23, 41, "https://fcm.googleapis.com/rejected")
 	repo := &fakePushRepo{
 		deleteErr: errors.New("delete failed"),
 	}
@@ -240,4 +259,103 @@ func TestWebPushRejectsOversizedPayload(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "web push payload exceeds")
+}
+
+func TestWebPushRejectsUntrustedStoredEndpoint(t *testing.T) {
+	repo := &fakePushRepo{}
+	sender := &fakeSender{}
+	channel := testChannel(repo, sender)
+	event := Event{Type: "test", Audience: Audience{TenantID: 41}, Priority: PriorityNormal}
+
+	channel.sendAll(context.Background(), event, []byte(`{"title":"test"}`), []*iot.PushSubscription{
+		testSub(1, 41, "https://127.0.0.1/internal"),
+	})
+
+	assert.Empty(t, sender.sent)
+}
+
+func TestWebPushSendDeadlineAndRedirectPolicy(t *testing.T) {
+	var deadline time.Time
+	sender := &fakeSender{sendFn: func(ctx context.Context) {
+		deadline, _ = ctx.Deadline()
+	}}
+	channel := testChannel(&fakePushRepo{}, sender)
+	event := Event{Type: "test", Audience: Audience{TenantID: 41}, Priority: PriorityNormal}
+
+	channel.sendAll(context.Background(), event, []byte(`{"title":"test"}`), []*iot.PushSubscription{
+		testSub(1, 41, "https://fcm.googleapis.com/device"),
+	})
+
+	require.False(t, deadline.IsZero())
+	assert.WithinDuration(t, time.Now().Add(pushSendTimeout), deadline, time.Second)
+
+	client := newWebPushHTTPClient()
+	req, err := http.NewRequest(http.MethodGet, "https://fcm.googleapis.com/next", nil)
+	require.NoError(t, err)
+	assert.ErrorIs(t, client.CheckRedirect(req, nil), http.ErrUseLastResponse)
+	assert.Equal(t, pushSendTimeout, client.Timeout)
+}
+
+func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		_ = db.Close()
+		_ = sqlDB.Close()
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	sendStarted := make(chan error, 1)
+	sendFinished := make(chan struct{})
+	releaseSend := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(releaseSend) }) })
+	sender := &fakeSender{
+		sendFn: func(context.Context) {
+			sendStarted <- mock.ExpectationsWereMet()
+			<-releaseSend
+		},
+		done: sendFinished,
+	}
+	repo := &fakePushRepo{staff: []*iot.PushSubscription{
+		testSub(1, 41, "https://fcm.googleapis.com/device"),
+	}}
+	channel := testChannel(repo, sender)
+	channel.db = db
+
+	deliveryDone := make(chan error, 1)
+	go func() {
+		deliveryDone <- channel.Deliver(context.Background(), Event{
+			Type:     "test",
+			Audience: Audience{TenantID: 41, Scope: ScopeTenant},
+			Priority: PriorityNormal,
+			Title:    "Test",
+		})
+	}()
+
+	select {
+	case sendErr := <-sendStarted:
+		require.NoError(t, sendErr, "the tenant transaction must commit before the HTTP send starts")
+	case <-time.After(time.Second):
+		t.Fatal("web push send did not start")
+	}
+
+	select {
+	case deliverErr := <-deliveryDone:
+		require.NoError(t, deliverErr, "Deliver must not wait for a slow push service")
+	case <-time.After(time.Second):
+		t.Fatal("Deliver waited for the outbound push request")
+	}
+
+	releaseOnce.Do(func() { close(releaseSend) })
+	select {
+	case <-sendFinished:
+	case <-time.After(time.Second):
+		t.Fatal("web push send did not finish")
+	}
 }

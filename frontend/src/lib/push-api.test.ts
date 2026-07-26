@@ -4,9 +4,15 @@ import {
   isPushSupported,
   needsIOSInstall,
   subscribePush,
+  syncExistingPushSubscription,
   unsubscribePush,
   unsubscribePushSilently,
 } from "./push-api";
+
+const vapidPublicKey =
+  "BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE";
+const vapidPublicKeyBytes = new Uint8Array(65).fill(1);
+vapidPublicKeyBytes[0] = 4;
 
 const originalServiceWorker = Object.getOwnPropertyDescriptor(
   navigator,
@@ -66,6 +72,10 @@ describe("push-api", () => {
 
     subscription = {
       endpoint,
+      options: {
+        applicationServerKey: vapidPublicKeyBytes.buffer,
+        userVisibleOnly: true,
+      },
       toJSON: vi.fn(() => ({
         endpoint,
         keys: { p256dh: "p256dh-key", auth: "auth-key" },
@@ -113,7 +123,7 @@ describe("push-api", () => {
     getSubscription.mockResolvedValue(null);
     subscribeBrowser.mockResolvedValue(subscription);
     fetchMock
-      .mockResolvedValueOnce(response({ data: { public_key: "YWJj" } }))
+      .mockResolvedValueOnce(response({ data: { public_key: vapidPublicKey } }))
       .mockResolvedValueOnce(response(null, 204));
 
     await subscribePush("tenant");
@@ -121,7 +131,7 @@ describe("push-api", () => {
     expect(register).toHaveBeenCalledWith("/sw.js");
     expect(subscribeBrowser).toHaveBeenCalledWith({
       userVisibleOnly: true,
-      applicationServerKey: new Uint8Array([97, 98, 99]),
+      applicationServerKey: vapidPublicKeyBytes,
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -136,7 +146,7 @@ describe("push-api", () => {
   it("reuses an existing parent subscription", async () => {
     getSubscription.mockResolvedValue(subscription);
     fetchMock
-      .mockResolvedValueOnce(response({ public_key: "YWJj" }))
+      .mockResolvedValueOnce(response({ public_key: vapidPublicKey }))
       .mockResolvedValueOnce(response(null, 204));
 
     await subscribePush("parent");
@@ -154,15 +164,17 @@ describe("push-api", () => {
     );
   });
 
-  it("rejects denied permission before any network request", async () => {
+  it("validates server configuration before requesting denied permission", async () => {
     requestPermission.mockResolvedValue("denied");
+    fetchMock.mockResolvedValueOnce(response({ public_key: vapidPublicKey }));
 
     await expect(subscribePush("tenant")).rejects.toMatchObject({
       name: "PushApiError",
       status: 403,
       message: "Benachrichtigungen wurden nicht erlaubt.",
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(requestPermission).toHaveBeenCalledOnce();
   });
 
   it("reports missing keys and malformed server errors", async () => {
@@ -188,6 +200,73 @@ describe("push-api", () => {
       status: 409,
       message: "push is disabled",
     });
+  });
+
+  it("rejects a malformed VAPID key before requesting permission", async () => {
+    fetchMock.mockResolvedValueOnce(response({ public_key: "YWJj" }));
+
+    await expect(subscribePush("tenant")).rejects.toMatchObject({
+      status: 502,
+      message: "Der Web-Push-Schlüssel des Servers ist ungültig.",
+    });
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it("replaces a subscription created with an old VAPID key", async () => {
+    const rotatedEndpoint = `${endpoint}-rotated`;
+    const rotated = {
+      ...subscription,
+      endpoint: rotatedEndpoint,
+      toJSON: vi.fn(() => ({
+        endpoint: rotatedEndpoint,
+        keys: { p256dh: "rotated-p256dh", auth: "rotated-auth" },
+      })),
+    } as PushSubscription;
+    subscription = {
+      ...subscription,
+      options: {
+        applicationServerKey: new Uint8Array(65).buffer,
+        userVisibleOnly: true,
+      },
+    } as PushSubscription;
+    getSubscription.mockResolvedValue(subscription);
+    subscribeBrowser.mockResolvedValue(rotated);
+    fetchMock
+      .mockResolvedValueOnce(response({ public_key: vapidPublicKey }))
+      .mockResolvedValueOnce(response(null, 204));
+
+    await subscribePush("tenant");
+
+    expect(unsubscribeBrowser).toHaveBeenCalledOnce();
+    expect(subscribeBrowser).toHaveBeenCalledWith({
+      userVisibleOnly: true,
+      applicationServerKey: vapidPublicKeyBytes,
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/notifications/push/subscriptions",
+      expect.objectContaining({
+        body: JSON.stringify(rotated.toJSON()),
+      }),
+    );
+  });
+
+  it("rebinds an existing subscription without requesting permission", async () => {
+    getSubscription.mockResolvedValue(subscription);
+    fetchMock
+      .mockResolvedValueOnce(response({ public_key: vapidPublicKey }))
+      .mockResolvedValueOnce(response(null, 204));
+
+    await expect(syncExistingPushSubscription("parent")).resolves.toBe(
+      subscription,
+    );
+
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/parent/me/push/subscriptions",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("returns existing subscriptions and handles missing registrations", async () => {

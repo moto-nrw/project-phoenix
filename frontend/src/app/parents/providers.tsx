@@ -1,7 +1,7 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
-import { ServiceWorkerRegistrar } from "~/components/notifications/service-worker-registrar";
+import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
 import { ParentLocaleProvider } from "~/lib/parent-locale-context";
 
 /**
@@ -28,7 +28,7 @@ export function ParentProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
-      <ServiceWorkerRegistrar />
+      <PushSubscriptionSync portal="parent" />
       <ParentLocaleProvider>{children}</ParentLocaleProvider>
     </SessionProvider>
   );

@@ -48,7 +48,7 @@ func (r accountTenantRepositoryStub) FindActiveByAccountID(context.Context, int6
 
 func validPushInput() PushSubscriptionInput {
 	return PushSubscriptionInput{
-		Endpoint:  "https://push.example.org/device",
+		Endpoint:  "https://fcm.googleapis.com/fcm/send/device",
 		P256dh:    "p256dh-key",
 		Auth:      "auth-key",
 		UserAgent: "test-agent",
@@ -84,7 +84,7 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 		assert.Equal(t, "test-agent", repo.upserted[0].UserAgent)
 
 		invalid := validPushInput()
-		invalid.Endpoint = "http://push.example.org/device"
+		invalid.Endpoint = "http://fcm.googleapis.com/fcm/send/device"
 		require.EqualError(t, service.Subscribe(context.Background(), 42, invalid), "endpoint must be an https URL")
 	})
 
@@ -93,9 +93,9 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 		service := NewPushSubscriptionService(nil, repo, nil, testVAPID(), nil)
 
 		require.ErrorIs(t, service.Subscribe(context.Background(), 42, validPushInput()), errPushRepository)
-		require.ErrorIs(t, service.Unsubscribe(context.Background(), 42, "https://push.example.org/device"), errPushRepository)
+		require.ErrorIs(t, service.Unsubscribe(context.Background(), 42, "https://fcm.googleapis.com/fcm/send/device"), errPushRepository)
 		assert.Equal(t, int64(42), repo.deletedAccount)
-		assert.Equal(t, "https://push.example.org/device", repo.deletedEndpoint)
+		assert.Equal(t, "https://fcm.googleapis.com/fcm/send/device", repo.deletedEndpoint)
 	})
 }
 

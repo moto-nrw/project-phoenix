@@ -42,6 +42,7 @@ func (rs *Resource) getPushPublicKey(w http.ResponseWriter, r *http.Request) {
 
 // subscribePush registers (or refreshes) the caller's device for Web Push.
 func (rs *Resource) subscribePush(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
 	req := &pushSubscriptionRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

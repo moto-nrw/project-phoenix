@@ -80,10 +80,9 @@ func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]
 	return subs, nil
 }
 
-// FindForTenantAdmins returns staff-portal subscriptions of accounts holding
-// the admin role in the current tenant. Mirrors the effective-admin scope the
-// SSE hub uses (literal admin role; wildcard-permission accounts are admins
-// by role in practice).
+// FindForTenantAdmins returns staff-portal subscriptions of effective admins:
+// accounts with the literal admin role or an admin:* / *:* permission granted
+// directly or through a tenant role. This mirrors the SSE authorization scope.
 func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([]*iot.PushSubscription, error) {
 	var subs []*iot.PushSubscription
 	query := base.GetDB(ctx, r.DB).NewSelect().
@@ -94,9 +93,26 @@ func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([
 			SELECT 1
 			FROM auth.account_roles AS "ar"
 			INNER JOIN auth.roles AS "r" ON "r".id = "ar".role_id
+			LEFT JOIN auth.role_permissions AS "rp" ON "rp".role_id = "ar".role_id
+			LEFT JOIN auth.permissions AS "p" ON "p".id = "rp".permission_id
 			WHERE "ar".account_id = "push_subscription".account_id
 			  AND "ar".tenant_id = "push_subscription".tenant_id
-			  AND LOWER("r".name) = 'admin'
+			  AND (
+			    LOWER("r".name) = 'admin'
+			    OR ("p".resource = 'admin' AND "p".action = '*')
+			    OR ("p".resource = '*' AND "p".action = '*')
+			  )
+		) OR EXISTS (
+			SELECT 1
+			FROM auth.account_permissions AS "ap"
+			INNER JOIN auth.permissions AS "p" ON "p".id = "ap".permission_id
+			WHERE "ap".account_id = "push_subscription".account_id
+			  AND "ap".tenant_id = "push_subscription".tenant_id
+			  AND "ap".granted = TRUE
+			  AND (
+			    ("p".resource = 'admin' AND "p".action = '*')
+			    OR ("p".resource = '*' AND "p".action = '*')
+			  )
 		)`)
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {

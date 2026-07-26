@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
+import {
+  isPushSupported,
+  syncExistingPushSubscription,
+  type PushPortal,
+} from "~/lib/push-api";
 
 const logger = createLogger({ component: "ServiceWorkerRegistrar" });
 
@@ -20,6 +26,31 @@ export function ServiceWorkerRegistrar() {
       });
     });
   }, []);
+
+  return null;
+}
+
+/**
+ * Rebinds an already opted-in device whenever an authenticated portal session
+ * starts. This fixes shared-device and failed-logout cleanup cases without
+ * prompting users who have never enabled notifications.
+ */
+export function PushSubscriptionSync({
+  portal,
+}: {
+  readonly portal: PushPortal;
+}) {
+  const { status } = useSession();
+
+  useEffect(() => {
+    if (status !== "authenticated" || !isPushSupported()) return;
+    syncExistingPushSubscription(portal).catch((err: unknown) => {
+      logger.warn("push_subscription_sync_failed", {
+        portal,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }, [portal, status]);
 
   return null;
 }

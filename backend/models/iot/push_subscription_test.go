@@ -11,7 +11,7 @@ func validPushSubscription() *PushSubscription {
 	return &PushSubscription{
 		AccountID: 42,
 		Portal:    PushPortalStaff,
-		Endpoint:  "https://push.example.org/device",
+		Endpoint:  "https://fcm.googleapis.com/fcm/send/device",
 		P256dh:    "p256dh-key",
 		Auth:      "auth-key",
 	}
@@ -45,8 +45,28 @@ func TestPushSubscriptionValidate(t *testing.T) {
 		},
 		{
 			name:    "non-https endpoint",
-			mutate:  func(sub *PushSubscription) { sub.Endpoint = "http://push.example.org/device" },
+			mutate:  func(sub *PushSubscription) { sub.Endpoint = "http://fcm.googleapis.com/fcm/send/device" },
 			wantErr: "endpoint must be an https URL",
+		},
+		{
+			name:    "untrusted endpoint",
+			mutate:  func(sub *PushSubscription) { sub.Endpoint = "https://push.example.org/device" },
+			wantErr: "endpoint host is not a trusted push service",
+		},
+		{
+			name:    "private endpoint",
+			mutate:  func(sub *PushSubscription) { sub.Endpoint = "https://127.0.0.1/device" },
+			wantErr: "endpoint host is not a trusted push service",
+		},
+		{
+			name:    "trusted host with user information",
+			mutate:  func(sub *PushSubscription) { sub.Endpoint = "https://user@fcm.googleapis.com/device" },
+			wantErr: "endpoint must not contain user information or a fragment",
+		},
+		{
+			name:    "trusted host with non-standard port",
+			mutate:  func(sub *PushSubscription) { sub.Endpoint = "https://fcm.googleapis.com:8443/device" },
+			wantErr: "endpoint must use the default https port",
 		},
 		{
 			name:    "missing p256dh key",
@@ -73,6 +93,19 @@ func TestPushSubscriptionValidate(t *testing.T) {
 				return
 			}
 			assert.EqualError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestValidatePushEndpointTrustedServices(t *testing.T) {
+	for _, endpoint := range []string{
+		"https://fcm.googleapis.com/fcm/send/device",
+		"https://updates.push.services.mozilla.com/wpush/v2/device",
+		"https://web.push.apple.com/device",
+		"https://wns2-sg2p.notify.windows.com/w/?token=device",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			require.NoError(t, ValidatePushEndpoint(endpoint))
 		})
 	}
 }

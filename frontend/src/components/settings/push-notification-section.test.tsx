@@ -5,7 +5,7 @@ import { PushNotificationSection } from "./push-notification-section";
 const pushApi = vi.hoisted(() => ({
   isPushSupported: vi.fn(),
   needsIOSInstall: vi.fn(),
-  getExistingSubscription: vi.fn(),
+  syncExistingPushSubscription: vi.fn(),
   subscribePush: vi.fn(),
   unsubscribePush: vi.fn(),
 }));
@@ -21,7 +21,7 @@ describe("PushNotificationSection", () => {
     vi.clearAllMocks();
     pushApi.needsIOSInstall.mockReturnValue(false);
     pushApi.isPushSupported.mockReturnValue(true);
-    pushApi.getExistingSubscription.mockResolvedValue(null);
+    pushApi.syncExistingPushSubscription.mockResolvedValue(null);
     stubNotificationPermission("default");
   });
 
@@ -64,7 +64,7 @@ describe("PushNotificationSection", () => {
 
   it("subscribes via the push API and flips to the active state", async () => {
     pushApi.subscribePush.mockImplementation(() => {
-      pushApi.getExistingSubscription.mockResolvedValue({
+      pushApi.syncExistingPushSubscription.mockResolvedValue({
         endpoint: "https://push.example/e",
       });
       return Promise.resolve();
@@ -106,11 +106,11 @@ describe("PushNotificationSection", () => {
   });
 
   it("unsubscribes and flips back to the inactive state", async () => {
-    pushApi.getExistingSubscription.mockResolvedValue({
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
       endpoint: "https://push.example/e",
     });
     pushApi.unsubscribePush.mockImplementation(() => {
-      pushApi.getExistingSubscription.mockResolvedValue(null);
+      pushApi.syncExistingPushSubscription.mockResolvedValue(null);
       return Promise.resolve();
     });
 

@@ -95,8 +95,10 @@ interface PublicKeyResponse {
   public_key?: string;
 }
 
-/** Fetches the server's VAPID public key; throws 404 when push is not configured. */
-async function getPushPublicKey(portal: PushPortal): Promise<string> {
+/** Fetches and validates the server's uncompressed P-256 VAPID public key. */
+async function getPushPublicKey(
+  portal: PushPortal,
+): Promise<Uint8Array<ArrayBuffer>> {
   const response = await requestJson<PublicKeyResponse>(
     `${basePath(portal)}/public-key`,
   );
@@ -107,7 +109,18 @@ async function getPushPublicKey(portal: PushPortal): Promise<string> {
       "Web Push ist auf diesem Server nicht eingerichtet.",
     );
   }
-  return key;
+  try {
+    const decoded = urlBase64ToUint8Array(key);
+    if (decoded.length !== 65 || decoded[0] !== 4) {
+      throw new Error("invalid P-256 public key");
+    }
+    return decoded;
+  } catch {
+    throw new PushApiError(
+      502,
+      "Der Web-Push-Schlüssel des Servers ist ungültig.",
+    );
+  }
 }
 
 /** Registers /sw.js (idempotent) and returns the registration. */
@@ -130,21 +143,52 @@ export async function getExistingSubscription(): Promise<PushSubscription | null
  * gesture), creates the browser subscription, and persists it server-side.
  */
 export async function subscribePush(portal: PushPortal): Promise<void> {
+  // Check server configuration before showing the browser permission prompt.
+  const publicKey = await getPushPublicKey(portal);
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
     throw new PushApiError(403, "Benachrichtigungen wurden nicht erlaubt.");
   }
 
-  const publicKey = await getPushPublicKey(portal);
   const registration = await registerPushServiceWorker();
+  const existing = await registration.pushManager.getSubscription();
   const subscription =
-    (await registration.pushManager.getSubscription()) ??
-    (await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    }));
+    existing && applicationServerKeyMatches(existing, publicKey)
+      ? existing
+      : await replaceBrowserSubscription(registration, existing, publicKey);
 
   await syncSubscription(portal, subscription);
+}
+
+async function replaceBrowserSubscription(
+  registration: ServiceWorkerRegistration,
+  existing: PushSubscription | null,
+  publicKey: Uint8Array<ArrayBuffer>,
+): Promise<PushSubscription> {
+  if (existing) {
+    const removed = await existing.unsubscribe();
+    if (!removed) {
+      throw new PushApiError(
+        409,
+        "Die bestehende Push-Registrierung konnte nicht erneuert werden.",
+      );
+    }
+  }
+  return registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: publicKey,
+  });
+}
+
+function applicationServerKeyMatches(
+  subscription: PushSubscription,
+  expected: Uint8Array<ArrayBuffer>,
+): boolean {
+  const current = subscription.options.applicationServerKey;
+  if (!current) return false;
+  const actual = new Uint8Array(current);
+  if (actual.length !== expected.length) return false;
+  return actual.every((value, index) => value === expected[index]);
 }
 
 /** Persists an existing browser subscription server-side (e.g. re-sync). */
@@ -156,6 +200,26 @@ async function syncSubscription(
     method: "POST",
     body: JSON.stringify(subscription.toJSON()),
   });
+}
+
+/**
+ * Rebinds an existing browser subscription to the authenticated account.
+ * It never requests permission or creates a first subscription.
+ */
+export async function syncExistingPushSubscription(
+  portal: PushPortal,
+): Promise<PushSubscription | null> {
+  if (!isPushSupported()) return null;
+  const registration = await registerPushServiceWorker();
+  const existing = await registration.pushManager.getSubscription();
+  if (!existing) return null;
+
+  const publicKey = await getPushPublicKey(portal);
+  const subscription = applicationServerKeyMatches(existing, publicKey)
+    ? existing
+    : await replaceBrowserSubscription(registration, existing, publicKey);
+  await syncSubscription(portal, subscription);
+  return subscription;
 }
 
 /**

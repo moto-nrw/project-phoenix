@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
+	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -34,9 +36,12 @@ type pushSender interface {
 	Send(ctx context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error)
 }
 
-type webpushGoSender struct{}
+type webpushGoSender struct {
+	client *http.Client
+}
 
-func (webpushGoSender) Send(ctx context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error) {
+func (s webpushGoSender) Send(ctx context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error) {
+	opts.HTTPClient = s.client
 	return webpush.SendNotificationWithContext(ctx, payload, sub, opts)
 }
 
@@ -51,9 +56,15 @@ type webPushPayload struct {
 	Priority string `json:"priority,omitempty"`
 }
 
-// maxPushPayloadBytes is a defensive bound well under the ~4KB Web Push
-// limit; our payloads are a few hundred bytes.
-const maxPushPayloadBytes = 3800
+const (
+	// maxPushPayloadBytes is a defensive bound well under the ~4KB Web Push
+	// limit; our payloads are a few hundred bytes.
+	maxPushPayloadBytes = 3800
+	// Keep outbound work bounded without serializing a large tenant's devices.
+	maxConcurrentPushSends = 8
+	pushSendTimeout        = 10 * time.Second
+	pushBatchTimeout       = 15 * time.Second
+)
 
 // webPushChannel delivers notifications as Web Push messages (#2003) to the
 // devices registered in iot.push_subscriptions. Delivery is fire-and-forget:
@@ -71,10 +82,25 @@ type webPushChannel struct {
 // channel stays inert (no-op Deliver) so environments without push keep
 // today's behavior.
 func NewWebPushChannel(db *bun.DB, repo iot.PushSubscriptionRepository, vapid VAPIDConfig, logger *slog.Logger) Channel {
-	return &webPushChannel{db: db, repo: repo, vapid: vapid, sender: webpushGoSender{}, logger: logger}
+	return &webPushChannel{
+		db:     db,
+		repo:   repo,
+		vapid:  vapid,
+		sender: webpushGoSender{client: newWebPushHTTPClient()},
+		logger: logger,
+	}
 }
 
 func (c *webPushChannel) Name() string { return "web_push" }
+
+func newWebPushHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: pushSendTimeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
 
 func (c *webPushChannel) getLogger() *slog.Logger {
 	if c.logger == nil {
@@ -106,19 +132,29 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 		return fmt.Errorf("web push payload exceeds %d bytes (%d)", maxPushPayloadBytes, len(payload))
 	}
 
-	// Delivery runs after commit, outside any tenant transaction, so the
-	// subscription reads open their own tenant-scoped transaction for RLS.
-	return tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		subs, err := c.resolveSubscriptions(txCtx, event.Audience)
+	// Read subscriptions under RLS, then commit before any network request.
+	// The bounded send batch runs asynchronously so push-service latency never
+	// delays the request that produced the notification.
+	var subs []*iot.PushSubscription
+	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		resolved, err := c.resolveSubscriptions(txCtx, event.Audience)
 		if err != nil {
 			return err
 		}
-		if len(subs) == 0 {
-			return nil
-		}
-		c.sendAll(txCtx, event, payload, subs)
+		subs = resolved
 		return nil
 	})
+	if err != nil || len(subs) == 0 {
+		return err
+	}
+
+	dispatchCtx := context.WithoutCancel(ctx)
+	go func() {
+		batchCtx, cancel := context.WithTimeout(dispatchCtx, pushBatchTimeout)
+		defer cancel()
+		c.sendAll(batchCtx, event, payload, subs)
+	}()
+	return nil
 }
 
 // resolveSubscriptions maps the audience scope to registered devices.
@@ -148,28 +184,67 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 // never abort the loop; 404/410 responses prune the dead subscription.
 func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) {
 	ttl, urgency := pushOptionsForPriority(event.Priority)
+	sem := make(chan struct{}, maxConcurrentPushSends)
+	var wg sync.WaitGroup
+
 	for _, sub := range subs {
-		resp, err := c.sender.Send(ctx, &webpush.Subscription{
-			Endpoint: sub.Endpoint,
-			Keys:     webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth},
-		}, payload, &webpush.Options{
-			Subscriber:      c.vapid.Subscriber,
-			VAPIDPublicKey:  c.vapid.PublicKey,
-			VAPIDPrivateKey: c.vapid.PrivateKey,
-			TTL:             ttl,
-			Urgency:         urgency,
-		})
-		if err != nil {
-			c.getLogger().Warn("web push send failed",
-				"notification_type", event.Type,
-				"tenant_id", sub.TenantID,
-				"subscription_id", sub.ID,
-				"error", err.Error(),
-			)
-			continue
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Wait()
+			return
 		}
-		c.handleResponse(ctx, event, sub, resp)
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			c.sendOne(ctx, event, payload, sub, ttl, urgency)
+		}()
 	}
+	wg.Wait()
+}
+
+func (c *webPushChannel) sendOne(
+	ctx context.Context,
+	event Event,
+	payload []byte,
+	sub *iot.PushSubscription,
+	ttl int,
+	urgency webpush.Urgency,
+) {
+	if err := iot.ValidatePushEndpoint(sub.Endpoint); err != nil {
+		c.getLogger().Warn("refusing untrusted web push endpoint",
+			"tenant_id", sub.TenantID,
+			"subscription_id", sub.ID,
+			"error", err.Error(),
+		)
+		return
+	}
+
+	sendCtx, cancel := context.WithTimeout(ctx, pushSendTimeout)
+	defer cancel()
+
+	resp, err := c.sender.Send(sendCtx, &webpush.Subscription{
+		Endpoint: sub.Endpoint,
+		Keys:     webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth},
+	}, payload, &webpush.Options{
+		Subscriber:      c.vapid.Subscriber,
+		VAPIDPublicKey:  c.vapid.PublicKey,
+		VAPIDPrivateKey: c.vapid.PrivateKey,
+		TTL:             ttl,
+		Urgency:         urgency,
+	})
+	if err != nil {
+		c.getLogger().Warn("web push send failed",
+			"notification_type", event.Type,
+			"tenant_id", sub.TenantID,
+			"subscription_id", sub.ID,
+			"error", err.Error(),
+		)
+		return
+	}
+	c.handleResponse(ctx, event, sub, resp)
 }
 
 func (c *webPushChannel) handleResponse(ctx context.Context, event Event, sub *iot.PushSubscription, resp *http.Response) {
@@ -183,7 +258,7 @@ func (c *webPushChannel) handleResponse(ctx context.Context, event Event, sub *i
 		return
 	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
 		// The push service says this subscription no longer exists — prune it.
-		if err := c.repo.Delete(ctx, sub.ID); err != nil {
+		if err := c.deleteExpiredSubscription(ctx, sub); err != nil {
 			c.getLogger().Warn("failed to prune expired push subscription",
 				"subscription_id", sub.ID,
 				"tenant_id", sub.TenantID,
@@ -204,6 +279,17 @@ func (c *webPushChannel) handleResponse(ctx context.Context, event Event, sub *i
 			"status", resp.StatusCode,
 		)
 	}
+}
+
+func (c *webPushChannel) deleteExpiredSubscription(ctx context.Context, sub *iot.PushSubscription) error {
+	// Unit tests use repository fakes without a database. Production always
+	// opens a short tenant transaction so RLS applies to the cleanup.
+	if c.db == nil {
+		return c.repo.Delete(ctx, sub.ID)
+	}
+	return tenant.WithTenantTx(ctx, c.db, sub.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return c.repo.Delete(txCtx, sub.ID)
+	})
 }
 
 // pushOptionsForPriority maps the abstraction's priority to Web Push TTL and
