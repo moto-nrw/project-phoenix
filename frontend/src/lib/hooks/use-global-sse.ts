@@ -26,6 +26,7 @@ import { useCallback, useRef } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
   notifyStudentCompanionDisplayChanged,
@@ -707,6 +708,16 @@ export function useGlobalSSE(): SSEHookState {
         case "staffing_deviation_changed": {
           hasPendingTimetableEvent.current = true;
           scheduleFlush();
+          break;
+        }
+
+        case "notification": {
+          // Notification abstraction (#1624): the payload is display-safe by
+          // backend contract and rendered directly. This hook runs above
+          // ToastProvider consumers, so hand the event to the notification
+          // bridge (mounted under Providers) via a window event — mirroring
+          // the reminders/tenant-settings decoupling above.
+          dispatchPhoenixNotification(event);
           break;
         }
 

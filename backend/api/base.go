@@ -36,6 +36,7 @@ import (
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
+	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
@@ -110,6 +111,7 @@ type API struct {
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
 	Reminders        *remindersAPI.Resource
+	Notifications    *notificationsAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -518,6 +520,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
+	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -780,6 +783,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount reminders resources (visual-only staff reminders, issue #1457)
 		r.Mount("/reminders", a.Reminders.Router())
+
+		// Mount notification abstraction resources (issue #1624)
+		r.Mount("/notifications", a.Notifications.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

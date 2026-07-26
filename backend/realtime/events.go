@@ -151,6 +151,15 @@ const (
 	// must NOT touch any unread badge or thread list; it carries only student_id so
 	// the affected child's view refetches while others skip. Trigger only.
 	EventParentChildUpdated EventType = "parent_child_updated"
+
+	// EventNotification carries a user-facing notification from the
+	// notification abstraction (services/notifications, #1624) over the SSE
+	// channel. Unlike every other event type it is NOT a cache-invalidation
+	// trigger: clients render Title/Body directly (toast/bell). The payload is
+	// display-safe by contract — the notifications service only accepts
+	// non-sensitive title/body text and an app-relative deep link; sensitive
+	// details are loaded authenticated after following the link (GDPR).
+	EventNotification EventType = "notification"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -161,8 +170,8 @@ type Event struct {
 	Timestamp     time.Time `json:"timestamp"`
 }
 
-// EventData contains the payload for an SSE event
-// Only includes display-level data for GDPR compliance (no sensitive info)
+// EventData contains the payload for an SSE event. Fields follow the
+// event-specific GDPR contract and must not expose sensitive data.
 type EventData struct {
 	// Student-related fields (for check-in/check-out events)
 	StudentID   *string `json:"student_id,omitempty"`
@@ -215,6 +224,17 @@ type EventData struct {
 
 	// Reason tracking for generic refresh events.
 	Reason *string `json:"reason,omitempty"`
+
+	// Notification fields (notification events only, #1624). Display-safe by
+	// contract: the notifications service validates that no sensitive student
+	// data travels in the visible fields — clients render these directly instead
+	// of refetching. NotificationData contains only opaque routing IDs.
+	Title            *string           `json:"title,omitempty"`
+	Body             *string           `json:"body,omitempty"`
+	DeepLink         *string           `json:"deep_link,omitempty"` // app-relative path, e.g. "/reminders"
+	Priority         *string           `json:"priority,omitempty"`  // "low" | "normal" | "high"
+	NotificationType *string           `json:"notification_type,omitempty"`
+	NotificationData map[string]string `json:"notification_data,omitempty"` // opaque IDs for client-side routing
 }
 
 // staffSafeParentMessage returns a copy of a parent-message event with every
