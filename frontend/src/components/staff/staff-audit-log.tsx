@@ -11,7 +11,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { Input } from "~/components/ui/input";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import {
   FIELD_LABELS,
   formatEditValue,
@@ -353,12 +353,14 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
           >
             Von
           </label>
-          <Input
+          <ISODatePicker
             id="audit-from"
-            type="date"
             value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="w-40"
+            onChange={setFrom}
+            max={to || undefined}
+            calendarLayout="popover"
+            controlSize="md"
+            className="w-44"
           />
         </div>
         <div>
@@ -368,12 +370,14 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
           >
             Bis
           </label>
-          <Input
+          <ISODatePicker
             id="audit-to"
-            type="date"
             value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="w-40"
+            onChange={setTo}
+            min={from || undefined}
+            calendarLayout="popover"
+            controlSize="md"
+            className="w-44"
           />
         </div>
       </div>
