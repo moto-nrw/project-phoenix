@@ -23,6 +23,14 @@ function makeSummary(overrides: Partial<MonthSummary> = {}): MonthSummary {
     adjustments: [],
     balanceMinutes: -960,
     closingBalanceMinutes: -1050,
+    isClosed: false,
+    closedAt: null,
+    closedBy: null,
+    closeReason: null,
+    frozenClosingBalanceMinutes: null,
+    driftMinutes: 0,
+    carryInFrozen: false,
+    carryInFrozenFromMonth: null,
     ...overrides,
   };
 }
@@ -156,5 +164,113 @@ describe("monthLabel", () => {
   it("formats German month names", () => {
     expect(monthLabel(2026, 1)).toBe("Januar 2026");
     expect(monthLabel(2026, 12)).toBe("Dezember 2026");
+  });
+
+  // Monatsabschluss (#1417): a closed month shows the FROZEN value as the
+  // authoritative Übertrag; non-zero drift is explained, never reconciled.
+  describe("closed month", () => {
+    const closed = {
+      isClosed: true,
+      closedAt: "2026-09-05T08:00:00+02:00",
+      closedBy: "7",
+      closeReason: "Lohnlauf",
+      frozenClosingBalanceMinutes: -1050,
+    };
+
+    it("shows the badge and the frozen Übertrag, no drift note when unchanged", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary({ ...closed, driftMinutes: 0 })}
+          isLoading={false}
+        />,
+      );
+      expect(
+        screen.getByText(/Abgeschlossen am 05\.09\.2026/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Übertrag Monatsende (eingefroren)"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Seit dem Abschluss wurden Zeiten/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the close instant on its Berlin calendar date", () => {
+      const originalTimeZone = process.env.TZ;
+      process.env.TZ = "America/Los_Angeles";
+
+      try {
+        render(
+          <Monatskarte
+            summary={makeSummary({
+              ...closed,
+              closedAt: "2026-09-01T00:30:00Z",
+              driftMinutes: 0,
+            })}
+            isLoading={false}
+          />,
+        );
+
+        expect(
+          screen.getByText(/Abgeschlossen am 01\.09\.2026/),
+        ).toBeInTheDocument();
+      } finally {
+        process.env.TZ = originalTimeZone;
+      }
+    });
+
+    it("explains non-zero drift and keeps the frozen value as the Übertrag", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary({
+            ...closed,
+            closingBalanceMinutes: -1170,
+            driftMinutes: -120,
+          })}
+          isLoading={false}
+        />,
+      );
+      expect(
+        screen.getByText(
+          /Seit dem Abschluss wurden Zeiten in diesem Monat geändert/,
+        ),
+      ).toBeInTheDocument();
+      // The frozen value stays the emphasized closing figure.
+      expect(
+        screen.getByText("Übertrag Monatsende (eingefroren)"),
+      ).toBeInTheDocument();
+      // JSX splits the sentence into several text nodes; match on the
+      // paragraph's full text content instead.
+      expect(
+        screen.getByText(
+          (_, element) =>
+            element?.tagName === "P" &&
+            (element.textContent ?? "")
+              .replace(/\s+/g, " ")
+              .includes("(−2h gegenüber dem abgeschlossenen Stand)"),
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("renders the reopen action only when a handler is provided", () => {
+      const { rerender } = render(
+        <Monatskarte
+          summary={makeSummary({ ...closed, driftMinutes: 0 })}
+          isLoading={false}
+        />,
+      );
+      expect(
+        screen.queryByText("Monat wieder öffnen…"),
+      ).not.toBeInTheDocument();
+
+      rerender(
+        <Monatskarte
+          summary={makeSummary({ ...closed, driftMinutes: 0 })}
+          isLoading={false}
+          onReopen={() => undefined}
+        />,
+      );
+      expect(screen.getByText("Monat wieder öffnen…")).toBeInTheDocument();
+    });
   });
 });

@@ -222,4 +222,36 @@ describe("DataTable pagination", () => {
       screen.queryByRole("button", { name: /Mehr laden/ }),
     ).not.toBeInTheDocument();
   });
+
+  it("resets to the first page when the caller's filter key changes", () => {
+    const { rerender } = render(
+      <DataTable
+        columns={columns}
+        rows={manyRows}
+        getRowKey={(row) => row.id}
+        pageSize={5}
+        paginationResetKey="all"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Mehr laden \(5 von 12\)/ }),
+    );
+    expect(screen.getByText("Row 10")).toBeInTheDocument();
+
+    rerender(
+      <DataTable
+        columns={columns}
+        rows={manyRows}
+        getRowKey={(row) => row.id}
+        pageSize={5}
+        paginationResetKey="filtered"
+      />,
+    );
+
+    expect(screen.queryByText("Row 06")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Mehr laden \(5 von 12\)/ }),
+    ).toBeInTheDocument();
+  });
 });

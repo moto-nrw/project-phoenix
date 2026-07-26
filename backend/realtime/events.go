@@ -72,6 +72,12 @@ const (
 	// Global refresh event — tells all clients to re-fetch dashboard counts
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
 
+	// EventStaffTimeTrackingChanged is a tenant-wide invalidation trigger for
+	// writes that change staff work sessions, absences, balances, contractual
+	// schedules, or planned shifts. It carries no staff identifier: authorized
+	// clients re-fetch their permission-scoped time-tracking views.
+	EventStaffTimeTrackingChanged EventType = "staff_time_tracking_changed"
+
 	// Active supervision refresh event — tenant-wide signal that the active
 	// supervision view is stale regardless of whether the cause was IoT, NFC,
 	// timetable operations, or another lifecycle action.

@@ -1011,6 +1011,34 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
     });
 
+    it("hides the Gruppe main item for open-care staff (#1544)", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockUseOpenCareGroupMode.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/ogs-groups");
+      // Die übrigen Staff-Einstiege bleiben erhalten.
+      expect(hrefs).toContain("/active-supervisions");
+      expect(hrefs).toContain("/students/search");
+    });
+
+    it("keeps the Gruppe main item for fixed-groups staff (#1544)", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/ogs-groups");
+    });
+
     it("hides the planning entries when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {

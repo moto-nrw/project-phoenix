@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -151,13 +152,24 @@ type staffAbsenceService struct {
 	shiftPlanSyncer ShiftPlanSyncer
 	// emailDeps is nil unless SetAbsenceEmailDeps wired it (factory only);
 	// nil means no absence emails are sent (#1419 4d).
-	emailDeps *AbsenceEmailDeps
+	emailDeps   *AbsenceEmailDeps
+	broadcaster realtime.Broadcaster
 }
 
 // SetShiftPlanSyncer wires the #1843 plan cascade (setter injection because
 // the implementation lives in services/schedule, which imports this package).
 func (s *staffAbsenceService) SetShiftPlanSyncer(syncer ShiftPlanSyncer) {
 	s.shiftPlanSyncer = syncer
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
+// StaffAbsenceService so existing API-layer mocks do not need a no-op setter.
+func (s *staffAbsenceService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
+func (s *staffAbsenceService) broadcastTimeTrackingChanged(ctx context.Context) {
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, nil)
 }
 
 // planSyncer is nil-safe: bare-constructed services (unit tests) cascade into
@@ -259,6 +271,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if err := s.cascadeSickReport(ctx, resp.StaffAbsence, createdByStaffID, actorAccountID); err != nil {
 		return nil, err
 	}
+	s.broadcastTimeTrackingChanged(ctx)
 	return resp, nil
 }
 
@@ -674,6 +687,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, err
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -836,6 +850,7 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 		return fmt.Errorf("failed to delete absence: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 
@@ -1056,6 +1071,7 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 		return nil, fmt.Errorf("failed to create vacation request: %w", err)
 	}
 	s.notifyAbsenceRequested(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1090,6 +1106,7 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 		return nil, fmt.Errorf("failed to audit absence approval: %w", err)
 	}
 	s.notifyAbsenceDecision(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1127,6 +1144,7 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 		return nil, fmt.Errorf("failed to audit absence decline: %w", err)
 	}
 	s.notifyAbsenceDecision(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1163,6 +1181,7 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 		return nil, fmt.Errorf("failed to audit absence question: %w", err)
 	}
 	s.notifyAbsenceDecision(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1200,6 +1219,7 @@ func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64
 	}
 	// A resubmit re-enters the inbox, so approvers get the "received" mail again.
 	s.notifyAbsenceRequested(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1235,6 +1255,7 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, ""); err != nil {
 		return fmt.Errorf("failed to audit absence cancellation: %w", err)
 	}
+	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 
@@ -1287,8 +1308,31 @@ func computeVacationQuotaSummary(
 	entitled, carryover float64,
 	absences []*activeModels.StaffAbsence,
 ) *VacationQuotaSummary {
+	return computeVacationQuotaSummaryThrough(
+		staffID,
+		year,
+		entitled,
+		carryover,
+		timezone.NewDate(year, time.December, 31),
+		absences,
+	)
+}
+
+// computeVacationQuotaSummaryThrough is the historical counterpart of the
+// full-year quota summary. Absence ranges are clipped at through so a past
+// month does not spend vacation that lies later in the selected year.
+func computeVacationQuotaSummaryThrough(
+	staffID int64,
+	year int,
+	entitled, carryover float64,
+	through timezone.Date,
+	absences []*activeModels.StaffAbsence,
+) *VacationQuotaSummary {
 	yearStart := timezone.NewDate(year, time.January, 1)
 	yearEnd := timezone.NewDate(year, time.December, 31)
+	if through.Before(yearEnd) {
+		yearEnd = through
+	}
 
 	taken, reserved := 0.0, 0.0
 	for _, a := range absences {
@@ -1356,7 +1400,11 @@ func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID i
 	quota.CreatedAt = now
 	quota.UpdatedAt = now
 	quota.SetTenantID(tenant.FromContext(ctx))
-	return s.quotaRepo.Upsert(ctx, quota)
+	if err := s.quotaRepo.Upsert(ctx, quota); err != nil {
+		return err
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
 }
 
 func (s *staffAbsenceService) ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error) {

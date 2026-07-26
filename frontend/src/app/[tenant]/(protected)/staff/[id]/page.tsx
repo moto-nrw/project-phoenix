@@ -9,6 +9,7 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
 import {
+  employmentTypeLabels,
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
@@ -24,12 +25,6 @@ import { staffAbsenceService } from "~/lib/staff-api";
 import { StaffDetailSkeleton } from "./page-skeleton";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
-
-const employmentTypeLabels: Record<string, string> = {
-  full_time: "Vollzeit",
-  part_time: "Teilzeit",
-  minijob: "Minijob",
-};
 
 // ─── Rich Header ─────────────────────────────────────────────────────────────
 
@@ -225,7 +220,7 @@ export default function StaffDetailContent() {
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
-  const canViewOverview = canEdit || canManageTimeTracking;
+  const canViewTimeTracking = canEdit || canManageTimeTracking;
 
   const {
     data: staff,
@@ -283,7 +278,7 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canViewOverview) {
+  if (!canViewTimeTracking) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
@@ -343,23 +338,23 @@ export default function StaffDetailContent() {
 
       {/* Tabs */}
       <Tabs
-        defaultValue={canViewOverview ? "uebersicht" : "abwesenheiten"}
+        defaultValue={canViewTimeTracking ? "uebersicht" : "abwesenheiten"}
         className="w-full"
       >
         <TabsList
           variant="line"
           className="mb-6 w-full [scrollbar-width:none] justify-start overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden"
         >
-          {canViewOverview ? (
+          {canViewTimeTracking ? (
             <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
           ) : null}
+          {canViewTimeTracking ? (
+            <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
+          ) : null}
           {canEdit ? (
-            <>
-              <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
-              <TabsTrigger value="arbeitszeitmodell">
-                Arbeitszeitmodell
-              </TabsTrigger>
-            </>
+            <TabsTrigger value="arbeitszeitmodell">
+              Arbeitszeitmodell
+            </TabsTrigger>
           ) : null}
           <TabsTrigger value="abwesenheiten">
             <span className="inline-flex items-center gap-1.5">
@@ -383,22 +378,22 @@ export default function StaffDetailContent() {
           ) : null}
         </TabsList>
 
-        {canViewOverview ? (
+        {canViewTimeTracking ? (
           <TabsPrimitive.Content value="uebersicht">
             <UebersichtTab staffId={staffId} />
           </TabsPrimitive.Content>
         ) : null}
 
-        {canEdit ? (
-          <>
-            <TabsPrimitive.Content value="zeiterfassung">
-              <ZeiterfassungTab staffId={staffId} />
-            </TabsPrimitive.Content>
+        {canViewTimeTracking ? (
+          <TabsPrimitive.Content value="zeiterfassung">
+            <ZeiterfassungTab staffId={staffId} />
+          </TabsPrimitive.Content>
+        ) : null}
 
-            <TabsPrimitive.Content value="arbeitszeitmodell">
-              <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
-            </TabsPrimitive.Content>
-          </>
+        {canEdit ? (
+          <TabsPrimitive.Content value="arbeitszeitmodell">
+            <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
+          </TabsPrimitive.Content>
         ) : null}
 
         <TabsPrimitive.Content value="abwesenheiten">

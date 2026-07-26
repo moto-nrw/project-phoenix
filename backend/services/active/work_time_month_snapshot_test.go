@@ -344,6 +344,25 @@ func TestMonthClose_RejectsAdjustmentInClosedMonth(t *testing.T) {
 	require.ErrorIs(t, err, active.ErrAdjustmentInvalid)
 }
 
+// TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel pins the
+// dedicated sentinel the API layer maps to the stable code
+// "adjustment_in_closed_month", so the frontend can explain the month close
+// instead of showing a generic validation error (#1417 UI).
+func TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel(t *testing.T) {
+	f := newSnapshotFixture(t)
+
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss")
+	require.NoError(t, err)
+
+	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff.ID, f.admin.ID, active.CreateBalanceAdjustmentRequest{
+		Type:          activeModels.BalanceAdjustmentTypePayout,
+		MinutesDelta:  -60,
+		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
+		Note:          "Auszahlung im abgeschlossenen Monat",
+	})
+	require.ErrorIs(t, err, active.ErrAdjustmentInClosedMonth)
+}
+
 // TestMonthClose_ReopenRequiresNewestFirst — reopening an older month while a
 // later one stays frozen would leave a state no admin can reason about.
 func TestMonthClose_ReopenRequiresNewestFirst(t *testing.T) {

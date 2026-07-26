@@ -59,6 +59,7 @@ import (
 // Factory provides access to all services
 type Factory struct {
 	Auth                     auth.AuthService
+	StaffPINAuth             auth.StaffPINAuthenticator
 	MFA                      auth.MFAService
 	Passkey                  auth.PasskeyService
 	Active                   active.Service
@@ -348,6 +349,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger)
 	// Planned-shift lookups for the auto-checkout job (#1798).
 	workSessionService.SetStaffShiftRepo(repos.StaffShift)
+	if broadcastAware, ok := workSessionService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 	staffClockService := staffclock.NewService(usersService, repos.RFIDCard, workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
@@ -390,10 +396,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
+	if broadcastAware, ok := staffAbsenceService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
 	// school-year reset. Reads the live balance through the month service.
 	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger)
+	if broadcastAware, ok := staffBalanceAdjustService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 	// A booking inside a closed month (#1417) could not move its frozen
 	// closing balance, so the ledger rejects it.
 	staffBalanceAdjustService.SetSnapshotReader(repos.StaffMonthSnapshot)
@@ -407,6 +423,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		settingsService,
 		activeLogger,
 	)
+	if broadcastAware, ok := staffMonthCloseService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Tenant-wide time-tracking views (#1417 2a). Prefetches all inputs once
 	// and runs the SAME per-staff month math over in-memory readers, so the
@@ -648,6 +669,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffShiftService.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
 	// #1884: shift moves append a shift_moved Änderungsprotokoll entry.
 	staffShiftService.SetDeviationEventRepo(repos.DeviationEvent)
+	if broadcastAware, ok := staffShiftService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Recurring shift series (Dienstplan-Serien, #1889)
 	staffShiftSeriesService := schedule.NewStaffShiftSeriesService(
@@ -660,6 +686,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "staff_shift_series"),
 	)
+	if broadcastAware, ok := staffShiftSeriesService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 	// Self-service Betreuungsplan assignments for a staff member ("Mein Tag",
 	// #1844) — the "Ort/Aufgabe" the Dienstplan shift alone cannot express.
 	staffAssignmentService := schedule.NewStaffAssignmentService(schedule.StaffAssignmentDependencies{
@@ -1606,8 +1637,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "reminders"),
 	})
 
+	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
+	workTimeModelService.SetBroadcaster(realtimeHub)
+
 	factory := &Factory{
 		Auth:                     authService,
+		StaffPINAuth:             authService,
 		MFA:                      mfaService,
 		Passkey:                  passkeyService,
 		Active:                   activeService,
@@ -1686,7 +1721,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		Schools:              platform.NewSchoolService(repos.School),
-		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
+		WorkTimeModels:       workTimeModelService,
 		Students:             studentService,
 		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,

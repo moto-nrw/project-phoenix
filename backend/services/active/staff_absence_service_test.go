@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -1307,13 +1308,18 @@ func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
 func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &staffAbsenceService{
 		absenceRepo: absRepo,
 		auditRepo:   auditRepo,
+		broadcaster: broadcaster,
 	}
 	absenceID := int64(1000)
 	actorAccountID := int64(2000)
 	decidedByStaffID := int64(3000)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(
+		tenant.WithTenantID(context.Background(), 42),
+	)
 
 	absRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.StaffAbsence, error) {
 		assert.Equal(t, absenceID, id)
@@ -1342,11 +1348,20 @@ func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 		return nil
 	}
 
-	result, err := svc.ApproveAbsence(context.Background(), absenceID, actorAccountID, decidedByStaffID, "ok")
+	result, err := svc.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, "ok")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, activeModels.AbsenceStatusApproved, result.Status)
+	assert.Empty(t, broadcaster.Events())
+
+	commit()
+
+	events := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	require.Len(t, events, 1)
+	calls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(42), calls[0].TenantID)
 }
 
 func TestAbsDenyAbsence_WritesAudit(t *testing.T) {

@@ -21,6 +21,9 @@ type SSEEventType =
   | "activity_update"
   | "active_supervision_changed"
   | "dashboard_counts_changed"
+  // Tenant-wide, identifier-free trigger emitted after staff work-session
+  // writes commit. Time-account and school-overview caches refetch on it.
+  | "staff_time_tracking_changed"
   | "arrival_schedule_changed"
   // Pickup-side counterpart of arrival_schedule_changed: a staff write changed
   // a child's weekly Gehzeit plan or a date-specific pickup exception. Its own

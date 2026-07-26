@@ -264,7 +264,15 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 
 func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *testing.T) {
 	f := newOverviewFixture(t, 1)
-	settings := wtmIntSettings{accountStart: f.today.AddDays(40).String()}
+	// Use a completed historical month so the production now-clamp cannot
+	// treat the fixture's fixed 08:00 session as future work before 10:00
+	// Berlin. The account starts in the following month, preserving the
+	// standalone pre-account-month case this test covers.
+	requestedDate := timezone.NewDate(f.today.Year, f.today.Month, 1).AddDays(-1)
+	f.addSession(t, f.staff[0].ID, requestedDate, 4*time.Hour)
+	settings := wtmIntSettings{
+		accountStart: timezone.NewDate(f.today.Year, f.today.Month, 1).String(),
+	}
 	svc := f.newOverviewService(settings)
 	monthSvc := active.NewWorkTimeMonthService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
@@ -274,10 +282,13 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 	monthSvc.SetAdjustmentReader(f.repos.StaffBalanceAdjust)
 	monthSvc.SetSnapshotReader(f.repos.StaffMonthSnapshot)
 
-	overview, err := svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{})
+	overview, err := svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year:  requestedDate.Year,
+		Month: int(requestedDate.Month),
+	})
 	require.NoError(t, err)
 	require.Len(t, overview.Rows, 1)
-	expected, err := monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, f.today.Year, int(f.today.Month))
+	expected, err := monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, requestedDate.Year, int(requestedDate.Month))
 	require.NoError(t, err)
 
 	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
@@ -312,6 +323,37 @@ func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
 		assert.InDelta(t, expected.RemainingDays, row.RemainingVacationDays, 0.001,
 			"Resturlaub for staff %d must match the per-staff endpoint", row.StaffID)
 	}
+}
+
+func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	historicalYear := f.today.Year - 1
+
+	// Each seven-day range contains exactly five weekdays. The March view
+	// spends the February vacation, but must not subtract the November range.
+	f.addAbsence(
+		t,
+		f.staff[0].ID,
+		activeModels.AbsenceTypeVacation,
+		activeModels.AbsenceStatusApproved,
+		timezone.NewDate(historicalYear, time.February, 1),
+		timezone.NewDate(historicalYear, time.February, 7),
+	)
+	f.addAbsence(
+		t,
+		f.staff[0].ID,
+		activeModels.AbsenceTypeVacation,
+		activeModels.AbsenceStatusApproved,
+		timezone.NewDate(historicalYear, time.November, 1),
+		timezone.NewDate(historicalYear, time.November, 7),
+	)
+
+	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year: historicalYear, Month: int(time.March),
+	})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.InDelta(t, 25, overview.Rows[0].RemainingVacationDays, 0.001)
 }
 
 // TestTimeTrackingOverview_QueryCountIsConstant is the only test that protects
@@ -497,6 +539,50 @@ func TestTimeTrackingOverview_RejectsBadFilters(t *testing.T) {
 	require.ErrorIs(t, err, active.ErrOverviewInvalid)
 }
 
+// TestTimeTrackingOverview_ExplicitMonth pins the ?year=&month= selection
+// against the per-staff Monatskarte for the SAME month — the anti-drift
+// guarantee has to survive the month becoming a parameter.
+func TestTimeTrackingOverview_ExplicitMonth(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	previous := f.today.AddDays(-int(f.today.Day) - 5) // safely inside last month
+
+	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year: previous.Year, Month: int(previous.Month),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, previous.Year, overview.Year)
+	assert.Equal(t, int(previous.Month), overview.Month)
+	require.Len(t, overview.Rows, 1)
+
+	expected, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, previous.Year, int(previous.Month))
+	require.NoError(t, err)
+	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
+	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes)
+	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes)
+
+	// Omitting both still means the current month.
+	current, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{})
+	require.NoError(t, err)
+	assert.Equal(t, f.today.Year, current.Year)
+	assert.Equal(t, int(f.today.Month), current.Month)
+}
+
+// TestTimeTrackingOverview_RejectsFutureMonth — a future month would report the
+// full month Soll against zero Ist, i.e. a large minus for work nobody has
+// missed yet.
+func TestTimeTrackingOverview_RejectsFutureMonth(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	next := f.today.AddDays(40)
+
+	_, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year: next.Year, Month: int(next.Month),
+	})
+	require.ErrorIs(t, err, active.ErrOverviewInvalid)
+
+	_, err = f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{Year: f.today.Year, Month: 13})
+	require.ErrorIs(t, err, active.ErrOverviewInvalid)
+}
+
 // TestTimeTrackingOverview_SortIsStable — ListAllWithPerson has no ORDER BY, so
 // without an explicit staff-ID tiebreak equal balances would swap places
 // between identical requests.
@@ -580,6 +666,52 @@ func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
 	require.True(t, expected.CarryInFrozen, "the previous month is frozen")
 	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes,
 		"the overview must splice at the frozen month just like the detail card")
+}
+
+func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	staffID := f.staff[0].ID
+	closedMonth := timezone.NewDate(f.today.Year, f.today.Month, 1).AddDays(-1)
+	settings := wtmIntSettings{
+		accountStart: timezone.NewDate(closedMonth.Year, closedMonth.Month, 1).String(),
+	}
+	monthSvc := active.NewWorkTimeMonthService(
+		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
+		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		settings, nil,
+	)
+	monthSvc.SetAdjustmentReader(f.repos.StaffBalanceAdjust)
+	monthSvc.SetSnapshotReader(f.repos.StaffMonthSnapshot)
+	closeSvc := active.NewStaffMonthCloseService(f.repos.StaffMonthSnapshot, monthSvc, f.repos.Staff, settings, nil)
+	svc := f.newOverviewService(settings)
+
+	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year, int(closedMonth.Month), "Abschluss")
+	require.NoError(t, err)
+	require.Len(t, closeResult.Snapshots, 1)
+	frozenBalance := closeResult.Snapshots[0].ClosingBalanceMinutes
+
+	// A retroactive session changes the live calculation after the close.
+	f.addSession(t, staffID, closedMonth, 4*time.Hour)
+	detail, err := monthSvc.GetMonthSummary(f.ctx, staffID, closedMonth.Year, int(closedMonth.Month))
+	require.NoError(t, err)
+	require.NotNil(t, detail.FrozenClosingBalanceMinutes)
+	assert.Equal(t, frozenBalance, *detail.FrozenClosingBalanceMinutes)
+	assert.NotEqual(t, frozenBalance, detail.ClosingBalanceMinutes)
+
+	overview, err := svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year: closedMonth.Year, Month: int(closedMonth.Month),
+	})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, frozenBalance, overview.Rows[0].BalanceMinutes)
+
+	// Saldo filters use the same frozen value that the table displays.
+	aboveFrozen := frozenBalance + 1
+	filtered, err := svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year: closedMonth.Year, Month: int(closedMonth.Month), SaldoMin: &aboveFrozen,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, filtered.Rows)
 }
 
 func monthOfDate(d timezone.Date) int { return d.Year*12 + int(d.Month) }

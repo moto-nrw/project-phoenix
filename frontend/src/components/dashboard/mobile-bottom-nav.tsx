@@ -614,7 +614,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Filter additional navigation items based on permissions
   const filteredMainItemsByMode = filteredMainItems.filter(
-    (item) => showActivityNav || !NFC_ONLY_HREFS.has(item.href),
+    (item) =>
+      (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
+      // Bei offener Betreuung gibt es keine "meine Gruppe" — der
+      // gruppenbasierte Einstieg entfällt (#1544).
+      !(openCareGroupMode && item.href === "/ogs-groups"),
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {

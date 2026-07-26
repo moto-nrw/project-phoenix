@@ -155,6 +155,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 		"target_staff_id", moved.StaffID,
 		"date", moved.Date.String(),
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return &moved, nil
 }
 

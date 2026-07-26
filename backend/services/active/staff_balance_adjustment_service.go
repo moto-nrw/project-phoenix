@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // Sentinel errors for handler mapping (#1420).
@@ -35,6 +36,12 @@ var (
 	// ErrAdjustmentExceedsBalance prevents payouts and lump-sum comp-time
 	// grants from reducing the account below zero — HTTP 409.
 	ErrAdjustmentExceedsBalance = errors.New("balance adjustment exceeds accrued balance")
+	// ErrAdjustmentInClosedMonth marks a booking whose effective month is
+	// frozen by a Monatsabschluss (#1417) — HTTP 400 with a stable code so
+	// the frontend can point at the month close instead of a generic
+	// validation message. Wraps ErrAdjustmentInvalid so existing errors.Is
+	// call sites keep matching.
+	ErrAdjustmentInClosedMonth = fmt.Errorf("%w: effective month is closed", ErrAdjustmentInvalid)
 )
 
 const (
@@ -90,6 +97,7 @@ type staffBalanceAdjustmentService struct {
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
 	snapshotRepo   adjustmentFreezeReader
+	broadcaster    realtime.Broadcaster
 	logger         *slog.Logger
 }
 
@@ -98,6 +106,16 @@ type staffBalanceAdjustmentService struct {
 // unit fixtures stay valid.
 func (s *staffBalanceAdjustmentService) SetSnapshotReader(reader adjustmentFreezeReader) {
 	s.snapshotRepo = reader
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
+// StaffBalanceAdjustmentService so existing API-layer mocks stay unchanged.
+func (s *staffBalanceAdjustmentService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
+func (s *staffBalanceAdjustmentService) broadcastTimeTrackingChanged(ctx context.Context) {
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func NewStaffBalanceAdjustmentService(
@@ -152,7 +170,7 @@ func (s *staffBalanceAdjustmentService) rejectFrozenMonth(ctx context.Context, s
 	}
 	return fmt.Errorf(
 		"%w: effective_date %s lies in the closed month %04d-%02d",
-		ErrAdjustmentInvalid, effectiveDate.String(), year, month,
+		ErrAdjustmentInClosedMonth, effectiveDate.String(), year, month,
 	)
 }
 
@@ -244,6 +262,7 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 		"effective_date", req.EffectiveDate.String(),
 		"decided_by", decidedBy,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return adjustment, nil
 }
 
@@ -291,6 +310,7 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 		"type", adjustment.Type,
 		"minutes_delta", adjustment.MinutesDelta,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 
@@ -413,6 +433,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		"minutes_delta", adjustment.MinutesDelta,
 		"decided_by", decidedBy,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return adjustment, nil
 }
 

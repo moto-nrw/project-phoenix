@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -118,6 +119,14 @@ func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
 		"?sort=bogus",
 		"?order=sideways",
 		"?saldo_min=100&saldo_max=10",
+		"?month=3",   // month without year
+		"?year=2026", // year without month
+		"?year=abc&month=3",
+		"?year=0&month=0",
+		"?year=0&month=1",
+		"?year=2026&month=0",
+		"?year=2026&month=13",
+		"?year=2999&month=1", // future
 	} {
 		rec := ctx.get("/staff/time-tracking/overview"+query, "time_tracking:manage")
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "query %s: %s", query, rec.Body.String())
@@ -128,6 +137,7 @@ func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
 		"?employment_type=full_time",
 		"?saldo_min=-600&saldo_max=600",
 		"?sort=balance&order=desc",
+		"?year=2025&month=1",
 	} {
 		rec := ctx.get("/staff/time-tracking/overview"+query, "time_tracking:manage")
 		assert.Equal(t, http.StatusOK, rec.Code, "query %s: %s", query, rec.Body.String())
@@ -138,9 +148,9 @@ func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
 // router, including the guard against closing a month that is not over.
 func TestMonthCloseAPI(t *testing.T) {
 	ctx := setupOverviewAPI(t)
-	today := time.Now()
+	today := timezone.TodayDate()
 
-	rec := ctx.get(fmt.Sprintf("/staff/time-tracking/month-close?year=%d&month=%d", today.Year(), int(today.Month())), "time_tracking:manage")
+	rec := ctx.get(fmt.Sprintf("/staff/time-tracking/month-close?year=%d&month=%d", today.Year, int(today.Month)), "time_tracking:manage")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = ctx.get("/staff/time-tracking/month-close?year=2026&month=13", "time_tracking:manage")
@@ -150,7 +160,7 @@ func TestMonthCloseAPI(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// The current month is not over: 400, not a silently wrong snapshot.
-	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year(), int(today.Month()))
+	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year, int(today.Month))
 	rec = ctx.post("/staff/time-tracking/month-close", body, "time_tracking:manage")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
@@ -162,4 +172,24 @@ func TestMonthCloseAPI(t *testing.T) {
 	rec = ctx.post(fmt.Sprintf("/staff/%d/time-tracking/month-close/reopen", ctx.staffID),
 		`{"year":2025,"month":8,"reason":"Korrektur"}`, "time_tracking:manage")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+}
+
+// TestMonthCloseAPI_StableErrorCodes pins the machine-readable codes the
+// frontend branches on for its German copy (#1417 UI). The wire strings are
+// English; the codes are the contract.
+func TestMonthCloseAPI_StableErrorCodes(t *testing.T) {
+	ctx := setupOverviewAPI(t)
+	today := timezone.TodayDate()
+
+	// Closing the current month: it is not over yet.
+	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year, int(today.Month))
+	rec := ctx.post("/staff/time-tracking/month-close", body, "time_tracking:manage")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"month_not_closable"`)
+
+	// Reopening a month that was never closed.
+	rec = ctx.post(fmt.Sprintf("/staff/%d/time-tracking/month-close/reopen", ctx.staffID),
+		`{"year":2025,"month":8,"reason":"Korrektur"}`, "time_tracking:manage")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"month_not_closed"`)
 }

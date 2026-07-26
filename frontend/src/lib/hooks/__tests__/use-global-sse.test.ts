@@ -509,6 +509,60 @@ describe("useGlobalSSE", () => {
       expect(dashboardCall).toBeDefined();
     });
 
+    it("invalidates staff time-account caches after a work-session change", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: "staff_time_tracking_changed",
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const call = vi.mocked(mutate).mock.calls.find(([matcher]) => {
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)(
+            "tenant:staff-time-accounts-all--",
+          )
+        );
+      });
+      expect(call).toBeDefined();
+
+      const matcher = call![0] as (key: string) => boolean;
+      for (const key of [
+        "staff-time-accounts-all--",
+        "staff-dashboard-summary-month",
+        "staff-history-42-2026-07-01-2026-07-31",
+        "staff-absences-42-2026-07-01-2026-07-31",
+        "staff-pending-absences-42",
+        "staff-month-summary-42-2026-7",
+        "staff-month-close-2026-7",
+        "staff-balance-adjustments-42-2026-01-01-9999-12-31",
+        "staff-schedule-42",
+        "staff-schedule-targets-42-2026-07-01-2026-07-31",
+        "staff-schedule-targets-account-42-2026-01-01-2026-07-31",
+        "staff-shifts-visible-42-2026-07-01-2026-07-31",
+        "time-tracking-current",
+        "time-tracking-history-2026-07-01-2026-07-31",
+        "time-tracking-absences-2026-07-01-2026-07-31",
+        "time-tracking-table-2026-07-01-2026-07-31",
+        "time-tracking-month-summary-2026-7",
+        "time-tracking-schedule-targets-2026-07-01-2026-07-31",
+        "time-tracking-own-schedule-42",
+        "time-tracking-own-shifts-today-2026-07-25",
+      ]) {
+        expect(matcher(`tenant:${key}`), key).toBe(true);
+      }
+      expect(matcher("tenant:dashboard")).toBe(false);
+      expect(matcher("tenant:staff-list")).toBe(false);
+      expect(matcher("tenant:time-tracking-config")).toBe(false);
+      expect(matcher("tenant:time-tracking-holidays-2026-07-01")).toBe(false);
+    });
+
     it("student_checkout without active_group_id invalidates ogs-students caches", () => {
       renderHook(() => useGlobalSSE());
 

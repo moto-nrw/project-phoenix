@@ -106,7 +106,7 @@ describe("StaffPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1" } },
+      data: { user: { id: "1", permissions: ["users:read"] } },
       status: "authenticated",
     } as never);
   });
@@ -138,30 +138,30 @@ describe("StaffPage", () => {
 
     render(<StaffPage />);
 
-    expect(screen.getByText("Anna")).toBeInTheDocument();
-    expect(screen.getByText("Ben")).toBeInTheDocument();
+    expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
+    expect(screen.getByText("Ben Schulz")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("search-input"), {
       target: { value: "Schulz" },
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-      expect(screen.getByText("Ben")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Meyer")).not.toBeInTheDocument();
+      expect(screen.getByText("Ben Schulz")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("clear-filters"));
 
     await waitFor(() => {
-      expect(screen.getByText("Anna")).toBeInTheDocument();
-      expect(screen.getByText("Ben")).toBeInTheDocument();
+      expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
+      expect(screen.getByText("Ben Schulz")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("filter-im-raum"));
 
     await waitFor(() => {
-      expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-      expect(screen.getByText("Ben")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Meyer")).not.toBeInTheDocument();
+      expect(screen.getByText("Ben Schulz")).toBeInTheDocument();
     });
   });
 
@@ -185,13 +185,13 @@ describe("StaffPage", () => {
     fireEvent.click(screen.getByTestId("filter-abwesend"));
 
     await waitFor(() => {
-      expect(screen.getByText("Carla")).toBeInTheDocument();
+      expect(screen.getByText("Carla Frei")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("filter-im-raum"));
 
     await waitFor(() => {
-      expect(screen.queryByText("Carla")).not.toBeInTheDocument();
+      expect(screen.queryByText("Carla Frei")).not.toBeInTheDocument();
     });
   });
 
@@ -287,6 +287,51 @@ describe("StaffPage", () => {
     expect(
       screen.getByLabelText("Mitarbeitende werden geladen"),
     ).toBeInTheDocument();
+  });
+
+  it("disables previous-key data for time-account filters", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          permissions: ["users:read", "time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+    } as never);
+    vi.mocked(useSWRAuth).mockImplementation((key) => {
+      if (key === "staff-list") {
+        return { data: mockStaff, isLoading: false, error: null } as never;
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isValidating: false,
+        error: null,
+        mutate: vi.fn(),
+      } as never;
+    });
+
+    render(<StaffPage />);
+
+    const accountsTab = screen.getByRole("tab", { name: "Zeitkonten" });
+    fireEvent.pointerDown(accountsTab, {
+      button: 0,
+      pointerType: "mouse",
+    });
+    fireEvent.mouseDown(accountsTab, { button: 0 });
+    fireEvent.click(accountsTab);
+
+    const accountsCall = vi
+      .mocked(useSWRAuth)
+      .mock.calls.find(
+        ([key]) =>
+          typeof key === "string" && key.startsWith("staff-time-accounts-"),
+      );
+    expect(accountsCall?.[2]).toEqual({
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+    });
   });
 });
 

@@ -39,6 +39,32 @@ const logger = createLogger({ component: "GlobalSSE" });
 
 const DEBOUNCE_MS = 500;
 
+// Every cache family derived from work sessions, absences, balance
+// adjustments, month-close snapshots, contractual schedules, or planned
+// shifts. Keep this targeted:
+// unrelated time-tracking configuration, holiday, closing-day, and assignment
+// caches do not change when staff_time_tracking_changed fires.
+const STAFF_TIME_TRACKING_CACHE_KEY_PARTS = [
+  "staff-time-accounts-",
+  "staff-dashboard-summary-",
+  "staff-history-",
+  "staff-absences-",
+  "staff-pending-absences-",
+  "staff-month-summary-",
+  "staff-month-close-",
+  "staff-balance-adjustments-",
+  "staff-schedule-",
+  "staff-shifts-visible-",
+  "time-tracking-current",
+  "time-tracking-history-",
+  "time-tracking-absences-",
+  "time-tracking-table-",
+  "time-tracking-month-summary-",
+  "time-tracking-schedule-targets-",
+  "time-tracking-own-schedule-",
+  "time-tracking-own-shifts-today-",
+] as const;
+
 // Per-student SWR keys carry the id as a segment: "student-detail-<id>",
 // "care-plan-day-<id>-<date>", "care-plan-week-<id>-<from>-<to>". useSWRAuth
 // prefixes the whole thing with the tenant slug ("<slug>:student-detail-7").
@@ -119,6 +145,7 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingActivityEvent = useRef(false);
   const hasPendingActiveSupervisionEvent = useRef(false);
   const hasPendingDashboardEvent = useRef(false);
+  const hasPendingStaffTimeTrackingEvent = useRef(false);
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const hasPendingArrivalScheduleEvent = useRef(false);
   // Pickup (Gehzeit) writes get their own flag rather than riding the arrival
@@ -137,6 +164,21 @@ export function useGlobalSSE(): SSEHookState {
   // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
   // All matchers must use includes() instead of startsWith() to match regardless of prefix.
   const flushInvalidations = useCallback(() => {
+    if (hasPendingStaffTimeTrackingEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          STAFF_TIME_TRACKING_CACHE_KEY_PARTS.some((part) =>
+            key.includes(part),
+          ),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "staff_time_tracking",
+        });
+      });
+    }
+
     // Invalidate ALL supervision-visits caches for student/dashboard events.
     // A student checked out of Room A may appear on the Schulhof (catch-all),
     // so we can't limit to just the source group's cache key.
@@ -500,6 +542,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingActivityEvent.current = false;
     hasPendingActiveSupervisionEvent.current = false;
     hasPendingDashboardEvent.current = false;
+    hasPendingStaffTimeTrackingEvent.current = false;
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingPickupScheduleEvent.current = false;
@@ -592,6 +635,12 @@ export function useGlobalSSE(): SSEHookState {
           // Global event from BroadcastToAll — only refresh dashboard counts,
           // NOT room/supervision/active caches (those are for activity events).
           hasPendingDashboardEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "staff_time_tracking_changed": {
+          hasPendingStaffTimeTrackingEvent.current = true;
           scheduleFlush();
           break;
         }
