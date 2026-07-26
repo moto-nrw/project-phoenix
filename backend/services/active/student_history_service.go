@@ -23,6 +23,10 @@ type StudentHistoryService interface {
 	// calendar date (group day log reads the whole day at once).
 	GetAttendanceForDate(ctx context.Context, date timezone.Date) ([]*activeModels.Attendance, error)
 
+	// GetAttendanceForDateByStudentIDs returns attendance rows for the supplied
+	// students on one calendar date.
+	GetAttendanceForDateByStudentIDs(ctx context.Context, date timezone.Date, studentIDs []int64) ([]*activeModels.Attendance, error)
+
 	// GetVisitsByStudentAndTimeRange returns a student's visits (active or
 	// ended) overlapping the time range.
 	GetVisitsByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*activeModels.Visit, error)
@@ -79,6 +83,10 @@ func (s *studentHistoryService) GetAttendanceByStudentAndDateRange(ctx context.C
 
 func (s *studentHistoryService) GetAttendanceForDate(ctx context.Context, date timezone.Date) ([]*activeModels.Attendance, error) {
 	return s.attendanceRepo.FindForDate(ctx, date)
+}
+
+func (s *studentHistoryService) GetAttendanceForDateByStudentIDs(ctx context.Context, date timezone.Date, studentIDs []int64) ([]*activeModels.Attendance, error) {
+	return s.attendanceRepo.FindForDateByStudentIDs(ctx, date, studentIDs)
 }
 
 func (s *studentHistoryService) GetVisitsByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*activeModels.Visit, error) {

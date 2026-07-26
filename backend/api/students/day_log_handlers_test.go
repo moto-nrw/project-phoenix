@@ -185,6 +185,53 @@ func TestGetStudentsDayLog_DateOutsideWindowRejected(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "outside the visible attendance window")
 }
 
+func TestGetStudentsDayLog_UsesEnrollmentWindowForRetrospectiveRoster(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Einschreibung")
+	eligible := testpkg.CreateTestStudent(t, tc.db, "Ella", "ImZeitraum", "1a")
+	later := testpkg.CreateTestStudent(t, tc.db, "Luca", "Spaeter", "1a")
+	departed := testpkg.CreateTestStudent(t, tc.db, "Nora", "Ausgeschieden", "1a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, eligible.ID, later.ID, departed.ID, group.ID)
+
+	for _, studentID := range []int64{eligible.ID, later.ID, departed.ID} {
+		testpkg.AssignStudentToGroup(t, tc.db, studentID, group.ID)
+	}
+
+	date := timezone.TodayDate().AddDays(-1)
+	eligibleFrom := date.AddDays(-1)
+	laterFrom := timezone.TodayDate()
+	departedUntil := date.AddDays(-1)
+	for _, update := range []struct {
+		studentID     int64
+		enrolledFrom  *timezone.Date
+		enrolledUntil *timezone.Date
+	}{
+		{studentID: eligible.ID, enrolledFrom: &eligibleFrom},
+		{studentID: later.ID, enrolledFrom: &laterFrom},
+		{studentID: departed.ID, enrolledUntil: &departedUntil},
+	} {
+		_, err := tc.db.NewUpdate().
+			TableExpr(`users.students`).
+			Set(`enrolled_from = ?`, update.enrolledFrom).
+			Set(`enrolled_until = ?`, update.enrolledUntil).
+			Where(`id = ?`, update.studentID).
+			Exec(context.Background())
+		require.NoError(t, err)
+	}
+
+	req := testutil.NewRequest("GET", fmt.Sprintf("/day-log?date=%s&group_id=%d", date, group.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body dayLogTestBody
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	require.Len(t, body.Data.Groups, 1)
+	require.Len(t, body.Data.Groups[0].Students, 1)
+	assert.Equal(t, fmt.Sprintf("%d", eligible.ID), body.Data.Groups[0].Students[0].StudentID)
+}
+
 func TestGetStudentsDayLog_WritesAuditLog(t *testing.T) {
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)

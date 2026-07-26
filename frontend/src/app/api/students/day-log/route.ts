@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
-import { auth } from "~/server/auth";
+import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 
 const logger = createLogger({ component: "StudentsDayLogRoute" });
@@ -32,10 +32,26 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const endpoint = `/api/students/day-log${queryString ? `?${queryString}` : ""}`;
 
   try {
-    const envelope = await apiGet<{ data: unknown }>(
-      endpoint,
-      session.user.token,
-    );
+    let envelope: { data: unknown };
+    try {
+      envelope = await apiGet<{ data: unknown }>(endpoint, session.user.token);
+    } catch (apiError) {
+      const message =
+        apiError instanceof Error ? apiError.message : String(apiError);
+      if (!message.includes("API error (401)")) throw apiError;
+
+      const refreshed = await uncachedAuth();
+      if (
+        !refreshed?.user?.token ||
+        refreshed.user.token === session.user.token
+      ) {
+        throw apiError;
+      }
+      envelope = await apiGet<{ data: unknown }>(
+        endpoint,
+        refreshed.user.token,
+      );
+    }
     return NextResponse.json(
       { status: "success", data: envelope.data },
       { headers: { "Cache-Control": "no-store" } },
