@@ -31,8 +31,9 @@ err := factory.Notifications.Notify(ctx, notifications.Event{
 ```
 
 The producer never references a channel. `Notify` validates the event, checks
-the feature flag, and fans out to all registered channels; a failing channel
-is logged and never blocks the caller (fire-and-forget, like SSE
+the feature flag, and queues fan-out until the surrounding tenant transaction
+commits. Without a tenant transaction, delivery remains synchronous. A failing
+channel is logged and never blocks the caller (fire-and-forget, like SSE
 broadcasting).
 
 Audience scopes map to the existing SSE routing:

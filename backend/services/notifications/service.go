@@ -8,8 +8,9 @@
 //     body, deep link) and call Service.Notify. They never talk to a channel.
 //   - The service checks the per-tenant feature flag
 //     notifications.dispatch_enabled (default OFF) and, when enabled, fans the
-//     event out to every registered Channel. Channel failures are logged and
-//     never block the caller (fire-and-forget, mirroring SSE broadcasting).
+//     event out to every registered Channel after the surrounding tenant
+//     transaction commits. Channel failures are logged and never block the
+//     caller (fire-and-forget, mirroring SSE broadcasting).
 //   - Channels are pluggable: today an SSE/in-app channel (wrapping the
 //     existing realtime.Broadcaster — the existing SSE cache-invalidation
 //     events are untouched) and a web-push stub. E-mail and real Web Push are
@@ -28,10 +29,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strings"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Priority levels for a notification event.
@@ -94,9 +98,10 @@ type Channel interface {
 // Service is the entry point features use to trigger notifications.
 type Service interface {
 	// Notify validates the event, checks the tenant feature flag, and fans
-	// the event out to all registered channels. Returns ErrDisabled when the
-	// flag is off and a validation error for malformed events; channel
-	// delivery failures are logged, not returned.
+	// the event out to all registered channels after the surrounding tenant
+	// transaction commits. Returns ErrDisabled when the flag is off and a
+	// validation error for malformed events; channel delivery failures are
+	// logged, not returned.
 	Notify(ctx context.Context, event Event) error
 }
 
@@ -146,7 +151,9 @@ func validate(event Event) error {
 	default:
 		return fmt.Errorf("unknown audience scope %q", event.Audience.Scope)
 	}
-	if event.DeepLink != "" && (!strings.HasPrefix(event.DeepLink, "/") || strings.HasPrefix(event.DeepLink, "//")) {
+	if event.DeepLink != "" && (!strings.HasPrefix(event.DeepLink, "/") ||
+		strings.HasPrefix(event.DeepLink, "//") ||
+		strings.Contains(event.DeepLink, `\`)) {
 		return errors.New("deep link must be an app-relative path")
 	}
 	switch event.Priority {
@@ -178,6 +185,17 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 		return ErrDisabled
 	}
 
+	// Channels run after commit, so they must not inherit the closed transaction.
+	// Snapshot the mutable payload before the callback outlives this call.
+	dispatchCtx := modelBase.ContextWithoutTx(ctx)
+	event.Data = maps.Clone(event.Data)
+	tenant.RegisterAfterCommit(ctx, func() {
+		r.deliver(dispatchCtx, event)
+	})
+	return nil
+}
+
+func (r *router) deliver(ctx context.Context, event Event) {
 	for _, ch := range r.channels {
 		if err := ch.Deliver(ctx, event); err != nil {
 			// Fire-and-forget per channel: one failing channel must neither
@@ -190,5 +208,4 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 			)
 		}
 	}
-	return nil
 }
