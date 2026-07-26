@@ -33,7 +33,9 @@ type Staff struct {
 	// partial index; NULL means "not assigned yet". School-scoped like the
 	// row itself — a person at two schools of one Träger should carry the
 	// same value in both rows, which RLS cannot enforce (documented gap).
-	PersonnelNumber    *string        `bun:"personnel_number" json:"personnel_number,omitempty"`
+	// Generic Staff JSON must not expose it; payroll handlers use a dedicated,
+	// permission-gated response.
+	PersonnelNumber    *string        `bun:"personnel_number" json:"-"`
 	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
 	DeletedAt          *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 

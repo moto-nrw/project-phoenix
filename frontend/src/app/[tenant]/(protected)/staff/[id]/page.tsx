@@ -221,6 +221,7 @@ export default function StaffDetailContent() {
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
 
   const {
@@ -409,6 +410,7 @@ export default function StaffDetailContent() {
             <StammdatenTab
               staffId={staffId}
               canManagePayroll={canManageTimeTracking}
+              canManagePayrollSettings={canManagePayrollSettings}
             />
           </TabsPrimitive.Content>
         ) : null}

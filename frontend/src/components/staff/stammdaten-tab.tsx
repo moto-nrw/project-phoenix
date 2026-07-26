@@ -17,9 +17,11 @@ import { staffPayrollNumberService } from "~/lib/staff-api";
 export function StammdatenTab({
   staffId,
   canManagePayroll,
+  canManagePayrollSettings,
 }: {
   readonly staffId: string;
   readonly canManagePayroll: boolean;
+  readonly canManagePayrollSettings: boolean;
 }) {
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -98,9 +100,13 @@ export function StammdatenTab({
 
         <p className="mt-4 text-xs text-gray-500">
           Lohnarten und DATEV-Mandantendaten werden zentral unter{" "}
-          <Link href="/payroll" className="text-[#5080D8] hover:underline">
-            Abrechnung
-          </Link>{" "}
+          {canManagePayrollSettings ? (
+            <Link href="/payroll" className="text-[#5080D8] hover:underline">
+              Abrechnung
+            </Link>
+          ) : (
+            "Abrechnung"
+          )}{" "}
           gepflegt.
         </p>
       </div>

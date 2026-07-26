@@ -49,7 +49,13 @@ describe("StammdatenTab", () => {
       mutate,
     };
 
-    render(<StammdatenTab staffId="42" canManagePayroll />);
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll
+        canManagePayrollSettings={false}
+      />,
+    );
 
     expect(
       screen.getByText("Die Personalnummer konnte nicht geladen werden."),
@@ -72,11 +78,39 @@ describe("StammdatenTab", () => {
       mutate,
     };
 
-    render(<StammdatenTab staffId="42" canManagePayroll />);
+    render(
+      <StammdatenTab staffId="42" canManagePayroll canManagePayrollSettings />,
+    );
 
     expect(screen.getByText("Nicht gesetzt")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Bearbeiten" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Abrechnung" })).toHaveAttribute(
+      "href",
+      "/payroll",
+    );
+  });
+
+  it("zeigt ohne Settings-Berechtigung keinen Link zur Abrechnung", () => {
+    swrResult.current = {
+      data: null,
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate,
+    };
+
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll
+        canManagePayrollSettings={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "Abrechnung" }),
+    ).not.toBeInTheDocument();
   });
 });
