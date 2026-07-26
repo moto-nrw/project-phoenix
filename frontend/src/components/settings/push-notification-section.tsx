@@ -6,11 +6,12 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
 import {
+  ensurePushConfigured,
+  getExistingSubscription,
   isPushConfigurationMissing,
   isPushSupported,
   needsIOSInstall,
   subscribePush,
-  syncExistingPushSubscription,
   unsubscribePush,
   type PushPortal,
 } from "~/lib/push-api";
@@ -57,7 +58,10 @@ export function PushNotificationSection({
       return;
     }
     try {
-      const subscription = await syncExistingPushSubscription(portal);
+      // Read-only state check: the actual server-side re-sync happens once per
+      // session via PushSubscriptionSync at the provider root.
+      await ensurePushConfigured(portal);
+      const subscription = await getExistingSubscription();
       setState(subscription ? "subscribed" : "unsubscribed");
     } catch (err) {
       if (isPushConfigurationMissing(err)) {
@@ -75,50 +79,44 @@ export function PushNotificationSection({
     void refresh();
   }, [refresh]);
 
-  const enable = async () => {
+  const runToggle = async (
+    action: () => Promise<void>,
+    successMessage: string,
+    logEvent: string,
+    fallbackError: string,
+  ) => {
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      await subscribePush(portal);
-      setMessage("Benachrichtigungen sind auf diesem Gerät aktiviert.");
-      await refresh();
+      await action();
+      setMessage(successMessage);
     } catch (err) {
-      logger.error("push_subscribe_failed", {
+      logger.error(logEvent, {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Benachrichtigungen konnten nicht aktiviert werden.",
-      );
-      await refresh();
+      setError(err instanceof Error ? err.message : fallbackError);
     } finally {
+      await refresh();
       setBusy(false);
     }
   };
 
-  const disable = async () => {
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await unsubscribePush(portal);
-      setMessage("Benachrichtigungen sind auf diesem Gerät deaktiviert.");
-      await refresh();
-    } catch (err) {
-      logger.error("push_unsubscribe_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Benachrichtigungen konnten nicht deaktiviert werden.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
+  const enable = () =>
+    runToggle(
+      () => subscribePush(portal),
+      "Benachrichtigungen sind auf diesem Gerät aktiviert.",
+      "push_subscribe_failed",
+      "Benachrichtigungen konnten nicht aktiviert werden.",
+    );
+
+  const disable = () =>
+    runToggle(
+      () => unsubscribePush(portal),
+      "Benachrichtigungen sind auf diesem Gerät deaktiviert.",
+      "push_unsubscribe_failed",
+      "Benachrichtigungen konnten nicht deaktiviert werden.",
+    );
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">

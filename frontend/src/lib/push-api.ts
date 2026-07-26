@@ -128,6 +128,14 @@ async function getPushPublicKey(
   }
 }
 
+/**
+ * Preflights server-side push configuration. Resolves when VAPID is set up;
+ * rejects with an error matching isPushConfigurationMissing otherwise.
+ */
+export async function ensurePushConfigured(portal: PushPortal): Promise<void> {
+  await getPushPublicKey(portal);
+}
+
 /** Registers /sw.js (idempotent) and returns the registration. */
 async function registerPushServiceWorker(): Promise<ServiceWorkerRegistration> {
   const registration = await navigator.serviceWorker.register("/sw.js");
@@ -163,12 +171,25 @@ export async function subscribePush(portal: PushPortal): Promise<void> {
 
   const registration = await registerPushServiceWorker();
   const existing = await registration.pushManager.getSubscription();
+  await rebindAndSync(portal, registration, existing, publicKey);
+}
+
+/**
+ * Rebinds `existing` (or creates a fresh subscription) to the current server
+ * key and persists the result server-side.
+ */
+async function rebindAndSync(
+  portal: PushPortal,
+  registration: ServiceWorkerRegistration,
+  existing: PushSubscription | null,
+  publicKey: Uint8Array<ArrayBuffer>,
+): Promise<PushSubscription> {
   const subscription =
     existing && applicationServerKeyMatches(existing, publicKey)
       ? existing
       : await replaceBrowserSubscription(registration, existing, publicKey);
-
   await syncSubscription(portal, subscription);
+  return subscription;
 }
 
 async function replaceBrowserSubscription(
@@ -226,11 +247,7 @@ export async function syncExistingPushSubscription(
   const existing = await registration.pushManager.getSubscription();
   if (!existing) return null;
 
-  const subscription = applicationServerKeyMatches(existing, publicKey)
-    ? existing
-    : await replaceBrowserSubscription(registration, existing, publicKey);
-  await syncSubscription(portal, subscription);
-  return subscription;
+  return rebindAndSync(portal, registration, existing, publicKey);
 }
 
 /**

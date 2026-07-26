@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"golang.org/x/sync/semaphore"
 )
 
 // pushSender abstracts the actual Web Push HTTP request so tests can fake the
@@ -62,7 +63,7 @@ type webPushChannel struct {
 	logger *slog.Logger
 	// Shared across deliveries so concurrent notification batches cannot each
 	// consume maxConcurrentPushSends outbound connections.
-	sendSlots chan struct{}
+	sendSem *semaphore.Weighted
 }
 
 // NewWebPushChannel returns the Web Push channel. With unset VAPID keys the
@@ -70,12 +71,12 @@ type webPushChannel struct {
 // today's behavior.
 func NewWebPushChannel(db *bun.DB, repo iot.PushSubscriptionRepository, vapid VAPIDConfig, logger *slog.Logger) Channel {
 	return &webPushChannel{
-		db:        db,
-		repo:      repo,
-		vapid:     vapid,
-		sender:    webpushGoSender{client: newWebPushHTTPClient()},
-		logger:    logger,
-		sendSlots: make(chan struct{}, maxConcurrentPushSends),
+		db:      db,
+		repo:    repo,
+		vapid:   vapid,
+		sender:  webpushGoSender{client: newWebPushHTTPClient()},
+		logger:  logger,
+		sendSem: semaphore.NewWeighted(maxConcurrentPushSends),
 	}
 }
 
@@ -173,17 +174,13 @@ func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byt
 	var wg sync.WaitGroup
 
 	for _, sub := range subs {
-		select {
-		case c.sendSlots <- struct{}{}:
-		case <-ctx.Done():
-			wg.Wait()
-			return
+		if err := c.sendSem.Acquire(ctx, 1); err != nil {
+			break
 		}
-
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() { <-c.sendSlots }()
+			defer c.sendSem.Release(1)
 			c.sendOne(ctx, event, payload, sub, ttl, urgency)
 		}()
 	}

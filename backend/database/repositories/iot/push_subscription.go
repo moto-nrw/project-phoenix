@@ -152,19 +152,27 @@ func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context,
 	return nil
 }
 
-// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
-func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]*iot.PushSubscription, error) {
-	var subs []*iot.PushSubscription
+// activeSubscriptionsQuery is the shared scaffolding of every Find* method:
+// subscriptions of the given portal whose account is active and whose
+// account-tenant mapping is active, tenant-filtered. Callers add their
+// role-specific predicates before scanning.
+func (r *PushSubscriptionRepository) activeSubscriptionsQuery(ctx context.Context, subs *[]*iot.PushSubscription, portal string) *bun.SelectQuery {
 	query := base.GetDB(ctx, r.DB).NewSelect().
-		Model(&subs).
+		Model(subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
 		Join(activeAccountJoin).
 		Join(activeAccountTenantJoin).
-		Where(pushPortalFilter, iot.PushPortalStaff).
+		Where(pushPortalFilter, portal).
 		Where(`"account".active = ?`, true).
-		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive)
+	return base.WithTenantFilter(ctx, query, "push_subscription")
+}
+
+// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
+func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]*iot.PushSubscription, error) {
+	var subs []*iot.PushSubscription
+	query := r.activeSubscriptionsQuery(ctx, &subs, iot.PushPortalStaff).
 		Where(nonGuardianRoleFilter, authModels.BaseRoleGuardian)
-	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff push subscriptions", Err: err}
 	}
@@ -176,14 +184,7 @@ func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]
 // directly or through a tenant role. This mirrors the SSE authorization scope.
 func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([]*iot.PushSubscription, error) {
 	var subs []*iot.PushSubscription
-	query := base.GetDB(ctx, r.DB).NewSelect().
-		Model(&subs).
-		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
-		Join(activeAccountJoin).
-		Join(activeAccountTenantJoin).
-		Where(pushPortalFilter, iot.PushPortalStaff).
-		Where(`"account".active = ?`, true).
-		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+	query := r.activeSubscriptionsQuery(ctx, &subs, iot.PushPortalStaff).
 		Where(nonGuardianRoleFilter, authModels.BaseRoleGuardian).
 		Where(`EXISTS (
 			SELECT 1
@@ -210,7 +211,6 @@ func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([
 			    OR ("p".resource = '*' AND "p".action = '*')
 			  )
 		)`)
-	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find admin push subscriptions", Err: err}
 	}
@@ -225,17 +225,9 @@ func (r *PushSubscriptionRepository) FindForGuardians(ctx context.Context, guard
 		return nil, nil
 	}
 	var subs []*iot.PushSubscription
-	query := base.GetDB(ctx, r.DB).NewSelect().
-		Model(&subs).
-		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
-		Join(activeAccountJoin).
-		Join(activeAccountTenantJoin).
-		Where(pushPortalFilter, iot.PushPortalParent).
-		Where(`"account".active = ?`, true).
-		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+	query := r.activeSubscriptionsQuery(ctx, &subs, iot.PushPortalParent).
 		Where(guardianRoleFilter, authModels.BaseRoleGuardian).
 		Where(`"push_subscription".account_id IN (?)`, bun.List(guardianAccountIDs))
-	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find guardian push subscriptions", Err: err}
 	}

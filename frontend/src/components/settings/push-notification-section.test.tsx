@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PushNotificationSection } from "./push-notification-section";
 
 const pushApi = vi.hoisted(() => ({
+  ensurePushConfigured: vi.fn(),
+  getExistingSubscription: vi.fn(),
   isPushConfigurationMissing: vi.fn(),
   isPushSupported: vi.fn(),
   needsIOSInstall: vi.fn(),
-  syncExistingPushSubscription: vi.fn(),
   subscribePush: vi.fn(),
   unsubscribePush: vi.fn(),
 }));
@@ -23,7 +24,8 @@ describe("PushNotificationSection", () => {
     pushApi.isPushConfigurationMissing.mockReturnValue(false);
     pushApi.needsIOSInstall.mockReturnValue(false);
     pushApi.isPushSupported.mockReturnValue(true);
-    pushApi.syncExistingPushSubscription.mockResolvedValue(null);
+    pushApi.ensurePushConfigured.mockResolvedValue(undefined);
+    pushApi.getExistingSubscription.mockResolvedValue(null);
     stubNotificationPermission("default");
   });
 
@@ -57,7 +59,7 @@ describe("PushNotificationSection", () => {
   });
 
   it("shows a disabled state when VAPID is not configured", async () => {
-    pushApi.syncExistingPushSubscription.mockRejectedValue(
+    pushApi.ensurePushConfigured.mockRejectedValue(
       new Error("web push is not configured"),
     );
     pushApi.isPushConfigurationMissing.mockReturnValue(true);
@@ -84,7 +86,7 @@ describe("PushNotificationSection", () => {
 
   it("subscribes via the push API and flips to the active state", async () => {
     pushApi.subscribePush.mockImplementation(() => {
-      pushApi.syncExistingPushSubscription.mockResolvedValue({
+      pushApi.getExistingSubscription.mockResolvedValue({
         endpoint: "https://push.example/e",
       });
       return Promise.resolve();
@@ -126,11 +128,11 @@ describe("PushNotificationSection", () => {
   });
 
   it("unsubscribes and flips back to the inactive state", async () => {
-    pushApi.syncExistingPushSubscription.mockResolvedValue({
+    pushApi.getExistingSubscription.mockResolvedValue({
       endpoint: "https://push.example/e",
     });
     pushApi.unsubscribePush.mockImplementation(() => {
-      pushApi.syncExistingPushSubscription.mockResolvedValue(null);
+      pushApi.getExistingSubscription.mockResolvedValue(null);
       return Promise.resolve();
     });
 

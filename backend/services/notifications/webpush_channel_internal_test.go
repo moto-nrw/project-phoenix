@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
+	"golang.org/x/sync/semaphore"
 )
 
 // fakePushRepo implements the subscription lookups the channel needs; the
@@ -122,11 +123,11 @@ func testSub(id, tenantID int64, endpoint string) *iot.PushSubscription {
 
 func testChannel(repo *fakePushRepo, sender *fakeSender) *webPushChannel {
 	return &webPushChannel{
-		repo:      repo,
-		vapid:     testVAPID(),
-		sender:    sender,
-		logger:    slog.Default(),
-		sendSlots: make(chan struct{}, maxConcurrentPushSends),
+		repo:    repo,
+		vapid:   testVAPID(),
+		sender:  sender,
+		logger:  slog.Default(),
+		sendSem: semaphore.NewWeighted(maxConcurrentPushSends),
 	}
 }
 

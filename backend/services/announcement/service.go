@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -355,18 +356,11 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
 		priority = notifications.PriorityHigh
 	}
-	accountIDs := make([]int64, 0, len(recipients))
-	seen := make(map[int64]struct{}, len(recipients))
+	rawAccountIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
-		if recipient.AccountID <= 0 {
-			continue
-		}
-		if _, exists := seen[recipient.AccountID]; exists {
-			continue
-		}
-		seen[recipient.AccountID] = struct{}{}
-		accountIDs = append(accountIDs, recipient.AccountID)
+		rawAccountIDs = append(rawAccountIDs, recipient.AccountID)
 	}
+	accountIDs := sliceutil.UniquePositive(rawAccountIDs)
 	if len(accountIDs) == 0 {
 		return nil
 	}

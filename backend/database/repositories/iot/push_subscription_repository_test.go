@@ -28,22 +28,6 @@ func cleanupPushSubscriptions(t *testing.T, db *bun.DB, accountIDs ...int64) {
 	require.NoError(t, err)
 }
 
-func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID int64) {
-	t.Helper()
-	now := time.Now()
-	mapping := &authModels.AccountTenant{
-		AccountID:   accountID,
-		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
-		ActivatedAt: &now,
-	}
-	_, err := db.NewInsert().
-		Model(mapping).
-		ModelTableExpr("auth.account_tenants").
-		Exec(context.Background())
-	require.NoError(t, err)
-}
-
 func createPushTestSchool(t *testing.T, db *bun.DB) *platformModels.School {
 	t.Helper()
 	var organizationID int64
@@ -169,8 +153,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-parent-%d@example.com", time.Now().UnixNano()))
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID, guardian.ID)
 	defer cleanupPushSubscriptions(t, db, account.ID, guardian.ID)
-	createAccountTenantMapping(t, db, account.ID, 1)
-	createAccountTenantMapping(t, db, guardian.ID, 1)
+	testpkg.MapAccountToTenant(t, db, account.ID, 1)
+	testpkg.MapAccountToTenant(t, db, guardian.ID, 1)
 	assignSystemRole(t, db, account.ID, 1, authModels.BaseRoleUser)
 	assignSystemRole(t, db, guardian.ID, 1, authModels.BaseRoleGuardian)
 
@@ -422,7 +406,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		roleAdmin.ID:   "role-admin",
 		ordinary.ID:    "ordinary",
 	} {
-		createAccountTenantMapping(t, db, accountID, 1)
+		testpkg.MapAccountToTenant(t, db, accountID, 1)
 		assignSystemRole(t, db, accountID, 1, authModels.BaseRoleUser)
 		require.NoError(t, repo.Upsert(ctx, newSubscription(
 			accountID,
