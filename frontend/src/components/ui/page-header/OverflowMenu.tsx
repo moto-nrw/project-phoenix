@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { Check, MoreVertical } from "lucide-react";
 
 export interface OverflowMenuItem {
@@ -25,6 +26,20 @@ export interface OverflowMenuItem {
   readonly destructive?: boolean;
   /** When true, the item renders disabled and its onClick is suppressed. */
   readonly disabled?: boolean;
+  /**
+   * When set, the item renders as a link (next/link, or a plain anchor with
+   * `target="_blank"` when `external` is true) instead of a button, keeping
+   * native link semantics (middle-click, cmd-click). `onClick` still fires
+   * after the menu closes — pass a no-op when only navigation is needed.
+   */
+  readonly href?: string;
+  /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
+  readonly external?: boolean;
+}
+
+/** Non-interactive thin divider between item groups. */
+interface OverflowMenuSeparator {
+  readonly kind: "separator";
 }
 
 /** Non-interactive uppercase label grouping the entries below it. */
@@ -43,7 +58,10 @@ interface OverflowMenuRadioItem {
 }
 
 export type OverflowMenuEntry =
-  OverflowMenuItem | OverflowMenuHeader | OverflowMenuRadioItem;
+  | OverflowMenuItem
+  | OverflowMenuHeader
+  | OverflowMenuRadioItem
+  | OverflowMenuSeparator;
 
 interface OverflowMenuProps {
   /** Menu items to render. Empty array → renders nothing. */
@@ -299,6 +317,16 @@ export function OverflowMenu({
                   );
                 }
 
+                if ("kind" in entry && entry.kind === "separator") {
+                  return (
+                    <div
+                      key={`separator-${index}`}
+                      role="separator"
+                      className="my-1 h-px bg-gray-100"
+                    />
+                  );
+                }
+
                 const item = entry;
                 const colorClass = item.destructive
                   ? "text-red-600"
@@ -306,6 +334,58 @@ export function OverflowMenu({
                 const interactive = item.disabled
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
+                const itemClassName = `flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+
+                const inner = (
+                  <>
+                    {item.icon != null ? (
+                      <span className="flex size-4 flex-shrink-0 items-center justify-center text-gray-500">
+                        {item.icon}
+                      </span>
+                    ) : null}
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.badge != null ? (
+                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 tabular-nums">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </>
+                );
+
+                if (item.href != null && !item.disabled) {
+                  const onLinkActivate = () => {
+                    setIsOpen(false);
+                    item.onClick();
+                  };
+                  if (item.external) {
+                    return (
+                      <a
+                        key={`item-${item.label}`}
+                        role="menuitem"
+                        tabIndex={0}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={onLinkActivate}
+                        className={itemClassName}
+                      >
+                        {inner}
+                      </a>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={`item-${item.label}`}
+                      role="menuitem"
+                      tabIndex={0}
+                      href={item.href}
+                      onClick={onLinkActivate}
+                      className={itemClassName}
+                    >
+                      {inner}
+                    </Link>
+                  );
+                }
 
                 return (
                   <button
@@ -319,19 +399,9 @@ export function OverflowMenu({
                       item.onClick();
                     }}
                     onKeyDown={onItemKey(item)}
-                    className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`}
+                    className={itemClassName}
                   >
-                    {item.icon != null ? (
-                      <span className="flex size-4 flex-shrink-0 items-center justify-center text-gray-500">
-                        {item.icon}
-                      </span>
-                    ) : null}
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {item.badge != null ? (
-                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 tabular-nums">
-                        {item.badge}
-                      </span>
-                    ) : null}
+                    {inner}
                   </button>
                 );
               })}

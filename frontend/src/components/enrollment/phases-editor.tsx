@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import {
   CalendarClock,
   CalendarPlus,
@@ -14,7 +16,6 @@ import {
   ExternalLink,
   FileText,
   Link2,
-  MoreVertical,
   Pencil,
   Power,
   Trash2,
@@ -849,14 +850,6 @@ interface PhaseActionsProps {
   readonly onDelete: () => void;
 }
 
-interface PhaseActionsMenuPosition {
-  top: number;
-  left: number;
-  alignRight: boolean;
-}
-
-const PHASE_ACTIONS_MENU_HEIGHT = 292;
-
 function PhaseActions({
   phase,
   tenantSlug,
@@ -872,235 +865,83 @@ function PhaseActions({
   onToggleActive,
   onDelete,
 }: PhaseActionsProps) {
-  const [open, setOpen] = useState(false);
   const [lateInviteOpen, setLateInviteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState<PhaseActionsMenuPosition>({
-    top: 0,
-    left: 0,
-    alignRight: false,
-  });
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
   const enrollmentsHref = tenantPath(
     `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
   );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!open || !buttonRef.current) return;
-
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = 240;
-    const measuredHeight = menuRef.current?.offsetHeight ?? 0;
-    const menuHeight =
-      measuredHeight > 0 ? measuredHeight : PHASE_ACTIONS_MENU_HEIGHT;
-    const alignRight = rect.left + menuWidth > window.innerWidth - 16;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const placeAbove = spaceBelow < menuHeight + 16 && rect.top > spaceBelow;
-    const top = placeAbove
-      ? Math.max(8, rect.top - 6 - menuHeight)
-      : rect.bottom + 6;
-    setPosition({
-      top,
-      left: alignRight ? rect.right : rect.left,
-      alignRight,
-    });
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        menuRef.current &&
-        event.target instanceof Node &&
-        !menuRef.current.contains(event.target)
-      ) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleScroll() {
-      setOpen(false);
-    }
-
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [open]);
-
-  const menu = open && mounted && (
-    <div
-      ref={menuRef}
-      role="menu"
-      tabIndex={-1}
-      aria-label={`Aktionen für ${phase.name}`}
-      className="fixed z-[9999] w-60 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 text-left shadow-lg"
-      style={{
-        top: position.top,
-        left: position.alignRight ? "auto" : position.left,
-        right: position.alignRight ? window.innerWidth - position.left : "auto",
-      }}
-    >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onEdit();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <Pencil className="h-4 w-4 text-gray-500" aria-hidden />
-        Bearbeiten
-      </button>
-
-      <a
-        href={`/enroll/${encodeURIComponent(phase.id)}`}
-        target="_blank"
-        rel="noreferrer"
-        role="menuitem"
-        tabIndex={0}
-        onClick={() => setOpen(false)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-      >
-        <ExternalLink className="h-4 w-4 text-gray-500" aria-hidden />
-        Formular ansehen
-      </a>
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          setLateInviteOpen(true);
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <Link2 className="h-4 w-4 text-gray-500" aria-hidden />
-        Nachzügler-Link erstellen
-      </button>
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          setManualOpen(true);
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <UserCheck className="h-4 w-4 text-gray-500" aria-hidden />
-        Manuelle Anmeldung
-      </button>
-
-      <Link
-        href={enrollmentsHref}
-        role="menuitem"
-        tabIndex={0}
-        onClick={() => setOpen(false)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-      >
-        <ClipboardList className="h-4 w-4 text-gray-500" aria-hidden />
-        Anmeldungen ansehen
-      </Link>
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onAssignForm();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <FileText className="h-4 w-4 text-gray-500" aria-hidden />
-        Formular zuweisen
-      </button>
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onRollover();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving || rolloverActive}
-      >
-        <CalendarPlus className="h-4 w-4 text-gray-500" aria-hidden />
-        Anschlussphase erstellen
-      </button>
-
-      {hasReviewList ? (
-        <Link
-          href={`/enrollment-phases/${encodeURIComponent(phase.id)}/review`}
-          role="menuitem"
-          tabIndex={0}
-          onClick={() => setOpen(false)}
-          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-        >
-          <Check className="h-4 w-4 text-gray-500" aria-hidden />
-          Prüfliste öffnen
-        </Link>
-      ) : null}
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onToggleActive();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <Power className="h-4 w-4 text-gray-500" aria-hidden />
-        {phase.is_active ? "Deaktivieren" : "Aktivieren"}
-      </button>
-
-      <div className="my-1 h-px bg-gray-100" />
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onDelete();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={deleting || saving}
-      >
-        <Trash2 className="h-4 w-4" aria-hidden />
-        {deleting ? "Löscht..." : "Löschen"}
-      </button>
-    </div>
-  );
+  const menuEntries: OverflowMenuEntry[] = [
+    {
+      label: "Bearbeiten",
+      icon: <Pencil className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: onEdit,
+    },
+    {
+      label: "Formular ansehen",
+      icon: <ExternalLink className="h-4 w-4" aria-hidden />,
+      href: `/enroll/${encodeURIComponent(phase.id)}`,
+      external: true,
+      onClick: () => undefined,
+    },
+    {
+      label: "Nachzügler-Link erstellen",
+      icon: <Link2 className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: () => setLateInviteOpen(true),
+    },
+    {
+      label: "Manuelle Anmeldung",
+      icon: <UserCheck className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: () => setManualOpen(true),
+    },
+    {
+      label: "Anmeldungen ansehen",
+      icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+      href: enrollmentsHref,
+      onClick: () => undefined,
+    },
+    {
+      label: "Formular zuweisen",
+      icon: <FileText className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: onAssignForm,
+    },
+    {
+      label: "Anschlussphase erstellen",
+      icon: <CalendarPlus className="h-4 w-4" aria-hidden />,
+      disabled: saving || rolloverActive,
+      onClick: onRollover,
+    },
+    ...(hasReviewList
+      ? [
+          {
+            label: "Prüfliste öffnen",
+            icon: <Check className="h-4 w-4" aria-hidden />,
+            href: `/enrollment-phases/${encodeURIComponent(phase.id)}/review`,
+            onClick: () => undefined,
+          },
+        ]
+      : []),
+    {
+      label: phase.is_active ? "Deaktivieren" : "Aktivieren",
+      icon: <Power className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: onToggleActive,
+    },
+    { kind: "separator" },
+    {
+      label: deleting ? "Löscht..." : "Löschen",
+      icon: <Trash2 className="h-4 w-4" aria-hidden />,
+      destructive: true,
+      disabled: deleting || saving,
+      onClick: onDelete,
+    },
+  ];
 
   return (
     <>
@@ -1111,24 +952,15 @@ function PhaseActions({
             componentId={`PhaseActions:${phase.id}`}
           />
         ) : null}
-        <div>
-          <button
-            ref={buttonRef}
-            type="button"
-            onClick={() => setOpen((prev) => !prev)}
-            aria-label={`Aktionen für ${phase.name}`}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              highlight
-                ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5F9F20] shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
-                : "border-gray-200"
-            }`}
-          >
-            <MoreVertical className="h-4 w-4" aria-hidden="true" />
-          </button>
-          {mounted ? createPortal(menu, document.body) : null}
-        </div>
+        <OverflowMenu
+          ariaLabel={`Aktionen für ${phase.name}`}
+          items={menuEntries}
+          triggerClassName={
+            highlight
+              ? "bg-[#83CD2D]/10 shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
+              : ""
+          }
+        />
       </div>
       <LateInviteModal
         isOpen={lateInviteOpen}

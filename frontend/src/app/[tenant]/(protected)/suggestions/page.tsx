@@ -4,7 +4,9 @@ import { useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
+import { Lightbulb, Search } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SuggestionCard } from "~/components/suggestions/suggestion-card";
@@ -272,57 +274,29 @@ function EmptyState({
 }) {
   if (hasSearch) {
     return (
-      <div className="flex flex-col items-center gap-3 py-12 text-center">
-        <svg
-          className="h-12 w-12 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
-        </svg>
-        <p className="text-lg font-medium text-gray-900">
-          Keine Ergebnisse gefunden
-        </p>
-        <p className="text-sm text-gray-500">
-          Versuche einen anderen Suchbegriff.
-        </p>
-      </div>
+      <UIEmptyState
+        icon={<Search className="h-12 w-12" strokeWidth={1.5} />}
+        title="Keine Ergebnisse gefunden"
+        description="Versuche einen anderen Suchbegriff."
+      />
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-4 py-12 text-center">
-      <svg
-        className="h-12 w-12 text-gray-400"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-        />
-      </svg>
-      <p className="text-lg font-medium text-gray-900">Noch keine Beiträge</p>
-      <p className="text-sm text-gray-500">
-        Teile Ideen, melde Probleme oder schlage Verbesserungen vor.
-      </p>
-      <button
-        type="button"
-        onClick={onCreateClick}
-        className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-      >
-        Neuer Beitrag
-      </button>
-    </div>
+    <UIEmptyState
+      icon={<Lightbulb className="h-12 w-12" strokeWidth={1.5} />}
+      title="Noch keine Beiträge"
+      description="Teile Ideen, melde Probleme oder schlage Verbesserungen vor."
+      action={
+        <button
+          type="button"
+          onClick={onCreateClick}
+          className="rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+        >
+          Neuer Beitrag
+        </button>
+      }
+    />
   );
 }
 

@@ -24,6 +24,10 @@ import {
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
 
@@ -40,15 +44,15 @@ const CHANGE_REQUEST_STATUS_LABELS: Record<
   cancelled: "Abgebrochen",
 };
 
-const CHANGE_REQUEST_STATUS_STYLES: Record<
+const CHANGE_REQUEST_STATUS_TONES: Record<
   AdminEnrollmentChangeRequestStatus,
-  { bg: string; dot: string; text: string }
+  StatusBadgeTone
 > = {
-  pending_review: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
-  needs_parent_response: { bg: "#FFF4E6", dot: "#F78C10", text: "#8A5600" },
-  approved: { bg: "#83CD2D1A", dot: "#83CD2D", text: "#5A8B1F" },
-  rejected: { bg: "#FF31301A", dot: "#FF3130", text: "#9F1F1E" },
-  cancelled: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
+  pending_review: "blue",
+  needs_parent_response: "orange",
+  approved: "green",
+  rejected: "red",
+  cancelled: "gray",
 };
 
 const STATUS_OPTIONS: Array<{
@@ -621,19 +625,11 @@ function ChangeRequestStatusBadge({
 }: {
   readonly status: AdminEnrollmentChangeRequestStatus;
 }) {
-  const styles = CHANGE_REQUEST_STATUS_STYLES[status];
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-      style={{ backgroundColor: styles.bg, color: styles.text }}
-    >
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-        aria-hidden="true"
-      />
-      {CHANGE_REQUEST_STATUS_LABELS[status]}
-    </span>
+    <StatusBadge
+      label={CHANGE_REQUEST_STATUS_LABELS[status]}
+      tone={CHANGE_REQUEST_STATUS_TONES[status]}
+    />
   );
 }
 
