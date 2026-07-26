@@ -10,6 +10,7 @@ describe("mapAuditLogEvent", () => {
     const backend: BackendAuditLogEvent = {
       occurred_at: "2026-06-10T14:00:00+02:00",
       source: "session_edit",
+      entry_id: 123,
       staff: { id: 42, name: "Anna Muster" },
       actor: {
         staff_id: 7,
@@ -24,6 +25,7 @@ describe("mapAuditLogEvent", () => {
     const event = mapAuditLogEvent(backend);
 
     expect(event.staffId).toBe("42");
+    expect(event.entryId).toBe("123");
     expect(event.staffName).toBe("Anna Muster");
     expect(event.actorStaffId).toBe("7");
     expect(event.actorIsSystem).toBe(false);
@@ -34,6 +36,7 @@ describe("mapAuditLogEvent", () => {
     const backend: BackendAuditLogEvent = {
       occurred_at: "2026-06-10T14:00:00+02:00",
       source: "month_close",
+      entry_id: 456,
       actor: { name: "System", is_system: true, is_self: false },
       reason: "",
       detail: { year: 2026, month: 5, account_count: 18 },

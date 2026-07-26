@@ -19,6 +19,7 @@ export type AuditLogSource =
 export interface BackendAuditLogEvent {
   occurred_at: string;
   source: AuditLogSource;
+  entry_id: number;
   staff?: { id: number; name: string };
   actor: {
     staff_id?: number;
@@ -43,6 +44,7 @@ export interface BackendAuditLogPage {
 export interface AuditLogEvent {
   occurredAt: string;
   source: AuditLogSource;
+  entryId: string;
   staffId: string | null;
   staffName: string;
   actorStaffId: string | null;
@@ -72,6 +74,7 @@ export function mapAuditLogEvent(data: BackendAuditLogEvent): AuditLogEvent {
   return {
     occurredAt: data.occurred_at,
     source: data.source,
+    entryId: data.entry_id.toString(),
     staffId: data.staff ? data.staff.id.toString() : null,
     staffName: data.staff?.name ?? "",
     actorStaffId:

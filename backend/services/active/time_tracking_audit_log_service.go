@@ -46,6 +46,7 @@ type AuditLogActor struct {
 type AuditLogEvent struct {
 	OccurredAt time.Time       `json:"occurred_at"`
 	Source     string          `json:"source"`
+	EntryID    int64           `json:"entry_id"`
 	Staff      *AuditLogPerson `json:"staff,omitempty"`
 	Actor      AuditLogActor   `json:"actor"`
 	Reason     string          `json:"reason"`
@@ -182,6 +183,7 @@ func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*a
 		event := &AuditLogEvent{
 			OccurredAt: e.OccurredAt,
 			Source:     e.Source,
+			EntryID:    e.EntryID,
 			Reason:     e.Reason,
 			Detail:     e.Detail,
 		}

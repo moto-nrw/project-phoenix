@@ -160,8 +160,8 @@ func (r *timeTrackingAuditLogRepository) ListEntries(ctx context.Context, filter
 		args = append(args, filter.From.BerlinMidnight())
 	}
 	if filter.To != nil {
-		sb.WriteString(" AND ev.occurred_at <= ?")
-		args = append(args, filter.To.EndOfDay())
+		sb.WriteString(" AND ev.occurred_at < ?")
+		args = append(args, filter.To.AddDays(1).BerlinMidnight())
 	}
 	if filter.StaffID > 0 {
 		sb.WriteString(" AND ? = ANY(ev.staff_ids)")

@@ -1113,6 +1113,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RoleRepo:               repos.Role,
 		AccountPermissionRepo:  repos.AccountPermission,
 		DataDeletionRepo:       repos.DataDeletion,
+		TimeTrackingDeleteRepo: repos.TimeTrackingDeletion,
 		AuthService:            authService,
 		DB:                     db,
 		Logger:                 logger.With("service", "staff_offboarding"),

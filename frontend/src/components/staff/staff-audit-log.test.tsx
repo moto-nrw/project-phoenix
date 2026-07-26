@@ -6,7 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuditLogEvent, AuditLogPage } from "~/lib/staff-audit-log-api";
 import { StaffAuditLog } from "./staff-audit-log";
@@ -30,6 +30,7 @@ function event(
   return {
     occurredAt: `2026-${String(month).padStart(2, "0")}-01T09:00:00+02:00`,
     source: "month_reopen",
+    entryId: String(month),
     staffId,
     staffName,
     actorStaffId: "7",
@@ -55,6 +56,9 @@ function page(
 describe("StaffAuditLog", () => {
   beforeEach(() => {
     getAuditLog.mockReset();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("ignoriert eine alte Weitere-Einträge-Antwort nach einem Filterwechsel", async () => {
@@ -113,5 +117,23 @@ describe("StaffAuditLog", () => {
         ),
       ).toBeInTheDocument();
     });
+  });
+
+  it("rendert Ereignisse mit gleichem Umschlag über eindeutige Entry-IDs", async () => {
+    const first = event(6);
+    const second = { ...event(6), entryId: "different-entry" };
+    getAuditLog.mockResolvedValueOnce(page([first, second], null));
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    render(<StaffAuditLog staffOptions={[]} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Monat 06\/2026 wieder geöffnet/),
+      ).toHaveLength(2);
+    });
+    expect(consoleError).not.toHaveBeenCalled();
   });
 });

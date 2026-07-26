@@ -327,11 +327,16 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deletedBy := jwt.ClaimsFromCtx(r.Context()).Username
+	claims := jwt.ClaimsFromCtx(r.Context())
+	deletedByStaffID, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedBy)
+		return rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedByStaffID, claims.Username)
 	}); err != nil {
 		if errors.Is(err, usersSvc.ErrStaffInUse) {
 			common.RenderError(w, r, common.ErrorConflictMessage(usersSvc.ErrStaffInUse.Error()))

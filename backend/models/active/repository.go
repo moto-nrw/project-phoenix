@@ -371,6 +371,10 @@ type StaffAbsenceRepository interface {
 	// ordered by requested_at (used for the /staff inbox: requested + question)
 	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
 
+	// ListNonHistoricalByStaffID returns absences that offboarding will delete:
+	// pending/question rows or absences whose end date has not passed.
+	ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*StaffAbsence, error)
+
 	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
 	// ('requested' or 'question') or not yet over (date_end >= from). Past
 	// decided absences stay as history. Used by staff offboarding.

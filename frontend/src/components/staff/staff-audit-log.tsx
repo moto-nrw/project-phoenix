@@ -383,9 +383,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
       <DataTable
         columns={columns}
         rows={events}
-        getRowKey={(row) =>
-          `${row.source}:${row.occurredAt}:${row.staffId ?? "school"}:${row.actorStaffId ?? "system"}`
-        }
+        getRowKey={(row) => `${row.source}:${row.entryId}`}
         isLoading={isLoading && events.length === 0}
         emptyState={
           <div className="py-10 text-center">

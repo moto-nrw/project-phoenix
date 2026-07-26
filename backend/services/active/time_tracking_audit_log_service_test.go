@@ -210,6 +210,9 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 	for i := 1; i < len(page.Events); i++ {
 		assert.False(t, page.Events[i].OccurredAt.After(page.Events[i-1].OccurredAt), "feed must be sorted newest first")
 	}
+	for _, event := range page.Events {
+		assert.Positive(t, event.EntryID, "every API event must expose its unique source entry id")
+	}
 
 	edit := bySource[auditModels.AuditLogSourceSessionEdit][0]
 	require.NotNil(t, edit.Staff)
@@ -300,6 +303,35 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 		bySource := eventsBySource(page.Events)
 		assert.Len(t, bySource[auditModels.AuditLogSourceMonthClose], 1)
 		assert.Empty(t, bySource[auditModels.AuditLogSourceMonthReopen], "reopen happened on Sep 2")
+	})
+
+	t.Run("to date includes the final fractional second", func(t *testing.T) {
+		day := timezone.NewDate(2025, time.September, 3)
+		finalFraction := time.Date(2025, time.September, 3, 23, 59, 59, 500_000_000, timezone.Berlin)
+		nextMidnight := day.AddDays(1).BerlinMidnight()
+		for sourceID, occurredAt := range map[int64]time.Time{
+			9001: finalFraction,
+			9002: nextMidnight,
+		} {
+			require.NoError(t, f.repos.TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
+				StaffID:    f.staffA.ID,
+				Source:     auditModels.TimeTrackingDeletionSourceAbsence,
+				SourceID:   sourceID,
+				DeletedBy:  f.admin.ID,
+				Payload:    json.RawMessage(`{"test":true}`),
+				Note:       "Datumsgrenze",
+				OccurredAt: occurredAt,
+			}))
+		}
+
+		page, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{
+			From:    &day,
+			To:      &day,
+			Sources: []string{auditModels.AuditLogSourceDeletion},
+		})
+		require.NoError(t, err)
+		require.Len(t, page.Events, 1)
+		assert.Equal(t, finalFraction, page.Events[0].OccurredAt)
 	})
 
 	t.Run("unknown source is invalid", func(t *testing.T) {
