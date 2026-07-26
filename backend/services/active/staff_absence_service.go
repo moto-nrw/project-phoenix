@@ -264,7 +264,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 
 	var resp *StaffAbsenceResponse
 	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
-		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
+		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, createdByStaffID, req)
 	} else {
 		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
 			return nil, err
@@ -334,6 +334,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	ctx context.Context,
 	existing []*activeModels.StaffAbsence,
 	dateStart, dateEnd timezone.Date,
+	actorStaffID int64,
 	req CreateAbsenceRequest,
 ) (*StaffAbsenceResponse, error) {
 	// Check if all overlapping absences have the same type
@@ -384,7 +385,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 
 	// Delete remaining overlapping absences. The reassigned provenance and the
 	// primary update must roll back if even one secondary cannot be removed.
-	if err := s.deleteRemainingAbsences(ctx, existing[1:]); err != nil {
+	if err := s.deleteRemainingAbsences(ctx, existing[1:], actorStaffID); err != nil {
 		return nil, err
 	}
 
@@ -595,8 +596,11 @@ func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, 
 }
 
 // deleteRemainingAbsences deletes absences that were merged into the primary.
-func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) error {
+func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence, actorStaffID int64) error {
 	for _, e := range absences {
+		if err := s.writeAbsenceDeletionAudit(ctx, e, actorStaffID); err != nil {
+			return fmt.Errorf("failed to audit merged absence %d: %w", e.ID, err)
+		}
 		if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
 			return fmt.Errorf("failed to delete merged absence %d: %w", e.ID, err)
 		}
@@ -862,6 +866,18 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	// Tombstone first, delete second, same tenant tx: the absence's own
 	// audit rows CASCADE away with it, so this row is the only surviving
 	// trace (#1417).
+	if err := s.writeAbsenceDeletionAudit(ctx, absence, actorStaffID); err != nil {
+		return err
+	}
+	if err := s.absenceRepo.Delete(ctx, absenceID); err != nil {
+		return fmt.Errorf("failed to delete absence: %w", err)
+	}
+
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
+}
+
+func (s *staffAbsenceService) writeAbsenceDeletionAudit(ctx context.Context, absence *activeModels.StaffAbsence, actorStaffID int64) error {
 	if s.deletionRepo == nil {
 		return fmt.Errorf("time tracking deletion audit repository is not configured")
 	}
@@ -879,11 +895,6 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	}); err != nil {
 		return fmt.Errorf("failed to write deletion audit: %w", err)
 	}
-	if err := s.absenceRepo.Delete(ctx, absenceID); err != nil {
-		return fmt.Errorf("failed to delete absence: %w", err)
-	}
-
-	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 

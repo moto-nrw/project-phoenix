@@ -6,7 +6,7 @@
 // time_tracking:manage (the page never mounts it otherwise, so no request
 // fires without the permission).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -136,6 +136,14 @@ function actorLabel(event: AuditLogEvent): string {
   return event.actorIsSelf ? `${event.actorName} (selbst)` : event.actorName;
 }
 
+function staffLabel(event: AuditLogEvent) {
+  if (event.staffId === null) {
+    return <span className="text-gray-400">Alle Mitarbeitenden</span>;
+  }
+  if (event.staffName) return event.staffName;
+  return <span className="text-gray-400">Unbekannte/ehemalige Person</span>;
+}
+
 const sourceOptions = [
   { value: "all", label: "Alle Bereiche" },
   ...Object.entries(auditLogSourceLabels).map(([value, label]) => ({
@@ -156,6 +164,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
   const [retentionCutoff, setRetentionCutoff] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestVersionRef = useRef(0);
 
   const query = useMemo(
     () => ({
@@ -170,44 +179,54 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
   );
 
   useEffect(() => {
-    let cancelled = false;
+    const requestVersion = requestVersionRef.current + 1;
+    requestVersionRef.current = requestVersion;
+    setEvents([]);
+    setNextCursor(null);
     setIsLoading(true);
     setError(null);
     staffAuditLogService
       .getAuditLog(query)
       .then((page) => {
-        if (cancelled) return;
+        if (requestVersionRef.current !== requestVersion) return;
         setEvents(page.events);
         setNextCursor(page.nextCursor);
         setRetentionCutoff(page.retentionCutoff);
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
+        if (requestVersionRef.current !== requestVersion) return;
         log.error("failed to load audit log", { error: err });
         setError("Änderungsprotokoll konnte nicht geladen werden.");
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (requestVersionRef.current === requestVersion) setIsLoading(false);
       });
     return () => {
-      cancelled = true;
+      if (requestVersionRef.current === requestVersion) {
+        requestVersionRef.current++;
+      }
     };
   }, [query]);
 
   const loadMore = useCallback(() => {
     if (!nextCursor) return;
+    const requestVersion = requestVersionRef.current;
     setIsLoading(true);
     staffAuditLogService
       .getAuditLog({ ...query, cursor: nextCursor })
       .then((page) => {
+        if (requestVersionRef.current !== requestVersion) return;
         setEvents((prev) => [...prev, ...page.events]);
         setNextCursor(page.nextCursor);
       })
       .catch((err: unknown) => {
+        if (requestVersionRef.current !== requestVersion) return;
         log.error("failed to load more audit log entries", { error: err });
         setError("Weitere Einträge konnten nicht geladen werden.");
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (requestVersionRef.current === requestVersion) setIsLoading(false);
+      });
   }, [nextCursor, query]);
 
   const columns: DataTableColumn<AuditLogEvent>[] = useMemo(
@@ -228,10 +247,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
       {
         key: "staff",
         header: "Mitarbeiter:in",
-        render: (row) =>
-          row.staffName || (
-            <span className="text-gray-400">Alle Mitarbeitenden</span>
-          ),
+        render: staffLabel,
       },
       {
         key: "source",

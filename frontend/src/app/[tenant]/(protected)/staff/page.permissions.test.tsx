@@ -74,6 +74,9 @@ vi.mock("~/components/staff/school-overview-section", () => ({
     return <div data-testid="schul-uebersicht" />;
   },
 }));
+vi.mock("~/components/staff/staff-audit-log", () => ({
+  StaffAuditLog: () => <div data-testid="staff-audit-log" />,
+}));
 vi.mock("~/components/staff/month-close-modal", () => ({
   MonthCloseReasonModal: ({
     onSubmit,
@@ -137,6 +140,29 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(
       screen.queryByRole("tab", { name: "Status" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("erlaubt time_tracking:manage ohne users:read den Wechsel ins Änderungsprotokoll", () => {
+    mockSession(["time_tracking:manage"]);
+
+    render(<StaffPage />);
+
+    const auditTab = screen.getByRole("tab", {
+      name: "Änderungsprotokoll",
+    });
+    fireEvent.pointerDown(auditTab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(auditTab, { button: 0 });
+    fireEvent.click(auditTab);
+
+    expect(screen.getByTestId("staff-audit-log")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Status" }),
+    ).not.toBeInTheDocument();
+    expect(getAllStaff).not.toHaveBeenCalled();
+    expect(getTimeAccounts).toHaveBeenLastCalledWith({
+      year: 2026,
+      month: 9,
+    });
   });
 
   it("zeigt ohne eine der beiden Leseberechtigungen eine Zugriffssperre", () => {
