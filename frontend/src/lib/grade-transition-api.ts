@@ -357,6 +357,15 @@ export const PREVIEW_STALE_CODE = "preview_stale";
 export const NOT_DRAFT_CODE = "not_draft";
 
 /**
+ * Stable backend error code returned (409) when a revert targets a transition
+ * that is not in applied status — it is still a draft, or another
+ * administrator already reverted it since this page loaded. Retrying is
+ * pointless; the caller must reload the list. Mirrors the code the Go handler
+ * sets via ErrorConflictWithCode (#405 review).
+ */
+export const NOT_APPLIED_CODE = "not_applied";
+
+/**
  * Error thrown by {@link applyGradeTransition} and {@link revertGradeTransition}
  * that preserves the backend's stable error `code`, so the caller can
  * distinguish a recoverable conflict (graduates still checked in, stale revert

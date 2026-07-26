@@ -47,12 +47,20 @@ var ErrNotLatestApplied = errors.New("only the most recently applied transition 
 // never a 500 (#405).
 var ErrPreviewStale = errors.New("the preview is out of date: the affected classes or children have changed")
 
-// ErrTransitionNotDraft is returned by Update/Delete when the targeted
+// ErrTransitionNotDraft is returned by Update/Delete/Apply when the targeted
 // transition is no longer a draft — another admin applied (or reverted) it
 // between the editor's load and this write. A normal concurrent-edit outcome,
 // not a server fault: handlers map it to 409 Conflict so the UI refreshes the
 // stale editor instead of showing a generic failure (#405 review).
 var ErrTransitionNotDraft = errors.New("must be in draft status")
+
+// ErrTransitionNotApplied is returned by Revert when the targeted transition
+// is not in applied status — it is still a draft, or another admin already
+// reverted it between the list's load and this request. Like the other stale-
+// state outcomes above it is client-recoverable, so handlers map it to 409
+// Conflict and the UI reloads the list instead of offering a retry that can
+// never succeed (#405 review).
+var ErrTransitionNotApplied = errors.New("must be in applied status")
 
 // ErrInvalidTransitionData wraps client-correctable validation failures in a
 // submitted transition or its mappings (bad academic-year format, empty
@@ -748,18 +756,21 @@ func (s *GradeTransitionService) lockRecurrenceThenTransitions(ctx context.Conte
 	return s.transitionRepo.LockTenantTransitions(ctx)
 }
 
-// validateCanApply checks if a transition can be applied.
+// validateCanApply checks if a transition can be applied. Every refusal wraps
+// ErrTransitionNotDraft: they are all the same stale-state outcome (the draft
+// the admin loaded has since been applied, reverted, or emptied), which the
+// handler must answer with 409, not 500 (#405 review).
 func validateCanApply(transition *education.GradeTransition) error {
 	if transition.CanApply() {
 		return nil
 	}
 	if transition.IsApplied() {
-		return errors.New("transition has already been applied")
+		return fmt.Errorf("%w: transition has already been applied", ErrTransitionNotDraft)
 	}
 	if transition.IsReverted() {
-		return errors.New("transition has been reverted")
+		return fmt.Errorf("%w: transition has been reverted", ErrTransitionNotDraft)
 	}
-	return errors.New("cannot apply transition: must be in draft status with mappings")
+	return fmt.Errorf("cannot apply transition: %w with mappings", ErrTransitionNotDraft)
 }
 
 // executeApply performs the actual apply within a transaction.
@@ -1387,15 +1398,18 @@ func (s *GradeTransitionService) Revert(ctx context.Context, id int64, accountID
 	return result, nil
 }
 
-// validateCanRevert checks if a transition can be reverted.
+// validateCanRevert checks if a transition can be reverted. Both refusals wrap
+// ErrTransitionNotApplied — a draft was never applied, and an already-reverted
+// transition has nothing left to undo. Either way the caller's list was stale
+// and the handler answers 409 so the UI reloads it (#405 review).
 func validateCanRevert(transition *education.GradeTransition) error {
 	if transition.CanRevert() {
 		return nil
 	}
 	if transition.IsDraft() {
-		return errors.New("transition has not been applied yet")
+		return fmt.Errorf("%w: transition has not been applied yet", ErrTransitionNotApplied)
 	}
-	return errors.New("transition has already been reverted")
+	return fmt.Errorf("%w: transition has already been reverted", ErrTransitionNotApplied)
 }
 
 // executeRevert performs the actual revert within a transaction.
@@ -1764,6 +1778,15 @@ func (s *GradeTransitionService) GetHistoryWithStudentStates(
 	ctx context.Context,
 	transitionID int64,
 ) ([]*education.GradeTransitionHistory, map[int64]string, error) {
+	// The ledger query alone cannot tell "transition without history" (a draft,
+	// legitimately empty) apart from "transition does not exist" — both come
+	// back as zero rows. Resolve the transition first so a nonexistent id is a
+	// not-found error the handler turns into 404, not a 200 with an empty list
+	// (#405 review).
+	if _, err := s.transitionRepo.FindByID(ctx, transitionID); err != nil {
+		return nil, nil, fmt.Errorf(errFmtTransitionNotFound, err)
+	}
+
 	history, err := s.transitionRepo.GetHistory(ctx, transitionID)
 	if err != nil {
 		return nil, nil, err

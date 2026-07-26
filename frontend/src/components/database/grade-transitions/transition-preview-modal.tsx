@@ -12,6 +12,7 @@ import { createLogger } from "~/lib/logger";
 import {
   applyGradeTransition,
   GRADUATES_CHECKED_IN_CODE,
+  NOT_DRAFT_CODE,
   PREVIEW_STALE_CODE,
   TransitionRequestError,
   previewGradeTransition,
@@ -118,6 +119,16 @@ export function TransitionPreviewModal({
           "Die Daten haben sich seit dem Öffnen dieser Vorschau geändert (Klassen oder Zuordnungen). Die Vorschau wurde neu geladen. Bitte erneut prüfen und dann bestätigen.",
         );
         await reloadPreview();
+      } else if (
+        error instanceof TransitionRequestError &&
+        error.code === NOT_DRAFT_CODE
+      ) {
+        // The draft was applied (or reverted) by another admin since this
+        // modal opened. Retrying can never succeed, so say what happened
+        // instead of offering a hopeless retry (#405 review).
+        setApplyError(
+          "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder verändert. Bitte das Fenster schließen und die Liste aktualisieren.",
+        );
       } else {
         setApplyError(
           "Der Jahrgangswechsel konnte nicht angewendet werden. Bitte erneut versuchen.",

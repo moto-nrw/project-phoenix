@@ -19,6 +19,7 @@ import {
   listGradeTransitions,
   TransitionRequestError,
   GRADUATES_CHECKED_IN_CODE,
+  NOT_APPLIED_CODE,
   NOT_LATEST_TRANSITION_CODE,
   PREVIEW_STALE_CODE,
   NOT_DRAFT_CODE,
@@ -409,6 +410,21 @@ describe("revertGradeTransition", () => {
     expect((err as TransitionRequestError).code).toBe(
       NOT_LATEST_TRANSITION_CODE,
     );
+  });
+
+  // #405 review: reverting a transition another admin already reverted (or
+  // that is still a draft) now answers 409 not_applied instead of 500, so the
+  // manager can reload the list instead of offering a hopeless retry.
+  it("keeps the not_applied code so the caller can reload", async () => {
+    stubOnce(
+      fail(409, {
+        error: "transition has already been reverted",
+        code: NOT_APPLIED_CODE,
+      }),
+    );
+
+    const err = await revertGradeTransition("7").catch((e: unknown) => e);
+    expect((err as TransitionRequestError).code).toBe(NOT_APPLIED_CODE);
   });
 });
 

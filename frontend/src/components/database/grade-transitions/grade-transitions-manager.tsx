@@ -14,6 +14,7 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   deleteGradeTransition,
   listGradeTransitions,
+  NOT_APPLIED_CODE,
   NOT_DRAFT_CODE,
   NOT_LATEST_TRANSITION_CODE,
   revertGradeTransition,
@@ -270,6 +271,19 @@ export function GradeTransitionsManager({
           latest
             ? `Inzwischen wurde ein neuerer Jahrgangswechsel angewendet. Es muss zuerst ${latest.academicYear} zurückgesetzt werden - die Auswahl wurde entsprechend angepasst.`
             : "Inzwischen wurde ein neuerer Jahrgangswechsel angewendet. Die Liste wurde neu geladen.",
+        );
+      } else if (
+        error instanceof TransitionRequestError &&
+        error.code === NOT_APPLIED_CODE
+      ) {
+        // The target is no longer in applied status: another admin already
+        // reverted it since this list was fetched. Retrying the same ID can
+        // never succeed, so reload the list and close the dialog instead of
+        // suggesting a retry (#405 review).
+        setRevertTarget(null);
+        void refresh();
+        toast.error(
+          "Der Jahrgangswechsel wurde inzwischen bereits zurückgesetzt. Die Liste wurde neu geladen.",
         );
       } else {
         toast.error("Zurücksetzen fehlgeschlagen. Bitte erneut versuchen.");

@@ -576,6 +576,45 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		assert.Equal(t, "graduates_checked_in", response["code"])
 	})
+
+	// #405 review: applying a draft another admin has since applied is a normal
+	// stale-state conflict — 409 with the not_draft code so the UI reloads the
+	// list, never a bare 500.
+	t.Run("apply already-applied transition returns 409 not_draft", func(t *testing.T) {
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		fromClass := fmt.Sprintf("1e-%s", suffix)
+		toClass := fmt.Sprintf("2e-%s", suffix)
+
+		student := testpkg.CreateTestStudent(t, tc.db, "Stale", "Apply", fromClass)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, fromClass, &toClass)
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
+
+		url := fmt.Sprintf("/%d/apply", transition.ID)
+		firstRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", url, nil,
+			testutil.WithJWTBearer(token),
+		))
+		require.Equal(t, http.StatusOK, firstRR.Code)
+
+		secondRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", url, nil,
+			testutil.WithJWTBearer(token),
+		))
+		require.Equal(t, http.StatusConflict, secondRR.Code)
+		response := testutil.ParseJSONResponse(t, secondRR.Body.Bytes())
+		assert.Equal(t, "not_draft", response["code"])
+	})
+
+	// #405 review: a deleted (or never-existing) transition is 404, not 500.
+	t.Run("apply nonexistent transition returns 404", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/999999/apply", nil,
+			testutil.WithJWTBearer(token),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+	})
 }
 
 // ============================================================================
@@ -640,6 +679,66 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 
 		rr := testutil.ExecuteRequest(router, req)
 		assert.NotEqual(t, http.StatusOK, rr.Code)
+	})
+
+	// #405 review: reverting a draft or an already-reverted transition is a
+	// stale-list conflict — 409 with the not_applied code so the UI reloads,
+	// never a bare 500.
+	t.Run("revert draft transition returns 409 not_applied", func(t *testing.T) {
+		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "8y", testpkg.StrPtr("9y"))
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
+
+		url := fmt.Sprintf("/%d/revert", transition.ID)
+		req := testutil.NewAuthenticatedRequest(t, "POST", url, nil,
+			testutil.WithJWTBearer(token),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+		require.Equal(t, http.StatusConflict, rr.Code)
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		assert.Equal(t, "not_applied", response["code"])
+	})
+
+	t.Run("revert already-reverted transition returns 409 not_applied", func(t *testing.T) {
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		fromClass := fmt.Sprintf("1f-%s", suffix)
+		toClass := fmt.Sprintf("2f-%s", suffix)
+
+		student := testpkg.CreateTestStudent(t, tc.db, "Twice", "Revert", fromClass)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, fromClass, &toClass)
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
+
+		applyRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST",
+			fmt.Sprintf("/%d/apply", transition.ID), nil, testutil.WithJWTBearer(token),
+		))
+		require.Equal(t, http.StatusOK, applyRR.Code)
+
+		revertURL := fmt.Sprintf("/%d/revert", transition.ID)
+		firstRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", revertURL, nil,
+			testutil.WithJWTBearer(token),
+		))
+		require.Equal(t, http.StatusOK, firstRR.Code)
+
+		secondRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", revertURL, nil,
+			testutil.WithJWTBearer(token),
+		))
+		require.Equal(t, http.StatusConflict, secondRR.Code)
+		response := testutil.ParseJSONResponse(t, secondRR.Body.Bytes())
+		assert.Equal(t, "not_applied", response["code"])
+	})
+
+	// #405 review: a deleted (or never-existing) transition is 404, not 500.
+	t.Run("revert nonexistent transition returns 404", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/999999/revert", nil,
+			testutil.WithJWTBearer(token),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
 	})
 }
 
@@ -775,6 +874,17 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 		} else {
 			assert.Nil(t, response["data"], "Expected nil or empty array for history with no records")
 		}
+	})
+
+	// #405 review: a nonexistent transition must be 404, not a 200 with an
+	// empty list — the ledger query alone cannot tell the two apart.
+	t.Run("get history for nonexistent transition returns 404", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "GET", "/999999/history", nil,
+			testutil.WithJWTBearer(token),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
 	})
 }
 

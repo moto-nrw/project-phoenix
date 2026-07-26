@@ -35,9 +35,10 @@ const (
 	// the id tiebreak; a variable-width fraction would be worse still, since the
 	// client compares these strings lexically and ".5Z" sorts before "Z"
 	// (#405 review).
-	timeFormatISO8601       = "2006-01-02T15:04:05.000000Z"
-	errMsgNoAccountID       = "no account ID in context"
-	errMsgInvalidTransition = "invalid transition ID"
+	timeFormatISO8601        = "2006-01-02T15:04:05.000000Z"
+	errMsgNoAccountID        = "no account ID in context"
+	errMsgInvalidTransition  = "invalid transition ID"
+	errMsgTransitionNotFound = "grade transition not found"
 )
 
 // GradeTransitionResource handles grade transition API endpoints
@@ -366,7 +367,7 @@ func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Reques
 
 	transition, err := rs.service.GetByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("grade transition not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 		return
 	}
 
@@ -448,7 +449,7 @@ func (rs *GradeTransitionResource) renderDraftMutationError(w http.ResponseWrite
 	case errors.Is(err, educationService.ErrTransitionNotDraft):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_draft"))
 	case errors.Is(err, sql.ErrNoRows):
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("grade transition not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 	case errors.Is(err, educationService.ErrInvalidTransitionData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
@@ -508,24 +509,34 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 		result, txErr = rs.service.ApplyChecked(ctx, id, accountID, req.ExpectedFingerprint)
 		return txErr
 	}); err != nil {
-		// Graduating children still checked in is a client-recoverable safety
-		// condition, not a server fault: return 409 with a stable code so the UI
-		// can tell the admin to check them out first, instead of a bare 500 (#405).
-		if errors.Is(err, educationService.ErrGraduatesCheckedIn) {
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, "graduates_checked_in"))
-			return
-		}
-		// The confirmed preview no longer describes the current data. Also
-		// client-recoverable: the UI reloads the preview and asks again (#405).
-		if errors.Is(err, educationService.ErrPreviewStale) {
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, "preview_stale"))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderApplyError(w, r, err)
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, result, "Grade transition applied successfully")
+}
+
+// renderApplyError classifies the expected outcomes of applying a transition.
+// Graduating children still checked in is a client-recoverable safety
+// condition (409, so the UI tells the admin to check them out first); a stale
+// confirmed preview means the cohort changed underneath the admin (409, the UI
+// reloads the preview and asks again); a transition another admin has since
+// applied, reverted, or emptied is a normal stale-state conflict (409, the UI
+// refreshes the list); a deleted transition is 404. Everything else is a real
+// server fault and stays 500 (#405 review).
+func (rs *GradeTransitionResource) renderApplyError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, educationService.ErrGraduatesCheckedIn):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "graduates_checked_in"))
+	case errors.Is(err, educationService.ErrPreviewStale):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "preview_stale"))
+	case errors.Is(err, educationService.ErrTransitionNotDraft):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_draft"))
+	case errors.Is(err, sql.ErrNoRows):
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
 }
 
 // revert undoes an applied grade transition
@@ -550,19 +561,31 @@ func (rs *GradeTransitionResource) revert(w http.ResponseWriter, r *http.Request
 		result, txErr = rs.service.Revert(ctx, id, accountID)
 		return txErr
 	}); err != nil {
-		// Reverting anything but the latest applied transition is a client-
-		// recoverable ordering conflict (the admin's list was stale), not a server
-		// fault: return 409 with a stable code so the UI can refresh and revert the
-		// newest first, instead of a bare 500 (#405).
-		if errors.Is(err, educationService.ErrNotLatestApplied) {
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_latest_transition"))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderRevertError(w, r, err)
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, result, "Grade transition reverted successfully")
+}
+
+// renderRevertError classifies the expected outcomes of reverting a
+// transition. Targeting anything but the latest applied one is a client-
+// recoverable ordering conflict (409, the UI refreshes and reverts the newest
+// first); a transition that is still a draft or was already reverted by
+// another admin is the same stale-list outcome (409, the UI reloads); a
+// deleted transition is 404. Everything else is a real server fault and stays
+// 500 (#405 review).
+func (rs *GradeTransitionResource) renderRevertError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, educationService.ErrNotLatestApplied):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_latest_transition"))
+	case errors.Is(err, educationService.ErrTransitionNotApplied):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_applied"))
+	case errors.Is(err, sql.ErrNoRows):
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
 }
 
 // getDistinctClasses returns all distinct school class values
@@ -596,6 +619,13 @@ func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Req
 
 	history, states, err := rs.service.GetHistoryWithStudentStates(r.Context(), id)
 	if err != nil {
+		// A nonexistent transition must be a 404, not a 200 with an empty list:
+		// the ledger query alone returns zero rows for both, so the service
+		// resolves the transition first and surfaces not-found here (#405 review).
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
