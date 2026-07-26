@@ -902,9 +902,10 @@ function buildSingleDisabledMatchers(
   return matchers;
 }
 
-// A panel narrower than this cannot afford the roomier padding: at 176px, p-4
-// leaves 20px day cells and truncates the "Juli 2026" caption. Below the
-// threshold the card falls back to p-3 and spends the space on the grid instead.
+// A panel narrower than this cannot afford the roomier padding: at the 222px
+// minimum, p-4 would shave the day buttons below their 20px floor and truncate
+// the "Juli 2026" caption. Below the threshold the card falls back to p-3 and
+// spends the space on the grid instead.
 const COMPACT_CARD_MAX_WIDTH = 240;
 
 function getCalendarContainerClass(
@@ -918,7 +919,7 @@ function getCalendarContainerClass(
   // sized to the trigger; inline takes its parent's width and only needs the
   // legible-minimum floor.
   if (calendarLayout === "inline") {
-    return `${base} mt-2 w-full min-w-[176px]`;
+    return `${base} mt-2 w-full min-w-[222px]`;
   }
   return `${base} w-full`;
 }

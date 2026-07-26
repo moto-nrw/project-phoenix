@@ -21,10 +21,13 @@
 export const CALENDAR_PANEL_MARGIN = 8;
 
 /**
- * Narrowest a stretchable calendar gets: 7 × 20px day cells + 16px card padding
- * per side + the 1px border. Two-digit day numbers still fit at 20px.
+ * Narrowest a stretchable calendar gets: 7 × (20px day button + 8px cell
+ * gutter) + 12px compact card padding per side + the 1px border. The previous
+ * 176px floor was derived from the 20px *cell*, forgetting that the px-1
+ * gutter lives inside the cell — which left the clickable day button at ~13px,
+ * too narrow for two-digit dates. 20px is what the BUTTON needs.
  */
-const CALENDAR_MIN_WIDTH = 176;
+const CALENDAR_MIN_WIDTH = 222;
 
 /**
  * Height used for the flip-up decision: the worst case, a six-week month.
@@ -84,7 +87,9 @@ export function computeCalendarPanelPosition(
   const maxLeft = viewport.width - CALENDAR_PANEL_MARGIN - width;
   // Left-flush is the default. When it overflows, right-flush with the trigger
   // keeps an edge aligned instead of drifting to an arbitrary clamped offset.
-  let left = trigger.left;
+  // A trigger hanging past the left viewport edge must not drag the panel with
+  // it — an unclamped negative left puts the first day columns off-screen.
+  let left = Math.max(CALENDAR_PANEL_MARGIN, trigger.left);
   if (left > maxLeft) {
     const rightFlush = trigger.right - width;
     left =
