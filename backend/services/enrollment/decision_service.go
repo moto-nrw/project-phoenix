@@ -302,8 +302,8 @@ type DecisionSettingsResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
-// StudentRolloverAuditor records the only audited profile field a rollover
-// changes: the existing student's lifecycle status.
+// StudentRolloverAuditor records tracked profile changes made while approving
+// or synchronizing enrollment data for an existing student.
 type StudentRolloverAuditor interface {
 	RecordChangesForActor(ctx context.Context, before, after *users.Student, editedBy int64) error
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after users.StudentStatus) error

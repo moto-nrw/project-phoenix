@@ -32,26 +32,39 @@ func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 		NewValue:     testpkg.StrPtr("nachher"),
 		CreatedAt:    time.Now().UTC().Add(-time.Minute),
 	}
-	newer := &audit.StudentFieldEdit{
+	newestAt := time.Now().UTC()
+	newerFirst := &audit.StudentFieldEdit{
 		StudentID:    student.ID,
 		EditedBy:     account.ID,
-		EditedByName: "Neuere Bearbeitung",
+		EditedByName: "Neuere Bearbeitung 1",
 		FieldName:    audit.StudentFieldStatus,
 		OldValue:     testpkg.StrPtr("Ausstehend"),
 		NewValue:     testpkg.StrPtr("Aktiv"),
-		CreatedAt:    time.Now().UTC(),
+		CreatedAt:    newestAt,
+	}
+	newerSecond := &audit.StudentFieldEdit{
+		StudentID:    student.ID,
+		EditedBy:     account.ID,
+		EditedByName: "Neuere Bearbeitung 2",
+		FieldName:    audit.StudentFieldHealthInfo,
+		OldValue:     testpkg.StrPtr("alt"),
+		NewValue:     testpkg.StrPtr("neu"),
+		CreatedAt:    newestAt,
 	}
 
-	require.NoError(t, repo.CreateBatch(ctx, []*audit.StudentFieldEdit{older, newer}))
+	require.NoError(t, repo.CreateBatch(ctx, []*audit.StudentFieldEdit{older, newerFirst, newerSecond}))
 	require.NotZero(t, older.ID)
-	require.NotZero(t, newer.ID)
-	defer testpkg.CleanupTableRecords(t, db, "audit.student_field_edits", older.ID, newer.ID)
+	require.NotZero(t, newerFirst.ID)
+	require.NotZero(t, newerSecond.ID)
+	require.Greater(t, newerSecond.ID, newerFirst.ID)
+	defer testpkg.CleanupTableRecords(t, db, "audit.student_field_edits", older.ID, newerFirst.ID, newerSecond.ID)
 
 	edits, err := repo.GetByStudentID(ctx, student.ID)
 	require.NoError(t, err)
-	require.Len(t, edits, 2)
-	assert.Equal(t, newer.ID, edits[0].ID)
-	assert.Equal(t, older.ID, edits[1].ID)
+	require.Len(t, edits, 3)
+	assert.Equal(t, newerSecond.ID, edits[0].ID)
+	assert.Equal(t, newerFirst.ID, edits[1].ID)
+	assert.Equal(t, older.ID, edits[2].ID)
 	assert.Equal(t, student.TenantID, edits[0].TenantID)
 }
 

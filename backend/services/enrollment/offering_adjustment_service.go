@@ -312,6 +312,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 			}
 		}
 		if guardian != nil {
+			beforeTargetedSync := *student
 			planSynced, terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID, targetedFieldSyncOptions{
 				Replace:                input.ReplaceTargetedData,
 				PreviousSnapshot:       input.PreviousSnapshot,
@@ -338,6 +339,16 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 				if errors.Is(terr, users.ErrCompanionWouldLoseDeparture) ||
 					errors.Is(terr, users.ErrCompanionLockBusy) {
 					return nil, fmt.Errorf("decision: approved child departure sync refused: %w", terr)
+				}
+			}
+			if terr == nil && s.StudentAudit != nil {
+				if auditErr := s.StudentAudit.RecordChangesForActor(
+					ctx,
+					&beforeTargetedSync,
+					student,
+					input.ActorAccountID,
+				); auditErr != nil {
+					return nil, fmt.Errorf("decision: audit approved child targeted-field sync: %w", auditErr)
 				}
 			}
 			// A departure-plan sync that actually TRIMMED a link changed rows on

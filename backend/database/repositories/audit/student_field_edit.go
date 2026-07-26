@@ -70,7 +70,7 @@ func (r *StudentFieldEditRepository) GetByStudentID(ctx context.Context, student
 		Model(&edits).
 		ModelTableExpr(tableStudentFieldEditsAliased).
 		Where(whereStudentIDEquals, studentID).
-		Order(orderByCreatedAtDesc).
+		OrderExpr(`"student_field_edit".created_at DESC, "student_field_edit".id DESC`).
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
