@@ -127,6 +127,13 @@ function describeEvent(event: AuditLogEvent): string {
           : "";
       return `Abwesenheit gelöscht: ${type} ${from === to ? from : `${from}–${to}`}`;
     }
+    case "personnel_number": {
+      const oldValue = typeof d.old_value === "string" ? d.old_value : "";
+      const newValue = typeof d.new_value === "string" ? d.new_value : "";
+      const from = oldValue === "" ? "nicht gesetzt" : oldValue;
+      const to = newValue === "" ? "entfernt" : newValue;
+      return `Personalnummer: ${from} → ${to}`;
+    }
   }
 }
 

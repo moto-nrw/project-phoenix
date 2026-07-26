@@ -19,6 +19,7 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
+import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
@@ -368,9 +369,7 @@ export default function StaffDetailContent() {
           </TabsTrigger>
           {canEdit ? (
             <>
-              <TabsTrigger value="stammdaten" disabled>
-                Stammdaten
-              </TabsTrigger>
+              <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
               <TabsTrigger value="dokumente" disabled>
                 Dokumente
               </TabsTrigger>
@@ -408,7 +407,7 @@ export default function StaffDetailContent() {
         {canEdit ? (
           <>
             <TabsPrimitive.Content value="stammdaten">
-              <PlaceholderTab title="Stammdaten" />
+              <StammdatenTab staffId={staffId} canEdit={canEdit} />
             </TabsPrimitive.Content>
 
             <TabsPrimitive.Content value="dokumente">
