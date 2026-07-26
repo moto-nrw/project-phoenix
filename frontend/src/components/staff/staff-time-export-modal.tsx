@@ -20,6 +20,16 @@ type Scope = "month" | "year";
 type Granularity = "month" | "day";
 type FileFormat = "csv" | "xlsx" | DatevFormat;
 type TimeFormat = "hhmm" | "decimal";
+type DatevReportState =
+  | { readonly status: "idle"; readonly requestKey: null }
+  | { readonly status: "loading"; readonly requestKey: string }
+  | {
+      readonly status: "ready";
+      readonly requestKey: string;
+      readonly report: DatevExportReport;
+    }
+  | { readonly status: "config-incomplete"; readonly requestKey: string }
+  | { readonly status: "failed"; readonly requestKey: string };
 
 const isDatevFormat = (format: FileFormat): format is DatevFormat =>
   format === "datev_lodas" || format === "datev_lug";
@@ -72,18 +82,16 @@ function OptionGroup<T extends string>({
 // sichtbar VOR dem Download. Eine still unvollständige Lohndatei darf es
 // nicht geben — wer ohne Personalnummer übersprungen wird, steht hier.
 function DatevReportPanel({
-  report,
-  configIncomplete,
-  loading,
+  state,
+  onRetry,
 }: {
-  readonly report: DatevExportReport | null;
-  readonly configIncomplete: boolean;
-  readonly loading: boolean;
+  readonly state: DatevReportState;
+  readonly onRetry: () => void;
 }) {
-  if (loading) {
+  if (state.status === "idle" || state.status === "loading") {
     return <p className="text-sm text-gray-500">Bericht wird geladen …</p>;
   }
-  if (configIncomplete) {
+  if (state.status === "config-incomplete") {
     return (
       <Alert
         type="error"
@@ -91,7 +99,25 @@ function DatevReportPanel({
       />
     );
   }
-  if (!report) return null;
+  if (state.status === "failed") {
+    return (
+      <div className="space-y-2">
+        <Alert
+          type="error"
+          message="Der DATEV-Bericht konnte nicht geladen werden. Ohne erfolgreichen Vorab-Bericht ist der Export gesperrt."
+        />
+        <Button
+          type="button"
+          size="compact"
+          variant="outline"
+          onClick={onRetry}
+        >
+          Bericht erneut laden
+        </Button>
+      </div>
+    );
+  }
+  const { report } = state;
   return (
     <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
       <p>
@@ -138,43 +164,49 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
   const [timeFormat, setTimeFormat] = useState<TimeFormat>("hhmm");
 
   const datev = isDatevFormat(format);
-  const [report, setReport] = useState<DatevExportReport | null>(null);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [configIncomplete, setConfigIncomplete] = useState(false);
+  const reportRequestKey = datev ? `${format}:${year}:${month}` : null;
+  const [reportState, setReportState] = useState<DatevReportState>({
+    status: "idle",
+    requestKey: null,
+  });
+  const [reportAttempt, setReportAttempt] = useState(0);
+  const activeReportState: DatevReportState =
+    reportRequestKey !== null && reportState.requestKey !== reportRequestKey
+      ? { status: "loading", requestKey: reportRequestKey }
+      : reportState;
 
   useEffect(() => {
     if (!isOpen || !isDatevFormat(format)) {
-      setReport(null);
-      setConfigIncomplete(false);
+      setReportState({ status: "idle", requestKey: null });
       return;
     }
+    const requestKey = `${format}:${year}:${month}`;
     let cancelled = false;
-    setReportLoading(true);
-    setReport(null);
-    setConfigIncomplete(false);
+    setReportState({ status: "loading", requestKey });
     fetchDatevExportReport(year, month, format)
       .then((result) => {
-        if (!cancelled) setReport(result);
+        if (!cancelled) {
+          setReportState({ status: "ready", requestKey, report: result });
+        }
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         if (error instanceof DatevConfigIncompleteError) {
-          setConfigIncomplete(true);
+          setReportState({ status: "config-incomplete", requestKey });
           return;
         }
         logger.error("datev_report_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-      })
-      .finally(() => {
-        if (!cancelled) setReportLoading(false);
+        setReportState({ status: "failed", requestKey });
       });
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, year, month]);
+  }, [isOpen, format, year, month, reportAttempt]);
 
   const handleExport = () => {
+    if (datev && activeReportState.status !== "ready") return;
     const params = new URLSearchParams({ year: String(year), format });
     if (scope === "month" || datev) {
       params.set("month", String(month));
@@ -189,7 +221,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
     onClose();
   };
 
-  const exportDisabled = datev && (reportLoading || configIncomplete);
+  const exportDisabled = datev && activeReportState.status !== "ready";
 
   return (
     <Modal
@@ -278,9 +310,8 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
               fest.
             </p>
             <DatevReportPanel
-              report={report}
-              configIncomplete={configIncomplete}
-              loading={reportLoading}
+              state={activeReportState}
+              onRetry={() => setReportAttempt((attempt) => attempt + 1)}
             />
           </div>
         )}

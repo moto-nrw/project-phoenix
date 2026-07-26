@@ -164,4 +164,68 @@ describe("StaffTimeExportModal", () => {
     );
     expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
   });
+
+  it("requires a successful report for the currently selected DATEV format", async () => {
+    let resolveSecondReport: (report: DatevExportReport) => void = () => {
+      throw new Error("second report resolver was not initialized");
+    };
+    fetchReportMock.mockResolvedValueOnce(emptyReport).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecondReport = (report) => resolve(report);
+        }),
+    );
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "DATEV LODAS" }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/12 Buchungszeilen/)).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Exportieren" }),
+    ).not.toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "DATEV Lohn und Gehalt" }),
+    );
+
+    expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
+    expect(fetchReportMock).toHaveBeenLastCalledWith(2026, 6, "datev_lug");
+
+    resolveSecondReport(emptyReport);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Exportieren" }),
+      ).not.toBeDisabled(),
+    );
+  });
+
+  it("keeps the DATEV download blocked after a report failure and allows retrying", async () => {
+    fetchReportMock
+      .mockRejectedValueOnce(new Error("report unavailable"))
+      .mockResolvedValueOnce(emptyReport);
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "DATEV LODAS" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Bericht konnte nicht geladen werden/),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
+    expect(globalThis.location.href).toBe("");
+    const callsBeforeRetry = fetchReportMock.mock.calls.length;
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Bericht erneut laden" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(/12 Buchungszeilen/)).toBeInTheDocument(),
+    );
+    expect(fetchReportMock).toHaveBeenCalledTimes(callsBeforeRetry + 1);
+    expect(
+      screen.getByRole("button", { name: "Exportieren" }),
+    ).not.toBeDisabled();
+  });
 });
