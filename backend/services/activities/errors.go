@@ -21,6 +21,11 @@ var (
 	// ErrEnrollmentNotFound returned when an enrollment doesn't exist
 	ErrEnrollmentNotFound = errors.New("enrollment not found")
 
+	// ErrStudentNotFound returned when a student is unavailable to activity
+	// enrollment reads. Graduated students are soft-deleted and must be
+	// indistinguishable from absent students on staff-facing routes.
+	ErrStudentNotFound = errors.New("student not found")
+
 	// ErrGroupFull returned when an activity group is at maximum capacity
 	ErrGroupFull = errors.New("activity group is at maximum capacity")
 

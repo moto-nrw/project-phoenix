@@ -20,6 +20,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -666,6 +667,26 @@ func TestGetAvailableActivities_Success(t *testing.T) {
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Graduate", "4a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	_, err := ctx.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Where("id = ?", student.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d/available", student.ID), nil)
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+
+	testutil.AssertNotFound(t, rr)
 }
 
 func TestUnenrollStudent_Success(t *testing.T) {

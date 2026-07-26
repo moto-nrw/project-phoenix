@@ -505,6 +505,14 @@ func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, s
 
 // GetAvailableGroups retrieves all groups a student can enroll in (not already enrolled)
 func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*activities.Group, error) {
+	alumnus, err := s.isAlumnus(ctx, studentID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get available groups", Err: err}
+	}
+	if alumnus {
+		return nil, &ActivityError{Op: "get available groups", Err: ErrStudentNotFound}
+	}
+
 	// Get all active groups - assuming FindOpenGroups is the correct method
 	allGroups, err := s.groupRepo.FindOpenGroups(ctx)
 	if err != nil {

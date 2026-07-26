@@ -19,6 +19,7 @@ export default function GradeTransitionsPage() {
       canUpdate: hasPermission(session, "grade_transitions:update"),
       canDelete: hasPermission(session, "grade_transitions:delete"),
       canApply: hasPermission(session, "grade_transitions:apply"),
+      canPurge: hasPermission(session, "users:delete"),
     }),
     [session],
   );

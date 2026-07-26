@@ -20,6 +20,7 @@ var errorRules = []common.ErrorRule{
 	{Target: activities.ErrScheduleNotFound, Render: common.ErrorNotFound},
 	{Target: activities.ErrSupervisorNotFound, Render: common.ErrorNotFound},
 	{Target: activities.ErrEnrollmentNotFound, Render: common.ErrorNotFound},
+	{Target: activities.ErrStudentNotFound, Render: common.ErrorNotFound},
 	{Target: activities.ErrGroupFull, Render: common.ErrorConflict},
 	{Target: activities.ErrAlreadyEnrolled, Render: common.ErrorConflict},
 	{Target: activities.ErrTimetableTemplateProtected, Render: common.ErrorConflict},

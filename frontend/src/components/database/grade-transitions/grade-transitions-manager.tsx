@@ -55,15 +55,16 @@ function StatusBadge({ status }: { readonly status: TransitionStatus }) {
 
 /**
  * Per-action gates for the transition controls. Each maps to the matching
- * backend grade_transitions permission (read/create/update/delete/apply), so a
- * user only ever sees actions the backend will actually allow. Defaults to full
- * access when the caller does not resolve permissions (e.g. isolated tests).
+ * backend permission, so a user only ever sees actions the backend will
+ * actually allow. Defaults to full access when the caller does not resolve
+ * permissions (e.g. isolated tests).
  */
 export interface TransitionPermissions {
   readonly canCreate: boolean;
   readonly canUpdate: boolean;
   readonly canDelete: boolean;
   readonly canApply: boolean;
+  readonly canPurge: boolean;
 }
 
 const FULL_ACCESS: TransitionPermissions = {
@@ -71,6 +72,7 @@ const FULL_ACCESS: TransitionPermissions = {
   canUpdate: true,
   canDelete: true,
   canApply: true,
+  canPurge: true,
 };
 
 function describeMappings(transition: GradeTransition): string {
@@ -493,7 +495,7 @@ export function GradeTransitionsManager({
       {graduatesFor && (
         <GraduatesModal
           transition={graduatesFor}
-          canDelete={permissions.canDelete}
+          canDelete={permissions.canPurge}
           onClose={() => setGraduatesFor(null)}
           onPurged={() => void refresh()}
         />

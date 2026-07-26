@@ -1636,12 +1636,8 @@ func (rs *Resource) deleteStudentTxMode(ctx context.Context, tenantID int64, stu
 		return err
 	}
 
-	// Person delete failure must not fail the request. The student row
-	// is already gone, leaving the person orphaned is recoverable.
 	if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
-		slog.Default().Error("failed to delete associated person record",
-			slog.Int64("person_id", student.PersonID),
-			slog.String("error", err.Error()))
+		return err
 	}
 
 	rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, photoToRemove)
