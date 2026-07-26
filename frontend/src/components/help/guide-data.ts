@@ -253,6 +253,25 @@ export const setupChapters: readonly GuideChapter[] = [
         screenshot: "Profilseite mit der Sektion Passkeys.",
       },
       {
+        id: "app-zum-home-bildschirm",
+        title: "moto zum Home-Bildschirm hinzufügen (iPhone und iPad)",
+        summary:
+          "moto lässt sich wie eine App auf dem Home-Bildschirm ablegen und öffnet sich dann im Vollbild ohne Browserleisten.",
+        steps: [
+          "moto in Safari öffnen und in der eigenen Einrichtung anmelden.",
+          "Auf der Seite der Einrichtung (z. B. meine-ogs.moto-app.de) auf `Teilen` tippen.",
+          "`Zum Home-Bildschirm` wählen und mit `Hinzufügen` bestätigen.",
+          "moto künftig über das neue Symbol auf dem Home-Bildschirm starten.",
+        ],
+        callout: {
+          title: "Tipp für iPhone und iPad",
+          body: "Fügen Sie moto erst dann zum Home-Bildschirm hinzu, wenn Sie bereits in Ihrer Einrichtung angemeldet sind. So öffnet sich moto immer als eigene App im Vollbild. Wer für mehrere Einrichtungen arbeitet, legt am besten für jede Einrichtung ein eigenes Symbol auf dem Home-Bildschirm an.",
+          tone: "blue",
+        },
+        screenshot: "Safari-Teilen-Menü mit der Option Zum Home-Bildschirm.",
+        printCompact: true,
+      },
+      {
         id: "mitarbeitende-anlegen",
         title: "Mitarbeitende anlegen und einladen",
         summary:
