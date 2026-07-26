@@ -169,8 +169,9 @@ func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([
 	return subs, nil
 }
 
-// FindForGuardians returns parent-portal subscriptions of guardian accounts in
-// the current tenant.
+// FindForGuardians returns parent-portal subscriptions of guardian accounts
+// with an active mapping and guardian role in the current tenant. This keeps
+// pending-enrollment-only recipients out of Web Push until access is active.
 func (r *PushSubscriptionRepository) FindForGuardians(ctx context.Context, guardianAccountIDs []int64) ([]*iot.PushSubscription, error) {
 	if len(guardianAccountIDs) == 0 {
 		return nil, nil

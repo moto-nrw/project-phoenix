@@ -108,6 +108,7 @@ type PushSubscriptionRepository interface {
 	// effective admin scope in the current tenant.
 	FindForTenantAdmins(ctx context.Context) ([]*PushSubscription, error)
 	// FindForGuardians returns parent-portal subscriptions of guardian accounts
-	// in the current tenant.
+	// with active guardian access in the current tenant. Pending-enrollment-only
+	// recipients are deliberately excluded from Web Push.
 	FindForGuardians(ctx context.Context, guardianAccountIDs []int64) ([]*PushSubscription, error)
 }

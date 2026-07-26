@@ -90,6 +90,10 @@ closed/locked devices.
   role; `guardian` → the one account's parent-portal subscriptions.
   `group` is deliberately NOT delivered over push (no persisted
   device-to-group membership; follow-up if a producer ever needs it).
+  Announcement recipients reached only through `pending_enrollment` are also
+  deliberately excluded from Web Push until they have an active guardian
+  mapping for that school. Their announcement remains available in the parent
+  feed and through the announcement's optional e-mail delivery.
 - **Payload** is `{title, body, deepLink, type, priority}` — never `Data`
   (GDPR contract above). Priority maps to TTL/urgency: high = 1h/high,
   normal/low = 24h/normal/low.

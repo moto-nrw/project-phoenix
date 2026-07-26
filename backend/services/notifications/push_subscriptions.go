@@ -41,7 +41,8 @@ type PushSubscriptionService interface {
 	// Unsubscribe removes a staff device registration for the current tenant.
 	Unsubscribe(ctx context.Context, accountID int64, endpoint string) error
 	// SubscribeParent registers a guardian device for every school the account
-	// is actively linked to (guardian-scoped events carry one tenant each).
+	// is actively linked to. Pending-enrollment-only schools are excluded until
+	// the account has an active guardian mapping there.
 	SubscribeParent(ctx context.Context, accountID int64, input PushSubscriptionInput) error
 	// UnsubscribeParent removes a guardian device across all linked schools.
 	UnsubscribeParent(ctx context.Context, accountID int64, endpoint string) error
@@ -113,7 +114,8 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 	}
 	// One admin transaction keeps all tenant rows atomic. The account ID comes
 	// from the authenticated parent token and mappings limit writes to active
-	// schools; each row still carries its explicit tenant ID.
+	// schools. This deliberately excludes pending-enrollment-only schools from
+	// Web Push until guardian access is active there.
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		mappings, err := s.accountTenants.FindActiveByAccountID(txCtx, accountID)
 		if err != nil {

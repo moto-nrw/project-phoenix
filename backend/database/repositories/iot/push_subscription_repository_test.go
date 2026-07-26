@@ -268,6 +268,21 @@ func TestPushSubscriptionRepository(t *testing.T) {
 			assert.Equal(t, iotModels.PushPortalParent, subscription.Portal)
 		}
 	})
+
+	t.Run("guardian finder excludes subscriptions without a tenant mapping", func(t *testing.T) {
+		// Pending-enrollment-only recipients have no mapping for the school.
+		// Even a stale subscription row must therefore stay out of Web Push.
+		_, err := db.NewDelete().
+			TableExpr("auth.account_tenants").
+			Where("account_id = ?", guardian.ID).
+			Where("tenant_id = ?", tenant.FromContext(ctx)).
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		subs, err := repo.FindForGuardians(ctx, []int64{guardian.ID})
+		require.NoError(t, err)
+		assert.Empty(t, subs)
+	})
 }
 
 func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
