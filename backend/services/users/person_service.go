@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -44,6 +45,9 @@ type PersonServiceDependencies struct {
 	StudentRepo userModels.StudentRepository
 	StaffRepo   userModels.StaffRepository
 	TeacherRepo userModels.TeacherRepository
+	// PersonnelNumberAudit is required for UpdatePersonnelNumber; the write
+	// path refuses to run without it (no change without a trace, #1417).
+	PersonnelNumberAudit auditModels.PersonnelNumberChangeRepository
 
 	// Infrastructure
 	DB              *bun.DB

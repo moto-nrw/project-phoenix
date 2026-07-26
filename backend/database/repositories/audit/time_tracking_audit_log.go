@@ -118,6 +118,16 @@ var auditLogBranches = map[string]string{
 			) AS detail
 		FROM audit.time_tracking_deletions d
 		WHERE d.tenant_id = %s`,
+	auditModels.AuditLogSourcePersonnelNumber: `
+		SELECT c.occurred_at AS occurred_at, 'personnel_number' AS source, c.id AS entry_id,
+			c.staff_id AS staff_id, ARRAY[c.staff_id] AS staff_ids,
+			c.changed_by AS actor_staff_id, FALSE AS actor_is_system,
+			c.note AS reason,
+			jsonb_build_object(
+				'old_value', c.old_value, 'new_value', c.new_value
+			) AS detail
+		FROM audit.personnel_number_changes c
+		WHERE c.tenant_id = %s`,
 }
 
 const auditLogDefaultLimit = 50

@@ -131,6 +131,12 @@ type PersonService interface {
 	// returned TeacherAction; the staff update always persists.
 	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
 
+	// UpdatePersonnelNumber sets or clears (nil / empty) the staff member's
+	// payroll Personalnummer (#1417). Writes an audit row in the same tenant
+	// transaction; returns ErrPersonnelNumberTaken on a per-tenant duplicate
+	// and ErrPersonnelNumberInvalid on a malformed value.
+	UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
+
 	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)
 
