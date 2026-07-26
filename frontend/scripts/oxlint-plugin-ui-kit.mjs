@@ -222,7 +222,7 @@ const BRAND_COLOR_RE =
 const OVERLAY_RE = /(?:\bfixed\b.*\binset-0\b)|(?:\binset-0\b.*\bfixed\b)/;
 const ROUNDED_3XL_RE = /\brounded-3xl\b/;
 
-const EXEMPT_FILE_RE = /\.(?:test|stories)\.|\.d\.ts$/;
+const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
 const UI_KIT_DIR = "src/components/ui/";
 
 /** Repo-relative posix path ("src/…"), or "" when unavailable. */
