@@ -518,10 +518,12 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 	}
 
 	type childRow struct {
-		StudentID   int64  `bun:"student_id"`
-		FirstName   string `bun:"first_name"`
-		LastName    string `bun:"last_name"`
-		SchoolClass string `bun:"school_class"`
+		StudentID        int64  `bun:"student_id"`
+		FirstName        string `bun:"first_name"`
+		LastName         string `bun:"last_name"`
+		SchoolClass      string `bun:"school_class"`
+		Status           string `bun:"status"`
+		EnrollmentSubmit bool   `bun:"enrollment_submit"`
 	}
 	var rows []childRow
 	childErr := repoBase.GetDB(ctx, r.db).NewSelect().
@@ -530,6 +532,12 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		ColumnExpr(`"p".first_name`).
 		ColumnExpr(`"p".last_name`).
 		ColumnExpr(`"s".school_class`).
+		// Lifecycle status travels with the summary so the reuse picker can
+		// drop a child the enrolled-student gate would reject anyway (#1663).
+		ColumnExpr(`"s".status`).
+		// Per-relationship enrollment-submit permission, so the form can offer
+		// reuse only for children this guardian may actually re-enroll (#1663).
+		ColumnExpr(`COALESCE(("sg".permissions ->> ?)::boolean, false) AS enrollment_submit`, authorize.GuardianPermissionEnrollmentSubmit).
 		Join(`INNER JOIN users.students AS "s" ON "s".id = "sg".student_id`).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"sg".guardian_profile_id = ?`, profile.ID).
@@ -542,10 +550,12 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 	}
 	for _, row := range rows {
 		result.Children = append(result.Children, users.GuardianChildSummary{
-			StudentID:   row.StudentID,
-			FirstName:   row.FirstName,
-			LastName:    row.LastName,
-			SchoolClass: row.SchoolClass,
+			StudentID:        row.StudentID,
+			FirstName:        row.FirstName,
+			LastName:         row.LastName,
+			SchoolClass:      row.SchoolClass,
+			Status:           row.Status,
+			EnrollmentSubmit: row.EnrollmentSubmit,
 		})
 	}
 

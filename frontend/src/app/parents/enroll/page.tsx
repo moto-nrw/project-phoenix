@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ParentEnrollPicker } from "~/components/parent/parent-enroll-picker";
 
 export default function ParentEnrollPickerPage() {
-  redirect("/parents");
+  return <ParentEnrollPicker />;
 }

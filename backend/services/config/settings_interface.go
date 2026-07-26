@@ -99,6 +99,15 @@ type SettingsService interface {
 	// conflicts with LockSlotListCutoffPair so a cutoff write cannot expose a
 	// partial pair to a reader. Same best-effort tx semantics.
 	LockSlotListCutoffPairShared(ctx context.Context) error
+
+	// LockClassCollectionPair takes the per-tenant transaction-scoped advisory
+	// lock guarding the enrollment class-restriction / class-collection
+	// invariant. Both the settings-side class-collection guard and the
+	// enrollment-side phase eligibility guard take it on the same key, so a
+	// write disabling concrete-class collection and a write activating a
+	// class-restricted phase cannot race into a state where every submission
+	// fails class_not_eligible. Best-effort: skipped without an ambient tx.
+	LockClassCollectionPair(ctx context.Context) error
 }
 
 // --- Response types ---

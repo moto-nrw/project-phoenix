@@ -277,6 +277,14 @@ const (
 	ErrCodeEnrollmentSelectedDayNotAvailable     = "enrollment.selected_day_not_available"
 	ErrCodeEnrollmentDaySelectionRequired        = "enrollment.day_selection_required"
 	ErrCodeEnrollmentDaySelectionNotAllowed      = "enrollment.day_selection_not_allowed"
+	// Phase eligibility codes (#1663).
+	ErrCodeEnrollmentPhaseNotEligible     = "enrollment.phase_not_eligible"
+	ErrCodeEnrollmentClassNotEligible     = "enrollment.class_not_eligible"
+	ErrCodeEnrollmentGradeNotEligible     = "enrollment.grade_not_eligible"
+	ErrCodeEnrollmentChildAlreadyEnrolled = "enrollment.child_already_enrolled"
+	ErrCodeEnrollmentChildNotEnrolled     = "enrollment.child_not_enrolled"
+	ErrCodeEnrollmentChildAmbiguous       = "enrollment.child_ambiguous"
+	ErrCodeEnrollmentChildNotPermitted    = "enrollment.child_not_permitted"
 )
 
 // MapSubmitError translates service-layer sentinel errors into HTTP
@@ -288,6 +296,25 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
+	case errors.Is(err, enrollmentService.ErrPhaseNotEligible):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentPhaseNotEligible))
+	// The two child-level eligibility errors wrap ErrInvalidSubmission,
+	// so their specific matches must precede the generic case below.
+	case errors.Is(err, enrollmentService.ErrChildClassNotEligible):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentClassNotEligible))
+	case errors.Is(err, enrollmentService.ErrChildGradeNotEligible):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentGradeNotEligible))
+	case errors.Is(err, enrollmentService.ErrChildAlreadyEnrolled):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAlreadyEnrolled))
+	case errors.Is(err, enrollmentService.ErrChildNotEnrolled):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildNotEnrolled))
+	case errors.Is(err, enrollmentService.ErrChildEnrollmentAmbiguous):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAmbiguous))
+	// Per-child re-enrollment authorization failure (#1663): a guardian account
+	// lacking parent_portal.enrollment.submit on the matched student. It does NOT
+	// wrap ErrInvalidSubmission — it is a 403, not a 400.
+	case errors.Is(err, enrollmentService.ErrChildEnrollmentNotPermitted):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentChildNotPermitted))
 	case errors.Is(err, enrollmentService.ErrCareOfferingUnavailable):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingUnavailable))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
@@ -334,6 +361,12 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		// readError helper surfaces the German message instead of
 		// falling back to "(HTTP 409)".
 		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor."))
+	case errors.Is(err, enrollmentService.ErrExistingStudentAlreadyRequested):
+		// 409 Conflict: another active request in this phase already targets the
+		// same already-enrolled student this child matched (a different guardian
+		// email, so the email-scoped duplicate check missed it). Distinct German
+		// message so parents understand the child is already being re-enrolled.
+		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung von einer anderen Person vor."))
 	case errors.Is(err, enrollmentService.ErrRateLimited):
 		// 429 Too Many Requests. Hard-coded retry hint avoids leaking
 		// the exact remaining seconds.

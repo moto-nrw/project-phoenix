@@ -21,12 +21,13 @@ import (
 // Resource wires the notification routes.
 type Resource struct {
 	NotificationsService notificationsService.Service
+	PushService          notificationsService.PushSubscriptionService
 	db                   *bun.DB
 }
 
 // NewResource builds the notifications HTTP resource.
-func NewResource(service notificationsService.Service, db *bun.DB) *Resource {
-	return &Resource{NotificationsService: service, db: db}
+func NewResource(service notificationsService.Service, pushService notificationsService.PushSubscriptionService, db *bun.DB) *Resource {
+	return &Resource{NotificationsService: service, PushService: pushService, db: db}
 }
 
 // Router mounts the notification routes behind tenant JWT auth.
@@ -38,6 +39,14 @@ func (rs *Resource) Router() chi.Router {
 		// config:update — the same permission that guards the feature flag —
 		// so exactly the admins who can enable notifications can test them.
 		r.With(authorize.RequiresPermission(permissions.ConfigUpdate), withTx).Post("/test", rs.sendTestNotification)
+
+		// Push subscription management for the logged-in staff user's own
+		// devices — no extra permission beyond a valid tenant session.
+		r.With(withTx).Route("/push", func(r chi.Router) {
+			r.Get("/public-key", rs.getPushPublicKey)
+			r.Post("/subscriptions", rs.subscribePush)
+			r.Delete("/subscriptions", rs.unsubscribePush)
+		})
 	})
 
 	return r

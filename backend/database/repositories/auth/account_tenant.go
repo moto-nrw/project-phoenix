@@ -105,6 +105,31 @@ func (r *AccountTenantRepository) FindActiveByAccountID(ctx context.Context, acc
 	return items, nil
 }
 
+// FindActiveGuardianByAccountID returns active tenant mappings where the
+// account currently has the guardian role.
+func (r *AccountTenantRepository) FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenant, error) {
+	var items []auth.AccountTenant
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&items).
+		ModelTableExpr(accountTenantTableAlias).
+		Where(`"account_tenant".account_id = ?`, accountID).
+		Where(`"account_tenant".status = ?`, auth.AccountTenantStatusActive).
+		Where(`EXISTS (
+			SELECT 1
+			FROM auth.account_roles AS "account_role"
+			INNER JOIN auth.roles AS "role" ON "role".id = "account_role".role_id
+			WHERE "account_role".account_id = "account_tenant".account_id
+				AND "account_role".tenant_id = "account_tenant".tenant_id
+				AND LOWER("role".name) = ?
+		)`, auth.BaseRoleGuardian).
+		OrderExpr(`"account_tenant".created_at ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 // ExistsByAccountAndTenant checks if an active mapping exists for the given account and tenant.
 func (r *AccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	exists, err := base.GetDB(ctx, r.db).NewSelect().

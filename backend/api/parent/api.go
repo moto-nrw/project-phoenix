@@ -28,6 +28,7 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -41,8 +42,14 @@ type Resource struct {
 	RequestService        enrollmentService.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         platformSvc.SchoolService
+	PushService           notificationsService.PushSubscriptionService
 	db                    *bun.DB
 	authRateLimiter       func(http.Handler) http.Handler
+}
+
+// SetPushService injects the Web Push subscription service (#2003).
+func (rs *Resource) SetPushService(service notificationsService.PushSubscriptionService) {
+	rs.PushService = service
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for public parent auth
@@ -105,6 +112,14 @@ func (rs *Resource) Router() chi.Router {
 		// Cross-tenant children list — every student the parent is
 		// linked to, across every active tenant mapping. Account id
 		// is read from claims, never from URL or body.
+		// Push subscription management for the parent's own devices
+		// (#2003). Registers across every active tenant mapping.
+		r.Route("/me/push", func(r chi.Router) {
+			r.Get("/public-key", rs.getPushPublicKey)
+			r.Post("/subscriptions", rs.subscribePush)
+			r.Delete("/subscriptions", rs.unsubscribePush)
+		})
+
 		r.Get("/me/profile", rs.getMyProfile)
 		r.Put("/me/profile", rs.updateMyProfile)
 		r.Get("/me/children", rs.listMyChildren)
@@ -134,6 +149,14 @@ func (rs *Resource) Router() chi.Router {
 		// the guardian_profile in that tenant (or claims if none) +
 		// any students already linked to the guardian profile.
 		r.Get("/enrollments/{tenantSlug}/profile", rs.getEnrollmentProfile)
+
+		// Authenticated form-load bootstrap for the embedded enrollment
+		// form. Mirrors the anonymous public /form-bootstrap endpoint but
+		// runs the enrollee phase gate, so audience-restricted
+		// (linked_parents) phases load here for a logged-in guardian while
+		// the public path refuses them (#1663). Tenant from {tenantSlug},
+		// account from the parent JWT; captcha skipped.
+		r.Get("/enrollments/{tenantSlug}/bootstrap/{phaseId}", rs.getEnrollmentBootstrap)
 
 		// Authenticated submit. Stamps guardian_account_id on the
 		// resulting enrollment.requests row, skips captcha (parent

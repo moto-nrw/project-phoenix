@@ -124,6 +124,7 @@ type Factory struct {
 	SlotLists                slotlists.Service
 	Reminders                reminders.Service
 	Notifications            notifications.Service
+	PushSubscriptions        notifications.PushSubscriptionService
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
 	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
 	Mailer                   email.Mailer
@@ -311,6 +312,36 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger,
 	)
+	// Wire the enrollment class-restriction probe so the settings service can
+	// refuse disabling concrete-class collection while an active phase
+	// restricts eligibility to specific classes (#1663). Runs inside the
+	// caller's tenant tx, so the phase lookup is RLS-scoped.
+	if guarded, ok := settingsService.(interface {
+		SetClassRestrictionGuard(func(context.Context) (bool, error))
+	}); ok {
+		guarded.SetClassRestrictionGuard(func(ctx context.Context) (bool, error) {
+			return repos.Phase.ExistsActiveWithEligibleClasses(ctx)
+		})
+	}
+	// Same for the grade-level restriction, which survives concrete-class
+	// collection being off but not grade-level collection (#1663).
+	if guarded, ok := settingsService.(interface {
+		SetGradeRestrictionGuard(func(context.Context) (bool, error))
+	}); ok {
+		guarded.SetGradeRestrictionGuard(func(ctx context.Context) (bool, error) {
+			return repos.Phase.ExistsActiveWithEligibleGradeLevels(ctx)
+		})
+	}
+	// And the cap probe, so enrollment.grade_level_max cannot be lowered below
+	// a grade an active phase already restricts itself to — which would leave
+	// that phase with no selectable eligible grade at all (#1663).
+	if guarded, ok := settingsService.(interface {
+		SetGradeCapGuard(func(context.Context) (int, error))
+	}); ok {
+		guarded.SetGradeCapGuard(func(ctx context.Context) (int, error) {
+			return repos.Phase.MaxActiveEligibleGradeLevel(ctx)
+		})
+	}
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
@@ -1376,6 +1407,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
 		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
+		Settings:                        settingsService,
 		DB:                              db,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
@@ -1436,6 +1468,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		FormSchemaRepo:           repos.FormSchema,
 		PhaseRepo:                repos.Phase,
 		SchoolRepo:               repos.School,
+		StudentRepo:              repos.Student,
+		GuardianAuthorizer:       repos.StudentGuardian,
 		RateLimitRepo:            repos.SubmissionRateLimit,
 		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
@@ -1485,6 +1519,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SchoolRepo:               repos.School,
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
+		StudentRepo:              repos.Student,
+		GuardianAuthorizer:       repos.StudentGuardian,
 		DecisionService:          enrollmentDecisionApplier,
 		CompanionGraphLocker:     studentService,
 		Settings:                 settingsService,
@@ -1627,10 +1663,29 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                  logger.With("service", "parent"),
 	})
 
+	vapidConfig := notifications.VAPIDConfig{
+		PublicKey:  strings.TrimSpace(viper.GetString("vapid_public_key")),
+		PrivateKey: strings.TrimSpace(viper.GetString("vapid_private_key")),
+		Subscriber: strings.TrimSpace(viper.GetString("vapid_subscriber")),
+	}
+	if err := vapidConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
+	}
+	if !vapidConfig.Configured() {
+		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
+	}
+	notificationsService := notifications.NewService(
+		settingsService,
+		logger.With("service", "notifications"),
+		notifications.NewSSEChannel(realtimeHub),
+		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
+	)
+
 	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
 		Repo:       repos.ParentAnnouncement,
 		Settings:   settingsService,
 		Outbox:     emailOutboxService,
+		Notifier:   notificationsService,
 		ParentsURL: parentsURL,
 		Logger:     logger.With("service", "announcement"),
 	})
@@ -1685,11 +1740,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              logger.With("service", "slot_lists"),
 	})
 
-	notificationsService := notifications.NewService(
-		settingsService,
-		logger.With("service", "notifications"),
-		notifications.NewSSEChannel(realtimeHub),
-		notifications.NewWebPushChannel(logger.With("channel", "web_push")),
+	pushSubscriptionsService := notifications.NewPushSubscriptionService(
+		db,
+		repos.PushSubscription,
+		repos.AccountTenant,
+		vapidConfig,
+		logger.With("service", "push_subscriptions"),
 	)
 
 	remindersService := reminders.NewService(reminders.Dependencies{
@@ -1773,6 +1829,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SlotLists:                slotListsService,
 		Reminders:                remindersService,
 		Notifications:            notificationsService,
+		PushSubscriptions:        pushSubscriptionsService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Tracker:                  tracker,     // Product analytics (PostHog)
 		Invitation:               invitationService,

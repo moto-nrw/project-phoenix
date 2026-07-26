@@ -2,10 +2,20 @@ package enrollment
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+// ErrLateInviteNotFound reports that no usable late invite matches the token
+// — unknown, already used, expired, or minted for a different phase. It is the
+// repository's contract for "this token grants nothing", and callers MUST
+// distinguish it from every other error the lookup can return: a database or
+// driver failure means the invite status is unknown, not that the invite is
+// invalid, and must surface as a server error instead of silently downgrading
+// a valid recipient to the anonymous public gate (#1663).
+var ErrLateInviteNotFound = errors.New("late invite not found")
 
 // LateInvite is a one-family exception token that lets parents submit a
 // request for a closed phase without reopening the phase globally.

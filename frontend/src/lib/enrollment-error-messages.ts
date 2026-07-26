@@ -49,6 +49,20 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Bitte wähle mindestens einen Wochentag für das Angebot aus.",
   "enrollment.late_invite_invalid":
     "Dieser Nachzügler-Link ist ungültig, abgelaufen oder wurde bereits verwendet. Bitte wende dich an die Schule.",
+  "enrollment.phase_not_eligible":
+    "Diese Anmeldephase ist für dein Konto nicht verfügbar. Bitte melde dich im Elternportal an oder wende dich an die Schule.",
+  "enrollment.class_not_eligible":
+    "Diese Anmeldephase ist auf bestimmte Klassen beschränkt. Bitte prüfe die Klassenangabe deines Kindes.",
+  "enrollment.grade_not_eligible":
+    "Diese Anmeldephase ist auf bestimmte Klassenstufen beschränkt. Bitte prüfe die Klassenstufe deines Kindes.",
+  "enrollment.child_already_enrolled":
+    "Dieses Kind ist an der Schule bereits angemeldet. Diese Phase richtet sich nur an neue Kinder.",
+  "enrollment.child_not_enrolled":
+    "Dieses Kind ist an der Schule nicht angemeldet. Diese Phase richtet sich nur an bereits angemeldete Kinder.",
+  "enrollment.child_ambiguous":
+    "Dieses Kind konnte nicht eindeutig zugeordnet werden, weil an der Schule mehrere übereinstimmende Datensätze vorliegen. Bitte wende dich an die Schule, damit die doppelten Einträge zusammengeführt werden.",
+  "enrollment.child_not_permitted":
+    "Dein Konto hat keine Berechtigung, dieses bereits angemeldete Kind erneut anzumelden. Bitte wende dich an die Schule, um die Berechtigung zu erhalten.",
   "enrollment.schema_has_phases":
     "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
   "enrollment.schema_has_requests":

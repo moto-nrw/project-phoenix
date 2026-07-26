@@ -6,6 +6,7 @@ import { TeacherShellProvider } from "~/lib/shell-auth-context";
 import { AppShell } from "~/components/dashboard/app-shell";
 import { ShellNavIntlProvider } from "~/components/dashboard/shell-nav-intl-provider";
 import { AnnouncementModal } from "~/components/platform/announcement-modal";
+import { PwaInstallHint } from "~/components/tenant/pwa-install-hint";
 import { useSettingsCacheBridge } from "~/lib/hooks/use-settings-cache-bridge";
 
 export default function ProtectedLayout({
@@ -23,6 +24,7 @@ export default function ProtectedLayout({
           </ShellNavIntlProvider>
         </GroupAttendanceCountProvider>
         <AnnouncementModal />
+        <PwaInstallHint />
       </BreadcrumbProvider>
     </TeacherShellProvider>
   );

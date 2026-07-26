@@ -1817,6 +1817,302 @@ describe("PhasesEditor", () => {
       gradeLevelMax: 13,
     });
   });
+
+  it("hides the untokenized public actions for a linked_parents phase but keeps the late-invite action (#1663)", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase({ id: "12", name: "Nur Konto", audience: "linked_parents" }),
+    ]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    // The row-level copy-link button is gone: the plain /enroll/{id} URL is
+    // rejected by the backend without a late-invite token, so copying it would
+    // hand out a 404.
+    await screen.findByRole("button", { name: "Aktionen für Nur Konto" });
+    expect(
+      screen.queryByRole("button", { name: "Elternlink kopieren" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Nur Konto" }),
+    );
+
+    // "Formular ansehen" (the untokenized public form) is hidden...
+    expect(
+      screen.queryByRole("menuitem", { name: "Formular ansehen" }),
+    ).not.toBeInTheDocument();
+    // ...while the tokenized "Nachzügler-Link erstellen" action stays available.
+    expect(
+      await screen.findByRole("menuitem", {
+        name: "Nachzügler-Link erstellen",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the public form actions for an open phase (#1663)", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase({ id: "12", name: "Offene Phase", audience: "open" }),
+    ]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    expect(
+      await screen.findByRole("button", { name: "Elternlink kopieren" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Offene Phase" }),
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Formular ansehen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("round-trips the Zielgruppe audience and eligible classes into the create payload (#1663)", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.createPhase.mockResolvedValue(phase({ id: "20", name: "Nur Konto" }));
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+    );
+    fireEvent.change(inputByName("name"), { target: { value: "Nur Konto" } });
+
+    // The audience radios render with a default of "open".
+    expect(
+      document.querySelector("#phase-audience-open") as HTMLInputElement,
+    ).toBeChecked();
+    fireEvent.click(
+      document.querySelector(
+        "#phase-audience-linked_parents",
+      ) as HTMLInputElement,
+    );
+
+    // Add an eligible class. Scope to the Zielgruppe fieldset so we don't hit
+    // the separate SchoolClassListEditor under "Konkrete Klassen".
+    const audienceFieldset = screen
+      .getByText("Zielgruppe")
+      .closest("fieldset") as HTMLElement;
+    fireEvent.change(
+      within(audienceFieldset).getByLabelText("Klasse hinzufügen"),
+      { target: { value: "3b" } },
+    );
+    fireEvent.click(
+      within(audienceFieldset).getByRole("button", { name: "Hinzufügen" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => {
+      expect(mocks.createPhase).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Nur Konto",
+          audience: "linked_parents",
+          eligible_school_classes: ["3b"],
+        }),
+      );
+    });
+  });
+
+  it("keeps offered classes that are not eligible when saving a restricted phase (#1663)", async () => {
+    // available_school_classes may legitimately be a superset of the eligible
+    // list: late-invite recipients bypass the eligibility gate and get the
+    // full offered list, so an unrelated edit must not drop those classes.
+    const restricted = phase({
+      id: "22",
+      available_school_classes: ["2a", "2b", "3b"],
+      eligible_school_classes: ["3b"],
+      require_school_class: true,
+    });
+    mocks.listPhases.mockResolvedValue([restricted]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(restricted);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updatePhase).toHaveBeenCalledWith(
+        "22",
+        expect.objectContaining({
+          available_school_classes: ["2a", "2b", "3b"],
+          eligible_school_classes: ["3b"],
+          require_school_class: true,
+        }),
+      );
+    });
+  });
+
+  it("saves a grade-level restriction without touching the class config (#1663)", async () => {
+    // A phase for a whole grade needs no concrete classes — that is the case
+    // the class list cannot express, so selecting a grade must not force a
+    // class pick list or the mandatory toggle.
+    const target = phase({ id: "26" });
+    mocks.listPhases.mockResolvedValue([target]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(target);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    const gradeButtons = await screen.findAllByRole("button", { name: "3" });
+    fireEvent.click(gradeButtons[0]!);
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updatePhase).toHaveBeenCalledWith(
+        "26",
+        expect.objectContaining({
+          eligible_grade_levels: [3],
+          eligible_school_classes: [],
+          require_school_class: false,
+        }),
+      );
+    });
+  });
+
+  it("refuses a class that contradicts the selected grade levels (#1663)", async () => {
+    // Both restrictions apply together, so a grade-2 class under a grade-3
+    // restriction can never be declared. The backend rejects the pair; the
+    // editor names the offending class instead of surfacing that error.
+    const conflicting = phase({
+      id: "27",
+      available_school_classes: ["2a"],
+      eligible_school_classes: ["2a"],
+      eligible_grade_levels: [3],
+      require_school_class: true,
+    });
+    mocks.listPhases.mockResolvedValue([conflicting]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(/passt nicht zu den gewählten Klassenstufen/),
+    ).toBeInTheDocument();
+    expect(mocks.updatePhase).not.toHaveBeenCalled();
+  });
+
+  it("adds an eligible class that is not yet offered to the offered list (#1663)", async () => {
+    // The eligible list is edited free-form; the backend rejects a phase whose
+    // eligible list is not a subset of the offered one, so the missing class
+    // is added instead of the offered list being replaced.
+    const restricted = phase({
+      id: "23",
+      available_school_classes: ["2a", "2b"],
+      eligible_school_classes: [],
+      require_school_class: false,
+    });
+    mocks.listPhases.mockResolvedValue([restricted]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(restricted);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    const audienceFieldset = (await screen.findByText("Zielgruppe")).closest(
+      "fieldset",
+    ) as HTMLElement;
+    fireEvent.change(
+      within(audienceFieldset).getByLabelText("Klasse hinzufügen"),
+      { target: { value: "3b" } },
+    );
+    fireEvent.click(
+      within(audienceFieldset).getByRole("button", { name: "Hinzufügen" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updatePhase).toHaveBeenCalledWith(
+        "23",
+        expect.objectContaining({
+          available_school_classes: ["2a", "2b", "3b"],
+          eligible_school_classes: ["3b"],
+          require_school_class: true,
+        }),
+      );
+    });
+  });
+
+  it("defaults a legacy phase without eligibility fields to audience open on save (#1663)", async () => {
+    // phase() intentionally omits audience/eligible_school_classes, mirroring
+    // a phase created before #1663.
+    const legacy = phase({ id: "21" });
+    mocks.listPhases.mockResolvedValue([legacy]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(legacy);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelector("#phase-audience-open") as HTMLInputElement,
+      ).toBeChecked();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updatePhase).toHaveBeenCalledWith(
+        "21",
+        expect.objectContaining({
+          audience: "open",
+          eligible_school_classes: [],
+        }),
+      );
+    });
+  });
 });
 
 // The editor always sends the template's legal blocks on save (PR #1632).

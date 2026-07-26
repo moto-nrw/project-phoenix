@@ -56,8 +56,10 @@ func (r *LateInviteRepository) findUsableByTokenHash(ctx context.Context, tokenH
 		q = q.For("UPDATE")
 	}
 	if err := q.Scan(ctx); err != nil {
+		// Sentinel, not a bare message: callers gate access on the difference
+		// between "no usable invite" and "lookup failed" (#1663).
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("late invite not found")
+			return nil, enrollment.ErrLateInviteNotFound
 		}
 		return nil, fmt.Errorf("failed to find enrollment late invite: %w", err)
 	}

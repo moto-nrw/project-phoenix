@@ -1,5 +1,6 @@
 import {
   Activity,
+  BellRing,
   Building2,
   CalendarDays,
   CalendarRange,
@@ -251,6 +252,44 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot: "Profilseite mit der Sektion Passkeys.",
+      },
+      {
+        id: "app-zum-home-bildschirm",
+        title: "moto zum Home-Bildschirm hinzufügen (iPhone und iPad)",
+        summary:
+          "moto lässt sich wie eine App auf dem Home-Bildschirm ablegen und öffnet sich dann im Vollbild ohne Browserleisten.",
+        steps: [
+          "moto in Safari öffnen und in der eigenen Einrichtung anmelden.",
+          "Auf der Seite der Einrichtung (z. B. meine-ogs.moto-app.de) auf `Teilen` tippen.",
+          "`Zum Home-Bildschirm` wählen und mit `Hinzufügen` bestätigen.",
+          "moto künftig über das neue Symbol auf dem Home-Bildschirm starten.",
+        ],
+        callout: {
+          title: "Tipp für iPhone und iPad",
+          body: "Fügen Sie moto erst dann zum Home-Bildschirm hinzu, wenn Sie bereits in Ihrer Einrichtung angemeldet sind. So öffnet sich moto immer als eigene App im Vollbild. Wer für mehrere Einrichtungen arbeitet, legt am besten für jede Einrichtung ein eigenes Symbol auf dem Home-Bildschirm an.",
+          tone: "blue",
+        },
+        screenshot: "Safari-Teilen-Menü mit der Option Zum Home-Bildschirm.",
+        printCompact: true,
+      },
+      {
+        id: "app-zum-startbildschirm-android",
+        title: "moto zum Startbildschirm hinzufügen (Android)",
+        summary:
+          "Auch auf Android-Geräten lässt sich moto als App installieren und startet dann im Vollbild ohne Browserleisten.",
+        steps: [
+          "moto in Chrome öffnen und in der eigenen Einrichtung anmelden.",
+          "Auf der Seite der Einrichtung das Browser-Menü mit den drei Punkten öffnen.",
+          "`App installieren` oder `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "moto künftig über das neue Symbol auf dem Startbildschirm starten.",
+        ],
+        callout: {
+          title: "Erst anmelden, dann installieren",
+          body: "Wie auf dem iPhone gilt: moto erst nach der Anmeldung in der eigenen Einrichtung installieren. Wer für mehrere Einrichtungen arbeitet, legt für jede Einrichtung ein eigenes Symbol an.",
+          tone: "blue",
+        },
+        screenshot: "Chrome-Menü auf Android mit der Option App installieren.",
+        printCompact: true,
       },
       {
         id: "mitarbeitende-anlegen",
@@ -1182,6 +1221,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Formular` das `Basisformular` lassen oder eine eigene Vorlage wählen.",
           "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen. Ist die Warteliste tenantweit ausgeschaltet, nimmt `Warteliste` bei Überbelegung weitere Anmeldungen ohne Wartelistenstatus an.",
           "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
+          "Unter `Zielgruppe` festlegen, wer sich anmelden darf: `Offen für alle`, `Nur neue Kinder` (bereits angemeldete Kinder werden abgewiesen), `Nur bereits angemeldete Kinder` (für Wiederanmeldungen; neue Kinder werden abgewiesen) oder `Nur Eltern mit Konto an der Schule`. Phasen mit dieser letzten Option erscheinen nicht in der öffentlichen Anmeldeliste; Eltern erreichen sie im Elternportal über `Neue Anmeldung`. Optional die Phase mit `Nur für Klassenstufen` auf einzelne Jahrgänge beschränken, zum Beispiel nur den 3. Jahrgang; dafür genügt die Klassenstufen-Abfrage. Mit `Nur für Klassen` lässt sich die Phase zusätzlich auf einzelne Klassen ab der 2. Klasse beschränken; Kinder müssen dann eine dieser Klassen angeben.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
@@ -1394,6 +1434,75 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Zeilenmenü eines Displays mit den Aktionen Umbenennen, Neuen Link erstellen, Deaktivieren und Löschen.",
+      },
+    ],
+  },
+  {
+    id: "app-installieren",
+    title: "App installieren & Benachrichtigungen",
+    description:
+      "moto ist eine Web-App und braucht keinen App Store: Sie wird direkt aus dem Browser zum Home-Bildschirm hinzugefügt und verhält sich danach wie eine normale App. Auf dem iPhone und iPad ist dieser Schritt außerdem die Voraussetzung für Push-Benachrichtigungen.",
+    icon: TabletSmartphone,
+    tone: "green",
+    steps: [
+      {
+        id: "android-installieren",
+        title: "Auf Android zum Startbildschirm hinzufügen",
+        icon: TabletSmartphone,
+        printCompact: true,
+        summary:
+          "In Chrome auf Android lässt sich moto in wenigen Schritten installieren. Danach öffnet sich die App vom Startbildschirm aus im Vollbild, ohne Browserleiste.",
+        steps: [
+          "moto in Chrome öffnen und anmelden.",
+          "Oben rechts das Menü (drei Punkte) antippen.",
+          "`App installieren` bzw. `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "Die App künftig über das neue moto-Symbol auf dem Startbildschirm öffnen.",
+        ],
+        callout: {
+          title: "Kein App Store nötig",
+          body: "moto steht nicht im Play Store. Die Installation läuft direkt über den Browser; Updates kommen automatisch, es muss nichts aktualisiert werden.",
+        },
+        screenshot:
+          "Chrome-Menü auf Android mit dem Eintrag zum Installieren der App.",
+      },
+      {
+        id: "iphone-ipad-installieren",
+        title: "Auf iPhone und iPad zum Home-Bildschirm hinzufügen",
+        icon: TabletSmartphone,
+        printCompact: true,
+        summary:
+          "Auf iPhone und iPad läuft die Installation über Safari. Wichtig: Nur die vom Home-Bildschirm geöffnete App kann Push-Benachrichtigungen empfangen.",
+        steps: [
+          "moto in Safari öffnen und anmelden.",
+          "Das Teilen-Symbol (Quadrat mit Pfeil nach oben) antippen.",
+          "In der Liste `Zum Home-Bildschirm` wählen und mit `Hinzufügen` bestätigen.",
+          "Die App künftig über das neue moto-Symbol auf dem Home-Bildschirm öffnen.",
+        ],
+        callout: {
+          title: "Nicht im App Store",
+          body: "moto steht nicht im App Store — das ist so gewollt. Der Weg über `Zum Home-Bildschirm` ist die offizielle Installation als Web-App.",
+        },
+        screenshot:
+          "Teilen-Menü in Safari mit dem Eintrag Zum Home-Bildschirm.",
+      },
+      {
+        id: "push-benachrichtigungen-aktivieren",
+        title: "Push-Benachrichtigungen aktivieren",
+        icon: BellRing,
+        printCompact: true,
+        summary:
+          "Erinnerungen (z. B. anstehende Abholungen) kommen auf Wunsch als Systembenachrichtigung an, auch wenn die App geschlossen ist. Aktiviert wird das pro Gerät im eigenen Profil.",
+        steps: [
+          "Im eigenen Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
+          "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
+          "Fertig: Neue Erinnerungen erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
+        ],
+        callout: {
+          title: "iPhone/iPad: erst installieren",
+          body: "Auf iPhone und iPad funktioniert das nur in der zum Home-Bildschirm hinzugefügten App (siehe die Schritte oben). Im normalen Safari-Tab bietet Apple keine Push-Benachrichtigungen an. Zusätzlich muss die Schule die Benachrichtigungen in den Einstellungen eingeschaltet haben.",
+        },
+        screenshot:
+          "Profilseite mit dem Abschnitt Push-Benachrichtigungen und der Schaltfläche Aktivieren.",
       },
     ],
   },
