@@ -10,7 +10,7 @@
 
 export type PushPortal = "tenant" | "parent";
 
-export class PushApiError extends Error {
+class PushApiError extends Error {
   constructor(
     public status: number,
     message: string,
@@ -37,7 +37,7 @@ export function isPushSupported(): boolean {
 }
 
 /** True when the app runs installed (home screen / standalone mode). */
-export function isStandalone(): boolean {
+function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   if (window.matchMedia("(display-mode: standalone)").matches) return true;
   // iOS Safari exposes the legacy navigator.standalone flag.
@@ -96,7 +96,7 @@ interface PublicKeyResponse {
 }
 
 /** Fetches the server's VAPID public key; throws 404 when push is not configured. */
-export async function getPushPublicKey(portal: PushPortal): Promise<string> {
+async function getPushPublicKey(portal: PushPortal): Promise<string> {
   const response = await requestJson<PublicKeyResponse>(
     `${basePath(portal)}/public-key`,
   );
@@ -111,7 +111,7 @@ export async function getPushPublicKey(portal: PushPortal): Promise<string> {
 }
 
 /** Registers /sw.js (idempotent) and returns the registration. */
-export async function registerPushServiceWorker(): Promise<ServiceWorkerRegistration> {
+async function registerPushServiceWorker(): Promise<ServiceWorkerRegistration> {
   const registration = await navigator.serviceWorker.register("/sw.js");
   await navigator.serviceWorker.ready;
   return registration;
@@ -148,7 +148,7 @@ export async function subscribePush(portal: PushPortal): Promise<void> {
 }
 
 /** Persists an existing browser subscription server-side (e.g. re-sync). */
-export async function syncSubscription(
+async function syncSubscription(
   portal: PushPortal,
   subscription: PushSubscription,
 ): Promise<void> {
@@ -187,9 +187,7 @@ export async function unsubscribePushSilently(
 }
 
 /** Converts a URL-safe base64 VAPID key to the byte array subscribe() needs. */
-export function urlBase64ToUint8Array(
-  base64String: string,
-): Uint8Array<ArrayBuffer> {
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
