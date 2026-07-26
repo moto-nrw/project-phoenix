@@ -37,7 +37,6 @@ sw.addEventListener("push", (event) => {
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-192x192.png",
     data: { deepLink: data.deepLink || "/" },
-    tag: data.type || "moto-notification",
   };
 
   event.waitUntil(sw.registration.showNotification(title, options));
