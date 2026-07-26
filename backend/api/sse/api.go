@@ -38,7 +38,12 @@ func (rs *Resource) Router() chi.Router {
 // eventsHandler handles Server-Sent Events connections
 // Orchestrates: connection setup → subscription resolution → event streaming
 func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel, ok := withSSETokenDeadline(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	defer cancel()
 
 	// Step 1: Setup SSE connection (headers, flusher validation)
 	conn, statusCode := rs.setupSSEConnection(w)
@@ -50,7 +55,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
 	conn.tenantID = tenant.FromContext(ctx)
-	conn.isAdmin = hasEffectiveAdminScope(ctx)
+	conn.isAdmin = authorize.HasEffectiveAdminScope(ctx)
 
 	// Step 3: Resolve staff + subscription topics.
 	topics, staffID, err := rs.resolveSSESubscription(ctx, conn.tenantID)
@@ -72,11 +77,6 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// need BroadcastToAll events for dashboard count refreshes).
 	rs.createAndRegisterClient(conn)
 	rs.runEventLoop(ctx, conn)
-}
-
-func hasEffectiveAdminScope(ctx context.Context) bool {
-	return jwt.ClaimsFromCtx(ctx).IsAdmin ||
-		authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 }
 
 // resolveSSESubscription resolves the client's topic subscription inside a

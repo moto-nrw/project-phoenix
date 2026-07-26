@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/jwtauth/v5"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -29,6 +31,22 @@ type sseTopics struct {
 	activeGroupIDs []string
 	eduTopics      []string
 	allTopics      []string
+}
+
+// withSSETokenDeadline ensures an accepted stream cannot outlive the access
+// token that authorized its subscriptions. The client reconnects through the
+// normal authentication path and receives current roles and permissions.
+func withSSETokenDeadline(ctx context.Context) (context.Context, context.CancelFunc, bool) {
+	token, _, err := jwtauth.FromContext(ctx)
+	if err != nil || token == nil {
+		return ctx, func() {}, false
+	}
+	expiresAt, ok := token.Expiration()
+	if !ok || !expiresAt.After(time.Now()) {
+		return ctx, func() {}, false
+	}
+	deadlineCtx, cancel := context.WithDeadline(ctx, expiresAt)
+	return deadlineCtx, cancel, true
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil

@@ -8,7 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/go-chi/jwtauth/v5"
+	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
@@ -198,6 +202,32 @@ func TestSetupSSEConnection_NonFlusher(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, statusCode)
 }
 
+func TestWithSSETokenDeadlineAppliesAccessTokenExpiry(t *testing.T) {
+	expiresAt := time.Now().Add(time.Hour)
+	token, err := jwxjwt.NewBuilder().Expiration(expiresAt).Build()
+	require.NoError(t, err)
+
+	ctx := jwtauth.NewContext(context.Background(), token, nil)
+	deadlineCtx, cancel, ok := withSSETokenDeadline(ctx)
+	require.True(t, ok)
+	defer cancel()
+
+	deadline, hasDeadline := deadlineCtx.Deadline()
+	require.True(t, hasDeadline)
+	assert.WithinDuration(t, expiresAt, deadline, time.Millisecond)
+}
+
+func TestWithSSETokenDeadlineRejectsTokenWithoutExpiry(t *testing.T) {
+	token, err := jwxjwt.NewBuilder().Build()
+	require.NoError(t, err)
+
+	ctx := jwtauth.NewContext(context.Background(), token, nil)
+	_, cancel, ok := withSSETokenDeadline(ctx)
+	defer cancel()
+
+	assert.False(t, ok)
+}
+
 func TestCreateAndRegisterClientPreservesAdminScope(t *testing.T) {
 	hub := realtime.NewHub(slog.Default())
 	rs := &Resource{hub: hub}
@@ -233,7 +263,7 @@ func TestHasEffectiveAdminScope(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{IsAdmin: tt.isAdmin})
 			ctx = context.WithValue(ctx, jwt.CtxPermissions, tt.permissions)
-			assert.Equal(t, tt.want, hasEffectiveAdminScope(ctx))
+			assert.Equal(t, tt.want, authorize.HasEffectiveAdminScope(ctx))
 		})
 	}
 }

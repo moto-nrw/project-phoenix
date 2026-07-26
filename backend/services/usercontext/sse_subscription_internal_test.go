@@ -16,6 +16,7 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
@@ -303,9 +304,61 @@ func ctxWithClaims(isAdmin bool) context.Context {
 	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
 }
 
+func ctxWithClaimsAndPermissions(isAdmin bool, permissions ...string) context.Context {
+	ctx := ctxWithClaims(isAdmin)
+	return context.WithValue(ctx, jwt.CtxPermissions, permissions)
+}
+
+type ssePersonRepoStub struct {
+	userModels.PersonRepository
+	person *userModels.Person
+}
+
+func (s *ssePersonRepoStub) FindByAccountID(_ context.Context, _ int64) (*userModels.Person, error) {
+	return s.person, nil
+}
+
+type sseStaffRepoStub struct {
+	userModels.StaffRepository
+}
+
+func (s *sseStaffRepoStub) FindByPersonID(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+
 // =============================================================================
 // TESTS: resolveSupervisions
 // =============================================================================
+
+func TestResolveSSESubscription_WildcardAdminWithoutStaff(t *testing.T) {
+	for _, permission := range []string{"admin:*", "*:*"} {
+		t.Run(permission, func(t *testing.T) {
+			rs := &userContextService{
+				personRepo: &ssePersonRepoStub{
+					person: &userModels.Person{Model: base.Model{ID: 99}},
+				},
+				staffRepo: &sseStaffRepoStub{},
+				sseSettings: mockSettingsSvc(map[string]bool{
+					configModel.KeyAdminSupervisionOverview: true,
+				}),
+				sseActiveSvc: &mockActiveSvcForSSE{
+					listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+						return nil, nil
+					},
+				},
+				logger: slog.Default(),
+			}
+
+			subscription, err := rs.ResolveSSESubscription(
+				ctxWithClaimsAndPermissions(false, permission),
+			)
+
+			require.NoError(t, err)
+			assert.Zero(t, subscription.StaffID)
+			assert.Empty(t, subscription.AllTopics)
+		})
+	}
+}
 
 func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 	// Admin SSE path now enumerates active.groups directly so unclaimed groups
