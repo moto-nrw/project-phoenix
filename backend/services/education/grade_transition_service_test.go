@@ -1000,6 +1000,28 @@ func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
 		require.NoError(t, err)
 		assert.Zero(t, count)
 	})
+
+	t.Run("create fails with duplicate source classes", func(t *testing.T) {
+		req := educationService.CreateTransitionRequest{
+			AcademicYear: "2026-2027",
+			CreatedBy:    account.ID,
+			Mappings: []educationService.MappingRequest{
+				{FromClass: "1a", ToClass: testpkg.StrPtr("2a")},
+				{FromClass: " 1a ", ToClass: testpkg.StrPtr("2b")},
+			},
+		}
+
+		_, err := service.Create(ctx, req)
+		require.ErrorIs(t, err, educationService.ErrInvalidTransitionData)
+		assert.Contains(t, err.Error(), "duplicate mapping")
+
+		count, err := db.NewSelect().
+			Model((*education.GradeTransition)(nil)).
+			Where("academic_year = ?", req.AcademicYear).
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Zero(t, count)
+	})
 }
 
 func TestGradeTransitionService_Revert_NonExistentTransition(t *testing.T) {

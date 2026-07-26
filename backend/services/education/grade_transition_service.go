@@ -285,6 +285,7 @@ func (s *GradeTransitionService) buildMappings(transitionID int64, inputs []Mapp
 // or mapping rows are changed. A request rejected as invalid must leave an
 // existing draft intact, even when the caller's transaction commits 4xx errors.
 func validateMappingRequests(inputs []MappingRequest) error {
+	fromClasses := make(map[string]struct{}, len(inputs))
 	for _, input := range inputs {
 		mapping := &education.GradeTransitionMapping{
 			TransitionID: 1, // Validation requires a positive ID; it is assigned on persistence.
@@ -294,6 +295,10 @@ func validateMappingRequests(inputs []MappingRequest) error {
 		if err := mapping.Validate(); err != nil {
 			return fmt.Errorf("%w: invalid mapping for class %s: %w", ErrInvalidTransitionData, input.FromClass, err)
 		}
+		if _, duplicate := fromClasses[mapping.FromClass]; duplicate {
+			return fmt.Errorf("%w: duplicate mapping for class %s", ErrInvalidTransitionData, mapping.FromClass)
+		}
+		fromClasses[mapping.FromClass] = struct{}{}
 	}
 	return nil
 }
