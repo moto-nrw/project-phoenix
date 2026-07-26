@@ -125,6 +125,18 @@ func TestDiffStudentFields_PerField(t *testing.T) {
 		assert.Contains(t, *e.OldValue, "Mo: Bus")
 		assert.Contains(t, *e.NewValue, "Mo: Allein / Bus")
 	})
+
+	t.Run("departure companion note change", func(t *testing.T) {
+		edits := diffStudentFields(
+			&userModels.Student{DepartureCompanionNote: strPtr("Geschwisterkind Mia")},
+			&userModels.Student{DepartureCompanionNote: nil},
+		)
+		require.Len(t, edits, 1)
+		e := edits[0]
+		assert.Equal(t, auditModels.StudentFieldDepartureCompanionNote, e.FieldName)
+		assert.Equal(t, "Geschwisterkind Mia", *e.OldValue)
+		assert.Equal(t, "", *e.NewValue)
+	})
 }
 
 // TestDiffStudentFields_MultipleFields verifies several simultaneous changes

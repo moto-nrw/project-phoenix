@@ -922,7 +922,17 @@ export function PersonalInfoReadOnly({
         {student.departure_companion_note && (
           <InfoItem
             label="Geht außerdem mit"
-            value={student.departure_companion_note}
+            value={
+              <span className="flex items-start gap-1.5">
+                <span className="min-w-0 flex-1">
+                  {student.departure_companion_note}
+                </span>
+                <FieldHistoryInfo
+                  studentId={student.id}
+                  fields={["departure_companion_note"]}
+                />
+              </span>
+            }
           />
         )}
         {student.health_info && (

@@ -155,6 +155,11 @@ func diffStudentFields(before, after *userModels.Student) []*auditModels.Student
 	add(auditModels.StudentFieldHealthInfo, derefString(before.HealthInfo), derefString(after.HealthInfo))
 	add(auditModels.StudentFieldPickupStatus, derefString(before.PickupStatus), derefString(after.PickupStatus))
 	add(auditModels.StudentFieldDepartureDays, departureLabel(before), departureLabel(after))
+	add(
+		auditModels.StudentFieldDepartureCompanionNote,
+		derefString(before.DepartureCompanionNote),
+		derefString(after.DepartureCompanionNote),
+	)
 
 	return edits
 }

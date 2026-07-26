@@ -53,6 +53,7 @@ const FIELD_LABELS: Record<string, string> = {
   health_info: "Gesundheitsinformationen",
   pickup_status: "Abholung",
   departure_days: "Wochenplan (Abholung)",
+  departure_companion_note: "Geht außerdem mit",
 };
 
 function fieldLabel(field: string): string {

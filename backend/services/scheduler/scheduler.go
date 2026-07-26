@@ -554,10 +554,11 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 // KeyDataCleanupEnabled + KeyDataCleanupTime — one admin switch and one
 // nightly window for all retention. dayCache dedupes per tenant per day; the
 // today-mark is set immediately to prevent double-fire from concurrent ticks
-// and cleared again when runForTenant reports failure so the tenant retries
-// on the next matching minute. runForTenant performs the actual cleanup and
-// owns its own logging.
-func (s *Scheduler) checkAndRunDailyGDPRCleanup(task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) bool) {
+// and cleared again when runForTenant returns an error so the tenant retries
+// on the next matching minute. Returning that error through forEachTenantSettings
+// also rolls back the tenant transaction, keeping cleanup audit rows and their
+// corresponding deletes atomic.
+func (s *Scheduler) checkAndRunDailyGDPRCleanup(task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) error) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -592,9 +593,10 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(task *ScheduledTask, dayCache *s
 		// Mark immediately to prevent double-fire from concurrent ticks
 		markRunToday(dayCache, tenantID)
 
-		if !runForTenant(tenantCtx, tenantID, cleanupTime) {
+		if err := runForTenant(tenantCtx, tenantID, cleanupTime); err != nil {
 			// Clear mark so cleanup retries on next matching minute
 			dayCache.Delete(tenantID)
+			return err
 		}
 		return nil
 	})
@@ -602,7 +604,7 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(task *ScheduledTask, dayCache *s
 
 // checkAndRunCleanup evaluates each tenant's cleanup settings and runs if time matches.
 func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
-	s.checkAndRunDailyGDPRCleanup(task, &s.lastDataCleanup, "cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) bool {
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastDataCleanup, "cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) error {
 		s.getLogger().Info("running data cleanup for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("cleanup_time", cleanupTime),
@@ -612,7 +614,10 @@ func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		return s.executeCleanupForTenant(cleanupCtx, tenantID)
+		if !s.executeCleanupForTenant(cleanupCtx, tenantID) {
+			return fmt.Errorf("data cleanup failed for tenant %d", tenantID)
+		}
+		return nil
 	})
 }
 
@@ -2018,7 +2023,7 @@ func (s *Scheduler) runTimetableCleanupTaskPolling(task *ScheduledTask) {
 // KeyDataCleanupEnabled + KeyDataCleanupTime + KeyDataCleanupTimeoutMinutes
 // with the visits cleanup task — one admin switch for all nightly retention.
 func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
-	s.checkAndRunDailyGDPRCleanup(task, &s.lastTimetableCleanup, "timetable-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) bool {
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastTimetableCleanup, "timetable-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) error {
 		s.getLogger().Info("running timetable GDPR cleanup for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("cleanup_time", cleanupTime),
@@ -2034,7 +2039,7 @@ func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)
-			return false
+			return fmt.Errorf("timetable cleanup for tenant %d: %w", tenantID, err)
 		}
 
 		if result.InstancesDeleted > 0 || result.ExceptionsDeleted > 0 {
@@ -2047,7 +2052,7 @@ func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
 				slog.Int64("duration_ms", result.DurationMS),
 			)
 		}
-		return true
+		return nil
 	})
 }
 
@@ -2084,7 +2089,7 @@ func (s *Scheduler) runTimeTrackingCleanupTaskPolling(task *ScheduledTask) {
 // with the visits and timetable cleanup tasks — one admin switch for all
 // nightly retention.
 func (s *Scheduler) checkAndRunTimeTrackingCleanup(task *ScheduledTask) {
-	s.checkAndRunDailyGDPRCleanup(task, &s.lastTimeTrackingCleanup, "time-tracking-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) bool {
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastTimeTrackingCleanup, "time-tracking-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) error {
 		s.getLogger().Info("running time-tracking GDPR cleanup for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("cleanup_time", cleanupTime),
@@ -2100,7 +2105,7 @@ func (s *Scheduler) checkAndRunTimeTrackingCleanup(task *ScheduledTask) {
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)
-			return false
+			return fmt.Errorf("time-tracking cleanup for tenant %d: %w", tenantID, err)
 		}
 
 		if result.SessionsDeleted > 0 || result.AbsencesDeleted > 0 {
@@ -2113,7 +2118,7 @@ func (s *Scheduler) checkAndRunTimeTrackingCleanup(task *ScheduledTask) {
 				slog.Int64("duration_ms", result.DurationMS),
 			)
 		}
-		return true
+		return nil
 	})
 }
 
@@ -2148,7 +2153,7 @@ func (s *Scheduler) runStudentChangeLogCleanupTaskPolling(task *ScheduledTask) {
 // Shares the same data-cleanup toggle/time/timeout as the other retention
 // jobs — one admin switch for all nightly retention.
 func (s *Scheduler) checkAndRunStudentChangeLogCleanup(task *ScheduledTask) {
-	s.checkAndRunDailyGDPRCleanup(task, &s.lastStudentChangeLogCleanup, "student-change-log-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) bool {
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastStudentChangeLogCleanup, "student-change-log-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) error {
 		s.getLogger().Info("running student change-log GDPR cleanup for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("cleanup_time", cleanupTime),
@@ -2164,7 +2169,7 @@ func (s *Scheduler) checkAndRunStudentChangeLogCleanup(task *ScheduledTask) {
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)
-			return false
+			return fmt.Errorf("student change-log cleanup for tenant %d: %w", tenantID, err)
 		}
 
 		if result.EditsDeleted > 0 {
@@ -2176,6 +2181,6 @@ func (s *Scheduler) checkAndRunStudentChangeLogCleanup(task *ScheduledTask) {
 				slog.Int64("duration_ms", result.DurationMS),
 			)
 		}
-		return true
+		return nil
 	})
 }

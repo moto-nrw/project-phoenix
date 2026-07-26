@@ -32,12 +32,13 @@ type StudentFieldEdit struct {
 // Attendance/check-in changes are intentionally out of scope for the first
 // stage (they originate from devices/parents and have their own history).
 const (
-	StudentFieldStatus          = "status"
-	StudentFieldSupervisorNotes = "supervisor_notes"
-	StudentFieldExtraInfo       = "extra_info"
-	StudentFieldHealthInfo      = "health_info"
-	StudentFieldPickupStatus    = "pickup_status"
-	StudentFieldDepartureDays   = "departure_days"
+	StudentFieldStatus                 = "status"
+	StudentFieldSupervisorNotes        = "supervisor_notes"
+	StudentFieldExtraInfo              = "extra_info"
+	StudentFieldHealthInfo             = "health_info"
+	StudentFieldPickupStatus           = "pickup_status"
+	StudentFieldDepartureDays          = "departure_days"
+	StudentFieldDepartureCompanionNote = "departure_companion_note"
 
 	// StudentFieldEditSystemActor identifies automated changes. edited_by has
 	// no foreign key so zero can safely represent the scheduler without
@@ -64,7 +65,8 @@ func (e *StudentFieldEdit) Validate() error {
 
 	switch e.FieldName {
 	case StudentFieldStatus, StudentFieldSupervisorNotes, StudentFieldExtraInfo,
-		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldDepartureDays:
+		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldDepartureDays,
+		StudentFieldDepartureCompanionNote:
 		// Valid field names
 	default:
 		return errors.New("invalid field name")
