@@ -1306,7 +1306,7 @@ func TestSetValue_TextPatternValidation(t *testing.T) {
 		Default:    "",
 		Tab:        "abrechnung",
 		Category:   "lohnarten",
-		Validation: &config.ValidationRules{Pattern: &pattern},
+		Validation: &config.ValidationRules{Pattern: &pattern, AllowEmpty: true},
 	})
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
@@ -1396,7 +1396,7 @@ func TestSetValue_PINAccepts4Digits(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSetValue_PINAcceptsEmpty(t *testing.T) {
+func TestSetValue_PINRejectsEmpty(t *testing.T) {
 	setupTest(t)
 	pinPattern := `^\d{4}$`
 	config.Register(config.Definition{
@@ -1412,7 +1412,8 @@ func TestSetValue_PINAcceptsEmpty(t *testing.T) {
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "", nil, nil)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not match required pattern")
 }
 
 // =============================================================================

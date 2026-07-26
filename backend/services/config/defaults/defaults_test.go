@@ -1011,6 +1011,8 @@ func TestSecuritySettings(t *testing.T) {
 	assert.Equal(t, "devices", def.Tab)
 	assert.Equal(t, "pin", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	assert.False(t, def.Validation.AllowEmpty)
 	require.NotNil(t, def.DependsOn)
 	assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
 	assert.Equal(t, "eq", def.DependsOn.Condition)
@@ -1479,6 +1481,7 @@ func TestPayrollSettings(t *testing.T) {
 		assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy, key)
 		require.NotNil(t, def.Validation, key)
 		require.NotNil(t, def.Validation.Pattern, key)
+		assert.True(t, def.Validation.AllowEmpty, key)
 		assert.Equal(t, `^\d{1,4}$`, *def.Validation.Pattern, key)
 	}
 
@@ -1505,6 +1508,7 @@ func TestPayrollSettings(t *testing.T) {
 	assert.Equal(t, "config:manage", berater.WritePermission)
 	require.NotNil(t, berater.Validation)
 	require.NotNil(t, berater.Validation.Pattern)
+	assert.True(t, berater.Validation.AllowEmpty)
 	assert.Equal(t, `^\d{1,7}$`, *berater.Validation.Pattern)
 
 	mandant := config.GetDefinition(config.KeyPayrollDatevMandantennummer)
@@ -1514,5 +1518,6 @@ func TestPayrollSettings(t *testing.T) {
 	assert.Equal(t, "config:manage", mandant.WritePermission)
 	require.NotNil(t, mandant.Validation)
 	require.NotNil(t, mandant.Validation.Pattern)
+	assert.True(t, mandant.Validation.AllowEmpty)
 	assert.Equal(t, `^\d{1,5}$`, *mandant.Validation.Pattern)
 }

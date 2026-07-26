@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
@@ -24,7 +25,9 @@ export function StammdatenTab({
 
   const {
     data: personnelNumber,
+    error,
     isLoading,
+    isValidating,
     mutate,
   } = useSWRAuth(`staff-payroll-number-${staffId}`, () =>
     staffPayrollNumberService.get(staffId),
@@ -32,6 +35,27 @@ export function StammdatenTab({
 
   if (isLoading) {
     return <Loading fullPage={false} />;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-2">
+        <Alert
+          type="error"
+          message="Die Personalnummer konnte nicht geladen werden."
+        />
+        <Button
+          type="button"
+          size="compact"
+          variant="outline"
+          isLoading={isValidating}
+          loadingText="Wird geladen..."
+          onClick={() => void mutate()}
+        >
+          Erneut laden
+        </Button>
+      </div>
+    );
   }
 
   return (

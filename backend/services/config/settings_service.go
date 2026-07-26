@@ -449,9 +449,9 @@ func validateValue(def *config.Definition, value any) error {
 		if !ok {
 			return fmt.Errorf("expected a string")
 		}
-		// Empty strings are valid for optional settings even when their
-		// configured non-empty values must match a pattern.
-		if def.Validation != nil && def.Validation.CompiledPattern != nil && str != "" {
+		if def.Validation != nil &&
+			def.Validation.CompiledPattern != nil &&
+			(str != "" || !def.Validation.AllowEmpty) {
 			if !def.Validation.CompiledPattern.MatchString(str) {
 				return fmt.Errorf("value does not match required pattern")
 			}

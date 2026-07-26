@@ -57,7 +57,7 @@ func init() {
 			Tab:             "abrechnung",
 			Category:        "lohnarten",
 			SortOrder:       l.sort,
-			Validation:      &config.ValidationRules{Pattern: &lohnartPattern},
+			Validation:      &config.ValidationRules{Pattern: &lohnartPattern, AllowEmpty: true},
 			AccessPolicy:    config.AccessAdminOnly,
 		})
 	}
@@ -99,7 +99,7 @@ func init() {
 		Tab:             "abrechnung",
 		Category:        "datev_mandant",
 		SortOrder:       10,
-		Validation:      &config.ValidationRules{Pattern: &beraterPattern},
+		Validation:      &config.ValidationRules{Pattern: &beraterPattern, AllowEmpty: true},
 		AccessPolicy:    config.AccessAdminOnly,
 	})
 
@@ -114,7 +114,7 @@ func init() {
 		Tab:             "abrechnung",
 		Category:        "datev_mandant",
 		SortOrder:       20,
-		Validation:      &config.ValidationRules{Pattern: &mandantPattern},
+		Validation:      &config.ValidationRules{Pattern: &mandantPattern, AllowEmpty: true},
 		AccessPolicy:    config.AccessAdminOnly,
 	})
 }
