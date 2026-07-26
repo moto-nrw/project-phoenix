@@ -44,9 +44,9 @@ func phaseEligibilityColumnsUp(ctx context.Context, db *bun.DB) error {
 
 		ALTER TABLE enrollment.phases
 		ADD CONSTRAINT phases_audience_check
-		CHECK (audience IN ('open', 'new_students', 'existing_students', 'linked_parents'));
+		CHECK (audience IN ('open', 'new_students', 'linked_parents'));
 
-		COMMENT ON COLUMN enrollment.phases.audience IS 'Who may apply to this phase: open (everyone incl. anonymous), new_students (anonymous allowed, children already enrolled at the school are rejected), existing_students (anonymous allowed, every submitted child must already be enrolled at the school), linked_parents (only parent accounts with an active guardian link at the school; hidden from the public listing)';
+		COMMENT ON COLUMN enrollment.phases.audience IS 'Who may apply to this phase: open (everyone incl. anonymous), new_students (anonymous allowed, children already enrolled at the school are rejected), linked_parents (only parent accounts with an active guardian link at the school; hidden from the public listing)';
 		COMMENT ON COLUMN enrollment.phases.eligible_school_classes IS 'When non-empty, every child in a submission must declare a school class contained in this list (e.g. ["1a","2b"]); empty means no class restriction';
 	`).Exec(ctx)
 	if err != nil {

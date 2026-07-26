@@ -35,8 +35,24 @@ func init() {
 
 // pushSubscriptionsUp creates the Web Push subscription store (#2003).
 //
-// One row per (tenant, browser endpoint): account_id uses a PLAIN FK to
-// auth.accounts because accounts are cross-tenant (guardians especially).
+// One row per (tenant, browser endpoint): a device that registered for push.
+// account_id uses a PLAIN FK to auth.accounts — accounts are cross-tenant
+// (guardians especially), so no composite tenant FK exists for them; this
+// matches parent_announcements (1.15.161) and excused_absence_requests
+// (1.15.177). A guardian linked to two schools gets one row per school for
+// the same endpoint, which is why the unique key is (tenant_id, endpoint)
+// and NOT the endpoint alone — a global unique would let one tenant's
+// registration silently steal another's and would fight RLS on cleanup.
+//
+// portal records through which portal the device registered ('staff' or
+// 'parent'): tenant/admin-scoped notifications must never reach guardian
+// devices and vice versa. The two portals are different origins, so one
+// browser produces distinct endpoints per portal — no collision on the
+// unique key.
+//
+// p256dh/auth are the client-side encryption keys of the Web Push standard
+// (public values, not secrets). The payload GDPR contract lives in
+// services/notifications: Title/Body/DeepLink only, never child data.
 func pushSubscriptionsUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.234: Creating iot.push_subscriptions...")
 
@@ -74,6 +90,7 @@ func pushSubscriptionsUp(ctx context.Context, db *bun.DB) error {
 				ON DELETE CASCADE
 		);
 
+		-- Audience fan-out and per-account listing.
 		CREATE INDEX IF NOT EXISTS idx_push_subscriptions_account
 			ON iot.push_subscriptions (tenant_id, account_id);
 
