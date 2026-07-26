@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	phaseAudienceExistingStudentsVersion     = "1.15.223"
+	phaseAudienceExistingStudentsVersion     = "1.15.228"
 	phaseAudienceExistingStudentsDescription = "Allow the existing_students phase audience (only already-enrolled students may apply) for issue #1663"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func phaseAudienceExistingStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.223: Adding existing_students to the enrollment.phases audience CHECK...")
+	fmt.Println("Migration 1.15.228: Adding existing_students to the enrollment.phases audience CHECK...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
@@ -52,7 +52,7 @@ func phaseAudienceExistingStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func phaseAudienceExistingStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.223: Removing existing_students from the enrollment.phases audience CHECK...")
+	fmt.Println("Rolling back migration 1.15.228: Removing existing_students from the enrollment.phases audience CHECK...")
 
 	// Fold any existing_students phases back to 'open' so the narrower
 	// CHECK below can be re-created without a constraint violation.

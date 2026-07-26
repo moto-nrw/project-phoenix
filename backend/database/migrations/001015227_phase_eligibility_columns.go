@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	phaseEligibilityColumnsVersion     = "1.15.222"
+	phaseEligibilityColumnsVersion     = "1.15.227"
 	phaseEligibilityColumnsDescription = "Add per-phase eligibility config to enrollment.phases (audience + eligible_school_classes) for issue #1663"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func phaseEligibilityColumnsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.222: Adding eligibility config columns to enrollment.phases...")
+	fmt.Println("Migration 1.15.227: Adding eligibility config columns to enrollment.phases...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
@@ -57,7 +57,7 @@ func phaseEligibilityColumnsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func phaseEligibilityColumnsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.222: Removing eligibility config columns from enrollment.phases...")
+	fmt.Println("Rolling back migration 1.15.227: Removing eligibility config columns from enrollment.phases...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases

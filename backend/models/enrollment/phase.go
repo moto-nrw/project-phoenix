@@ -199,7 +199,7 @@ type Phase struct {
 	Audience              string   `bun:"audience,notnull,default:'open'" json:"audience"`
 	EligibleSchoolClasses []string `bun:"eligible_school_classes,type:jsonb,notnull" json:"eligible_school_classes"`
 
-	// EligibleGradeLevels (migration 1.15.226, issue #1663) is the
+	// EligibleGradeLevels (migration 1.15.230, issue #1663) is the
 	// grade-level counterpart of EligibleSchoolClasses: when non-empty,
 	// every submitted child must declare one of the listed grades. It is
 	// the representation for a phase aimed at a whole grade ("alle
