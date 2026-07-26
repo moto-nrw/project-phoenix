@@ -1,6 +1,7 @@
 package users
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"strings"
@@ -43,10 +44,7 @@ func NewStudentAuditService(repo auditModels.StudentFieldEditRepository, logger 
 }
 
 func (s *studentAuditService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 func (s *studentAuditService) RecordChanges(ctx context.Context, before, after *userModels.Student, editedBy int64, editedByName string) error {

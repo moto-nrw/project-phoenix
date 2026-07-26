@@ -46,11 +46,6 @@ const (
 	StudentFieldEditSystemActorName       = "System"
 )
 
-// TableName returns the database table name.
-func (e *StudentFieldEdit) TableName() string {
-	return "audit.student_field_edits"
-}
-
 // Validate ensures the edit record is well-formed before persistence.
 func (e *StudentFieldEdit) Validate() error {
 	if e.StudentID <= 0 {

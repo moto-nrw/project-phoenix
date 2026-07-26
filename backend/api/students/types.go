@@ -572,6 +572,15 @@ func (req *UpdateStudentRequest) hasCompanionUpdate() bool {
 	return req.Companions != nil
 }
 
+func (req *UpdateStudentRequest) hasDeparturePlanUpdate() bool {
+	return req.DepartureDays != nil ||
+		req.AllowedDepartureModes != nil ||
+		req.PickupStatus != nil ||
+		req.PickupDays != nil ||
+		req.Bus != nil ||
+		req.BusDays != nil
+}
+
 // touchesCompanions reports whether this request could have changed the child's
 // "läuft mit" links — either by submitting a list, or by writing a departure
 // plan, which TRIMS the links on a weekday the new plan no longer allows.
@@ -588,13 +597,8 @@ func (req *UpdateStudentRequest) hasCompanionUpdate() bool {
 // a name, an address, a photo, a sick flag — cannot touch a link at all.
 func (req *UpdateStudentRequest) touchesCompanions() bool {
 	return req.hasCompanionUpdate() ||
-		req.DepartureDays != nil ||
-		req.AllowedDepartureModes != nil ||
 		req.DepartureCompanionNote != nil ||
-		req.PickupStatus != nil ||
-		req.PickupDays != nil ||
-		req.Bus != nil ||
-		req.BusDays != nil
+		req.hasDeparturePlanUpdate()
 }
 
 func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {

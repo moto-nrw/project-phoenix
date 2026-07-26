@@ -1209,9 +1209,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 		return false, err
 	}
 
-	if req.AllowedDepartureModes != nil || req.DepartureDays != nil ||
-		req.PickupStatus != nil || req.PickupDays != nil ||
-		req.Bus != nil || req.BusDays != nil {
+	if req.hasDeparturePlanUpdate() {
 		// Audit the effective unified plan even when a legacy client changed
 		// only bus_days/pickup_days. The concrete repository currently writes
 		// its resolved plan back into fresh, but the service contract does not
