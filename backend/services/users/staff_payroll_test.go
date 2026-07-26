@@ -3,7 +3,10 @@ package users_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -25,6 +28,35 @@ type payrollScenario struct {
 	repos *repositories.Factory
 	svc   usersSvc.PersonService
 	ctx   context.Context
+}
+
+type serializingStaffRepo struct {
+	userModels.StaffRepository
+	calls           atomic.Int32
+	firstLocked     chan struct{}
+	secondAttempted chan struct{}
+	secondRead      chan struct{}
+	releaseFirst    chan struct{}
+}
+
+func (r *serializingStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Staff, error) {
+	call := r.calls.Add(1)
+	if call == 2 {
+		close(r.secondAttempted)
+	}
+
+	staff, err := r.StaffRepository.FindByIDForUpdate(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	switch call {
+	case 1:
+		close(r.firstLocked)
+		<-r.releaseFirst
+	case 2:
+		close(r.secondRead)
+	}
+	return staff, nil
 }
 
 func newPayrollScenario(t *testing.T) *payrollScenario {
@@ -132,6 +164,97 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 
 	_, err = s.svc.UpdatePersonnelNumber(s.ctx, second.ID, &value, actor.ID, "")
 	require.NoError(t, err, "an offboarded holder must free the number")
+}
+
+func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
+	s := newPayrollScenario(t)
+	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Parallel")
+	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
+
+	staffRepo := &serializingStaffRepo{
+		StaffRepository: s.repos.Staff,
+		firstLocked:     make(chan struct{}),
+		secondAttempted: make(chan struct{}),
+		secondRead:      make(chan struct{}),
+		releaseFirst:    make(chan struct{}),
+	}
+	svc := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
+		PersonRepo:           s.repos.Person,
+		RFIDRepo:             s.repos.RFIDCard,
+		AccountRepo:          s.repos.Account,
+		StudentRepo:          s.repos.Student,
+		StaffRepo:            staffRepo,
+		TeacherRepo:          s.repos.Teacher,
+		PersonnelNumberAudit: s.repos.PersonnelNumberChange,
+		DB:                   s.db,
+	})
+
+	personnelNumberSeed := staff.ID % 10_000_000
+	firstValue := fmt.Sprintf("7%07d1", personnelNumberSeed)
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := svc.UpdatePersonnelNumber(s.ctx, staff.ID, &firstValue, actor.ID, "Erste Änderung")
+		firstDone <- err
+	}()
+
+	select {
+	case <-staffRepo.firstLocked:
+	case err := <-firstDone:
+		require.NoError(t, err)
+		t.Fatal("first update returned before holding the staff row lock")
+	case <-time.After(2 * time.Second):
+		t.Fatal("first update did not acquire the staff row lock")
+	}
+
+	secondValue := fmt.Sprintf("7%07d2", personnelNumberSeed)
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := svc.UpdatePersonnelNumber(s.ctx, staff.ID, &secondValue, actor.ID, "Zweite Änderung")
+		secondDone <- err
+	}()
+
+	select {
+	case <-staffRepo.secondAttempted:
+	case <-time.After(2 * time.Second):
+		close(staffRepo.releaseFirst)
+		t.Fatal("second update did not attempt to lock the staff row")
+	}
+
+	released := false
+	defer func() {
+		if !released {
+			close(staffRepo.releaseFirst)
+		}
+	}()
+	select {
+	case <-staffRepo.secondRead:
+		close(staffRepo.releaseFirst)
+		released = true
+		t.Fatal("second update read the staff row while the first transaction held its lock")
+	case <-time.After(150 * time.Millisecond):
+		close(staffRepo.releaseFirst)
+		released = true
+	}
+
+	select {
+	case err := <-firstDone:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("first update did not finish")
+	}
+	select {
+	case err := <-secondDone:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("second update did not finish")
+	}
+
+	rows := s.auditRows(t, staff.ID)
+	require.Len(t, rows, 2)
+	assert.Equal(t, "", rows[0].OldValue)
+	assert.Equal(t, firstValue, rows[0].NewValue)
+	assert.Equal(t, firstValue, rows[1].OldValue)
+	assert.Equal(t, secondValue, rows[1].NewValue)
 }
 
 func TestUpdatePersonnelNumber_Validation(t *testing.T) {

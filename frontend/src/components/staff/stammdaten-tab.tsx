@@ -15,10 +15,10 @@ import { staffPayrollNumberService } from "~/lib/staff-api";
 // home instead of a second maintenance surface.
 export function StammdatenTab({
   staffId,
-  canEdit,
+  canManagePayroll,
 }: {
   readonly staffId: string;
-  readonly canEdit: boolean;
+  readonly canManagePayroll: boolean;
 }) {
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -47,7 +47,7 @@ export function StammdatenTab({
               spätere DATEV-Export diese Person keiner Abrechnung zuordnen.
             </p>
           </div>
-          {canEdit && (
+          {canManagePayroll && (
             <Button
               type="button"
               variant="ghost"

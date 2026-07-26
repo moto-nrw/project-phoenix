@@ -141,6 +141,12 @@ describe("StaffDetailContent permissions", () => {
     expect(
       screen.queryByRole("button", { name: "Arbeitszeitmodell" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Stammdaten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -18,11 +19,21 @@ import (
 // PayrollNumberRequest sets or clears the Personalnummer. Note is optional
 // context for the audit trail.
 type PayrollNumberRequest struct {
-	PersonnelNumber *string `json:"personnel_number"`
-	Note            string  `json:"note"`
+	PersonnelNumber json.RawMessage `json:"personnel_number"`
+	Note            string          `json:"note"`
+
+	personnelNumberValue *string
 }
 
-func (p *PayrollNumberRequest) Bind(_ *http.Request) error { return nil }
+func (p *PayrollNumberRequest) Bind(_ *http.Request) error {
+	if len(p.PersonnelNumber) == 0 {
+		return errors.New("personnel_number is required")
+	}
+	if err := json.Unmarshal(p.PersonnelNumber, &p.personnelNumberValue); err != nil {
+		return errors.New("personnel_number must be a string or null")
+	}
+	return nil
+}
 
 // PayrollNumberResponse mirrors the stored state after a read or write.
 type PayrollNumberResponse struct {
@@ -65,7 +76,7 @@ func (rs *Resource) updatePayrollNumber(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	staff, err := rs.PersonService.UpdatePersonnelNumber(r.Context(), id, req.PersonnelNumber, changedBy, req.Note)
+	staff, err := rs.PersonService.UpdatePersonnelNumber(r.Context(), id, req.personnelNumberValue, changedBy, req.Note)
 	if err != nil {
 		switch {
 		case errors.Is(err, usersSvc.ErrPersonnelNumberInvalid):

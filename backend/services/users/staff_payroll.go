@@ -67,7 +67,7 @@ func (s *personService) updatePersonnelNumberInTx(
 	changedByStaffID int64,
 	note string,
 ) (*userModels.Staff, error) {
-	staff, err := s.StaffRepo.FindByID(ctx, staffID)
+	staff, err := s.StaffRepo.FindByIDForUpdate(ctx, staffID)
 	if err != nil {
 		return nil, err
 	}

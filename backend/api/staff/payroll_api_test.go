@@ -44,6 +44,13 @@ func TestPayrollNumberAPI_StableErrorCodes(t *testing.T) {
 	rec := ctx.put(fmt.Sprintf("/staff/%d/payroll-number", first.ID), `{"personnel_number":"90110"}`, "time_tracking:manage")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
+	// Omitting the field is not a clear operation. Only explicit null clears.
+	rec = ctx.put(fmt.Sprintf("/staff/%d/payroll-number", first.ID), `{"note":"fehlt"}`, "time_tracking:manage")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	rec = ctx.get(fmt.Sprintf("/staff/%d/payroll-number", first.ID), "time_tracking:manage")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"personnel_number":"90110"`)
+
 	// Duplicate within the tenant → 409 with a stable code on the wire.
 	rec = ctx.put(fmt.Sprintf("/staff/%d/payroll-number", second.ID), `{"personnel_number":"90110"}`, "time_tracking:manage")
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())

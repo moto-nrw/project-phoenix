@@ -367,13 +367,13 @@ export default function StaffDetailContent() {
               )}
             </span>
           </TabsTrigger>
+          {canManageTimeTracking ? (
+            <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
+          ) : null}
           {canEdit ? (
-            <>
-              <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
-              <TabsTrigger value="dokumente" disabled>
-                Dokumente
-              </TabsTrigger>
-            </>
+            <TabsTrigger value="dokumente" disabled>
+              Dokumente
+            </TabsTrigger>
           ) : null}
         </TabsList>
 
@@ -404,16 +404,19 @@ export default function StaffDetailContent() {
           />
         </TabsPrimitive.Content>
 
-        {canEdit ? (
-          <>
-            <TabsPrimitive.Content value="stammdaten">
-              <StammdatenTab staffId={staffId} canEdit={canEdit} />
-            </TabsPrimitive.Content>
+        {canManageTimeTracking ? (
+          <TabsPrimitive.Content value="stammdaten">
+            <StammdatenTab
+              staffId={staffId}
+              canManagePayroll={canManageTimeTracking}
+            />
+          </TabsPrimitive.Content>
+        ) : null}
 
-            <TabsPrimitive.Content value="dokumente">
-              <PlaceholderTab title="Dokumente" />
-            </TabsPrimitive.Content>
-          </>
+        {canEdit ? (
+          <TabsPrimitive.Content value="dokumente">
+            <PlaceholderTab title="Dokumente" />
+          </TabsPrimitive.Content>
         ) : null}
       </Tabs>
     </div>
