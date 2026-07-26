@@ -413,6 +413,25 @@ describe("DatePicker", () => {
     expect(portal).toHaveStyle({ top: "244px", left: "120px" });
   });
 
+  it("portals the calendar into the surrounding modal focus scope", () => {
+    render(
+      <div data-modal-focus-scope="true">
+        <DatePicker
+          value={null}
+          onChange={mockOnChange}
+          calendarLayout="popover"
+        />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("day-picker").closest("[data-modal-focus-scope]"),
+    ).not.toBeNull();
+  });
+
   it("does not close calendar when clicking inside the calendar container", async () => {
     render(<DatePicker value={null} onChange={mockOnChange} />);
 

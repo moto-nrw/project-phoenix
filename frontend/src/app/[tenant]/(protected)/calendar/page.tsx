@@ -531,6 +531,10 @@ export default function StaffCalendarPage() {
       toast.warning("Bitte mindestens ein Ziel auswählen.");
       return;
     }
+    if (!startDate || !endDate) {
+      toast.warning("Bitte Start- und Enddatum angeben.");
+      return;
+    }
 
     const recurrence =
       frequency === "none"
@@ -687,10 +691,8 @@ export default function StaffCalendarPage() {
               }}
               disabled={submitting}
               calendarLayout="popover"
-              // Both dates start at today and nothing clears them, so dropping
-              // the native `required` cannot leave the form submittable with an
-              // empty date — handleSubmit never validated them itself.
               hideClearButton
+              required
             />
             <ISODatePicker
               label="Enddatum"
@@ -702,6 +704,7 @@ export default function StaffCalendarPage() {
               disabled={submitting}
               calendarLayout="popover"
               hideClearButton
+              required
             />
             <Input
               label="Startzeit"

@@ -299,6 +299,25 @@ describe("StaffCalendarPage", () => {
     );
   });
 
+  it("requires both dates before creating an appointment", async () => {
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Ohne Startdatum" },
+    });
+    fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
+    fireEvent.change(screen.getByLabelText("Startdatum"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      "Bitte Start- und Enddatum angeben.",
+    );
+  });
+
   it("hides creation controls without calendar manage permission", () => {
     mockUseSession.mockReturnValue({
       data: { user: { permissions: ["calendar:own"] } },

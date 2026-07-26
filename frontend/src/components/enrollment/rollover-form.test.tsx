@@ -243,6 +243,30 @@ describe("RolloverForm", () => {
     expect(mockCreateRollover).not.toHaveBeenCalled();
   });
 
+  it("does not submit without the required response deadline", async () => {
+    render(
+      <RolloverForm
+        source={makeSourcePhase()}
+        onCancel={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Frist für die Eltern-Antwort/), {
+      target: { value: "" },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: /Anschlussphase erstellen/ }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Bitte eine Frist für die Eltern-Antwort angeben."),
+      ).toBeInTheDocument();
+    });
+    expect(mockCreateRollover).not.toHaveBeenCalled();
+  });
+
   it("calls onCancel when the cancel button is clicked", () => {
     const onCancel = vi.fn();
     render(

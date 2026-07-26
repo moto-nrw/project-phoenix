@@ -117,6 +117,7 @@ export function FormModal({
     // as "outside" the drawer's scope.
     <FocusScope asChild loop trapped>
       <div
+        data-modal-focus-scope="true"
         className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center md:items-center md:p-6`}
         // pointerEvents: 'auto' is required when this modal is rendered while
         // a Radix/Vaul dialog (e.g. the mobile master/detail drawer) has set

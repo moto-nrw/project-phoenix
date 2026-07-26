@@ -46,6 +46,7 @@ export function DateTimePicker({
   defaultTime = "00:00",
   calendarLayout = "popover",
   hideClearButton = false,
+  required = false,
   controlSize = "sm",
 }: {
   /** "YYYY-MM-DDTHH:mm" in local time, or "" when unset. */
@@ -64,6 +65,8 @@ export function DateTimePicker({
   readonly calendarLayout?: "overlay" | "inline" | "popover";
   /** Hide the clear control. Use when the value is required. */
   readonly hideClearButton?: boolean;
+  /** Prevents clearing an already selected date from the calendar. */
+  readonly required?: boolean;
   /** Height of both halves. Match the kit Input next to it. */
   readonly controlSize?: "sm" | "md" | "lg";
 }) {
@@ -85,6 +88,7 @@ export function DateTimePicker({
         }}
         disabled={disabled}
         hideClearButton={hideClearButton}
+        required={required}
         controlSize={controlSize}
         calendarLayout={calendarLayout}
         ariaLabel={dateAriaLabel}

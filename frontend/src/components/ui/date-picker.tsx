@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { FocusScope } from "@radix-ui/react-focus-scope";
 import { DayPicker } from "react-day-picker";
 import { format, addMonths, subMonths, type Locale } from "date-fns";
 import { de } from "date-fns/locale";
@@ -298,6 +299,20 @@ export function DatePicker({
     />
   );
 
+  // A portaled panel must remain inside a modal's FocusScope: portaling to
+  // document.body puts its day and month controls outside the trap, which
+  // redirects keyboard focus back to the trigger. Modal wrappers have no
+  // transform or overflow clipping, so they can host the fixed panel directly.
+  // Vaul slide-overs do transform their content, so those keep a body portal
+  // and receive their own FocusScope below instead.
+  const portalContainer =
+    typeof document === "undefined"
+      ? null
+      : (containerRef.current?.closest("[data-modal-focus-scope]") ??
+        document.body);
+  const needsPortalledFocusScope =
+    containerRef.current?.closest("[data-date-picker-focus-trap]") !== null;
+
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       <button
@@ -396,21 +411,38 @@ export function DatePicker({
           only exist client-side, hence the `mounted` guard on that branch, and
           the position guard keeps the first paint from landing at the origin. */}
       {isOpen && !isPopover && calendar}
-      {isOpen && isPopover && mounted && popoverPosition
+      {isOpen && isPopover && mounted && popoverPosition && portalContainer
         ? createPortal(
-            <div
-              ref={popoverRef}
-              className="fixed z-[10001]"
-              style={{
-                top: popoverPosition.top,
-                left: popoverPosition.left,
-                width: popoverPosition.width,
-                pointerEvents: "auto",
-              }}
-            >
-              {calendar}
-            </div>,
-            document.body,
+            needsPortalledFocusScope ? (
+              <FocusScope asChild loop trapped>
+                <div
+                  ref={popoverRef}
+                  className="fixed z-[10001]"
+                  style={{
+                    top: popoverPosition.top,
+                    left: popoverPosition.left,
+                    width: popoverPosition.width,
+                    pointerEvents: "auto",
+                  }}
+                >
+                  {calendar}
+                </div>
+              </FocusScope>
+            ) : (
+              <div
+                ref={popoverRef}
+                className="fixed z-[10001]"
+                style={{
+                  top: popoverPosition.top,
+                  left: popoverPosition.left,
+                  width: popoverPosition.width,
+                  pointerEvents: "auto",
+                }}
+              >
+                {calendar}
+              </div>
+            ),
+            portalContainer,
           )
         : null}
     </div>

@@ -104,6 +104,9 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
           "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
         );
       }
+      if (!deadlineLocal) {
+        throw new Error("Bitte eine Frist für die Eltern-Antwort angeben.");
+      }
       const payload: RolloverInput = {
         ...draft,
         rollover_deadline: localToRFC3339(deadlineLocal),
@@ -297,6 +300,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
               // chosen day, not expire at midnight.
               defaultTime="23:59"
               hideClearButton
+              required
             />
           </div>
         </div>

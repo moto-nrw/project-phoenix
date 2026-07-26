@@ -77,6 +77,7 @@ const SlideOverContent = React.forwardRef<
     <SlideOverOverlay />
     <DrawerPrimitive.Content
       ref={ref}
+      data-date-picker-focus-trap="true"
       className={cn(
         "fixed top-0 right-0 z-50 flex h-full flex-col bg-white shadow-2xl outline-none",
         "w-[92vw] sm:w-[420px]",
