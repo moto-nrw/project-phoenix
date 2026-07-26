@@ -206,6 +206,7 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		ColumnExpr(unreadSub, accountID).
 		Join("JOIN users.students AS s ON s.id = t.student_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
+		Where("s.status <> ?", users.StudentStatusAlumnus).
 		Join("LEFT JOIN platform.schools AS sch ON sch.id = t.tenant_id").
 		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
 		// gp.tenant_id = t.tenant_id is REQUIRED: guardian_profiles is

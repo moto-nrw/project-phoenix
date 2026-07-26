@@ -749,7 +749,7 @@ func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Da
 // keep their enrollment rows for transition reverts but must drop off every
 // current/future planning surface (#405).
 func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
-	return e != nil && e.Student.IsAlumnus()
+	return e != nil && e.Student != nil && e.Student.IsAlumnus()
 }
 
 func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
