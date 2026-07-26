@@ -488,7 +488,10 @@ function DatePickerCalendar({
   const [month, setMonth] = useState(value ?? new Date());
 
   return (
-    <div className={getCalendarContainerClass(calendarLayout, compact)}>
+    <div
+      data-date-picker-panel
+      className={getCalendarContainerClass(calendarLayout, compact)}
+    >
       <CalendarNavHeader
         compact={compact}
         month={month}
@@ -817,6 +820,7 @@ function CalendarNavHeader({
             optionClassName={NAV_OPTION_CLASS}
             activeOptionClassName={NAV_OPTION_ACTIVE_CLASS}
             menuZIndex={NAV_MENU_Z_INDEX}
+            portalScopeSelector="[data-date-picker-panel]"
             triggerRole="combobox"
           />
           <ListboxDropdown
@@ -834,6 +838,7 @@ function CalendarNavHeader({
             optionClassName={NAV_OPTION_CLASS}
             activeOptionClassName={NAV_OPTION_ACTIVE_CLASS}
             menuZIndex={NAV_MENU_Z_INDEX}
+            portalScopeSelector="[data-date-picker-panel]"
             triggerRole="combobox"
           />
         </div>

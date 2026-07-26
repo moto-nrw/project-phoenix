@@ -107,7 +107,7 @@ export function DateTimePicker({
         onChange={(event) => {
           const nextTime = event.target.value;
           if (!day) return;
-          onChange(nextTime ? `${day}T${nextTime}` : `${day}T${defaultTime}`);
+          onChange(nextTime ? `${day}T${nextTime}` : "");
         }}
         className={`w-[7.5rem] shrink-0 rounded-lg border border-gray-200 bg-white text-gray-900 ${TIME_SIZE_CLASS[controlSize]} transition-colors hover:bg-gray-50 focus:border-gray-300 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400`}
       />

@@ -432,6 +432,28 @@ describe("DatePicker", () => {
     ).not.toBeNull();
   });
 
+  it("keeps month menus inside the calendar panel", () => {
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(
+      <DatePicker
+        value={testDate}
+        onChange={mockOnChange}
+        calendarLayout="popover"
+        monthYearNavigation
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Monat" }));
+
+    expect(screen.getByRole("listbox", { name: "Monat" })).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("listbox", { name: "Monat" })
+        .closest("[data-date-picker-panel]"),
+    ).not.toBeNull();
+  });
+
   it("does not close calendar when clicking inside the calendar container", async () => {
     render(<DatePicker value={null} onChange={mockOnChange} />);
 

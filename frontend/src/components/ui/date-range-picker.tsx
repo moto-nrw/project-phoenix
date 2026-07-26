@@ -131,7 +131,9 @@ function RangeCalendar({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [geometry, setGeometry] = useState<PanelGeometry | null>(null);
-  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+  const [isNarrowViewport, setIsNarrowViewport] = useState<boolean | null>(
+    null,
+  );
   // Portals only exist client-side — `document` must not be touched while the
   // tree renders on the server.
   const [mounted, setMounted] = useState(false);
@@ -192,7 +194,10 @@ function RangeCalendar({
       className="fixed z-[10001] max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:max-h-none sm:overflow-visible"
       style={
         isNarrowViewport || !geometry
-          ? narrowStyle
+          ? {
+              ...narrowStyle,
+              visibility: isNarrowViewport === null ? "hidden" : undefined,
+            }
           : { top: geometry.top, left: geometry.left }
       }
     >

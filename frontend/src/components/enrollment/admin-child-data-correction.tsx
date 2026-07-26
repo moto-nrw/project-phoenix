@@ -184,6 +184,7 @@ export function AdminChildDataCorrection({
             // mandatory on the enrollment record) and can no longer be cleared,
             // so an empty date stays impossible.
             hideClearButton
+            required
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <Input

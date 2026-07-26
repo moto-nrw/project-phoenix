@@ -31,6 +31,11 @@ interface ListboxDropdownProps<K extends string> {
   readonly ariaDescribedBy?: string;
   readonly containerClassName?: string;
   readonly containerStyle?: CSSProperties;
+  /**
+   * Optional ancestor selector for the menu portal. Use when a fixed overlay
+   * already owns a FocusScope that must contain the listbox options.
+   */
+  readonly portalScopeSelector?: string;
   /** Receives the wrapper node, e.g. to locate the surrounding <form>. */
   readonly containerNodeRef?: RefObject<HTMLDivElement | null>;
   readonly className?: string;
@@ -153,6 +158,7 @@ export function ListboxDropdown<K extends string>({
   ariaDescribedBy,
   containerClassName = "relative",
   containerStyle,
+  portalScopeSelector,
   containerNodeRef,
   className = "",
   menuClassName = "",
@@ -183,6 +189,12 @@ export function ListboxDropdown<K extends string>({
   const [focusIndex, setFocusIndex] = useState(selectedIndex);
   const selectedOption = options.find((option) => option.value === value);
   const selectedLabel = selectedOption?.label ?? placeholder;
+  const portalContainer =
+    typeof document === "undefined"
+      ? null
+      : ((portalScopeSelector
+          ? buttonRef.current?.closest(portalScopeSelector)
+          : null) ?? document.body);
 
   useEffect(() => {
     if (!open) return;
@@ -518,10 +530,10 @@ export function ListboxDropdown<K extends string>({
           </>
         )}
       </button>
-      {open
-        ? // Portaled to document.body so scrollable/overflow-hidden ancestors
-          // (modal bodies, cards) cannot clip the menu; position is fixed and
-          // collision-aware (flips upward when the viewport bottom is close).
+      {open && portalContainer
+        ? // Menus generally portal to document.body so scrollable/overflow-hidden
+          // ancestors cannot clip them. Calendar navigation instead supplies its
+          // own fixed panel as the portal scope to stay inside that FocusScope.
           createPortal(
             <ul
               ref={menuRef}
@@ -591,7 +603,7 @@ export function ListboxDropdown<K extends string>({
                 );
               })}
             </ul>,
-            document.body,
+            portalContainer,
           )
         : null}
     </div>
