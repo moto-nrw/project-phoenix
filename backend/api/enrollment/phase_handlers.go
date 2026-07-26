@@ -49,12 +49,12 @@ type PhaseResponse struct {
 	// enrollment.collect_school_class is on.
 	AvailableSchoolClasses []string `json:"available_school_classes"`
 	RequireSchoolClass     bool     `json:"require_school_class"`
-	// Eligibility config (migration 1.15.219, issue #1663): who may
+	// Eligibility config (migration 1.15.230, issue #1663): who may
 	// apply, and an optional class restriction every submitted child
 	// must satisfy.
 	Audience              string   `json:"audience"`
 	EligibleSchoolClasses []string `json:"eligible_school_classes"`
-	// EligibleGradeLevels (migration 1.15.230) restricts the phase to whole
+	// EligibleGradeLevels (migration 1.15.233) restricts the phase to whole
 	// grades — the case a concrete-class list cannot express.
 	EligibleGradeLevels []int  `json:"eligible_grade_levels"`
 	CreatedAt           string `json:"created_at"`
