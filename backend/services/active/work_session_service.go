@@ -264,6 +264,9 @@ type WorkSessionService interface {
 	// already checked out today (no re-open).
 	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
 	ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error)
+	// DayExportRows exposes the export's merged session/absence day rows for
+	// the cross-staff export (#1417 2b) — same loading, same cell rendering.
+	DayExportRows(ctx context.Context, staffID int64, from, to timezone.Date) ([]DayExportRow, error)
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 
 	// Staff work-schedule operations (issue #584: moved out of api/staff).

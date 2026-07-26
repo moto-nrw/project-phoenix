@@ -12,7 +12,7 @@
 // Berechtigung feuert der Request gar nicht erst.
 
 import { useMemo } from "react";
-import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Lock } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -51,7 +51,9 @@ const monthNames = [
   "Dezember",
 ];
 
-function formatOverviewMonth(year: number, month: number): string {
+// Exportiert für den Export-Dialog (#1417 2b) — eine Quelle für die
+// Monatsbeschriftung, wie bei employmentTypeLabels.
+export function formatOverviewMonth(year: number, month: number): string {
   return `${monthNames[month - 1] ?? month} ${year}`;
 }
 
@@ -86,6 +88,9 @@ interface Props {
    *  abgeschlossen werden (Backend: ErrMonthNotClosable). */
   readonly monthIsOver: boolean;
   readonly onCloseMonth: () => void;
+  /** Öffnet den Cross-MA-Export-Dialog (#1417 2b). Optional, damit rein
+   *  lesende Einbettungen keinen toten Button zeigen. */
+  readonly onExport?: () => void;
   readonly isLoading: boolean;
   readonly error: string | null;
   readonly onRowClick: (row: TimeAccountRow) => void;
@@ -111,6 +116,7 @@ export function StaffTimeAccountsTable({
   onRetryMonthClose,
   monthIsOver,
   onCloseMonth,
+  onExport,
   isLoading,
   error,
   onRowClick,
@@ -275,6 +281,17 @@ export function StaffTimeAccountsTable({
           >
             {showCustomSaldo ? "Grenze ausblenden" : "Eigene Grenze"}
           </Button>
+          {onExport && (
+            <Button
+              type="button"
+              size="compact"
+              variant="outline"
+              onClick={onExport}
+            >
+              <Download className="mr-1 h-3 w-3" />
+              Exportieren
+            </Button>
+          )}
           {monthClose !== null && !monthClose.closed && (
             <Button
               type="button"

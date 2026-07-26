@@ -309,6 +309,8 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"buildDevSetup",                  // api/timetable deviations/protocol tests — wraps SetupTestDB
 		"setupCheckinServiceTest",        // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
 		"setupAbsenceAdminTest",          // api/staff absence question tests (#1419) — wraps setupTestContext
+		"newOverviewFixture",             // services/active overview/export integration tests (#1417) — wraps SetupTestDB
+		"setupOverviewAPI",               // api/staff overview/export tests (#1417) — wraps setupTestContext
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

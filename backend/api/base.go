@@ -441,7 +441,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, db, logger.With("handler", "staff"))
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, api.Services.StaffTimeExport, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
