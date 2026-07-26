@@ -6,6 +6,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	educationModel "github.com/moto-nrw/project-phoenix/models/education"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,6 +66,45 @@ func TestClassifyDayLogStudent_NotScheduledAndAbsent(t *testing.T) {
 	classifyDayLogStudent(&row, nil, nil, scheduleService.CareDayUnknown)
 	assert.Equal(t, dayLogStatusAbsent, row.Status)
 	assert.Equal(t, "Abwesend", dayLogStatusLabel(row.Status, ""))
+}
+
+func TestDayLogArrivalIsStillPending(t *testing.T) {
+	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
+	arrival := timezone.WallClock(now.Add(2 * time.Hour))
+	row := dayLogStudent{Status: dayLogStatusAbsent}
+
+	assert.True(t, dayLogArrivalIsStillPending(row, scheduleService.CareDayScheduled,
+		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, timezone.DateFromTime(now), now))
+	assert.False(t, dayLogArrivalIsStillPending(row, scheduleService.CareDayUnknown,
+		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, timezone.DateFromTime(now), now))
+	assert.False(t, dayLogArrivalIsStillPending(row, scheduleService.CareDayScheduled,
+		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, timezone.DateFromTime(now).AddDays(-1), now))
+}
+
+func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
+	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
+	date := timezone.DateFromTime(now)
+	arrival := timezone.WallClock(now.Add(2 * time.Hour))
+	group := &educationModel.Group{Name: "Gruppe A"}
+	group.ID = 1
+	student := &usersModel.Student{}
+	student.ID = 10
+	student.GroupID = &group.ID
+
+	response := buildDayLogResponse(date, []*educationModel.Group{group}, &dayLogData{
+		studentsByGroup:     map[int64][]*usersModel.Student{group.ID: {student}},
+		persons:             map[int64]*usersModel.Person{},
+		attendanceByStudent: map[int64][]*active.Attendance{},
+		statusByStudent:     map[int64][]*active.StudentStatusDay{},
+		careDays:            map[int64]scheduleService.CareDayStatus{student.ID: scheduleService.CareDayScheduled},
+		arrivalTimes:        map[int64]*scheduleService.EffectiveArrivalTime{student.ID: {ArrivalTime: &arrival}},
+		now:                 now,
+	})
+
+	require.Len(t, response.Groups, 1)
+	assert.Empty(t, response.Groups[0].Students)
+	assert.Equal(t, 0, response.Groups[0].Counters.Absent)
+	assert.Equal(t, 0, response.Groups[0].Counters.Total)
 }
 
 // The listexport renderers treat a row with GroupTitle as a section MARKER and

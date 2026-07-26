@@ -271,6 +271,8 @@ type dayLogData struct {
 	attendanceByStudent map[int64][]*active.Attendance
 	statusByStudent     map[int64][]*active.StudentStatusDay
 	careDays            map[int64]scheduleService.CareDayStatus
+	arrivalTimes        map[int64]*scheduleService.EffectiveArrivalTime
+	now                 time.Time
 }
 
 func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel.Group, date timezone.Date) (*dayLogData, error) {
@@ -287,11 +289,14 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 	// dated group assignments, so only enrollment eligibility can be evaluated
 	// retrospectively here.
 
+	now := rs.dayLogNow()
 	data := &dayLogData{
 		studentsByGroup:     make(map[int64][]*usersModel.Student, len(groups)),
 		attendanceByStudent: map[int64][]*active.Attendance{},
 		statusByStudent:     map[int64][]*active.StudentStatusDay{},
 		careDays:            map[int64]scheduleService.CareDayStatus{},
+		arrivalTimes:        map[int64]*scheduleService.EffectiveArrivalTime{},
+		now:                 now,
 	}
 	studentIDs, personIDs := indexDayLogStudents(data, students)
 
@@ -302,7 +307,7 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 	if err := rs.loadDayLogAttendance(ctx, data, date); err != nil {
 		return nil, err
 	}
-	if err := rs.loadDayLogSignOffs(ctx, data, studentIDs, date); err != nil {
+	if err := rs.loadDayLogSignOffs(ctx, data, studentIDs, date, now); err != nil {
 		return nil, err
 	}
 	return data, nil
@@ -339,7 +344,7 @@ func (rs *Resource) loadDayLogAttendance(ctx context.Context, data *dayLogData, 
 	return nil
 }
 
-func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, studentIDs []int64, date timezone.Date) error {
+func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, studentIDs []int64, date timezone.Date, now time.Time) error {
 	if rs.StudentStatusDayService != nil {
 		statuses, err := rs.StudentStatusDayService.GetSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
 		if err != nil {
@@ -359,7 +364,21 @@ func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, st
 		}
 		data.careDays = careDays
 	}
+	if date == timezone.DateFromTime(now) && rs.ArrivalScheduleService != nil {
+		arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
+		if err != nil {
+			return err
+		}
+		data.arrivalTimes = arrivalTimes
+	}
 	return nil
+}
+
+func (rs *Resource) dayLogNow() time.Time {
+	if rs.Now != nil {
+		return rs.Now()
+	}
+	return time.Now()
 }
 
 func buildDayLogResponse(date timezone.Date, groups []*educationModel.Group, data *dayLogData) dayLogResponse {
@@ -372,6 +391,9 @@ func buildDayLogResponse(date timezone.Date, groups []*educationModel.Group, dat
 		}
 		for _, student := range data.studentsByGroup[group.ID] {
 			row := buildDayLogStudent(student, data)
+			if dayLogArrivalIsStillPending(row, data.careDays[student.ID], data.arrivalTimes[student.ID], date, data.now) {
+				continue
+			}
 			entry.Counters.add(row.Status)
 			entry.Students = append(entry.Students, row)
 		}
@@ -380,6 +402,20 @@ func buildDayLogResponse(date timezone.Date, groups []*educationModel.Group, dat
 		resp.Groups = append(resp.Groups, entry)
 	}
 	return resp
+}
+
+// dayLogArrivalIsStillPending keeps a scheduled child out of today's live
+// absence verdict until their effective planned arrival is due. Retrospective
+// days always have a complete day and therefore never use this exception.
+func dayLogArrivalIsStillPending(row dayLogStudent, careDay scheduleService.CareDayStatus, arrival *scheduleService.EffectiveArrivalTime, date timezone.Date, now time.Time) bool {
+	if row.Status != dayLogStatusAbsent ||
+		careDay != scheduleService.CareDayScheduled ||
+		arrival == nil ||
+		arrival.ArrivalTime == nil ||
+		date != timezone.DateFromTime(now) {
+		return false
+	}
+	return timezone.WallClock(now).Before(timezone.WallClock(*arrival.ArrivalTime))
 }
 
 func sortDayLogStudents(students []dayLogStudent) {
