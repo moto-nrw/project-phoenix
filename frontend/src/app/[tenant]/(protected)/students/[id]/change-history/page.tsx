@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
@@ -71,6 +71,14 @@ function ValueText({ value }: { readonly value: string }) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function StudentChangeHistoryPage() {
+  return (
+    <Suspense fallback={<Loading fullPage={false} />}>
+      <StudentChangeHistoryPageContent />
+    </Suspense>
+  );
+}
+
+function StudentChangeHistoryPageContent() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();

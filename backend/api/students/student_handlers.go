@@ -1170,8 +1170,11 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// Snapshot the tracked profile fields before applying the patch so the
 	// audit diff (#1455) compares the locked pre-update row with the persisted
 	// result. The tracked pointer/map fields are replaced, not mutated in place,
-	// so a shallow copy is a safe before-image.
-	before := *fresh
+	// so a shallow copy is a safe before-image. Normalize only the copy: legacy
+	// rows may carry their effective plan solely in bus_days/pickup_days, while
+	// mutating fresh before applyStudentFieldUpdates could change persistence
+	// precedence.
+	before := studentAuditBeforeImage(fresh, req.hasDeparturePlanUpdate())
 
 	// Apply the request to the locked row in memory FIRST. Nothing is written
 	// yet, which is what lets the companion check below refuse the whole update

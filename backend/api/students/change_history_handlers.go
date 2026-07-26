@@ -52,11 +52,20 @@ func normalizeDeparturePlanForAudit(student *users.Student) {
 	if student == nil {
 		return
 	}
-	if student.AllowedDepartureModes != nil {
-		student.DepartureDays = student.AllowedDepartureModes.DepartureDays()
+	if allowed := student.AllowedDepartureModes.Normalize(); allowed.HasAny() {
+		student.AllowedDepartureModes = allowed
+		student.DepartureDays = allowed.DepartureDays()
 		return
 	}
 	student.DepartureDays = users.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
+}
+
+func studentAuditBeforeImage(student *users.Student, normalizeDeparture bool) users.Student {
+	before := *student
+	if normalizeDeparture {
+		normalizeDeparturePlanForAudit(&before)
+	}
+	return before
 }
 
 // getStudentChangeHistory returns the per-child change history. Gated on full
