@@ -341,11 +341,19 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 					return nil, fmt.Errorf("decision: approved child departure sync refused: %w", terr)
 				}
 			}
-			if terr == nil && s.StudentAudit != nil {
+			if s.StudentAudit != nil {
+				afterTargetedSync := student
+				if terr != nil {
+					persistedStudent, reloadErr := s.StudentRepo.FindByID(ctx, student.ID)
+					if reloadErr != nil {
+						return nil, fmt.Errorf("decision: reload approved child after partial targeted-field sync: %w", reloadErr)
+					}
+					afterTargetedSync = persistedStudent
+				}
 				if auditErr := s.StudentAudit.RecordChangesForActor(
 					ctx,
 					&beforeTargetedSync,
-					student,
+					afterTargetedSync,
 					input.ActorAccountID,
 				); auditErr != nil {
 					return nil, fmt.Errorf("decision: audit approved child targeted-field sync: %w", auditErr)

@@ -168,7 +168,7 @@ func derefString(p *string) string {
 	if p == nil {
 		return ""
 	}
-	return strings.TrimSpace(*p)
+	return *p
 }
 
 func statusLabel(s userModels.StudentStatus) string {

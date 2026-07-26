@@ -20,8 +20,8 @@ func editByField(edits []*auditModels.StudentFieldEdit) map[string]*auditModels.
 	return m
 }
 
-// TestDiffStudentFields_NoChange verifies that an identical before/after pair
-// (including pointer-vs-value and whitespace equivalence) records nothing.
+// TestDiffStudentFields_NoChange verifies that an identical before/after pair,
+// including equivalent nil and empty-string values, records nothing.
 func TestDiffStudentFields_NoChange(t *testing.T) {
 	cases := []struct {
 		name          string
@@ -36,11 +36,6 @@ func TestDiffStudentFields_NoChange(t *testing.T) {
 			name:   "nil vs empty-string note are equal",
 			before: &userModels.Student{SupervisorNotes: nil},
 			after:  &userModels.Student{SupervisorNotes: strPtr("")},
-		},
-		{
-			name:   "whitespace-only difference is trimmed away",
-			before: &userModels.Student{ExtraInfo: strPtr("Hallo")},
-			after:  &userModels.Student{ExtraInfo: strPtr("  Hallo  ")},
 		},
 	}
 
@@ -85,6 +80,26 @@ func TestDiffStudentFields_PerField(t *testing.T) {
 		)
 		require.Len(t, edits, 1, "only extra_info changed")
 		assert.Equal(t, auditModels.StudentFieldExtraInfo, edits[0].FieldName)
+	})
+
+	t.Run("surrounding whitespace remains auditable", func(t *testing.T) {
+		edits := diffStudentFields(
+			&userModels.Student{
+				SupervisorNotes: strPtr("Hinweis"),
+				ExtraInfo:       strPtr("Info"),
+				HealthInfo:      strPtr("Gesund"),
+			},
+			&userModels.Student{
+				SupervisorNotes: strPtr(" Hinweis "),
+				ExtraInfo:       strPtr(" Info "),
+				HealthInfo:      strPtr(" Gesund "),
+			},
+		)
+		byField := editByField(edits)
+		require.Len(t, edits, 3)
+		assert.Equal(t, " Hinweis ", *byField[auditModels.StudentFieldSupervisorNotes].NewValue)
+		assert.Equal(t, " Info ", *byField[auditModels.StudentFieldExtraInfo].NewValue)
+		assert.Equal(t, " Gesund ", *byField[auditModels.StudentFieldHealthInfo].NewValue)
 	})
 
 	t.Run("pickup status change", func(t *testing.T) {
