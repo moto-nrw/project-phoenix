@@ -393,7 +393,7 @@ describe("SettingsContent (via renderTab)", () => {
 
     await waitFor(() => {
       // Error banner has specific styling — look for it in the banner container
-      const banner = container.querySelector(".bg-red-50");
+      const banner = container.querySelector('[role="alert"]');
       expect(banner).not.toBeNull();
       expect(banner!.textContent).toContain("Netzwerkfehler");
     });
@@ -412,7 +412,7 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      const banner = container.querySelector(".bg-red-50");
+      const banner = container.querySelector('[role="alert"]');
       expect(banner).not.toBeNull();
       expect(banner!.textContent).toContain("Einstellung konnte nicht");
     });
@@ -431,7 +431,7 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(container.querySelector(".bg-red-50")).not.toBeNull();
+      expect(container.querySelector('[role="alert"]')).not.toBeNull();
     });
 
     // Click the dismiss button
@@ -439,7 +439,7 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(closeButton);
 
     await waitFor(() => {
-      expect(container.querySelector(".bg-red-50")).toBeNull();
+      expect(container.querySelector('[role="alert"]')).toBeNull();
     });
   });
 
@@ -549,7 +549,7 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(container.querySelector(".bg-red-50")).not.toBeNull();
+      expect(container.querySelector('[role="alert"]')).not.toBeNull();
     });
 
     // Second save succeeds
@@ -557,7 +557,7 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(container.querySelector(".bg-red-50")).toBeNull();
+      expect(container.querySelector('[role="alert"]')).toBeNull();
     });
   });
 
@@ -578,7 +578,7 @@ describe("SettingsContent (via renderTab)", () => {
     });
 
     // Validation errors don't match the banner condition — no banner should appear
-    expect(container.querySelector(".bg-red-50")).toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("refreshes supervision context after toggling admin_supervision_overview", async () => {

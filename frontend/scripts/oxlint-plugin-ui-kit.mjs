@@ -106,9 +106,7 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/components/settings/passkey-settings-section.tsx",
   "src/components/settings/personalization-tab.tsx",
   "src/components/settings/settings-field.tsx",
-  "src/components/settings/settings-page.tsx",
   "src/components/shared/base-comment-accordion.tsx",
-  "src/components/sse/SSEErrorBoundary.tsx",
   "src/components/staff/abwesenheiten-tab.tsx",
   "src/components/staff/admin-session-edit-modal.tsx",
   "src/components/staff/arbeitszeitmodell-tab.tsx",
@@ -145,8 +143,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/components/time-tracking/leave-requests-card.tsx",
   "src/components/time-tracking/monatskarte.tsx",
   "src/components/time-tracking/vacation-request-modal.tsx",
-  "src/components/ui/alert.tsx",
-  "src/components/ui/button.tsx",
   "src/components/ui/database/accents.ts",
   "src/components/ui/database/database-form.tsx",
   "src/components/ui/database/database-select.tsx",
@@ -156,12 +152,9 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/components/ui/input.tsx",
   "src/components/ui/page-header/ActiveFilterChips.tsx",
   "src/components/ui/page-header/DesktopFilters.tsx",
-  "src/components/ui/page-header/FilterButton.tsx",
   "src/components/ui/page-header/FilterPanel.tsx",
   "src/components/ui/page-header/OverflowMenu.tsx",
-  "src/components/ui/page-header/PageHeader.tsx",
   "src/components/ui/page-header/PageHeaderWithSearch.tsx",
-  "src/components/ui/page-header/StatusIndicator.tsx",
   "src/components/ui/password-change-modal.tsx",
   "src/components/ui/textarea.tsx",
   "src/lib/activity-helpers.ts",
@@ -260,9 +253,7 @@ src/components/roles/roles-master-detail.tsx|bg-amber-50 bg-purple-100 bg-purple
 src/components/settings/passkey-settings-section.tsx|bg-red-50 text-red-700
 src/components/settings/personalization-tab.tsx|bg-green-50 bg-red-50 border-green-500 border-red-200 ring-green-500 text-green-500 text-red-600
 src/components/settings/settings-field.tsx|bg-amber-50 bg-yellow-50 border-amber-200 text-amber-700 text-amber-800 text-red-600:4 text-yellow-700
-src/components/settings/settings-page.tsx|text-red-600:2 text-red-800
 src/components/shared/base-comment-accordion.tsx|bg-blue-100 bg-red-500:2 bg-red-600 text-blue-600:2 text-red-500:2
-src/components/sse/SSEErrorBoundary.tsx|bg-red-50 border-red-200 text-red-700
 src/components/staff/abwesenheiten-tab.tsx|bg-red-50 bg-red-500 text-amber-600 text-red-600
 src/components/staff/admin-session-edit-modal.tsx|bg-amber-50 bg-red-50 text-amber-800 text-red-700
 src/components/staff/arbeitszeitmodell-tab.tsx|bg-amber-50/60 border-amber-200
@@ -299,8 +290,6 @@ src/components/time-tracking/edit-history-accordion.tsx|text-red-400:2
 src/components/time-tracking/leave-requests-card.tsx|bg-red-600 bg-red-700 text-amber-600 text-red-600 text-red-700
 src/components/time-tracking/monatskarte.tsx|bg-amber-50 border-amber-200 text-amber-900 text-red-600:2
 src/components/time-tracking/vacation-request-modal.tsx|bg-amber-200 bg-amber-50:2 bg-red-50 border-amber-200 border-red-200 ring-amber-200 text-amber-700 text-amber-800 text-red-600 text-red-700
-src/components/ui/alert.tsx|bg-blue-50 bg-red-50 bg-yellow-50 border-blue-100 border-red-100 border-yellow-100 text-blue-700 text-red-700 text-yellow-700
-src/components/ui/button.tsx|bg-green-600 bg-green-700 bg-red-100 bg-red-50 bg-red-600 bg-red-700 ring-red-300 ring-red-400 text-red-600
 src/components/ui/database/accents.ts|border-amber-300 border-amber-500 border-blue-300 border-blue-500 border-green-300 border-green-500 border-indigo-300 border-indigo-500 border-orange-300 border-orange-500 border-pink-300 border-pink-500 border-purple-300 border-purple-500 border-red-300 border-red-500 border-yellow-300 border-yellow-500 from-amber-500 from-amber-600 from-blue-500 from-blue-600 from-green-500 from-green-600 from-indigo-500 from-indigo-600 from-orange-500 from-orange-600 from-pink-500 from-pink-600 from-purple-500 from-purple-600 from-red-500 from-red-600 from-yellow-500 from-yellow-600 ring-amber-500 ring-blue-500 ring-green-500 ring-indigo-500 ring-orange-500 ring-pink-500 ring-purple-500 ring-red-500 ring-yellow-500 text-amber-500 text-amber-600:2 text-blue-500 text-blue-600:2 text-green-500 text-green-600:2 text-indigo-500 text-indigo-600:2 text-orange-500 text-orange-600:2 text-pink-500 text-pink-600:2 text-purple-500 text-purple-600:2 text-red-500 text-red-600:2 text-yellow-500 text-yellow-600:2 to-amber-600 to-amber-700 to-blue-600 to-blue-700 to-green-600 to-green-700 to-indigo-600 to-indigo-700 to-orange-600 to-orange-700 to-purple-600 to-purple-700 to-red-600 to-red-700 to-rose-600 to-rose-700 to-yellow-600 to-yellow-700
 src/components/ui/database/database-form.tsx|bg-blue-100 bg-blue-200 bg-blue-300 border-red-400 text-blue-600 text-blue-700 text-blue-800 text-red-600:2
 src/components/ui/database/database-select.tsx|text-red-600
@@ -310,12 +299,9 @@ src/components/ui/forbidden-page.tsx|bg-red-50/50 border-red-200/50 text-red-600
 src/components/ui/input.tsx|text-red-600
 src/components/ui/page-header/ActiveFilterChips.tsx|bg-blue-100 text-blue-600 text-blue-700:2 text-blue-900
 src/components/ui/page-header/DesktopFilters.tsx|ring-blue-500
-src/components/ui/page-header/FilterButton.tsx|bg-blue-500:2 border-blue-500 ring-blue-500
 src/components/ui/page-header/FilterPanel.tsx|bg-blue-50 ring-blue-200 text-blue-500 text-blue-700
 src/components/ui/page-header/OverflowMenu.tsx|ring-blue-500/50 text-red-600
-src/components/ui/page-header/PageHeader.tsx|bg-green-500 bg-red-500 bg-yellow-500
 src/components/ui/page-header/PageHeaderWithSearch.tsx|bg-blue-50:2 ring-blue-200:2 text-blue-700:2
-src/components/ui/page-header/StatusIndicator.tsx|bg-green-500 bg-red-500 bg-yellow-500
 src/components/ui/password-change-modal.tsx|bg-blue-50 border-blue-200 border-red-400:3 text-red-600:3
 src/components/ui/textarea.tsx|text-red-600
 src/lib/activity-helpers.ts|from-blue-500 from-green-500 from-green-600 from-orange-500 from-pink-500 from-purple-500 from-red-500 from-yellow-500 to-amber-600 to-emerald-600 to-indigo-600 to-orange-600 to-pink-600:2 to-rose-600 to-teal-600

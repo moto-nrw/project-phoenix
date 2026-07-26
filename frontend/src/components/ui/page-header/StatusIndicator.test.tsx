@@ -11,14 +11,14 @@ describe("StatusIndicator", () => {
     const { container } = render(<StatusIndicator color="green" />);
     const indicator = container.firstChild;
 
-    expect(indicator).toHaveClass("bg-green-500", "animate-pulse");
+    expect(indicator).toHaveClass("bg-[#83CD2D]", "animate-pulse");
   });
 
   it("renders with yellow color", () => {
     const { container } = render(<StatusIndicator color="yellow" />);
     const indicator = container.firstChild;
 
-    expect(indicator).toHaveClass("bg-yellow-500");
+    expect(indicator).toHaveClass("bg-[#EAB308]");
     expect(indicator).not.toHaveClass("animate-pulse");
   });
 
@@ -26,7 +26,7 @@ describe("StatusIndicator", () => {
     const { container } = render(<StatusIndicator color="red" />);
     const indicator = container.firstChild;
 
-    expect(indicator).toHaveClass("bg-red-500");
+    expect(indicator).toHaveClass("bg-[#FF3130]");
     expect(indicator).not.toHaveClass("animate-pulse");
   });
 
