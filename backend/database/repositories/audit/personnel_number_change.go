@@ -13,7 +13,7 @@ type PersonnelNumberChangeRepository struct {
 	db *bun.DB
 }
 
-func NewPersonnelNumberChangeRepository(db *bun.DB) auditModels.PersonnelNumberChangeRepository {
+func NewPersonnelNumberChangeRepository(db *bun.DB) auditModels.PersonnelNumberChangeCreator {
 	return &PersonnelNumberChangeRepository{db: db}
 }
 

@@ -19,7 +19,7 @@ import (
 // shows and the later DATEV writers check before producing a file. Settings
 // come from a configtest.Mock (Rule 13); staff counts from real fixtures.
 
-func payrollStatusFixture(t *testing.T, values map[string]string) (configSvc.PayrollStatusService, *repositories.Factory, context.Context) {
+func payrollStatusFixture(t *testing.T, values map[string]string) (configSvc.PayrollStatusGetter, *repositories.Factory, context.Context) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

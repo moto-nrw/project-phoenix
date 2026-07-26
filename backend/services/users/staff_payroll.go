@@ -51,41 +51,51 @@ func (s *personService) UpdatePersonnelNumber(ctx context.Context, staffID int64
 	var updated *userModels.Staff
 	tenantID := tenant.FromContext(ctx)
 	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		staff, err := s.StaffRepo.FindByID(ctx, staffID)
-		if err != nil {
-			return err
-		}
-
-		oldValue := derefString(staff.PersonnelNumber)
-		newValue := derefString(normalized)
-		if oldValue == newValue {
-			updated = staff
-			return nil
-		}
-
-		if err := s.PersonnelNumberAudit.Create(ctx, &auditModels.PersonnelNumberChange{
-			StaffID:   staff.ID,
-			ChangedBy: changedByStaffID,
-			OldValue:  oldValue,
-			NewValue:  newValue,
-			Note:      strings.TrimSpace(note),
-		}); err != nil {
-			return fmt.Errorf("write personnel number audit: %w", err)
-		}
-
-		staff.PersonnelNumber = normalized
-		if err := s.StaffRepo.Update(ctx, staff); err != nil {
-			if base.IsUniqueViolationOn(err, userModels.PersonnelNumberUniqueConstraintName) {
-				return ErrPersonnelNumberTaken
-			}
-			return err
-		}
-		updated = staff
-		return nil
+		var err error
+		updated, err = s.updatePersonnelNumberInTx(ctx, staffID, normalized, changedByStaffID, note)
+		return err
 	}); err != nil {
 		return nil, err
 	}
 	return updated, nil
+}
+
+func (s *personService) updatePersonnelNumberInTx(
+	ctx context.Context,
+	staffID int64,
+	normalized *string,
+	changedByStaffID int64,
+	note string,
+) (*userModels.Staff, error) {
+	staff, err := s.StaffRepo.FindByID(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+
+	oldValue := derefString(staff.PersonnelNumber)
+	newValue := derefString(normalized)
+	if oldValue == newValue {
+		return staff, nil
+	}
+
+	if err := s.PersonnelNumberAudit.Create(ctx, &auditModels.PersonnelNumberChange{
+		StaffID:   staff.ID,
+		ChangedBy: changedByStaffID,
+		OldValue:  oldValue,
+		NewValue:  newValue,
+		Note:      strings.TrimSpace(note),
+	}); err != nil {
+		return nil, fmt.Errorf("write personnel number audit: %w", err)
+	}
+
+	staff.PersonnelNumber = normalized
+	if err := s.StaffRepo.Update(ctx, staff); err != nil {
+		if base.IsUniqueViolationOn(err, userModels.PersonnelNumberUniqueConstraintName) {
+			return nil, ErrPersonnelNumberTaken
+		}
+		return nil, err
+	}
+	return staff, nil
 }
 
 func normalizePersonnelNumber(value *string) *string {

@@ -90,7 +90,7 @@ type Factory struct {
 	Checkin                  *iotcheckin.CheckinService
 	StaffClock               *staffclock.Service
 	Settings                 config.SettingsService
-	PayrollStatus            config.PayrollStatusService
+	PayrollStatus            config.PayrollStatusGetter
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
 	StaffShiftSeries         schedule.StaffShiftSeriesService

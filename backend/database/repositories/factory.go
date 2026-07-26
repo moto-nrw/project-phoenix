@@ -169,7 +169,7 @@ type Factory struct {
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
-	PersonnelNumberChange        auditModels.PersonnelNumberChangeRepository
+	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)

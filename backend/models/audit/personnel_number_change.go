@@ -39,8 +39,8 @@ func (c *PersonnelNumberChange) Validate() error {
 	return nil
 }
 
-// PersonnelNumberChangeRepository is append-only; reads happen through the
+// PersonnelNumberChangeCreator is append-only; reads happen through the
 // cross-source audit log query.
-type PersonnelNumberChangeRepository interface {
+type PersonnelNumberChangeCreator interface {
 	Create(ctx context.Context, event *PersonnelNumberChange) error
 }

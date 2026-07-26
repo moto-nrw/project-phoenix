@@ -88,12 +88,12 @@ type SettingsResource struct {
 	db                *bun.DB
 	broadcaster       realtime.Broadcaster
 	onValueSet        ValueSetCallback
-	payrollStatus     configSvc.PayrollStatusService
+	payrollStatus     configSvc.PayrollStatusGetter
 }
 
 // SetPayrollStatusService wires the payroll configuration status (#1417).
 // Setter instead of a constructor parameter, mirroring OnValueSet.
-func (rs *SettingsResource) SetPayrollStatusService(svc configSvc.PayrollStatusService) {
+func (rs *SettingsResource) SetPayrollStatusService(svc configSvc.PayrollStatusGetter) {
 	rs.payrollStatus = svc
 }
 

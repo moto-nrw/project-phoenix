@@ -4,6 +4,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
+const (
+	payrollReadPermission  = "config:read"
+	payrollWritePermission = "config:manage"
+)
+
 // Payroll foundation (#1417 Tranche 2b): Lohnart mapping and DATEV client
 // identifiers for the upcoming LODAS / Lohn und Gehalt writers.
 //
@@ -47,8 +52,8 @@ func init() {
 			Description:     "Mandantenspezifische DATEV-Lohnartnummer (1 bis 4 Ziffern). Leer bedeutet: noch nicht konfiguriert; ohne Nummer erzeugt der spätere DATEV-Export keine Zeile für diese Kategorie.",
 			Type:            config.FieldText,
 			Default:         "",
-			ReadPermission:  "config:read",
-			WritePermission: "config:manage",
+			ReadPermission:  payrollReadPermission,
+			WritePermission: payrollWritePermission,
 			Tab:             "abrechnung",
 			Category:        "lohnarten",
 			SortOrder:       l.sort,
@@ -73,8 +78,8 @@ func init() {
 			Description:     "Ob die zugehörige DATEV-Lohnart Stunden oder Tage erwartet. Richtet sich nach der Lohnart-Definition im Lohnsystem des Trägers.",
 			Type:            config.FieldSelect,
 			Default:         "",
-			ReadPermission:  "config:read",
-			WritePermission: "config:manage",
+			ReadPermission:  payrollReadPermission,
+			WritePermission: payrollWritePermission,
 			Tab:             "abrechnung",
 			Category:        "lohnarten",
 			SortOrder:       u.sort,
@@ -89,8 +94,8 @@ func init() {
 		Description:     "Beraternummer für den Kopf der LODAS-Datei (1 bis 7 Ziffern). Ohne diesen Wert kann keine LODAS-Datei erzeugt werden; Lohn und Gehalt benötigt ihn nicht.",
 		Type:            config.FieldText,
 		Default:         "",
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
+		ReadPermission:  payrollReadPermission,
+		WritePermission: payrollWritePermission,
 		Tab:             "abrechnung",
 		Category:        "datev_mandant",
 		SortOrder:       10,
@@ -104,8 +109,8 @@ func init() {
 		Description:     "Mandantennummer für den Kopf der LODAS-Datei (1 bis 5 Ziffern). Ohne diesen Wert kann keine LODAS-Datei erzeugt werden; Lohn und Gehalt benötigt ihn nicht.",
 		Type:            config.FieldText,
 		Default:         "",
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
+		ReadPermission:  payrollReadPermission,
+		WritePermission: payrollWritePermission,
 		Tab:             "abrechnung",
 		Category:        "datev_mandant",
 		SortOrder:       20,

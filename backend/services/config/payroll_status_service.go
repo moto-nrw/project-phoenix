@@ -51,8 +51,8 @@ type PayrollStatus struct {
 	StaffWithoutPersonnelNumber int `json:"staff_without_personnel_number"`
 }
 
-// PayrollStatusService reports the payroll configuration state.
-type PayrollStatusService interface {
+// PayrollStatusGetter reports the payroll configuration state.
+type PayrollStatusGetter interface {
 	GetPayrollStatus(ctx context.Context) (*PayrollStatus, error)
 }
 
@@ -61,18 +61,20 @@ type payrollStatusService struct {
 	staffRepo userModels.StaffRepository
 }
 
-func NewPayrollStatusService(settings SettingsService, staffRepo userModels.StaffRepository) PayrollStatusService {
+func NewPayrollStatusService(settings SettingsService, staffRepo userModels.StaffRepository) PayrollStatusGetter {
 	return &payrollStatusService{settings: settings, staffRepo: staffRepo}
 }
 
-// payrollCategories fixes ID, label, and settings keys per category. The
-// order matches the registry sort order and the later export column order.
-var payrollCategories = []struct {
+type payrollCategory struct {
 	id      string
 	label   string
 	key     string
 	unitKey string
-}{
+}
+
+// payrollCategories fixes ID, label, and settings keys per category. The
+// order matches the registry sort order and the later export column order.
+var payrollCategories = []payrollCategory{
 	{"regelarbeit", "Regelarbeit", configModel.KeyPayrollLohnartRegelarbeit, ""},
 	{"plus_stunden", "Plus-Stunden", configModel.KeyPayrollLohnartPlusStunden, ""},
 	{"auszahlung", "Auszahlung", configModel.KeyPayrollLohnartAuszahlung, ""},
@@ -83,58 +85,98 @@ var payrollCategories = []struct {
 }
 
 func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*PayrollStatus, error) {
-	status := &PayrollStatus{TotalCategories: len(payrollCategories)}
-
-	for _, cat := range payrollCategories {
-		number, err := s.settings.ResolveString(ctx, cat.key)
-		if err != nil {
-			return nil, fmt.Errorf("resolve %s: %w", cat.key, err)
-		}
-		entry := PayrollCategoryStatus{
-			ID:         cat.id,
-			Label:      cat.label,
-			Number:     number,
-			SettingKey: cat.key,
-		}
-		if cat.unitKey != "" {
-			unit, err := s.settings.ResolveString(ctx, cat.unitKey)
-			if err != nil {
-				return nil, fmt.Errorf("resolve %s: %w", cat.unitKey, err)
-			}
-			entry.Unit = unit
-			entry.UnitRequired = true
-			entry.UnitSettingKey = cat.unitKey
-		}
-		if entry.Number != "" && (!entry.UnitRequired || entry.Unit != "") {
-			status.ConfiguredCategories++
-		}
-		status.Categories = append(status.Categories, entry)
+	categories, configuredCategories, err := s.resolvePayrollCategories(ctx)
+	if err != nil {
+		return nil, err
 	}
 
+	berater, mandant, err := s.resolveLodasHeader(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	staffTotal, staffWithoutPersonnelNumber, err := s.countStaffPersonnelNumbers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PayrollStatus{
+		Categories:                  categories,
+		Beraternummer:               berater,
+		Mandantennummer:             mandant,
+		LodasHeaderComplete:         berater != "" && mandant != "",
+		ConfiguredCategories:        configuredCategories,
+		TotalCategories:             len(payrollCategories),
+		StaffTotal:                  staffTotal,
+		StaffWithoutPersonnelNumber: staffWithoutPersonnelNumber,
+	}, nil
+}
+
+func (s *payrollStatusService) resolvePayrollCategories(ctx context.Context) ([]PayrollCategoryStatus, int, error) {
+	categories := make([]PayrollCategoryStatus, 0, len(payrollCategories))
+	configuredCategories := 0
+	for _, category := range payrollCategories {
+		entry, err := s.resolvePayrollCategory(ctx, category)
+		if err != nil {
+			return nil, 0, err
+		}
+		if entry.Number != "" && (!entry.UnitRequired || entry.Unit != "") {
+			configuredCategories++
+		}
+		categories = append(categories, entry)
+	}
+	return categories, configuredCategories, nil
+}
+
+func (s *payrollStatusService) resolvePayrollCategory(ctx context.Context, category payrollCategory) (PayrollCategoryStatus, error) {
+	number, err := s.settings.ResolveString(ctx, category.key)
+	if err != nil {
+		return PayrollCategoryStatus{}, fmt.Errorf("resolve %s: %w", category.key, err)
+	}
+	entry := PayrollCategoryStatus{
+		ID:         category.id,
+		Label:      category.label,
+		Number:     number,
+		SettingKey: category.key,
+	}
+	if category.unitKey == "" {
+		return entry, nil
+	}
+
+	unit, err := s.settings.ResolveString(ctx, category.unitKey)
+	if err != nil {
+		return PayrollCategoryStatus{}, fmt.Errorf("resolve %s: %w", category.unitKey, err)
+	}
+	entry.Unit = unit
+	entry.UnitRequired = true
+	entry.UnitSettingKey = category.unitKey
+	return entry, nil
+}
+
+func (s *payrollStatusService) resolveLodasHeader(ctx context.Context) (string, string, error) {
 	berater, err := s.settings.ResolveString(ctx, configModel.KeyPayrollDatevBeraternummer)
 	if err != nil {
-		return nil, fmt.Errorf("resolve beraternummer: %w", err)
+		return "", "", fmt.Errorf("resolve beraternummer: %w", err)
 	}
 	mandant, err := s.settings.ResolveString(ctx, configModel.KeyPayrollDatevMandantennummer)
 	if err != nil {
-		return nil, fmt.Errorf("resolve mandantennummer: %w", err)
+		return "", "", fmt.Errorf("resolve mandantennummer: %w", err)
 	}
-	status.Beraternummer = berater
-	status.Mandantennummer = mandant
-	status.LodasHeaderComplete = berater != "" && mandant != ""
+	return berater, mandant, nil
+}
 
+func (s *payrollStatusService) countStaffPersonnelNumbers(ctx context.Context) (int, int, error) {
 	// Tenant staff counts fit in memory (a school has tens of staff, not
 	// thousands); the soft-delete filter comes from the repository.
 	staff, err := s.staffRepo.List(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("list staff: %w", err)
+		return 0, 0, fmt.Errorf("list staff: %w", err)
 	}
-	status.StaffTotal = len(staff)
+	withoutPersonnelNumber := 0
 	for _, st := range staff {
 		if st.PersonnelNumber == nil || *st.PersonnelNumber == "" {
-			status.StaffWithoutPersonnelNumber++
+			withoutPersonnelNumber++
 		}
 	}
-
-	return status, nil
+	return len(staff), withoutPersonnelNumber, nil
 }

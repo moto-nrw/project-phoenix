@@ -47,7 +47,7 @@ type PersonServiceDependencies struct {
 	TeacherRepo userModels.TeacherRepository
 	// PersonnelNumberAudit is required for UpdatePersonnelNumber; the write
 	// path refuses to run without it (no change without a trace, #1417).
-	PersonnelNumberAudit auditModels.PersonnelNumberChangeRepository
+	PersonnelNumberAudit auditModels.PersonnelNumberChangeCreator
 
 	// Infrastructure
 	DB              *bun.DB

@@ -1,9 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("./session-cache", () => ({
+  sessionFetch: vi.fn(),
+}));
+
+import { sessionFetch } from "./session-cache";
 import {
   duplicateLohnartNumbers,
+  fetchPayrollStatus,
   mapPayrollStatus,
   type PayrollStatus,
 } from "./payroll-api";
+
+const mockedSessionFetch = vi.mocked(sessionFetch);
 
 const backendStatus = {
   categories: [
@@ -51,6 +60,40 @@ describe("mapPayrollStatus", () => {
     expect(status.categories[1]?.unitSettingKey).toBe("payroll.einheit_krank");
     expect(status.lodasHeaderComplete).toBe(false);
     expect(status.staffWithoutPersonnelNumber).toBe(19);
+  });
+});
+
+describe("fetchPayrollStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("fetches and maps the payroll status", async () => {
+    mockedSessionFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: backendStatus }),
+    } as Response);
+
+    const status = await fetchPayrollStatus();
+
+    expect(mockedSessionFetch).toHaveBeenCalledWith(
+      "/api/settings/payroll-status",
+    );
+    expect(status.categories[0]?.settingKey).toBe(
+      "payroll.lohnart_regelarbeit",
+    );
+    expect(status.staffTotal).toBe(21);
+  });
+
+  it("reports a failed status request", async () => {
+    mockedSessionFetch.mockResolvedValue({
+      ok: false,
+      statusText: "Forbidden",
+    } as Response);
+
+    await expect(fetchPayrollStatus()).rejects.toThrow(
+      "Failed to fetch payroll status: Forbidden",
+    );
   });
 });
 

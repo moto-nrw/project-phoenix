@@ -298,7 +298,7 @@ function DatevNumberField({
 
   const valid =
     value.trim() === "" ||
-    new RegExp(`^\\d{1,${maxDigits}}$`).test(value.trim());
+    new RegExp(String.raw`^\d{1,${maxDigits}}$`).test(value.trim());
 
   return (
     <div>
