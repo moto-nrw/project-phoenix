@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -43,15 +43,34 @@ export default function PayrollPage() {
   } = useSWR(isReady ? "payroll-status" : null, fetchPayrollStatus);
 
   const [saveError, setSaveError] = useState<string | null>(null);
+  const saveQueues = useRef(new Map<string, Promise<void>>());
 
-  const save = async (key: string, value: string) => {
-    setSaveError(null);
-    const message = await setSettingValue(key, value);
-    if (message) {
-      setSaveError(message);
-    }
-    await mutate();
-  };
+  const save = useCallback(
+    (key: string, value: string) => {
+      const previous = saveQueues.current.get(key) ?? Promise.resolve();
+      const next = previous
+        .then(async () => {
+          setSaveError(null);
+          const message = await setSettingValue(key, value);
+          if (message) {
+            setSaveError(message);
+          }
+          await mutate();
+        })
+        .catch(() => {
+          setSaveError("Einstellung konnte nicht gespeichert werden.");
+        });
+
+      saveQueues.current.set(key, next);
+      void next.finally(() => {
+        if (saveQueues.current.get(key) === next) {
+          saveQueues.current.delete(key);
+        }
+      });
+      return next;
+    },
+    [mutate],
+  );
 
   if (permissionLoading || !isReady) {
     return <Loading fullPage />;

@@ -1296,6 +1296,43 @@ func TestSetValue_TextRejectsNonString(t *testing.T) {
 	assert.Contains(t, err.Error(), "expected a string")
 }
 
+func TestSetValue_TextPatternValidation(t *testing.T) {
+	setupTest(t)
+	pattern := `^\d{1,4}$`
+	config.Register(config.Definition{
+		Key:        "payroll.lohnart_test",
+		Label:      "Lohnart",
+		Type:       config.FieldText,
+		Default:    "",
+		Tab:        "abrechnung",
+		Category:   "lohnarten",
+		Validation: &config.ValidationRules{Pattern: &pattern},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	for _, tc := range []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "empty remains valid", value: ""},
+		{name: "numeric value matches", value: "1234"},
+		{name: "letters are rejected", value: "12a", wantErr: true},
+		{name: "too many digits are rejected", value: "12345", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := svc.SetValue(tenantCtx(1), "payroll.lohnart_test", tc.value, nil, nil)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "does not match required pattern")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 // =============================================================================
 // PIN validation tests
 // =============================================================================
