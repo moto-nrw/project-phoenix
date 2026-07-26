@@ -18,7 +18,7 @@ import (
 type StudentLifecycleRepository interface {
 	FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
 	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
-	UpdateStatus(ctx context.Context, studentID int64, newStatus userModels.StudentStatus) error
+	TransitionStatus(ctx context.Context, studentID int64, expected, next userModels.StudentStatus) (bool, error)
 }
 
 // StudentLifecycleAuditor records scheduler-authored status transitions.
@@ -153,14 +153,25 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 	if len(students) == 0 {
 		return nil
 	}
+	transitions := 0
 	for _, student := range students {
-		if err := s.studentLifecycleRepo.UpdateStatus(ctx, student.ID, to); err != nil {
+		applied, err := s.studentLifecycleRepo.TransitionStatus(ctx, student.ID, from, to)
+		if err != nil {
 			s.getLogger().Error("activate-students: update status failed",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("student_id", student.ID),
 				slog.String("from", string(from)),
 				slog.String("to", string(to)),
 				slog.String("error", err.Error()),
+			)
+			continue
+		}
+		if !applied {
+			s.getLogger().Debug("activate-students: status transition skipped after concurrent change",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", student.ID),
+				slog.String("expected_status", string(from)),
+				slog.String("next_status", string(to)),
 			)
 			continue
 		}
@@ -176,6 +187,7 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 				return fmt.Errorf("audit student %d status transition: %w", student.ID, err)
 			}
 		}
+		transitions++
 		s.getLogger().Info("student status transition",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("student_id", student.ID),
@@ -187,7 +199,7 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 		slog.Int64("tenant_id", tenantID),
 		slog.String("from", string(from)),
 		slog.String("to", string(to)),
-		slog.Int("transitions", len(students)),
+		slog.Int("transitions", transitions),
 	)
 	return nil
 }

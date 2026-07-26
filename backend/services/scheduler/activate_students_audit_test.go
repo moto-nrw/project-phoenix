@@ -70,3 +70,25 @@ func TestRunActivateStudentsForTenant_PropagatesAuditFailure(t *testing.T) {
 
 	require.ErrorIs(t, err, auditErr)
 }
+
+func TestRunActivateStudentsForTenant_SkipsStaleTransitionAndAudit(t *testing.T) {
+	student := &userModels.Student{Status: userModels.StudentStatusPending}
+	student.ID = 703
+	repo := &fakeStudentLifecycleRepo{
+		pendingDue: []*userModels.Student{student},
+		currentStatuses: map[int64]userModels.StudentStatus{
+			student.ID: userModels.StudentStatusInactive,
+		},
+	}
+	auditor := &fakeStudentLifecycleAuditor{}
+	s := &Scheduler{
+		studentLifecycleRepo:  repo,
+		studentLifecycleAudit: auditor,
+	}
+
+	err := s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now())
+
+	require.NoError(t, err)
+	assert.Empty(t, repo.updates, "a concurrent staff status change must not be overwritten")
+	assert.Empty(t, auditor.calls, "a skipped transition must not create a system audit entry")
+}
