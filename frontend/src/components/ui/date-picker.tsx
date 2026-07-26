@@ -495,7 +495,10 @@ function DatePickerCalendar({
           weekday:
             "text-gray-500 flex-1 min-w-0 font-normal text-xs text-center pb-1",
           week: "flex w-full mt-1.5",
-          day: "flex-1 min-w-0 h-9 text-center text-sm p-0 relative",
+          // px-1 on the cell, not the button: the button stays w-full so it
+          // fills whatever width the column has, and the 4px inset on each side
+          // keeps two selected days from fusing into one continuous dark bar.
+          day: "flex-1 min-w-0 h-9 px-1 text-center text-sm py-0 relative",
           day_button:
             "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected: "bg-gray-900 text-white hover:bg-gray-800 rounded-lg",
@@ -545,7 +548,10 @@ function MultipleDatePickerCalendar({
           weekday:
             "text-gray-500 flex-1 min-w-0 font-normal text-xs text-center pb-1",
           week: "flex w-full mt-1.5",
-          day: "flex-1 min-w-0 h-9 text-center text-sm p-0 relative",
+          // px-1 on the cell, not the button: the button stays w-full so it
+          // fills whatever width the column has, and the 4px inset on each side
+          // keeps two selected days from fusing into one continuous dark bar.
+          day: "flex-1 min-w-0 h-9 px-1 text-center text-sm py-0 relative",
           day_button:
             "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected: "bg-gray-900 text-white hover:bg-gray-800 rounded-lg",
