@@ -103,7 +103,8 @@
     "includeEntryExports": true,
     "ignore": [
       ".storybook/mocks/**",
-      "doctor.config.js"
+      "doctor.config.js",
+      "public/sw.js"
     ],
     "ignoreDependencies": [
       "sharp",

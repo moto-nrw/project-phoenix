@@ -75,6 +75,23 @@ func TestNewFactory(t *testing.T) {
 	})
 }
 
+func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repos := repositories.NewFactory(db)
+	viper.Reset()
+	seedFactoryRequiredConfig()
+	viper.Set("vapid_public_key", "configured-without-the-other-required-values")
+
+	factory, err := services.NewFactory(repos, db, slog.Default())
+	require.Error(t, err)
+	require.Nil(t, factory)
+	assert.ErrorContains(t, err, "invalid VAPID configuration")
+	assert.ErrorContains(t, err, "VAPID_PRIVATE_KEY")
+	assert.ErrorContains(t, err, "VAPID_SUBSCRIBER")
+}
+
 func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

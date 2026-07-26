@@ -41,7 +41,12 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 	case ScopeAdmin:
 		return c.broadcaster.BroadcastToTenantAdmins(event.Audience.TenantID, sseEvent)
 	case ScopeGuardian:
-		return c.broadcaster.BroadcastToGuardian(event.Audience.TenantID, event.Audience.GuardianAccountID, sseEvent)
+		for _, accountID := range guardianAccountIDs(event.Audience) {
+			if err := c.broadcaster.BroadcastToGuardian(event.Audience.TenantID, accountID, sseEvent); err != nil {
+				return err
+			}
+		}
+		return nil
 	case ScopeGroup:
 		return c.broadcaster.BroadcastToGroup(event.Audience.TenantID, event.Audience.ActiveGroupID, sseEvent)
 	default:

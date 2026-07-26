@@ -142,6 +142,10 @@ vi.mock("lucide-react", () => ({
   Camera: (props: Record<string, unknown>) => (
     <svg data-testid="camera-icon" {...props} />
   ),
+  // Used by the PushNotificationSection mounted on the profile page (#2003).
+  BellRing: (props: Record<string, unknown>) => (
+    <svg data-testid="bell-ring-icon" {...props} />
+  ),
 }));
 
 // Mock Next.js Image component

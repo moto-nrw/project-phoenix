@@ -1225,6 +1225,10 @@ func (r *stubAccountTenantRepository) FindActiveByAccountID(_ context.Context, a
 	return result, nil
 }
 
+func (r *stubAccountTenantRepository) FindActiveGuardianByAccountID(context.Context, int64) ([]authModel.AccountTenant, error) {
+	panic("FindActiveGuardianByAccountID not implemented")
+}
+
 func (r *stubAccountTenantRepository) ExistsByAccountAndTenant(_ context.Context, accountID, tenantID int64) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

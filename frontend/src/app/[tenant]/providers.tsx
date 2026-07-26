@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
+import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
 
 /**
  * Tenant-scoped providers.
@@ -17,6 +18,7 @@ export function TenantProviders({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <SessionProvider refetchInterval={4 * 60} refetchOnWindowFocus={false}>
+      <PushSubscriptionSync portal="tenant" />
       <TenantAuthWrapper>
         <ProfileProvider>
           <SupervisionProvider>{children}</SupervisionProvider>

@@ -97,15 +97,23 @@ func TestNotifyDefersDeliveryUntilCommit(t *testing.T) {
 
 	event := tenantEvent(41)
 	event.Data = map[string]string{"reminder_id": "123"}
+	event.Audience = notifications.Audience{
+		TenantID:           41,
+		Scope:              notifications.ScopeGuardian,
+		GuardianAccountIDs: []int64{77, 88},
+	}
 	require.NoError(t, svc.Notify(ctx, event))
 	assert.Empty(t, channel.events, "notification must not be delivered before commit")
 
 	event.Data["reminder_id"] = "mutated-before-commit"
+	event.Audience.GuardianAccountIDs[0] = 999
 	commit()
 
 	require.Len(t, channel.events, 1)
 	assert.Equal(t, map[string]string{"reminder_id": "123"}, channel.events[0].Data,
 		"queued notification must use the event snapshot taken by Notify")
+	assert.Equal(t, []int64{77, 88}, channel.events[0].Audience.GuardianAccountIDs,
+		"queued notification must snapshot batched guardian ids")
 }
 
 func TestNotifyDropsQueuedDeliveryOnRollback(t *testing.T) {
@@ -149,6 +157,11 @@ func TestNotifyAdminGuardianAndGroupRouting(t *testing.T) {
 	guardian.Audience.GuardianAccountID = 77
 	require.NoError(t, svc.Notify(context.Background(), guardian))
 
+	guardianBatch := tenantEvent(41)
+	guardianBatch.Audience.Scope = notifications.ScopeGuardian
+	guardianBatch.Audience.GuardianAccountIDs = []int64{88, 99}
+	require.NoError(t, svc.Notify(context.Background(), guardianBatch))
+
 	group := tenantEvent(41)
 	group.Audience.Scope = notifications.ScopeGroup
 	group.Audience.ActiveGroupID = "g-9"
@@ -159,8 +172,10 @@ func TestNotifyAdminGuardianAndGroupRouting(t *testing.T) {
 	assert.Equal(t, int64(41), adminCalls[0].TenantID)
 
 	guardianCalls := broadcaster.CallsByMethod("guardian")
-	require.Len(t, guardianCalls, 1)
+	require.Len(t, guardianCalls, 3)
 	assert.Equal(t, int64(77), guardianCalls[0].GuardianID)
+	assert.Equal(t, int64(88), guardianCalls[1].GuardianID)
+	assert.Equal(t, int64(99), guardianCalls[2].GuardianID)
 
 	groupCalls := broadcaster.CallsByMethod("group")
 	require.Len(t, groupCalls, 1)
@@ -189,6 +204,17 @@ func TestNotifyValidation(t *testing.T) {
 	guardianWithoutAccount := tenantEvent(41)
 	guardianWithoutAccount.Audience.Scope = notifications.ScopeGuardian
 	assert.Error(t, svc.Notify(ctx, guardianWithoutAccount))
+
+	guardianWithMixedIDs := tenantEvent(41)
+	guardianWithMixedIDs.Audience.Scope = notifications.ScopeGuardian
+	guardianWithMixedIDs.Audience.GuardianAccountID = 77
+	guardianWithMixedIDs.Audience.GuardianAccountIDs = []int64{88}
+	assert.Error(t, svc.Notify(ctx, guardianWithMixedIDs))
+
+	guardianWithInvalidBatch := tenantEvent(41)
+	guardianWithInvalidBatch.Audience.Scope = notifications.ScopeGuardian
+	guardianWithInvalidBatch.Audience.GuardianAccountIDs = []int64{77, 0}
+	assert.Error(t, svc.Notify(ctx, guardianWithInvalidBatch))
 
 	groupWithoutID := tenantEvent(41)
 	groupWithoutID.Audience.Scope = notifications.ScopeGroup
@@ -266,18 +292,21 @@ func TestSSEChannelRejectsUnknownAudienceScope(t *testing.T) {
 	require.EqualError(t, err, `sse channel cannot route audience scope "unknown" (tenant 41)`)
 }
 
-func TestWebPushChannelStub(t *testing.T) {
+// TestWebPushChannelUnconfigured replaces the former TestWebPushChannelStub:
+// with #2003 the channel is real, and the guaranteed no-op case is now
+// "VAPID keys not configured" (the behavior every keyless environment gets).
+func TestWebPushChannelUnconfigured(t *testing.T) {
 	event := tenantEvent(41)
 
-	defaultLoggerChannel := notifications.NewWebPushChannel(nil)
+	defaultLoggerChannel := notifications.NewWebPushChannel(nil, nil, notifications.VAPIDConfig{}, nil)
 	assert.Equal(t, "web_push", defaultLoggerChannel.Name())
 	require.NoError(t, defaultLoggerChannel.Deliver(context.Background(), event))
 
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	channel := notifications.NewWebPushChannel(logger)
+	channel := notifications.NewWebPushChannel(nil, nil, notifications.VAPIDConfig{}, logger)
 	require.NoError(t, channel.Deliver(context.Background(), event))
-	assert.Contains(t, logs.String(), "web push channel not yet activated")
+	assert.Contains(t, logs.String(), "no VAPID keys configured")
 	assert.Contains(t, logs.String(), "notification_type=test")
 	assert.Contains(t, logs.String(), "tenant_id=41")
 }

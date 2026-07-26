@@ -189,8 +189,10 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   }
 
   // Pass through: operator API routes, static assets, Sentry tunnel
-  // Note: favicon.ico, favicon.png, apple-touch-icon.png, manifests,
-  // favicons/, icons/, and images/ are excluded from the proxy matcher entirely.
+  // Note: favicon.ico, favicon.png, apple-touch-icon.png, manifests, sw.js
+  // (the Web Push service worker must be same-origin and redirect-free on
+  // every host), favicons/, icons/, and images/ are excluded from the proxy
+  // matcher entirely.
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next") ||
@@ -485,6 +487,7 @@ export function proxy(request: NextRequest): NextResponse {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|favicons/|icons/|images/).*)",
+    // Next.js requires a literal so it can statically analyze the matcher.
+    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|sw\\.js|favicons/|icons/|images/).*)", // NOSONAR
   ],
 };

@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -606,7 +607,24 @@ func TestAuthService_Logout(t *testing.T) {
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		secondaryTenantID := account.ID + 1_000_000_000
+		testpkg.EnsureTestTenant(t, db, secondaryTenantID)
+		testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		staffEndpoint := fmt.Sprintf("https://fcm.googleapis.com/logout-staff-%d", account.ID)
+		for _, tenantID := range []int64{tenant.FromContext(ctx), secondaryTenantID} {
+			subscription := &iotModels.PushSubscription{
+				AccountID: account.ID,
+				Portal:    iotModels.PushPortalStaff,
+				Endpoint:  staffEndpoint,
+				P256dh:    "p256dh-key",
+				Auth:      "auth-key",
+			}
+			subscription.SetTenantID(tenantID)
+			_, err = db.NewInsert().Model(subscription).Exec(ctx)
+			require.NoError(t, err)
+		}
 
 		_, refreshToken, err := service.Login(ctx, email, testPassword)
 		require.NoError(t, err)
@@ -620,6 +638,14 @@ func TestAuthService_Logout(t *testing.T) {
 		// Verify token is invalidated (refresh should fail)
 		_, _, err = service.RefreshToken(ctx, refreshToken)
 		require.Error(t, err)
+
+		staffCount, err := db.NewSelect().
+			Model((*iotModels.PushSubscription)(nil)).
+			Where("account_id = ?", account.ID).
+			Where("portal = ?", iotModels.PushPortalStaff).
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Zero(t, staffCount, "logout must remove staff subscriptions across all tenants")
 	})
 
 	t.Run("logout with invalid token returns error", func(t *testing.T) {

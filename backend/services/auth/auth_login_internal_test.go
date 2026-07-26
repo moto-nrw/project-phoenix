@@ -70,6 +70,9 @@ func (s stubAuthLoginAccountTenantRepo) Deactivate(context.Context, int64, int64
 func (s stubAuthLoginAccountTenantRepo) FindActiveByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenant, error) {
 	return s.findActiveFn(ctx, accountID)
 }
+func (s stubAuthLoginAccountTenantRepo) FindActiveGuardianByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
+	panic("unexpected FindActiveGuardianByAccountID")
+}
 func (s stubAuthLoginAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	return s.existsFn(ctx, accountID, tenantID)
 }
