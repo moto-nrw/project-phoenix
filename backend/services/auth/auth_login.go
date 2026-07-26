@@ -1511,7 +1511,10 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction)
+	var accountID int64
+	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
+	// Token revocation commits independently so a later push-cleanup failure
+	// cannot leave the authenticated session valid.
 	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
@@ -1519,6 +1522,7 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			// Token not found, consider logout successful
 			return nil
 		}
+		accountID = dbToken.AccountID
 
 		// Delete ALL tokens for this account to ensure complete logout
 		// This ensures that all sessions (access and refresh tokens) are invalidated
@@ -1542,8 +1546,20 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 		return nil
 	})
+	if err != nil || accountID == 0 {
+		return err
+	}
 
-	return err
+	// Staff subscriptions are tenant-specific, but logout is account-wide.
+	// Remove every staff row server-side so subscriptions registered on other
+	// school subdomains cannot keep receiving notifications.
+	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		return s.repos.PushSubscription.DeleteStaffByAccountID(txCtx, accountID)
+	})
+	if err != nil {
+		return &AuthError{Op: "delete staff push subscriptions", Err: err}
+	}
+	return nil
 }
 
 // ChangePassword updates an account's password

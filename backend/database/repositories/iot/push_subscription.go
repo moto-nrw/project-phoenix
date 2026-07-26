@@ -88,6 +88,22 @@ func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, accou
 	return nil
 }
 
+// DeleteStaffByAccountID removes every staff-portal subscription for an
+// account across tenants. The caller must supply an admin transaction because
+// this intentionally crosses tenant boundaries during server-side logout.
+func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context, accountID int64) error {
+	_, err := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*iot.PushSubscription)(nil)).
+		ModelTableExpr(tablePushSubscriptions).
+		Where("account_id = ?", accountID).
+		Where(pushPortalFilter, iot.PushPortalStaff).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete staff push subscriptions", Err: err}
+	}
+	return nil
+}
+
 // FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]*iot.PushSubscription, error) {
 	var subs []*iot.PushSubscription
@@ -153,9 +169,12 @@ func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([
 	return subs, nil
 }
 
-// FindForGuardian returns parent-portal subscriptions of one guardian account
-// in the current tenant.
-func (r *PushSubscriptionRepository) FindForGuardian(ctx context.Context, guardianAccountID int64) ([]*iot.PushSubscription, error) {
+// FindForGuardians returns parent-portal subscriptions of guardian accounts in
+// the current tenant.
+func (r *PushSubscriptionRepository) FindForGuardians(ctx context.Context, guardianAccountIDs []int64) ([]*iot.PushSubscription, error) {
+	if len(guardianAccountIDs) == 0 {
+		return nil, nil
+	}
 	var subs []*iot.PushSubscription
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&subs).
@@ -166,7 +185,7 @@ func (r *PushSubscriptionRepository) FindForGuardian(ctx context.Context, guardi
 		Where(`"account".active = ?`, true).
 		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
 		Where(guardianRoleFilter, authModels.BaseRoleGuardian).
-		Where(`"push_subscription".account_id = ?`, guardianAccountID)
+		Where(`"push_subscription".account_id IN (?)`, bun.List(guardianAccountIDs))
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find guardian push subscriptions", Err: err}

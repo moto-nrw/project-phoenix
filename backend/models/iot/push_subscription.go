@@ -99,12 +99,15 @@ type PushSubscriptionRepository interface {
 	Upsert(ctx context.Context, sub *PushSubscription) error
 	// DeleteByEndpoint removes the caller's subscription for the current tenant.
 	DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error
+	// DeleteStaffByAccountID removes every staff-portal subscription for an
+	// account across tenants. Callers must use an admin transaction.
+	DeleteStaffByAccountID(ctx context.Context, accountID int64) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
 	// FindForTenantAdmins returns staff-portal subscriptions of accounts with
 	// effective admin scope in the current tenant.
 	FindForTenantAdmins(ctx context.Context) ([]*PushSubscription, error)
-	// FindForGuardian returns parent-portal subscriptions of one guardian account
+	// FindForGuardians returns parent-portal subscriptions of guardian accounts
 	// in the current tenant.
-	FindForGuardian(ctx context.Context, guardianAccountID int64) ([]*PushSubscription, error)
+	FindForGuardians(ctx context.Context, guardianAccountIDs []int64) ([]*PushSubscription, error)
 }

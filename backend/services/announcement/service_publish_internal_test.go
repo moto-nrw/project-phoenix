@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
@@ -285,24 +286,22 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
 	}
-	if len(notifier.events) != 2 {
-		t.Fatalf("expected one guardian event per account, got %d", len(notifier.events))
+	if len(notifier.events) != 1 {
+		t.Fatalf("expected one batched guardian event, got %d", len(notifier.events))
 	}
-	for i, accountID := range []int64{101, 202} {
-		event := notifier.events[i]
-		if event.Audience.Scope != notifications.ScopeGuardian ||
-			event.Audience.GuardianAccountID != accountID ||
-			event.Audience.TenantID != 11 {
-			t.Fatalf("unexpected guardian audience: %+v", event.Audience)
-		}
-		if event.Title == repo.announcement.Title || event.Body == repo.announcement.Body {
-			t.Fatalf("push payload must not expose announcement content: %+v", event)
-		}
-		if event.Type != parentAnnouncementNotificationType ||
-			event.Priority != notifications.PriorityNormal ||
-			event.DeepLink != "/" {
-			t.Fatalf("unexpected guardian notification metadata: %+v", event)
-		}
+	event := notifier.events[0]
+	if event.Audience.Scope != notifications.ScopeGuardian ||
+		!slices.Equal(event.Audience.GuardianAccountIDs, []int64{101, 202}) ||
+		event.Audience.TenantID != 11 {
+		t.Fatalf("unexpected guardian audience: %+v", event.Audience)
+	}
+	if event.Title == repo.announcement.Title || event.Body == repo.announcement.Body {
+		t.Fatalf("push payload must not expose announcement content: %+v", event)
+	}
+	if event.Type != parentAnnouncementNotificationType ||
+		event.Priority != notifications.PriorityNormal ||
+		event.DeepLink != "/" {
+		t.Fatalf("unexpected guardian notification metadata: %+v", event)
 	}
 }
 

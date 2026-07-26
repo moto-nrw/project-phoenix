@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -41,8 +42,12 @@ func (f *fakePushRepo) FindForTenantAdmins(context.Context) ([]*iot.PushSubscrip
 	return f.admins, nil
 }
 
-func (f *fakePushRepo) FindForGuardian(_ context.Context, accountID int64) ([]*iot.PushSubscription, error) {
-	return f.guardians[accountID], nil
+func (f *fakePushRepo) FindForGuardians(_ context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+	var subscriptions []*iot.PushSubscription
+	for _, accountID := range accountIDs {
+		subscriptions = append(subscriptions, f.guardians[accountID]...)
+	}
+	return subscriptions, nil
 }
 
 func (f *fakePushRepo) Delete(_ context.Context, id any) error {
@@ -108,10 +113,11 @@ func testSub(id, tenantID int64, endpoint string) *iot.PushSubscription {
 
 func testChannel(repo *fakePushRepo, sender *fakeSender) *webPushChannel {
 	return &webPushChannel{
-		repo:   repo,
-		vapid:  testVAPID(),
-		sender: sender,
-		logger: slog.Default(),
+		repo:      repo,
+		vapid:     testVAPID(),
+		sender:    sender,
+		logger:    slog.Default(),
+		sendSlots: make(chan struct{}, maxConcurrentPushSends),
 	}
 }
 
@@ -191,6 +197,14 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	assert.Equal(t, admins, got)
 
 	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeGuardian, GuardianAccountID: 99})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
+
+	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+		TenantID:           41,
+		Scope:              ScopeGuardian,
+		GuardianAccountIDs: []int64{99},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 
@@ -294,6 +308,46 @@ func TestWebPushSendDeadlineAndRedirectPolicy(t *testing.T) {
 	require.NoError(t, err)
 	assert.ErrorIs(t, client.CheckRedirect(req, nil), http.ErrUseLastResponse)
 	assert.Equal(t, pushSendTimeout, client.Timeout)
+}
+
+func TestWebPushConcurrencyLimitIsSharedAcrossBatches(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{}, maxConcurrentPushSends*2)
+	sender := &fakeSender{sendFn: func(context.Context) {
+		started <- struct{}{}
+		<-release
+	}}
+	channel := testChannel(&fakePushRepo{}, sender)
+	event := Event{Type: "test", Audience: Audience{TenantID: 41}, Priority: PriorityNormal}
+	subscriptions := make([]*iot.PushSubscription, maxConcurrentPushSends)
+	for i := range subscriptions {
+		subscriptions[i] = testSub(int64(i+1), 41, fmt.Sprintf("https://fcm.googleapis.com/device-%d", i))
+	}
+
+	var batches sync.WaitGroup
+	batches.Add(2)
+	for range 2 {
+		go func() {
+			defer batches.Done()
+			channel.sendAll(context.Background(), event, []byte(`{"title":"test"}`), subscriptions)
+		}()
+	}
+
+	for range maxConcurrentPushSends {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("shared concurrency slots were not filled")
+		}
+	}
+	select {
+	case <-started:
+		t.Fatalf("more than %d sends started concurrently across batches", maxConcurrentPushSends)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	batches.Wait()
 }
 
 func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {

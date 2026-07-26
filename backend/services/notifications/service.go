@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"strings"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -55,7 +56,7 @@ const (
 	// ScopeAdmin delivers only to connected staff clients with effective admin
 	// scope in the tenant.
 	ScopeAdmin AudienceScope = "admin"
-	// ScopeGuardian delivers only to one guardian account's own clients.
+	// ScopeGuardian delivers only to one or more guardian accounts' own clients.
 	ScopeGuardian AudienceScope = "guardian"
 	// ScopeGroup delivers to clients subscribed to one active group.
 	ScopeGroup AudienceScope = "group"
@@ -64,10 +65,11 @@ const (
 // Audience describes the recipients of an event. TenantID is always required;
 // the other fields depend on Scope.
 type Audience struct {
-	TenantID          int64
-	Scope             AudienceScope
-	GuardianAccountID int64  // required for ScopeGuardian
-	ActiveGroupID     string // required for ScopeGroup
+	TenantID           int64
+	Scope              AudienceScope
+	GuardianAccountID  int64   // one recipient for ScopeGuardian
+	GuardianAccountIDs []int64 // batched recipients for ScopeGuardian
+	ActiveGroupID      string  // required for ScopeGroup
 }
 
 // Event is a channel-agnostic notification. Title/Body/DeepLink are
@@ -142,8 +144,16 @@ func validate(event Event) error {
 	case ScopeTenant:
 	case ScopeAdmin:
 	case ScopeGuardian:
-		if event.Audience.GuardianAccountID <= 0 {
+		if event.Audience.GuardianAccountID > 0 && len(event.Audience.GuardianAccountIDs) > 0 {
+			return errors.New("guardian-scoped notification cannot mix singular and batched account ids")
+		}
+		if event.Audience.GuardianAccountID <= 0 && len(event.Audience.GuardianAccountIDs) == 0 {
 			return errors.New("guardian-scoped notification requires a guardian account id")
+		}
+		for _, accountID := range event.Audience.GuardianAccountIDs {
+			if accountID <= 0 {
+				return errors.New("guardian-scoped notification requires positive guardian account ids")
+			}
 		}
 	case ScopeGroup:
 		if event.Audience.ActiveGroupID == "" {
@@ -190,9 +200,20 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 	// Snapshot the mutable payload before the callback outlives this call.
 	dispatchCtx := modelBase.ContextWithoutTx(ctx)
 	event.Data = maps.Clone(event.Data)
+	event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
 	tenant.RegisterAfterCommit(ctx, func() {
 		r.deliver(dispatchCtx, event)
 	})
+	return nil
+}
+
+func guardianAccountIDs(audience Audience) []int64 {
+	if len(audience.GuardianAccountIDs) > 0 {
+		return audience.GuardianAccountIDs
+	}
+	if audience.GuardianAccountID > 0 {
+		return []int64{audience.GuardianAccountID}
+	}
 	return nil
 }
 

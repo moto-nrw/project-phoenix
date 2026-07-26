@@ -158,7 +158,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		parentEndpoint := endpoint + "/parent"
 		require.NoError(t, repo.Upsert(ctx, newSubscription(guardian.ID, iotModels.PushPortalParent, parentEndpoint)))
 
-		subs, err := repo.FindForGuardian(ctx, guardian.ID)
+		subs, err := repo.FindForGuardians(ctx, []int64{guardian.ID})
 		require.NoError(t, err)
 		require.Len(t, subs, 1)
 		assert.Equal(t, parentEndpoint, subs[0].Endpoint)
@@ -181,7 +181,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 			iotModels.PushPortalParent,
 			endpoint+"/staff-parent",
 		)))
-		subs, err = repo.FindForGuardian(ctx, account.ID)
+		subs, err = repo.FindForGuardians(ctx, []int64{account.ID})
 		require.NoError(t, err)
 		assert.Empty(t, subs)
 	})
@@ -211,7 +211,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, subscriptionsForAccount(adminSubs, account.ID))
 
-		guardianSubs, err := repo.FindForGuardian(ctx, guardian.ID)
+		guardianSubs, err := repo.FindForGuardians(ctx, []int64{guardian.ID})
 		require.NoError(t, err)
 		assert.Empty(t, guardianSubs)
 	})
@@ -228,7 +228,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, subscriptionsForAccount(adminSubs, account.ID))
 
-		guardianSubs, err := repo.FindForGuardian(ctx, guardian.ID)
+		guardianSubs, err := repo.FindForGuardians(ctx, []int64{guardian.ID})
 		require.NoError(t, err)
 		assert.Empty(t, guardianSubs)
 	})
@@ -244,6 +244,29 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		subs, err = repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
 		assert.False(t, hasSubscriptionEndpoint(subs, endpoint))
+	})
+
+	t.Run("account-wide staff deletion preserves parent subscriptions", func(t *testing.T) {
+		staffEndpoint := endpoint + "/logout-staff"
+		parentEndpoint := endpoint + "/logout-parent"
+		require.NoError(t, repo.Upsert(ctx, newSubscription(account.ID, iotModels.PushPortalStaff, staffEndpoint)))
+		require.NoError(t, repo.Upsert(ctx, newSubscription(account.ID, iotModels.PushPortalParent, parentEndpoint)))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteStaffByAccountID(adminCtx, account.ID)
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Scan(context.Background()))
+		assert.NotEmpty(t, remaining)
+		assert.True(t, hasSubscriptionEndpoint(remaining, parentEndpoint))
+		for _, subscription := range remaining {
+			assert.Equal(t, iotModels.PushPortalParent, subscription.Portal)
+		}
 	})
 }
 

@@ -355,25 +355,38 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
 		priority = notifications.PriorityHigh
 	}
+	accountIDs := make([]int64, 0, len(recipients))
+	seen := make(map[int64]struct{}, len(recipients))
 	for _, recipient := range recipients {
-		err := s.notifier.Notify(ctx, notifications.Event{
-			Type:     parentAnnouncementNotificationType,
-			Title:    parentAnnouncementNotificationTitle,
-			Body:     parentAnnouncementNotificationBody,
-			DeepLink: "/",
-			Priority: priority,
-			Audience: notifications.Audience{
-				TenantID:          a.GetTenantID(),
-				Scope:             notifications.ScopeGuardian,
-				GuardianAccountID: recipient.AccountID,
-			},
-		})
-		if errors.Is(err, notifications.ErrDisabled) {
-			return nil
+		if recipient.AccountID <= 0 {
+			continue
 		}
-		if err != nil {
-			return fmt.Errorf("notify guardian account %d: %w", recipient.AccountID, err)
+		if _, exists := seen[recipient.AccountID]; exists {
+			continue
 		}
+		seen[recipient.AccountID] = struct{}{}
+		accountIDs = append(accountIDs, recipient.AccountID)
+	}
+	if len(accountIDs) == 0 {
+		return nil
+	}
+	err = s.notifier.Notify(ctx, notifications.Event{
+		Type:     parentAnnouncementNotificationType,
+		Title:    parentAnnouncementNotificationTitle,
+		Body:     parentAnnouncementNotificationBody,
+		DeepLink: "/",
+		Priority: priority,
+		Audience: notifications.Audience{
+			TenantID:           a.GetTenantID(),
+			Scope:              notifications.ScopeGuardian,
+			GuardianAccountIDs: accountIDs,
+		},
+	})
+	if errors.Is(err, notifications.ErrDisabled) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("notify guardian audience: %w", err)
 	}
 	return nil
 }

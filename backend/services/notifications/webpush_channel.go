@@ -63,7 +63,6 @@ const (
 	// Keep outbound work bounded without serializing a large tenant's devices.
 	maxConcurrentPushSends = 8
 	pushSendTimeout        = 10 * time.Second
-	pushBatchTimeout       = 15 * time.Second
 )
 
 // webPushChannel delivers notifications as Web Push messages (#2003) to the
@@ -76,6 +75,9 @@ type webPushChannel struct {
 	vapid  VAPIDConfig
 	sender pushSender
 	logger *slog.Logger
+	// Shared across deliveries so concurrent notification batches cannot each
+	// consume maxConcurrentPushSends outbound connections.
+	sendSlots chan struct{}
 }
 
 // NewWebPushChannel returns the Web Push channel. With unset VAPID keys the
@@ -83,11 +85,12 @@ type webPushChannel struct {
 // today's behavior.
 func NewWebPushChannel(db *bun.DB, repo iot.PushSubscriptionRepository, vapid VAPIDConfig, logger *slog.Logger) Channel {
 	return &webPushChannel{
-		db:     db,
-		repo:   repo,
-		vapid:  vapid,
-		sender: webpushGoSender{client: newWebPushHTTPClient()},
-		logger: logger,
+		db:        db,
+		repo:      repo,
+		vapid:     vapid,
+		sender:    webpushGoSender{client: newWebPushHTTPClient()},
+		logger:    logger,
+		sendSlots: make(chan struct{}, maxConcurrentPushSends),
 	}
 }
 
@@ -150,9 +153,7 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 
 	dispatchCtx := context.WithoutCancel(ctx)
 	go func() {
-		batchCtx, cancel := context.WithTimeout(dispatchCtx, pushBatchTimeout)
-		defer cancel()
-		c.sendAll(batchCtx, event, payload, subs)
+		c.sendAll(dispatchCtx, event, payload, subs)
 	}()
 	return nil
 }
@@ -168,7 +169,7 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 	case ScopeAdmin:
 		return c.repo.FindForTenantAdmins(ctx)
 	case ScopeGuardian:
-		return c.repo.FindForGuardian(ctx, audience.GuardianAccountID)
+		return c.repo.FindForGuardians(ctx, guardianAccountIDs(audience))
 	case ScopeGroup:
 		c.getLogger().Debug("web push does not support group scope, skipping",
 			"tenant_id", audience.TenantID,
@@ -184,12 +185,11 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 // never abort the loop; 404/410 responses prune the dead subscription.
 func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) {
 	ttl, urgency := pushOptionsForPriority(event.Priority)
-	sem := make(chan struct{}, maxConcurrentPushSends)
 	var wg sync.WaitGroup
 
 	for _, sub := range subs {
 		select {
-		case sem <- struct{}{}:
+		case c.sendSlots <- struct{}{}:
 		case <-ctx.Done():
 			wg.Wait()
 			return
@@ -198,7 +198,7 @@ func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byt
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() { <-sem }()
+			defer func() { <-c.sendSlots }()
 			c.sendOne(ctx, event, payload, sub, ttl, urgency)
 		}()
 	}
