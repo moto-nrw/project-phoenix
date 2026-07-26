@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -21,10 +22,22 @@ import (
 // Values are stored as ready-to-display German strings so the change-history
 // view stays a plain "Vorher → Nachher" table with no field-specific frontend
 // logic.
-type StudentAuditService interface {
+
+// StudentChangeRecorder is the narrow write contract used by services that
+// mutate audited student fields.
+type StudentChangeRecorder interface {
 	// RecordChanges diffs the before/after student snapshots and appends one
 	// audit row per changed tracked field. A no-op when nothing tracked changed.
 	RecordChanges(ctx context.Context, before, after *userModels.Student, editedBy int64, editedByName string) error
+
+	// RecordChangesForActor derives the display name from the authenticated
+	// actor in ctx. The explicit account ID prevents a mismatched context from
+	// attributing an edit to the wrong person.
+	RecordChangesForActor(ctx context.Context, before, after *userModels.Student, editedBy int64) error
+}
+
+type StudentAuditService interface {
+	StudentChangeRecorder
 
 	// RecordSystemStatusChange records an automated lifecycle transition.
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
@@ -80,6 +93,22 @@ func (s *studentAuditService) RecordChanges(ctx context.Context, before, after *
 	return nil
 }
 
+func (s *studentAuditService) RecordChangesForActor(
+	ctx context.Context,
+	before, after *userModels.Student,
+	editedBy int64,
+) error {
+	claims := jwt.ClaimsFromCtx(ctx)
+	name := ""
+	if int64(claims.ID) == editedBy {
+		name = strings.TrimSpace(claims.FirstName + " " + claims.LastName)
+		if name == "" {
+			name = claims.Username
+		}
+	}
+	return s.RecordChanges(ctx, before, after, editedBy, name)
+}
+
 func (s *studentAuditService) RecordSystemStatusChange(
 	ctx context.Context,
 	studentID int64,
@@ -125,7 +154,7 @@ func diffStudentFields(before, after *userModels.Student) []*auditModels.Student
 	add(auditModels.StudentFieldExtraInfo, derefString(before.ExtraInfo), derefString(after.ExtraInfo))
 	add(auditModels.StudentFieldHealthInfo, derefString(before.HealthInfo), derefString(after.HealthInfo))
 	add(auditModels.StudentFieldPickupStatus, derefString(before.PickupStatus), derefString(after.PickupStatus))
-	add(auditModels.StudentFieldDepartureDays, departureLabel(before.DepartureDays), departureLabel(after.DepartureDays))
+	add(auditModels.StudentFieldDepartureDays, departureLabel(before), departureLabel(after))
 
 	return edits
 }
@@ -164,17 +193,32 @@ func departureModeLabel(m userModels.DepartureMode) string {
 		return "Bus"
 	case userModels.DeparturePickup:
 		return "Abholung"
+	case userModels.DepartureAccompanied:
+		return "Mit anderem Kind"
 	default:
 		return "Allein"
 	}
 }
 
 // departureLabel renders the weekly departure plan as a stable, readable German
-// string, e.g. "Mo: Bus, Di: Abholung, Mi: Allein, Do: Allein, Fr: Bus".
-func departureLabel(d userModels.DepartureDays) string {
+// string, preserving every non-exclusive allowed mode.
+func departureLabel(student *userModels.Student) string {
+	modesByDay := student.AllowedDepartureModes.Normalize()
+	if !modesByDay.HasAny() {
+		modesByDay = userModels.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+
 	parts := make([]string, 0, len(userModels.PickupDayOrder))
 	for _, day := range userModels.PickupDayOrder {
-		parts = append(parts, weekdayLabels[day]+": "+departureModeLabel(d.ModeFor(day)))
+		modes := modesByDay[day]
+		if len(modes) == 0 {
+			modes = []userModels.DepartureMode{userModels.DepartureAlone}
+		}
+		labels := make([]string, 0, len(modes))
+		for _, mode := range modes {
+			labels = append(labels, departureModeLabel(mode))
+		}
+		parts = append(parts, weekdayLabels[day]+": "+strings.Join(labels, " / "))
 	}
 	return strings.Join(parts, ", ")
 }

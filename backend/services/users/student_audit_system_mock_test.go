@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
@@ -53,4 +54,52 @@ func TestStudentAuditService_RecordSystemStatusChange(t *testing.T) {
 	assert.Equal(t, "Ausstehend", *edit.OldValue)
 	assert.Equal(t, "Aktiv", *edit.NewValue)
 	require.NoError(t, edit.Validate())
+}
+
+func TestStudentAuditService_RecordChangesForActor(t *testing.T) {
+	tests := []struct {
+		name       string
+		claims     jwt.AppClaims
+		editedBy   int64
+		wantEditor string
+	}{
+		{
+			name:       "full name",
+			claims:     jwt.AppClaims{ID: 23, FirstName: "Mara", LastName: "Muster"},
+			editedBy:   23,
+			wantEditor: "Mara Muster",
+		},
+		{
+			name:       "username fallback",
+			claims:     jwt.AppClaims{ID: 23, Username: "mara.muster"},
+			editedBy:   23,
+			wantEditor: "mara.muster",
+		},
+		{
+			name:       "mismatched actor",
+			claims:     jwt.AppClaims{ID: 99, FirstName: "Andere", LastName: "Person"},
+			editedBy:   23,
+			wantEditor: "Unbekannt",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &capturingStudentAuditRepo{}
+			service := NewStudentAuditService(repo, nil)
+			ctx := context.WithValue(context.Background(), jwt.CtxClaims, tc.claims)
+
+			err := service.RecordChangesForActor(
+				ctx,
+				&userModels.Student{HealthInfo: strPtr("alt")},
+				&userModels.Student{HealthInfo: strPtr("neu")},
+				tc.editedBy,
+			)
+
+			require.NoError(t, err)
+			require.Len(t, repo.edits, 1)
+			assert.Equal(t, tc.editedBy, repo.edits[0].EditedBy)
+			assert.Equal(t, tc.wantEditor, repo.edits[0].EditedByName)
+		})
+	}
 }

@@ -109,6 +109,22 @@ func TestDiffStudentFields_PerField(t *testing.T) {
 		assert.Contains(t, *e.NewValue, "Mo: Bus")
 		assert.Contains(t, *e.OldValue, "Mo: Allein")
 	})
+
+	t.Run("departure plan preserves secondary allowed modes", func(t *testing.T) {
+		edits := diffStudentFields(
+			&userModels.Student{AllowedDepartureModes: userModels.AllowedDepartureModes{
+				"mon": {userModels.DepartureBus},
+			}},
+			&userModels.Student{AllowedDepartureModes: userModels.AllowedDepartureModes{
+				"mon": {userModels.DepartureBus, userModels.DepartureAlone},
+			}},
+		)
+		require.Len(t, edits, 1)
+		e := edits[0]
+		assert.Equal(t, auditModels.StudentFieldDepartureDays, e.FieldName)
+		assert.Contains(t, *e.OldValue, "Mo: Bus")
+		assert.Contains(t, *e.NewValue, "Mo: Allein / Bus")
+	})
 }
 
 // TestDiffStudentFields_MultipleFields verifies several simultaneous changes

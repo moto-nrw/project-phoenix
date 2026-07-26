@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -37,13 +36,7 @@ func (rs *Resource) recordStudentChanges(ctx context.Context, before, after *use
 		return nil
 	}
 
-	claims := jwt.ClaimsFromCtx(ctx)
-	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
-	if name == "" {
-		name = claims.Username
-	}
-
-	if err := rs.StudentAuditService.RecordChanges(ctx, before, after, int64(claims.ID), name); err != nil {
+	if err := rs.StudentAuditService.RecordChangesForActor(ctx, before, after, int64(jwt.ClaimsFromCtx(ctx).ID)); err != nil {
 		if rs.Logger != nil {
 			rs.Logger.Warn("failed to record student change history",
 				slog.Int64("student_id", after.ID),

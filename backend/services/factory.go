@@ -1336,6 +1336,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
 
+	studentAuditService := users.NewStudentAuditService(
+		repos.StudentFieldEdit,
+		logger.With("service", "student_audit"),
+	)
+
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
@@ -1481,6 +1486,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		pillEmitter,
 		realtimeHub,
 		logger.With("service", "care-requests"),
+		studentAuditService,
 	)
 
 	// Excused-absence approval requests (#1845): the optional office-approval
@@ -1552,6 +1558,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:             realtimeHub,
 		PersonRepo:              repos.Person,
 		ChangeRequestRepo:       repos.StudentDataChangeRequest,
+		StudentAudit:            studentAuditService,
 		MessageThreadRepo:       repos.ParentMessageThread,
 		MessageRepo:             repos.ParentMessage,
 		MessageReadRepo:         repos.ParentMessageRead,
@@ -1727,8 +1734,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       workTimeModelService,
 		Students:             studentService,
-		StudentAudit:         users.NewStudentAuditService(repos.StudentFieldEdit, logger.With("service", "student_audit")),
-		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, logger.With("service", "master-data-review"), realtimeHub),
+		StudentAudit:         studentAuditService,
+		MasterDataReview:     users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,
 		ExcusedRequests:      excusedRequestService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
