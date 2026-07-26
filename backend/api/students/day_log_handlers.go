@@ -23,6 +23,7 @@ import (
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // Group day log ("Tagesauswertung", issue #1456): for one calendar day and one
@@ -136,7 +137,7 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups, err := rs.resolveDayLogGroups(r, logger)
+	groups, err := rs.resolveDayLogGroups(r, date, logger)
 	if err != nil {
 		renderDayLogGroupError(w, r, err, logger)
 		return
@@ -196,11 +197,12 @@ func parseDayLogDate(r *http.Request, attendanceCap int) (timezone.Date, error) 
 // database) while resolving the caller's groups. It must surface as a 5xx —
 // mapping it to 403 would disguise a transient outage as a privacy restriction.
 var errDayLogGroupsUnavailable = errors.New("failed to resolve permitted groups")
+var errInvalidDayLogGroupID = errors.New("invalid group_id")
 
 // resolveDayLogGroups returns the groups the caller may evaluate, optionally
 // narrowed to the requested group_id. Admins and (with scope all_staff) every
 // staff member see all groups; otherwise only supervised groups are visible.
-func (rs *Resource) resolveDayLogGroups(r *http.Request, logger *slog.Logger) ([]*educationModel.Group, error) {
+func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, logger *slog.Logger) ([]*educationModel.Group, error) {
 	ctx := r.Context()
 
 	var groups []*educationModel.Group
@@ -208,7 +210,7 @@ func (rs *Resource) resolveDayLogGroups(r *http.Request, logger *slog.Logger) ([
 	if rs.dayLogSeesAllGroups(r, logger) {
 		groups, err = rs.EducationService.ListGroups(ctx, nil)
 	} else {
-		groups, err = rs.UserContextService.GetMyGroups(ctx)
+		groups, err = rs.dayLogGroupsForDate(ctx, date)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errDayLogGroupsUnavailable, err)
@@ -222,6 +224,45 @@ func (rs *Resource) resolveDayLogGroups(r *http.Request, logger *slog.Logger) ([
 	return groups, nil
 }
 
+// dayLogGroupsForDate resolves permanent teacher groups plus only those
+// substitutions that cover the requested log date. GetMyGroups intentionally
+// uses today's substitutions for live views and must not authorize history.
+func (rs *Resource) dayLogGroupsForDate(ctx context.Context, date timezone.Date) ([]*educationModel.Group, error) {
+	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
+	if err != nil {
+		return nil, err
+	}
+	groupsByID := make(map[int64]*educationModel.Group)
+	teacher, err := rs.UserContextService.GetCurrentTeacher(ctx)
+	if err == nil {
+		groups, groupsErr := rs.EducationService.GetTeacherGroups(ctx, teacher.ID)
+		if groupsErr != nil {
+			return nil, groupsErr
+		}
+		for _, group := range groups {
+			if group != nil {
+				groupsByID[group.ID] = group
+			}
+		}
+	} else if !errors.Is(err, userContextService.ErrUserNotLinkedToTeacher) {
+		return nil, err
+	}
+	substitutions, err := rs.EducationService.GetActiveSubstitutions(ctx, date)
+	if err != nil {
+		return nil, err
+	}
+	for _, substitution := range substitutions {
+		if substitution != nil && substitution.SubstituteStaffID == staff.ID && substitution.Group != nil {
+			groupsByID[substitution.Group.ID] = substitution.Group
+		}
+	}
+	groups := make([]*educationModel.Group, 0, len(groupsByID))
+	for _, group := range groupsByID {
+		groups = append(groups, group)
+	}
+	return groups, nil
+}
+
 // renderDayLogGroupError separates the two failure classes of
 // resolveDayLogGroups: dependency failures become 500s, everything else is a
 // genuine authorization denial and stays 403.
@@ -231,6 +272,10 @@ func renderDayLogGroupError(w http.ResponseWriter, r *http.Request, err error, l
 			slog.String("error", err.Error()),
 		)
 		renderError(w, r, common.ErrorInternalServerWrap("failed to resolve permitted groups", err))
+		return
+	}
+	if errors.Is(err, errInvalidDayLogGroupID) {
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	renderError(w, r, common.ErrorForbidden(err))
@@ -254,7 +299,7 @@ func filterDayLogGroups(r *http.Request, groups []*educationModel.Group) ([]*edu
 	}
 	groupID, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		return nil, errors.New("invalid group_id")
+		return nil, fmt.Errorf("%w: %v", errInvalidDayLogGroupID, err)
 	}
 	for _, group := range groups {
 		if group != nil && group.ID == groupID {

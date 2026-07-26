@@ -470,16 +470,17 @@ func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	return filterStudentsEligibleOnDate(students, date), nil
+	return filterStudentsEligibleOnDate(students, date, timezone.TodayDate()), nil
 }
 
-func filterStudentsEligibleOnDate(students []*userModels.Student, date timezone.Date) []*userModels.Student {
+func filterStudentsEligibleOnDate(students []*userModels.Student, date, today timezone.Date) []*userModels.Student {
 	eligible := make([]*userModels.Student, 0, len(students))
 	for _, student := range students {
 		if student == nil {
 			continue
 		}
-		if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
+		if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) &&
+			(date != today || student.Status != userModels.StudentStatusActive) {
 			continue
 		}
 		if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {

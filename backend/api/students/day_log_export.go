@@ -51,7 +51,7 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	groups, err := rs.resolveDayLogGroups(r, logger)
+	groups, err := rs.resolveDayLogGroups(r, date, logger)
 	if err != nil {
 		renderDayLogGroupError(w, r, err, logger)
 		return
