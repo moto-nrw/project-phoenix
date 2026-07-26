@@ -160,7 +160,7 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 	var out *ChildMasterData
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		oldRaw, newRaw, targetRef, changed, applyErr := s.applyTrackAEdit(txCtx, child.guardianProfileID, studentID, child.tenantID, target, fieldKey, newStr)
+		oldRaw, newRaw, targetRef, changed, applyErr := s.applyTrackAEdit(txCtx, child.guardianProfileID, studentID, child.tenantID, accountID, target, fieldKey, newStr)
 		if applyErr != nil {
 			return applyErr
 		}
@@ -199,10 +199,10 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 // applyTrackAEdit writes the single field to its live record and returns the old
 // and new values as JSON (for the audit row) plus the optional target ref id.
-func (s *service) applyTrackAEdit(ctx context.Context, guardianProfileID, studentID, tenantID int64, target, fieldKey, newStr string) (oldRaw, newRaw json.RawMessage, targetRef *int64, changed bool, err error) {
+func (s *service) applyTrackAEdit(ctx context.Context, guardianProfileID, studentID, tenantID, accountID int64, target, fieldKey, newStr string) (oldRaw, newRaw json.RawMessage, targetRef *int64, changed bool, err error) {
 	switch target {
 	case usersModels.DataChangeTargetStudent:
-		return s.applyStudentEdit(ctx, studentID, fieldKey, newStr)
+		return s.applyStudentEdit(ctx, studentID, accountID, fieldKey, newStr)
 	case usersModels.DataChangeTargetGuardianProfile:
 		return s.applyGuardianProfileEdit(ctx, guardianProfileID, fieldKey, newStr)
 	case usersModels.DataChangeTargetGuardianPhone:
@@ -241,11 +241,12 @@ func validateTrackAFieldSize(target, fieldKey, value string) error {
 	return nil
 }
 
-func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
+func (s *service) applyStudentEdit(ctx context.Context, studentID, accountID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
+	before := *student
 	switch fieldKey {
 	case "health_info":
 		oldRaw := jsonStringPtr(student.HealthInfo)
@@ -257,6 +258,11 @@ func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKe
 		student.HealthInfo = next
 		if err := s.StudentRepo.Update(ctx, student); err != nil {
 			return nil, nil, nil, false, err
+		}
+		if s.StudentAudit != nil {
+			if err := s.StudentAudit.RecordChangesForActor(ctx, &before, student, accountID); err != nil {
+				return nil, nil, nil, false, err
+			}
 		}
 		return oldRaw, newRaw, nil, true, nil
 	default:

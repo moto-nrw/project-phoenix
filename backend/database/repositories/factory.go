@@ -166,6 +166,7 @@ type Factory struct {
 	AuthEvent                    auditModels.AuthEventRepository
 	DataImport                   auditModels.DataImportRepository
 	WorkSessionEdit              auditModels.WorkSessionEditRepository
+	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
@@ -357,6 +358,7 @@ func NewFactory(db *bun.DB) *Factory {
 		AuthEvent:                    audit.NewAuthEventRepository(db),
 		DataImport:                   audit.NewDataImportRepository(db),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),
+		StudentFieldEdit:             audit.NewStudentFieldEditRepository(db),
 		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),

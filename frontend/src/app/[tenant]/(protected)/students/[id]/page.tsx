@@ -8,6 +8,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useSWRConfig } from "swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -287,6 +288,7 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
+  const { mutate } = useSWRConfig();
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -339,6 +341,15 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  const refreshDataAndHistory = useCallback(() => {
+    refreshData();
+    return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
+      logger.debug("change_history_revalidation_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+    });
+  }, [mutate, refreshData, studentId]);
   const canViewEnrollments =
     sessionStatus === "authenticated" &&
     hasPermission(session, "config:manage");
@@ -660,7 +671,7 @@ function StudentDetailPageContent() {
       pickup_days: editedStudent.pickup_days,
     });
 
-    refreshData();
+    await refreshDataAndHistory();
     toast.success("Persönliche Informationen erfolgreich aktualisiert");
   };
 
@@ -1009,7 +1020,7 @@ function StudentDetailPageContent() {
             onOpenPersonalInfoModal={() => setShowPersonalInfoModal(true)}
             onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
-            onRefreshData={refreshData}
+            onRefreshData={refreshDataAndHistory}
             onSickClick={handleSickClick}
             sickLoading={sickLoading}
             isQuickExcused={isQuickExcused}
@@ -1516,6 +1527,7 @@ function FullAccessView({
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
             feedbackEnabled={feedbackEnabled}
+            canViewChangeHistory={hasWriteAccess}
             onNavigate={(path) => historyRouter.push(path)}
           />
         </TabsContent>

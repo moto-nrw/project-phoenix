@@ -20,19 +20,20 @@ import (
 
 // fakeStudentLifecycleRepo is a deterministic test double for
 // StudentLifecycleRepository. Per-call lists drive the Find* methods so tests
-// can stage exactly the rows the tick should see; UpdateStatus appends to a
-// slice the test inspects to verify transitions ran in order.
+// can stage exactly the rows the tick should see; TransitionStatus appends to
+// a slice the test inspects to verify transitions ran in order.
 type fakeStudentLifecycleRepo struct {
-	mu             sync.Mutex
-	pendingDue     []*userModels.Student
-	activeDue      []*userModels.Student
-	pendingErr     error
-	activeErr      error
-	updateErr      error
-	updateErrForID int64 // if > 0, only fail UpdateStatus when called with this ID
-	updates        []update
-	pendingCalls   int
-	activeCalls    int
+	mu              sync.Mutex
+	pendingDue      []*userModels.Student
+	activeDue       []*userModels.Student
+	pendingErr      error
+	activeErr       error
+	updateErr       error
+	updateErrForID  int64 // if > 0, only fail TransitionStatus when called with this ID
+	updates         []update
+	currentStatuses map[int64]userModels.StudentStatus
+	pendingCalls    int
+	activeCalls     int
 }
 
 type update struct {
@@ -60,16 +61,27 @@ func (f *fakeStudentLifecycleRepo) FindActiveDueForDeactivation(_ context.Contex
 	return f.activeDue, nil
 }
 
-func (f *fakeStudentLifecycleRepo) UpdateStatus(_ context.Context, studentID int64, newStatus userModels.StudentStatus) error {
+func (f *fakeStudentLifecycleRepo) TransitionStatus(
+	_ context.Context,
+	studentID int64,
+	expected userModels.StudentStatus,
+	next userModels.StudentStatus,
+) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.updateErr != nil {
 		if f.updateErrForID == 0 || f.updateErrForID == studentID {
-			return f.updateErr
+			return false, f.updateErr
 		}
 	}
-	f.updates = append(f.updates, update{studentID: studentID, to: newStatus})
-	return nil
+	if f.currentStatuses != nil {
+		if f.currentStatuses[studentID] != expected {
+			return false, nil
+		}
+		f.currentStatuses[studentID] = next
+	}
+	f.updates = append(f.updates, update{studentID: studentID, to: next})
+	return true, nil
 }
 
 // -----------------------------------------------------------------------------

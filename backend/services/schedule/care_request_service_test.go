@@ -66,6 +66,7 @@ func newCareFixture(t *testing.T) *careFixture {
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
 		slog.Default(),
+		sf.StudentAudit,
 	)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -174,6 +175,18 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.DeparturePickup, student.DepartureDays["mon"])
+
+	history, err := f.sf.StudentAudit.GetChangeHistory(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.NotEmpty(t, history)
+	var departureEditFound bool
+	for _, edit := range history {
+		if edit.FieldName == "departure_days" {
+			departureEditFound = true
+			assert.Equal(t, f.staffAccount, edit.EditedBy)
+		}
+	}
+	assert.True(t, departureEditFound)
 }
 
 // TestDecide_ApproveMergesPreservingOtherDaysAndModes pins the read-modify-write

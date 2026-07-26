@@ -16,6 +16,7 @@ import (
 // WithTenantTx (SET LOCAL ROLE phoenix_tenant):
 //
 //   - deviation_events:       TimetableCleanupService.CleanupExpiredTimetableData
+//   - student_field_edits:    StudentChangeLogCleanupService.CleanupExpiredChangeLog
 //   - unregistered_tag_scans: UnregisteredTagScanService.DeleteOlderThan
 //
 // Shrink-only. Adding an entry means a new table is no longer append-only —
@@ -23,6 +24,7 @@ import (
 // (an ON DELETE CASCADE from the owning table needs no privilege at all).
 var auditDeleteAllowlist = map[string]string{
 	"deviation_events":       "timetable GDPR retention runs under phoenix_tenant",
+	"student_field_edits":    "student change-log GDPR retention runs under phoenix_tenant",
 	"unregistered_tag_scans": "90-day scan retention runs under phoenix_tenant",
 }
 

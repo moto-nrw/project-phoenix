@@ -104,6 +104,7 @@ type Factory struct {
 	TemplateSplit            *schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
 	TimeTrackingCleanup      active.TimeTrackingCleanupService
+	StudentChangeLogCleanup  users.StudentChangeLogCleanupService
 	Instance                 schedule.InstanceService
 	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
@@ -137,6 +138,7 @@ type Factory struct {
 	Schools              platform.SchoolService
 	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
+	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
 	ExcusedRequests      absence.ExcusedAbsenceRequestService
@@ -876,6 +878,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "time-tracking-cleanup"),
 	)
 
+	// Per-child change-history retention cleanup (issue #1455). Deletes
+	// audit.student_field_edits older than the tenant's retention window
+	// (gdpr.student_change_log_retention_days, default 90). One per-student
+	// DataDeletion audit row per run; shares the nightly cleanup window.
+	studentChangeLogCleanupService := users.NewStudentChangeLogCleanupService(
+		repos.StudentFieldEdit,
+		repos.DataDeletion,
+		settingsService,
+		logger.With("service", "student-change-log-cleanup"),
+	)
+
 	autoStartService := schedule.NewAutoStartService(schedule.AutoStartDependencies{
 		InstanceRepo:      repos.ActivityInstance,
 		InstanceStaffRepo: repos.InstanceStaff,
@@ -1348,6 +1361,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
 
+	studentAuditService := users.NewStudentAuditService(
+		repos.StudentFieldEdit,
+		logger.With("service", "student_audit"),
+	)
+
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
@@ -1378,6 +1396,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRoleRepo:          repos.AccountRole,
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
+		StudentAudit:             studentAuditService,
 		Broadcaster:              realtimeHub,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
@@ -1427,7 +1446,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Created before the change-request service: its multi-child approval takes
 	// the companion lock order through this service.
-	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion)
+	studentService := users.NewStudentService(
+		repos.Student,
+		repos.PrivacyConsent,
+		repos.StudentCompanion,
+		studentAuditService,
+	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
@@ -1493,6 +1517,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		pillEmitter,
 		realtimeHub,
 		logger.With("service", "care-requests"),
+		studentAuditService,
 	)
 
 	// Excused-absence approval requests (#1845): the optional office-approval
@@ -1564,6 +1589,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:             realtimeHub,
 		PersonRepo:              repos.Person,
 		ChangeRequestRepo:       repos.StudentDataChangeRequest,
+		StudentAudit:            studentAuditService,
 		MessageThreadRepo:       repos.ParentMessageThread,
 		MessageRepo:             repos.ParentMessage,
 		MessageReadRepo:         repos.ParentMessageRead,
@@ -1708,6 +1734,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TemplateSplit:            templateSplitService,
 		TimetableCleanup:         timetableCleanupService,
 		TimeTrackingCleanup:      timeTrackingCleanupService,
+		StudentChangeLogCleanup:  studentChangeLogCleanupService,
 		Instance:                 instanceService,
 		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
@@ -1747,7 +1774,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       workTimeModelService,
 		Students:             studentService,
-		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, logger.With("service", "master-data-review"), realtimeHub),
+		StudentAudit:         studentAuditService,
+		MasterDataReview:     users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,
 		ExcusedRequests:      excusedRequestService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),

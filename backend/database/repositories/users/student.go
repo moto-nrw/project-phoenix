@@ -1737,6 +1737,41 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 	return base.AssertRowsAffected(result, 1, "update student status")
 }
 
+// TransitionStatus changes a student's lifecycle status only when the stored
+// status still matches expected. It returns false without error when another
+// writer changed or removed the row after the caller selected it.
+func (r *StudentRepository) TransitionStatus(
+	ctx context.Context,
+	studentID int64,
+	expected users.StudentStatus,
+	next users.StudentStatus,
+) (bool, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Set("status = ?", string(next)).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, studentID).
+		Where(`"student".status = ?`, string(expected))
+
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "transition student status",
+			Err: err,
+		}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "transition student status",
+			Err: err,
+		}
+	}
+	return affected == 1, nil
+}
+
 // FindPendingDueForActivation returns students whose status='pending' and
 // enrolled_from <= asOf within the current tenant context. Drives the
 // pending→active half of the activate-students scheduler tick.

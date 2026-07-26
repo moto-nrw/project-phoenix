@@ -13,10 +13,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -68,6 +70,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		AccountRoleRepo:          repoFactory.AccountRole,
 		RoleRepo:                 repoFactory.Role,
 		OutboxEnqueuer:           env.outbox,
+		StudentAudit:             usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
 		FrontendURL:              "http://localhost:3000",
 		ParentsURL:               "http://parents.localhost:3000",
 		Settings:                 settings,
@@ -307,6 +310,42 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
+}
+
+func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T) {
+	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
+		mode: configModel.EnrollmentActivationModeImmediate,
+	})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, existing := seedApprovedChildWithStudent(
+		t, env,
+		"Anna", "Audit", "inactive-audit@example.com",
+		"Lina", "Audit",
+		int16(1),
+	)
+	existing.Status = usersModels.StudentStatusInactive
+	require.NoError(t, env.repos.Student.Update(ctx, existing))
+
+	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req.RolloverAutoApprove = true
+	req.RolloverDeadline = time.Now().Add(-time.Hour)
+	req.Name = "inactive-audit-target"
+	_, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
+	require.NoError(t, err)
+
+	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.AutoRenewedToApproved)
+	assert.Equal(t, 0, summary.AutoApproveErrors)
+
+	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, auditModels.StudentFieldStatus, history[0].FieldName)
+	assert.Equal(t, auditModels.StudentFieldEditSystemActorID, history[0].EditedBy)
+	assert.Equal(t, auditModels.StudentFieldEditSystemActorName, history[0].EditedByName)
 }
 
 func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecomesPending(t *testing.T) {

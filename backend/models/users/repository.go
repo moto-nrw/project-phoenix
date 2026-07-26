@@ -126,6 +126,10 @@ type StudentRepository interface {
 	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
 	UpdateStatus(ctx context.Context, studentID int64, newStatus StudentStatus) error
 
+	// TransitionStatus changes a student's lifecycle status only when its
+	// current status matches expected. Returns false for a stale transition.
+	TransitionStatus(ctx context.Context, studentID int64, expected, next StudentStatus) (bool, error)
+
 	// FindPendingDueForActivation returns students whose status='pending' AND
 	// enrolled_from <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick.

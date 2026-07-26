@@ -114,6 +114,10 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	if svc.TimeTrackingCleanup != nil {
 		sched.SetTimeTrackingCleanup(svc.TimeTrackingCleanup)
 	}
+	// Issue #1455: per-child change-history GDPR cleanup. Same nil-safe wiring.
+	if svc.StudentChangeLogCleanup != nil {
+		sched.SetStudentChangeLogCleanup(svc.StudentChangeLogCleanup)
+	}
 	if svc.EnrollmentRejectedCleanup != nil {
 		sched.SetEnrollmentRejectedCleanup(svc.EnrollmentRejectedCleanup)
 	}
@@ -157,6 +161,9 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 	// Parent-enrollment PR 2: activate-students tick.
 	if repos.Student != nil {
 		sched.SetStudentLifecycleRepo(repos.Student)
+		if api.Services.StudentAudit != nil {
+			sched.SetStudentLifecycleAudit(api.Services.StudentAudit)
+		}
 	}
 }
 
