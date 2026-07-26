@@ -49,7 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, db, slog.Default())
+	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, db, slog.Default())
 
 	router := chi.NewRouter()
 	router.Mount("/staff", resource.Router())
@@ -71,6 +71,24 @@ func authToken(t *testing.T, perms ...string) string {
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = perms
 	return testutil.MintTestJWT(t, claims)
+}
+
+// deleteStaffAuthToken creates the real account-to-staff chain required by
+// deleteStaff to identify the actor for audit tombstones.
+func deleteStaffAuthToken(t *testing.T, db *bun.DB) (string, func()) {
+	t.Helper()
+
+	actor, account := testpkg.CreateTestStaffWithAccount(t, db, "Delete", "Actor")
+	cleanup := func() {
+		testpkg.CleanupStaffFixtures(t, db, actor.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}
+
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.Username = account.Email
+	claims.Permissions = []string{"users:delete"}
+	return testutil.MintTestJWT(t, claims), cleanup
 }
 
 // pinToken mints a bearer token for a PIN-endpoint test. The /pin routes carry
@@ -573,8 +591,10 @@ func TestDeleteStaff_Success(t *testing.T) {
 		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	})
 
+	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
+	defer cleanupActor()
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
-		testutil.WithJWTBearer(authToken(t, "users:delete")))
+		testutil.WithJWTBearer(token))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -595,8 +615,10 @@ func TestDeleteStaff_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
+	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
+	defer cleanupActor()
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/999999", nil,
-		testutil.WithJWTBearer(authToken(t, "users:delete")))
+		testutil.WithJWTBearer(token))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -1228,8 +1250,10 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "DeleteTeacher", "Test")
 	// Note: No defer cleanup as we're deleting
 
+	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
+	defer cleanupActor()
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", teacher.StaffID), nil,
-		testutil.WithJWTBearer(authToken(t, "users:delete")))
+		testutil.WithJWTBearer(token))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -1250,8 +1274,10 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.ID, room.ID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
+	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
+	defer cleanupActor()
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
-		testutil.WithJWTBearer(authToken(t, "users:delete")))
+		testutil.WithJWTBearer(token))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 

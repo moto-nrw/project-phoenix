@@ -179,6 +179,33 @@ func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []
 	return absences, nil
 }
 
+// ListNonHistoricalByStaffID returns the rows that staff offboarding removes,
+// preserving their full values for deletion tombstones.
+func (r *StaffAbsenceRepository) ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*active.StaffAbsence, error) {
+	var absences []*active.StaffAbsence
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&absences).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		Where(`"staff_absence".staff_id = ?`, staffID).
+		Where(
+			`("staff_absence".status IN (?, ?) OR "staff_absence".date_end >= ?)`,
+			active.AbsenceStatusRequested,
+			active.AbsenceStatusQuestion,
+			from,
+		).
+		OrderExpr(`"staff_absence".id ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list non-historical absences by staff id",
+			Err: err,
+		}
+	}
+	return absences, nil
+}
+
 // DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
 // ('requested' or 'question') or not yet over (date_end >= from). Past decided
 // absences stay as history. Used by staff offboarding so offboarded staff no

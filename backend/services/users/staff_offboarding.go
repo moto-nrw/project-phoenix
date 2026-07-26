@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -43,6 +44,7 @@ type StaffOffboardingServiceDependencies struct {
 	RoleRepo               authModels.RoleRepository
 	AccountPermissionRepo  authModels.AccountPermissionRepository
 	DataDeletionRepo       auditModels.DataDeletionRepository
+	TimeTrackingDeleteRepo auditModels.TimeTrackingDeletionRepository
 	AuthService            authSvc.AuthService
 	DB                     *bun.DB
 	Logger                 *slog.Logger
@@ -82,13 +84,13 @@ func (s *staffOffboardingService) getLogger() *slog.Logger {
 //     mapping remains
 //
 // Deleting a non-existent staff member is a no-op (idempotent delete).
-func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID int64, deletedBy string) error {
+func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
 	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
-		return s.offboardStaffInTx(txCtx, staffID, deletedBy)
+		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy)
 	})
 }
 
-func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID int64, deletedBy string) error {
+func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
 	staff, err := s.StaffRepo.FindByID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -107,7 +109,7 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 		return &UsersError{Op: opOffboardStaff, Err: ErrStaffInUse}
 	}
 
-	cleanupCounts, err := s.cleanupAssignments(ctx, staffID)
+	cleanupCounts, err := s.cleanupAssignments(ctx, staffID, deletedByStaffID)
 	if err != nil {
 		return err
 	}
@@ -135,7 +137,7 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 // cleanupAssignments removes planned/future assignments that the old
 // ON DELETE CASCADE used to clean up before staff rows became soft-deleted.
 // Returns per-table deletion counts for the audit record.
-func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffID int64) (map[string]any, error) {
+func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffID, deletedByStaffID int64) (map[string]any, error) {
 	counts := map[string]any{}
 
 	teacher, err := s.TeacherRepo.FindByStaffID(ctx, staffID)
@@ -192,11 +194,43 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 		counts["staff_shift_series"] = cappedSeries
 	}
 
-	absences, err := s.StaffAbsenceRepo.DeleteNonHistoricalByStaffID(ctx, staffID, today)
+	if err := s.StaffAbsenceRepo.LockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("lock staff absences before offboarding: %w", err)}
+	}
+	absences, err := s.StaffAbsenceRepo.ListNonHistoricalByStaffID(ctx, staffID, today)
 	if err != nil {
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}
 	}
-	counts["staff_absences"] = absences
+	if len(absences) > 0 && s.TimeTrackingDeleteRepo == nil {
+		return nil, &UsersError{Op: opOffboardStaff, Err: errors.New("time tracking deletion audit repository is not configured")}
+	}
+	for _, absence := range absences {
+		payload, err := json.Marshal(absence)
+		if err != nil {
+			return nil, &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("marshal absence %d for deletion audit: %w", absence.ID, err)}
+		}
+		if err := s.TimeTrackingDeleteRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+			StaffID:   absence.StaffID,
+			Source:    auditModels.TimeTrackingDeletionSourceAbsence,
+			SourceID:  absence.ID,
+			DeletedBy: deletedByStaffID,
+			Payload:   payload,
+			Note:      "Personal-Offboarding",
+		}); err != nil {
+			return nil, &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("audit absence %d before offboarding: %w", absence.ID, err)}
+		}
+	}
+	deletedAbsences, err := s.StaffAbsenceRepo.DeleteNonHistoricalByStaffID(ctx, staffID, today)
+	if err != nil {
+		return nil, &UsersError{Op: opOffboardStaff, Err: err}
+	}
+	if deletedAbsences != int64(len(absences)) {
+		return nil, &UsersError{
+			Op:  opOffboardStaff,
+			Err: fmt.Errorf("deleted %d absences after auditing %d", deletedAbsences, len(absences)),
+		}
+	}
+	counts["staff_absences"] = deletedAbsences
 
 	return counts, nil
 }

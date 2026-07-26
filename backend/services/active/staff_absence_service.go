@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -154,6 +156,17 @@ type staffAbsenceService struct {
 	// nil means no absence emails are sent (#1419 4d).
 	emailDeps   *AbsenceEmailDeps
 	broadcaster realtime.Broadcaster
+	// deletionRepo writes append-only tombstones for deleted absences
+	// (#1417): the absence's own audit trail is ON DELETE CASCADE, so
+	// without the tombstone a delete erases its whole history. Setter
+	// injection (SetDeletionAudit) like SetBroadcaster; nil makes deletes
+	// fail.
+	deletionRepo auditModels.TimeTrackingDeletionRepository
+}
+
+// SetDeletionAudit wires the deletion tombstone writer (#1417).
+func (s *staffAbsenceService) SetDeletionAudit(repo auditModels.TimeTrackingDeletionRepository) {
+	s.deletionRepo = repo
 }
 
 // SetShiftPlanSyncer wires the #1843 plan cascade (setter injection because
@@ -251,7 +264,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 
 	var resp *StaffAbsenceResponse
 	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
-		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
+		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, createdByStaffID, req)
 	} else {
 		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
 			return nil, err
@@ -321,6 +334,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	ctx context.Context,
 	existing []*activeModels.StaffAbsence,
 	dateStart, dateEnd timezone.Date,
+	actorStaffID int64,
 	req CreateAbsenceRequest,
 ) (*StaffAbsenceResponse, error) {
 	// Check if all overlapping absences have the same type
@@ -371,7 +385,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 
 	// Delete remaining overlapping absences. The reassigned provenance and the
 	// primary update must roll back if even one secondary cannot be removed.
-	if err := s.deleteRemainingAbsences(ctx, existing[1:]); err != nil {
+	if err := s.deleteRemainingAbsences(ctx, existing[1:], actorStaffID); err != nil {
 		return nil, err
 	}
 
@@ -582,8 +596,11 @@ func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, 
 }
 
 // deleteRemainingAbsences deletes absences that were merged into the primary.
-func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) error {
+func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence, actorStaffID int64) error {
 	for _, e := range absences {
+		if err := s.writeAbsenceDeletionAudit(ctx, e, actorStaffID); err != nil {
+			return fmt.Errorf("failed to audit merged absence %d: %w", e.ID, err)
+		}
 		if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
 			return fmt.Errorf("failed to delete merged absence %d: %w", e.ID, err)
 		}
@@ -846,11 +863,38 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 		return fmt.Errorf("absence not deleted — plan cascade reversal failed: %w", err)
 	}
 
+	// Tombstone first, delete second, same tenant tx: the absence's own
+	// audit rows CASCADE away with it, so this row is the only surviving
+	// trace (#1417).
+	if err := s.writeAbsenceDeletionAudit(ctx, absence, actorStaffID); err != nil {
+		return err
+	}
 	if err := s.absenceRepo.Delete(ctx, absenceID); err != nil {
 		return fmt.Errorf("failed to delete absence: %w", err)
 	}
 
 	s.broadcastTimeTrackingChanged(ctx)
+	return nil
+}
+
+func (s *staffAbsenceService) writeAbsenceDeletionAudit(ctx context.Context, absence *activeModels.StaffAbsence, actorStaffID int64) error {
+	if s.deletionRepo == nil {
+		return fmt.Errorf("time tracking deletion audit repository is not configured")
+	}
+	payload, err := json.Marshal(absence)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot absence for deletion audit: %w", err)
+	}
+	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+		StaffID:   absence.StaffID,
+		Source:    auditModels.TimeTrackingDeletionSourceAbsence,
+		SourceID:  absence.ID,
+		DeletedBy: actorStaffID,
+		Payload:   payload,
+		Note:      absence.Note,
+	}); err != nil {
+		return fmt.Errorf("failed to write deletion audit: %w", err)
+	}
 	return nil
 }
 

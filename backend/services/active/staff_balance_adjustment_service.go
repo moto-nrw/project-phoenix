@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
@@ -74,7 +76,11 @@ type CreateBalanceAdjustmentRequest struct {
 type StaffBalanceAdjustmentService interface {
 	ListAdjustments(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error)
 	CreateAdjustment(ctx context.Context, staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) (*activeModels.StaffBalanceAdjustment, error)
-	DeleteAdjustment(ctx context.Context, staffID, adjustmentID int64) error
+	// DeleteAdjustment removes a booking and writes an append-only tombstone
+	// (audit.time_tracking_deletions, #1417) in the same tenant transaction —
+	// a deleted ledger row must stay visible in the audit log. deletedBy is
+	// the acting staff member.
+	DeleteAdjustment(ctx context.Context, staffID, adjustmentID, deletedBy int64) error
 	// ResetBalance writes a 'reset' transaction whose delta turns the closing
 	// balance as of effectiveDate into carryoverMinutes (#1420 5c). It must
 	// run inside the ambient tenant transaction (advisory lock + unique
@@ -97,6 +103,7 @@ type staffBalanceAdjustmentService struct {
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
 	snapshotRepo   adjustmentFreezeReader
+	deletionRepo   auditModels.TimeTrackingDeletionRepository
 	broadcaster    realtime.Broadcaster
 	logger         *slog.Logger
 }
@@ -106,6 +113,14 @@ type staffBalanceAdjustmentService struct {
 // unit fixtures stay valid.
 func (s *staffBalanceAdjustmentService) SetSnapshotReader(reader adjustmentFreezeReader) {
 	s.snapshotRepo = reader
+}
+
+// SetDeletionAudit wires the deletion tombstone writer (#1417). Setter
+// injection like SetBroadcaster so existing API-layer mocks stay unchanged;
+// a nil repository makes DeleteAdjustment fail — deletes without a trace are
+// exactly the hole this closes.
+func (s *staffBalanceAdjustmentService) SetDeletionAudit(repo auditModels.TimeTrackingDeletionRepository) {
+	s.deletionRepo = repo
 }
 
 // SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
@@ -266,9 +281,12 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	return adjustment, nil
 }
 
-func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, staffID, adjustmentID int64) error {
+func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, staffID, adjustmentID, deletedBy int64) error {
 	if staffID <= 0 || adjustmentID <= 0 {
 		return fmt.Errorf("%w: staff id and adjustment id are required", ErrAdjustmentInvalid)
+	}
+	if deletedBy <= 0 {
+		return fmt.Errorf("%w: deleting staff id is required", ErrAdjustmentInvalid)
 	}
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return fmt.Errorf("failed to lock staff balance writes: %w", err)
@@ -300,6 +318,25 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	}
 	if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
 		return err
+	}
+	// Tombstone first, delete second, same transaction: a deleted booking
+	// must stay visible in the audit log (#1417).
+	if s.deletionRepo == nil {
+		return fmt.Errorf("time tracking deletion audit repository is not configured")
+	}
+	payload, err := json.Marshal(adjustment)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot adjustment for deletion audit: %w", err)
+	}
+	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+		StaffID:   staffID,
+		Source:    auditModels.TimeTrackingDeletionSourceBalanceAdjustment,
+		SourceID:  adjustment.ID,
+		DeletedBy: deletedBy,
+		Payload:   payload,
+		Note:      adjustment.Note,
+	}); err != nil {
+		return fmt.Errorf("failed to write deletion audit: %w", err)
 	}
 	if err := s.adjustmentRepo.Delete(ctx, adjustmentID); err != nil {
 		return fmt.Errorf("failed to delete balance adjustment: %w", err)

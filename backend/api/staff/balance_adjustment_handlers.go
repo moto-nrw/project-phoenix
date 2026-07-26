@@ -153,7 +153,12 @@ func (rs *Resource) deleteBalanceAdjustment(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.BalanceAdjustService.DeleteAdjustment(r.Context(), staffID, adjustmentID); err != nil {
+	deletedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	if err := rs.BalanceAdjustService.DeleteAdjustment(r.Context(), staffID, adjustmentID, deletedBy); err != nil {
 		tenant.MarkRollback(r.Context())
 		renderBalanceAdjustmentError(w, r, err)
 		return

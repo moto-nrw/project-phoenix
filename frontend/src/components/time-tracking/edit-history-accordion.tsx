@@ -18,7 +18,9 @@ import { formatTime } from "~/lib/time-tracking-helpers";
 //      formatting — diverging copies between MA and admin would be a
 //      future incident waiting to happen.
 
-const FIELD_LABELS: Record<string, string> = {
+// Exported for the cross-staff audit log (#1417) — one source of truth for
+// field labels and value formatting, per the note above.
+export const FIELD_LABELS: Record<string, string> = {
   check_in_time: "Start",
   check_out_time: "Ende",
   break_minutes: "Pause",
@@ -31,7 +33,10 @@ const FIELD_LABELS: Record<string, string> = {
   deviation_reason: "Abweichung",
 };
 
-function formatEditValue(fieldName: string, value: string | null): string {
+export function formatEditValue(
+  fieldName: string,
+  value: string | null,
+): string {
   if (value === null || value === "") return "–";
   if (fieldName === "check_in_time" || fieldName === "check_out_time") {
     return formatTime(value);

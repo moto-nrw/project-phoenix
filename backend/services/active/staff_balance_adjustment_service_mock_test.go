@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -92,12 +93,27 @@ func newRecordingBalanceAdjustmentService(
 	repo *recordingBalanceAdjustmentRepo,
 	monthService WorkTimeMonthService,
 ) StaffBalanceAdjustmentService {
-	return NewStaffBalanceAdjustmentService(
+	service := NewStaffBalanceAdjustmentService(
 		repo,
 		monthService,
 		&wtmMockSettings{accountStart: "2026-06-01"},
 		slog.New(slog.DiscardHandler),
 	)
+	// Deletes require the tombstone writer (#1417); the recording repo's
+	// event log stays limited to the adjustment repo, so assertions are
+	// unchanged.
+	if aware, ok := service.(interface {
+		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+	}); ok {
+		aware.SetDeletionAudit(noopDeletionAuditRepo{})
+	}
+	return service
+}
+
+type noopDeletionAuditRepo struct{}
+
+func (noopDeletionAuditRepo) Create(context.Context, *auditModels.TimeTrackingDeletion) error {
+	return nil
 }
 
 func TestStaffBalanceAdjustmentService_BroadcastsAfterCommit(t *testing.T) {
@@ -228,7 +244,7 @@ func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
 		}
 		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
 
-		err := service.DeleteAdjustment(context.Background(), staffID, 99)
+		err := service.DeleteAdjustment(context.Background(), staffID, 99, int64(7))
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"lock", "find", "list", "delete"}, events)
@@ -568,7 +584,7 @@ func TestStaffBalanceAdjustmentService_BlocksDeleteWhenLaterResetDependsOnAdjust
 	}
 	service := newRecordingBalanceAdjustmentService(&events, repo, nil)
 
-	err := service.DeleteAdjustment(context.Background(), staffID, adjustment.ID)
+	err := service.DeleteAdjustment(context.Background(), staffID, adjustment.ID, int64(7))
 
 	require.ErrorIs(t, err, ErrAdjustmentHasDependentReset)
 	assert.Equal(t, []string{"lock", "find", "list"}, events)
@@ -597,7 +613,7 @@ func TestStaffBalanceAdjustmentService_BlocksPositiveResetDeletionWhenLaterDebit
 	}
 	service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
 
-	err := service.DeleteAdjustment(context.Background(), staffID, reset.ID)
+	err := service.DeleteAdjustment(context.Background(), staffID, reset.ID, int64(7))
 
 	require.ErrorIs(t, err, ErrAdjustmentExceedsBalance)
 	assert.Contains(t, err.Error(), "would leave capacity of -60 minutes")
@@ -637,7 +653,7 @@ func TestStaffBalanceAdjustmentService_DeletePropagatesLookupFailures(t *testing
 		repo := &recordingBalanceAdjustmentRepo{events: &events, findErr: sql.ErrNoRows}
 		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
 
-		err := service.DeleteAdjustment(context.Background(), int64(41), 99)
+		err := service.DeleteAdjustment(context.Background(), int64(41), 99, int64(7))
 
 		require.ErrorIs(t, err, ErrAdjustmentNotFound)
 	})
@@ -648,7 +664,7 @@ func TestStaffBalanceAdjustmentService_DeletePropagatesLookupFailures(t *testing
 		repo := &recordingBalanceAdjustmentRepo{events: &events, findErr: lookupErr}
 		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
 
-		err := service.DeleteAdjustment(context.Background(), int64(41), 99)
+		err := service.DeleteAdjustment(context.Background(), int64(41), 99, int64(7))
 
 		require.Error(t, err)
 		require.NotErrorIs(t, err, ErrAdjustmentNotFound)

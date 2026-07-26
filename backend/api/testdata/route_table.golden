@@ -278,6 +278,7 @@ GET /api/staff/available-for-substitution
 GET /api/staff/by-role
 GET /api/staff/dashboard-summary
 GET /api/staff/pin
+GET /api/staff/time-tracking/audit-log
 GET /api/staff/time-tracking/month-close
 GET /api/staff/time-tracking/overview
 GET /api/staff/{id}

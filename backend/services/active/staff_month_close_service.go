@@ -190,8 +190,9 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 	})
 
 	result := &MonthCloseResult{Year: year, Month: month}
+	closedAt := time.Now()
 	for _, staff := range staffMembers {
-		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staff.ID, closedBy, key, trimmedReason)
+		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staff.ID, closedBy, key, trimmedReason, closedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -225,6 +226,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 	staffID, closedBy int64,
 	key monthKey,
 	reason string,
+	closedAt time.Time,
 ) (*activeModels.StaffMonthBalanceSnapshot, bool, error) {
 	if err := s.snapshotRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, false, fmt.Errorf("failed to lock staff balance writes: %w", err)
@@ -262,7 +264,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 		ActualMinutes:     summary.ActualMinutes,
 		CreditedMinutes:   summary.CreditedSickMinutes + summary.CreditedVacationMinutes + summary.CreditedOtherMinutes,
 		AdjustmentMinutes: summary.AdjustmentMinutes,
-		ClosedAt:          time.Now(),
+		ClosedAt:          closedAt,
 		ClosedBy:          closedBy,
 		CloseReason:       reason,
 		Source:            activeModels.SnapshotSourceAdmin,

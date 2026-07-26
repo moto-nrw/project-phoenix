@@ -328,6 +328,9 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 		workSessionRepo: workRepo,
 		quotaRepo:       quotaRepo,
 		auditRepo:       auditRepo,
+		// Deletes require the tombstone writer (#1417); assertions stay on
+		// the absence repo.
+		deletionRepo: noopDeletionAuditRepo{},
 	}
 	return svc, absRepo, workRepo
 }
@@ -1510,6 +1513,10 @@ func (m *absStaffAbsenceRepoMock) DeleteOlderThan(context.Context, string, timez
 
 func (m *absStaffAbsenceRepoMock) DeleteNonHistoricalByStaffID(context.Context, int64, timezone.Date) (int64, error) {
 	return 0, nil
+}
+
+func (m *absStaffAbsenceRepoMock) ListNonHistoricalByStaffID(context.Context, int64, timezone.Date) ([]*activeModels.StaffAbsence, error) {
+	return nil, nil
 }
 
 func (m *absWorkSessionRepoMock) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
