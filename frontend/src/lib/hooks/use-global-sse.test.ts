@@ -170,6 +170,47 @@ describe("useGlobalSSE — authentication gate", () => {
     expect(capturedOptions.enabled).toBe(true);
   });
 
+  it.each(["admin:*", "*:*"])(
+    "enables SSE for custom roles with %s permission",
+    (permission) => {
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: {
+            token: "tok",
+            roles: ["custom-admin"],
+            permissions: [permission],
+            tenantId: "t1",
+            id: "u1",
+          },
+        },
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(capturedOptions.enabled).toBe(true);
+    },
+  );
+
+  it("does not enable SSE for custom roles without an admin wildcard", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: {
+        user: {
+          token: "tok",
+          roles: ["custom-admin"],
+          permissions: ["admin:read"],
+          tenantId: "t1",
+          id: "u1",
+        },
+      },
+    });
+
+    renderHook(() => useGlobalSSE());
+
+    expect(capturedOptions.enabled).toBe(false);
+  });
+
   it("passes the tenantId as reconnectKey", () => {
     renderHook(() => useGlobalSSE());
     expect(capturedOptions.reconnectKey).toBe("t1");

@@ -129,11 +129,16 @@ function keyTargetsStudent(
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
 
-  // Enable SSE for staff (has "user" role) and admins.
-  // Pure admins without a staff record connect with zero supervised groups
-  // but still receive BroadcastToAll events (e.g. dashboard_counts_changed).
+  // Enable SSE for staff and effective admins. The backend treats admin:* and
+  // *:* as admin scope even when a custom role does not include the literal
+  // "admin" role, so the connection gate must mirror that rule.
   const isStaff = session?.user?.roles?.includes("user") ?? false;
-  const isAdmin = session?.user?.roles?.includes("admin") ?? false;
+  const hasAdminWildcard =
+    session?.user?.permissions?.some(
+      (permission) => permission === "admin:*" || permission === "*:*",
+    ) ?? false;
+  const isAdmin =
+    (session?.user?.roles?.includes("admin") ?? false) || hasAdminWildcard;
   const isAuthenticated =
     sessionStatus === "authenticated" &&
     !!session?.user?.token &&
