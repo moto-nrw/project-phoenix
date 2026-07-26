@@ -7,6 +7,7 @@ import { format, addMonths, subMonths, type Locale } from "date-fns";
 import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
+import type { DatePickerLabels } from "~/lib/date-picker-labels";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import {
   clampCalendarWidth,
@@ -46,21 +47,11 @@ const TRIGGER_SIZE_CLASS: Record<ControlSize, string> = {
   lg: "px-4 py-[11px] text-base",
 };
 
-/**
- * Control labels. The defaults are German because the staff and operator
- * portals are German-only; the parent portal and public enrollment form pass
- * translated strings alongside a matching `locale`.
- */
-export interface DatePickerLabels {
-  readonly clear?: string;
-  readonly previousMonth?: string;
-  readonly nextMonth?: string;
-  readonly month?: string;
-  readonly year?: string;
-  /** Receives the count, e.g. (3) => "3 Tage ausgewählt". */
-  readonly selectedDays?: (count: number) => string;
-}
-
+// Labels default to German here because the staff and operator portals are
+// German-only; the parent portal and public enrollment form pass translated
+// strings alongside a matching `locale`. The DatePickerLabels contract itself
+// lives in ~/lib/date-picker-labels so the hook that builds it stays inside
+// src/lib.
 const DEFAULT_LABELS = {
   clear: "Datum löschen",
   previousMonth: "Vorheriger Monat",

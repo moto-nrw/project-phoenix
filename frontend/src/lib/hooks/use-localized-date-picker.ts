@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import type { DatePickerLabels } from "~/components/ui/date-picker";
+import type { DatePickerLabels } from "~/lib/date-picker-labels";
 import { dateFnsLocaleFor } from "~/i18n/date-fns-locale";
 
 /**
