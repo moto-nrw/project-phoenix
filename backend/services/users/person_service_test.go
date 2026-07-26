@@ -736,6 +736,22 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, holders, "the bracelet must stay free after a refused assignment")
 	})
+
+	t.Run("reports a student that no longer exists as not found", func(t *testing.T) {
+		// ARRANGE — a child hard-deleted after graduation. The locked read finds
+		// no row, and the caller must see a 404-shaped error rather than a bare
+		// sql.ErrNoRows the handler would render as a 500.
+		student := testpkg.CreateTestStudent(t, db, "TagAssign", "Purged", "4c")
+		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PURGEDTAG")
+		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
+		testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		// ACT
+		err := service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
+
+		// ASSERT
+		require.ErrorIs(t, err, users.ErrStudentNotFound)
+	})
 }
 
 // =============================================================================

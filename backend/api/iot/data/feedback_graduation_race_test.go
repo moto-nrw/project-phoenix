@@ -73,3 +73,44 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, count, "no feedback entry may be written for a child graduated mid-request")
 }
+
+// TestSubmitFeedback_LockedLookupFallsBackToPlainStub pins the PersonServiceMock
+// contract the test above relies on: a mock that stubs only the plain lookup
+// must answer the locked one from the same stub. Without that fallback every
+// existing test stubbing GetStudentByIDFn would silently start receiving a nil
+// student from the locked read, and the handler's alumnus refusal would look
+// like it had stopped working when in fact nothing was ever asked.
+func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
+	ctx := setupFeedbackTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-fallback")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "FallbackGraduate", "4a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	graduated := *student
+	graduated.Status = usersModel.StudentStatusAlumnus
+
+	// Only the plain lookup is stubbed. The handler reads through
+	// GetStudentByIDForUpdate, so the refusal below can only happen if the mock
+	// routed that call to this stub.
+	stubbedUsers := &userstest.PersonServiceMock{
+		GetStudentByIDFn: func(context.Context, int64) (*usersModel.Student, error) {
+			return &graduated, nil
+		},
+	}
+
+	resource := dataAPI.NewFeedbackResource(ctx.services.IoT, stubbedUsers, ctx.services.Feedback, nil)
+
+	body := map[string]interface{}{
+		"student_id": student.ID,
+		"value":      "positive",
+	}
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(resource.Router(), req)
+
+	testutil.AssertNotFound(t, rr)
+}
