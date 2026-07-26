@@ -7,11 +7,8 @@ import (
 )
 
 const (
-	// development occupies everything up to and including 1.15.229 (staff
-	// balance adjustments, month balance snapshots, audit append-only grants,
-	// nullable attendance staff, time-tracking deletion tombstones, student
-	// field edits, DATEV payroll foundation), so this branch's four migrations
-	// start above it at 1.15.230.
+	// development occupies everything up to and including 1.15.233, so this
+	// branch's four migrations start above it at 1.15.234.
 	//
 	// Renumbered three times already: 1.15.222/1.15.226 were free when this
 	// branch was written, then 1.15.227/1.15.228, then 1.15.229 — development
@@ -24,9 +21,7 @@ const (
 	// DB recorded 001015227-001015230 from this branch and consequently never
 	// created audit.student_field_edits.
 	//
-	// Re-check this range against development immediately before merging; the
-	// window has closed three times now.
-	gradeTransitionHistoryFromStatusVersion     = "1.15.230"
+	gradeTransitionHistoryFromStatusVersion     = "1.15.234"
 	gradeTransitionHistoryFromStatusDescription = "Record each graduate's pre-transition lifecycle status so a revert restores it exactly"
 )
 
