@@ -34,6 +34,15 @@ func init() {
 func phaseAudienceExistingStudentsUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.231: Adding existing_students to the enrollment.phases audience CHECK...")
 
+	// Compatibility for databases that ran the push-subscriptions feature
+	// branch while it still used version 1.15.230. Bun keys applied migrations
+	// only by that numeric prefix, so such a database skips the canonical
+	// eligibility migration. Reconcile its idempotent schema before widening
+	// the audience constraint.
+	if err := ensurePhaseEligibilityColumns(ctx, db); err != nil {
+		return fmt.Errorf("failed reconciling enrollment.phases eligibility prerequisite: %w", err)
+	}
+
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
 		DROP CONSTRAINT IF EXISTS phases_audience_check;
