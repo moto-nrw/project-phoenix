@@ -54,7 +54,8 @@ export function LanguageSwitcher({
       className={`inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
         compact ? "max-w-[11rem]" : ""
       }`}
-      menuClassName="absolute top-full right-0 z-50 mt-1 max-h-72 min-w-full overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+      menuAlign="end"
+      menuClassName="overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
       optionClassName="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
       activeOptionClassName="flex w-full items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors"
       disabledOptionClassName="flex w-full cursor-not-allowed items-center gap-2 px-4 py-2 text-left text-sm text-gray-400 transition-colors"

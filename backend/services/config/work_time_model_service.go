@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // WorkTimeModelValidationError marks a caller-input validation failure so the
@@ -23,13 +24,24 @@ func (e *WorkTimeModelValidationError) Unwrap() error { return e.Err }
 // returned verbatim; the handlers keep their existing error-to-status
 // mapping (e.g. delete's blanket "not found or in use" 404).
 type WorkTimeModelService struct {
-	repo configModels.WorkTimeModelRepository
+	repo        configModels.WorkTimeModelRepository
+	broadcaster realtime.Broadcaster
 }
 
 // NewWorkTimeModelService creates a WorkTimeModelService backed by the
 // work-time-model repository.
 func NewWorkTimeModelService(repo configModels.WorkTimeModelRepository) *WorkTimeModelService {
 	return &WorkTimeModelService{repo: repo}
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster used to invalidate
+// time-account views after assigned schedule snapshots change.
+func (s *WorkTimeModelService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
+func (s *WorkTimeModelService) broadcastTimeTrackingChanged(ctx context.Context) {
+	realtime.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, nil)
 }
 
 // ListModels retrieves all work time models with entries.
@@ -93,7 +105,12 @@ func (s *WorkTimeModelService) UpdateModel(ctx context.Context, model *configMod
 	if err := s.repo.RefreshAssignedStaffSchedules(ctx, model.ID); err != nil {
 		return nil, err
 	}
-	return s.repo.FindByID(ctx, model.ID)
+	updated, err := s.repo.FindByID(ctx, model.ID)
+	if err != nil {
+		return nil, err
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return updated, nil
 }
 
 // DeleteModel removes a model. The repository error is returned verbatim

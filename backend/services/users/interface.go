@@ -184,9 +184,10 @@ const (
 // soft-deletes the staff/teacher rows, cleans up planned assignments, and
 // revokes the linked account's access for the tenant.
 type StaffOffboardingService interface {
-	// OffboardStaff offboards the staff member. deletedBy is the acting
-	// account's username for the audit trail ("system" if empty).
-	OffboardStaff(ctx context.Context, staffID int64, deletedBy string) error
+	// OffboardStaff offboards the staff member. deletedByStaffID identifies
+	// the acting staff member in time-tracking tombstones; deletedBy is the
+	// account username used by the broader data-deletion audit.
+	OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error
 }
 
 // CaregiverCapabilityService manages the operational caregiver capability of an

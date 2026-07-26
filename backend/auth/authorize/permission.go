@@ -1,6 +1,7 @@
 package authorize
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -127,6 +128,13 @@ func HasAdminWildcard(permissions []string) bool {
 		}
 	}
 	return false
+}
+
+// HasEffectiveAdminScope reports whether the authenticated caller has the
+// literal admin role or a system-wide admin permission.
+func HasEffectiveAdminScope(ctx context.Context) bool {
+	return jwt.ClaimsFromCtx(ctx).IsAdmin ||
+		HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 }
 
 // permissionMatches checks if a permission matches the required resource and action

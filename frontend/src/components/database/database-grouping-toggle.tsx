@@ -27,7 +27,8 @@ export function DatabaseGroupingToggle<K extends string>({
       ariaLabel="Gruppieren"
       placeholder={options[0]?.label ?? ""}
       className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      menuClassName="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+      menuAlign="end"
+      menuClassName="w-44 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
       optionClassName="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
       activeOptionClassName="flex w-full items-center justify-between bg-[#DCF5C1]/60 px-3 py-2 text-left text-sm font-semibold text-gray-900"
       renderTrigger={({ selectedLabel }) => (

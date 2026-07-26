@@ -25,6 +25,11 @@ type Resource struct {
 	WorkSessionService      activeSvc.WorkSessionService
 	StaffAbsenceService     activeSvc.StaffAbsenceService
 	WorkTimeMonthService    activeSvc.WorkTimeMonthService
+	BalanceAdjustService    activeSvc.StaffBalanceAdjustmentService
+	MonthCloseService       activeSvc.StaffMonthCloseService
+	StaffOverviewService    activeSvc.StaffOverviewService
+	AuditLogService         activeSvc.TimeTrackingAuditLogService
+	TimeExportService       activeSvc.StaffTimeExportService
 	db                      *bun.DB
 	logger                  *slog.Logger
 }
@@ -38,6 +43,11 @@ func NewResource(
 	workSessionService activeSvc.WorkSessionService,
 	staffAbsenceService activeSvc.StaffAbsenceService,
 	workTimeMonthService activeSvc.WorkTimeMonthService,
+	balanceAdjustService activeSvc.StaffBalanceAdjustmentService,
+	monthCloseService activeSvc.StaffMonthCloseService,
+	staffOverviewService activeSvc.StaffOverviewService,
+	auditLogService activeSvc.TimeTrackingAuditLogService,
+	timeExportService activeSvc.StaffTimeExportService,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -49,6 +59,11 @@ func NewResource(
 		WorkSessionService:      workSessionService,
 		StaffAbsenceService:     staffAbsenceService,
 		WorkTimeMonthService:    workTimeMonthService,
+		BalanceAdjustService:    balanceAdjustService,
+		MonthCloseService:       monthCloseService,
+		StaffOverviewService:    staffOverviewService,
+		AuditLogService:         auditLogService,
+		TimeExportService:       timeExportService,
 		db:                      db,
 		logger:                  logger,
 	}
@@ -66,6 +81,15 @@ func (rs *Resource) Router() chi.Router {
 
 	// Protected routes that require authentication and permissions
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+
+		// Leitungs-Dashboard KPIs (#1417 2a). Aggregate only, no per-person
+		// working-time data, hence users:read.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/dashboard-summary", rs.getDashboardSummary)
+		// Per-person Soll/Ist/Saldo/Resturlaub across all staff. Deliberately
+		// stricter than the issue's users:read: this is working-time data about
+		// identifiable people, and users:read is held by everyone who may see
+		// the staff list at all.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/overview", rs.getTimeTrackingOverview)
 
 		// Staff profile reads are also needed by the absence-management view.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
@@ -95,6 +119,29 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/month-summary", rs.getStaffMonthSummary)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/schedule-targets", rs.getStaffScheduleTargets)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
+
+		// Stundenkonto lifecycle (#1420): payout / comp-time adjustments + reset
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/adjustments", rs.listBalanceAdjustments)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/adjustments", rs.createBalanceAdjustment)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}/time-tracking/adjustments/{adjustmentId}", rs.deleteBalanceAdjustment)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/reset", rs.resetStaffBalance)
+
+		// Monatsabschluss (#1417): freezing the carry chain is school-wide,
+		// reopening is per staff member. Static segments before /{id} are
+		// safe — chi prefers them over the wildcard.
+		// Cross-staff audit feed (#1417). Every event names an affected and an
+		// acting person plus free-text reasons — personal data end to end, so
+		// the whole feed sits behind time_tracking:manage with no users:read tier.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/audit-log", rs.getTimeTrackingAuditLog)
+
+		// Cross-staff payroll/evidence export (#1417 2b). A bulk export of
+		// per-person working-time data — time_tracking:manage only, and the
+		// service writes a GDPR access-audit row per download.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/export", rs.exportTimeTracking)
+
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/month-close", rs.listMonthCloseStatus)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/time-tracking/month-close", rs.closeMonth)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/month-close/reopen", rs.reopenMonth)
 
 		// Vacation workflow admin-side (Tranche 4)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)

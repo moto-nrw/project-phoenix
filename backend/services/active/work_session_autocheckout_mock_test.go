@@ -788,3 +788,9 @@ func TestAutoCheckout_QueriesOpenSessionsIncludingToday(t *testing.T) {
 	assert.Equal(t, timezone.TodayDate().AddDays(1), beforeDate,
 		"must pass tomorrow so today's open sessions are included (GetOpenSessions filters date < beforeDate)")
 }
+
+// FindByStaffIDsAndDateRange satisfies the batched interface method (#1417); this mock
+// exercises the single-staff path only.
+func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDateRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}

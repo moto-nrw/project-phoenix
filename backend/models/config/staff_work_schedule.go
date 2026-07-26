@@ -98,6 +98,10 @@ type StaffWorkScheduleRepository interface {
 	// Soll is genuinely zero.
 	HasScheduleHistory(ctx context.Context, staffID int64) (bool, error)
 
+	// FindStaffIDsWithScheduleHistory is HasScheduleHistory batched over many
+	// staff members; only staff with at least one schedule version appear.
+	FindStaffIDsWithScheduleHistory(ctx context.Context, staffIDs []int64) (map[int64]bool, error)
+
 	// ReplaceSchedule atomically replaces all current schedule entries for a
 	// staff member. anchor is the rotation anchor the new version is written
 	// with and is stamped onto every inserted row (#1842) — the closed-out

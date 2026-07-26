@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -600,28 +601,29 @@ function TemplateSelector({
   return (
     <div className="space-y-3">
       <label
+        id="arbeitszeitmodell-template-select-label"
         htmlFor="arbeitszeitmodell-template-select"
         className="block text-xs font-semibold tracking-wider text-gray-500 uppercase"
       >
         Vorlage
       </label>
-      <div className="relative">
-        <select
-          id="arbeitszeitmodell-template-select"
-          value={selectedId}
-          onChange={(e) => onSelect(e.target.value)}
-          className="w-full appearance-none rounded-lg border border-gray-200 py-2 pr-10 pl-3 text-sm focus:border-gray-400 focus:outline-none"
-        >
-          <option value="">Bitte wählen…</option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}{" "}
-              {t.rotationLength > 1 ? `(${t.rotationLength} Wochen)` : ""}
-            </option>
-          ))}
-        </select>
-        <DropdownChevron />
-      </div>
+      <CustomSelect
+        id="arbeitszeitmodell-template-select"
+        ariaLabelledBy="arbeitszeitmodell-template-select-label"
+        value={selectedId}
+        onChange={onSelect}
+        options={[
+          { value: "", label: "Bitte wählen…" },
+          ...templates.map((t) => ({
+            value: t.id,
+            label:
+              t.rotationLength > 1
+                ? `${t.name} (${t.rotationLength} Wochen)`
+                : t.name,
+          })),
+        ]}
+        placeholder="Bitte wählen…"
+      />
       {selected && <TemplatePreviewBlock model={selected} />}
     </div>
   );
@@ -714,28 +716,22 @@ function CustomEditor({
     <div className="space-y-4">
       <div>
         <label
+          id="arbeitszeitmodell-rotation-select-label"
           htmlFor="arbeitszeitmodell-rotation-select"
           className="mb-2 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
         >
           Rotation
         </label>
-        <div className="relative">
-          <select
-            id="arbeitszeitmodell-rotation-select"
-            value={rotationLength}
-            onChange={(e) =>
-              onRotationChange(Number.parseInt(e.target.value, 10))
-            }
-            className="w-full appearance-none rounded-lg border border-gray-200 py-2 pr-10 pl-3 text-sm focus:border-gray-400 focus:outline-none"
-          >
-            {ROTATION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <DropdownChevron />
-        </div>
+        <CustomSelect
+          id="arbeitszeitmodell-rotation-select"
+          ariaLabelledBy="arbeitszeitmodell-rotation-select-label"
+          value={String(rotationLength)}
+          onChange={(next) => onRotationChange(Number.parseInt(next, 10))}
+          options={ROTATION_OPTIONS.map((opt) => ({
+            value: String(opt.value),
+            label: opt.label,
+          }))}
+        />
       </div>
 
       {rotationLength > 1 && (
@@ -806,24 +802,22 @@ function CustomEditor({
                 className="w-14 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none"
               />
               <span className="text-xs text-gray-400">h</span>
-              <div className="relative">
-                <select
-                  aria-label={`Arbeitsminuten ${dayLabels[d]}`}
-                  value={mins}
-                  onChange={(e) => {
-                    const m = Number.parseInt(e.target.value, 10) || 0;
-                    onEntryChange(activeWeekTab, d, hours * 60 + m);
-                  }}
-                  disabled={hours >= 12}
-                  className="w-16 appearance-none rounded-lg border border-gray-200 py-1.5 pr-6 pl-2 text-left text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                >
-                  <option value={0}>00</option>
-                  <option value={15}>15</option>
-                  <option value={30}>30</option>
-                  <option value={45}>45</option>
-                </select>
-                <DropdownChevron />
-              </div>
+              <CustomSelect
+                ariaLabel={`Arbeitsminuten ${dayLabels[d]}`}
+                value={String(mins)}
+                onChange={(next) => {
+                  const m = Number.parseInt(next, 10) || 0;
+                  onEntryChange(activeWeekTab, d, hours * 60 + m);
+                }}
+                options={[
+                  { value: "0", label: "00" },
+                  { value: "15", label: "15" },
+                  { value: "30", label: "30" },
+                  { value: "45", label: "45" },
+                ]}
+                disabled={hours >= 12}
+                triggerClassName="h-8 w-16 border-gray-200 bg-white tabular-nums"
+              />
               <span className="text-xs text-gray-400">min</span>
               <label className="flex items-center gap-1 text-xs text-gray-500">
                 <span>Start</span>
@@ -896,25 +890,6 @@ function initialiseCustomEntries(
     }
   }
   return out;
-}
-
-function DropdownChevron() {
-  return (
-    <svg
-      className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M19 9l-7 7-7-7"
-      />
-    </svg>
-  );
 }
 
 function getISOWeek(date: Date): number {

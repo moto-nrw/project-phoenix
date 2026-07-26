@@ -21,24 +21,26 @@ import {
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "ParentDashboard" });
 
-const statusTone: Record<
-  EnrollmentChildStatus | ChildStatus,
-  { bg: string; text: string; dot: string }
-> = {
-  submitted: { bg: "#5080D814", text: "#3558A8", dot: "#5080D8" },
-  under_review: { bg: "#F78C1014", text: "#9A5B0A", dot: "#F78C10" },
-  approved: { bg: "#83CD2D1F", text: "#5A8E1F", dot: "#83CD2D" },
-  waitlisted: { bg: "#F78C1014", text: "#9A5B0A", dot: "#F78C10" },
-  rejected: { bg: "#FF313014", text: "#CC2626", dot: "#FF3130" },
-  withdrawn: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
-  pending: { bg: "#83CD2D1F", text: "#5A8E1F", dot: "#83CD2D" },
-  active: { bg: "#83CD2D1F", text: "#5A8E1F", dot: "#83CD2D" },
-  inactive: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
-  alumnus: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
-};
+const statusTone: Record<EnrollmentChildStatus | ChildStatus, StatusBadgeTone> =
+  {
+    submitted: "blue",
+    under_review: "orange",
+    approved: "green",
+    waitlisted: "orange",
+    rejected: "red",
+    withdrawn: "gray",
+    pending: "green",
+    active: "green",
+    inactive: "gray",
+    alumnus: "gray",
+  };
 
 interface ChildOverviewItem {
   readonly key: string;
@@ -186,7 +188,7 @@ export function ParentDashboard() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]">
           <div className="p-5 sm:p-6 lg:p-8">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -285,11 +287,8 @@ function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
         <p className="truncate text-sm text-gray-600">{item.schoolName}</p>
       </div>
       {item.statusLabel ? (
-        <span
-          className="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold"
-          style={{ backgroundColor: tone.bg, color: tone.text }}
-        >
-          {t("open")}
+        <span className="shrink-0">
+          <StatusBadge label={t("open")} tone={tone} />
         </span>
       ) : (
         <ArrowRight

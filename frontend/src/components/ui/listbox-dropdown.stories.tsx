@@ -33,7 +33,7 @@ const meta: Meta<typeof ControlledListboxDropdown> = {
     className:
       "flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm",
     menuClassName:
-      "absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white p-1 shadow-lg",
+      "overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-lg",
     optionClassName: "block w-full rounded-md px-3 py-2 text-left text-sm",
     activeOptionClassName:
       "block w-full rounded-md bg-gray-100 px-3 py-2 text-left text-sm",

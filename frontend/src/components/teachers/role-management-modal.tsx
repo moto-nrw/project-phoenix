@@ -9,6 +9,7 @@ import {
   DetailIcons,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import {
@@ -164,49 +165,26 @@ export function RoleManagementModal({
 
           <div>
             <label
+              id="target-role-select-label"
               htmlFor="target-role-select"
               className="mb-1 block text-xs font-medium text-gray-700"
             >
               Neue Rolle
             </label>
-            <div className="relative">
-              <select
-                id="target-role-select"
-                value={targetRoleId ?? ""}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setTargetRoleId(
-                    event.target.value === "" ? undefined : value,
-                  );
-                }}
-                className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-gray-400 focus:ring-1 focus:ring-gray-200"
-                disabled={saving}
-              >
-                <option value="" disabled>
-                  Rolle auswählen...
-                </option>
-                {roleOptions.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg
-                  className="h-4 w-4 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              id="target-role-select"
+              ariaLabelledBy="target-role-select-label"
+              value={targetRoleId === undefined ? "" : String(targetRoleId)}
+              onChange={(next) =>
+                setTargetRoleId(next === "" ? undefined : Number(next))
+              }
+              options={roleOptions.map((role) => ({
+                value: String(role.id),
+                label: role.name,
+              }))}
+              placeholder="Rolle auswählen..."
+              disabled={saving}
+            />
           </div>
 
           <Alert type="error" message={errorMessage} />

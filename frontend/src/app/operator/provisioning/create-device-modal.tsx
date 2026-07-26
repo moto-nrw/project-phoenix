@@ -9,6 +9,7 @@ import type {
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { DEVICE_TYPE_OPTIONS } from "~/lib/iot-helpers";
 import { createLogger } from "~/lib/logger";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { FormField, FormError } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateDeviceModal" });
@@ -61,7 +62,19 @@ export function CreateDeviceModal({
   const handleCreate = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!schoolId || !deviceId.trim() || !deviceType) return;
+      // CustomSelect's `required` is ARIA-only — it does not join native form
+      // constraint validation, so an Enter-submit with school or device type
+      // unset lands here and must produce a visible error instead of a silent
+      // return. The device-ID text input keeps its native `required`.
+      if (!schoolId) {
+        setError("Bitte wählen Sie eine Schule aus.");
+        return;
+      }
+      if (!deviceType) {
+        setError("Bitte wählen Sie einen Gerätetyp aus.");
+        return;
+      }
+      if (!deviceId.trim()) return;
 
       setIsSaving(true);
       setError("");
@@ -203,20 +216,21 @@ export function CreateDeviceModal({
         id="create-device-form"
       >
         <FormField label="Schule" htmlFor="device-school" required>
-          <select
+          <CustomSelect
             id="device-school"
+            ariaLabel="Schule"
             value={schoolId}
-            onChange={(e) => setSchoolId(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            options={[
+              { value: "", label: "Schule auswählen..." },
+              ...(schools?.map((school) => ({
+                value: school.id,
+                label: school.name,
+              })) ?? []),
+            ]}
+            onChange={setSchoolId}
+            placeholder="Schule auswählen..."
             required
-          >
-            <option value="">Schule auswählen...</option>
-            {schools?.map((school) => (
-              <option key={school.id} value={school.id}>
-                {school.name}
-              </option>
-            ))}
-          </select>
+          />
         </FormField>
 
         <FormField label="Geräte-ID" htmlFor="device-id" required>
@@ -233,20 +247,21 @@ export function CreateDeviceModal({
         </FormField>
 
         <FormField label="Typ" htmlFor="device-type" required>
-          <select
+          <CustomSelect
             id="device-type"
+            ariaLabel="Typ"
             value={deviceType}
-            onChange={(e) => setDeviceType(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            options={[
+              { value: "", label: "Typ auswählen..." },
+              ...Object.entries(DEVICE_TYPE_OPTIONS).map(([value, label]) => ({
+                value,
+                label,
+              })),
+            ]}
+            onChange={setDeviceType}
+            placeholder="Typ auswählen..."
             required
-          >
-            <option value="">Typ auswählen...</option>
-            {Object.entries(DEVICE_TYPE_OPTIONS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          />
         </FormField>
 
         <FormField label="Name" htmlFor="device-name">

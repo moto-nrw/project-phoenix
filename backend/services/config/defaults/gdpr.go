@@ -169,6 +169,34 @@ func init() {
 		Validation:      config.Range(1, 31),
 	})
 
+	// --- Änderungsprotokoll pro Kind: Aufbewahrung (issue #1455) ---
+	//
+	// Das Änderungsprotokoll (wer hat welche Angabe zu einem Kind geändert)
+	// dient konkreten Rückfragen im OGS-Alltag, nicht der Langzeit-Archivierung
+	// oder Leistungskontrolle. Entsprechend kurz und per Schule konfigurierbar.
+	// Standard 90 Tage; das automatische Löschen läuft über denselben
+	// nächtlichen Cleanup-Job (gdpr.data_cleanup_enabled / _time).
+	minChangeLogRetentionDays := float64(30)
+	maxChangeLogRetentionDays := float64(365)
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRStudentChangeLogRetentionDays,
+		Label:           "Aufbewahrungsdauer Änderungsprotokoll (Tage)",
+		Description:     "Wie lange das Änderungsprotokoll pro Kind (wer hat welche Angabe geändert) aufbewahrt wird, bevor alte Einträge automatisch gelöscht werden.",
+		Type:            config.FieldNumber,
+		Default:         90,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       30,
+		Validation:      &config.ValidationRules{Min: &minChangeLogRetentionDays, Max: &maxChangeLogRetentionDays},
+		DependsOn: &config.Dependency{
+			Key:       config.KeyDataCleanupEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
 	// --- Kinderdaten-Zugriff (who can read full student profile data) ---
 
 	config.Register(config.Definition{

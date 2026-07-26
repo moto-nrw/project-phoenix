@@ -44,6 +44,7 @@ import {
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import {
   getActivityTypeBadge,
+  getGermanWeekdayAdverb,
   getGermanWeekdayLong,
   getStatusLabel,
 } from "~/lib/timetable-helpers";
@@ -161,10 +162,9 @@ function germanFullDate(iso: string): string {
  */
 function regelterminOriginLabel(instance: EnrichedInstance): string {
   const weekdayLong = getGermanWeekdayLong(parseISODate(instance.date));
-  const weekdayAdverb = weekdayLong ? `${weekdayLong.toLowerCase()}s` : "";
   return [
     `aus Regeltermin ${instance.title},`,
-    weekdayAdverb,
+    getGermanWeekdayAdverb(weekdayLong),
     instance.startTime,
   ]
     .filter(Boolean)

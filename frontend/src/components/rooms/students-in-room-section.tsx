@@ -515,7 +515,6 @@ function BulkMoveToolbar({
             value: option.activeGroupId,
             label: option.roomName,
           }))}
-          focusRingColor="focus:ring-gray-300"
           className="bg-white text-sm md:text-sm"
         />
         <Button

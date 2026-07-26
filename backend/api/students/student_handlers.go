@@ -1194,6 +1194,15 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	wasSick := boolPtrValue(fresh.Sick)
 	wasExcused := boolPtrValue(fresh.Excused)
 
+	// Snapshot the tracked profile fields before applying the patch so the
+	// audit diff (#1455) compares the locked pre-update row with the persisted
+	// result. The tracked pointer/map fields are replaced, not mutated in place,
+	// so a shallow copy is a safe before-image. Normalize only the copy: legacy
+	// rows may carry their effective plan solely in bus_days/pickup_days, while
+	// mutating fresh before applyStudentFieldUpdates could change persistence
+	// precedence.
+	before := studentAuditBeforeImage(fresh, req.hasDeparturePlanUpdate())
+
 	// Apply the request to the locked row in memory FIRST. Nothing is written
 	// yet, which is what lets the companion check below refuse the whole update
 	// before any of it lands. updateStudent additionally marks the surrounding
@@ -1227,6 +1236,21 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 		return false, err
 	}
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
+		return false, err
+	}
+
+	if req.hasDeparturePlanUpdate() {
+		// Audit the effective unified plan even when a legacy client changed
+		// only bus_days/pickup_days. The concrete repository currently writes
+		// its resolved plan back into fresh, but the service contract does not
+		// promise that mutation.
+		normalizeDeparturePlanForAudit(fresh)
+	}
+
+	// Keep the audit rows atomic with the student write. A failed audit insert
+	// aborts the surrounding tenant transaction instead of committing an
+	// unlogged profile edit.
+	if err := rs.recordStudentChanges(ctx, &before, fresh); err != nil {
 		return false, err
 	}
 

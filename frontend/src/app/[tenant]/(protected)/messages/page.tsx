@@ -6,6 +6,7 @@ import { MessageCircle } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -106,15 +107,16 @@ function MessagesInboxContent() {
       {/* A single dropdown that filters on selection — same control and
           behaviour on desktop and mobile, no separate apply step. */}
       <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-        <select
-          aria-label="Nachrichten filtern"
+        <CustomSelect
+          ariaLabel="Nachrichten filtern"
           value={onlyUnread ? "unread" : "all"}
-          onChange={(e) => setOnlyUnread(e.target.value === "unread")}
-          className="moto-select h-10 rounded-lg border-0 bg-white px-3 text-sm font-medium text-gray-900 shadow-sm ring-1 ring-gray-200 transition-colors ring-inset hover:ring-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-        >
-          <option value="all">Alle Nachrichten</option>
-          <option value="unread">Nur ungelesen</option>
-        </select>
+          onChange={(next) => setOnlyUnread(next === "unread")}
+          triggerClassName="moto-content-surface h-10 w-48 hover:border-gray-300"
+          options={[
+            { value: "all", label: "Alle Nachrichten" },
+            { value: "unread", label: "Nur ungelesen" },
+          ]}
+        />
         {messagingEnabled && (
           <Button
             type="button"

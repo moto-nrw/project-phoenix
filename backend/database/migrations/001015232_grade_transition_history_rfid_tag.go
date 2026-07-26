@@ -8,8 +8,8 @@ import (
 
 const (
 	// Last of this branch's four migrations; see the version note in 001015227
-	// for why they sit above development's 1.15.226.
-	gradeTransitionHistoryRFIDTagVersion     = "1.15.230"
+	// for why they sit above development's 1.15.228.
+	gradeTransitionHistoryRFIDTagVersion     = "1.15.232"
 	gradeTransitionHistoryRFIDTagDescription = "Ledger the RFID tag a graduate was holding so graduation can release it and a revert can hand it back"
 )
 

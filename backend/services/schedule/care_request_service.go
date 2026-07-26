@@ -33,6 +33,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -164,15 +165,16 @@ type CareScheduleRequestService interface {
 }
 
 type careScheduleRequestService struct {
-	requestRepo scheduleModels.CareScheduleChangeRequestRepository
-	studentRepo usersModels.StudentRepository
-	personRepo  usersModels.PersonRepository
-	arrival     ArrivalScheduleService
-	pickup      PickupScheduleService
-	userContext userContextService.UserContextService
-	emitter     *parentmessaging.Emitter
-	broadcaster realtime.Broadcaster
-	logger      *slog.Logger
+	requestRepo  scheduleModels.CareScheduleChangeRequestRepository
+	studentRepo  usersModels.StudentRepository
+	personRepo   usersModels.PersonRepository
+	arrival      ArrivalScheduleService
+	pickup       PickupScheduleService
+	userContext  userContextService.UserContextService
+	emitter      *parentmessaging.Emitter
+	broadcaster  realtime.Broadcaster
+	studentAudit usersService.StudentChangeRecorder
+	logger       *slog.Logger
 }
 
 // NewCareScheduleRequestService wires the care-request service.
@@ -186,20 +188,26 @@ func NewCareScheduleRequestService(
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
+	studentAudits ...usersService.StudentChangeRecorder,
 ) CareScheduleRequestService {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	var studentAudit usersService.StudentChangeRecorder
+	if len(studentAudits) > 0 {
+		studentAudit = studentAudits[0]
+	}
 	return &careScheduleRequestService{
-		requestRepo: requestRepo,
-		studentRepo: studentRepo,
-		personRepo:  personRepo,
-		arrival:     arrival,
-		pickup:      pickup,
-		userContext: userContext,
-		emitter:     emitter,
-		broadcaster: broadcaster,
-		logger:      logger,
+		requestRepo:  requestRepo,
+		studentRepo:  studentRepo,
+		personRepo:   personRepo,
+		arrival:      arrival,
+		pickup:       pickup,
+		userContext:  userContext,
+		emitter:      emitter,
+		broadcaster:  broadcaster,
+		studentAudit: studentAudit,
+		logger:       logger,
 	}
 }
 
@@ -472,7 +480,7 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		// ambient tenant transaction. A mid-apply failure must propagate as a
 		// plain error (→ 500) so the WHOLE transaction rolls back — masking it
 		// as a 409 would commit a half-applied weekly plan.
-		linksChanged, err := s.applyCareScheduleRequest(ctx, req)
+		linksChanged, err := s.applyCareScheduleRequest(ctx, req, input.ReviewedBy)
 		if err != nil {
 			return nil, err
 		}
@@ -600,7 +608,7 @@ func (s *careScheduleRequestService) wakeGuardiansAfterCommit(ctx context.Contex
 // child already has (or that only moves arrival/pickup times) leaves every link
 // in place, and announcing a companion change for it makes open companion
 // editors across the school discard or block their draft for nothing.
-func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest) (bool, error) {
+func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, reviewedBy int64) (bool, error) {
 	if s.studentRepo == nil || s.arrival == nil || s.pickup == nil || s.userContext == nil {
 		return false, errors.New("schedule: care request apply dependencies not configured")
 	}
@@ -648,6 +656,7 @@ func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Contex
 	if err != nil {
 		return false, err
 	}
+	before := *student
 
 	if err := s.applyDepartureModeChanges(ctx, student, changes.modes); err != nil {
 		return false, err
@@ -657,6 +666,11 @@ func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Contex
 	}
 	if err := s.applyPickupChanges(ctx, studentID, staffID, changes.pickups); err != nil {
 		return false, err
+	}
+	if s.studentAudit != nil {
+		if err := s.studentAudit.RecordChangesForActor(ctx, &before, student, reviewedBy); err != nil {
+			return false, fmt.Errorf("schedule: audit care request departure: %w", err)
+		}
 	}
 	return companionChanges.Changed(), nil
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func TestStudentRepository_UpdateStatusIfCurrent(t *testing.T) {
+func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -43,7 +43,7 @@ func TestStudentRepository_UpdateStatusIfCurrent(t *testing.T) {
 		defer cleanupStudentRecords(t, db, student.ID)
 		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
-		updated, err := repo.UpdateStatusIfCurrent(ctx, student.ID,
+		updated, err := repo.TransitionStatus(ctx, student.ID,
 			users.StudentStatusPending, users.StudentStatusActive)
 		require.NoError(t, err)
 		assert.True(t, updated)
@@ -57,7 +57,7 @@ func TestStudentRepository_UpdateStatusIfCurrent(t *testing.T) {
 		// before the update landed.
 		setLifecycle(t, db, student.ID, users.StudentStatusAlumnus, nil, nil)
 
-		updated, err := repo.UpdateStatusIfCurrent(ctx, student.ID,
+		updated, err := repo.TransitionStatus(ctx, student.ID,
 			users.StudentStatusActive, users.StudentStatusInactive)
 		require.NoError(t, err)
 		assert.False(t, updated, "a status that moved on must not be overwritten")
@@ -70,12 +70,12 @@ func TestStudentRepository_UpdateStatusIfCurrent(t *testing.T) {
 		defer cleanupStudentRecords(t, db, student.ID)
 		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
-		first, err := repo.UpdateStatusIfCurrent(ctx, student.ID,
+		first, err := repo.TransitionStatus(ctx, student.ID,
 			users.StudentStatusPending, users.StudentStatusActive)
 		require.NoError(t, err)
 		require.True(t, first)
 
-		second, err := repo.UpdateStatusIfCurrent(ctx, student.ID,
+		second, err := repo.TransitionStatus(ctx, student.ID,
 			users.StudentStatusPending, users.StudentStatusActive)
 		require.NoError(t, err)
 		assert.False(t, second)
@@ -86,7 +86,7 @@ func TestStudentRepository_UpdateStatusIfCurrent(t *testing.T) {
 		defer cleanupStudentRecords(t, db, student.ID)
 		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
-		updated, err := repo.UpdateStatusIfCurrent(testpkg.TenantContext(2), student.ID,
+		updated, err := repo.TransitionStatus(testpkg.TenantContext(2), student.ID,
 			users.StudentStatusPending, users.StudentStatusActive)
 		require.NoError(t, err)
 		assert.False(t, updated)

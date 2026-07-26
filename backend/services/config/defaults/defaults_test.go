@@ -41,6 +41,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.room_detail_visible_days",
 		"gdpr.attendance_log_scope",
 		"gdpr.student_data_scope",
+		// Per-child change-history retention (issue #1455).
+		"gdpr.student_change_log_retention_days",
 		"feedback.enabled",
 		"feedback.data_retention_days",
 		"security.ogs_device_pin",

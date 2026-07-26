@@ -503,7 +503,7 @@ func newStatusDayTestResource(db *bun.DB) *Resource {
 	repoFactory := repositories.NewFactory(db)
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repoFactory.Student}),
-		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion),
+		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
 		StudentStatusDayService: activeService.NewStudentStatusDayService(repoFactory.StudentStatusDay),
 		Logger:                  slog.Default(),
 		DB:                      db,

@@ -14,6 +14,7 @@ import (
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -47,6 +48,7 @@ type ResourceConfig struct {
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
+	StaffPINAuthenticator  authService.StaffPINAuthenticator
 	PickupScheduleService  scheduleService.PickupScheduleService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
 	InstanceService        scheduleService.InstanceService
@@ -59,6 +61,7 @@ type ResourceConfig struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
@@ -110,6 +113,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history/export", rs.exportStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
+		// Per-child change history (issue #1455). Full access (admin / group
+		// supervisor) is enforced inside the handler.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/change-history", rs.getStudentChangeHistory)
 
 		// Parent Stammdaten change-request review queue (Track B). Requests can
 		// contain parent-submitted name, birthday, and departure-plan changes.
@@ -216,7 +222,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, nil))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil))
 		r.Use(tenant.TenantTxMiddleware(rs.DB))
 
 		// RFID tag assignment endpoint

@@ -20,20 +20,20 @@ import (
 
 // fakeStudentLifecycleRepo is a deterministic test double for
 // StudentLifecycleRepository. Per-call lists drive the Find* methods so tests
-// can stage exactly the rows the tick should see; UpdateStatusIfCurrent appends
-// to a slice the test inspects to verify transitions ran in order.
+// can stage exactly the rows the tick should see; TransitionStatus appends to
+// a slice the test inspects to verify transitions ran in order.
 type fakeStudentLifecycleRepo struct {
-	mu             sync.Mutex
-	pendingDue     []*userModels.Student
-	activeDue      []*userModels.Student
-	pendingErr     error
-	activeErr      error
-	updateErr      error
-	updateErrForID int64 // if > 0, only fail the update when called with this ID
-	notUpdatedIDs  map[int64]bool
-	updates        []update
-	pendingCalls   int
-	activeCalls    int
+	mu              sync.Mutex
+	pendingDue      []*userModels.Student
+	activeDue       []*userModels.Student
+	pendingErr      error
+	activeErr       error
+	updateErr       error
+	updateErrForID  int64 // if > 0, only fail TransitionStatus when called with this ID
+	updates         []update
+	currentStatuses map[int64]userModels.StudentStatus
+	pendingCalls    int
+	activeCalls     int
 }
 
 type update struct {
@@ -61,12 +61,15 @@ func (f *fakeStudentLifecycleRepo) FindActiveDueForDeactivation(_ context.Contex
 	return f.activeDue, nil
 }
 
-// UpdateStatusIfCurrent records the transition like the old unconditional
-// UpdateStatus did; notUpdatedIDs stages the compare-and-set MISS (the row's
+// TransitionStatus records the transition like the old unconditional
+// UpdateStatus did; currentStatuses stages the compare-and-set MISS (the row's
 // status changed since it was selected — e.g. a grade transition graduated the
 // child) so the tick's skip path is exercised.
-func (f *fakeStudentLifecycleRepo) UpdateStatusIfCurrent(
-	_ context.Context, studentID int64, _, newStatus userModels.StudentStatus,
+func (f *fakeStudentLifecycleRepo) TransitionStatus(
+	_ context.Context,
+	studentID int64,
+	expected userModels.StudentStatus,
+	next userModels.StudentStatus,
 ) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -75,10 +78,13 @@ func (f *fakeStudentLifecycleRepo) UpdateStatusIfCurrent(
 			return false, f.updateErr
 		}
 	}
-	if f.notUpdatedIDs[studentID] {
-		return false, nil
+	if f.currentStatuses != nil {
+		if f.currentStatuses[studentID] != expected {
+			return false, nil
+		}
+		f.currentStatuses[studentID] = next
 	}
-	f.updates = append(f.updates, update{studentID: studentID, to: newStatus})
+	f.updates = append(f.updates, update{studentID: studentID, to: next})
 	return true, nil
 }
 

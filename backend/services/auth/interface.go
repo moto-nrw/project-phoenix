@@ -5,7 +5,15 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
+
+// StaffPINAuthenticator verifies a staff-specific PIN inside the staff
+// member's tenant boundary. Device middleware uses this narrow interface to
+// bind kiosk attribution to a person without depending on the full auth API.
+type StaffPINAuthenticator interface {
+	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*userModels.Staff, error)
+}
 
 // AuthService defines the operations for authentication and user management
 type AuthService interface {

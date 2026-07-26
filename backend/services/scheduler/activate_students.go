@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -20,13 +21,24 @@ type StudentLifecycleRepository interface {
 	// Compare-and-set, deliberately not the unconditional UpdateStatus: the tick
 	// decides from rows it read earlier, and by the time it writes, a grade
 	// transition may have graduated the child (see the repository method's doc).
-	UpdateStatusIfCurrent(ctx context.Context, studentID int64, expectedStatus, newStatus userModels.StudentStatus) (bool, error)
+	TransitionStatus(ctx context.Context, studentID int64, expected, next userModels.StudentStatus) (bool, error)
+}
+
+// StudentLifecycleAuditor records scheduler-authored status transitions.
+type StudentLifecycleAuditor interface {
+	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
 }
 
 // SetStudentLifecycleRepo wires the repository for the activate-students tick.
 // Nil repo → no task registers, matching SetMaterializer's opt-in pattern.
 func (s *Scheduler) SetStudentLifecycleRepo(repo StudentLifecycleRepository) {
 	s.studentLifecycleRepo = repo
+}
+
+// SetStudentLifecycleAudit wires change-history recording for automated status
+// transitions.
+func (s *Scheduler) SetStudentLifecycleAudit(audit StudentLifecycleAuditor) {
+	s.studentLifecycleAudit = audit
 }
 
 // scheduleActivateStudentsTask registers the per-tenant activate-students
@@ -87,16 +99,28 @@ func (s *Scheduler) checkAndRunActivateStudents(task *ScheduledTask) {
 
 	now := time.Now()
 	s.forEachTenantSettings(ctx, "activate-students", func(tenantCtx context.Context, tenantID int64) error {
-		s.runActivateStudentsForTenant(tenantCtx, tenantID, now)
-		return nil
+		return s.runActivateStudentsForTenantWithError(tenantCtx, tenantID, now)
 	})
+}
+
+// runActivateStudentsForTenant is the logging wrapper for direct callers.
+// Tenant iteration uses the error-returning variant below so audit failures
+// reach WithTenantTx and force a rollback.
+func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID int64, now time.Time) {
+	if err := s.runActivateStudentsForTenantWithError(ctx, tenantID, now); err != nil {
+		s.getLogger().Error("activate-students: tenant transition failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // runActivateStudentsForTenant flips eligible pending students to active and
 // eligible active students to inactive. Idempotent — running twice on the
-// same day is a no-op after the first pass. Per-row failures are logged and
-// skipped so a single bad row doesn't stall the batch.
-func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID int64, now time.Time) {
+// same day is a no-op after the first pass. Status-update failures are logged
+// and skipped. Audit failures abort the tenant transaction so an automated
+// transition can never commit without its history entry.
+func (s *Scheduler) runActivateStudentsForTenantWithError(ctx context.Context, tenantID int64, now time.Time) error {
 	asOf := timezone.DateFromTime(now)
 
 	pending, err := s.studentLifecycleRepo.FindPendingDueForActivation(ctx, asOf)
@@ -106,8 +130,10 @@ func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID i
 			slog.String("error", err.Error()),
 		)
 	} else {
-		s.applyStatusTransitions(ctx, tenantID, pending,
-			userModels.StudentStatusPending, userModels.StudentStatusActive)
+		if err := s.applyStatusTransitions(ctx, tenantID, pending,
+			userModels.StudentStatusPending, userModels.StudentStatusActive); err != nil {
+			return err
+		}
 	}
 
 	dueInactive, err := s.studentLifecycleRepo.FindActiveDueForDeactivation(ctx, asOf)
@@ -116,16 +142,16 @@ func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID i
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return nil
 	}
-	s.applyStatusTransitions(ctx, tenantID, dueInactive,
+	return s.applyStatusTransitions(ctx, tenantID, dueInactive,
 		userModels.StudentStatusActive, userModels.StudentStatusInactive)
 }
 
 // applyStatusTransitions updates each student to newStatus and emits a slog
-// info entry per transition. Per-row errors are logged and skipped so a
-// single bad row doesn't abort the batch. GDPR: student IDs only — no
-// names at info level (CLAUDE.md backend logging rule).
+// info entry per transition. Status-update errors are logged and skipped;
+// audit errors abort the tenant transaction. GDPR: student IDs only — no names
+// at info level (CLAUDE.md backend logging rule).
 //
 // The write is a compare-and-set on `from` — the status the row carried when the
 // Find query selected it. Between that query and this update a grade transition
@@ -134,13 +160,13 @@ func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID i
 // student past every alumnus read filter and without any of apply's guards. A row
 // whose status moved on is skipped, not an error — the next tick re-evaluates it
 // from current data (#405 review).
-func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, students []*userModels.Student, from, to userModels.StudentStatus) {
+func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, students []*userModels.Student, from, to userModels.StudentStatus) error {
 	if len(students) == 0 {
-		return
+		return nil
 	}
-	transitioned := 0
+	transitions := 0
 	for _, student := range students {
-		updated, err := s.studentLifecycleRepo.UpdateStatusIfCurrent(ctx, student.ID, from, to)
+		applied, err := s.studentLifecycleRepo.TransitionStatus(ctx, student.ID, from, to)
 		if err != nil {
 			s.getLogger().Error("activate-students: update status failed",
 				slog.Int64("tenant_id", tenantID),
@@ -151,16 +177,28 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 			)
 			continue
 		}
-		if !updated {
-			s.getLogger().Info("activate-students: status changed since selection, skipped",
+		if !applied {
+			s.getLogger().Debug("activate-students: status transition skipped after concurrent change",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("student_id", student.ID),
-				slog.String("expected_from", string(from)),
-				slog.String("to", string(to)),
+				slog.String("expected_status", string(from)),
+				slog.String("next_status", string(to)),
 			)
 			continue
 		}
-		transitioned++
+		if s.studentLifecycleAudit != nil {
+			if err := s.studentLifecycleAudit.RecordSystemStatusChange(ctx, student.ID, from, to); err != nil {
+				s.getLogger().Error("activate-students: audit status transition failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("student_id", student.ID),
+					slog.String("from", string(from)),
+					slog.String("to", string(to)),
+					slog.String("error", err.Error()),
+				)
+				return fmt.Errorf("audit student %d status transition: %w", student.ID, err)
+			}
+		}
+		transitions++
 		s.getLogger().Info("student status transition",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("student_id", student.ID),
@@ -172,7 +210,8 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 		slog.Int64("tenant_id", tenantID),
 		slog.String("from", string(from)),
 		slog.String("to", string(to)),
-		slog.Int("transitions", transitioned),
+		slog.Int("transitions", transitions),
 		slog.Int("candidates", len(students)),
 	)
+	return nil
 }

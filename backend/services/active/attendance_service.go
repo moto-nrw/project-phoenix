@@ -148,11 +148,71 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	// "on_yard" is a sub-state of "checked_in" (still on premises) — toggling
 	// from either should perform a checkout. Only "not_checked_in" and
 	// "checked_out" start a fresh check-in.
+	var result *AttendanceResult
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
-		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+	} else {
+		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, now, checkoutTypeToggle)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, now, checkoutTypeToggle)
+	// A staff member marking a student's attendance is working right now —
+	// auto-open their work session so they show as "Anwesend" (issue #1439).
+	s.ensureStaffPresenceForAttendanceResult(ctx, authorizedStaffID, result)
+
+	return result, nil
+}
+
+// attendanceStampSource picks the work-session source channel for the
+// presence auto-stamp: kiosk-driven requests stamp as nfc, web requests as app.
+func attendanceStampSource(ctx context.Context) string {
+	if device.IsIoTDeviceRequest(ctx) {
+		return active.WorkSessionSourceNFC
+	}
+	return active.WorkSessionSourceApp
+}
+
+func (s *service) ensureStaffPresenceForAttendanceResult(
+	ctx context.Context,
+	staffID int64,
+	result *AttendanceResult,
+) {
+	if result == nil || (result.Action == "checked_out" && result.AttendanceID == 0) {
+		return
+	}
+	s.ensureStaffPresence(ctx, staffID, attendanceStampSource(ctx))
+}
+
+// ensureStaffPresence best-effort-opens today's work session for the staff
+// member so the triggering action marks them present (issue #1439). Mirrors
+// the auto-stamp on kiosk session start (assignMultipleSupervisorsNonCritical):
+// failures are logged, never returned, and an already-closed session for
+// today is left untouched (EnsureCheckedIn returns nil, nil).
+func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source string) {
+	if staffID <= 0 || s.WorkSessionService == nil {
+		return
+	}
+
+	s.runBestEffortDB(ctx, "staff_presence_checkin", func() error {
+		session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, source)
+		if err != nil {
+			return err
+		}
+		if session == nil {
+			s.getLogger().DebugContext(ctx, "staff already checked out today, presence auto-stamp skipped",
+				slog.Int64("staff_id", staffID),
+			)
+		}
+		return nil
+	}, func(err error) {
+		s.getLogger().WarnContext(ctx, "auto work-session check-in failed",
+			slog.Int64("staff_id", staffID),
+			slog.String("source", source),
+			slog.String("error", err.Error()),
+		)
+	})
 }
 
 // CheckInStudent applies "in" unconditionally. Concurrency-safe: the
@@ -166,7 +226,14 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 	}
 	now := time.Now()
 	today := timezone.TodayDate()
-	return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+	if err != nil {
+		return nil, err
+	}
+	// Marking a student present marks the acting staff member present too
+	// (issue #1439) — this is the binary-mode web check-in path.
+	s.ensureStaffPresenceForAttendanceResult(ctx, authorizedStaffID, result)
+	return result, nil
 }
 
 // CheckOutStudent applies "out" unconditionally via the state-checked
@@ -184,7 +251,14 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 	if err != nil {
 		return nil, err
 	}
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now(), checkoutTypeWeb)
+	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now(), checkoutTypeWeb)
+	if err != nil {
+		return nil, err
+	}
+	// A real checkout is an on-duty action. Idempotent retries must not create
+	// a work session when they did not mutate attendance.
+	s.ensureStaffPresenceForAttendanceResult(ctx, authorizedStaffID, result)
+	return result, nil
 }
 
 // CheckOutStudentFromDevice applies "out" for an IoT device after resolving

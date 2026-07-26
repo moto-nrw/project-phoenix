@@ -37,6 +37,11 @@ const (
 	// fixes the floor at 2 years; §147 AO / §257 HGB cap the legally
 	// defensible ceiling at 8 years.
 	KeyGDPRTimeTrackingRetentionDays = "gdpr.time_tracking_retention_days"
+	// Retention window (days) for the per-child change history
+	// (audit.student_field_edits, issue #1455). The log answers concrete
+	// day-to-day Rückfragen ("wer hat das geändert"), not long-term archival,
+	// so the window is short and admin-configurable.
+	KeyGDPRStudentChangeLogRetentionDays = "gdpr.student_change_log_retention_days"
 	// Default visit-data retention window (days) applied when a student's
 	// privacy consent does not set its own data_retention_days. Issue #586
 	// (Rule 12): the 30-day default + 1..31 bounds moved off the
@@ -160,6 +165,10 @@ const (
 	// KeyNotificationsAbsenceApprovalEmail toggles the absence-request email
 	// notifications (request received / approved / declined / Rückfrage, #1419).
 	KeyNotificationsAbsenceApprovalEmail = "notifications.absence_approval_email"
+	// KeyNotificationsDispatchEnabled is the feature flag for the notification
+	// abstraction (#1624). When off (the default), Notify(ctx, event) is a
+	// no-op and no channel delivers anything.
+	KeyNotificationsDispatchEnabled = "notifications.dispatch_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.

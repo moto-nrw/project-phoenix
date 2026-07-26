@@ -77,6 +77,10 @@ src/app/
 
 Build all new UI from `src/components/ui/` (and `ui/page-header/`); never hand-roll buttons/cards/modals/tables. Brand colors come only from `LOCATION_COLORS` (`src/lib/location-helper.ts`) via arbitrary-value hex (`bg-[#83CD2D]`) — never generic Tailwind hues (`bg-green-500`), which are different colors. Component map, hex table, radius/spacing tokens, gotchas, and the design checklist: **`.claude/rules/frontend-ui-kit.md`**. Search `src/components/` and `src/lib/` for existing code before writing anything new.
 
+### Before/After Screenshots for UI Changes (MANDATORY)
+
+When a change alters what a school user sees (new screen, migrated component, layout/styling change), produce paired before/after screenshots via the `ui-before-after` skill (`.claude/skills/ui-before-after/`): capture the identical interactions against the base ref and your branch, composite them into `pair-*.png` images, and at the end tell the user the local file paths so they can attach the images to the PR manually (GitHub has no API for native attachment uploads; never host screenshots via releases, tags, or Gists — see the PR-screenshots rule in the root `CLAUDE.md`). Backend-only changes and pure refactors with zero visual delta are exempt, but a consolidation refactor that claims "no visual change" should prove it with a pair.
+
 ## Architecture Patterns
 
 ### Route Handlers (Next.js 16)
@@ -146,7 +150,7 @@ const { status, isConnected, error, reconnectAttempts } = useSSE("/api/sse/event
 ## TypeScript & Linting
 
 - `tsconfig`: `strict`, `noUncheckedIndexedAccess`, paths `~/*` and `@/*` → `./src/*`, target ES2022
-- Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; a custom `date-safety` plugin lives in `scripts/oxlint-plugin-date-safety.mjs`
+- Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; custom plugins live in `scripts/oxlint-plugin-date-safety.mjs` and `scripts/oxlint-plugin-ui-kit.mjs` (UI-kit drift ratchet — shrink-only per-match baselines, see `.claude/rules/frontend-ui-kit.md`)
 - Conventions: `??` over `||` for defaults, `import type` for types, `_` prefix for unused vars, `useSearchParams` needs a Suspense boundary, only server components may be async
 
 @AGENTS.md

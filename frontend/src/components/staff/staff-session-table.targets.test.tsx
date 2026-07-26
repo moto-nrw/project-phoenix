@@ -50,6 +50,7 @@ function renderTable(props: {
   accountStartDatePending?: boolean;
   accountStartDateError?: boolean;
   sessions?: readonly StaffHistorySession[];
+  absences?: readonly StaffAbsenceRow[];
 }) {
   return render(
     <StaffSessionTable
@@ -57,6 +58,7 @@ function renderTable(props: {
       from={from}
       to={to}
       sessions={props.sessions ?? []}
+      absences={props.absences}
       schedule={schedule}
       dailyTargets={props.dailyTargets}
       dailyTargetsError={props.dailyTargetsError}
@@ -207,6 +209,52 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Der Stundenkonto-Start konnte nicht geladen werden.",
     );
+  });
+});
+
+describe("StaffSessionTable Abwesenheitsstatus", () => {
+  it("zeigt comp_time ausdrücklich als Freizeitausgleich", () => {
+    renderTable({
+      dailyTargets: new Map([["2026-01-05", 480]]),
+      absences: [
+        {
+          id: 73,
+          staff_id: 1,
+          absence_type: "comp_time",
+          date_start: "2026-01-05",
+          date_end: "2026-01-05",
+          half_day: false,
+          status: "approved",
+          note: "",
+        },
+      ],
+    });
+
+    expect(screen.getByText("Freizeitausgleich")).toBeInTheDocument();
+  });
+
+  it("kennzeichnet administrativ angelegten halben Freizeitausgleich", () => {
+    renderTable({
+      dailyTargets: new Map([["2026-01-05", 480]]),
+      absences: [
+        {
+          id: 74,
+          staff_id: 1,
+          absence_type: "comp_time",
+          date_start: "2026-01-05",
+          date_end: "2026-01-05",
+          half_day: true,
+          start_half_day: false,
+          end_half_day: false,
+          status: "reported",
+          note: "",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByText("Freizeitausgleich · Halber Tag"),
+    ).toBeInTheDocument();
   });
 });
 

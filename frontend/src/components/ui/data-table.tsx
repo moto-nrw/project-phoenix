@@ -38,6 +38,9 @@ interface DataTableProps<T> {
   // another N per click. Use on tables whose row count is unbounded
   // (persons, accounts) — leave undefined on bounded views (orgs, devices).
   pageSize?: number;
+  // Changing this value resets incremental pagination to the first page.
+  // Callers with externally filtered rows should pass their active filter key.
+  paginationResetKey?: string | number;
 }
 
 const alignClass: Record<
@@ -62,6 +65,7 @@ export function DataTable<T>({
   defaultSortKey,
   defaultSortDirection = "asc",
   pageSize,
+  paginationResetKey,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
 
@@ -104,11 +108,12 @@ export function DataTable<T>({
   const [visibleCount, setVisibleCount] = useState(
     pageSize ?? Number.POSITIVE_INFINITY,
   );
-  // If the caller toggles pageSize on/off after mount, snap the visible window
-  // back to the new page size so we never strand the user on a stale slice.
+  // If the caller changes the page size or active filters, snap the visible
+  // window back to the first page so a narrower result never inherits a
+  // previously expanded row count.
   useEffect(() => {
     setVisibleCount(pageSize ?? Number.POSITIVE_INFINITY);
-  }, [pageSize]);
+  }, [pageSize, paginationResetKey]);
   const visibleRows = useMemo(() => {
     if (visibleCount >= sortedRows.length) return sortedRows;
     return sortedRows.slice(0, visibleCount);

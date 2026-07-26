@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	// 1.15.227 is this branch's previous migration; see the version note there
-	// for why this branch sits above development's 1.15.226.
-	gradeTransitionRosterRemovalsVersion     = "1.15.228"
+	// 1.15.229 is this branch's previous migration; see the version note there
+	// for why this branch sits above development's 1.15.228.
+	gradeTransitionRosterRemovalsVersion     = "1.15.230"
 	gradeTransitionRosterRemovalsDescription = "Record which timetable roster rows a grade transition removed so a revert restores exactly those rows"
 )
 
@@ -66,7 +66,7 @@ func init() {
 // composite form makes the tenant boundary a database invariant instead of a
 // convention (#405 review).
 func gradeTransitionRosterRemovalsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.223: Creating schedule.grade_transition_roster_removals...")
+	fmt.Println("Migration 1.15.230: Creating schedule.grade_transition_roster_removals...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -139,7 +139,7 @@ func gradeTransitionRosterRemovalsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func gradeTransitionRosterRemovalsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.223: Dropping schedule.grade_transition_roster_removals...")
+	fmt.Println("Rolling back migration 1.15.230: Dropping schedule.grade_transition_roster_removals...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

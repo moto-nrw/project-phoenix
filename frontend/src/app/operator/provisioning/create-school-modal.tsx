@@ -9,6 +9,7 @@ import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { FormField, FormError, VisibilityToggle } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateSchoolModal" });
@@ -76,12 +77,14 @@ export function CreateSchoolModal({
   const handleCreate = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (
-        !schoolOrgId ||
-        !schoolName.trim() ||
-        !schoolSlug.trim() ||
-        !schoolSubdomain.trim()
-      )
+      // CustomSelect's `required` is ARIA-only — it does not join native form
+      // constraint validation, so an Enter-submit with no organization lands
+      // here and must produce a visible error instead of a silent return.
+      if (!schoolOrgId) {
+        setSchoolError("Bitte wählen Sie einen Träger aus.");
+        return;
+      }
+      if (!schoolName.trim() || !schoolSlug.trim() || !schoolSubdomain.trim())
         return;
       if (!isValidSlug(schoolSlug)) {
         setSchoolError(
@@ -190,20 +193,21 @@ export function CreateSchoolModal({
         id="create-school-form"
       >
         <FormField label="Träger" htmlFor="school-org" required>
-          <select
+          <CustomSelect
             id="school-org"
+            ariaLabel="Träger"
             value={schoolOrgId}
-            onChange={(e) => setSchoolOrgId(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            options={[
+              { value: "", label: "Träger auswählen..." },
+              ...(organizations?.map((org) => ({
+                value: org.id,
+                label: org.name,
+              })) ?? []),
+            ]}
+            onChange={setSchoolOrgId}
+            placeholder="Träger auswählen..."
             required
-          >
-            <option value="">Träger auswählen...</option>
-            {organizations?.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </select>
+          />
         </FormField>
         <FormField label="Name" htmlFor="school-name" required>
           <input

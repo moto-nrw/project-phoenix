@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -28,10 +29,9 @@ import {
   formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
-import { timetableRequiredMark, timetableSelectClass } from "./timetable-style";
+import { timetableRequiredMark } from "./timetable-style";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
-const FORM_SELECT_CLASS = timetableSelectClass;
 
 interface CalendarPeriodModalProps {
   isOpen: boolean;
@@ -406,18 +406,16 @@ export function CalendarPeriodModal({
         </Field>
 
         <Field label="Art" htmlFor="period_type" required>
-          <select
+          <CustomSelect
             id="period_type"
+            ariaLabel="Art"
             value={form.periodType}
-            onChange={(e) => update("periodType", e.target.value as PeriodType)}
-            className={FORM_SELECT_CLASS}
-          >
-            {PERIOD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {PERIOD_TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
+            options={PERIOD_TYPES.map((t) => ({
+              value: t,
+              label: PERIOD_TYPE_LABELS[t],
+            }))}
+            onChange={(next) => update("periodType", next as PeriodType)}
+          />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">

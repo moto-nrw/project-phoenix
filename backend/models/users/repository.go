@@ -128,13 +128,13 @@ type StudentRepository interface {
 	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
 	// Unconditional: it overwrites whatever status the row currently carries, so
 	// it must NOT be used by background lifecycle work that decided on a status
-	// it read earlier — use UpdateStatusIfCurrent for that.
+	// it read earlier — use TransitionStatus for that.
 	UpdateStatus(ctx context.Context, studentID int64, newStatus StudentStatus) error
 
-	// UpdateStatusIfCurrent is the compare-and-set form: the row flips to
-	// newStatus only while it still holds expectedStatus. Reports whether it did.
+	// TransitionStatus is the compare-and-set form: the row flips to next only
+	// while it still holds expected. Returns false for a stale transition.
 	// Tenant-scoped via context.
-	UpdateStatusIfCurrent(ctx context.Context, studentID int64, expectedStatus, newStatus StudentStatus) (bool, error)
+	TransitionStatus(ctx context.Context, studentID int64, expected, next StudentStatus) (bool, error)
 
 	// FindPendingDueForActivation returns students whose status='pending' AND
 	// enrolled_from <= asOf within the current tenant context. Used by the

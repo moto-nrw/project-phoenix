@@ -1,0 +1,299 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import type {
+  CarePlanDay,
+  CarePlanInstance,
+} from "~/lib/student-care-plan-api";
+
+import { CarePlanDayTimeline } from "./care-plan-day";
+
+function instance(over: Partial<CarePlanInstance> = {}): CarePlanInstance {
+  return {
+    id: "1",
+    title: "Mittagessen",
+    startTime: "12:00",
+    endTime: "13:00",
+    roomId: "1",
+    status: "planned",
+    activeGroupId: null,
+    attendance: {
+      status: "expected",
+      substatus: null,
+      note: null,
+      checkedInAt: null,
+      checkedOutAt: null,
+      isUnplanned: false,
+    },
+    ...over,
+  };
+}
+
+function day(over: Partial<CarePlanDay> = {}): CarePlanDay {
+  return {
+    studentId: "1",
+    date: "2026-07-22",
+    weekday: 3,
+    arrival: { expectedTime: "08:00", source: "schedule" },
+    instances: [],
+    pickup: { expectedTime: "15:30", source: "schedule" },
+    ...over,
+  };
+}
+
+describe("CarePlanDayTimeline", () => {
+  it("renders arrival and pickup anchors", () => {
+    render(<CarePlanDayTimeline day={day()} deviation={null} />);
+    expect(screen.getByText("Ankunft")).toBeInTheDocument();
+    expect(screen.getByText("08:00")).toBeInTheDocument();
+    expect(screen.getByText("Abholung")).toBeInTheDocument();
+    expect(screen.getByText("15:30")).toBeInTheDocument();
+  });
+
+  it("renders a Freie Betreuung band for the empty arrival→pickup window", () => {
+    render(<CarePlanDayTimeline day={day()} deviation={null} />);
+    expect(screen.getByText("Freie Betreuung")).toBeInTheDocument();
+    expect(screen.getByText("08:00–15:30")).toBeInTheDocument();
+  });
+
+  it("renders an activity block with its time and attendance state", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          instances: [
+            instance({
+              attendance: {
+                status: "present",
+                substatus: null,
+                note: null,
+                checkedInAt: null,
+                checkedOutAt: null,
+                isUnplanned: false,
+              },
+            }),
+          ],
+        })}
+        deviation={null}
+      />,
+    );
+    expect(screen.getByText("Mittagessen")).toBeInTheDocument();
+    expect(screen.getByText("12:00–13:00")).toBeInTheDocument();
+    expect(screen.getByText(/anwesend/)).toBeInTheDocument();
+  });
+
+  it("marks a cancelled instance as abgesagt", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({ instances: [instance({ status: "cancelled" })] })}
+        deviation={null}
+      />,
+    );
+    expect(screen.getByText(/abgesagt/)).toBeInTheDocument();
+  });
+
+  it("keeps a cancelled block out of the chronological timeline it no longer occupies", () => {
+    // A cancelled 12:00–13:00 activity frees its slot, so the free-care band
+    // spans the whole 08:00–15:30 window. Listing the block chronologically as
+    // well would put two contradictory entries over the same minutes, so it
+    // moves to its own "Abgesagt" section — still visible, no longer overlapping.
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          instances: [
+            instance({ status: "cancelled" }),
+            instance({
+              id: "2",
+              title: "Lernzeit",
+              startTime: "13:00",
+              endTime: "14:00",
+            }),
+          ],
+        })}
+        deviation={null}
+      />,
+    );
+
+    // Free care now runs straight through the cancelled slot (08:00–13:00)
+    // instead of stopping at 12:00 and resuming at 13:00 around a block that
+    // is not happening.
+    expect(screen.getAllByText("Freie Betreuung")).toHaveLength(2);
+    expect(screen.getByText("08:00–13:00")).toBeInTheDocument();
+    expect(screen.getByText("14:00–15:30")).toBeInTheDocument();
+
+    // Cancelled entry is present, labelled, and rendered after the live plan.
+    expect(screen.getByText("Abgesagt")).toBeInTheDocument();
+    expect(screen.getByText(/abgesagt/)).toBeInTheDocument();
+
+    const order = screen
+      .getAllByText(/Mittagessen|Lernzeit|Abgesagt/)
+      .map((el) => el.textContent);
+    expect(order.indexOf("Abgesagt")).toBeGreaterThan(
+      order.indexOf("Lernzeit"),
+    );
+  });
+
+  it("hides the Abgesagt label in compact (week-column) mode", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({ instances: [instance({ status: "cancelled" })] })}
+        deviation={null}
+        compact
+      />,
+    );
+    // Too narrow to spend a line on a heading; the struck-through title and the
+    // "abgesagt" tag already identify the block.
+    expect(screen.queryByText("Abgesagt")).not.toBeInTheDocument();
+    expect(screen.getByText(/abgesagt/)).toBeInTheDocument();
+  });
+
+  it("shows the deviation banner and suppresses the plan for an all-day absence", () => {
+    // A status-day deviation (Krank/Entschuldigt/Klassenfahrt) IS an all-day
+    // absence, so the normal timeline must not render beneath the banner even
+    // though the day itself carries a plan and no no-time exception.
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          arrival: { expectedTime: "08:00", source: "schedule" },
+          instances: [instance()],
+          pickup: { expectedTime: "15:30", source: "schedule" },
+        })}
+        deviation={{ kind: "sick", label: "Krank", note: "Fieber" }}
+      />,
+    );
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.getByText(/Fieber/)).toBeInTheDocument();
+    // Plan suppressed: no anchors, no activity block, no free-care band.
+    expect(screen.queryByText("Ankunft")).not.toBeInTheDocument();
+    expect(screen.queryByText("Abholung")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Freie Betreuung")).not.toBeInTheDocument();
+    // The banner stands alone — no duplicate absence notice.
+    expect(screen.queryByText("Kommt heute nicht")).not.toBeInTheDocument();
+  });
+
+  it("surfaces an exception arrival as abweichend with its reason", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          arrival: {
+            expectedTime: "09:00",
+            source: "exception",
+            reason: "Arzttermin",
+          },
+        })}
+        deviation={null}
+      />,
+    );
+    expect(screen.getByText("abweichend")).toBeInTheDocument();
+    expect(screen.getByText(/Arzttermin/)).toBeInTheDocument();
+  });
+
+  it("renders a no-time arrival exception as an absence and suppresses the plan", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          arrival: {
+            expectedTime: null,
+            source: "exception",
+            reason: "krank gemeldet",
+          },
+          instances: [instance()],
+        })}
+        deviation={null}
+      />,
+    );
+    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+    expect(screen.getByText(/krank gemeldet/)).toBeInTheDocument();
+    // The normal plan is suppressed for an absence day.
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Abholung")).not.toBeInTheDocument();
+    expect(screen.queryByText("Freie Betreuung")).not.toBeInTheDocument();
+  });
+
+  it("treats a no-time pickup exception as an absence too (arrival present)", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          arrival: { expectedTime: "08:00", source: "schedule" },
+          pickup: {
+            expectedTime: null,
+            source: "exception",
+            reason: "Krank",
+          },
+          instances: [instance()],
+        })}
+        deviation={null}
+      />,
+    );
+    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+    expect(screen.getByText(/Krank/)).toBeInTheDocument();
+    // Plan (incl. the arrival anchor) is suppressed for the absence day.
+    expect(screen.queryByText("Ankunft")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
+  });
+
+  it("lets the deviation banner stand in for the absence notice when both apply", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          arrival: { expectedTime: null, source: "exception" },
+          instances: [instance()],
+        })}
+        deviation={{ kind: "sick", label: "Krank", note: null }}
+      />,
+    );
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    // No duplicate absence notice, and the plan stays suppressed.
+    expect(screen.queryByText("Kommt heute nicht")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state when the day has no plan", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          arrival: { expectedTime: null, source: "none" },
+          pickup: { expectedTime: null, source: "none" },
+        })}
+        deviation={null}
+      />,
+    );
+    expect(
+      screen.getByText("Kein Betreuungsplan für diesen Tag."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders null day (no data) as the empty state", () => {
+    render(<CarePlanDayTimeline day={null} deviation={null} />);
+    expect(
+      screen.getByText("Kein Betreuungsplan für diesen Tag."),
+    ).toBeInTheDocument();
+  });
+
+  it("fires onEditSchedule from the cross-link in the full (non-compact) view", () => {
+    const onEditSchedule = vi.fn();
+    render(
+      <CarePlanDayTimeline
+        day={day()}
+        deviation={null}
+        onEditSchedule={onEditSchedule}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeiten bearbeiten" }));
+    expect(onEditSchedule).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the cross-link in compact (week-column) mode", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day()}
+        deviation={null}
+        compact
+        onEditSchedule={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Zeiten bearbeiten" }),
+    ).not.toBeInTheDocument();
+  });
+});

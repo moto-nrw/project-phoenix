@@ -6,6 +6,8 @@ import { useSWRConfig } from "swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { Alert } from "~/components/ui/alert";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
 import type {
   StaffAbsenceRow,
@@ -364,6 +366,7 @@ export function StaffSessionTable({
               const status = computeRowStatus(
                 session,
                 absence,
+                key,
                 holidayName,
                 closingReason,
                 target,
@@ -659,7 +662,7 @@ function SessionEditHistory({
 type RowStatus =
   | { kind: "present" }
   | { kind: "home-office" }
-  | { kind: "absence"; absenceType: string }
+  | { kind: "absence"; absenceType: string; halfDay: boolean }
   | { kind: "holiday"; name: string }
   | { kind: "closing"; reason: string }
   | { kind: "missing" };
@@ -698,6 +701,7 @@ function PlannedShiftCell({
 function computeRowStatus(
   session: StaffHistorySession | undefined,
   absence: StaffAbsenceRow | undefined,
+  dateKey: string,
   holidayName: string | undefined,
   closingReason: string | undefined,
   target: number,
@@ -724,33 +728,25 @@ function computeRowStatus(
   // Absence wins over "missing" so an admin sees Krank/Urlaub instead of a
   // misleading "Nicht erfasst" badge (the MA-side already does this).
   if (absence) {
-    return { kind: "absence", absenceType: absence.absence_type };
+    const startDate = absence.date_start.slice(0, 10);
+    const endDate = absence.date_end.slice(0, 10);
+    const legacyHalfDay =
+      absence.half_day && !absence.start_half_day && !absence.end_half_day;
+    const halfDay =
+      legacyHalfDay ||
+      (dateKey === startDate && Boolean(absence.start_half_day)) ||
+      (dateKey === endDate && Boolean(absence.end_half_day));
+    return {
+      kind: "absence",
+      absenceType: absence.absence_type,
+      halfDay,
+    };
   }
   if (target > 0 && !isFuture) {
     return { kind: "missing" };
   }
   return null;
 }
-
-// German labels for the absence_type enum. Mirrors absenceTypeLabels in
-// time-tracking-helpers.ts so the admin staff detail view shows the same
-// wording as the MA-Sicht.
-const absenceTypeLabel: Record<string, string> = {
-  sick: "Krank",
-  vacation: "Urlaub",
-  training: "Fortbildung",
-  other: "Abwesend",
-};
-
-// Tailwind classes per absence_type. Sick = red, vacation = blue,
-// training = green, other = purple (matches absenceTypeColors in
-// time-tracking-helpers.ts).
-const absenceTypeBadge: Record<string, string> = {
-  sick: "bg-red-100 text-red-800",
-  vacation: "bg-blue-100 text-blue-800",
-  training: "bg-green-100 text-green-800",
-  other: "bg-purple-100 text-purple-800",
-};
 
 function StatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
@@ -788,17 +784,14 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
     );
   }
   if (status.kind === "absence") {
-    const label =
-      absenceTypeLabel[status.absenceType] ?? absenceTypeLabel.other!;
-    const classes =
-      absenceTypeBadge[status.absenceType] ?? absenceTypeBadge.other!;
-    return (
-      <span
-        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}
-      >
-        {label}
-      </span>
-    );
+    const absenceLabel =
+      ABSENCE_TYPE_LABEL[status.absenceType] ?? ABSENCE_TYPE_LABEL.other!;
+    const label = status.halfDay
+      ? `${absenceLabel} · Halber Tag`
+      : absenceLabel;
+    const color =
+      ABSENCE_TYPE_HEX[status.absenceType] ?? ABSENCE_TYPE_HEX.other!;
+    return <StatusDotBadge label={label} color={color} />;
   }
   return (
     <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-500">

@@ -20,4 +20,19 @@ func init() {
 		Category:        "zeiterfassung",
 		SortOrder:       5,
 	})
+
+	// Feature flag for the notification abstraction (#1624). Default off:
+	// Notify(ctx, event) is a no-op until a school explicitly enables it.
+	config.Register(config.Definition{
+		Key:             config.KeyNotificationsDispatchEnabled,
+		Label:           "Benachrichtigungen aktivieren",
+		Description:     "Aktiviert die zentrale Benachrichtigungs-Funktion (In-App-Hinweise, Grundlage für spätere Erinnerungen und Push-Nachrichten). Standardmäßig deaktiviert.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "benachrichtigungen",
+		SortOrder:       1,
+	})
 }

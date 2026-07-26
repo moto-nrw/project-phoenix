@@ -852,9 +852,8 @@ describe("GuardianFormModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Portalrolle"), {
-      target: { value: "pickup_only" },
-    });
+    fireEvent.click(screen.getByLabelText("Portalrolle"));
+    fireEvent.click(screen.getByRole("option", { name: "Nur Abholung" }));
 
     expect(screen.getByLabelText("Hauptansprechpartner")).not.toBeChecked();
     expect(screen.getByLabelText("Abholberechtigt")).toBeChecked();
@@ -873,11 +872,12 @@ describe("GuardianFormModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Beziehung zum Kind"), {
-      target: { value: "relative" },
-    });
+    fireEvent.click(screen.getByLabelText("Beziehung zum Kind"));
+    fireEvent.click(screen.getByRole("option", { name: "Verwandte/r" }));
 
-    expect(screen.getByLabelText("Portalrolle")).toHaveValue("custom");
+    expect(screen.getByLabelText("Portalrolle")).toHaveTextContent(
+      "Individuell",
+    );
   });
 
   it("shows loading state during submission", async () => {

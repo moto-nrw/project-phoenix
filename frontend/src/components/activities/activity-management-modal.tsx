@@ -12,6 +12,7 @@ import { useActivityForm } from "~/hooks/useActivityForm";
 import { createLogger } from "~/lib/logger";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { getApiErrorMessage } from "~/lib/api-error-message";
@@ -397,11 +398,14 @@ export function ActivityManagementModal({
             </div>
           </div>
 
-          {/* Category Card - Compact */}
-          <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
-            <div className="absolute top-1 left-1 h-10 w-10 rounded-full bg-gray-100/20 blur-xl"></div>
+          {/* Category Card - Compact — no overflow-hidden on the card itself: it would clip the CustomSelect menu */}
+          <div className="relative rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+              <div className="absolute top-1 left-1 h-10 w-10 rounded-full bg-gray-100/20 blur-xl"></div>
+            </div>
             <div className="relative">
               <label
+                id="category_id-label"
                 htmlFor="category_id"
                 className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
               >
@@ -410,38 +414,26 @@ export function ActivityManagementModal({
                 </div>
                 Kategorie
               </label>
-              <div className="relative">
-                <select
-                  id="category_id"
-                  name="category_id"
-                  value={form.category_id}
-                  onChange={handleInputChange}
-                  className="block w-full cursor-pointer appearance-none rounded-lg border-0 bg-white/80 px-3 py-3 pr-10 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
-                  required
-                  disabled={readOnly}
-                >
-                  <option value="">Kategorie wählen...</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg
-                    className="h-5 w-5 text-gray-400 md:h-4 md:w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              </div>
+              <CustomSelect
+                id="category_id"
+                name="category_id"
+                ariaLabelledBy="category_id-label"
+                value={form.category_id}
+                onChange={(next) => {
+                  setForm((prev) => ({ ...prev, category_id: next }));
+                  setError(null);
+                }}
+                options={[
+                  { value: "", label: "Kategorie wählen..." },
+                  ...categories.map((category) => ({
+                    value: category.id,
+                    label: category.name,
+                  })),
+                ]}
+                placeholder="Kategorie wählen..."
+                required
+                disabled={readOnly}
+              />
             </div>
           </div>
 

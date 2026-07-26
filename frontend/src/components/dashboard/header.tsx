@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { LogoutModal } from "~/components/ui/logout-modal";
-import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
+import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
@@ -171,13 +171,25 @@ export function Header() {
             isScrolled ? "h-12 lg:h-16" : "h-14 lg:h-16"
           }`}
         >
-          {/* Left section: Logo + Brand + Context */}
-          <div className="flex flex-shrink-0 items-center space-x-4">
-            <BrandLink
-              isScrolled={isScrolled}
-              href={homeUrl}
-              label={brandLabel}
-            />
+          {/* Left section: Logo + Brand + Context — must be allowed to
+              shrink (min-w-0) so long tenant names / breadcrumbs truncate
+              instead of pushing the header past the viewport (#2011) */}
+          <div className="flex min-w-0 flex-1 items-center space-x-4">
+            {mode === "teacher" ? (
+              // Brand doubles as tenant switcher when the account has
+              // multiple tenants; renders a plain BrandLink otherwise.
+              <BrandTenantSwitcher
+                isScrolled={isScrolled}
+                href={homeUrl}
+                label={brandLabel}
+              />
+            ) : (
+              <BrandLink
+                isScrolled={isScrolled}
+                href={homeUrl}
+                label={brandLabel}
+              />
+            )}
             <BreadcrumbDivider />
             <HeaderBreadcrumb
               pathname={pathname}
@@ -197,7 +209,7 @@ export function Header() {
           </div>
 
           {/* Right section: Actions + Profile */}
-          <div className="ml-auto flex items-center space-x-3">
+          <div className="ml-auto flex flex-shrink-0 items-center space-x-3">
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
@@ -211,7 +223,6 @@ export function Header() {
             </div>
 
             {mode === "teacher" ? <RemindersBell /> : null}
-            {mode === "teacher" ? <TenantSwitcher /> : null}
             {mode === "parent" ? <LanguageSwitcher compact /> : null}
 
             {/* User menu */}

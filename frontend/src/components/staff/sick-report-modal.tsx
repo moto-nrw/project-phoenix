@@ -32,6 +32,7 @@ export interface SickReportStaff {
 interface SickReportModalProps {
   readonly isOpen: boolean;
   readonly staff: SickReportStaff;
+  readonly absenceType?: "sick" | "comp_time";
   readonly onClose: () => void;
   // Fired once the absence was created successfully, so the caller can
   // revalidate the Dienst-/Betreuungs-/Vertretungsplan caches (#1843).
@@ -41,6 +42,7 @@ interface SickReportModalProps {
 export function SickReportModal({
   isOpen,
   staff,
+  absenceType = "sick",
   onClose,
   onCreated,
 }: SickReportModalProps) {
@@ -67,9 +69,10 @@ export function SickReportModal({
       setCreatedStart(null);
       setSubmitting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, absenceType]);
 
   const staffName = `${staff.firstName} ${staff.lastName}`;
+  const isCompTime = absenceType === "comp_time";
 
   const handleStartDateChange = (picked: Date | null) => {
     const nextStart = picked ? toISODate(picked) : "";
@@ -91,7 +94,7 @@ export function SickReportModal({
     setError(null);
     try {
       const created = await staffAbsenceService.createAbsence(staff.id, {
-        absence_type: "sick",
+        absence_type: absenceType,
         date_start: dateStart,
         date_end: halfDay ? dateStart : dateEnd,
         half_day: halfDay || undefined,
@@ -100,14 +103,17 @@ export function SickReportModal({
       onCreated(created);
       setCreatedStart(dateStart);
     } catch (err) {
-      logger.error("sick_report_failed", {
+      logger.error("managed_absence_create_failed", {
         staff_id: staff.id,
+        absence_type: absenceType,
         error: err instanceof Error ? err.message : String(err),
       });
       setError(
         err instanceof Error && err.message
           ? err.message
-          : "Krankmeldung fehlgeschlagen.",
+          : isCompTime
+            ? "Freizeitausgleich konnte nicht eingetragen werden."
+            : "Krankmeldung fehlgeschlagen.",
       );
     } finally {
       setSubmitting(false);
@@ -131,14 +137,16 @@ export function SickReportModal({
       <Button type="button" variant="outline" size="md" onClick={onClose}>
         Schließen
       </Button>
-      <Button
-        type="button"
-        variant="primary"
-        size="md"
-        onClick={goToVertretung}
-      >
-        Zur Vertretung
-      </Button>
+      {!isCompTime && (
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={goToVertretung}
+        >
+          Zur Vertretung
+        </Button>
+      )}
     </>
   ) : (
     <>
@@ -157,10 +165,10 @@ export function SickReportModal({
         size="md"
         onClick={handleSubmit}
         isLoading={submitting}
-        loadingText="Wird gemeldet…"
+        loadingText={isCompTime ? "Wird eingetragen…" : "Wird gemeldet…"}
         disabled={submitting || !dateStart || (!halfDay && !dateEnd)}
       >
-        Krank melden
+        {isCompTime ? "Freizeitausgleich eintragen" : "Krank melden"}
       </Button>
     </>
   );
@@ -169,7 +177,7 @@ export function SickReportModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Krank melden: ${staffName}`}
+      title={`${isCompTime ? "Freizeitausgleich eintragen" : "Krank melden"}: ${staffName}`}
       size="md"
       footer={footer}
     >
@@ -178,22 +186,37 @@ export function SickReportModal({
           <Alert
             type="success"
             message={
-              halfDay
-                ? `${staffName} ist am ${formatDate(createdStart)} für einen halben Tag krank gemeldet. Dienst- und Betreuungsplan wurden nicht automatisch geändert.`
-                : `${staffName} ist ab dem ${formatDate(createdStart)} als krank gemeldet. Reguläre Schichten wurden storniert und Betreuungsblöcke als abwesend markiert.`
+              isCompTime
+                ? `${staffName} hat ab dem ${formatDate(createdStart)} Freizeitausgleich. Dafür wird keine Sollzeit gutgeschrieben.${halfDay ? " Die gearbeitete Hälfte muss separat erfasst sein." : ""}`
+                : halfDay
+                  ? `${staffName} ist am ${formatDate(createdStart)} für einen halben Tag krank gemeldet. Dienst- und Betreuungsplan wurden nicht automatisch geändert.`
+                  : `${staffName} ist ab dem ${formatDate(createdStart)} als krank gemeldet. Reguläre Schichten wurden storniert und Betreuungsblöcke als abwesend markiert.`
             }
           />
-          <p className="text-gray-600">
-            Öffne die Vertretung, um offene Betreuungsblöcke neu zu besetzen.
-          </p>
+          {!isCompTime && (
+            <p className="text-gray-600">
+              Öffne die Vertretung, um offene Betreuungsblöcke neu zu besetzen.
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Die Krankmeldung storniert die geplanten Schichten von {staffName}{" "}
-            im gewählten Zeitraum und markiert betroffene Betreuungsblöcke als
-            abwesend. Bereits eingetragene Vertretungsschichten müssen manuell
-            geprüft werden.
+            {isCompTime ? (
+              <>
+                Der Freizeitausgleich reduziert das Stundenkonto von {staffName}{" "}
+                um das Tagessoll im gewählten Zeitraum. Bei einem halben Tag
+                muss die andere Hälfte als Arbeitszeit erfasst sein; nicht
+                erfasste Zeit bleibt als Minus bestehen.
+              </>
+            ) : (
+              <>
+                Die Krankmeldung storniert die geplanten Schichten von{" "}
+                {staffName} im gewählten Zeitraum und markiert betroffene
+                Betreuungsblöcke als abwesend. Bereits eingetragene
+                Vertretungsschichten müssen manuell geprüft werden.
+              </>
+            )}
           </p>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -231,11 +254,11 @@ export function SickReportModal({
               accessible without swallowing the hint text. */}
           <div>
             <label
-              htmlFor="sick-report-half-day"
+              htmlFor="managed-absence-half-day"
               className="flex items-center gap-2"
             >
               <Checkbox
-                id="sick-report-half-day"
+                id="managed-absence-half-day"
                 checked={halfDay}
                 onChange={(e) => handleHalfDayChange(e.target.checked)}
               />
@@ -244,17 +267,22 @@ export function SickReportModal({
               </span>
             </label>
             <p className="mt-1 text-xs text-gray-500">
-              Halbe Tage gelten für ein einzelnes Datum und ändern den Dienst-
-              und Betreuungsplan nicht automatisch.
+              {isCompTime
+                ? "Halbe Tage gelten für ein einzelnes Datum. Die gearbeitete Hälfte muss separat erfasst werden."
+                : "Halbe Tage gelten für ein einzelnes Datum und ändern den Dienst- und Betreuungsplan nicht automatisch."}
             </p>
           </div>
 
           <Input
-            name="sick-report-note"
+            name="managed-absence-note"
             label="Notiz (optional)"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="z. B. Grippe, Arzttermin …"
+            placeholder={
+              isCompTime
+                ? "z. B. Überstundenabbau …"
+                : "z. B. Grippe, Arzttermin …"
+            }
           />
 
           {error && <Alert type="error" message={error} />}

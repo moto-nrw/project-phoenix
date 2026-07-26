@@ -129,6 +129,7 @@ type studentService struct {
 	studentRepo        userModels.StudentRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	companionRepo      userModels.StudentCompanionRepository
+	studentAudit       StudentChangeRecorder
 }
 
 // NewStudentService creates a StudentService backed by the student-domain
@@ -137,11 +138,13 @@ func NewStudentService(
 	studentRepo userModels.StudentRepository,
 	privacyConsentRepo userModels.PrivacyConsentRepository,
 	companionRepo userModels.StudentCompanionRepository,
+	studentAudit StudentChangeRecorder,
 ) StudentService {
 	return &studentService{
 		studentRepo:        studentRepo,
 		privacyConsentRepo: privacyConsentRepo,
 		companionRepo:      companionRepo,
+		studentAudit:       studentAudit,
 	}
 }
 
@@ -676,6 +679,11 @@ type CompanionUpdate struct {
 	// grew a further day between the question and the answer must not ride along
 	// on the earlier yes.
 	AuthorizedExtensions map[int64]map[string]bool
+
+	// ActorAccountID is the authenticated account that confirmed widening
+	// another child's departure plan. It is required when an audit recorder is
+	// configured and ExtendCompanionPlans causes an effective change.
+	ActorAccountID int64
 }
 
 // CompanionConflict names a companion whose departure plan does not permit
@@ -721,7 +729,7 @@ func (s *studentService) ReplaceCompanions(ctx context.Context, studentID int64,
 					}
 				}
 			}
-			if err := s.extendAccompaniedDays(ctx, conflict.StudentID, conflict.Weekdays); err != nil {
+			if err := s.extendAccompaniedDays(ctx, conflict.StudentID, conflict.Weekdays, update.ActorAccountID); err != nil {
 				return nil, err
 			}
 		}
@@ -935,7 +943,12 @@ func missingAccompaniedDays(companion *userModels.Student, requested []string) [
 // unlocked snapshot resolveCompanions took: widening writes the WHOLE student
 // row, so a sick/group/consent/photo change that another request committed in
 // between would be silently rolled back by a stale snapshot write.
-func (s *studentService) extendAccompaniedDays(ctx context.Context, companionID int64, days []string) error {
+func (s *studentService) extendAccompaniedDays(
+	ctx context.Context,
+	companionID int64,
+	days []string,
+	actorAccountID int64,
+) error {
 	companion, err := s.studentRepo.FindByIDForUpdate(ctx, companionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -955,6 +968,10 @@ func (s *studentService) extendAccompaniedDays(ctx context.Context, companionID 
 	if len(missing) == 0 {
 		return nil
 	}
+	if s.studentAudit != nil && actorAccountID <= 0 {
+		return errors.New("users: companion departure audit requires an actor account")
+	}
+	before := *companion
 
 	companion.AllowedDepartureModes = userModels.WithAccompaniedDays(
 		companion.AllowedDepartureModes, missing,
@@ -965,7 +982,15 @@ func (s *studentService) extendAccompaniedDays(ctx context.Context, companionID 
 	// uncovered here on purpose — the repository probes the stored edges for
 	// those, which is the only thing that can honestly answer for them.
 	companion.MarkDepartureCompanionDays(days...)
-	return s.studentRepo.Update(ctx, companion)
+	if err := s.studentRepo.Update(ctx, companion); err != nil {
+		return err
+	}
+	if s.studentAudit != nil {
+		if err := s.studentAudit.RecordChangesForActor(ctx, &before, companion, actorAccountID); err != nil {
+			return fmt.Errorf("users: audit companion departure plan: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *studentService) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {

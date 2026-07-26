@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { SelectField } from "./select-field";
 
 const options = [
@@ -10,30 +10,25 @@ const options = [
 
 describe("SelectField", () => {
   it("renders options", () => {
-    const { container } = render(
-      <SelectField value="de" onChange={vi.fn()} options={options} />,
-    );
-    const select = container.querySelector("select") as HTMLSelectElement;
-    expect(select.options).toHaveLength(3);
-    expect(select.value).toBe("de");
+    render(<SelectField value="de" onChange={vi.fn()} options={options} />);
+    const trigger = screen.getByRole("combobox");
+    expect(trigger).toHaveTextContent("Deutsch");
+    fireEvent.click(trigger);
+    expect(screen.getAllByRole("option")).toHaveLength(3);
   });
 
   it("calls onChange with selected value", () => {
     const onChange = vi.fn();
-    const { container } = render(
-      <SelectField value="de" onChange={onChange} options={options} />,
-    );
-    const select = container.querySelector("select") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "en" } });
+    render(<SelectField value="de" onChange={onChange} options={options} />);
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "English" }));
     expect(onChange).toHaveBeenCalledWith("en");
   });
 
   it("is disabled when disabled prop is set", () => {
-    const { container } = render(
+    render(
       <SelectField value="de" onChange={vi.fn()} options={options} disabled />,
     );
-    expect(
-      (container.querySelector("select") as HTMLSelectElement).disabled,
-    ).toBe(true);
+    expect(screen.getByRole("combobox")).toBeDisabled();
   });
 });

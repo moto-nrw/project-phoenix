@@ -51,7 +51,44 @@ vi.mock("~/env", () => ({
   },
 }));
 
-import { TenantSwitcher } from "./tenant-switcher";
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    className,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    href: string;
+    className?: string;
+    onClick?: () => void;
+  }) => (
+    <a href={href} className={className} onClick={onClick}>
+      {children}
+    </a>
+  ),
+}));
+
+vi.mock("next/image", () => ({
+  default: ({
+    src,
+    alt,
+    width,
+    height,
+  }: {
+    src: string;
+    alt: string;
+    width: number;
+    height: number;
+  }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} width={width} height={height} />
+  ),
+}));
+
+import { BrandTenantSwitcher } from "./tenant-switcher";
+
+const TRIGGER_LABEL = "Einrichtung wechseln";
 
 // ============================================================================
 // Test Data
@@ -91,7 +128,7 @@ const tenantC = {
 // Tests
 // ============================================================================
 
-describe("TenantSwitcher", () => {
+describe("BrandTenantSwitcher", () => {
   let originalLocation: Location;
 
   beforeEach(() => {
@@ -121,63 +158,82 @@ describe("TenantSwitcher", () => {
     });
   });
 
-  it("skips tenant fetch when not authenticated", async () => {
+  function openDropdown() {
+    fireEvent.click(screen.getByRole("button", { name: TRIGGER_LABEL }));
+  }
+
+  it("skips tenant fetch when not authenticated and renders the plain brand", async () => {
     mockUseSession.mockReturnValue({ status: "loading" });
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
 
-    const { container } = render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher label="School A" />);
 
     // Wait a tick to ensure the effect had a chance to fire
     await waitFor(() => {
       expect(mockListAvailableTenants).not.toHaveBeenCalled();
     });
 
-    expect(container.innerHTML).toBe("");
+    // No dropdown trigger — just the brand link
+    expect(
+      screen.queryByRole("button", { name: TRIGGER_LABEL }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("School A")).toBeInTheDocument();
   });
 
-  it("renders nothing when user has zero tenants", async () => {
+  it("renders the plain brand link when user has zero tenants", async () => {
     mockListAvailableTenants.mockResolvedValue([]);
-    const { container } = render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
       expect(mockListAvailableTenants).toHaveBeenCalled();
     });
 
-    expect(container.innerHTML).toBe("");
+    expect(
+      screen.queryByRole("button", { name: TRIGGER_LABEL }),
+    ).not.toBeInTheDocument();
+    // Fallback brand label when no tenant label is provided
+    expect(screen.getByText("moto")).toBeInTheDocument();
   });
 
-  it("renders nothing when user has only one tenant", async () => {
+  it("renders name without dropdown when user has only one tenant", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA]);
-    const { container } = render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher label="School A" />);
 
     await waitFor(() => {
       expect(mockListAvailableTenants).toHaveBeenCalled();
     });
 
-    expect(container.innerHTML).toBe("");
+    expect(screen.getByText("School A")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: TRIGGER_LABEL }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders trigger button with current tenant name when user has multiple tenants", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
+    expect(screen.getByText("School A")).toBeInTheDocument();
   });
 
   it("opens dropdown on click and shows other tenants", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
 
-    // Click trigger to open dropdown
-    fireEvent.click(screen.getByText("School A"));
+    openDropdown();
 
     // Should show the other tenant
     expect(screen.getByText("School B")).toBeInTheDocument();
@@ -186,14 +242,15 @@ describe("TenantSwitcher", () => {
   it("closes dropdown on outside click", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
 
-    // Open dropdown
-    fireEvent.click(screen.getByText("School A"));
+    openDropdown();
     expect(screen.getByText("School B")).toBeInTheDocument();
 
     // Click outside
@@ -207,14 +264,15 @@ describe("TenantSwitcher", () => {
   it("executes switch flow on tenant selection", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
 
-    // Open dropdown and select tenant B
-    fireEvent.click(screen.getByText("School A"));
+    openDropdown();
     fireEvent.click(screen.getByText("School B"));
 
     await waitFor(() => {
@@ -235,14 +293,15 @@ describe("TenantSwitcher", () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
     mockPerformTenantSwitch.mockRejectedValue(new Error("switch failed"));
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
 
-    // Open dropdown and select tenant B
-    fireEvent.click(screen.getByText("School A"));
+    openDropdown();
     fireEvent.click(screen.getByText("School B"));
 
     await waitFor(() => {
@@ -260,18 +319,44 @@ describe("TenantSwitcher", () => {
   it("shows organization headers when tenants span multiple orgs", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB, tenantC]);
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
 
-    // Open dropdown
-    fireEvent.click(screen.getByText("School A"));
+    openDropdown();
 
     // Should show org headers since there are 2 organizations
     expect(screen.getByText("Org Alpha")).toBeInTheDocument();
     expect(screen.getByText("Org Beta")).toBeInTheDocument();
+  });
+
+  it("links the current tenant entry to the dashboard instead of offering it as a switch target", async () => {
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+
+    render(<BrandTenantSwitcher href="/dashboard" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
+    });
+
+    openDropdown();
+
+    // Current tenant appears as a link home, never as a switch button
+    const currentEntry = screen.getByRole("link", { name: /School A/ });
+    expect(currentEntry).toHaveAttribute("href", "/dashboard");
+    expect(
+      screen.queryByRole("button", { name: "School A" }),
+    ).not.toBeInTheDocument();
+
+    // Selecting the current entry must not trigger a switch
+    fireEvent.click(currentEntry);
+    expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
   });
 
   // Regression tests for #1975: slug and subdomain are independent columns
@@ -286,13 +371,15 @@ describe("TenantSwitcher", () => {
     };
     mockListAvailableTenants.mockResolvedValue([tenantA, divergentTenantB]);
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("School A"));
+    openDropdown();
     fireEvent.click(screen.getByText("School B"));
 
     await waitFor(() => {
@@ -316,31 +403,40 @@ describe("TenantSwitcher", () => {
     };
     mockListAvailableTenants.mockResolvedValue([divergentTenantA, tenantB]);
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     // currentSlug (URL) is "school-a" — must match via subdomain, so the
     // trigger shows the school name, not the raw slug fallback.
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
+    expect(screen.getByText("School A")).toBeInTheDocument();
 
-    // The current tenant must not appear as a switch target.
-    fireEvent.click(screen.getByText("School A"));
-    expect(screen.getAllByText("School A")).toHaveLength(1);
-    expect(screen.getByText("School B")).toBeInTheDocument();
+    // The current tenant must not appear as a switch-target button.
+    openDropdown();
+    expect(
+      screen.queryByRole("button", { name: "School A" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "School B" }),
+    ).toBeInTheDocument();
   });
 
   it("shows a visible error message when switching fails", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
     mockPerformTenantSwitch.mockRejectedValue(new Error("switch failed"));
 
-    render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("School A"));
+    openDropdown();
     fireEvent.click(screen.getByText("School B"));
 
     await waitFor(() => {
@@ -350,24 +446,27 @@ describe("TenantSwitcher", () => {
     });
 
     // Re-opening the dropdown clears the error.
-    fireEvent.click(screen.getByText("School A"));
+    openDropdown();
     expect(
       screen.queryByText(/Wechsel zu School B fehlgeschlagen/),
     ).not.toBeInTheDocument();
   });
 
-  it("logs error when listing tenants fails", async () => {
+  it("falls back to the brand link and logs when listing tenants fails", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(vi.fn());
     mockListAvailableTenants.mockRejectedValue(new Error("fetch failed"));
 
-    const { container } = render(<TenantSwitcher />);
+    render(<BrandTenantSwitcher label="School A" />);
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalled();
     });
 
-    // Should render nothing
-    expect(container.innerHTML).toBe("");
+    // Falls back to the plain brand — never a dropdown
+    expect(
+      screen.queryByRole("button", { name: TRIGGER_LABEL }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("School A")).toBeInTheDocument();
     consoleError.mockRestore();
   });
 });

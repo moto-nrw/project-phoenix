@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   render,
   screen,
@@ -6,6 +6,14 @@ import {
   cleanup,
   within,
 } from "@testing-library/react";
+
+const { mockUseSWR } = vi.hoisted(() => ({
+  mockUseSWR: vi.fn(),
+}));
+
+vi.mock("swr", () => ({
+  default: mockUseSWR,
+}));
 
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn() }),
@@ -22,6 +30,16 @@ import {
 } from "./student-detail-components";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { SupervisorContact } from "~/lib/student-helpers";
+
+beforeEach(() => {
+  mockUseSWR.mockReturnValue({
+    data: undefined,
+    error: undefined,
+    isLoading: true,
+    isValidating: false,
+    mutate: vi.fn(),
+  });
+});
 
 /**
  * Format a date string the same way the component does.
@@ -903,6 +921,42 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
     expect(screen.getByText("Elternnotiz hier")).toBeInTheDocument();
   });
 
+  it("shows change metadata for the departure companion note", () => {
+    mockUseSWR.mockReturnValue({
+      data: [
+        {
+          id: "42",
+          field: "departure_companion_note",
+          edited_by: "Erika Beispiel",
+          changed_at: "2026-07-25T10:00:00Z",
+        },
+      ],
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+    });
+
+    render(
+      <PersonalInfoReadOnly
+        student={{
+          ...mockStudent,
+          departure_companion_note: "Geschwisterkind Mia",
+        }}
+        showEditButton={true}
+        onEditClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Geht außerdem mit")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Änderungsinformation anzeigen",
+      }),
+    );
+    expect(screen.getByText("Erika Beispiel")).toBeInTheDocument();
+  });
+
   // Note: Sick status display was moved to StudentSickReportSection (student-checkout-section.tsx)
   // Tests for sick functionality are in student-checkout-section.test.tsx and page.test.tsx
 });
@@ -968,6 +1022,19 @@ describe("StudentHistorySection", () => {
     expect(screen.getByText("Mensaverlauf")).toBeInTheDocument();
     expect(screen.getByText("Mahlzeiten und Bestellungen")).toBeInTheDocument();
     expect(screen.getByText("Mensaverlauf").closest("button")).toBeDisabled();
+  });
+
+  it("disables change history without supervisor access", () => {
+    render(
+      <StudentHistorySection {...defaultProps} canViewChangeHistory={false} />,
+    );
+
+    expect(
+      screen.getByText("Änderungsverlauf").closest("button"),
+    ).toBeDisabled();
+    expect(
+      screen.getByText("Anwesenheitsprotokoll").closest("button"),
+    ).not.toBeDisabled();
   });
 
   it("raumverlauf button navigates on click when enabled", () => {

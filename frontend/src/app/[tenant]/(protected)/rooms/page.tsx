@@ -10,6 +10,8 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { Building2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -589,31 +591,11 @@ function RoomsPageContent() {
           ) : null}
 
           {filteredRooms.length === 0 && !showTransitAssignment ? (
-            <div className="py-12 text-center">
-              <div className="flex flex-col items-center gap-4">
-                <svg
-                  className="h-12 w-12 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                  />
-                </svg>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Keine Räume gefunden
-                  </h3>
-                  <p className="text-gray-600">
-                    Versuchen Sie Ihre Suchkriterien anzupassen.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <EmptyState
+              icon={<Building2 className="h-12 w-12" strokeWidth={1.5} />}
+              title="Keine Räume gefunden"
+              description="Versuchen Sie Ihre Suchkriterien anzupassen."
+            />
           ) : null}
 
           {filteredRooms.length > 0 ? (

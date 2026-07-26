@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { Check, MoreVertical } from "lucide-react";
 
 export interface OverflowMenuItem {
@@ -25,6 +26,20 @@ export interface OverflowMenuItem {
   readonly destructive?: boolean;
   /** When true, the item renders disabled and its onClick is suppressed. */
   readonly disabled?: boolean;
+  /**
+   * When set, the item renders as a link (next/link, or a plain anchor with
+   * `target="_blank"` when `external` is true) instead of a button, keeping
+   * native link semantics (middle-click, cmd-click). `onClick` still fires
+   * after the menu closes — pass a no-op when only navigation is needed.
+   */
+  readonly href?: string;
+  /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
+  readonly external?: boolean;
+}
+
+/** Non-interactive thin divider between item groups. */
+interface OverflowMenuSeparator {
+  readonly kind: "separator";
 }
 
 /** Non-interactive uppercase label grouping the entries below it. */
@@ -43,7 +58,10 @@ interface OverflowMenuRadioItem {
 }
 
 export type OverflowMenuEntry =
-  OverflowMenuItem | OverflowMenuHeader | OverflowMenuRadioItem;
+  | OverflowMenuItem
+  | OverflowMenuHeader
+  | OverflowMenuRadioItem
+  | OverflowMenuSeparator;
 
 interface OverflowMenuProps {
   /** Menu items to render. Empty array → renders nothing. */
@@ -150,14 +168,16 @@ export function OverflowMenu({
     };
   }, [isOpen]);
 
-  // Decide alignment when opening. The menu is min 220px wide; we need to
-  // ensure it stays inside the viewport regardless of where the trigger sits.
+  // Decide alignment when opening. The menu is 220px wide when the viewport
+  // permits; constrain it on smaller viewports so every action stays reachable.
   //
   // - Default to right-anchored (`right-0` → menu extends LEFT from the
   //   trigger's right edge). This is safe in the common case where the
   //   kebab sits near the right edge of the page (action area).
-  // - Only flip to left-anchored (`left-0` → menu extends RIGHT) when the
-  //   trigger sits near the LEFT edge with not enough room on its left.
+  // - Flip to left-anchored (`left-0` → menu extends RIGHT) when the trigger
+  //   sits near the LEFT edge with not enough room on its left.
+  // - If neither side fits, use the side with more room and clamp to the
+  //   viewport inset.
   const handleOpen = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect != null) {
@@ -198,13 +218,31 @@ export function OverflowMenu({
           width: cr.width - inset * 2,
         });
       } else {
-        // Default to right-anchored (menu extends LEFT from the trigger's right
-        // edge); flip to left-anchored only when the trigger sits too close to
-        // the left edge for the menu to extend leftward.
-        const style: CSSProperties =
-          rect.left >= 220
-            ? { ...vertical, right: window.innerWidth - rect.right }
-            : { ...vertical, left: rect.left };
+        const menuWidth = 220;
+        const availableWidth = Math.max(
+          0,
+          window.innerWidth - viewportInset * 2,
+        );
+        const renderedWidth = Math.min(menuWidth, availableWidth);
+        const roomLeft = rect.right - viewportInset;
+        const roomRight = window.innerWidth - rect.left - viewportInset;
+        const size: CSSProperties = {
+          minWidth: renderedWidth,
+          maxWidth: availableWidth,
+        };
+        const maxOffset = Math.max(
+          viewportInset,
+          window.innerWidth - renderedWidth - viewportInset,
+        );
+        const clampOffset = (offset: number) =>
+          Math.min(Math.max(viewportInset, offset), maxOffset);
+        const alignRight =
+          roomLeft >= renderedWidth ||
+          (roomRight < renderedWidth && roomLeft >= roomRight);
+        const horizontal: CSSProperties = alignRight
+          ? { right: clampOffset(window.innerWidth - rect.right) }
+          : { left: clampOffset(rect.left) };
+        const style: CSSProperties = { ...vertical, ...size, ...horizontal };
         setMenuStyle(style);
       }
     }
@@ -253,7 +291,7 @@ export function OverflowMenu({
               // escapes any clipping `overflow-hidden` ancestor. In
               // container-stretch mode the width comes from `menuStyle`, so the
               // 220px floor is dropped to let the menu match a narrow column.
-              className={`fixed z-50 overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+              className={`fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >
@@ -299,6 +337,16 @@ export function OverflowMenu({
                   );
                 }
 
+                if ("kind" in entry && entry.kind === "separator") {
+                  return (
+                    <div
+                      key={`separator-${index}`}
+                      role="separator"
+                      className="my-1 h-px bg-gray-100"
+                    />
+                  );
+                }
+
                 const item = entry;
                 const colorClass = item.destructive
                   ? "text-red-600"
@@ -306,6 +354,58 @@ export function OverflowMenu({
                 const interactive = item.disabled
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
+                const itemClassName = `flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+
+                const inner = (
+                  <>
+                    {item.icon != null ? (
+                      <span className="flex size-4 flex-shrink-0 items-center justify-center text-gray-500">
+                        {item.icon}
+                      </span>
+                    ) : null}
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.badge != null ? (
+                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 tabular-nums">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </>
+                );
+
+                if (item.href != null && !item.disabled) {
+                  const onLinkActivate = () => {
+                    setIsOpen(false);
+                    item.onClick();
+                  };
+                  if (item.external) {
+                    return (
+                      <a
+                        key={`item-${item.label}`}
+                        role="menuitem"
+                        tabIndex={0}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={onLinkActivate}
+                        className={itemClassName}
+                      >
+                        {inner}
+                      </a>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={`item-${item.label}`}
+                      role="menuitem"
+                      tabIndex={0}
+                      href={item.href}
+                      onClick={onLinkActivate}
+                      className={itemClassName}
+                    >
+                      {inner}
+                    </Link>
+                  );
+                }
 
                 return (
                   <button
@@ -319,19 +419,9 @@ export function OverflowMenu({
                       item.onClick();
                     }}
                     onKeyDown={onItemKey(item)}
-                    className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`}
+                    className={itemClassName}
                   >
-                    {item.icon != null ? (
-                      <span className="flex size-4 flex-shrink-0 items-center justify-center text-gray-500">
-                        {item.icon}
-                      </span>
-                    ) : null}
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {item.badge != null ? (
-                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 tabular-nums">
-                        {item.badge}
-                      </span>
-                    ) : null}
+                    {inner}
                   </button>
                 );
               })}

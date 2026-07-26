@@ -48,6 +48,9 @@ func (b *countingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) e
 	b.tenantEvents = append(b.tenantEvents, event.Type)
 	return nil
 }
+func (b *countingBroadcaster) BroadcastToTenantAdmins(_ int64, _ realtime.Event) error {
+	return nil
+}
 func (b *countingBroadcaster) BroadcastToAll(realtime.Event) error { return nil }
 func (b *countingBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error {
 	b.parentMessages++
