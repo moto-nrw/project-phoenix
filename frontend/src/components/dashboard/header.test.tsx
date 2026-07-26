@@ -35,7 +35,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/components/tenant/tenant-switcher", () => ({
-  TenantSwitcher: () => <div data-testid="tenant-switcher">Tenant</div>,
+  BrandTenantSwitcher: () => <div data-testid="tenant-switcher">Tenant</div>,
 }));
 
 vi.mock("~/components/ui/logout-modal", () => ({
@@ -175,9 +175,11 @@ describe("Header", () => {
     Object.defineProperty(window, "scrollY", { value: 0, writable: true });
   });
 
-  it("renders brand link and divider", () => {
+  it("renders brand tenant switcher and divider", () => {
     render(<Header />);
-    expect(screen.getByTestId("brand-link")).toBeInTheDocument();
+    // Teacher mode renders the brand as tenant switcher (#2011); the
+    // plain BrandLink is reserved for operator/parent shells.
+    expect(screen.getByTestId("tenant-switcher")).toBeInTheDocument();
     expect(screen.getByTestId("divider")).toBeInTheDocument();
   });
 

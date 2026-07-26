@@ -7,6 +7,42 @@ import Link from "next/link";
 import Image from "next/image";
 
 /**
+ * Logo image shared by BrandLink and BrandTenantSwitcher.
+ */
+export function BrandLogo() {
+  return (
+    <Image
+      src="/images/moto_transparent.webp"
+      alt=""
+      width={56}
+      height={40}
+      className="h-8 w-11 shrink-0 object-contain sm:h-10 sm:w-14"
+      priority
+    />
+  );
+}
+
+/**
+ * Typography for the brand label. Uses leading-tight (not leading-none):
+ * the span truncates via overflow-hidden, and a line box smaller than the
+ * font's ascent+descent clips descenders (g, j, p, q, y).
+ */
+export function brandLabelClass(
+  isScrolled: boolean,
+  usesTenantLabel: boolean,
+): string {
+  return `truncate leading-tight transition-all duration-150 ${
+    usesTenantLabel
+      ? `font-semibold text-gray-900 ${
+          isScrolled ? "text-sm lg:text-base" : "text-base lg:text-lg"
+        }`
+      : `[font-family:var(--font-moto)] font-bold text-gray-950 ${
+          isScrolled ? "text-xl lg:text-[22px]" : "text-[22px]"
+        }`
+  }`;
+}
+
+/**
  * Brand link with logo and text
  */
 interface BrandLinkProps {
@@ -28,29 +64,10 @@ export function BrandLink({
       href={href}
       className="group flex max-w-[180px] min-w-0 items-center space-x-3 sm:max-w-[240px] lg:max-w-[280px]"
     >
-      <div>
-        <Image
-          src="/images/moto_transparent.webp"
-          alt=""
-          width={56}
-          height={40}
-          className="h-8 w-11 object-contain sm:h-10 sm:w-14"
-          priority
-        />
-      </div>
+      <BrandLogo />
 
       <div className="flex min-w-0 items-center space-x-3">
-        <span
-          className={`truncate leading-none transition-all duration-150 ${
-            usesTenantLabel
-              ? `font-semibold text-gray-900 ${
-                  isScrolled ? "text-sm lg:text-base" : "text-base lg:text-lg"
-                }`
-              : `[font-family:var(--font-moto)] font-bold text-gray-950 ${
-                  isScrolled ? "text-xl lg:text-[22px]" : "text-[22px]"
-                }`
-          }`}
-        >
+        <span className={brandLabelClass(isScrolled, usesTenantLabel)}>
           {displayLabel}
         </span>
       </div>

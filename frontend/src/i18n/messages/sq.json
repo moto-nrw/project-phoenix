@@ -116,7 +116,27 @@
     "newsAcknowledged": "Konfirmuar",
     "newsRead": "Lexuar",
     "newsActionError": "Veprimi dështoi. Provoni përsëri.",
-    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen."
+    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen.",
+    "newEnrollment": "Regjistrim i ri"
+  },
+  "parentEnroll": {
+    "back": "Kthehu te portali i prindërve",
+    "title": "Regjistrim i ri",
+    "description": "Zgjidhni një shkollë dhe një fazë regjistrimi për të regjistruar fëmijën tuaj.",
+    "loading": "Duke ngarkuar fazat e regjistrimit …",
+    "loadError": "Fazat e regjistrimit nuk mund të ngarkoheshin.",
+    "empty": "Aktualisht nuk ka faza regjistrimi të disponueshme.",
+    "yourSchools": "Shkollat tuaja",
+    "otherSchools": "Shkolla të tjera",
+    "kindSchoolYear": "Viti shkollor",
+    "kindHoliday": "Kujdesi gjatë pushimeve",
+    "kindCustom": "Të tjera",
+    "closesAt": "Regjistrimi deri më {date}",
+    "audienceNewStudents": "Vetëm fëmijë të rinj",
+    "audienceExistingStudents": "Vetëm fëmijë të regjistruar",
+    "audienceLinkedParents": "Vetëm për prindër të lidhur",
+    "rangeConnector": "deri",
+    "openPhase": "Hap regjistrimin"
   },
   "parentChildren": {
     "eyebrow": "Fëmijët e mi",
@@ -503,6 +523,8 @@
     "openUntil": "Hapur deri më {date}",
     "serviceRange": "Periudha e përkujdesjes: {from} deri {to}",
     "start": "Nis regjistrimin",
+    "audienceNewStudents": "Vetëm për fëmijë të rinj",
+    "audienceExistingStudents": "Vetëm për fëmijë të regjistruar",
     "kind": {
       "school_year": "Viti shkollor",
       "holiday": "Përkujdesje gjatë pushimeve",
@@ -556,6 +578,7 @@
       "extraTitle": "Të dhëna të tjera",
       "extraDescription": "OGS-ja ka nevojë për këto të dhëna shtesë krahas të dhënave bazë. Pyetjet e detyrueshme janë shënuar me yll.",
       "childrenDescription": "Regjistroni çdo fëmijë veçmas. Për motrat/vëllezërit mund të shtoni të dhëna të tjera fëmije me butonin.",
+      "newStudentsOnlyNotice": "Kjo fazë regjistrimi është vetëm për fëmijë të rinj. Fëmijët tashmë të regjistruar në shkollë nuk mund të riregjistrohen këtu.",
       "consentDescription": "Ju lutemi lexoni me kujdes pëlqimet. Pëlqimet e detyrueshme duhet të zgjidhen aktivisht."
     },
     "fields": {

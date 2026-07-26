@@ -11,6 +11,8 @@ import type {
 } from "~/components/ui/page-header/types";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { substitutionService } from "~/lib/substitution-api";
 import { groupService } from "~/lib/api";
@@ -476,10 +478,10 @@ function SubstitutionPageContent() {
       );
     }
     return (
-      <div className="py-12 text-center">
-        <div className="flex flex-col items-center gap-4">
+      <EmptyState
+        icon={
           <svg
-            className="h-12 w-12 text-gray-400"
+            className="h-12 w-12"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -491,16 +493,10 @@ function SubstitutionPageContent() {
               d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             />
           </svg>
-          <div>
-            <h3 className="text-lg font-medium text-gray-900">
-              Keine Fachkräfte gefunden
-            </h3>
-            <p className="text-gray-600">
-              Versuche deine Suchkriterien anzupassen.
-            </p>
-          </div>
-        </div>
-      </div>
+        }
+        title="Keine Fachkräfte gefunden"
+        description="Versuche deine Suchkriterien anzupassen."
+      />
     );
   };
 
@@ -544,8 +540,8 @@ function SubstitutionPageContent() {
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
+          <div className="mb-6">
+            <Alert type="error" message={error} />
           </div>
         )}
 
@@ -631,8 +627,10 @@ function SubstitutionPageContent() {
                                   </p>
                                 </div>
                               </div>
-                              <button
+                              <Button
                                 type="button"
+                                variant="outline_danger"
+                                size="md"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -641,10 +639,10 @@ function SubstitutionPageContent() {
                                   )
                                 }
                                 disabled={isMutating}
-                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-colors duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20"
+                                className="w-full"
                               >
                                 Beenden
-                              </button>
+                              </Button>
                             </div>
 
                             {/* Desktop layout */}
@@ -667,8 +665,10 @@ function SubstitutionPageContent() {
                                   </p>
                                 </div>
                               </div>
-                              <button
+                              <Button
                                 type="button"
+                                variant="outline_danger"
+                                size="md"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -677,10 +677,10 @@ function SubstitutionPageContent() {
                                   )
                                 }
                                 disabled={isMutating}
-                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-colors duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20"
+                                className="ml-4 whitespace-nowrap"
                               >
                                 Beenden
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -776,8 +776,10 @@ function SubstitutionPageContent() {
                                   </p>
                                 </div>
                               </div>
-                              <button
+                              <Button
                                 type="button"
+                                variant="outline_danger"
+                                size="md"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -786,10 +788,10 @@ function SubstitutionPageContent() {
                                   )
                                 }
                                 disabled={isMutating}
-                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-colors duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20"
+                                className="w-full"
                               >
                                 Beenden
-                              </button>
+                              </Button>
                             </div>
 
                             {/* Desktop layout */}
@@ -817,8 +819,10 @@ function SubstitutionPageContent() {
                                   </p>
                                 </div>
                               </div>
-                              <button
+                              <Button
                                 type="button"
+                                variant="outline_danger"
+                                size="md"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -827,10 +831,10 @@ function SubstitutionPageContent() {
                                   )
                                 }
                                 disabled={isMutating}
-                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-colors duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20"
+                                className="ml-4 whitespace-nowrap"
                               >
                                 Beenden
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -983,47 +987,27 @@ function SubstitutionPageContent() {
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="md"
               onClick={closePopup}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-[border-color,background-color,box-shadow] duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-sm"
+              className="flex-1"
             >
               Abbrechen
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
               onClick={handleAssignSubstitution}
-              disabled={isMutating}
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-[background-color,box-shadow] duration-200 hover:bg-gray-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+              isLoading={isMutating}
+              loadingText="Wird zugewiesen..."
+              className="flex-1"
             >
-              {isMutating ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg
-                    className="h-4 w-4 animate-spin text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Wird zugewiesen...
-                </span>
-              ) : (
-                "Zuweisen"
-              )}
-            </button>
+              Zuweisen
+            </Button>
           </div>
         </div>
       </Modal>

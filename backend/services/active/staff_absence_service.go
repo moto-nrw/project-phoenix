@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,7 +12,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -135,7 +138,7 @@ type StaffAbsenceService interface {
 
 // GetTodayAbsenceMap returns staff ID -> absence type for today.
 func (s *staffAbsenceService) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
-	return s.absenceRepo.GetTodayAbsenceMap(ctx)
+	return s.absenceRepo.GetAbsenceMapForDate(ctx, timezone.TodayDate())
 }
 
 // staffAbsenceService implements StaffAbsenceService
@@ -151,13 +154,35 @@ type staffAbsenceService struct {
 	shiftPlanSyncer ShiftPlanSyncer
 	// emailDeps is nil unless SetAbsenceEmailDeps wired it (factory only);
 	// nil means no absence emails are sent (#1419 4d).
-	emailDeps *AbsenceEmailDeps
+	emailDeps   *AbsenceEmailDeps
+	broadcaster realtime.Broadcaster
+	// deletionRepo writes append-only tombstones for deleted absences
+	// (#1417): the absence's own audit trail is ON DELETE CASCADE, so
+	// without the tombstone a delete erases its whole history. Setter
+	// injection (SetDeletionAudit) like SetBroadcaster; nil makes deletes
+	// fail.
+	deletionRepo auditModels.TimeTrackingDeletionRepository
+}
+
+// SetDeletionAudit wires the deletion tombstone writer (#1417).
+func (s *staffAbsenceService) SetDeletionAudit(repo auditModels.TimeTrackingDeletionRepository) {
+	s.deletionRepo = repo
 }
 
 // SetShiftPlanSyncer wires the #1843 plan cascade (setter injection because
 // the implementation lives in services/schedule, which imports this package).
 func (s *staffAbsenceService) SetShiftPlanSyncer(syncer ShiftPlanSyncer) {
 	s.shiftPlanSyncer = syncer
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
+// StaffAbsenceService so existing API-layer mocks do not need a no-op setter.
+func (s *staffAbsenceService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
+func (s *staffAbsenceService) broadcastTimeTrackingChanged(ctx context.Context) {
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, nil)
 }
 
 // planSyncer is nil-safe: bare-constructed services (unit tests) cascade into
@@ -239,7 +264,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 
 	var resp *StaffAbsenceResponse
 	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
-		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
+		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, createdByStaffID, req)
 	} else {
 		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
 			return nil, err
@@ -259,6 +284,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if err := s.cascadeSickReport(ctx, resp.StaffAbsence, createdByStaffID, actorAccountID); err != nil {
 		return nil, err
 	}
+	s.broadcastTimeTrackingChanged(ctx)
 	return resp, nil
 }
 
@@ -308,6 +334,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	ctx context.Context,
 	existing []*activeModels.StaffAbsence,
 	dateStart, dateEnd timezone.Date,
+	actorStaffID int64,
 	req CreateAbsenceRequest,
 ) (*StaffAbsenceResponse, error) {
 	// Check if all overlapping absences have the same type
@@ -358,7 +385,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 
 	// Delete remaining overlapping absences. The reassigned provenance and the
 	// primary update must roll back if even one secondary cannot be removed.
-	if err := s.deleteRemainingAbsences(ctx, existing[1:]); err != nil {
+	if err := s.deleteRemainingAbsences(ctx, existing[1:], actorStaffID); err != nil {
 		return nil, err
 	}
 
@@ -569,8 +596,11 @@ func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, 
 }
 
 // deleteRemainingAbsences deletes absences that were merged into the primary.
-func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) error {
+func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence, actorStaffID int64) error {
 	for _, e := range absences {
+		if err := s.writeAbsenceDeletionAudit(ctx, e, actorStaffID); err != nil {
+			return fmt.Errorf("failed to audit merged absence %d: %w", e.ID, err)
+		}
 		if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
 			return fmt.Errorf("failed to delete merged absence %d: %w", e.ID, err)
 		}
@@ -674,6 +704,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, err
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -832,10 +863,38 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 		return fmt.Errorf("absence not deleted — plan cascade reversal failed: %w", err)
 	}
 
+	// Tombstone first, delete second, same tenant tx: the absence's own
+	// audit rows CASCADE away with it, so this row is the only surviving
+	// trace (#1417).
+	if err := s.writeAbsenceDeletionAudit(ctx, absence, actorStaffID); err != nil {
+		return err
+	}
 	if err := s.absenceRepo.Delete(ctx, absenceID); err != nil {
 		return fmt.Errorf("failed to delete absence: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
+}
+
+func (s *staffAbsenceService) writeAbsenceDeletionAudit(ctx context.Context, absence *activeModels.StaffAbsence, actorStaffID int64) error {
+	if s.deletionRepo == nil {
+		return fmt.Errorf("time tracking deletion audit repository is not configured")
+	}
+	payload, err := json.Marshal(absence)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot absence for deletion audit: %w", err)
+	}
+	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+		StaffID:   absence.StaffID,
+		Source:    auditModels.TimeTrackingDeletionSourceAbsence,
+		SourceID:  absence.ID,
+		DeletedBy: actorStaffID,
+		Payload:   payload,
+		Note:      absence.Note,
+	}); err != nil {
+		return fmt.Errorf("failed to write deletion audit: %w", err)
+	}
 	return nil
 }
 
@@ -1056,6 +1115,7 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 		return nil, fmt.Errorf("failed to create vacation request: %w", err)
 	}
 	s.notifyAbsenceRequested(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1090,6 +1150,7 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 		return nil, fmt.Errorf("failed to audit absence approval: %w", err)
 	}
 	s.notifyAbsenceDecision(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1127,6 +1188,7 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 		return nil, fmt.Errorf("failed to audit absence decline: %w", err)
 	}
 	s.notifyAbsenceDecision(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1163,6 +1225,7 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 		return nil, fmt.Errorf("failed to audit absence question: %w", err)
 	}
 	s.notifyAbsenceDecision(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1200,6 +1263,7 @@ func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64
 	}
 	// A resubmit re-enters the inbox, so approvers get the "received" mail again.
 	s.notifyAbsenceRequested(ctx, absence)
+	s.broadcastTimeTrackingChanged(ctx)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -1235,6 +1299,7 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, ""); err != nil {
 		return fmt.Errorf("failed to audit absence cancellation: %w", err)
 	}
+	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 
@@ -1274,6 +1339,44 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch year absences: %w", err)
 	}
+	return computeVacationQuotaSummary(staffID, year, entitled, carryover, absences), nil
+}
+
+// computeVacationQuotaSummary is the pure tail of GetVacationQuotaSummary: the
+// two reads happen at the call site, the arithmetic lives here. Extracted so
+// the cross-staff overview (#1417) can compute Resturlaub from prefetched rows
+// through the SAME code, instead of a second implementation that would drift.
+func computeVacationQuotaSummary(
+	staffID int64,
+	year int,
+	entitled, carryover float64,
+	absences []*activeModels.StaffAbsence,
+) *VacationQuotaSummary {
+	return computeVacationQuotaSummaryThrough(
+		staffID,
+		year,
+		entitled,
+		carryover,
+		timezone.NewDate(year, time.December, 31),
+		absences,
+	)
+}
+
+// computeVacationQuotaSummaryThrough is the historical counterpart of the
+// full-year quota summary. Absence ranges are clipped at through so a past
+// month does not spend vacation that lies later in the selected year.
+func computeVacationQuotaSummaryThrough(
+	staffID int64,
+	year int,
+	entitled, carryover float64,
+	through timezone.Date,
+	absences []*activeModels.StaffAbsence,
+) *VacationQuotaSummary {
+	yearStart := timezone.NewDate(year, time.January, 1)
+	yearEnd := timezone.NewDate(year, time.December, 31)
+	if through.Before(yearEnd) {
+		yearEnd = through
+	}
 
 	taken, reserved := 0.0, 0.0
 	for _, a := range absences {
@@ -1300,7 +1403,7 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 		TakenDays:     taken,
 		ReservedDays:  reserved,
 		RemainingDays: entitled + carryover - taken - reserved,
-	}, nil
+	}
 }
 
 func dateWithinRange(d, from, to timezone.Date) bool {
@@ -1341,7 +1444,11 @@ func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID i
 	quota.CreatedAt = now
 	quota.UpdatedAt = now
 	quota.SetTenantID(tenant.FromContext(ctx))
-	return s.quotaRepo.Upsert(ctx, quota)
+	if err := s.quotaRepo.Upsert(ctx, quota); err != nil {
+		return err
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
 }
 
 func (s *staffAbsenceService) ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error) {

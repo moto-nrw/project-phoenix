@@ -48,6 +48,7 @@ type fakeParentService struct {
 	gotSubmitChanges []parentService.MasterDataFieldChange
 	listRows         []*userModels.StudentDataChangeRequest
 	listErr          error
+	submitStatus     *parentModels.GuardianSubmitStatus
 }
 
 func (f *fakeParentService) GetProfile(_ context.Context, _ int64) (*parentService.Profile, error) {
@@ -65,6 +66,12 @@ func (f *fakeParentService) ListChildrenForAccount(context.Context, int64) ([]*p
 }
 func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]*parentModels.EnrollablePhase, error) {
 	return nil, nil
+}
+func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, int64) (*parentModels.GuardianSubmitStatus, error) {
+	if f.submitStatus != nil {
+		return f.submitStatus, nil
+	}
+	return &parentModels.GuardianSubmitStatus{}, nil
 }
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil

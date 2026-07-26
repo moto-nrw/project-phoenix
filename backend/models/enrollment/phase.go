@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -75,6 +77,37 @@ const (
 var validPhaseRolloverModes = map[string]bool{
 	PhaseRolloverModeOptIn:  true,
 	PhaseRolloverModeOptOut: true,
+}
+
+// PhaseAudience values match enrollment.phases.audience (migration
+// 1.15.230 + 1.15.231, issue #1663). They answer "who may apply to this
+// phase":
+//
+//   - open              → everyone, including anonymous public visitors
+//   - new_students      → anonymous allowed, but children who are already
+//     enrolled at the school are rejected at submit
+//   - existing_students → anonymous allowed, but the inverse of
+//     new_students: every submitted child must already be enrolled at the
+//     school (matched by name + birthday). Backs the "only already
+//     enrolled students may apply" rule from #1663 — a re-enrollment /
+//     renewal phase. Account linkage is NOT required; the gate is per
+//     child, so it is distinct from linked_parents.
+//   - linked_parents    → only authenticated parent accounts with an
+//     active guardian link at the school; the phase is hidden from the
+//     anonymous public listing because linkage cannot be verified
+//     without a login
+const (
+	PhaseAudienceOpen             = "open"
+	PhaseAudienceNewStudents      = "new_students"
+	PhaseAudienceExistingStudents = "existing_students"
+	PhaseAudienceLinkedParents    = "linked_parents"
+)
+
+var validPhaseAudiences = map[string]bool{
+	PhaseAudienceOpen:             true,
+	PhaseAudienceNewStudents:      true,
+	PhaseAudienceExistingStudents: true,
+	PhaseAudienceLinkedParents:    true,
 }
 
 // Phase is one row in enrollment.phases - a discrete, admin-managed
@@ -148,6 +181,38 @@ type Phase struct {
 	// for the same reason as the bool fields above — see the note there.
 	AvailableSchoolClasses []string `bun:"available_school_classes,type:jsonb,notnull" json:"available_school_classes"`
 	RequireSchoolClass     bool     `bun:"require_school_class,notnull" json:"require_school_class"`
+
+	// Eligibility config (migration 1.15.230, issue #1663).
+	//
+	// Audience restricts who may apply (see PhaseAudience* constants).
+	// EligibleSchoolClasses, when non-empty, restricts submissions to
+	// children who declare one of the listed classes — distinct from
+	// AvailableSchoolClasses, which is only the pick list the form
+	// offers. Both are enforced server-side in RequestService.Submit.
+	//
+	// Audience carries the bun `default:` directive on purpose (unlike
+	// the bool fields above): "" is never a valid audience, so letting
+	// bun skip the zero value on INSERT (DB default 'open' applies)
+	// cannot mask an intentional value — and direct model inserts that
+	// bypass Validate (fixtures, ad-hoc tooling) would otherwise violate
+	// the phases_audience_check constraint with an empty string.
+	Audience              string   `bun:"audience,notnull,default:'open'" json:"audience"`
+	EligibleSchoolClasses []string `bun:"eligible_school_classes,type:jsonb,notnull" json:"eligible_school_classes"`
+
+	// EligibleGradeLevels (migration 1.15.233, issue #1663) is the
+	// grade-level counterpart of EligibleSchoolClasses: when non-empty,
+	// every submitted child must declare one of the listed grades. It is
+	// the representation for a phase aimed at a whole grade ("alle
+	// Drittklässler"), which enumerating the concrete classes 3a/3b cannot
+	// express — that enumeration goes stale the moment a class is added or
+	// renamed, and it forces concrete-class collection on a school that
+	// only collects the grade level.
+	//
+	// The two restrictions are independent and combine with AND: grades
+	// need only enrollment.collect_grade_level, classes additionally need
+	// enrollment.collect_school_class. Validate keeps a combined pair
+	// satisfiable (every eligible class's grade must be an eligible grade).
+	EligibleGradeLevels []int `bun:"eligible_grade_levels,type:jsonb,notnull" json:"eligible_grade_levels"`
 }
 
 // Validate runs the column-level checks in app code so the service can
@@ -212,6 +277,89 @@ func (p *Phase) Validate() error {
 	if p.RequireSchoolClass && !hasNonEmptySchoolClass(p.AvailableSchoolClasses) {
 		return errors.New("require_school_class needs at least one available_school_class")
 	}
+	if p.Audience == "" {
+		p.Audience = PhaseAudienceOpen
+	}
+	if !validPhaseAudiences[p.Audience] {
+		return fmt.Errorf("audience must be one of open/new_students/existing_students/linked_parents, got %q", p.Audience)
+	}
+	// Same NOT NULL jsonb coalescing as AvailableSchoolClasses above.
+	if p.EligibleSchoolClasses == nil {
+		p.EligibleSchoolClasses = []string{}
+	}
+	// A class-eligibility restriction is only enforceable when the concrete
+	// class is actually collected: submission canonicalizes the class to nil
+	// unless require_school_class forces a pick, so a non-empty
+	// eligible_school_classes with require_school_class=false lets the
+	// bootstrap offer "Klasse offen" and then rejects every such submission
+	// with class_not_eligible. That inconsistent pair is reachable via the API
+	// or an older editor that toggles require_school_class without sending the
+	// new eligibility field. Normalize it: an eligibility restriction always
+	// requires a class selection (#1663). Every eligible class is guaranteed
+	// to be in available_school_classes below, so this cannot conflict with the
+	// require_school_class needs-an-available-class rule above.
+	if hasNonEmptySchoolClass(p.EligibleSchoolClasses) {
+		p.RequireSchoolClass = true
+	}
+	// Every eligible class must also be one the phase actually offers
+	// (available_school_classes). A disjoint pair — e.g.
+	// eligible=["2a"] while available=["2b"], or a non-empty eligible list
+	// with no available classes at all — is unsatisfiable: the form can
+	// only present available classes, so a child can never declare an
+	// eligible one, and every submission is rejected with
+	// class_not_eligible. Reject it up front rather than relying on the
+	// admin editor to keep the two lists in sync (#1663).
+	availableClasses := make(map[string]struct{}, len(p.AvailableSchoolClasses))
+	for _, c := range p.AvailableSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			availableClasses[t] = struct{}{}
+		}
+	}
+	for _, c := range p.EligibleSchoolClasses {
+		trimmed := strings.TrimSpace(c)
+		if trimmed == "" {
+			continue
+		}
+		// A grade-1 concrete class ("1a") IS supported (#1663): when a phase
+		// offers a grade-1 class the submission form collects it (grade 1 is no
+		// longer forced grade-level-only), so a grade-1 eligibility target is
+		// satisfiable. The available-membership check below is what keeps every
+		// eligible class — grade 1 included — one the form actually presents.
+		if _, ok := availableClasses[trimmed]; !ok {
+			return fmt.Errorf("eligible_school_classes entry %q must also be listed in available_school_classes; the form can only offer available classes, so a restriction to a class it never presents rejects every submission", c)
+		}
+	}
+	// Grade-level eligibility: same NOT NULL jsonb coalescing, plus the shared
+	// grade-bounds check. Unlike the class list this needs no available-list
+	// membership — the form always offers every grade 1..grade_level_max, so any
+	// in-range grade is satisfiable on its own (#1663).
+	gradeLevels, err := normalizeGradeLevelList("eligible_grade_levels", p.EligibleGradeLevels)
+	if err != nil {
+		return err
+	}
+	p.EligibleGradeLevels = gradeLevels
+	// Both restrictions apply together (AND), so a class whose grade is not an
+	// eligible grade can never be declared: the child would have to be in grade
+	// 4 and in class 3a at once. The form filters the class pick list by the
+	// selected grade, so such a class is never even offered. Reject the
+	// unsatisfiable pair up front, mirroring the eligible ⊆ available rule
+	// above. Classes without a numeric grade ("Bienen") carry no derivable
+	// grade and stay compatible with every grade restriction (#1663).
+	if len(p.EligibleGradeLevels) > 0 {
+		eligibleGrades := make(map[string]struct{}, len(p.EligibleGradeLevels))
+		for _, level := range p.EligibleGradeLevels {
+			eligibleGrades[strconv.Itoa(level)] = struct{}{}
+		}
+		for _, c := range p.EligibleSchoolClasses {
+			prefix := schoolclass.GradePrefix(c)
+			if prefix == "" {
+				continue
+			}
+			if _, ok := eligibleGrades[prefix]; !ok {
+				return fmt.Errorf("eligible_school_classes entry %q belongs to grade %s, which is not in eligible_grade_levels; a child cannot satisfy both restrictions at once", c, prefix)
+			}
+		}
+	}
 	return nil
 }
 
@@ -240,9 +388,11 @@ type PhaseRepository interface {
 	// to the top of the admin list.
 	ListByTenant(ctx context.Context) ([]*Phase, error)
 
-	// ListPublicOpen returns phases the parent landing page should show:
-	// is_active=true AND the open window includes `now`. The public form
-	// uses this for the "select phase" picker.
+	// ListPublicOpen returns phases the anonymous parent landing page should
+	// show: is_active=true AND the open window includes `now`, minus every
+	// audience-restricted phase (linked_parents / existing_students), which
+	// only the authenticated parents portal can load. The public form uses
+	// this for the "select phase" picker.
 	ListPublicOpen(ctx context.Context, now time.Time) ([]*Phase, error)
 
 	// ExistsByFormSchemaID is the safety check for schema deletion -
@@ -265,4 +415,30 @@ type PhaseRepository interface {
 	// tenant whose rollover_deadline is set and not yet in the
 	// future. Powers the rollover deadline worker.
 	ListWithExpiredRolloverDeadline(ctx context.Context, asOf time.Time) ([]*Phase, error)
+
+	// ExistsActiveWithEligibleClasses reports whether the tenant has any
+	// active phase (is_active=TRUE) that restricts eligibility to specific
+	// school classes (a non-empty eligible_school_classes entry). The
+	// settings guard consults it to refuse disabling concrete-class
+	// collection while such a phase would then reject every submission
+	// with class_not_eligible (#1663). It is the inverse of the
+	// phase-side validateEligibleClassesCollectable check.
+	ExistsActiveWithEligibleClasses(ctx context.Context) (bool, error)
+
+	// ExistsActiveWithEligibleGradeLevels is the grade-level counterpart:
+	// it reports whether the tenant has any active phase restricting
+	// eligibility to specific grades. The settings guard consults it to
+	// refuse disabling grade-level collection, which would clear every
+	// child's declared grade and reject every submission to such a phase
+	// with grade_not_eligible (#1663).
+	ExistsActiveWithEligibleGradeLevels(ctx context.Context) (bool, error)
+
+	// MaxActiveEligibleGradeLevel returns the highest grade any active phase
+	// restricts itself to (0 when none does). The settings guard consults it
+	// to refuse LOWERING enrollment.grade_level_max below a live restriction:
+	// the form only offers grades up to the cap and the submit path re-checks
+	// it, so a phase pinned to a grade above the new cap would accept no
+	// submission at all (#1663). Counterpart of the phase-side
+	// ensureEligibleGradeLevelsWithinTenantCap check.
+	MaxActiveEligibleGradeLevel(ctx context.Context) (int, error)
 }

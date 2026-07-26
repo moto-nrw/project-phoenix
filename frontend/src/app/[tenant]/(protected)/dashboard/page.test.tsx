@@ -106,6 +106,7 @@ vi.mock("~/lib/swr/hooks", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
+  useOpenCareGroupMode: vi.fn(() => false),
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   useTenantRoutingModeSafe: vi.fn(() => "path"),
@@ -126,7 +127,11 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
-import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
+import {
+  useNFCEnabled,
+  useOpenCareGroupMode,
+  usePresenceMode,
+} from "~/lib/tenant-context";
 
 // Helper to create SWR mock return values
 function mockSWR(
@@ -153,6 +158,7 @@ describe("DashboardPage", () => {
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
     vi.mocked(useNFCEnabled).mockReturnValue(true);
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
     vi.mocked(usePresenceMode).mockReturnValue("detailed");
   });
 
@@ -241,6 +247,21 @@ describe("DashboardPage", () => {
       expect(screen.getByText("Laufende Aktivitäten")).toBeInTheDocument();
       // "Aktive Gruppen" appears both as stat card title and info card title
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+    });
+  });
+
+  it("hides group dashboard surfaces in open-care group mode", async () => {
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Aktive Gruppen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /Aktive Gruppen/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Kinder anwesend")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
     });
   });

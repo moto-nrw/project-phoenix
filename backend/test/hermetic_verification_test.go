@@ -157,6 +157,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"models/",                                                // Model unit tests don't hit DB (Unix)
 		"models\\",                                               // Model unit tests don't hit DB (Windows)
 		"invitation_service_test.go",                             // Uses mocks
+		"reminder_notifications_test.go",                         // Pure in-memory fakes, no DB (#1624 follow-up)
 		"password_reset_integration_test.go",                     // Uses mocks (sqlmock + stubs)
 		"handlers_unit_test.go",                                  // Unit tests for converters (no DB)
 		"http_middleware_test.go",                                // Uses nil *bun.DB for unit testing middleware
@@ -308,6 +309,8 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"buildDevSetup",                  // api/timetable deviations/protocol tests — wraps SetupTestDB
 		"setupCheckinServiceTest",        // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
 		"setupAbsenceAdminTest",          // api/staff absence question tests (#1419) — wraps setupTestContext
+		"newOverviewFixture",             // services/active overview/export integration tests (#1417) — wraps SetupTestDB
+		"setupOverviewAPI",               // api/staff overview/export tests (#1417) — wraps setupTestContext
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

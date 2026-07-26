@@ -864,6 +864,21 @@ describe("Sidebar", () => {
       expect(screen.getByText("Einstellungen")).toBeInTheDocument();
     });
 
+    // Abrechnung (#1417) gates on config:manage; the shared hasPermission
+    // mock grants permissions to admins only.
+    it("renders Abrechnung only for config:manage holders", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      const { unmount } = render(<Sidebar />);
+      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
+      unmount();
+
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      render(<Sidebar />);
+      expect(screen.queryByText("Abrechnung")).not.toBeInTheDocument();
+    });
+
     it("highlights active icon color for active links", () => {
       mockUsePathname.mockReturnValue("/activities");
 
@@ -1784,6 +1799,47 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+    });
+  });
+
+  describe("Meine Gruppe gating (#1544)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        adminOverviewEnabled: false,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+    });
+
+    afterEach(() => {
+      mockUseOpenCareGroupMode.mockReturnValue(false);
+    });
+
+    it("hides the Meine Gruppe accordion for open-care tenants", () => {
+      mockUseOpenCareGroupMode.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Meine Gruppe")).not.toBeInTheDocument();
+      expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine Gruppen zugeordnet"),
+      ).not.toBeInTheDocument();
+      // Aufsicht und Kindersuche bleiben als Staff-Einstiege erhalten.
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+    });
+
+    it("shows the Meine Gruppe accordion for fixed-groups tenants", () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
     });
   });
 });

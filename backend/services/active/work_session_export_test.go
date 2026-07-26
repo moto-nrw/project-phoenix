@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 )
 
 // ============================================================================
@@ -248,6 +249,97 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 	assert.Contains(t, rows[0].Row[8], "Flu")                       // Bemerkungen
 }
 
+func TestClampAbsencesToRange_BoundsOverlappingAbsence(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+	from := timezone.NewDate(2024, 1, 2)
+	to := timezone.NewDate(2024, 1, 3)
+	absence := &activeModels.StaffAbsence{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   from.AddDays(-1),
+		DateEnd:     to.AddDays(1),
+		Status:      activeModels.AbsenceStatusApproved,
+	}
+
+	clamped := clampAbsencesToRange([]*activeModels.StaffAbsence{absence}, from, to)
+
+	require.Len(t, clamped, 1)
+	assert.Equal(t, from, clamped[0].DateStart)
+	assert.Equal(t, to, clamped[0].DateEnd)
+	rows := svc.buildExportRows(nil, clamped)
+	require.Len(t, rows, 2)
+	assert.Equal(t, from, rows[0].Date)
+	assert.Equal(t, to, rows[1].Date)
+	assert.Equal(t, from.AddDays(-1), absence.DateStart, "the repository model must not be mutated")
+	assert.Equal(t, to.AddDays(1), absence.DateEnd, "the repository model must not be mutated")
+}
+
+func TestDayExportRowsByStaffIDs_BatchesAllRepositoryLoads(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+	ctx := context.Background()
+	staffIDs := []int64{100, 200}
+	date := timezone.NewDate(2024, 1, 2)
+	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
+	checkOut := time.Date(2024, 1, 2, 16, 0, 0, 0, time.UTC)
+
+	var sessionLoads, absenceLoads, breakLoads, manualAuditLoads int
+	sessionRepo.getHistoryByStaffIDsFunc = func(_ context.Context, gotStaffIDs []int64, _, _ timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
+		sessionLoads++
+		assert.Equal(t, staffIDs, gotStaffIDs)
+		return map[int64][]*activeModels.WorkSession{
+			staffIDs[0]: {{
+				Model:        base.Model{ID: 1},
+				StaffID:      staffIDs[0],
+				Date:         date,
+				CheckInTime:  checkIn,
+				CheckOutTime: &checkOut,
+				Status:       activeModels.WorkSessionStatusPresent,
+			}},
+			staffIDs[1]: {{
+				Model:        base.Model{ID: 2},
+				StaffID:      staffIDs[1],
+				Date:         date,
+				CheckInTime:  checkIn,
+				CheckOutTime: &checkOut,
+				Status:       activeModels.WorkSessionStatusPresent,
+			}},
+		}, nil
+	}
+	sessionRepo.getHistoryByStaffIDFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, errors.New("single-staff session query must not run")
+	}
+	absenceRepo.getByStaffIDsAndDateRangeFunc = func(_ context.Context, gotStaffIDs []int64, _, _ timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
+		absenceLoads++
+		assert.Equal(t, staffIDs, gotStaffIDs)
+		return map[int64][]*activeModels.StaffAbsence{}, nil
+	}
+	absenceRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, errors.New("single-staff absence query must not run")
+	}
+	breakRepo.listFunc = func(context.Context, *base.QueryOptions) ([]*activeModels.WorkSessionBreak, error) {
+		breakLoads++
+		return nil, nil
+	}
+	breakRepo.getBySessionIDFunc = func(context.Context, int64) ([]*activeModels.WorkSessionBreak, error) {
+		return nil, errors.New("per-session break query must not run")
+	}
+	auditRepo.countManualBySessionIDsFunc = func(context.Context, []int64) (map[int64]int, error) {
+		manualAuditLoads++
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(context.Context, []int64) (map[int64]int, error) {
+		return nil, errors.New("unused audit-count query must not run")
+	}
+
+	rowsByStaff, err := svc.DayExportRowsByStaffIDs(ctx, staffIDs, date, date)
+	require.NoError(t, err)
+	require.Len(t, rowsByStaff[staffIDs[0]], 1)
+	require.Len(t, rowsByStaff[staffIDs[1]], 1)
+	assert.Equal(t, 1, sessionLoads)
+	assert.Equal(t, 1, absenceLoads)
+	assert.Equal(t, 1, breakLoads)
+	assert.Equal(t, 1, manualAuditLoads)
+}
+
 func TestWSBuildExportRows_CompTimeUsesGermanLabel(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 	date := timezone.NewDate(2026, time.July, 24)
@@ -340,6 +432,65 @@ func TestWSBuildExportRows_SortsByDate(t *testing.T) {
 	require.Len(t, rows, 2)
 	assert.Equal(t, date2, rows[0].Date) // Earlier date first
 	assert.Equal(t, date1, rows[1].Date)
+}
+
+func TestCrossStaffCSV_SanitizesUntrustedTextOnly(t *testing.T) {
+	data, err := writeMonthCSV([]MonthExportRow{{
+		LastName:       "=1+1",
+		FirstName:      "+SUM(A1:A2)",
+		EmploymentType: "@legacy",
+		BalanceMinutes: -90,
+	}}, ExportTimeDecimal)
+	require.NoError(t, err)
+
+	reader := csv.NewReader(strings.NewReader(string(bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF}))))
+	reader.Comma = ';'
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	assert.Equal(t, "'=1+1", records[1][0])
+	assert.Equal(t, "'+SUM(A1:A2)", records[1][1])
+	assert.Equal(t, "'@legacy", records[1][2])
+	assert.Equal(t, "-1,50", records[1][16], "trusted negative durations must remain numeric CSV values")
+
+	dayData, err := writeDayCSV([]dayExportBlockRow{{
+		LastName:  "-danger",
+		FirstName: "Safe",
+		Cells:     []string{"02.01.2024", "Dienstag", "--", "--", "--", "--", "Krank", "", "\t=1+1"},
+	}})
+	require.NoError(t, err)
+	reader = csv.NewReader(strings.NewReader(string(bytes.TrimPrefix(dayData, []byte{0xEF, 0xBB, 0xBF}))))
+	reader.Comma = ';'
+	records, err = reader.ReadAll()
+	require.NoError(t, err)
+	assert.Equal(t, "'-danger", records[1][0])
+	assert.Equal(t, "'\t=1+1", records[1][10])
+}
+
+func TestWriteMonthXLSX_DecimalDurationsAreNumeric(t *testing.T) {
+	data, err := writeMonthXLSX([]MonthExportRow{{
+		CarryInMinutes: 750,
+		BalanceMinutes: -90,
+	}}, ExportTimeDecimal)
+	require.NoError(t, err)
+
+	book, err := excelize.OpenReader(bytes.NewReader(data))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = book.Close() })
+
+	cellType, err := book.GetCellType("Zeiterfassung", "F2")
+	require.NoError(t, err)
+	assert.NotEqual(t, excelize.CellTypeSharedString, cellType)
+	assert.NotEqual(t, excelize.CellTypeInlineString, cellType)
+	value, err := book.GetCellValue("Zeiterfassung", "F2")
+	require.NoError(t, err)
+	assert.Equal(t, "12.50", value)
+	styleID, err := book.GetCellStyle("Zeiterfassung", "F2")
+	require.NoError(t, err)
+	style, err := book.GetStyle(styleID)
+	require.NoError(t, err)
+	require.NotNil(t, style.CustomNumFmt)
+	assert.Equal(t, "0.00", *style.CustomNumFmt)
 }
 
 // ============================================================================

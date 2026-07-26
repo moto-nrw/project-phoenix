@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import {
   CalendarClock,
   CalendarPlus,
@@ -14,7 +16,6 @@ import {
   ExternalLink,
   FileText,
   Link2,
-  MoreVertical,
   Pencil,
   Power,
   Trash2,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import {
   type Phase,
+  type PhaseAudience,
   type PhaseDeleteImpact,
   type PhaseInput,
   type PhaseKind,
@@ -63,6 +65,7 @@ import {
   type DataTableColumn,
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Radio } from "~/components/ui/radio";
 import {
   LateInviteModal,
   ManualApprovedEnrollmentModal,
@@ -87,6 +90,48 @@ const CARE_SELECTION_LABELS: Record<PhaseCareOfferingSelectionMode, string> = {
   at_least_one: "Mindestens ein Angebot",
   exactly_one: "Genau ein Angebot",
 };
+
+const AUDIENCE_LABELS: Record<PhaseAudience, string> = {
+  open: "Offen für alle",
+  new_students: "Nur neue Kinder",
+  existing_students: "Nur bereits angemeldete Kinder",
+  linked_parents: "Nur Eltern mit Konto an der Schule",
+};
+
+// Compact labels for the phases table badge (the full labels are too long
+// for a table cell). "open" needs no badge, so it is intentionally omitted.
+const AUDIENCE_BADGE_LABELS: Record<Exclude<PhaseAudience, "open">, string> = {
+  new_students: "Nur neue Kinder",
+  existing_students: "Nur bereits angemeldete",
+  linked_parents: "Nur Eltern mit Konto",
+};
+
+const AUDIENCE_OPTIONS: ReadonlyArray<{
+  value: PhaseAudience;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: "open",
+    label: AUDIENCE_LABELS.open,
+    hint: "Alle können sich anmelden, auch ohne Konto. Die Phase erscheint in der öffentlichen Anmeldeliste.",
+  },
+  {
+    value: "new_students",
+    label: AUDIENCE_LABELS.new_students,
+    hint: "Anmeldung ohne Konto möglich. Kinder, die an der Schule bereits angemeldet sind, werden abgelehnt.",
+  },
+  {
+    value: "existing_students",
+    label: AUDIENCE_LABELS.existing_students,
+    hint: "Für Wiederanmeldungen: Nur Kinder, die an der Schule bereits angemeldet sind, können sich anmelden. Neue Kinder werden abgelehnt.",
+  },
+  {
+    value: "linked_parents",
+    label: AUDIENCE_LABELS.linked_parents,
+    hint: "Wird nicht in der öffentlichen Anmeldeliste angezeigt. Nur Eltern mit Konto und Berechtigung können sich im Elternportal anmelden.",
+  },
+];
 
 // Schema-source mode.
 // "base" sets form_schema_id = null. "reuse" picks an existing schema row.
@@ -113,7 +158,42 @@ function blankInput(): PhaseInput {
     is_active: true,
     available_school_classes: [],
     require_school_class: false,
+    audience: "open",
+    eligible_school_classes: [],
+    eligible_grade_levels: [],
   };
+}
+
+// withNonEmptyClasses trims a class list and drops blank entries, matching the
+// backend's own trim-then-ignore-empty reading of both class lists.
+function withNonEmptyClasses(classes: readonly string[]): string[] {
+  return classes.map((cls) => cls.trim()).filter((cls) => cls.length > 0);
+}
+
+// mergeOfferedClasses returns the offered ("Konkrete Klassen") list with every
+// eligible class kept in it, preserving order and dropping duplicates.
+//
+// The backend requires eligible ⊆ available — the form can only present offered
+// classes, so a restriction to a class it never offers rejects every submission.
+// ADD rather than REPLACE: available may legitimately be a wider superset,
+// because a late-invite recipient bypasses the eligibility gate and keeps the
+// full offered list, while every self-service load is narrowed to the eligible
+// subset server-side (#1663).
+function mergeOfferedClasses(
+  offered: readonly string[],
+  eligible: readonly string[],
+): string[] {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  for (const cls of [
+    ...withNonEmptyClasses(offered),
+    ...withNonEmptyClasses(eligible),
+  ]) {
+    if (seen.has(cls)) continue;
+    seen.add(cls);
+    merged.push(cls);
+  }
+  return merged;
 }
 
 // RFC3339 to datetime-local "YYYY-MM-DDTHH:MM" helpers. The HTML
@@ -317,6 +397,50 @@ export function PhasesEditor() {
           "Schließung des Anmeldefensters muss nach der Öffnung liegen.",
         );
       }
+      // A "Nur für Klassen" restriction can only be met with a class the form
+      // actually offers, and the form offers exactly the "Konkrete Klassen"
+      // (available_school_classes) list. So every eligible class must also be
+      // an offered one — the backend rejects a phase where it isn't — and the
+      // class pick must be mandatory, otherwise the form shows "Klasse offen"
+      // and every such submission fails server-side with class_not_eligible
+      // after the parent completed the whole form (#1663). The tenant-wide
+      // Klassen-Abfrage must still be active for the pick to appear —
+      // surfaced in the field hint, not enforceable here.
+      const eligibleClasses = withNonEmptyClasses(
+        payload.eligible_school_classes ?? [],
+      );
+      // Grade-1 classes ("1a") are supported (#1663): when a phase offers a
+      // grade-1 class the form collects it (grade 1 is no longer restricted to
+      // grade-level only), so a grade-1 eligibility restriction is satisfiable.
+      //
+      // The editor already keeps the two lists in sync while typing; this stays
+      // as the safety net for a draft loaded from a phase whose stored lists
+      // drifted apart (an older editor build, or a direct API write).
+      if (eligibleClasses.length > 0) {
+        payload.available_school_classes = mergeOfferedClasses(
+          payload.available_school_classes ?? [],
+          eligibleClasses,
+        );
+        payload.require_school_class = true;
+      }
+      // Both restrictions apply together, so a class outside the selected
+      // grades can never be declared — the child would have to be in two
+      // grades at once. The backend rejects the pair; catch it here with a
+      // concrete message naming the offending class (#1663).
+      const eligibleGrades = payload.eligible_grade_levels ?? [];
+      if (eligibleGrades.length > 0) {
+        const conflicting = eligibleClasses.find((cls) => {
+          const prefix = /(\d+)/.exec(cls)?.[1];
+          return (
+            prefix !== undefined && !eligibleGrades.includes(Number(prefix))
+          );
+        });
+        if (conflicting) {
+          throw new Error(
+            `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entferne die Klasse oder ergänze ihre Klassenstufe.`,
+          );
+        }
+      }
       if (editingId === "new") {
         const created = await createPhase(payload);
         toast.success(`Anmeldephase „${created.name}" erstellt.`);
@@ -473,8 +597,18 @@ export function PhasesEditor() {
         render: (phase) => (
           <div className="min-w-0">
             <p className="truncate font-medium text-gray-900">{phase.name}</p>
-            <p className="mt-0.5 text-xs text-gray-500">
-              {KIND_LABELS[phase.kind]}
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+              <span>{KIND_LABELS[phase.kind]}</span>
+              {phase.audience && phase.audience !== "open" ? (
+                <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#4070C8]">
+                  {AUDIENCE_BADGE_LABELS[phase.audience]}
+                </span>
+              ) : null}
+              {(phase.eligible_grade_levels ?? []).length > 0 ? (
+                <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#4070C8]">
+                  {`Nur Klassenstufe ${(phase.eligible_grade_levels ?? []).join(", ")}`}
+                </span>
+              ) : null}
             </p>
           </div>
         ),
@@ -644,6 +778,7 @@ export function PhasesEditor() {
           editing={editingId !== "new"}
           saving={saving}
           highlightFormSection={highlightFormSection}
+          gradeLevelMax={gradeLevelMax}
           onSubmit={handleSave}
           onCancel={cancelEdit}
         />
@@ -739,6 +874,8 @@ interface PhaseFormProps {
   readonly editing: boolean;
   readonly saving: boolean;
   readonly highlightFormSection: boolean;
+  /** Tenant grade cap; null when unresolved — the grade picker then hides. */
+  readonly gradeLevelMax: number | null;
   readonly onSubmit: (e: React.FormEvent) => void;
   readonly onCancel: () => void;
 }
@@ -851,14 +988,6 @@ interface PhaseActionsProps {
   readonly onDelete: () => void;
 }
 
-interface PhaseActionsMenuPosition {
-  top: number;
-  left: number;
-  alignRight: boolean;
-}
-
-const PHASE_ACTIONS_MENU_HEIGHT = 292;
-
 function PhaseActions({
   phase,
   tenantSlug,
@@ -874,263 +1003,117 @@ function PhaseActions({
   onToggleActive,
   onDelete,
 }: PhaseActionsProps) {
-  const [open, setOpen] = useState(false);
   const [lateInviteOpen, setLateInviteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState<PhaseActionsMenuPosition>({
-    top: 0,
-    left: 0,
-    alignRight: false,
-  });
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
+  // Audience-restricted phases are never publicly reachable: the anonymous form
+  // gate refuses BOTH linked_parents and existing_students, so the plain
+  // /enroll/{id} URL 404s for either unless it carries a valid late-invite
+  // token. The untokenized public actions ("Formular ansehen", the copy-link
+  // button) would hand out a dead link, so hide them for both audiences while
+  // keeping the tokenized "Nachzügler-Link erstellen" action, which appends the
+  // accepted token (#1663). Those parents reach the form through the parents
+  // portal picker instead.
+  const hasNoPublicForm =
+    phase.audience === "linked_parents" ||
+    phase.audience === "existing_students";
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
   const enrollmentsHref = tenantPath(
     `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
   );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!open || !buttonRef.current) return;
-
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = 240;
-    const measuredHeight = menuRef.current?.offsetHeight ?? 0;
-    const menuHeight =
-      measuredHeight > 0 ? measuredHeight : PHASE_ACTIONS_MENU_HEIGHT;
-    const alignRight = rect.left + menuWidth > window.innerWidth - 16;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const placeAbove = spaceBelow < menuHeight + 16 && rect.top > spaceBelow;
-    const top = placeAbove
-      ? Math.max(8, rect.top - 6 - menuHeight)
-      : rect.bottom + 6;
-    setPosition({
-      top,
-      left: alignRight ? rect.right : rect.left,
-      alignRight,
-    });
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        menuRef.current &&
-        event.target instanceof Node &&
-        !menuRef.current.contains(event.target)
-      ) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleScroll() {
-      setOpen(false);
-    }
-
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [open]);
-
-  const menu = open && mounted && (
-    <div
-      ref={menuRef}
-      role="menu"
-      tabIndex={-1}
-      aria-label={`Aktionen für ${phase.name}`}
-      className="fixed z-[9999] w-60 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 text-left shadow-lg"
-      style={{
-        top: position.top,
-        left: position.alignRight ? "auto" : position.left,
-        right: position.alignRight ? window.innerWidth - position.left : "auto",
-      }}
-    >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onEdit();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <Pencil className="h-4 w-4 text-gray-500" aria-hidden />
-        Bearbeiten
-      </button>
-
-      <a
-        href={`/enroll/${encodeURIComponent(phase.id)}`}
-        target="_blank"
-        rel="noreferrer"
-        role="menuitem"
-        tabIndex={0}
-        onClick={() => setOpen(false)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-      >
-        <ExternalLink className="h-4 w-4 text-gray-500" aria-hidden />
-        Formular ansehen
-      </a>
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          setLateInviteOpen(true);
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <Link2 className="h-4 w-4 text-gray-500" aria-hidden />
-        Nachzügler-Link erstellen
-      </button>
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          setManualOpen(true);
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <UserCheck className="h-4 w-4 text-gray-500" aria-hidden />
-        Manuelle Anmeldung
-      </button>
-
-      <Link
-        href={enrollmentsHref}
-        role="menuitem"
-        tabIndex={0}
-        onClick={() => setOpen(false)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-      >
-        <ClipboardList className="h-4 w-4 text-gray-500" aria-hidden />
-        Anmeldungen ansehen
-      </Link>
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onAssignForm();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <FileText className="h-4 w-4 text-gray-500" aria-hidden />
-        Formular zuweisen
-      </button>
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onRollover();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving || rolloverActive}
-      >
-        <CalendarPlus className="h-4 w-4 text-gray-500" aria-hidden />
-        Anschlussphase erstellen
-      </button>
-
-      {hasReviewList ? (
-        <Link
-          href={`/enrollment-phases/${encodeURIComponent(phase.id)}/review`}
-          role="menuitem"
-          tabIndex={0}
-          onClick={() => setOpen(false)}
-          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-        >
-          <Check className="h-4 w-4 text-gray-500" aria-hidden />
-          Prüfliste öffnen
-        </Link>
-      ) : null}
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onToggleActive();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-      >
-        <Power className="h-4 w-4 text-gray-500" aria-hidden />
-        {phase.is_active ? "Deaktivieren" : "Aktivieren"}
-      </button>
-
-      <div className="my-1 h-px bg-gray-100" />
-
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onDelete();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={deleting || saving}
-      >
-        <Trash2 className="h-4 w-4" aria-hidden />
-        {deleting ? "Löscht..." : "Löschen"}
-      </button>
-    </div>
-  );
+  const menuEntries: OverflowMenuEntry[] = [
+    {
+      label: "Bearbeiten",
+      icon: <Pencil className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: onEdit,
+    },
+    ...(hasNoPublicForm
+      ? []
+      : [
+          {
+            label: "Formular ansehen",
+            icon: <ExternalLink className="h-4 w-4" aria-hidden />,
+            href: `/enroll/${encodeURIComponent(phase.id)}`,
+            external: true,
+            onClick: () => undefined,
+          },
+        ]),
+    {
+      label: "Nachzügler-Link erstellen",
+      icon: <Link2 className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: () => setLateInviteOpen(true),
+    },
+    {
+      label: "Manuelle Anmeldung",
+      icon: <UserCheck className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: () => setManualOpen(true),
+    },
+    {
+      label: "Anmeldungen ansehen",
+      icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+      href: enrollmentsHref,
+      onClick: () => undefined,
+    },
+    {
+      label: "Formular zuweisen",
+      icon: <FileText className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: onAssignForm,
+    },
+    {
+      label: "Anschlussphase erstellen",
+      icon: <CalendarPlus className="h-4 w-4" aria-hidden />,
+      disabled: saving || rolloverActive,
+      onClick: onRollover,
+    },
+    ...(hasReviewList
+      ? [
+          {
+            label: "Prüfliste öffnen",
+            icon: <Check className="h-4 w-4" aria-hidden />,
+            href: `/enrollment-phases/${encodeURIComponent(phase.id)}/review`,
+            onClick: () => undefined,
+          },
+        ]
+      : []),
+    {
+      label: phase.is_active ? "Deaktivieren" : "Aktivieren",
+      icon: <Power className="h-4 w-4" aria-hidden />,
+      disabled: saving,
+      onClick: onToggleActive,
+    },
+    { kind: "separator" },
+    {
+      label: deleting ? "Löscht..." : "Löschen",
+      icon: <Trash2 className="h-4 w-4" aria-hidden />,
+      destructive: true,
+      disabled: deleting || saving,
+      onClick: onDelete,
+    },
+  ];
 
   return (
     <>
       <div className="flex justify-end gap-1.5">
-        {phaseUrl ? (
+        {phaseUrl && !hasNoPublicForm ? (
           <PublicLinkCopyButton
             url={phaseUrl}
             componentId={`PhaseActions:${phase.id}`}
           />
         ) : null}
-        <div>
-          <button
-            ref={buttonRef}
-            type="button"
-            onClick={() => setOpen((prev) => !prev)}
-            aria-label={`Aktionen für ${phase.name}`}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              highlight
-                ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5F9F20] shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
-                : "border-gray-200"
-            }`}
-          >
-            <MoreVertical className="h-4 w-4" aria-hidden="true" />
-          </button>
-          {mounted ? createPortal(menu, document.body) : null}
-        </div>
+        <OverflowMenu
+          ariaLabel={`Aktionen für ${phase.name}`}
+          items={menuEntries}
+          triggerClassName={
+            highlight
+              ? "bg-[#83CD2D]/10 shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
+              : ""
+          }
+        />
       </div>
       <LateInviteModal
         isOpen={lateInviteOpen}
@@ -1159,6 +1142,7 @@ function PhaseForm(props: PhaseFormProps) {
     editing,
     saving,
     highlightFormSection,
+    gradeLevelMax,
     onSubmit,
     onCancel,
   } = props;
@@ -1591,6 +1575,88 @@ function PhaseForm(props: PhaseFormProps) {
 
       <fieldset className="rounded-xl border border-gray-200 p-4">
         <legend className="px-1 text-xs font-medium text-gray-700">
+          Zielgruppe
+        </legend>
+        <div className="space-y-2 text-sm">
+          {AUDIENCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              htmlFor={`phase-audience-${option.value}`}
+              aria-label={option.label}
+              className="flex cursor-pointer items-start gap-2"
+            >
+              <Radio
+                id={`phase-audience-${option.value}`}
+                name="phase-audience"
+                value={option.value}
+                checked={draft.audience === option.value}
+                onChange={() => update({ audience: option.value })}
+                className="mt-0.5"
+              />
+              <span className="flex-1">
+                <span className="block font-medium text-gray-900">
+                  {option.label}
+                </span>
+                <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                  {option.hint}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-4">
+          <span className="text-xs font-medium text-gray-700">
+            Nur für Klassenstufen (optional)
+          </span>
+          <p className="mt-1 text-xs leading-5 text-gray-500">
+            Leer lassen für keine Einschränkung. Kinder müssen eine dieser
+            Klassenstufen angeben, zum Beispiel für eine Phase nur für den 3.
+            Jahrgang. Dafür genügt die Klassenstufen-Abfrage, konkrete Klassen
+            sind nicht nötig.
+          </p>
+          <GradeLevelListEditor
+            value={draft.eligible_grade_levels ?? []}
+            gradeLevelMax={gradeLevelMax}
+            onChange={(list) => update({ eligible_grade_levels: list })}
+          />
+        </div>
+        <div className="mt-4">
+          <span className="text-xs font-medium text-gray-700">
+            Nur für Klassen (optional)
+          </span>
+          <p className="mt-1 text-xs leading-5 text-gray-500">
+            Leer lassen für keine Einschränkung. Kinder müssen eine dieser
+            Klassen angeben. Diese Klassen werden automatisch als „Konkrete
+            Klassen“ zur Auswahl angeboten und sind ab Klasse 2 bei aktiver
+            Klassen-Abfrage in den Einstellungen wählbar.
+          </p>
+          <SchoolClassListEditor
+            value={draft.eligible_school_classes ?? []}
+            onChange={(list) =>
+              // An eligible class the phase does not offer is rejected by the
+              // backend (eligible ⊆ available), and the restriction is only
+              // enforceable when the class pick is mandatory. Mirror both here
+              // so the "Konkrete Klassen" list below shows the truth while
+              // editing instead of the save silently adding the classes (#1663).
+              update(
+                withNonEmptyClasses(list).length > 0
+                  ? {
+                      eligible_school_classes: list,
+                      available_school_classes: mergeOfferedClasses(
+                        draft.available_school_classes ?? [],
+                        list,
+                      ),
+                      require_school_class: true,
+                    }
+                  : { eligible_school_classes: list },
+              )
+            }
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-gray-200 p-4">
+        <legend className="px-1 text-xs font-medium text-gray-700">
           Konkrete Klassen
         </legend>
         <p className="text-xs leading-5 text-gray-500">
@@ -1601,20 +1667,28 @@ function PhaseForm(props: PhaseFormProps) {
         </p>
         <SchoolClassListEditor
           value={draft.available_school_classes ?? []}
-          onChange={(list) =>
+          onChange={(list) => {
+            // A class that is still an eligibility target cannot be dropped
+            // from the offered list: the backend refuses eligible ⊄ available,
+            // and removing it here while the "Nur für Klassen" list keeps it
+            // would look like it worked until the save re-added it (#1663).
+            const offered = mergeOfferedClasses(
+              list,
+              draft.eligible_school_classes ?? [],
+            );
             // Clearing the list must also clear "verpflichtend": a mandatory
             // phase with no offered classes is impossible - grade >= 2 parents
             // would be required to pick a class from an empty dropdown and the
             // backend would reject every submission (#1833).
             update(
-              list.length === 0
+              offered.length === 0
                 ? {
-                    available_school_classes: list,
+                    available_school_classes: offered,
                     require_school_class: false,
                   }
-                : { available_school_classes: list },
-            )
-          }
+                : { available_school_classes: offered },
+            );
+          }}
         />
         <div className="mt-3">
           <PhaseCheckbox
@@ -1646,6 +1720,59 @@ function PhaseForm(props: PhaseFormProps) {
         </button>
       </div>
     </form>
+  );
+}
+
+// GradeLevelListEditor picks the grade levels a phase is restricted to
+// (#1663). Grades are a closed, server-known set (1..grade_level_max), so
+// this is a toggle row rather than the free-text chip editor the concrete
+// classes need. An empty selection means "no restriction". Renders nothing
+// while the tenant cap is unresolved — guessing a range would let an admin
+// save a grade the school does not have.
+function GradeLevelListEditor({
+  value,
+  gradeLevelMax,
+  onChange,
+}: Readonly<{
+  value: number[];
+  gradeLevelMax: number | null;
+  onChange: (next: number[]) => void;
+}>) {
+  if (gradeLevelMax === null) {
+    return (
+      <p className="mt-2 text-xs text-gray-400">
+        Klassenstufen konnten nicht geladen werden.
+      </p>
+    );
+  }
+  const grades = Array.from({ length: gradeLevelMax }, (_, i) => i + 1);
+  const toggle = (grade: number) =>
+    onChange(
+      value.includes(grade)
+        ? value.filter((g) => g !== grade)
+        : [...value, grade].sort((a, b) => a - b),
+    );
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {grades.map((grade) => {
+        const selected = value.includes(grade);
+        return (
+          <button
+            key={grade}
+            type="button"
+            onClick={() => toggle(grade)}
+            aria-pressed={selected}
+            className={`inline-flex h-9 min-w-11 items-center justify-center rounded-full border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              selected
+                ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            {grade}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

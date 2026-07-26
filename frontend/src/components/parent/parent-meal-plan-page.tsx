@@ -252,7 +252,7 @@ export function ParentMealPlanPage() {
           {t("loadError")}
         </section>
       ) : schools.length === 0 ? (
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500 shadow-sm">
+        <section className="moto-content-surface rounded-2xl border p-6 text-sm text-gray-500 shadow-sm">
           {t("empty")}
         </section>
       ) : (
@@ -309,7 +309,7 @@ export function ParentMealPlanPage() {
                   (() => {
                     const dishes = dishesByDate.get(today) ?? [];
                     return (
-                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
                         <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
                           <div className="text-sm font-semibold text-gray-900">
                             {weekdayLabel(today)}
@@ -333,7 +333,7 @@ export function ParentMealPlanPage() {
                     );
                   })()}
 
-                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
                   <div className="border-b border-gray-200 px-4 py-2.5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
                     {weekOffset === 0 ? t("weekHeading") : t("nextWeek")}
                   </div>
@@ -380,7 +380,7 @@ export function ParentMealPlanPage() {
               </div>
 
               {/* Desktop: full five-column week grid. */}
-              <div className="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm md:block">
+              <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm md:block">
                 <div className="grid grid-cols-5 divide-x divide-gray-200">
                   {weekDates.map((date) => {
                     const dishes = dishesByDate.get(date) ?? [];

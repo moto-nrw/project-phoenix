@@ -23,6 +23,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/xuri/excelize/v2"
 )
@@ -263,6 +264,12 @@ type WorkSessionService interface {
 	// already checked out today (no re-open).
 	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
 	ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error)
+	// DayExportRows exposes the export's merged session/absence day rows for
+	// the cross-staff export (#1417 2b) — same loading, same cell rendering.
+	DayExportRows(ctx context.Context, staffID int64, from, to timezone.Date) ([]DayExportRow, error)
+	// DayExportRowsByStaffIDs loads the same rows for many staff members with
+	// batched repository calls, keyed by staff ID.
+	DayExportRowsByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]DayExportRow, error)
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 
 	// Staff work-schedule operations (issue #584: moved out of api/staff).
@@ -342,6 +349,7 @@ type workSessionService struct {
 	settings       settingsResolver
 	staffShiftRepo scheduleModels.StaffShiftRepository
 	holidayReader  HolidayDatesReader
+	broadcaster    realtime.Broadcaster
 	logger         *slog.Logger
 	nowFunc        func() time.Time
 }
@@ -362,9 +370,19 @@ func (s *workSessionService) SetHolidayReader(reader HolidayDatesReader) {
 	s.holidayReader = reader
 }
 
+// SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
+// WorkSessionService so existing API-layer mocks do not need a no-op setter.
+func (s *workSessionService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *workSessionService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
+}
+
+func (s *workSessionService) broadcastTimeTrackingChanged(ctx context.Context) {
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func (s *workSessionService) lockStaffBalanceWrites(ctx context.Context, staffID int64) error {
@@ -485,7 +503,12 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 		}
 		// Re-open the checked-out session (accidental checkout recovery).
 		// Source and Status are both preserved (see reopenSession comment).
-		return s.reopenSession(ctx, existingSession, staffID)
+		reopened, err := s.reopenSession(ctx, existingSession, staffID)
+		if err != nil {
+			return nil, err
+		}
+		s.broadcastTimeTrackingChanged(ctx)
+		return reopened, nil
 	}
 
 	// From here the session is created, so it belongs to the day of its own
@@ -538,6 +561,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 		}
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 
@@ -680,6 +704,7 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		return nil, fmt.Errorf("failed to retrieve updated session: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return updatedSession, nil
 }
 
@@ -911,6 +936,7 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 		return nil, fmt.Errorf("failed to create break: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return brk, nil
 }
 
@@ -963,6 +989,7 @@ func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day 
 		return nil, fmt.Errorf("failed to retrieve updated session: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return updatedSession, nil
 }
 
@@ -1177,6 +1204,7 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		}
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 
@@ -1264,6 +1292,7 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		return nil, fmt.Errorf("failed to create audit entries: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 
@@ -1862,6 +1891,9 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 		}
 	}
 
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return count, nil
 }
 
@@ -2022,6 +2054,9 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 		count++
 	}
 
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return count, nil
 }
 
@@ -2133,7 +2168,7 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	}
 
 	// Build merged rows sorted by date
-	rows := s.buildExportRows(historyResp.Sessions, absences)
+	rows := s.buildExportRows(historyResp.Sessions, clampAbsencesToRange(absences, from, to))
 
 	fromStr := from.String()
 	toStr := to.String()
@@ -2152,6 +2187,28 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 		}
 		return data, fmt.Sprintf("zeiterfassung_%s_%s.csv", fromStr, toStr), nil
 	}
+}
+
+// clampAbsencesToRange returns shallow copies whose expanded day ranges stay
+// inside the requested export period. Repository range lookups deliberately
+// return overlapping absences, including records that start before `from` or
+// end after `to`.
+func clampAbsencesToRange(absences []*activeModels.StaffAbsence, from, to timezone.Date) []*activeModels.StaffAbsence {
+	clamped := make([]*activeModels.StaffAbsence, 0, len(absences))
+	for _, absence := range absences {
+		if absence == nil || absence.DateEnd.Before(from) || to.Before(absence.DateStart) {
+			continue
+		}
+		copy := *absence
+		if copy.DateStart.Before(from) {
+			copy.DateStart = from
+		}
+		if to.Before(copy.DateEnd) {
+			copy.DateEnd = to
+		}
+		clamped = append(clamped, &copy)
+	}
+	return clamped
 }
 
 // buildExportRows merges session rows and absence rows, sorted by date
@@ -2399,6 +2456,9 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 		count++
 	}
 
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return count, nil
 }
 
@@ -2515,17 +2575,23 @@ func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *userMode
 		}
 	}
 
+	var err error
 	switch mode {
 	case "template":
 		if in.ModelID == nil || *in.ModelID == 0 {
 			return scheduleValidationErrorf("model_id is required for mode=template")
 		}
-		return s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
+		err = s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
 	case "custom":
-		return s.applyCustomSchedule(ctx, staff, in)
+		err = s.applyCustomSchedule(ctx, staff, in)
 	default:
 		return scheduleValidationErrorf("invalid mode %q", mode)
 	}
+	if err != nil {
+		return err
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
 }
 
 func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {

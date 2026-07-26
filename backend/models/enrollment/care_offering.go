@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -283,14 +284,23 @@ func (c *CareOffering) Validate() error {
 }
 
 func normalizeGradeLevels(levels []int) ([]int, error) {
+	return normalizeGradeLevelList("auto_add_grade_levels", levels)
+}
+
+// normalizeGradeLevelList validates a grade-level list against the shared
+// grade bounds, drops duplicates, and preserves the admin-entered order.
+// Returns a non-nil empty slice so a jsonb column stores '[]' rather than
+// null. field names the column in the error so the caller's message stays
+// specific (auto_add_grade_levels vs eligible_grade_levels).
+func normalizeGradeLevelList(field string, levels []int) ([]int, error) {
 	if len(levels) == 0 {
 		return []int{}, nil
 	}
 	seen := make(map[int]bool, len(levels))
 	out := make([]int, 0, len(levels))
 	for _, level := range levels {
-		if level <= 0 || level > 13 {
-			return nil, fmt.Errorf("auto_add_grade_levels contains invalid grade %d", level)
+		if level < schoolclass.MinGradeLevel || level > schoolclass.MaxGradeLevel {
+			return nil, fmt.Errorf("%s contains invalid grade %d", field, level)
 		}
 		if seen[level] {
 			continue

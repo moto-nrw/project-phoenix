@@ -17,21 +17,23 @@ export interface SupervisionState {
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
  * 1. Binary-mode caregivers: /students/search
- * 2. Caregivers with groups: /ogs-groups
- * 3. Caregivers actively supervising: /active-supervisions
- * 4. Other caregivers: /ogs-groups
- * 5. Admin-only users: /dashboard
+ * 2. Open-care caregivers: /students/search (no group concept, #1544)
+ * 3. Caregivers with groups: /ogs-groups
+ * 4. Caregivers actively supervising: /active-supervisions
+ * 5. Other caregivers: /ogs-groups
+ * 6. Admin-only users: /dashboard
  */
 export function getSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
   presenceMode: PresenceMode = "detailed",
+  openCareGroupMode = false,
 ): string {
   const canUseCaregiverFlows = isCaregiver(session);
   const canUseAdminFlows = hasRole(session, "admin");
 
   if (canUseCaregiverFlows) {
-    if (presenceMode === "binary") {
+    if (presenceMode === "binary" || openCareGroupMode) {
       return "/students/search";
     }
 
@@ -69,6 +71,7 @@ export function useSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
   presenceMode: PresenceMode = "detailed",
+  openCareGroupMode = false,
 ): { redirectPath: string; isReady: boolean } {
   const isReady =
     !supervisionState.isLoadingGroups && !supervisionState.isLoadingSupervision;
@@ -76,6 +79,7 @@ export function useSmartRedirectPath(
     session,
     supervisionState,
     presenceMode,
+    openCareGroupMode,
   );
 
   return {

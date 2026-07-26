@@ -534,6 +534,166 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 	})
 }
 
+// TestStudentGuardianRepository_AccountHasStudentPermission covers the #1663
+// per-child re-enrollment authorization probe: parent-portal permissions are
+// relationship-scoped, so holding parent_portal.enrollment.submit on one child
+// must NOT grant it on another child of the same guardian, and an inactive /
+// missing account_tenants mapping or a wrong tenant must report no permission.
+func TestStudentGuardianRepository_AccountHasStudentPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentGuardian
+	ctx := testpkg.TenantContext(1)
+
+	// Primary guardian (all parent-portal permissions) → chain.StudentID, with an
+	// ACTIVE account_tenants mapping. This is the authorized child.
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// A SECOND child of the SAME guardian, linked WITHOUT enrollment.submit (empty
+	// permissions) — the exact P1 scenario: authority over child A must not extend
+	// to child B.
+	otherChild := testpkg.CreateTestStudent(t, db, "Mara", "Schneider", "2b")
+	otherLink := createTestStudentGuardian(t, db, otherChild.ID, chain.GuardianProfileID, "parent", false)
+	defer func() {
+		cleanupStudentGuardians(t, db, otherLink.ID)
+		testpkg.CleanupActivityFixtures(t, db, otherChild.ID)
+	}()
+
+	perm := authorize.GuardianPermissionEnrollmentSubmit
+
+	t.Run("granted on the guardian's own child", func(t *testing.T) {
+		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.True(t, granted)
+	})
+
+	t.Run("denied on a different child lacking the permission", func(t *testing.T) {
+		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, otherChild.ID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.False(t, granted, "submit permission on one child must not extend to another")
+	})
+
+	t.Run("denied for an unrelated account", func(t *testing.T) {
+		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID+9_000_000, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.False(t, granted)
+	})
+
+	t.Run("denied under a different tenant", func(t *testing.T) {
+		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID+1, perm)
+		require.NoError(t, err)
+		assert.False(t, granted, "tenant filter must isolate the check")
+	})
+
+	t.Run("rejects non-positive arguments", func(t *testing.T) {
+		_, err := repo.AccountHasStudentPermission(ctx, 0, chain.StudentID, chain.TenantID, perm)
+		require.Error(t, err)
+		_, err = repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, "  ")
+		require.Error(t, err)
+	})
+}
+
+// TestStudentGuardianRepository_GuardianEmailHasStudentPermission covers the
+// accountless sibling probe (#1663). It backs the late-invite enrollment path,
+// whose recipient is identified by email and typically has no portal account, so
+// the check must hold for a profile WITHOUT an account while keeping every other
+// boundary the account variant enforces: relationship scope (permission on child
+// A never covers child B), tenant isolation, and case-insensitive email matching.
+func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentGuardian
+	ctx := testpkg.TenantContext(1)
+
+	// Guardian WITH an account and an active mapping, primary role on its child.
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// A second child of the same guardian, linked without enrollment.submit.
+	otherChild := testpkg.CreateTestStudent(t, db, "Mara", "Schneider", "2b")
+	otherLink := createTestStudentGuardian(t, db, otherChild.ID, chain.GuardianProfileID, "parent", false)
+	defer func() {
+		cleanupStudentGuardians(t, db, otherLink.ID)
+		testpkg.CleanupActivityFixtures(t, db, otherChild.ID)
+	}()
+
+	// An ACCOUNTLESS guardian (the typical late-invite recipient) with the full
+	// primary-guardian preset on a third child.
+	accountlessChild := testpkg.CreateTestStudent(t, db, "Jonas", "Weber", "3a")
+	accountlessProfile := testpkg.CreateTestGuardianProfile(t, db, "accountless.guardian")
+	require.NotNil(t, accountlessProfile.Email)
+	// The fixture uniquifies the address, so read back what was actually stored.
+	accountlessEmail := *accountlessProfile.Email
+	accountlessLink := createTestStudentGuardian(t, db, accountlessChild.ID, accountlessProfile.ID, "parent", true)
+	_, err := db.NewUpdate().
+		TableExpr("users.students_guardians").
+		Set("permissions = ?", map[string]any{authorize.GuardianPermissionEnrollmentSubmit: true}).
+		Where("id = ?", accountlessLink.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cleanupStudentGuardians(t, db, accountlessLink.ID)
+		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", accountlessProfile.ID)
+		testpkg.CleanupActivityFixtures(t, db, accountlessChild.ID)
+	}()
+
+	perm := authorize.GuardianPermissionEnrollmentSubmit
+
+	t.Run("granted for an accountless guardian of the child", func(t *testing.T) {
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, 1, perm)
+		require.NoError(t, err)
+		assert.True(t, granted, "a guardian without a portal account must still be able to renew their own child")
+	})
+
+	t.Run("email matching is case-insensitive and trimmed", func(t *testing.T) {
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, "  "+strings.ToUpper(accountlessEmail)+" ", accountlessChild.ID, 1, perm)
+		require.NoError(t, err)
+		assert.True(t, granted)
+	})
+
+	t.Run("denied on another family's child", func(t *testing.T) {
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, chain.StudentID, 1, perm)
+		require.NoError(t, err)
+		assert.False(t, granted, "the reviewed P1: an invited guardian must not renew a child they have no relationship with")
+	})
+
+	t.Run("denied on the guardian's other child lacking the permission", func(t *testing.T) {
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, chain.Email, otherChild.ID, 1, perm)
+		require.NoError(t, err)
+		assert.False(t, granted, "submit permission on one child must not extend to another")
+	})
+
+	t.Run("granted for an account-backed guardian on its own child", func(t *testing.T) {
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.True(t, granted)
+	})
+
+	t.Run("denied for an unknown email", func(t *testing.T) {
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, "stranger@example.test", chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.False(t, granted)
+	})
+
+	t.Run("denied under a different tenant", func(t *testing.T) {
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, chain.TenantID+1, perm)
+		require.NoError(t, err)
+		assert.False(t, granted, "tenant filter must isolate the check")
+	})
+
+	t.Run("rejects invalid arguments", func(t *testing.T) {
+		_, err := repo.GuardianEmailHasStudentPermission(ctx, "  ", accountlessChild.ID, 1, perm)
+		require.Error(t, err)
+		_, err = repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, 0, 1, perm)
+		require.Error(t, err)
+		_, err = repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, 1, "  ")
+		require.Error(t, err)
+	})
+}
+
 // isLockTimeoutError reports whether PostgreSQL refused a lock request because
 // the transaction-local lock_timeout elapsed (SQLSTATE 55P03). Used by the
 // FOR UPDATE serialization test to detect a held lock deterministically instead

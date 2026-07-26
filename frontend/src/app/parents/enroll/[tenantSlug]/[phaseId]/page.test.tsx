@@ -25,7 +25,7 @@ vi.mock("~/lib/tenant-api", () => ({
 }));
 
 vi.mock("~/lib/enrollment-submission-api", () => ({
-  fetchPublicEnrollmentBootstrap: mocks.fetchBootstrap,
+  fetchParentEnrollmentBootstrap: mocks.fetchBootstrap,
 }));
 
 vi.mock("~/lib/parent-api", () => ({
@@ -133,9 +133,10 @@ describe("ParentEnrollFormPage", () => {
     expect(form).toHaveAttribute("data-grade-level-max", "13");
     expect(form).toHaveAttribute("data-has-profile", "true");
     expect(mocks.resolveTenant).toHaveBeenCalledWith("demo");
+    // #1663: the parents portal loads form metadata through the
+    // parent-authenticated bootstrap, not the anonymous public path.
     expect(mocks.fetchBootstrap).toHaveBeenCalledWith("demo", "5", {
       lateInviteToken: undefined,
-      omitCredentials: true,
     });
     expect(mocks.fetchProfile).toHaveBeenCalledWith("demo");
     expect(mocks.enrollmentForm).toHaveBeenCalledWith(

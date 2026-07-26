@@ -11,6 +11,13 @@ var (
 	// ErrInvalidCredentials returned when username/password combo is invalid
 	ErrInvalidCredentials = errors.New("invalid username or password")
 
+	// ErrInvalidStaffPINCredentials hides whether a requested staff/account
+	// exists when kiosk staff-PIN authentication fails.
+	ErrInvalidStaffPINCredentials = errors.New("invalid staff PIN credentials")
+
+	// ErrStaffPINLocked reports an active staff-account PIN lockout.
+	ErrStaffPINLocked = errors.New("staff PIN is temporarily locked")
+
 	// ErrAccountNotFound returned when account doesn't exist
 	ErrAccountNotFound = errors.New("account not found")
 

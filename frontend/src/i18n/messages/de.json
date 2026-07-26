@@ -116,7 +116,27 @@
     "newsAcknowledged": "Bestätigt",
     "newsRead": "Gelesen",
     "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
-    "newsStaleError": "Diese Mitteilung ist nicht mehr aktuell. Bitte laden Sie die Seite neu."
+    "newsStaleError": "Diese Mitteilung ist nicht mehr aktuell. Bitte laden Sie die Seite neu.",
+    "newEnrollment": "Neue Anmeldung"
+  },
+  "parentEnroll": {
+    "back": "Zurück zum Elternportal",
+    "title": "Neue Anmeldung",
+    "description": "Wählen Sie eine Schule und eine Anmeldephase, um Ihr Kind anzumelden.",
+    "loading": "Anmeldephasen werden geladen …",
+    "loadError": "Die Anmeldephasen konnten nicht geladen werden.",
+    "empty": "Derzeit sind keine Anmeldephasen verfügbar.",
+    "yourSchools": "Ihre Schulen",
+    "otherSchools": "Weitere Schulen",
+    "kindSchoolYear": "Schuljahr",
+    "kindHoliday": "Ferienbetreuung",
+    "kindCustom": "Sonstiges",
+    "closesAt": "Anmeldung bis {date}",
+    "audienceNewStudents": "Nur neue Kinder",
+    "audienceExistingStudents": "Nur bereits angemeldete Kinder",
+    "audienceLinkedParents": "Nur für verknüpfte Eltern",
+    "rangeConnector": "bis",
+    "openPhase": "Anmeldung öffnen"
   },
   "parentChildren": {
     "eyebrow": "Meine Kinder",
@@ -503,6 +523,8 @@
     "openUntil": "Offen bis {date}",
     "serviceRange": "Betreuungszeitraum: {from} bis {to}",
     "start": "Anmeldung starten",
+    "audienceNewStudents": "Nur für neue Kinder",
+    "audienceExistingStudents": "Nur für bereits angemeldete Kinder",
     "kind": {
       "school_year": "Schuljahr",
       "holiday": "Ferienbetreuung",
@@ -557,6 +579,7 @@
       "childrenKicker": "Schritt 2",
       "childrenTitle": "Kind oder Kinder",
       "childrenDescription": "Erfassen Sie jedes Kind einzeln. Für Geschwister können Sie über die Schaltfläche weitere Kind-Daten hinzufügen.",
+      "newStudentsOnlyNotice": "Diese Anmeldephase richtet sich nur an neue Kinder. Bereits an der Schule angemeldete Kinder können hier nicht erneut angemeldet werden.",
       "consentKicker": "Schritt 3",
       "consentTitle": "Zustimmungen",
       "consentDescription": "Bitte lesen Sie die Zustimmungen sorgfältig. Erforderliche Zustimmungen müssen aktiv ausgewählt werden."

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, render, waitFor, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  renderHook,
+  render,
+  waitFor,
+  screen,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { ToastProvider, useToast } from "./ToastContext";
@@ -114,6 +120,33 @@ describe("ToastContext", () => {
         },
         { timeout: 3000 },
       );
+    });
+
+    it("runs a toast action from the desktop toast", async () => {
+      const onAction = vi.fn();
+
+      function TestComponent() {
+        const toast = useToast();
+
+        useEffect(() => {
+          toast.info("Test message", {
+            duration: 0,
+            action: { label: "Öffnen", onClick: onAction },
+          });
+        }, [toast]);
+
+        return null;
+      }
+
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(await screen.findByRole("button", { name: "Öffnen" }));
+
+      expect(onAction).toHaveBeenCalledOnce();
     });
   });
 

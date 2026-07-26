@@ -1,6 +1,9 @@
 import Image from "next/image";
+import Link from "next/link";
 import {
+  ArrowRight,
   BadgeCheck,
+  BookOpen,
   KeyRound,
   Nfc,
   PlugZap,
@@ -234,6 +237,39 @@ export default function NfcQuickstartPage() {
                   </div>
                 );
               })}
+            </section>
+
+            <section className="mt-6 rounded-3xl border border-gray-200 bg-[#F9FAFB] p-5 print:mt-4 print:rounded-2xl print:p-4">
+              <div className="flex items-start gap-4 print:gap-3">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/16 text-[#3F6F12] print:h-10 print:w-10 print:rounded-xl">
+                  <BookOpen
+                    className="h-6 w-6 print:h-5 print:w-5"
+                    aria-hidden="true"
+                  />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-[19px] leading-tight font-semibold tracking-normal print:text-[17px]">
+                    Weiter zum NFC-Betriebsbuch
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-700 print:mt-1.5 print:text-[13px] print:leading-5">
+                    Alles Weitere steht im ausführlichen Handbuch: Aufsicht
+                    starten und beenden, Kinder ein- und auschecken,
+                    Arbeitszeiten stempeln, Geräteeinstellungen und
+                    Fehlerbehebung.
+                  </p>
+                  <Link
+                    href="/help/nfc"
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#74b827] active:bg-[#669f21] print:hidden"
+                  >
+                    NFC-Betriebsbuch öffnen
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                  <p className="mt-2 hidden text-[12px] leading-5 font-medium text-gray-700 print:mt-2 print:block">
+                    So finden Sie es: moto im Browser öffnen, unten links auf
+                    Hilfe klicken und NFC &amp; Tablets wählen.
+                  </p>
+                </div>
+              </div>
             </section>
 
             <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:pt-3 print:text-[11px]">

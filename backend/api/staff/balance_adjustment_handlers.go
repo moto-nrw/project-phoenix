@@ -34,6 +34,10 @@ func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "balance_adjustment_exceeds_balance"))
 		return
 	}
+	if errors.Is(err, activeSvc.ErrAdjustmentInClosedMonth) {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "adjustment_in_closed_month"))
+		return
+	}
 	common.RenderError(w, r, common.RenderWithRules(err, balanceAdjustmentErrorRules, common.ErrorInternalServer))
 }
 
@@ -149,7 +153,12 @@ func (rs *Resource) deleteBalanceAdjustment(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.BalanceAdjustService.DeleteAdjustment(r.Context(), staffID, adjustmentID); err != nil {
+	deletedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	if err := rs.BalanceAdjustService.DeleteAdjustment(r.Context(), staffID, adjustmentID, deletedBy); err != nil {
 		tenant.MarkRollback(r.Context())
 		renderBalanceAdjustmentError(w, r, err)
 		return

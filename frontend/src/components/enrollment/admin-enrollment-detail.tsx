@@ -49,38 +49,12 @@ import {
   useWaitlistEnabled,
 } from "~/lib/tenant-context";
 
+import {
+  CHILD_STATUS_LABELS,
+  ChildStatusBadge,
+} from "~/components/enrollment/child-status-badge";
+
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
-
-const STATUS_LABELS: Record<ChildStatus, string> = {
-  submitted: "Eingegangen",
-  under_review: "In Prüfung",
-  approved: "Bestätigt",
-  waitlisted: "Warteliste",
-  rejected: "Abgelehnt",
-  withdrawn: "Zurückgezogen",
-  pending_renewal: "Wartet auf Verlängerung",
-  auto_renewed: "Vorgemerkt",
-  pending_admin_review: "Manuelle Prüfung",
-};
-
-const STATUS_COLORS: Record<
-  ChildStatus,
-  { bg: string; dot: string; text: string }
-> = {
-  submitted: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
-  under_review: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
-  approved: { bg: "#83CD2D1A", dot: "#83CD2D", text: "#5A8B1F" },
-  waitlisted: { bg: "#FFF4E6", dot: "#F78C10", text: "#8A5600" },
-  rejected: { bg: "#FF31301A", dot: "#FF3130", text: "#9F1F1E" },
-  withdrawn: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
-  pending_renewal: { bg: "#FFF4E6", dot: "#F78C10", text: "#8A5600" },
-  auto_renewed: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
-  pending_admin_review: {
-    bg: "#F3F4F6",
-    dot: "#9CA3AF",
-    text: "#4B5563",
-  },
-};
 
 const TERMINAL: ReadonlySet<ChildStatus> = new Set([
   "approved",
@@ -169,7 +143,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     try {
       await decideAdminChild(requestId, childId, status, reason || undefined);
       setInfo(
-        `Entscheidung gespeichert: ${STATUS_LABELS[status as ChildStatus]}`,
+        `Entscheidung gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}`,
       );
       await load();
     } catch (err) {
@@ -324,23 +298,6 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         }}
       />
     </div>
-  );
-}
-
-export function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
-  const styles = STATUS_COLORS[status];
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-      style={{ backgroundColor: styles.bg, color: styles.text }}
-    >
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-        aria-hidden="true"
-      />
-      {STATUS_LABELS[status]}
-    </span>
   );
 }
 
@@ -502,7 +459,7 @@ function ChildInformationCard({
             ) : null}
           </div>
         </div>
-        <StatusBadge status={child.status} />
+        <ChildStatusBadge status={child.status} />
       </div>
       <div className="space-y-4 p-4">
         {child.status_reason ? (
@@ -667,7 +624,7 @@ function ReviewSidebar({
                       : "Keine Klassenstufe"}
                 </p>
               </div>
-              <StatusBadge status={child.status} />
+              <ChildStatusBadge status={child.status} />
             </div>
             <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
               {TERMINAL.has(child.status)

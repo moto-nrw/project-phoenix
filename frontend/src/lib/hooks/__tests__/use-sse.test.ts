@@ -786,6 +786,7 @@ describe("useSSE Hook", () => {
         "activity_end",
         "activity_update",
         "dashboard_counts_changed",
+        "staff_time_tracking_changed",
       ];
 
       for (const eventType of eventTypes) {
@@ -802,7 +803,7 @@ describe("useSSE Hook", () => {
 
       await waitFor(
         () => {
-          expect(onMessage).toHaveBeenCalledTimes(6);
+          expect(onMessage).toHaveBeenCalledTimes(eventTypes.length);
         },
         { timeout: 500 },
       );

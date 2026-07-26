@@ -318,6 +318,10 @@ type WorkSessionRepository interface {
 	// GetHistoryByStaffID returns work sessions for a staff member in a date range
 	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*WorkSession, error)
 
+	// GetHistoryByStaffIDs is GetHistoryByStaffID batched over many staff
+	// members, keyed by staff ID, for the cross-staff Stundenkonto overview.
+	GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*WorkSession, error)
+
 	// GetOpenSessions returns all sessions without check-out before a given date
 	GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*WorkSession, error)
 
@@ -351,17 +355,25 @@ type StaffAbsenceRepository interface {
 	// GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error)
 
+	// GetByStaffIDsAndDateRange is GetByStaffAndDateRange batched over many
+	// staff members, keyed by staff ID (same overlap semantics).
+	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffAbsence, error)
+
 	// GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error)
 
-	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
+	// GetAbsenceMapForDate returns a map of staff IDs to their absence type for the given date.
 	// Priority order when multiple absences exist:
 	// sick > training > vacation > comp_time > other.
-	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
+	GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error)
 
 	// ListByStatuses returns all absences whose status is in the given set,
 	// ordered by requested_at (used for the /staff inbox: requested + question)
 	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
+
+	// ListNonHistoricalByStaffID returns absences that offboarding will delete:
+	// pending/question rows or absences whose end date has not passed.
+	ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*StaffAbsence, error)
 
 	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
 	// ('requested' or 'question') or not yet over (date_end >= from). Past
@@ -392,6 +404,36 @@ type StaffBalanceAdjustmentRepository interface {
 	// GetByStaffAndDateRange returns adjustments whose effective_date lies in
 	// [from, to], ordered by effective_date.
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
+
+	// GetByStaffIDsAndDateRange is GetByStaffAndDateRange batched over many
+	// staff members, keyed by staff ID.
+	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffBalanceAdjustment, error)
+}
+
+// StaffMonthBalanceSnapshotRepository defines operations for frozen month
+// closing balances (#1417).
+type StaffMonthBalanceSnapshotRepository interface {
+	base.Repository[*StaffMonthBalanceSnapshot]
+
+	// GetLatestClosedThrough returns the newest ACTIVE snapshot whose
+	// (year, month) is at or before the given one, or nil.
+	//
+	// Not expressible as a filter: the ordering key is the composite
+	// year*12+month expression, and "active" is the partial predicate
+	// reopened_at IS NULL.
+	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*StaffMonthBalanceSnapshot, error)
+
+	// GetByMonth lists the ACTIVE snapshots of one month for the whole tenant.
+	// Backs the close-status view.
+	GetByMonth(ctx context.Context, year, month int) ([]*StaffMonthBalanceSnapshot, error)
+
+	// LockStaffBalanceWrites takes the same per-staff advisory lock the
+	// adjustment ledger uses, so a close cannot interleave with a payout.
+	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
+
+	// UpdateColumns writes selected columns only. Reopening must touch the
+	// reopen fields without rewriting the frozen values next to them.
+	UpdateColumns(ctx context.Context, snapshot *StaffMonthBalanceSnapshot, columns ...string) (int64, error)
 }
 
 // StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement
@@ -400,6 +442,10 @@ type StaffVacationQuotaRepository interface {
 
 	// GetByStaffAndYear returns the quota row for a specific staff/year, or nil
 	GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationQuota, error)
+
+	// GetByStaffIDsAndYear is GetByStaffAndYear batched over many staff
+	// members, keyed by staff ID. Missing rows are absent from the map.
+	GetByStaffIDsAndYear(ctx context.Context, staffIDs []int64, year int) (map[int64]*StaffVacationQuota, error)
 
 	// Upsert creates or updates the quota for a staff/year combination
 	Upsert(ctx context.Context, quota *StaffVacationQuota) error
@@ -414,6 +460,10 @@ type WorkSessionBreakRepository interface {
 
 	// GetActiveBySessionID returns the currently active (no ended_at) break for a session, or nil
 	GetActiveBySessionID(ctx context.Context, sessionID int64) (*WorkSessionBreak, error)
+
+	// GetActiveBySessionIDs is GetActiveBySessionID batched over many
+	// sessions, keyed by session ID. Sessions without an open break are absent.
+	GetActiveBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]*WorkSessionBreak, error)
 
 	// EndBreak sets ended_at and duration_minutes on a break
 	EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error

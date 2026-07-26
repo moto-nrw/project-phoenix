@@ -23,12 +23,16 @@ export function KpiCard({
   secondary,
   progressPct,
   color,
+  compactPrimary,
 }: {
   readonly label: string;
   readonly primary: string;
   readonly secondary?: string;
   readonly progressPct?: number;
   readonly color?: "green" | "amber" | "gray" | "red";
+  /** Schulweite Summen sind vierstellig ("1521h 11min") und brechen sonst
+   *  mitten im Wert um. Eine Stufe kleiner und ohne Umbruch. */
+  readonly compactPrimary?: boolean;
 }) {
   const primaryColor = {
     green: "text-[#70b525]",
@@ -47,7 +51,13 @@ export function KpiCard({
       <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
         {label}
       </p>
-      <p className={`mt-2 text-2xl font-bold ${primaryColor}`}>{primary}</p>
+      <p
+        className={`mt-2 font-bold ${primaryColor} ${
+          compactPrimary ? "text-xl whitespace-nowrap" : "text-2xl"
+        }`}
+      >
+        {primary}
+      </p>
       {secondary && <p className="mt-1 text-xs text-gray-500">{secondary}</p>}
       {progressPct !== undefined && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">

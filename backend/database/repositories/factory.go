@@ -132,6 +132,7 @@ type Factory struct {
 	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
 	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
+	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
 
 	// Meal plan domain
 	MealPlanEntry mealplanModels.MealPlanEntryRepository
@@ -165,7 +166,11 @@ type Factory struct {
 	AuthEvent                    auditModels.AuthEventRepository
 	DataImport                   auditModels.DataImportRepository
 	WorkSessionEdit              auditModels.WorkSessionEditRepository
+	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
+	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
+	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
+	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)
 	Organization             platformModels.OrganizationRepository
@@ -320,6 +325,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
 		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
+		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
 
 		// Meal plan repositories
 		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),
@@ -353,7 +359,11 @@ func NewFactory(db *bun.DB) *Factory {
 		AuthEvent:                    audit.NewAuthEventRepository(db),
 		DataImport:                   audit.NewDataImportRepository(db),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),
+		StudentFieldEdit:             audit.NewStudentFieldEditRepository(db),
 		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
+		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
+		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
+		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 
 		// Platform repositories
 		Organization:             platformRepo.NewOrganizationRepository(db),

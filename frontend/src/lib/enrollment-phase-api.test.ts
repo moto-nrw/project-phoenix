@@ -146,6 +146,11 @@ describe("phase calendar period helpers", () => {
       is_active: false,
       available_school_classes: [],
       require_school_class: false,
+      // Legacy phase (mkPhase omits audience/eligible_school_classes) defaults
+      // to the "open"/no-restriction eligibility, so a round-trip save never
+      // silently changes it (#1663).
+      audience: "open",
+      eligible_school_classes: [],
     });
   });
 

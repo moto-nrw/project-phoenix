@@ -35,7 +35,12 @@ func (rs *Resource) ParentRouter() chi.Router {
 // it is woken only for its own threads — never another family's, and never by
 // staff-oriented tenant/group broadcasts.
 func (rs *Resource) parentEventsHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel, ok := withSSETokenDeadline(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	defer cancel()
 
 	conn, statusCode := rs.setupSSEConnection(w)
 	if conn == nil {

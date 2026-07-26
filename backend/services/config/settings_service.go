@@ -24,6 +24,51 @@ type settingsService struct {
 	schoolRepo platform.SchoolRepository
 	db         *bun.DB
 	logger     *slog.Logger
+	// classRestrictionGuard, when set, reports whether the tenant in
+	// context currently has an active enrollment phase that restricts
+	// eligibility to specific school classes. It gates disabling the
+	// concrete-class collection toggles so an admin cannot make every
+	// submission to such a phase fail (#1663). Optional: nil skips the
+	// guard (unit tests, callers that never wire enrollment). Injected via
+	// SetClassRestrictionGuard to keep the config package decoupled from
+	// the enrollment domain.
+	classRestrictionGuard func(ctx context.Context) (bool, error)
+	// gradeRestrictionGuard is the same probe for phases restricted to
+	// specific GRADE LEVELS. Separate from classRestrictionGuard because the
+	// two hang off different toggles: a grade restriction only needs
+	// collect_grade_level, so disabling collect_school_class must not be
+	// blocked by it (#1663). Optional in the same way; injected via
+	// SetGradeRestrictionGuard.
+	gradeRestrictionGuard func(ctx context.Context) (bool, error)
+	// gradeCapGuard reports the highest grade any active phase restricts
+	// itself to (0 when none does). It gates LOWERING
+	// enrollment.grade_level_max: the public form only offers grades up to the
+	// cap and the submit path re-checks it, so a cap below a live restriction
+	// leaves that phase unable to accept any submission (#1663). Optional in
+	// the same way as the two probes above; injected via SetGradeCapGuard.
+	gradeCapGuard func(ctx context.Context) (int, error)
+}
+
+// SetClassRestrictionGuard wires the enrollment class-restriction probe used
+// by the concrete-class collection guard. Kept off the constructor (and off
+// the SettingsService interface) so existing call sites and tests are
+// unaffected; the factory sets it after construction (#1663).
+func (s *settingsService) SetClassRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
+	s.classRestrictionGuard = fn
+}
+
+// SetGradeRestrictionGuard wires the enrollment grade-restriction probe used
+// by the grade-level collection guard, following the same off-constructor
+// convention as SetClassRestrictionGuard (#1663).
+func (s *settingsService) SetGradeRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
+	s.gradeRestrictionGuard = fn
+}
+
+// SetGradeCapGuard wires the enrollment highest-restricted-grade probe used by
+// the grade-level-cap guard, following the same off-constructor convention as
+// SetClassRestrictionGuard (#1663).
+func (s *settingsService) SetGradeCapGuard(fn func(ctx context.Context) (int, error)) {
+	s.gradeCapGuard = fn
 }
 
 // NewSettingsService creates a new SettingsService.
@@ -444,18 +489,14 @@ func validateValue(def *config.Definition, value any) error {
 			return err
 		}
 
-	case config.FieldText, config.FieldTextarea:
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("expected a string")
-		}
-
-	case config.FieldPassword:
+	case config.FieldText, config.FieldTextarea, config.FieldPassword:
 		str, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("expected a string")
 		}
-		// Apply pattern validation from registry definition if present
-		if def.Validation != nil && def.Validation.CompiledPattern != nil && str != "" {
+		if def.Validation != nil &&
+			def.Validation.CompiledPattern != nil &&
+			(str != "" || !def.Validation.AllowEmpty) {
 			if !def.Validation.CompiledPattern.MatchString(str) {
 				return fmt.Errorf("value does not match required pattern")
 			}
@@ -482,6 +523,139 @@ func (s *settingsService) validateCrossField(ctx context.Context, key string, va
 	switch key {
 	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
 		return s.validateSlotListCutoffPair(ctx, key, value)
+	case config.KeyEnrollmentCollectGradeLevel, config.KeyEnrollmentCollectSchoolClass:
+		return s.validateClassCollectionGuard(ctx, key, value)
+	case config.KeyEnrollmentGradeLevelMax:
+		return s.validateGradeLevelCapGuard(ctx, key, value)
+	}
+	return nil
+}
+
+// validateGradeLevelCapGuard blocks lowering enrollment.grade_level_max below
+// a grade an active phase already restricts itself to. The public form offers
+// grades 1..cap and the submit path re-checks the cap, so such a phase would
+// end up unable to accept any submission: the parent cannot pick the eligible
+// grade, and a hand-crafted submission carrying it is rejected by the cap.
+// This is the inverse of the phase-side ensureEligibleGradeLevelsWithinTenantCap
+// check — together they keep the pair consistent from either edit direction,
+// including via ResetValue, which restores the registry default 4 (#1663).
+//
+// Takes the same per-tenant lock as the class/grade collection guards so a
+// concurrent phase write and a cap change cannot both pass on a stale read.
+// Best-effort: a nil guard skips the check.
+func (s *settingsService) validateGradeLevelCapGuard(ctx context.Context, key string, value any) error {
+	if s.gradeCapGuard == nil {
+		return nil
+	}
+	num, ok := toFloat64(value)
+	if !ok {
+		// A non-numeric value is already rejected by validateValue; nothing to
+		// compare here.
+		return nil
+	}
+	newMax := int(num)
+	if err := s.LockClassCollectionPair(ctx); err != nil {
+		return err
+	}
+	highest, err := s.gradeCapGuard(ctx)
+	if err != nil {
+		// Operational failure stays a plain error → 500, not a "your value is
+		// invalid" 400.
+		return fmt.Errorf("check grade-restricted phases: %w", err)
+	}
+	if highest > newMax {
+		return &InvalidValueError{
+			Key: key,
+			Reason: fmt.Sprintf(
+				"Die höchste Klassenstufe kann nicht auf %d gesenkt werden, solange eine aktive Anmeldephase auf Klassenstufe %d beschränkt ist. Entfernen Sie zuerst die Klassenstufenbeschränkung der betroffenen Phase.",
+				newMax,
+				highest,
+			),
+		}
+	}
+	return nil
+}
+
+// validateClassCollectionGuard blocks disabling concrete-class collection
+// while an active enrollment phase restricts eligibility to specific school
+// classes. Concrete-class collection is effective only when BOTH
+// collect_grade_level and collect_school_class are on (a class without its
+// grade is ambiguous). When it turns off, the submit path forces every
+// child's class to nil, so a phase with a non-empty eligible_school_classes
+// gate rejects every submission with class_not_eligible. This is the inverse
+// of the phase-side validateEligibleClassesCollectable check: together they
+// keep the restricted-phase / class-collection pair consistent from either
+// edit direction (#1663). Best-effort: nil guard skips the check.
+//
+// It guards the grade-level restriction on the same lock: an active phase
+// limited to whole grades survives collect_school_class being off, but not
+// collect_grade_level.
+func (s *settingsService) validateClassCollectionGuard(ctx context.Context, key string, value any) error {
+	if s.classRestrictionGuard == nil && s.gradeRestrictionGuard == nil {
+		return nil
+	}
+	newVal, ok := value.(bool)
+	if !ok {
+		// Non-bool falls back to the registry default / is caught by
+		// validateValue; nothing to compare here.
+		return nil
+	}
+	// Serialize the read-validate-write of this invariant against a concurrent
+	// activation of a class-restricted phase. The phase side takes the same
+	// per-tenant lock before it resolves these toggles, so the second writer
+	// blocks and observes the first's committed state instead of both passing
+	// on a stale read (#1663). Lock first, then read the sibling toggle and the
+	// restricted-phase probe below. Held until the setting upsert commits with
+	// the request tx.
+	if err := s.LockClassCollectionPair(ctx); err != nil {
+		return err
+	}
+	// Grade-level restrictions hang off collect_grade_level ALONE — a phase
+	// targeting a whole grade never needs concrete classes — so this check runs
+	// only when the write itself turns grade collection off, and independently
+	// of the class-collection pair below (#1663).
+	if key == config.KeyEnrollmentCollectGradeLevel && !newVal && s.gradeRestrictionGuard != nil {
+		restricted, err := s.gradeRestrictionGuard(ctx)
+		if err != nil {
+			return fmt.Errorf("check grade-restricted phases: %w", err)
+		}
+		if restricted {
+			return &InvalidValueError{
+				Key:    key,
+				Reason: "Die Klassenstufen-Abfrage kann nicht deaktiviert werden, solange eine aktive Anmeldephase auf bestimmte Klassenstufen beschränkt ist. Entfernen Sie zuerst die Klassenstufenbeschränkung der betroffenen Phase.",
+			}
+		}
+	}
+	if s.classRestrictionGuard == nil {
+		return nil
+	}
+	// Compute the effective collection state with `value` applied to `key`
+	// and the sibling toggle resolved live (its current effective value).
+	collectGrade, collectClass := newVal, newVal
+	var err error
+	if key == config.KeyEnrollmentCollectGradeLevel {
+		collectClass, err = s.ResolveBool(ctx, config.KeyEnrollmentCollectSchoolClass)
+	} else {
+		collectGrade, err = s.ResolveBool(ctx, config.KeyEnrollmentCollectGradeLevel)
+	}
+	if err != nil {
+		return fmt.Errorf("resolve paired class-collection toggle: %w", err)
+	}
+	if collectGrade && collectClass {
+		// Collection stays effective — no restricted phase is endangered.
+		return nil
+	}
+	restricted, err := s.classRestrictionGuard(ctx)
+	if err != nil {
+		// Operational failure stays a plain error → surfaces as a 500, not a
+		// "your value is invalid" 400.
+		return fmt.Errorf("check class-restricted phases: %w", err)
+	}
+	if restricted {
+		return &InvalidValueError{
+			Key:    key,
+			Reason: "Die Klassen-Abfrage kann nicht deaktiviert werden, solange eine aktive Anmeldephase auf bestimmte Klassen beschränkt ist. Entfernen Sie zuerst die Klassenbeschränkung der betroffenen Phase.",
+		}
 	}
 	return nil
 }
@@ -579,6 +753,35 @@ func (s *settingsService) LockSlotListCutoffPairShared(ctx context.Context) erro
 // exclusive writer lock and the shared reader lock so the two conflict.
 func slotListCutoffLockKey(ctx context.Context) string {
 	return fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
+}
+
+// LockClassCollectionPair takes the per-tenant transaction-scoped advisory lock
+// that guards the enrollment class-restriction / class-collection invariant.
+// Two writes can otherwise race: one disabling concrete-class collection
+// (validateClassCollectionGuard here) and one activating a class-restricted
+// phase (validateEligibleClassesCollectable in services/enrollment). Under READ
+// COMMITTED each reads the other's pre-commit state, both pass, and they commit
+// an active restricted phase with class collection off — every submission then
+// fails class_not_eligible. Both sides take THIS lock on the same key, so the
+// second writer blocks, re-reads the first's committed state, and rejects.
+// Best-effort: without an ambient transaction the xact lock is meaningless (the
+// settings and phase write paths always run inside a tenant tx), so it is
+// skipped rather than failing.
+func (s *settingsService) LockClassCollectionPair(ctx context.Context) error {
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	if err := base.AcquireXactLock(ctx, s.db, classCollectionLockKey(ctx)); err != nil {
+		return fmt.Errorf("lock class-collection pair: %w", err)
+	}
+	return nil
+}
+
+// classCollectionLockKey is the per-tenant advisory-lock key shared by the
+// settings-side class-collection guard and the enrollment-side phase
+// eligibility guard so the two conflict.
+func classCollectionLockKey(ctx context.Context) string {
+	return fmt.Sprintf("enrollment-class-collection:%d", tenant.FromContext(ctx))
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

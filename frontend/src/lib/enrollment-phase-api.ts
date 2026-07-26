@@ -4,6 +4,13 @@ import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 
 export type PhaseKind = "school_year" | "holiday" | "custom";
+// Who may apply to a phase (#1663). "open" = everyone (incl. anonymous);
+// "new_students" = anonymous allowed but children already enrolled at the
+// school are rejected server-side; "linked_parents" = hidden from the public
+// listing, only parent accounts with a guardian link + submit permission may
+// apply via the parents portal.
+export type PhaseAudience =
+  "open" | "new_students" | "existing_students" | "linked_parents";
 export type PhaseCareOverflowMode = "waitlist" | "reject" | "allow";
 export type PhaseCareOfferingSelectionMode =
   "optional" | "at_least_one" | "exactly_one";
@@ -35,6 +42,15 @@ export interface Phase {
   // is on.
   available_school_classes?: string[];
   require_school_class?: boolean;
+  // Eligibility config (#1663). audience gates who may apply;
+  // eligible_school_classes restricts submissions to children declaring one
+  // of these classes ([] = no restriction). Omitted on legacy phases.
+  audience?: PhaseAudience;
+  eligible_school_classes?: string[];
+  // eligible_grade_levels restricts submissions to children declaring one of
+  // these grade levels ([] = no restriction). Independent of the class
+  // restriction: a phase for a whole grade needs no concrete classes.
+  eligible_grade_levels?: number[];
   created_at: string;
   updated_at: string;
 }
@@ -65,6 +81,9 @@ export interface PhaseInput {
   is_active: boolean;
   available_school_classes?: string[];
   require_school_class?: boolean;
+  audience?: PhaseAudience;
+  eligible_school_classes?: string[];
+  eligible_grade_levels?: number[];
 }
 
 interface BackendEnvelope<T> {
@@ -120,6 +139,15 @@ export function phaseToInput(p: Phase): PhaseInput {
     is_active: p.is_active,
     available_school_classes: p.available_school_classes ?? [],
     require_school_class: p.require_school_class ?? false,
+    // Default legacy phases (no stored audience) to "open" so a round-trip
+    // save never silently changes their eligibility.
+    audience: p.audience ?? "open",
+    eligible_school_classes: p.eligible_school_classes ?? [],
+    // Deliberately NOT coalesced to [] like its neighbours: a phase payload
+    // without the field comes from a backend that predates it, and sending an
+    // explicit [] would read as "clear the restriction". Leaving it undefined
+    // omits the key, which the backend re-hydrates from the stored phase.
+    eligible_grade_levels: p.eligible_grade_levels,
   };
 }
 

@@ -70,6 +70,11 @@ func (m *shiftMockRepo) FindByDateRange(ctx context.Context, start, end timezone
 	return nil, nil
 }
 
+// FindByStaffIDsAndDateRange satisfies the batched interface method (#1417).
+func (m *shiftMockRepo) FindByStaffIDsAndDateRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}
+
 func (m *shiftMockRepo) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*scheduleModels.StaffShift, error) {
 	if m.findByStaffAndDateRangeFunc != nil {
 		return m.findByStaffAndDateRangeFunc(ctx, staffID, start, end)
@@ -141,6 +146,9 @@ func (m *shiftMockStaffRepo) FindByID(ctx context.Context, id interface{}) (*use
 
 // The remaining StaffRepository methods are unused by the shift service.
 func (m *shiftMockStaffRepo) Create(context.Context, *usersModels.Staff) error { return nil }
+func (m *shiftMockStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Staff, error) {
+	return m.FindByID(ctx, id)
+}
 func (m *shiftMockStaffRepo) FindByPersonID(context.Context, int64) (*usersModels.Staff, error) {
 	return nil, errors.New("not implemented")
 }

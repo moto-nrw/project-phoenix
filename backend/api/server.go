@@ -114,6 +114,10 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	if svc.TimeTrackingCleanup != nil {
 		sched.SetTimeTrackingCleanup(svc.TimeTrackingCleanup)
 	}
+	// Issue #1455: per-child change-history GDPR cleanup. Same nil-safe wiring.
+	if svc.StudentChangeLogCleanup != nil {
+		sched.SetStudentChangeLogCleanup(svc.StudentChangeLogCleanup)
+	}
 	if svc.EnrollmentRejectedCleanup != nil {
 		sched.SetEnrollmentRejectedCleanup(svc.EnrollmentRejectedCleanup)
 	}
@@ -146,6 +150,10 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 	if api.Services.RealtimeHub != nil {
 		sched.SetInstanceOverdueDeps(repos.ActivityInstance, repos.Room, api.Services.RealtimeHub)
 	}
+	// Reminder → notification bridge (#1624 follow-up): dispatches aggregated
+	// reminder notifications through the channel-agnostic abstraction. Gated
+	// per tenant by notifications.dispatch_enabled + the reminders.* settings.
+	sched.SetReminderNotificationDeps(api.Services.Reminders, api.Services.Notifications)
 	// Daily session-end bridge: closes schedule-side rows for ended
 	// active.groups via repositories (issue #585 layering).
 	sched.SetTimetableBridgeRepos(repos.InstanceStudent, repos.ActivityInstance, api.Services.TimetableBridge)
@@ -153,6 +161,9 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 	// Parent-enrollment PR 2: activate-students tick.
 	if repos.Student != nil {
 		sched.SetStudentLifecycleRepo(repos.Student)
+		if api.Services.StudentAudit != nil {
+			sched.SetStudentLifecycleAudit(api.Services.StudentAudit)
+		}
 	}
 }
 

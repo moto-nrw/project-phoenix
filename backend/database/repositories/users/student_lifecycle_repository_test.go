@@ -147,3 +147,36 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 		require.Error(t, err, "update on missing student must error")
 	})
 }
+
+func TestStudentRepository_TransitionStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "Conditional", "Lifecycle", "1a")
+	defer cleanupStudentRecords(t, db, student.ID)
+	setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+
+	applied, err := repo.TransitionStatus(
+		ctx,
+		student.ID,
+		users.StudentStatusPending,
+		users.StudentStatusActive,
+	)
+	require.NoError(t, err)
+	assert.True(t, applied)
+
+	applied, err = repo.TransitionStatus(
+		ctx,
+		student.ID,
+		users.StudentStatusPending,
+		users.StudentStatusInactive,
+	)
+	require.NoError(t, err)
+	assert.False(t, applied, "a stale expected status must not overwrite the current status")
+
+	found, err := repo.FindByID(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, users.StudentStatusActive, found.Status)
+}

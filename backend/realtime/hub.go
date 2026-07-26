@@ -15,6 +15,9 @@ type Client struct {
 	UserID           int64           // User ID for audit logging
 	TenantID         int64           // Tenant ID for multi-tenancy isolation
 	SubscribedGroups map[string]bool // composite key (tenantID:groupID) -> subscribed
+	// IsAdmin mirrors the effective admin scope used by tenant handlers:
+	// literal admins plus accounts with admin:* or *:* permissions.
+	IsAdmin bool
 	// IsParent marks a guardian-portal connection. Parent clients are
 	// cross-tenant and routed by their own account id (UserID): they never
 	// match tenant/group broadcasts, only BroadcastParentMessage addressed to
@@ -262,6 +265,41 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		slog.Int("recipient_count", recipients),
 	)
 	observability.RecordSSEBroadcast(tenantID, string(event.Type), "tenant", droppedCount)
+	return nil
+}
+
+// BroadcastToTenantAdmins sends an event only to effective admins in one
+// tenant. This is for user-visible payloads derived from an admin-wide data
+// view; scoped caregivers must not receive counts or links for data outside
+// their own reminder scope.
+func (h *Hub) BroadcastToTenantAdmins(tenantID int64, event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := 0
+	droppedCount := 0
+	for _, client := range h.tenantClients[tenantID] {
+		if !client.IsAdmin {
+			continue
+		}
+		recipients++
+		select {
+		case client.Channel <- event:
+		default:
+			droppedCount++
+			h.getLogger().Warn("SSE client channel full, skipping admin broadcast",
+				slog.Int64("user_id", client.UserID),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
+	h.getLogger().Debug("SSE event broadcast to tenant admins",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", recipients),
+	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "tenant_admin", droppedCount)
 	return nil
 }
 

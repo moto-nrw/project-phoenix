@@ -253,6 +253,44 @@ export const setupChapters: readonly GuideChapter[] = [
         screenshot: "Profilseite mit der Sektion Passkeys.",
       },
       {
+        id: "app-zum-home-bildschirm",
+        title: "moto zum Home-Bildschirm hinzufügen (iPhone und iPad)",
+        summary:
+          "moto lässt sich wie eine App auf dem Home-Bildschirm ablegen und öffnet sich dann im Vollbild ohne Browserleisten.",
+        steps: [
+          "moto in Safari öffnen und in der eigenen Einrichtung anmelden.",
+          "Auf der Seite der Einrichtung (z. B. meine-ogs.moto-app.de) auf `Teilen` tippen.",
+          "`Zum Home-Bildschirm` wählen und mit `Hinzufügen` bestätigen.",
+          "moto künftig über das neue Symbol auf dem Home-Bildschirm starten.",
+        ],
+        callout: {
+          title: "Tipp für iPhone und iPad",
+          body: "Fügen Sie moto erst dann zum Home-Bildschirm hinzu, wenn Sie bereits in Ihrer Einrichtung angemeldet sind. So öffnet sich moto immer als eigene App im Vollbild. Wer für mehrere Einrichtungen arbeitet, legt am besten für jede Einrichtung ein eigenes Symbol auf dem Home-Bildschirm an.",
+          tone: "blue",
+        },
+        screenshot: "Safari-Teilen-Menü mit der Option Zum Home-Bildschirm.",
+        printCompact: true,
+      },
+      {
+        id: "app-zum-startbildschirm-android",
+        title: "moto zum Startbildschirm hinzufügen (Android)",
+        summary:
+          "Auch auf Android-Geräten lässt sich moto als App installieren und startet dann im Vollbild ohne Browserleisten.",
+        steps: [
+          "moto in Chrome öffnen und in der eigenen Einrichtung anmelden.",
+          "Auf der Seite der Einrichtung das Browser-Menü mit den drei Punkten öffnen.",
+          "`App installieren` oder `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "moto künftig über das neue Symbol auf dem Startbildschirm starten.",
+        ],
+        callout: {
+          title: "Erst anmelden, dann installieren",
+          body: "Wie auf dem iPhone gilt: moto erst nach der Anmeldung in der eigenen Einrichtung installieren. Wer für mehrere Einrichtungen arbeitet, legt für jede Einrichtung ein eigenes Symbol an.",
+          tone: "blue",
+        },
+        screenshot: "Chrome-Menü auf Android mit der Option App installieren.",
+        printCompact: true,
+      },
+      {
         id: "mitarbeitende-anlegen",
         title: "Mitarbeitende anlegen und einladen",
         summary:
@@ -496,6 +534,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Betreuungsplan`: sehen, wie der Tag oder die Woche eines Kindes geplant ist – Ankunft, geplante Aktivitäten, AGs, Mensa und Lernzeiten, freie Betreuungszeit sowie die Abholung als Zeitleiste. Oben zwischen `Tag` und `Woche` umschalten und mit den Pfeilen navigieren. `Freie Betreuung` erscheint als eigener Abschnitt zwischen den Aktivitäten; Abweichungen wie `Krank`, `Entschuldigt`, `Klassenfahrt` oder eine abgesagte Ankunft bzw. Abholung werden pro Tag hervorgehoben. Diese Ansicht ist nur zum Ansehen – die Zeiten selbst bearbeiten Sie über `Zeiten bearbeiten` im Tab `Betreuungszeiten`.",
           "Tab `Betreuungszeiten`: die wöchentlichen Ankunfts- und Abholzeiten je Wochentag verwalten und einzelne Tage anpassen. Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird.",
           "Tab `Historie`: die Anwesenheits-Historie je Betreuungsangebot nachvollziehen. Morgen- und Nachmittagsbetreuung erscheinen als getrennte Zeitslots; ungeplante Besuche sind gekennzeichnet. Die Daten lassen sich als PDF, DOCX oder XLSX exportieren. Raum-Details ergänzen die Slot-Historie, soweit die Aufbewahrungsfrist sie noch zulässt.",
+          "Im Tab `Historie` über `Änderungsverlauf` nachvollziehen, wer wann welche Angaben zum Kind geändert hat (Vorher → Nachher). Sichtbar nur für Admins und Gruppenbetreuer. Direkt im Tab `Stammdaten` zeigt ein ⓘ neben einem Feld, wer es zuletzt geändert hat.",
           "Tab `Anmeldungen` (nur Admins): Online-Anmeldungen anzeigen, die dieses Kind ins System gebracht haben. Dort sehen Sie Betreuungsangebote, Gesundheitsangaben, Notfallkontakte, Zustimmungen und Zusatzantworten; Erziehungsberechtigte stehen weiterhin im eigenen Tab. Bei bestätigten Kindern können Betreuungsangebote dort nachträglich mit Begründung korrigiert werden, solange `Betreuungsangebote anbieten` unter `Einstellungen` -> `Anmeldung` aktiviert ist. Die Angaben können außerdem exportiert werden.",
         ],
         callout: {
@@ -671,9 +710,16 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Mitarbeiter",
         icon: ClipboardList,
         summary:
-          "Zeigt den Status des Teams: wer anwesend ist, in welchem Raum, im Homeoffice oder abwesend.",
+          "Zeigt den Status des Teams: wer anwesend ist, in welchem Raum, im Homeoffice oder abwesend. Darüber steht die Einrichtungs-Übersicht mit den Kennzahlen des ganzen Teams.",
         steps: [
           "`Mitarbeiter` öffnen.",
+          "Im Bereich `Einrichtungs-Übersicht` die Kennzahlen des Teams prüfen: aktive Mitarbeitende, aktuell Eingestempelte gegenüber den jetzt Erwarteten, Krank- und Urlaubsmeldungen für heute sowie Soll und Ist des Zeitraums. Oben rechts lässt sich zwischen `Woche` und `Monat` umschalten.",
+          "Die Karte `Saldo-Veränderung` ist nicht Ist minus Soll: Krankheits-, Urlaubs- und Fortbildungstage werden mit dem Tagessoll gutgeschrieben. In der Wochenansicht summiert sie die Saldo-Veränderungen der laufenden Woche, in der Monatsansicht die Monatssalden aller Mitarbeitenden.",
+          "Das `Stundenkonto der Einrichtung` darunter ist ein Kontostand über alle Mitarbeitenden und ändert sich beim Umschalten zwischen Woche und Monat bewusst nicht.",
+          "Mit der Berechtigung `time_tracking:manage` erscheinen unter der Übersicht die Reiter `Status`, `Zeitkonten` und `Änderungsprotokoll`. `Zeitkonten` zeigt eine Tabelle mit Soll, Ist, Saldo und Resturlaub pro Person; über die Pfeile neben dem Monatsnamen lassen sich auch vergangene Monate anzeigen. Jede Spalte lässt sich über die Kopfzeile sortieren, die Schaltflächen darüber filtern nach `Minusstunden`, `Plusstunden` oder `über +20 Std.`, und `Eigene Grenze` erlaubt eine eigene Untergrenze in Stunden. Ein Klick auf eine Zeile öffnet das Mitarbeiterprofil.",
+          "Über `Exportieren` in der Zeitkonten-Ansicht lassen sich die Zeitkonten aller Mitarbeitenden als Datei ziehen, zum Beispiel für Lohnbuchhaltung oder Träger: wahlweise der angezeigte Monat oder das ganze Jahr, als Monatssummen (mit Übertrag, Gutschriften, Buchungen und Saldo je Person) oder als einzelne Tage, als CSV oder Excel, Zeitangaben in Stunden:Minuten oder Dezimalstunden. Abgeschlossene Monate tragen in der Datei den eingefrorenen Übertrag; jeder Export wird im Zugriffsprotokoll vermerkt.",
+          "Über `Monat abschließen` wird ein vergangener Monat für alle Mitarbeitenden festgeschrieben (Begründung erforderlich, zum Beispiel für die Lohnabrechnung). Der Saldo zum Monatsende wird eingefroren und alle Folgemonate rechnen mit diesem Übertrag weiter, auch wenn später noch Zeiten im abgeschlossenen Monat geändert werden. Der laufende Monat lässt sich erst ab dem 1. des Folgemonats abschließen. Ein abgeschlossener Monat trägt das Schloss-Symbol mit Datum neben dem Monatsnamen.",
+          "Der Reiter `Änderungsprotokoll` (ebenfalls nur mit `time_tracking:manage`) zeigt alle Änderungen an Arbeitszeiten über alle Mitarbeitenden hinweg: korrigierte Zeiterfassungen, entschiedene Abwesenheiten, Stundenkonto-Buchungen, Monatsabschlüsse und -öffnungen sowie gelöschte Einträge — jeweils mit Zeitpunkt, betroffener Person, bearbeitender Person und Begründung. Filtern lässt sich nach Mitarbeiter:in, bearbeitender Person, Bereich und Zeitraum; `Weitere Einträge laden` blättert weiter zurück. Einträge zur Zeiterfassung, die älter als die eingestellte Aufbewahrungsfrist sind, wurden bereits gelöscht; Buchungen und Monatsabschlüsse bleiben vollständig.",
           "Mit Genehmigungsrecht erscheinen offene Urlaubs- und Abwesenheitsanträge oben im Bereich `Eingehende Anfragen`: pro Antrag Person, Art, Zeitraum, Tage und Notiz prüfen und direkt `Genehmigen`, `Ablehnen` (mit Begründung) oder eine `Rückfrage` mit Notiz an die Person stellen. Die Tabs filtern nach Art (`Alle`, `Urlaub`, `Krank`, `Fortbildung`, `Sonstige`).",
           "Offene Anträge sind zusätzlich sichtbar als Zähler am Menüpunkt `Mitarbeiter` in der Seitenleiste und als kleines `Anfragen`-Badge auf der Karte der jeweiligen Person.",
           "Nach Name suchen.",
@@ -682,7 +728,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Als Admin eine Person öffnen, um das Mitarbeiterprofil zu sehen.",
         ],
         screenshot:
-          "Mitarbeiterliste mit Status-Badges und aktiven Aufsichten.",
+          "Mitarbeiterseite mit Einrichtungs-Übersicht, Reitern Status und Zeitkonten sowie Statuskarten des Teams.",
         image: "/help/screens/mitarbeiter.webp",
       },
       {
@@ -692,11 +738,12 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Bündelt Auswertung, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten einer Person.",
         steps: [
-          "`Mitarbeiter` öffnen und eine Person auswählen. Admins sehen die vollständige Detailansicht. Leitungsrollen mit der Berechtigung `time_tracking:manage` erreichen ebenfalls das Profil und sehen die Reiter `Übersicht` und `Abwesenheiten`; die übrigen Reiter bleiben Admins vorbehalten.",
+          "`Mitarbeiter` öffnen und eine Person auswählen. Admins sehen die vollständige Detailansicht. Leitungsrollen mit der Berechtigung `time_tracking:manage` erreichen ebenfalls das Profil und sehen die Reiter `Übersicht`, `Zeiterfassung` und `Abwesenheiten`; `Arbeitszeitmodell` und die weiteren Verwaltungsreiter bleiben Admins vorbehalten.",
           "Im Reiter `Übersicht` Stundenkonto, Urlaubstage und Krankheitstage prüfen. Die Diagramme lassen sich einzeln nach Zeitraum filtern.",
           "Im Bereich `Stundenkonto-Verwaltung` Plus-Stunden auszahlen (`Auszahlung`), pauschal als `Freizeitausgleich` verrechnen oder das Konto mit `Zurücksetzen` zum Stichtag (Schuljahresende 31.07.) auf null bzw. einen Rest-Übertrag setzen. Für einen Reset lässt sich nur ein bereits abgeschlossener Tag wählen, nicht der heutige Tag. Jede Buchung braucht eine Begründung und erscheint in der Historie darunter; eine Fehlbuchung lässt sich dort wieder löschen.",
           "Im Reiter `Zeiterfassung` zwischen Woche und Monat wechseln und Plan (geplante Schicht aus dem Dienstplan), Check-in, Check-out, Pause, Soll, Ist, Saldo, Quelle und Hinweise kontrollieren. So stehen geplante Schicht und tatsächliche Zeit nebeneinander.",
           "In der Monatsansicht zeigt die `Monatskarte` Übertrag aus dem Vormonat, Summe Soll, Summe Ist, Gutschriften für Krankheit und Urlaub (mit Tagen), Stundenkonto-Buchungen des Monats (Auszahlung, Freizeitausgleich, Reset), die im Dienstplan verplanten Stunden und den Monatssaldo. Krankheit und Urlaub erzeugen keine Minusstunden — der Tag wird mit dem Tagessoll gutgeschrieben. Alle Werte werden live berechnet: Eine Korrektur in einem früheren Monat aktualisiert den Übertrag automatisch.",
+          "Bei einem abgeschlossenen Monat trägt die Monatskarte das Schloss-Symbol `Abgeschlossen am ...` und zeigt als verbindlichen Wert den `Übertrag Monatsende (eingefroren)`. Werden danach noch Zeiten in diesem Monat geändert, bleibt der Übertrag in den Folgemonat stehen; ein gelber Hinweis zeigt die Abweichung zum abgeschlossenen Stand. Für die Korrektur gibt es zwei Wege: die Differenz als Buchung im offenen Monat erfassen (Stundenkonto-Verwaltung im Reiter `Übersicht`, empfohlen), oder über `Monat wieder öffnen` den Abschluss dieser Person mit Begründung aufheben, wenn der Abschluss selbst falsch war. Buchungen mit Datum in einem abgeschlossenen Monat lehnt das System ab.",
           "Eine Zeile mit Änderungshistorie aufklappen, um geplante gegen tatsächliche Zeit zu sehen. Wurde beim Stempeln eine Abweichung begründet, erscheint sie dort als `Abweichung` mit geplanter Zeit, Ist-Zeit und Grund.",
           "Bei einem Arbeitstag das Stift-Symbol nutzen, um Zeiten nachzutragen oder zu korrigieren. Eine Begründung ist erforderlich und landet im Audit-Log.",
           "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen. Pro Arbeitstag kann optional eine Startzeit hinterlegt werden.",
@@ -735,6 +782,27 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Gruppenzugriff mit verfügbaren Fachkräften und Dialog Zugriff gewähren.",
         image: "/help/screens/vertretungen.webp",
+      },
+      {
+        id: "abrechnung-vorbereiten",
+        title: "Abrechnung vorbereiten (DATEV)",
+        icon: ClipboardList,
+        summary:
+          "Lohnarten, DATEV-Mandantendaten und Personalnummern pflegen, damit Zeiterfassungsdaten später an die Lohnabrechnung übergeben werden können (nur mit Berechtigung `config:manage`).",
+        steps: [
+          "`Abrechnung` in der Seitenleiste öffnen. Die Karte `Vollständigkeit` zeigt, welche Angaben noch fehlen.",
+          "Unter `Lohnarten` für jede Kategorie (Regelarbeit, Plus-Stunden, Auszahlung, Freizeitausgleich, Krank, Urlaub, Fortbildung) die Lohnartnummer aus dem Lohnsystem des Trägers eintragen. Die Nummern liefert das Lohnbüro; es gibt bewusst keine Vorbelegung. Eine Kategorie ohne Nummer wird später einfach nicht exportiert.",
+          "Bei Krank, Urlaub und Fortbildung zusätzlich die `Einheit` wählen: ob die Lohnart im Lohnsystem Stunden oder Tage erwartet.",
+          "Unter `DATEV-Mandant` die Beraternummer und Mandantennummer eintragen. Beide stehen im DATEV-Bestand des Lohnbüros und werden nur für den LODAS-Export benötigt.",
+          "Für jede Person die Personalnummer aus dem Lohnsystem hinterlegen: `Mitarbeiter` -> Person öffnen -> Reiter `Stammdaten` -> `Bearbeiten`. Die Nummer ist pro Schule eindeutig; Änderungen erscheinen im Änderungsprotokoll.",
+        ],
+        callout: {
+          title: "Keine Nummern erfinden",
+          body: "Lohnartnummern und Personalnummern müssen exakt den Werten im Lohnsystem des Trägers entsprechen. Eine plausibel aussehende, aber falsche Nummer führt zu still falscher Abrechnung. Im Zweifel beim Lohnbüro nachfragen und Felder leer lassen.",
+          tone: "red",
+        },
+        screenshot:
+          "Abrechnungsseite mit Vollständigkeits-Karte, Lohnarten-Tabelle und DATEV-Mandantendaten.",
       },
     ],
   },
@@ -1151,6 +1219,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Formular` das `Basisformular` lassen oder eine eigene Vorlage wählen.",
           "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen. Ist die Warteliste tenantweit ausgeschaltet, nimmt `Warteliste` bei Überbelegung weitere Anmeldungen ohne Wartelistenstatus an.",
           "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
+          "Unter `Zielgruppe` festlegen, wer sich anmelden darf: `Offen für alle`, `Nur neue Kinder` (bereits angemeldete Kinder werden abgewiesen), `Nur bereits angemeldete Kinder` (für Wiederanmeldungen; neue Kinder werden abgewiesen) oder `Nur Eltern mit Konto an der Schule`. Phasen mit dieser letzten Option erscheinen nicht in der öffentlichen Anmeldeliste; Eltern erreichen sie im Elternportal über `Neue Anmeldung`. Optional die Phase mit `Nur für Klassenstufen` auf einzelne Jahrgänge beschränken, zum Beispiel nur den 3. Jahrgang; dafür genügt die Klassenstufen-Abfrage. Mit `Nur für Klassen` lässt sich die Phase zusätzlich auf einzelne Klassen ab der 2. Klasse beschränken; Kinder müssen dann eine dieser Klassen angeben.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",

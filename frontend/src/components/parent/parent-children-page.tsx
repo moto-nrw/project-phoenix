@@ -78,7 +78,7 @@ export function ParentChildrenPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="p-5 sm:p-6 lg:p-8">
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {t("eyebrow")}

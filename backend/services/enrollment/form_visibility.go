@@ -290,6 +290,21 @@ func requestChildIdentityKey(firstName, lastName, dateOfBirth string) string {
 		strings.ToLower(strings.TrimSpace(lastName)) + "\x00" + strings.TrimSpace(dateOfBirth)
 }
 
+// sameSubmittedIdentity reports whether an edited child still carries the same
+// normalized (name, date-of-birth) identity as the persisted request_child it
+// was paired to. Replacement edits pair by persisted ID first, so an edited
+// name/birthday keeps the same row — and any matched_student_id pinned on it —
+// even though it now describes a different child. Callers use this to drop a
+// stale existing-student pin before approval renews the wrong live student
+// (#1663).
+func sameSubmittedIdentity(existing *enrollmentModels.RequestChild, submitted SubmitChild) bool {
+	if existing == nil {
+		return false
+	}
+	return requestChildIdentityKey(existing.FirstName, existing.LastName, existing.DateOfBirth.String()) ==
+		requestChildIdentityKey(submitted.FirstName, submitted.LastName, submitted.DateOfBirth.String())
+}
+
 func editableCustomDataKeys(schema *enrollmentModels.FormSchema, appliesToChild bool) map[string]bool {
 	keys := make(map[string]bool)
 	if schema == nil {

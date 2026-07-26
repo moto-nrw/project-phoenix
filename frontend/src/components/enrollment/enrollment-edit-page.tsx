@@ -199,6 +199,9 @@ export function EnrollmentEditPage({ params }: Props) {
             legalTexts: bootstrap.legal_texts,
             profile: null,
             schoolClass: bootstrap.school_class,
+            // The edit path re-runs the same eligibility gates as submit, so
+            // the grade select must offer the same narrowed set (#1663).
+            eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
           }}
           initialDraft={bootstrap.draft}
           submitter={submitter}

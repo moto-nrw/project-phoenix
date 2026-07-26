@@ -150,7 +150,7 @@ function ChildMasterDataContent({
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <BackBar studentId={studentId} />
         <div className="p-5 sm:p-6">
           <h1 className="text-2xl font-semibold text-gray-900">{t("title")}</h1>

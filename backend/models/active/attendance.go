@@ -16,9 +16,12 @@ type Attendance struct {
 	Date         timezone.Date `bun:"date,notnull,type:date" json:"date"`
 	CheckInTime  time.Time     `bun:"check_in_time,notnull" json:"check_in_time"`
 	CheckOutTime *time.Time    `bun:"check_out_time" json:"check_out_time,omitempty"`
-	CheckedInBy  int64         `bun:"checked_in_by,notnull" json:"checked_in_by"`
-	CheckedOutBy *int64        `bun:"checked_out_by" json:"checked_out_by,omitempty"`
-	DeviceID     int64         `bun:"device_id,notnull" json:"device_id"`
+	// CheckedInBy is zero when an authenticated device records attendance
+	// without a verified personal staff credential. DeviceID remains the
+	// authenticated audit principal for those legacy kiosk requests.
+	CheckedInBy  int64  `bun:"checked_in_by,nullzero" json:"checked_in_by"`
+	CheckedOutBy *int64 `bun:"checked_out_by" json:"checked_out_by,omitempty"`
+	DeviceID     int64  `bun:"device_id,notnull" json:"device_id"`
 	// YardSince is set when the student transitions to "Schulhof" in binary
 	// mode and cleared on a school checkout. Schema and read paths
 	// (deriveAttendanceStatus, ResolveBinaryLocation, performCheckOut) are

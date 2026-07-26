@@ -13,7 +13,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
+	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -30,6 +33,20 @@ type eventsTestContext struct {
 	services *services.Factory
 	hub      *realtime.Hub
 	resource *Resource
+}
+
+// withValidSSEToken mirrors the verified jwtauth token context that the direct
+// handler tests intentionally skip by bypassing Router(). Signature validation
+// remains a router/middleware concern; the handler needs the verified token's
+// expiry to bound the stream lifetime.
+func withValidSSEToken(t *testing.T, ctx context.Context) context.Context {
+	t.Helper()
+
+	token, err := jwxjwt.NewBuilder().
+		Expiration(time.Now().Add(time.Hour)).
+		Build()
+	require.NoError(t, err)
+	return jwtauth.NewContext(ctx, token, nil)
 }
 
 // setupEventsTestContext initializes a DB-backed SSE resource.
@@ -81,6 +98,7 @@ func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
 		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
 	)
+	req = req.WithContext(withValidSSEToken(t, req.Context()))
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -136,6 +154,7 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 
 	claims := testutil.AdminTestClaims(int(account.ID))
 	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
 	req = req.WithContext(claimsCtx)
@@ -161,6 +180,7 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 
 	claims := testutil.DefaultTestClaims()
 	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
 	req = req.WithContext(claimsCtx)
@@ -196,6 +216,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	// Add claims to the timeout context
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
 	req = req.WithContext(claimsCtx)
@@ -226,6 +247,7 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
 	req = req.WithContext(claimsCtx)

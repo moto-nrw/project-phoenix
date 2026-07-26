@@ -201,7 +201,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   if (fetchError && !schema) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-[#CC2626]">
           {fetchError instanceof Error
             ? fetchError.message
             : "Einstellungen konnten nicht geladen werden"}
@@ -240,7 +240,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
           <button
             type="button"
             onClick={() => setSaveError(null)}
-            className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
+            className="absolute top-1/2 right-4 -translate-y-1/2 text-[#CC2626] hover:text-[#9F1F1E]"
             aria-label="Fehler schließen"
           >
             <svg
@@ -328,11 +328,16 @@ export function useSettingsTabs(): {
         label: tabLabels[key] ?? key,
         icon: tabIcons[key] ?? defaultTabIcon,
       }))
-    : (schema?.tabs ?? []).map((tab) => ({
-        id: `settings-${tab.key}`,
-        label: tabLabels[tab.key] ?? tab.label,
-        icon: tabIcons[tab.key] ?? defaultTabIcon,
-      }));
+    : (schema?.tabs ?? [])
+        // Payroll settings (#1417) have their own maintenance page under
+        // /payroll — rendering the auto-generated tab here would create a
+        // second, worse surface for the same values.
+        .filter((tab) => tab.key !== "abrechnung")
+        .map((tab) => ({
+          id: `settings-${tab.key}`,
+          label: tabLabels[tab.key] ?? tab.label,
+          icon: tabIcons[tab.key] ?? defaultTabIcon,
+        }));
 
   // Personalisierung is always available (permission-gated inside the component)
   const personalizationTab = {

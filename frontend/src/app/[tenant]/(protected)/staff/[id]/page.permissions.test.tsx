@@ -49,6 +49,7 @@ vi.mock("~/lib/staff-api", () => ({
 }));
 
 vi.mock("~/lib/staff-helpers", () => ({
+  employmentTypeLabels: { full_time: "Vollzeit" },
   getStaffDisplayType: () => "",
   getStaffLocationStatus: () => ({
     badgeColor: "",
@@ -112,7 +113,7 @@ describe("StaffDetailContent permissions", () => {
     window.scrollTo = vi.fn();
   });
 
-  it("shows the overview to time-tracking managers without admin role", () => {
+  it("shows overview and time tracking to managers without admin role", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
@@ -134,11 +135,44 @@ describe("StaffDetailContent permissions", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("uebersicht-tab")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Zeiterfassung" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Zeiterfassung" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("zeiterfassung-tab")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Arbeitszeitmodell" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Stammdaten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnung" }),
+    ).not.toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("links payroll settings for managers with config permission", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["time_tracking:manage", "config:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(screen.getByRole("link", { name: "Abrechnung" })).toHaveAttribute(
+      "href",
+      "/payroll",
+    );
   });
 });

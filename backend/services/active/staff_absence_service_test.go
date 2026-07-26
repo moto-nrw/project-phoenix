@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,7 @@ type absStaffAbsenceRepoMock struct {
 	getByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
 	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error)
 	getByDateRangeFunc         func(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
-	getTodayAbsenceMapFunc     func(ctx context.Context) (map[int64]string, error)
+	getAbsenceMapForDateFunc   func(ctx context.Context, date timezone.Date) (map[int64]string, error)
 	listByStatusesFunc         func(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error)
 }
 
@@ -75,6 +76,12 @@ func (m *absStaffAbsenceRepoMock) List(ctx context.Context, options *base.QueryO
 	return nil, nil
 }
 
+// GetByStaffIDsAndDateRange satisfies the batched interface method (#1417);
+// these tests exercise the single-staff path only.
+func (m *absStaffAbsenceRepoMock) GetByStaffIDsAndDateRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
 func (m *absStaffAbsenceRepoMock) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error) {
 	if m.getByStaffAndDateRangeFunc != nil {
 		return m.getByStaffAndDateRangeFunc(ctx, staffID, from, to)
@@ -96,9 +103,9 @@ func (m *absStaffAbsenceRepoMock) GetByDateRange(ctx context.Context, from, to t
 	return nil, nil
 }
 
-func (m *absStaffAbsenceRepoMock) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
-	if m.getTodayAbsenceMapFunc != nil {
-		return m.getTodayAbsenceMapFunc(ctx)
+func (m *absStaffAbsenceRepoMock) GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error) {
+	if m.getAbsenceMapForDateFunc != nil {
+		return m.getAbsenceMapForDateFunc(ctx, date)
 	}
 	return nil, nil
 }
@@ -139,6 +146,11 @@ func (m *absVacationQuotaRepoMock) Delete(context.Context, any) error {
 }
 
 func (m *absVacationQuotaRepoMock) List(context.Context, *base.QueryOptions) ([]*activeModels.StaffVacationQuota, error) {
+	return nil, nil
+}
+
+// GetByStaffIDsAndYear satisfies the batched interface method (#1417).
+func (m *absVacationQuotaRepoMock) GetByStaffIDsAndYear(context.Context, []int64, int) (map[int64]*activeModels.StaffVacationQuota, error) {
 	return nil, nil
 }
 
@@ -262,6 +274,11 @@ func (m *absWorkSessionRepoMock) LockOpenByIDForUpdate(ctx context.Context, id i
 	return session, nil
 }
 
+// GetHistoryByStaffIDs satisfies the batched interface method (#1417).
+func (m *absWorkSessionRepoMock) GetHistoryByStaffIDs(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
+	return nil, nil
+}
+
 func (m *absWorkSessionRepoMock) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)
@@ -311,6 +328,9 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 		workSessionRepo: workRepo,
 		quotaRepo:       quotaRepo,
 		auditRepo:       auditRepo,
+		// Deletes require the tombstone writer (#1417); assertions stay on
+		// the absence repo.
+		deletionRepo: noopDeletionAuditRepo{},
 	}
 	return svc, absRepo, workRepo
 }
@@ -1291,13 +1311,18 @@ func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
 func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &staffAbsenceService{
 		absenceRepo: absRepo,
 		auditRepo:   auditRepo,
+		broadcaster: broadcaster,
 	}
 	absenceID := int64(1000)
 	actorAccountID := int64(2000)
 	decidedByStaffID := int64(3000)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(
+		tenant.WithTenantID(context.Background(), 42),
+	)
 
 	absRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.StaffAbsence, error) {
 		assert.Equal(t, absenceID, id)
@@ -1326,11 +1351,20 @@ func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 		return nil
 	}
 
-	result, err := svc.ApproveAbsence(context.Background(), absenceID, actorAccountID, decidedByStaffID, "ok")
+	result, err := svc.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, "ok")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, activeModels.AbsenceStatusApproved, result.Status)
+	assert.Empty(t, broadcaster.Events())
+
+	commit()
+
+	events := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	require.Len(t, events, 1)
+	calls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(42), calls[0].TenantID)
 }
 
 func TestAbsDenyAbsence_WritesAudit(t *testing.T) {
@@ -1479,6 +1513,10 @@ func (m *absStaffAbsenceRepoMock) DeleteOlderThan(context.Context, string, timez
 
 func (m *absStaffAbsenceRepoMock) DeleteNonHistoricalByStaffID(context.Context, int64, timezone.Date) (int64, error) {
 	return 0, nil
+}
+
+func (m *absStaffAbsenceRepoMock) ListNonHistoricalByStaffID(context.Context, int64, timezone.Date) ([]*activeModels.StaffAbsence, error) {
+	return nil, nil
 }
 
 func (m *absWorkSessionRepoMock) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {

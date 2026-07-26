@@ -119,16 +119,16 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 	return absence, nil
 }
 
-// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today.
+// GetAbsenceMapForDate returns a map of staff IDs to their absence type for the given date.
 // Priority order when multiple absences exist:
 // sick > training > vacation > comp_time > other.
-func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
+func (r *StaffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error) {
 	var absences []*active.StaffAbsence
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
-		Where(`"staff_absence".date_start <= CURRENT_DATE`).
-		Where(`"staff_absence".date_end >= CURRENT_DATE`).
+		Where(`"staff_absence".date_start <= ?`, date).
+		Where(`"staff_absence".date_end >= ?`, date).
 		Where(`"staff_absence".status IN (?)`, bun.List(effectiveStaffAbsenceStatuses))
 
 	query = base.WithTenantFilter(ctx, query, "staff_absence")
@@ -136,7 +136,7 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "get today absence map",
+			Op:  "get absence map for date",
 			Err: err,
 		}
 	}
@@ -179,6 +179,33 @@ func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []
 	return absences, nil
 }
 
+// ListNonHistoricalByStaffID returns the rows that staff offboarding removes,
+// preserving their full values for deletion tombstones.
+func (r *StaffAbsenceRepository) ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*active.StaffAbsence, error) {
+	var absences []*active.StaffAbsence
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&absences).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		Where(`"staff_absence".staff_id = ?`, staffID).
+		Where(
+			`("staff_absence".status IN (?, ?) OR "staff_absence".date_end >= ?)`,
+			active.AbsenceStatusRequested,
+			active.AbsenceStatusQuestion,
+			from,
+		).
+		OrderExpr(`"staff_absence".id ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list non-historical absences by staff id",
+			Err: err,
+		}
+	}
+	return absences, nil
+}
+
 // DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
 // ('requested' or 'question') or not yet over (date_end >= from). Past decided
 // absences stay as history. Used by staff offboarding so offboarded staff no
@@ -207,4 +234,38 @@ func (r *StaffAbsenceRepository) DeleteNonHistoricalByStaffID(ctx context.Contex
 	}
 
 	return result.RowsAffected()
+}
+
+// GetByStaffIDsAndDateRange is GetByStaffAndDateRange for many staff members in
+// one round trip, keyed by staff ID. A batched IN-lookup the generic filter API
+// cannot express as a single query. It keeps the OVERLAP predicate of its
+// single-staff twin: the month math needs absences that start before `from`.
+func (r *StaffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*active.StaffAbsence, error) {
+	result := make(map[int64][]*active.StaffAbsence, len(staffIDs))
+	if len(staffIDs) == 0 {
+		// bun renders an empty IN list as invalid SQL.
+		return result, nil
+	}
+
+	var absences []*active.StaffAbsence
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&absences).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		Where(`"staff_absence".staff_id IN (?)`, bun.List(staffIDs)).
+		Where(`"staff_absence".date_start <= ?`, to).
+		Where(`"staff_absence".date_end >= ?`, from).
+		OrderExpr(`"staff_absence".staff_id ASC, "staff_absence".date_start ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get absences by staff IDs and date range",
+			Err: err,
+		}
+	}
+	for _, absence := range absences {
+		result[absence.StaffID] = append(result[absence.StaffID], absence)
+	}
+	return result, nil
 }

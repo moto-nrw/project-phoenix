@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,7 +11,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // Sentinel errors for handler mapping (#1420).
@@ -35,6 +38,12 @@ var (
 	// ErrAdjustmentExceedsBalance prevents payouts and lump-sum comp-time
 	// grants from reducing the account below zero — HTTP 409.
 	ErrAdjustmentExceedsBalance = errors.New("balance adjustment exceeds accrued balance")
+	// ErrAdjustmentInClosedMonth marks a booking whose effective month is
+	// frozen by a Monatsabschluss (#1417) — HTTP 400 with a stable code so
+	// the frontend can point at the month close instead of a generic
+	// validation message. Wraps ErrAdjustmentInvalid so existing errors.Is
+	// call sites keep matching.
+	ErrAdjustmentInClosedMonth = fmt.Errorf("%w: effective month is closed", ErrAdjustmentInvalid)
 )
 
 const (
@@ -67,19 +76,61 @@ type CreateBalanceAdjustmentRequest struct {
 type StaffBalanceAdjustmentService interface {
 	ListAdjustments(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error)
 	CreateAdjustment(ctx context.Context, staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) (*activeModels.StaffBalanceAdjustment, error)
-	DeleteAdjustment(ctx context.Context, staffID, adjustmentID int64) error
+	// DeleteAdjustment removes a booking and writes an append-only tombstone
+	// (audit.time_tracking_deletions, #1417) in the same tenant transaction —
+	// a deleted ledger row must stay visible in the audit log. deletedBy is
+	// the acting staff member.
+	DeleteAdjustment(ctx context.Context, staffID, adjustmentID, deletedBy int64) error
 	// ResetBalance writes a 'reset' transaction whose delta turns the closing
 	// balance as of effectiveDate into carryoverMinutes (#1420 5c). It must
 	// run inside the ambient tenant transaction (advisory lock + unique
 	// index serialize concurrent resets).
 	ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error)
+	// SetSnapshotReader injects the frozen-month reader (#1417) after
+	// construction; nil means no month counts as frozen, so existing unit
+	// fixtures stay valid.
+	SetSnapshotReader(reader adjustmentFreezeReader)
+}
+
+// adjustmentFreezeReader is implemented by
+// active.StaffMonthBalanceSnapshotRepository (#1417).
+type adjustmentFreezeReader interface {
+	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*activeModels.StaffMonthBalanceSnapshot, error)
 }
 
 type staffBalanceAdjustmentService struct {
 	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
+	snapshotRepo   adjustmentFreezeReader
+	deletionRepo   auditModels.TimeTrackingDeletionRepository
+	broadcaster    realtime.Broadcaster
 	logger         *slog.Logger
+}
+
+// SetSnapshotReader wires the frozen-month reader (#1417). Setter injection
+// like the month service's: nil means no month counts as frozen, so existing
+// unit fixtures stay valid.
+func (s *staffBalanceAdjustmentService) SetSnapshotReader(reader adjustmentFreezeReader) {
+	s.snapshotRepo = reader
+}
+
+// SetDeletionAudit wires the deletion tombstone writer (#1417). Setter
+// injection like SetBroadcaster so existing API-layer mocks stay unchanged;
+// a nil repository makes DeleteAdjustment fail — deletes without a trace are
+// exactly the hole this closes.
+func (s *staffBalanceAdjustmentService) SetDeletionAudit(repo auditModels.TimeTrackingDeletionRepository) {
+	s.deletionRepo = repo
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
+// StaffBalanceAdjustmentService so existing API-layer mocks stay unchanged.
+func (s *staffBalanceAdjustmentService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
+func (s *staffBalanceAdjustmentService) broadcastTimeTrackingChanged(ctx context.Context) {
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func NewStaffBalanceAdjustmentService(
@@ -110,6 +161,32 @@ func (s *staffBalanceAdjustmentService) rejectPreAccountDate(ctx context.Context
 		return fmt.Errorf("%w: effective_date %s lies before the account start %s", ErrAdjustmentInvalid, effectiveDate.String(), anchor.String())
 	}
 	return nil
+}
+
+// rejectFrozenMonth fails a booking whose effective month is closed (#1417).
+// A frozen month's closing balance no longer comes from its own aggregation,
+// so a booking inside it would appear in the history while moving nothing.
+//
+// Deliberately partial, exactly like ErrAdjustmentHasDependentReset: only
+// ADJUSTMENT writes are blocked. Work sessions and comp_time absences inside a
+// frozen month stay editable — the divergence they cause is reported as the
+// month's drift instead of being suppressed. Reopening the month lifts this.
+func (s *staffBalanceAdjustmentService) rejectFrozenMonth(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
+	if s.snapshotRepo == nil {
+		return nil
+	}
+	year, month := effectiveDate.Year, int(effectiveDate.Month)
+	snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, year, month)
+	if err != nil {
+		return fmt.Errorf("failed to check month close state for adjustment: %w", err)
+	}
+	if snapshot == nil || snapshot.Year != year || snapshot.Month != month {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: effective_date %s lies in the closed month %04d-%02d",
+		ErrAdjustmentInClosedMonth, effectiveDate.String(), year, month,
+	)
 }
 
 func (s *staffBalanceAdjustmentService) ListAdjustments(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
@@ -149,6 +226,9 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	}
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	if err := s.rejectFrozenMonth(ctx, staffID, req.EffectiveDate); err != nil {
+		return nil, err
 	}
 	resets, err := s.listResetsOnOrAfter(ctx, staffID, req.EffectiveDate)
 	if err != nil {
@@ -197,12 +277,16 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 		"effective_date", req.EffectiveDate.String(),
 		"decided_by", decidedBy,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return adjustment, nil
 }
 
-func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, staffID, adjustmentID int64) error {
+func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, staffID, adjustmentID, deletedBy int64) error {
 	if staffID <= 0 || adjustmentID <= 0 {
 		return fmt.Errorf("%w: staff id and adjustment id are required", ErrAdjustmentInvalid)
+	}
+	if deletedBy <= 0 {
+		return fmt.Errorf("%w: deleting staff id is required", ErrAdjustmentInvalid)
 	}
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return fmt.Errorf("failed to lock staff balance writes: %w", err)
@@ -219,6 +303,12 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if adjustment == nil || adjustment.StaffID != staffID {
 		return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
 	}
+	// Checked here rather than up front: the effective date only exists once
+	// the row is loaded. Deleting out of a frozen month is the same violation
+	// as inserting into one.
+	if err := s.rejectFrozenMonth(ctx, staffID, adjustment.EffectiveDate); err != nil {
+		return err
+	}
 	dependent, err := s.hasDependentReset(ctx, adjustment)
 	if err != nil {
 		return err
@@ -229,6 +319,25 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
 		return err
 	}
+	// Tombstone first, delete second, same transaction: a deleted booking
+	// must stay visible in the audit log (#1417).
+	if s.deletionRepo == nil {
+		return fmt.Errorf("time tracking deletion audit repository is not configured")
+	}
+	payload, err := json.Marshal(adjustment)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot adjustment for deletion audit: %w", err)
+	}
+	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+		StaffID:   staffID,
+		Source:    auditModels.TimeTrackingDeletionSourceBalanceAdjustment,
+		SourceID:  adjustment.ID,
+		DeletedBy: deletedBy,
+		Payload:   payload,
+		Note:      adjustment.Note,
+	}); err != nil {
+		return fmt.Errorf("failed to write deletion audit: %w", err)
+	}
 	if err := s.adjustmentRepo.Delete(ctx, adjustmentID); err != nil {
 		return fmt.Errorf("failed to delete balance adjustment: %w", err)
 	}
@@ -238,6 +347,7 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 		"type", adjustment.Type,
 		"minutes_delta", adjustment.MinutesDelta,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 
@@ -292,6 +402,9 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	// read-compute-insert sequence, the partial unique index is the backstop.
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
+		return nil, err
 	}
 	resets, err := s.listResetsOnOrAfter(ctx, staffID, effectiveDate)
 	if err != nil {
@@ -357,6 +470,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		"minutes_delta", adjustment.MinutesDelta,
 		"decided_by", decidedBy,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return adjustment, nil
 }
 

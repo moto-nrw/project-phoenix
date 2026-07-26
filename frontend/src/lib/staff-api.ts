@@ -926,13 +926,19 @@ import {
   MAX_TARGET_RANGE_DAYS,
   mapBalanceAdjustmentResponse,
   mapDailyTargetsResponse,
+  mapMonthCloseResultResponse,
+  mapMonthCloseSnapshotResponse,
   mapMonthSummaryResponse,
   mapWorkSessionEditResponse,
   type BackendBalanceAdjustment,
   type BackendDailyTarget,
+  type BackendMonthCloseResult,
+  type BackendMonthCloseSnapshot,
   type BackendMonthSummary,
   type BackendWorkSessionEdit,
   type BalanceAdjustment,
+  type MonthCloseResult,
+  type MonthCloseSnapshot,
   type MonthSummary,
   type WorkSessionEdit,
 } from "./time-tracking-helpers";
@@ -1234,6 +1240,11 @@ class StaffBalanceAdjustmentService {
           "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
         );
       }
+      if (error.code === "adjustment_in_closed_month") {
+        throw new Error(
+          "Der gewählte Monat ist abgeschlossen. Buche die Korrektur mit einem Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
+        );
+      }
       throw new Error(error.message);
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
@@ -1255,6 +1266,11 @@ class StaffBalanceAdjustmentService {
       if (error.code === "balance_adjustment_exceeds_balance") {
         throw new Error(
           "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
+        );
+      }
+      if (error.code === "adjustment_in_closed_month") {
+        throw new Error(
+          "Der gewählte Monat ist abgeschlossen. Öffne den Monatsabschluss wieder, bevor du die Buchung löschst.",
         );
       }
       throw new Error(error.message);
@@ -1301,6 +1317,11 @@ class StaffBalanceAdjustmentService {
           "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
         );
       }
+      if (error.code === "adjustment_in_closed_month") {
+        throw new Error(
+          "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
+        );
+      }
       throw new Error(error.message);
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
@@ -1308,7 +1329,158 @@ class StaffBalanceAdjustmentService {
   }
 }
 
+// Monatsabschluss (#1417): school-wide freeze of a month's closing balances,
+// per-staff reopen. The German copy for the stable error codes lives here so
+// every caller explains the same rules the same way.
+class StaffMonthCloseService {
+  /** Active snapshots of one month for the whole school; [] = not closed. */
+  async getStatus(year: number, month: number): Promise<MonthCloseSnapshot[]> {
+    const params = new URLSearchParams({
+      year: String(year),
+      month: String(month),
+    });
+    const response = await sessionFetch(
+      `/api/staff/time-tracking/month-close?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch month close status: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: BackendMonthCloseSnapshot[] | null;
+    };
+    return (json.data ?? []).map(mapMonthCloseSnapshotResponse);
+  }
+
+  /** Freezes the month for the whole school in one transaction. */
+  async closeMonth(payload: {
+    year: number;
+    month: number;
+    reason: string;
+  }): Promise<MonthCloseResult> {
+    const response = await sessionFetch(
+      "/api/staff/time-tracking/month-close",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year: payload.year,
+          month: payload.month,
+          reason: payload.reason,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Monatsabschluss fehlgeschlagen",
+      );
+      if (error.code === "month_not_closable") {
+        throw new Error(
+          "Dieser Monat kann noch nicht abgeschlossen werden: Er ist noch nicht vorbei. Der Abschluss friert den Stand zum Monatsende ein; für einen laufenden Monat gibt es diesen Stand noch nicht.",
+        );
+      }
+      if (error.code === "later_month_closed") {
+        throw new Error(
+          "Ein späterer Monat ist bereits abgeschlossen. Monate werden in Reihenfolge abgeschlossen; öffne zuerst den späteren Abschluss.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as { data: BackendMonthCloseResult };
+    return mapMonthCloseResultResponse(json.data);
+  }
+
+  /** Reopens one staff member's closed month; reason is mandatory. */
+  async reopenMonth(
+    staffId: string,
+    payload: { year: number; month: number; reason: string },
+  ): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/month-close/reopen`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year: payload.year,
+          month: payload.month,
+          reason: payload.reason,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Wiedereröffnung fehlgeschlagen",
+      );
+      if (error.code === "month_not_closed") {
+        throw new Error("Dieser Monat ist nicht abgeschlossen.");
+      }
+      if (error.code === "later_month_closed") {
+        throw new Error(
+          "Für diese Person ist ein späterer Monat noch abgeschlossen. Abschlüsse werden vom neuesten zum ältesten geöffnet; öffne zuerst den späteren Monat.",
+        );
+      }
+      throw new Error(error.message);
+    }
+  }
+}
+
+// Personalnummer (#1417): payroll identifier maintained on the Stammdaten
+// tab. time_tracking:manage backend-side — callers gate rendering on the
+// permission so no request fires without it.
+class StaffPayrollNumberService {
+  async get(staffId: string): Promise<string | null> {
+    const response = await sessionFetch(`/api/staff/${staffId}/payroll-number`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch payroll number: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: { personnel_number: string | null };
+    };
+    return json.data.personnel_number;
+  }
+
+  async update(
+    staffId: string,
+    personnelNumber: string | null,
+    note: string,
+  ): Promise<string | null> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/payroll-number`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personnel_number: personnelNumber, note }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Personalnummer konnte nicht gespeichert werden",
+      );
+      if (error.code === "personnel_number_taken") {
+        throw new Error(
+          "Diese Personalnummer ist in dieser Schule bereits vergeben.",
+        );
+      }
+      if (error.code === "personnel_number_invalid") {
+        throw new Error(
+          "Ungültige Personalnummer: nur Ziffern, höchstens 9 Stellen.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as {
+      data: { personnel_number: string | null };
+    };
+    return json.data.personnel_number;
+  }
+}
+
 export const staffService = new StaffService();
+export const staffPayrollNumberService = new StaffPayrollNumberService();
 export const staffScheduleService = new StaffScheduleService();
 export const workTimeModelService = new WorkTimeModelService();
 export const staffHistoryService = new StaffHistoryService();
@@ -1318,3 +1490,4 @@ export const staffSessionService = new StaffSessionService();
 export const staffMonthSummaryService = new StaffMonthSummaryService();
 export const staffBalanceAdjustmentService =
   new StaffBalanceAdjustmentService();
+export const staffMonthCloseService = new StaffMonthCloseService();

@@ -238,7 +238,7 @@ export default function ParentMessagesPage() {
 
 function Hero() {
   return (
-    <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="p-5 sm:p-6 lg:p-8">
         <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
           Austausch mit der OGS

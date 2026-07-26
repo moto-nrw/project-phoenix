@@ -99,6 +99,18 @@ type RequestRepository interface {
 	FindByStatusToken(ctx context.Context, token string) (*Request, error)
 	FindByStatusTokenForUpdate(ctx context.Context, token string) (*Request, error)
 	AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error
+	// AcquireExistingStudentMatchLock serializes existing-student
+	// re-enrollment matching for a phase across all guardians (the
+	// email-scoped dedup lock does not, so different-email submissions can
+	// otherwise both pin the same already-enrolled student). Held until the
+	// caller's transaction ends.
+	AcquireExistingStudentMatchLock(ctx context.Context, phaseID int64) error
+	// HasActiveRequestForMatchedStudent reports whether any non-rejected,
+	// non-withdrawn request_child in the phase is already pinned to the given
+	// already-enrolled student. excludeRequestChildID (0 = none) skips one
+	// persisted row so a re-check of an already-active row does not find
+	// itself.
+	HasActiveRequestForMatchedStudent(ctx context.Context, phaseID, studentID, excludeRequestChildID int64) (bool, error)
 	// PinDecisionNotificationMode atomically stores proposed only while the
 	// request is still unpinned and always returns the effective stored mode.
 	PinDecisionNotificationMode(ctx context.Context, requestID int64, proposed string) (string, error)

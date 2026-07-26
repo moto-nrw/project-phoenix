@@ -32,6 +32,7 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -47,6 +48,12 @@ type Service interface {
 	// schools they're already linked to. Sorted with linked schools
 	// first.
 	ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error)
+
+	// GetEnrollmentSubmitStatus resolves whether the account is linked
+	// to the school and whether its guardian relationships grant
+	// parent_portal.enrollment.submit there (#1663). Reuses a caller-
+	// provided admin transaction when one is in context.
+	GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error)
 
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined
@@ -378,6 +385,7 @@ type ServiceConfig struct {
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).
 	PersonRepo        usersModels.PersonRepository
 	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
+	StudentAudit      usersSvc.StudentChangeRecorder
 
 	// Guardian contact + pickup editing (#1667). The phone repo backs both the
 	// caller's primary-phone master-data edit and the wholesale phone-list replace
@@ -538,6 +546,30 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 		slog.Int("count", len(phases)),
 	)
 	return phases, nil
+}
+
+// GetEnrollmentSubmitStatus resolves the (account, school) submit
+// facts for the parent enrollment path (#1663). Uses
+// WithAdminTxOrDirect so the parent submit handler's existing admin
+// transaction is reused instead of opening a nested one.
+func (s *service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error) {
+	if accountID <= 0 || schoolID <= 0 {
+		return nil, fmt.Errorf("parent: account_id and school_id must be positive")
+	}
+
+	var status *parentModels.GuardianSubmitStatus
+	err := tenant.WithAdminTxOrDirect(ctx, s.DB, func(adminCtx context.Context) error {
+		st, stErr := s.EnrollablePhaseRepo.GuardianSubmitStatus(adminCtx, accountID, schoolID)
+		if stErr != nil {
+			return stErr
+		}
+		status = st
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("parent: enrollment submit status: %w", err)
+	}
+	return status, nil
 }
 
 // ListEnrollmentsForAccount returns the parent's enrollment.requests

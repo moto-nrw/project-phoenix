@@ -18,6 +18,7 @@ import {
   type CompanionWeekday,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
+import { getGermanWeekdayAdverb } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CompanionPicker" });
@@ -440,7 +441,7 @@ function missingAccompaniedDays(
 function formatDayList(days: CompanionWeekday[]): string {
   const labels = COMPANION_WEEKDAYS.filter((day) =>
     days.includes(day.value),
-  ).map((day) => `${day.label.toLowerCase()}s`);
+  ).map((day) => getGermanWeekdayAdverb(day.label));
   if (labels.length === 0) return "an diesen Tagen";
   if (labels.length === 1) return labels[0]!;
   return `${labels.slice(0, -1).join(", ")} und ${labels.at(-1)}`;
