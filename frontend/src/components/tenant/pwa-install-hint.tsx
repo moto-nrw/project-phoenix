@@ -14,6 +14,15 @@ export function isIosDevice(nav: Navigator): boolean {
   return nav.platform === "MacIntel" && nav.maxTouchPoints > 1;
 }
 
+/** True only in Safari, where the iOS home-screen action is available. */
+export function isIosSafari(nav: Navigator): boolean {
+  if (!isIosDevice(nav)) return false;
+  return (
+    /version\/[\d.]+.*safari\//i.test(nav.userAgent) &&
+    !/(crios|fxios|edgios|opios)/i.test(nav.userAgent)
+  );
+}
+
 /** True on Android phones and tablets. */
 export function isAndroidDevice(nav: Navigator): boolean {
   return /android/i.test(nav.userAgent);
@@ -27,19 +36,19 @@ export function isStandaloneDisplay(win: Window): boolean {
 }
 
 /**
- * Subtle, dismissible hint for iOS and Android users browsing the tenant app
- * in a normal browser tab: add moto to the home screen from THIS subdomain so
- * the installed app keeps its standalone scope (issue #2010 — both platforms
- * show browser chrome after a cross-origin redirect, so installing on the
- * root host breaks fullscreen). Never rendered inside an already-installed
- * PWA or on desktop devices.
+ * Subtle, dismissible hint for iOS Safari and Android users browsing the
+ * tenant app in a normal browser tab: add moto to the home screen from THIS
+ * subdomain so the installed app keeps its standalone scope (issue #2010 —
+ * both platforms show browser chrome after a cross-origin redirect, so
+ * installing on the root host breaks fullscreen). Never rendered inside an
+ * already-installed PWA or on desktop devices.
  */
 export function PwaInstallHint() {
   const [platform, setPlatform] = useState<InstallPlatform | null>(null);
 
   useEffect(() => {
     let detected: InstallPlatform | null = null;
-    if (isIosDevice(window.navigator)) detected = "ios";
+    if (isIosSafari(window.navigator)) detected = "ios";
     else if (isAndroidDevice(window.navigator)) detected = "android";
     if (!detected) return;
     if (isStandaloneDisplay(window)) return;
@@ -65,7 +74,7 @@ export function PwaInstallHint() {
   const PlatformIcon = platform === "ios" ? Share : EllipsisVertical;
 
   return (
-    <div className="moto-content-surface fixed inset-x-4 bottom-4 z-40 rounded-2xl border p-4 shadow-lg sm:right-6 sm:left-auto sm:max-w-sm">
+    <div className="moto-content-surface fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border p-4 shadow-lg sm:right-6 sm:left-auto sm:max-w-sm lg:bottom-6">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10">
           <PlatformIcon className="h-4 w-4 text-[#669f21]" aria-hidden="true" />
