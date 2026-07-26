@@ -88,7 +88,13 @@ describe("IosInstallHint", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
     render(<IosInstallHint />);
-    expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
+    const hint = screen
+      .getByText("moto als App nutzen")
+      .closest(".moto-content-surface");
+    expect(hint).toHaveClass(
+      "bottom-[calc(6rem+env(safe-area-inset-bottom))]",
+      "lg:bottom-4",
+    );
   });
 
   it("does not render on non-iOS devices", () => {

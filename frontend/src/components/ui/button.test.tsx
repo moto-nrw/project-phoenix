@@ -85,7 +85,8 @@ describe("Button", () => {
 
     const button = screen.getByRole("button");
     expect(button.className).toContain("bg-[#FF3130]");
-    expect(button.className).toContain("text-white");
+    expect(button.className).toContain("text-gray-900");
+    expect(button.className).toContain("hover:text-white");
   });
 
   it("applies success variant styles", () => {
@@ -93,7 +94,7 @@ describe("Button", () => {
 
     const button = screen.getByRole("button");
     expect(button.className).toContain("bg-[#83CD2D]");
-    expect(button.className).toContain("text-white");
+    expect(button.className).toContain("text-gray-900");
   });
 
   it("applies sm size styles", () => {

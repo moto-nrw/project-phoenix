@@ -52,7 +52,7 @@ export function IosInstallHint() {
   };
 
   return (
-    <div className="moto-content-surface fixed inset-x-4 bottom-4 z-40 rounded-2xl border p-4 shadow-lg sm:right-6 sm:left-auto sm:max-w-sm">
+    <div className="moto-content-surface fixed inset-x-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border p-4 shadow-lg sm:right-6 sm:left-auto sm:max-w-sm lg:bottom-4">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10">
           <Share className="h-4 w-4 text-[#669f21]" aria-hidden="true" />
