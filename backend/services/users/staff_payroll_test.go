@@ -257,6 +257,34 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 	assert.Equal(t, secondValue, rows[1].NewValue)
 }
 
+func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T) {
+	s := newPayrollScenario(t)
+	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Stale")
+	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
+
+	staleStaff, err := s.repos.Staff.FindByID(s.ctx, staff.ID)
+	require.NoError(t, err)
+
+	value := fmt.Sprintf("6%07d1", staff.ID%10_000_000)
+	_, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Ersteinrichtung")
+	require.NoError(t, err)
+
+	staleStaff.StaffNotes = "Aktualisierte Notiz"
+	_, _, err = s.svc.UpdateStaffWithTeacher(s.ctx, staleStaff, false, "", "", "")
+	require.NoError(t, err)
+
+	reloaded, err := s.repos.Staff.FindByID(s.ctx, staff.ID)
+	require.NoError(t, err)
+	require.NotNil(t, reloaded.PersonnelNumber)
+	assert.Equal(t, value, *reloaded.PersonnelNumber)
+	assert.Equal(t, "Aktualisierte Notiz", reloaded.StaffNotes)
+
+	rows := s.auditRows(t, staff.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "", rows[0].OldValue)
+	assert.Equal(t, value, rows[0].NewValue)
+}
+
 func TestUpdatePersonnelNumber_Validation(t *testing.T) {
 	s := newPayrollScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Valid")

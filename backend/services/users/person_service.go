@@ -558,18 +558,27 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 	return staff, teacher, teacherCreationFailed, nil
 }
 
-// UpdateStaffWithTeacher persists the (already mutated) staff row, reloads it
-// with person data, and applies the requested teacher-record change.
-// Teacher-record failures are non-fatal; the staff update always persists.
+// UpdateStaffWithTeacher applies the mutable directory fields to a freshly
+// locked staff row, reloads it with person data, and applies the requested
+// teacher-record change. Teacher-record failures are non-fatal; the staff
+// update always persists.
 func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error) {
 	var teacher *userModels.Teacher
 	action := TeacherActionNone
 
 	tenantID := tenant.FromContext(ctx)
 	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := s.StaffRepo.Update(ctx, staff); err != nil {
+		currentStaff, err := s.StaffRepo.FindByIDForUpdate(ctx, staff.ID)
+		if err != nil {
 			return err
 		}
+		currentStaff.PersonID = staff.PersonID
+		currentStaff.StaffNotes = staff.StaffNotes
+
+		if err := s.StaffRepo.Update(ctx, currentStaff); err != nil {
+			return err
+		}
+		*staff = *currentStaff
 
 		// Reload staff with person data; fall back to loading the person alone.
 		if reloaded, err := s.StaffRepo.FindWithPerson(ctx, staff.ID); err == nil {

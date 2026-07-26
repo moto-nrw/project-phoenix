@@ -125,10 +125,10 @@ type PersonService interface {
 	// staff row still persists, mirroring the historical api/staff behaviour.
 	CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
 
-	// UpdateStaffWithTeacher persists the (already mutated) staff row,
-	// reloads it with person data, and applies the requested teacher-record
-	// change. Teacher-record failures are non-fatal and reported through the
-	// returned TeacherAction; the staff update always persists.
+	// UpdateStaffWithTeacher applies the already-mutated directory fields to
+	// a freshly locked staff row, reloads it with person data, and applies the
+	// requested teacher-record change. Teacher-record failures are non-fatal
+	// and reported through the returned TeacherAction.
 	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
 
 	// UpdatePersonnelNumber sets or clears (nil / empty) the staff member's
