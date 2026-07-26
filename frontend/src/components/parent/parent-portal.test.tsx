@@ -173,6 +173,9 @@ describe("Parent portal components", () => {
     expect(screen.getByText("Lina Muster")).toBeInTheDocument();
     expect(screen.getByText("Mila Neu")).toBeInTheDocument();
     expect(screen.getByText("Offen")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Push-Benachrichtigungen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows dashboard error state when parent data fails", async () => {

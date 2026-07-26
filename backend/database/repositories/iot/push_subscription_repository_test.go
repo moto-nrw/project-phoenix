@@ -27,6 +27,33 @@ func cleanupPushSubscriptions(t *testing.T, db *bun.DB, accountIDs ...int64) {
 	require.NoError(t, err)
 }
 
+func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	now := time.Now()
+	mapping := &authModels.AccountTenant{
+		AccountID:   accountID,
+		TenantID:    tenantID,
+		Status:      authModels.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	_, err := db.NewInsert().
+		Model(mapping).
+		ModelTableExpr("auth.account_tenants").
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+func setAccountTenantStatus(t *testing.T, db *bun.DB, status string, accountIDs ...int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("auth.account_tenants").
+		Set("status = ?", status).
+		Where("tenant_id = ?", 1).
+		Where("account_id IN (?)", bun.List(accountIDs)).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
 func newSubscription(accountID int64, portal, endpoint string) *iotModels.PushSubscription {
 	sub := &iotModels.PushSubscription{
 		AccountID: accountID,
@@ -71,6 +98,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-parent-%d@example.com", time.Now().UnixNano()))
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID, guardian.ID)
 	defer cleanupPushSubscriptions(t, db, account.ID, guardian.ID)
+	createAccountTenantMapping(t, db, account.ID, 1)
+	createAccountTenantMapping(t, db, guardian.ID, 1)
 
 	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/%d", time.Now().UnixNano())
 
@@ -133,6 +162,23 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.NotEmpty(t, subscriptionsForAccount(subs, account.ID), "admin-role account's staff subscription must appear")
 	})
 
+	t.Run("recipient finders exclude inactive tenant mappings", func(t *testing.T) {
+		setAccountTenantStatus(t, db, authModels.AccountTenantStatusInactive, account.ID, guardian.ID)
+		defer setAccountTenantStatus(t, db, authModels.AccountTenantStatusActive, account.ID, guardian.ID)
+
+		staffSubs, err := repo.FindForTenantStaff(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, subscriptionsForAccount(staffSubs, account.ID))
+
+		adminSubs, err := repo.FindForTenantAdmins(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, subscriptionsForAccount(adminSubs, account.ID))
+
+		guardianSubs, err := repo.FindForGuardian(ctx, guardian.ID)
+		require.NoError(t, err)
+		assert.Empty(t, guardianSubs)
+	})
+
 	t.Run("delete by endpoint is scoped to the account", func(t *testing.T) {
 		// Deleting with the wrong account must not remove the row.
 		require.NoError(t, repo.DeleteByEndpoint(ctx, guardian.ID, endpoint))
@@ -164,6 +210,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		roleAdmin.ID:   "role-admin",
 		ordinary.ID:    "ordinary",
 	} {
+		createAccountTenantMapping(t, db, accountID, 1)
 		require.NoError(t, repo.Upsert(ctx, newSubscription(
 			accountID,
 			iotModels.PushPortalStaff,
@@ -209,4 +256,13 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 	assert.NotEmpty(t, subscriptionsForAccount(subs, directAdmin.ID), "direct admin:* permission must grant admin push")
 	assert.NotEmpty(t, subscriptionsForAccount(subs, roleAdmin.ID), "role-based *:* permission must grant admin push")
 	assert.Empty(t, subscriptionsForAccount(subs, ordinary.ID), "ordinary staff must not receive admin push")
+
+	var tenantRoleSubs []*iotModels.PushSubscription
+	err = tenant.WithTenantTx(context.Background(), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		tenantRoleSubs, err = repo.FindForTenantAdmins(txCtx)
+		return err
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, subscriptionsForAccount(tenantRoleSubs, directAdmin.ID))
+	assert.NotEmpty(t, subscriptionsForAccount(tenantRoleSubs, roleAdmin.ID))
 }

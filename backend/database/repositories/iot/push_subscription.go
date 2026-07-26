@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -11,8 +12,11 @@ import (
 )
 
 const (
-	tablePushSubscriptions = "iot.push_subscriptions"
-	pushPortalFilter       = "portal = ?"
+	tablePushSubscriptions  = "iot.push_subscriptions"
+	pushPortalFilter        = "portal = ?"
+	activeAccountTenantJoin = `INNER JOIN auth.account_tenants AS "account_tenant"
+		ON "account_tenant".account_id = "push_subscription".account_id
+		AND "account_tenant".tenant_id = "push_subscription".tenant_id`
 )
 
 // PushSubscriptionRepository implements iot.PushSubscriptionRepository.
@@ -72,7 +76,9 @@ func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
-		Where(pushPortalFilter, iot.PushPortalStaff)
+		Join(activeAccountTenantJoin).
+		Where(pushPortalFilter, iot.PushPortalStaff).
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive)
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff push subscriptions", Err: err}
@@ -88,7 +94,9 @@ func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
+		Join(activeAccountTenantJoin).
 		Where(pushPortalFilter, iot.PushPortalStaff).
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
 		Where(`EXISTS (
 			SELECT 1
 			FROM auth.account_roles AS "ar"
@@ -128,8 +136,10 @@ func (r *PushSubscriptionRepository) FindForGuardian(ctx context.Context, guardi
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
+		Join(activeAccountTenantJoin).
 		Where(pushPortalFilter, iot.PushPortalParent).
-		Where("account_id = ?", guardianAccountID)
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"push_subscription".account_id = ?`, guardianAccountID)
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find guardian push subscriptions", Err: err}
