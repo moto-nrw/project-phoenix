@@ -132,6 +132,9 @@ function RangeCalendar({
   const panelRef = useRef<HTMLDivElement>(null);
   const [geometry, setGeometry] = useState<PanelGeometry | null>(null);
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+  // Portals only exist client-side — `document` must not be touched while the
+  // tree renders on the server.
+  const [mounted, setMounted] = useState(false);
 
   // Content width is only known after the first paint, so measure the panel and
   // place it from that — using a guessed width is what previously left the
@@ -139,7 +142,7 @@ function RangeCalendar({
   const sync = useCallback(() => {
     const trigger = triggerRef.current;
     const panel = panelRef.current;
-    if (!trigger || !panel) return;
+    if (!mounted || !trigger || !panel) return;
     if (window.innerWidth < 640) {
       setIsNarrowViewport(true);
       return;
@@ -154,7 +157,13 @@ function RangeCalendar({
         panel.getBoundingClientRect().height,
       ),
     );
-  }, [triggerRef]);
+    // `mounted` gates the portal, so the panel only exists to measure once it
+    // is true — the effect below has to re-run at that point.
+  }, [triggerRef, mounted]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     sync();
@@ -173,6 +182,8 @@ function RangeCalendar({
     right: CALENDAR_PANEL_MARGIN,
     top: 80,
   } as const;
+
+  if (!mounted) return null;
 
   return createPortal(
     <div
