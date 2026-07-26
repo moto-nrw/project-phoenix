@@ -331,7 +331,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, page.Events, 1)
-		assert.Equal(t, finalFraction, page.Events[0].OccurredAt)
+		assert.WithinDuration(t, finalFraction, page.Events[0].OccurredAt, 0)
 	})
 
 	t.Run("unknown source is invalid", func(t *testing.T) {
