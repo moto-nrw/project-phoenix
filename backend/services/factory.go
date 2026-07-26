@@ -74,6 +74,7 @@ type Factory struct {
 	StaffMonthClose          active.StaffMonthCloseService
 	StaffOverview            active.StaffOverviewService
 	TimeTrackingAuditLog     active.TimeTrackingAuditLogService
+	StaffTimeExport          active.StaffTimeExportService
 	Activities               activities.ActivityService
 	Education                education.Service
 	GradeTransition          *education.GradeTransitionService
@@ -463,6 +464,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		activeLogger,
 	)
 	staffOverviewService.SetHolidayReader(nonWorkingDayService)
+
+	// Cross-staff payroll/evidence export (#1417 2b): rows via the overview's
+	// prefetch (month) and the single-staff export cells (day); every download
+	// writes an audit.data_access_logs row or fails.
+	staffTimeExportService := active.NewStaffTimeExportService(
+		staffOverviewService,
+		workSessionService,
+		repos.Staff,
+		repos.DataAccessLog,
+		activeLogger,
+	)
 
 	// Cross-staff audit feed (#1417): merges the four change trails into one
 	// keyset-paginated view. Read-only; permission gating at the route.
@@ -1705,6 +1717,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffMonthClose:          staffMonthCloseService,
 		StaffOverview:            staffOverviewService,
 		TimeTrackingAuditLog:     timeTrackingAuditLogService,
+		StaffTimeExport:          staffTimeExportService,
 		Activities:               activitiesService,
 		Education:                educationService,
 		GradeTransition:          gradeTransitionService,

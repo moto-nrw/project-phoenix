@@ -29,6 +29,7 @@ type Resource struct {
 	MonthCloseService       activeSvc.StaffMonthCloseService
 	StaffOverviewService    activeSvc.StaffOverviewService
 	AuditLogService         activeSvc.TimeTrackingAuditLogService
+	TimeExportService       activeSvc.StaffTimeExportService
 	db                      *bun.DB
 	logger                  *slog.Logger
 }
@@ -46,6 +47,7 @@ func NewResource(
 	monthCloseService activeSvc.StaffMonthCloseService,
 	staffOverviewService activeSvc.StaffOverviewService,
 	auditLogService activeSvc.TimeTrackingAuditLogService,
+	timeExportService activeSvc.StaffTimeExportService,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -61,6 +63,7 @@ func NewResource(
 		MonthCloseService:       monthCloseService,
 		StaffOverviewService:    staffOverviewService,
 		AuditLogService:         auditLogService,
+		TimeExportService:       timeExportService,
 		db:                      db,
 		logger:                  logger,
 	}
@@ -130,6 +133,11 @@ func (rs *Resource) Router() chi.Router {
 		// acting person plus free-text reasons — personal data end to end, so
 		// the whole feed sits behind time_tracking:manage with no users:read tier.
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/audit-log", rs.getTimeTrackingAuditLog)
+
+		// Cross-staff payroll/evidence export (#1417 2b). A bulk export of
+		// per-person working-time data — time_tracking:manage only, and the
+		// service writes a GDPR access-audit row per download.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/export", rs.exportTimeTracking)
 
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/month-close", rs.listMonthCloseStatus)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/time-tracking/month-close", rs.closeMonth)

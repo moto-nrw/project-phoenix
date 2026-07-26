@@ -49,7 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, db, slog.Default())
+	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
 
 	router := chi.NewRouter()
 	router.Mount("/staff", resource.Router())

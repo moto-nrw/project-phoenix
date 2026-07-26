@@ -27,21 +27,22 @@ import (
 // ============================================================================
 
 type wsMockWorkSessionRepository struct {
-	lockBalanceWritesFunc   func(ctx context.Context, staffID int64) error
-	createFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
-	findByIDFunc            func(ctx context.Context, id any) (*activeModels.WorkSession, error)
-	updateFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
-	deleteFunc              func(ctx context.Context, id any) error
-	listFunc                func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
-	getByStaffAndDateFunc   func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
-	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getCurrentForUpdateFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	lockOpenByIDFunc        func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
-	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
-	getOpenSessionsFunc     func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
-	getTodayPresenceMapFunc func(ctx context.Context) (map[int64]string, error)
-	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
-	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
+	lockBalanceWritesFunc    func(ctx context.Context, staffID int64) error
+	createFunc               func(ctx context.Context, entity *activeModels.WorkSession) error
+	findByIDFunc             func(ctx context.Context, id any) (*activeModels.WorkSession, error)
+	updateFunc               func(ctx context.Context, entity *activeModels.WorkSession) error
+	deleteFunc               func(ctx context.Context, id any) error
+	listFunc                 func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
+	getByStaffAndDateFunc    func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
+	getCurrentByStaffIDFunc  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getCurrentForUpdateFunc  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	lockOpenByIDFunc         func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
+	getHistoryByStaffIDFunc  func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
+	getHistoryByStaffIDsFunc func(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.WorkSession, error)
+	getOpenSessionsFunc      func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
+	getTodayPresenceMapFunc  func(ctx context.Context) (map[int64]string, error)
+	closeSessionFunc         func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
+	updateBreakMinutesFunc   func(ctx context.Context, id int64, breakMinutes int) error
 }
 
 func (m *wsMockWorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
@@ -405,15 +406,16 @@ func (m *wsMockWorkSessionEditRepository) CountManualBySessionIDs(ctx context.Co
 // ============================================================================
 
 type wsMockStaffAbsenceRepository struct {
-	createFunc                 func(ctx context.Context, entity *activeModels.StaffAbsence) error
-	findByIDFunc               func(ctx context.Context, id any) (*activeModels.StaffAbsence, error)
-	updateFunc                 func(ctx context.Context, entity *activeModels.StaffAbsence) error
-	deleteFunc                 func(ctx context.Context, id any) error
-	listFunc                   func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.StaffAbsence, error)
-	getByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
-	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error)
-	getByDateRangeFunc         func(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
-	getAbsenceMapForDateFunc   func(ctx context.Context, date timezone.Date) (map[int64]string, error)
+	createFunc                    func(ctx context.Context, entity *activeModels.StaffAbsence) error
+	findByIDFunc                  func(ctx context.Context, id any) (*activeModels.StaffAbsence, error)
+	updateFunc                    func(ctx context.Context, entity *activeModels.StaffAbsence) error
+	deleteFunc                    func(ctx context.Context, id any) error
+	listFunc                      func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.StaffAbsence, error)
+	getByStaffAndDateRangeFunc    func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
+	getByStaffIDsAndDateRangeFunc func(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.StaffAbsence, error)
+	getByStaffAndDateFunc         func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error)
+	getByDateRangeFunc            func(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
+	getAbsenceMapForDateFunc      func(ctx context.Context, date timezone.Date) (map[int64]string, error)
 }
 
 func (m *wsMockStaffAbsenceRepository) LockStaffAbsenceWrites(context.Context, int64) error {
@@ -3356,7 +3358,10 @@ func TestWSRecalcBreakMinutes_ExcludesRunningBreak(t *testing.T) {
 
 // GetHistoryByStaffIDs satisfies the batched interface method (#1417); this mock
 // exercises the single-staff path only.
-func (m *wsMockWorkSessionRepository) GetHistoryByStaffIDs(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
+func (m *wsMockWorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
+	if m.getHistoryByStaffIDsFunc != nil {
+		return m.getHistoryByStaffIDsFunc(ctx, staffIDs, from, to)
+	}
 	return nil, nil
 }
 
@@ -3368,7 +3373,10 @@ func (m *wsMockWorkSessionBreakRepository) GetActiveBySessionIDs(context.Context
 
 // GetByStaffIDsAndDateRange satisfies the batched interface method (#1417); this mock
 // exercises the single-staff path only.
-func (m *wsMockStaffAbsenceRepository) GetByStaffIDsAndDateRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
+func (m *wsMockStaffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
+	if m.getByStaffIDsAndDateRangeFunc != nil {
+		return m.getByStaffIDsAndDateRangeFunc(ctx, staffIDs, from, to)
+	}
 	return nil, nil
 }
 

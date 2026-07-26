@@ -36,6 +36,7 @@ import {
   type SaldoPresetId,
 } from "~/components/staff/staff-time-accounts-table";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
+import { StaffTimeExportModal } from "~/components/staff/staff-time-export-modal";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSWRConfig } from "swr";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
@@ -78,6 +79,7 @@ function StaffPageContent() {
     month: number;
   }>(() => ({ year: currentYear, month: currentMonth }));
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [saldoPreset, setSaldoPreset] = useState<SaldoPresetId>("all");
   const [customSaldoHours, setCustomSaldoHours] = useState("");
   const [showCustomSaldo, setShowCustomSaldo] = useState(false);
@@ -556,6 +558,7 @@ function StaffPageContent() {
           onRetryMonthClose={() => void mutateMonthClose()}
           monthIsOver={!isCurrentOrFutureMonth}
           onCloseMonth={() => setShowCloseModal(true)}
+          onExport={() => setShowExportModal(true)}
           isLoading={accountsLoading && !accounts}
           error={
             accountsError ? "Zeitkonten konnten nicht geladen werden." : null
@@ -598,6 +601,15 @@ function StaffPageContent() {
           onClose={() => setShowCloseModal(false)}
         />
       )}
+
+      {/* Cross-MA-Export (#1417 2b): Query-Bau im Dialog, Zahlen und Datei
+          komplett aus dem Backend. */}
+      <StaffTimeExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        year={accounts?.year ?? monthAnchor.year}
+        month={accounts?.month ?? monthAnchor.month}
+      />
 
       {/* Error Display */}
       {view === "status" && error && (

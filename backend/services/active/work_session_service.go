@@ -264,6 +264,12 @@ type WorkSessionService interface {
 	// already checked out today (no re-open).
 	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
 	ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error)
+	// DayExportRows exposes the export's merged session/absence day rows for
+	// the cross-staff export (#1417 2b) — same loading, same cell rendering.
+	DayExportRows(ctx context.Context, staffID int64, from, to timezone.Date) ([]DayExportRow, error)
+	// DayExportRowsByStaffIDs loads the same rows for many staff members with
+	// batched repository calls, keyed by staff ID.
+	DayExportRowsByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]DayExportRow, error)
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 
 	// Staff work-schedule operations (issue #584: moved out of api/staff).
@@ -2162,7 +2168,7 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	}
 
 	// Build merged rows sorted by date
-	rows := s.buildExportRows(historyResp.Sessions, absences)
+	rows := s.buildExportRows(historyResp.Sessions, clampAbsencesToRange(absences, from, to))
 
 	fromStr := from.String()
 	toStr := to.String()
@@ -2181,6 +2187,28 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 		}
 		return data, fmt.Sprintf("zeiterfassung_%s_%s.csv", fromStr, toStr), nil
 	}
+}
+
+// clampAbsencesToRange returns shallow copies whose expanded day ranges stay
+// inside the requested export period. Repository range lookups deliberately
+// return overlapping absences, including records that start before `from` or
+// end after `to`.
+func clampAbsencesToRange(absences []*activeModels.StaffAbsence, from, to timezone.Date) []*activeModels.StaffAbsence {
+	clamped := make([]*activeModels.StaffAbsence, 0, len(absences))
+	for _, absence := range absences {
+		if absence == nil || absence.DateEnd.Before(from) || to.Before(absence.DateStart) {
+			continue
+		}
+		copy := *absence
+		if copy.DateStart.Before(from) {
+			copy.DateStart = from
+		}
+		if to.Before(copy.DateEnd) {
+			copy.DateEnd = to
+		}
+		clamped = append(clamped, &copy)
+	}
+	return clamped
 }
 
 // buildExportRows merges session rows and absence rows, sorted by date
