@@ -4,6 +4,7 @@ import { PushSubscriptionSync } from "./service-worker-registrar";
 
 const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
+  isPushConfigurationMissing: vi.fn(),
   isPushSupported: vi.fn(),
   syncExistingPushSubscription: vi.fn(),
   warn: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/push-api", () => ({
+  isPushConfigurationMissing: mocks.isPushConfigurationMissing,
   isPushSupported: mocks.isPushSupported,
   syncExistingPushSubscription: mocks.syncExistingPushSubscription,
 }));
@@ -25,6 +27,7 @@ vi.mock("~/lib/logger", () => ({
 describe("PushSubscriptionSync", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isPushConfigurationMissing.mockReturnValue(false);
     mocks.isPushSupported.mockReturnValue(true);
     mocks.syncExistingPushSubscription.mockResolvedValue(null);
   });
@@ -48,5 +51,20 @@ describe("PushSubscriptionSync", () => {
     mocks.isPushSupported.mockReturnValue(false);
     rerender(<PushSubscriptionSync portal="tenant" />);
     expect(mocks.syncExistingPushSubscription).not.toHaveBeenCalled();
+  });
+
+  it("does not warn when push is intentionally unconfigured", async () => {
+    mocks.useSession.mockReturnValue({ status: "authenticated" });
+    mocks.isPushConfigurationMissing.mockReturnValue(true);
+    mocks.syncExistingPushSubscription.mockRejectedValue(
+      new Error("not configured"),
+    );
+
+    render(<PushSubscriptionSync portal="tenant" />);
+
+    await waitFor(() =>
+      expect(mocks.syncExistingPushSubscription).toHaveBeenCalled(),
+    );
+    expect(mocks.warn).not.toHaveBeenCalled();
   });
 });

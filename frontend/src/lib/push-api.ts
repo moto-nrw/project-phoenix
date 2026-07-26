@@ -20,6 +20,11 @@ class PushApiError extends Error {
   }
 }
 
+/** Identifies the expected backend response when VAPID is not configured. */
+export function isPushConfigurationMissing(error: unknown): boolean {
+  return error instanceof PushApiError && error.status === 404;
+}
+
 function basePath(portal: PushPortal): string {
   return portal === "parent"
     ? "/api/parent/me/push"
@@ -210,11 +215,11 @@ export async function syncExistingPushSubscription(
   portal: PushPortal,
 ): Promise<PushSubscription | null> {
   if (!isPushSupported()) return null;
+  const publicKey = await getPushPublicKey(portal);
   const registration = await registerPushServiceWorker();
   const existing = await registration.pushManager.getSubscription();
   if (!existing) return null;
 
-  const publicKey = await getPushPublicKey(portal);
   const subscription = applicationServerKeyMatches(existing, publicKey)
     ? existing
     : await replaceBrowserSubscription(registration, existing, publicKey);

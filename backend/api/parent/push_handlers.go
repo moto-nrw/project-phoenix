@@ -59,8 +59,11 @@ func (rs *Resource) subscribePush(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, notificationsService.ErrWebPushNotConfigured):
 		common.RenderError(w, r, common.ErrorConflict(err))
 		return
-	case err != nil:
+	case errors.Is(err, notificationsService.ErrInvalidPushSubscription):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	case err != nil:
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Push-Registrierung konnte nicht gespeichert werden.", err))
 		return
 	}
 	common.Respond(w, r, http.StatusNoContent, nil, "")

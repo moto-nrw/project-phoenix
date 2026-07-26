@@ -5,12 +5,14 @@ import (
 	"errors"
 	"testing"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 var errPushRepository = errors.New("push repository failed")
@@ -18,15 +20,17 @@ var errPushRepository = errors.New("push repository failed")
 type recordingPushRepository struct {
 	iot.PushSubscriptionRepository
 	upserted        []*iot.PushSubscription
-	upsertTenants   []int64
 	deletedAccount  int64
 	deletedEndpoint string
 	err             error
+	failAfter       int
 }
 
-func (r *recordingPushRepository) Upsert(ctx context.Context, sub *iot.PushSubscription) error {
+func (r *recordingPushRepository) Upsert(_ context.Context, sub *iot.PushSubscription) error {
 	r.upserted = append(r.upserted, sub)
-	r.upsertTenants = append(r.upsertTenants, tenant.FromContext(ctx))
+	if r.failAfter > 0 && len(r.upserted) < r.failAfter {
+		return nil
+	}
 	return r.err
 }
 
@@ -85,7 +89,9 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 
 		invalid := validPushInput()
 		invalid.Endpoint = "http://fcm.googleapis.com/fcm/send/device"
-		require.EqualError(t, service.Subscribe(context.Background(), 42, invalid), "endpoint must be an https URL")
+		err := service.Subscribe(context.Background(), 42, invalid)
+		require.ErrorIs(t, err, ErrInvalidPushSubscription)
+		assert.ErrorContains(t, err, "endpoint must be an https URL")
 	})
 
 	t.Run("forwards repository errors and unsubscribe", func(t *testing.T) {
@@ -140,7 +146,6 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 		require.NoError(t, service.SubscribeParent(context.Background(), 42, validPushInput()))
 		require.Len(t, repo.upserted, 1)
 		assert.Equal(t, tenantID, repo.upserted[0].TenantID)
-		assert.Equal(t, tenantID, repo.upsertTenants[0])
 		assert.Equal(t, iot.PushPortalParent, repo.upserted[0].Portal)
 
 		require.NoError(t, service.UnsubscribeParent(context.Background(), 42, validPushInput().Endpoint))
@@ -153,10 +158,12 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 		service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
 		invalid := validPushInput()
 		invalid.Endpoint = "invalid"
-		require.EqualError(t, service.SubscribeParent(context.Background(), 42, invalid), "endpoint must be an https URL")
+		err := service.SubscribeParent(context.Background(), 42, invalid)
+		require.ErrorIs(t, err, ErrInvalidPushSubscription)
+		assert.ErrorContains(t, err, "endpoint must be an https URL")
 
 		repo.err = errPushRepository
-		err := service.SubscribeParent(context.Background(), 42, validPushInput())
+		err = service.SubscribeParent(context.Background(), 42, validPushInput())
 		require.ErrorIs(t, err, errPushRepository)
 		assert.ErrorContains(t, err, "registering push subscription for tenant")
 
@@ -171,4 +178,33 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 		require.ErrorIs(t, err, errPushRepository)
 		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
 	})
+}
+
+func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		_ = db.Close()
+		_ = sqlDB.Close()
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	repo := &recordingPushRepository{err: errPushRepository, failAfter: 2}
+	mappings := accountTenantRepositoryStub{mappings: []authModels.AccountTenant{
+		{TenantID: 41},
+		{TenantID: 42},
+	}}
+	service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
+
+	err = service.SubscribeParent(context.Background(), 77, validPushInput())
+
+	require.ErrorIs(t, err, errPushRepository)
+	require.Len(t, repo.upserted, 2)
+	assert.Equal(t, int64(41), repo.upserted[0].TenantID)
+	assert.Equal(t, int64(42), repo.upserted[1].TenantID)
+	require.NoError(t, mock.ExpectationsWereMet(), "a later tenant failure must roll back the whole registration")
 }

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PushNotificationSection } from "./push-notification-section";
 
 const pushApi = vi.hoisted(() => ({
+  isPushConfigurationMissing: vi.fn(),
   isPushSupported: vi.fn(),
   needsIOSInstall: vi.fn(),
   syncExistingPushSubscription: vi.fn(),
@@ -19,6 +20,7 @@ function stubNotificationPermission(permission: NotificationPermission) {
 describe("PushNotificationSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pushApi.isPushConfigurationMissing.mockReturnValue(false);
     pushApi.needsIOSInstall.mockReturnValue(false);
     pushApi.isPushSupported.mockReturnValue(true);
     pushApi.syncExistingPushSubscription.mockResolvedValue(null);
@@ -52,6 +54,24 @@ describe("PushNotificationSection", () => {
         "Dieser Browser unterstützt keine Push-Benachrichtigungen.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("shows a disabled state when VAPID is not configured", async () => {
+    pushApi.syncExistingPushSubscription.mockRejectedValue(
+      new Error("web push is not configured"),
+    );
+    pushApi.isPushConfigurationMissing.mockReturnValue(true);
+
+    render(<PushNotificationSection />);
+
+    expect(
+      await screen.findByText(
+        "Push-Benachrichtigungen sind auf diesem Server nicht eingerichtet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Aktivieren" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the blocked message when permission is denied", async () => {

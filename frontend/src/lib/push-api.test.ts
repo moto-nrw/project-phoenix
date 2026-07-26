@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getExistingSubscription,
+  isPushConfigurationMissing,
   isPushSupported,
   needsIOSInstall,
   subscribePush,
@@ -179,16 +180,23 @@ describe("push-api", () => {
 
   it("reports missing keys and malformed server errors", async () => {
     fetchMock.mockResolvedValueOnce(response({ data: {} }));
-    await expect(subscribePush("tenant")).rejects.toMatchObject({
-      status: 404,
-      message: "Web Push ist auf diesem Server nicht eingerichtet.",
-    });
+    try {
+      await subscribePush("tenant");
+      expect.unreachable("missing VAPID configuration must reject");
+    } catch (error) {
+      expect(error).toMatchObject({
+        status: 404,
+        message: "Web Push ist auf diesem Server nicht eingerichtet.",
+      });
+      expect(isPushConfigurationMissing(error)).toBe(true);
+    }
 
     fetchMock.mockResolvedValueOnce(new Response("not-json", { status: 503 }));
     await expect(subscribePush("tenant")).rejects.toMatchObject({
       status: 503,
       message: "Push-Anfrage fehlgeschlagen (503).",
     });
+    expect(isPushConfigurationMissing(new Error("unrelated"))).toBe(false);
   });
 
   it("uses the server error message when available", async () => {
@@ -267,6 +275,18 @@ describe("push-api", () => {
       "/api/parent/me/push/subscriptions",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("checks VAPID configuration when no browser subscription exists", async () => {
+    getSubscription.mockResolvedValue(null);
+    fetchMock.mockResolvedValueOnce(
+      response({ error: "web push is not configured" }, 404),
+    );
+
+    await expect(syncExistingPushSubscription("tenant")).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(register).not.toHaveBeenCalled();
   });
 
   it("returns existing subscriptions and handles missing registrations", async () => {

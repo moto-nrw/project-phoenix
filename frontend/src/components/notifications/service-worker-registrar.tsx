@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
 import {
+  isPushConfigurationMissing,
   isPushSupported,
   syncExistingPushSubscription,
   type PushPortal,
@@ -45,6 +46,7 @@ export function PushSubscriptionSync({
   useEffect(() => {
     if (status !== "authenticated" || !isPushSupported()) return;
     syncExistingPushSubscription(portal).catch((err: unknown) => {
+      if (isPushConfigurationMissing(err)) return;
       logger.warn("push_subscription_sync_failed", {
         portal,
         error: err instanceof Error ? err.message : String(err),

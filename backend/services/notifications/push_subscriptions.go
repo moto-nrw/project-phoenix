@@ -12,9 +12,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// ErrWebPushNotConfigured is returned when VAPID keys are missing: devices
-// cannot subscribe while the server cannot sign pushes.
-var ErrWebPushNotConfigured = errors.New("web push is not configured on this server")
+var (
+	// ErrWebPushNotConfigured is returned when VAPID keys are missing: devices
+	// cannot subscribe while the server cannot sign pushes.
+	ErrWebPushNotConfigured = errors.New("web push is not configured on this server")
+	// ErrInvalidPushSubscription marks browser-supplied subscription data that
+	// failed model validation. Handlers map only this error family to HTTP 400.
+	ErrInvalidPushSubscription = errors.New("invalid push subscription")
+)
 
 // PushSubscriptionInput is the browser's PushSubscription in wire form.
 type PushSubscriptionInput struct {
@@ -25,9 +30,9 @@ type PushSubscriptionInput struct {
 }
 
 // PushSubscriptionService manages Web Push device registrations. Staff
-// methods run inside tenant middleware (tenant tx present); parent methods
-// span every active tenant mapping of the guardian account and open their
-// own tenant transactions.
+// methods run inside tenant middleware (tenant tx present). Parent subscribe
+// spans every active tenant mapping in one admin transaction so all device
+// rows commit or roll back together.
 type PushSubscriptionService interface {
 	// PublicKey returns the VAPID public key the browser subscribes with.
 	PublicKey() (string, error)
@@ -78,7 +83,7 @@ func (s *pushSubscriptionService) buildSubscription(accountID int64, portal stri
 		UserAgent: input.UserAgent,
 	}
 	if err := sub.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrInvalidPushSubscription, err)
 	}
 	return sub, nil
 }
@@ -102,6 +107,10 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 	if !s.vapid.Configured() {
 		return ErrWebPushNotConfigured
 	}
+	prototype, err := s.buildSubscription(accountID, iot.PushPortalParent, input)
+	if err != nil {
+		return err
+	}
 	mappings, err := s.accountTenants.FindActiveByAccountID(ctx, accountID)
 	if err != nil {
 		return fmt.Errorf("resolving guardian tenant mappings: %w", err)
@@ -109,20 +118,20 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 	if len(mappings) == 0 {
 		return errors.New("account has no active school mapping")
 	}
-	for _, mapping := range mappings {
-		sub, err := s.buildSubscription(accountID, iot.PushPortalParent, input)
-		if err != nil {
-			return err
+
+	// One admin transaction keeps all tenant rows atomic. The account ID comes
+	// from the authenticated parent token and mappings limit writes to active
+	// schools; each row still carries its explicit tenant ID.
+	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		for _, mapping := range mappings {
+			sub := *prototype
+			sub.TenantID = mapping.TenantID
+			if err := s.repo.Upsert(txCtx, &sub); err != nil {
+				return fmt.Errorf("registering push subscription for tenant %d: %w", mapping.TenantID, err)
+			}
 		}
-		sub.TenantID = mapping.TenantID
-		err = tenant.WithTenantTx(ctx, s.db, mapping.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-			return s.repo.Upsert(txCtx, sub)
-		})
-		if err != nil {
-			return fmt.Errorf("registering push subscription for tenant %d: %w", mapping.TenantID, err)
-		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func (s *pushSubscriptionService) UnsubscribeParent(ctx context.Context, accountID int64, endpoint string) error {

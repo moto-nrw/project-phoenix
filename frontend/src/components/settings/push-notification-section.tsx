@@ -6,6 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
 import {
+  isPushConfigurationMissing,
   isPushSupported,
   needsIOSInstall,
   subscribePush,
@@ -24,6 +25,7 @@ type PushState =
   | "loading"
   | "unsupported"
   | "needs-install"
+  | "disabled"
   | "denied"
   | "subscribed"
   | "unsubscribed";
@@ -58,6 +60,10 @@ export function PushNotificationSection({
       const subscription = await syncExistingPushSubscription(portal);
       setState(subscription ? "subscribed" : "unsubscribed");
     } catch (err) {
+      if (isPushConfigurationMissing(err)) {
+        setState("disabled");
+        return;
+      }
       logger.error("push_state_check_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -173,6 +179,12 @@ export function PushNotificationSection({
       {state === "unsupported" && (
         <p className="text-sm text-gray-600">
           Dieser Browser unterstützt keine Push-Benachrichtigungen.
+        </p>
+      )}
+
+      {state === "disabled" && (
+        <p className="text-sm text-gray-600">
+          Push-Benachrichtigungen sind auf diesem Server nicht eingerichtet.
         </p>
       )}
 
