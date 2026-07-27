@@ -2,6 +2,7 @@
 
 import { AlertTriangle, CalendarDays } from "lucide-react";
 
+import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import {
   getActivityColor,
   getGermanWeekdayShort,
@@ -17,6 +18,12 @@ interface MonthPlannerGridProps {
   monthDate: Date;
   instances: EnrichedInstance[];
   todayISO?: string;
+  /**
+   * OGS-Schließtage im sichtbaren Monat, keyed YYYY-MM-DD → Grund (#2032).
+   * Betroffene Tageszellen werden neutral eingefärbt und mit dem Grund
+   * beschriftet.
+   */
+  closingDays?: ReadonlyMap<string, string>;
   onDayClick: (dateISO: string) => void;
 }
 
@@ -25,6 +32,7 @@ export function MonthPlannerGrid({
   monthDate,
   instances,
   todayISO,
+  closingDays,
   onDayClick,
 }: MonthPlannerGridProps) {
   const grouped = groupInstancesByDate(instances);
@@ -49,6 +57,7 @@ export function MonthPlannerGrid({
           const dayInstances = grouped.get(iso) ?? [];
           const isToday = iso === todayISO;
           const outsideMonth = day.getMonth() !== currentMonth;
+          const closingReason = closingDays?.get(iso);
           const conflicts = dayInstances.reduce(
             (sum, inst) => sum + inst.conflictWarnings.length,
             0,
@@ -63,8 +72,12 @@ export function MonthPlannerGrid({
               type="button"
               onClick={() => onDayClick(iso)}
               className={`min-h-[112px] border-r border-b border-gray-100 p-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${
-                outsideMonth ? "bg-gray-50/40 text-gray-400" : "bg-white"
-              }`}
+                closingReason !== undefined
+                  ? "bg-gray-100/70"
+                  : outsideMonth
+                    ? "bg-gray-50/40 text-gray-400"
+                    : "bg-white"
+              } ${outsideMonth ? "text-gray-400" : ""}`}
             >
               <div className="flex items-center justify-between gap-2">
                 {isToday ? (
@@ -81,11 +94,20 @@ export function MonthPlannerGrid({
                 )}
               </div>
 
+              {closingReason !== undefined && (
+                <ClosingDayChip
+                  reason={closingReason}
+                  className="mt-1 w-full"
+                />
+              )}
+
               {dayInstances.length === 0 ? (
-                <div className="mt-5 flex items-center gap-1 text-[11px] text-gray-400">
-                  <CalendarDays className="h-3 w-3" />
-                  Leer
-                </div>
+                closingReason !== undefined ? null : (
+                  <div className="mt-5 flex items-center gap-1 text-[11px] text-gray-400">
+                    <CalendarDays className="h-3 w-3" />
+                    Leer
+                  </div>
+                )
               ) : (
                 <div className="mt-2 space-y-1">
                   {visibleInstances.map((inst) => {

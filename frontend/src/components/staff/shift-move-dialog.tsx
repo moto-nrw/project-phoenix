@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 
+import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -9,6 +10,10 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { getApiErrorMessage } from "~/lib/api-error-message";
+import {
+  findClosingDayReason,
+  type ClosingDayRange,
+} from "~/lib/closing-day-helpers";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
@@ -38,6 +43,9 @@ interface ShiftMoveDialogProps {
   /** All shift types (Schichtarten) — the picker offers active ones plus the
    *  one currently attached to this shift (even if inactive). */
   readonly shiftTypes: readonly ShiftType[];
+  /** OGS-Schließtage des Tenants (#2032). Fällt der Zieltag auf einen davon,
+   *  weist der Dialog darauf hin; die Bestätigung verschiebt trotzdem. */
+  readonly closingDayRanges?: readonly ClosingDayRange[];
   readonly onClose: () => void;
   /** Fired after a successful move so the caller revalidates plan caches. */
   readonly onDataChanged: () => void;
@@ -83,6 +91,7 @@ export function ShiftMoveDialog({
   sourceMember,
   staff,
   shiftTypes,
+  closingDayRanges,
   onClose,
   onDataChanged,
 }: ShiftMoveDialogProps) {
@@ -148,6 +157,13 @@ export function ShiftMoveDialog({
     timesValid &&
     breakValid &&
     !inactiveTypeBlocksMove;
+
+  // Schließtag am Zieltag (#2032): Hinweis im Formular und in der ohnehin
+  // vorhandenen Bestätigung — verschoben wird trotzdem, nichts wird gesperrt.
+  const targetClosingReason = findClosingDayReason(
+    closingDayRanges,
+    targetDate,
+  );
 
   const targetMember = staff.find((member) => member.id === targetStaffId);
   const sourceName = `${sourceMember.firstName} ${sourceMember.lastName}`;
@@ -281,6 +297,9 @@ export function ShiftMoveDialog({
               dropdownPlacement="down"
               placeholder="Datum auswählen"
             />
+            {targetClosingReason !== undefined && (
+              <ClosingDayChip reason={targetClosingReason} className="mt-1.5" />
+            )}
           </FieldGroup>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Beginn">
@@ -357,6 +376,13 @@ export function ShiftMoveDialog({
               {breakSuffix}
             </li>
           </ul>
+          {targetClosingReason !== undefined && (
+            <p className="text-sm leading-relaxed text-gray-600">
+              Am Zieltag ist ein Schließtag hinterlegt
+              {targetClosingReason === "" ? "" : `: ${targetClosingReason}`}.
+              Verschieben ist trotzdem möglich.
+            </p>
+          )}
         </div>
       </ConfirmationModal>
     </>

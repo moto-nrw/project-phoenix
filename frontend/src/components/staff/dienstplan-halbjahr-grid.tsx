@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
@@ -23,6 +24,10 @@ import {
   findPeriodForDate,
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
+import {
+  expandClosingDaysToMap,
+  type ClosingDayRange,
+} from "~/lib/closing-day-helpers";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffShiftService } from "~/lib/shift-api";
 import {
@@ -311,6 +316,7 @@ interface HalbjahrGridInnerProps {
   readonly staff: readonly StaffScheduleStaff[];
   readonly reducedPath: boolean;
   readonly todayIso: string;
+  readonly closingDayRanges: readonly ClosingDayRange[];
   readonly onWeekClick: (mondayISO: string) => void;
 }
 
@@ -321,6 +327,7 @@ function HalbjahrGridInner({
   staff,
   reducedPath,
   todayIso,
+  closingDayRanges,
   onWeekClick,
 }: HalbjahrGridInnerProps) {
   const scrollHintId = useId();
@@ -346,14 +353,61 @@ function HalbjahrGridInner({
     return map;
   }, [weeks]);
 
+  // Schließtage des Zeitraums (#2032). Die Halbjahres-Sicht plant nichts, sie
+  // macht nur sichtbar, in welchen Wochen Schließtage liegen — gezählt werden
+  // Mo–Fr, weil die Wochenansicht dieselben fünf Tage zeigt.
+  const closingDays = useMemo(
+    () =>
+      expandClosingDaysToMap(
+        closingDayRanges,
+        period.startDate,
+        period.endDate,
+      ),
+    [closingDayRanges, period.startDate, period.endDate],
+  );
+  const closingByWeek = useMemo(() => {
+    const byWeek = new Map<string, { days: string[]; allWeekdays: boolean }>();
+    if (closingDays.size === 0) return byWeek;
+    for (const week of weeks) {
+      const monday = parseISODate(week.monday);
+      const days: string[] = [];
+      for (let offset = 0; offset < 5; offset++) {
+        const day = new Date(monday);
+        day.setDate(day.getDate() + offset);
+        const iso = toISODate(day);
+        const reason = closingDays.get(iso);
+        if (reason !== undefined) {
+          days.push(`${formatColumnDate(iso)} ${reason}`.trim());
+        }
+      }
+      if (days.length > 0) {
+        byWeek.set(week.monday, { days, allWeekdays: days.length === 5 });
+      }
+    }
+    return byWeek;
+  }, [weeks, closingDays]);
+
   const currentMonday = toISODate(startOfWeek(parseISODate(todayIso)));
 
-  const columns: ResourceGridColumn[] = weeks.map((week) => ({
-    key: week.monday,
-    label: `KW ${week.kw}`,
-    sublabel: formatColumnDate(week.monday),
-    isCurrent: week.monday === currentMonday,
-  }));
+  const columns: ResourceGridColumn[] = weeks.map((week) => {
+    const closing = closingByWeek.get(week.monday);
+    return {
+      key: week.monday,
+      label: `KW ${week.kw}`,
+      sublabel: formatColumnDate(week.monday),
+      isCurrent: week.monday === currentMonday,
+      isMuted: closing?.allWeekdays ?? false,
+      headerNote:
+        closing === undefined ? undefined : (
+          <ClosingDayChip
+            variant="compact"
+            label={`${closing.days.length} ${closing.days.length === 1 ? "Schließtag" : "Schließtage"}`}
+            reason={closing.days.join(", ")}
+            className="mx-auto flex w-fit"
+          />
+        ),
+    };
+  });
 
   const firstStaffId = staff[0]?.id ?? null;
 
@@ -460,15 +514,21 @@ interface DienstplanHalbjahrGridProps {
   readonly reducedPath: boolean;
   /** Today as "YYYY-MM-DD" for the current-week column tint. */
   readonly todayIso: string;
+  /** OGS-Schließtage des Tenants (#2032). Wochen mit Schließtagen werden im
+   *  Spaltenkopf gekennzeichnet; ohne die Liste entfaellt die Kennzeichnung. */
+  readonly closingDayRanges?: readonly ClosingDayRange[];
   /** Jump into the week view for the clicked week (Monday "YYYY-MM-DD"). */
   readonly onWeekClick: (mondayISO: string) => void;
 }
+
+const EMPTY_CLOSING_DAY_RANGES: readonly ClosingDayRange[] = [];
 
 export function DienstplanHalbjahrGrid({
   dayISO,
   staff,
   reducedPath,
   todayIso,
+  closingDayRanges = EMPTY_CLOSING_DAY_RANGES,
   onWeekClick,
 }: DienstplanHalbjahrGridProps) {
   const router = useTenantRouter();
@@ -553,6 +613,7 @@ export function DienstplanHalbjahrGrid({
       staff={staff}
       reducedPath={reducedPath}
       todayIso={todayIso}
+      closingDayRanges={closingDayRanges}
       onWeekClick={onWeekClick}
     />
   );

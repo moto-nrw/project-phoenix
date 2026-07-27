@@ -1,9 +1,11 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
+import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
+import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
@@ -20,6 +22,10 @@ import {
 } from "~/components/ui/slide-over";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import {
+  findClosingDayReason,
+  type ClosingDayRange,
+} from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
@@ -91,6 +97,12 @@ interface TimetableEventModalProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
+  /**
+   * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen
+   * davon, fragt das Speichern einmal nach — angelegt wird trotzdem, sobald
+   * bestätigt wurde. Ohne die Liste verhält sich der Dialog wie bisher.
+   */
+  closingDayRanges?: readonly ClosingDayRange[];
 }
 
 export function TimetableEventModal({
@@ -112,6 +124,7 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
   canCheckShiftCoverage,
+  closingDayRanges,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
   const {
@@ -217,6 +230,28 @@ export function TimetableEventModal({
     }
   }, [isOpen, convertInstance]);
 
+  // Schließtag-Warnung (#2032). Der Termin darf auf einem Schließtag liegen
+  // (Ferien-/Notbetreuung), das Speichern fragt aber einmal nach. Die
+  // Bestätigung gilt genau für das bestätigte Datum: wird danach ein anderer
+  // Schließtag gewählt, fragt der Dialog erneut.
+  const closingDayReason = findClosingDayReason(closingDayRanges, form.date);
+  const [closingDayPrompt, setClosingDayPrompt] = useState<string | null>(null);
+  const confirmedClosingDate = useRef<string | null>(null);
+  useEffect(() => {
+    if (isOpen) confirmedClosingDate.current = null;
+  }, [isOpen]);
+  // handleSubmit liest aus dem Event ausschließlich preventDefault(), deshalb
+  // genügt nach der Bestätigung dieses minimale Ersatz-Event — der Umweg über
+  // form.requestSubmit() würde die Warnung erneut auslösen.
+  const submitAfterConfirm = () => {
+    confirmedClosingDate.current = form.date;
+    setClosingDayPrompt(null);
+    submitAttempted.current = true;
+    void handleSubmit({
+      preventDefault: () => undefined,
+    } as unknown as FormEvent<HTMLFormElement>);
+  };
+
   const stepHasError = (index: number, errors: Record<string, string>) =>
     (STEP_FIELDS[index] ?? []).some((field) => errors[field] !== undefined);
 
@@ -293,6 +328,16 @@ export function TimetableEventModal({
           id="timetable-event-form"
           noValidate
           onSubmit={(event) => {
+            // Schließtag: erst nachfragen, dann speichern (#2032).
+            if (
+              closingDayReason !== undefined &&
+              confirmedClosingDate.current !== form.date &&
+              !submitting
+            ) {
+              event.preventDefault();
+              setClosingDayPrompt(closingDayReason);
+              return;
+            }
             // Mirror handleSubmit's early-return guards: on those paths no
             // validation runs, so the flag would stay set and a later,
             // unrelated fieldErrors change could trigger a spurious step jump.
@@ -443,6 +488,16 @@ export function TimetableEventModal({
                 </div>
               )}
 
+            {/* Schließtag am gewählten Datum (#2032) — Hinweis, keine Sperre.
+                Beim Speichern folgt die bestätigbare Rückfrage. */}
+            {closingDayReason !== undefined && (
+              <Alert
+                type="warning"
+                message={`Hinweis: Am ${formatDate(form.date)} ist ein Schließtag hinterlegt${closingDayReason === "" ? "" : ` (${closingDayReason})`}. Planen ist weiterhin möglich.`}
+                announce="off"
+              />
+            )}
+
             {validationError && (
               <Alert type="error" message={validationError} />
             )}
@@ -592,6 +647,17 @@ export function TimetableEventModal({
             isBusy={submitting}
           />
         )}
+
+        {/* #2032: bestätigbare Warnung, bevor ein Termin auf einem Schließtag
+            gespeichert wird. */}
+        <ClosingDayConfirmModal
+          isOpen={closingDayPrompt !== null}
+          dateISO={form.date}
+          reason={closingDayPrompt ?? ""}
+          subject="termin"
+          onCancel={() => setClosingDayPrompt(null)}
+          onConfirm={submitAfterConfirm}
+        />
 
         {/* #1875: warn before a series edit discards single-occurrence edits. */}
         <ConfirmationModal

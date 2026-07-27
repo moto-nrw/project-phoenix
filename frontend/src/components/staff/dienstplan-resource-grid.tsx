@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { useId, useMemo, useState, type ReactNode } from "react";
 
+import {
+  ClosingDayChip,
+  ClosingDayConfirmModal,
+} from "~/components/planning/closing-day-marker";
 import { ShiftMoveDialog } from "~/components/staff/shift-move-dialog";
 import { CapacityStrip } from "~/components/ui/capacity-strip";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
@@ -26,6 +30,7 @@ import {
   type ResourceGridColumn,
 } from "~/components/ui/resource-grid";
 import { Tooltip } from "~/components/ui/tooltip";
+import type { ClosingDayRange } from "~/lib/closing-day-helpers";
 import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -86,6 +91,12 @@ interface DienstplanResourceGridProps {
   readonly weekDays: readonly string[];
   /** Today as "YYYY-MM-DD" for the column tint and the absence-entry jump. */
   readonly todayIso: string;
+  /** OGS-Schließtage der Woche, keyed YYYY-MM-DD → Grund (#2032). Markiert
+   *  die Spalte und löst vor dem Anlegen einer Schicht die Rückfrage aus. */
+  readonly closingDays?: ReadonlyMap<string, string>;
+  /** Alle gespeicherten Schließtag-Zeiträume — für den Zieltag im
+   *  „Verschieben nach“-Dialog, der außerhalb der Woche liegen kann. */
+  readonly closingDayRanges?: readonly ClosingDayRange[];
   /** Shift type lookup (id -> type) for per-shift color + label fallback. */
   readonly typesById: Map<string, ShiftType>;
   /** Every shift type (Schichtart) for the legend. Data source: the view. */
@@ -281,6 +292,8 @@ export function DienstplanResourceGrid({
   summaryByStaff,
   weekDays,
   todayIso,
+  closingDays,
+  closingDayRanges,
   typesById,
   shiftTypes,
   reducedPath = false,
@@ -290,6 +303,28 @@ export function DienstplanResourceGrid({
 }: DienstplanResourceGridProps) {
   const router = useTenantRouter();
   const scrollHintId = useId();
+
+  // Schließtag-Rückfrage (#2032): eine NEUE Schicht auf einem Schließtag wird
+  // einmal bestätigt, dann wie gewohnt im Bearbeiten-Dialog geöffnet. Das
+  // Öffnen einer bestehenden Schicht fragt nicht — die liegt schon dort.
+  const [closingDayPrompt, setClosingDayPrompt] = useState<{
+    member: StaffScheduleStaff;
+    date: string;
+    reason: string;
+  } | null>(null);
+
+  const openCell = (
+    member: StaffScheduleStaff,
+    date: string,
+    shift: StaffShift | null,
+  ) => {
+    const reason = shift === null ? closingDays?.get(date) : undefined;
+    if (reason !== undefined) {
+      setClosingDayPrompt({ member, date, reason });
+      return;
+    }
+    onCellClick(member, date, shift);
+  };
 
   // "Verschieben nach" (docs/05 Abschnitt 2.7): the move dialog lives here so
   // the Dienstplan view needs no new prop. After a move (success, or the
@@ -305,13 +340,21 @@ export function DienstplanResourceGrid({
 
   const columns: ResourceGridColumn[] = useMemo(
     () =>
-      weekDays.map((date, i) => ({
-        key: date,
-        label: DAY_LABELS[i] ?? "",
-        sublabel: formatColumnDate(date),
-        isCurrent: date === todayIso,
-      })),
-    [weekDays, todayIso],
+      weekDays.map((date, i) => {
+        const closingReason = closingDays?.get(date);
+        return {
+          key: date,
+          label: DAY_LABELS[i] ?? "",
+          sublabel: formatColumnDate(date),
+          isCurrent: date === todayIso,
+          isMuted: closingReason !== undefined,
+          headerNote:
+            closingReason === undefined ? undefined : (
+              <ClosingDayChip reason={closingReason} />
+            ),
+        };
+      }),
+    [weekDays, todayIso, closingDays],
   );
 
   // Per-day capacity (12–16 window), computed once per data change instead of
@@ -487,7 +530,7 @@ export function DienstplanResourceGrid({
               label={label}
               color={resolveShiftColor(shift, typesById)}
               statusIcon={statusIcon}
-              onClick={() => onCellClick(member, date, shift)}
+              onClick={() => openCell(member, date, shift)}
               aria-label={ariaParts.join(", ")}
             />
           </div>
@@ -559,7 +602,7 @@ export function DienstplanResourceGrid({
             (focus / focus-visible force it back to full opacity). */}
         <button
           type="button"
-          onClick={() => onCellClick(member, date, null)}
+          onClick={() => openCell(member, date, null)}
           aria-label={createShiftAriaLabel(member, column)}
           className="flex h-7 w-full items-center justify-center rounded-md border border-dashed border-gray-200 text-gray-400 opacity-100 transition hover:bg-gray-50 hover:text-gray-600 focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
         >
@@ -605,7 +648,7 @@ export function DienstplanResourceGrid({
         scrollHintId={scrollHintId}
         emptyCellLabel={createShiftAriaLabel}
         onEmptyCellClick={(member, column) =>
-          onCellClick(member, column.key, null)
+          openCell(member, column.key, null)
         }
         footer={
           <CapacityStrip
@@ -634,12 +677,26 @@ export function DienstplanResourceGrid({
           sourceMember={moveTarget.member}
           staff={staff}
           shiftTypes={shiftTypes}
+          closingDayRanges={closingDayRanges}
           onClose={() => setMoveTarget(null)}
           onDataChanged={() => {
             void refreshAfterMove();
           }}
         />
       )}
+      <ClosingDayConfirmModal
+        isOpen={closingDayPrompt !== null}
+        dateISO={closingDayPrompt?.date ?? ""}
+        reason={closingDayPrompt?.reason ?? ""}
+        subject="schicht"
+        onCancel={() => setClosingDayPrompt(null)}
+        onConfirm={() => {
+          if (!closingDayPrompt) return;
+          const { member, date } = closingDayPrompt;
+          setClosingDayPrompt(null);
+          onCellClick(member, date, null);
+        }}
+      />
     </div>
   );
 }

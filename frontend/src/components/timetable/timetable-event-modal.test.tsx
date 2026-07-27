@@ -436,6 +436,81 @@ describe("TimetableEventModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  // #2032: Ein Termin darf auf einem Schließtag liegen, das Speichern fragt
+  // aber einmal nach.
+  const closingRanges = [
+    {
+      startDate: "2026-05-04",
+      endDate: "2026-05-04",
+      reason: "Pädagogischer Tag",
+    },
+  ];
+
+  it("asks before saving on a closing day and saves after confirming (#2032)", async () => {
+    renderModal({ closingDayRanges: closingRanges });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    expect(
+      screen.getByText(/Am 04\.05\.2026 ist ein Schließtag hinterlegt/),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Ferienbetreuung" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("An einem Schließtag planen?"),
+    ).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Trotzdem planen" }));
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Ferienbetreuung" }),
+      ),
+    );
+  });
+
+  it("writes nothing when the closing-day warning is dismissed (#2032)", async () => {
+    renderModal({ closingDayRanges: closingRanges });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Ferienbetreuung" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    const dialogCancel = within(
+      await screen.findByRole("dialog", {
+        name: "An einem Schließtag planen?",
+      }),
+    ).getByRole("button", { name: "Abbrechen" });
+    fireEvent.click(dialogCancel);
+
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("saves without asking when the date is no closing day (#2032)", async () => {
+    renderModal({
+      closingDayRanges: [
+        { startDate: "2026-05-05", endDate: "2026-05-05", reason: "Brücke" },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+  });
+
   it("filters and bulk-selects visible student rows", async () => {
     mockFetchStudents.mockResolvedValue({
       students: [
