@@ -47,9 +47,6 @@ interface ShiftMoveDialogProps {
   /** OGS-Schließtage des Tenants (#2032). Fällt der Zieltag auf einen davon,
    *  weist der Dialog darauf hin; die Bestätigung verschiebt trotzdem. */
   readonly closingDayRanges?: readonly ClosingDayRange[];
-  /** Uses the permitted time-tracking endpoint when schedule reads are not
-   *  available, so arbitrary move targets still receive a warning. */
-  readonly reducedPath?: boolean;
   readonly onClose: () => void;
   /** Fired after a successful move so the caller revalidates plan caches. */
   readonly onDataChanged: () => void;
@@ -96,7 +93,6 @@ export function ShiftMoveDialog({
   staff,
   shiftTypes,
   closingDayRanges,
-  reducedPath = false,
   onClose,
   onDataChanged,
 }: ShiftMoveDialogProps) {
@@ -156,12 +152,8 @@ export function ShiftMoveDialog({
   const selectedShiftType = shiftTypes.find((type) => type.id === shiftTypeId);
   const inactiveTypeBlocksMove =
     movingToOtherPerson && selectedShiftType?.isActive === false;
-  const reducedTargetClosingDayState = useClosingDaysState(
-    reducedPath ? targetDate : "",
-    reducedPath ? targetDate : "",
-  );
-  const closingDayLookupLoading =
-    reducedPath && reducedTargetClosingDayState.isLoading;
+  const targetClosingDayState = useClosingDaysState(targetDate, targetDate);
+  const closingDayLookupLoading = targetClosingDayState.isLoading;
   const canSubmit =
     targetStaffId !== "" &&
     targetDate !== "" &&
@@ -173,7 +165,7 @@ export function ShiftMoveDialog({
   // Schließtag am Zieltag (#2032): Hinweis im Formular und in der ohnehin
   // vorhandenen Bestätigung — verschoben wird trotzdem, nichts wird gesperrt.
   const targetClosingReason =
-    reducedTargetClosingDayState.closingDays.get(targetDate) ??
+    targetClosingDayState.closingDays.get(targetDate) ??
     findClosingDayReason(closingDayRanges, targetDate);
 
   const targetMember = staff.find((member) => member.id === targetStaffId);

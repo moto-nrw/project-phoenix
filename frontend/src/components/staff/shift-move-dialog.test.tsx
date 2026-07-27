@@ -92,7 +92,6 @@ function renderDialog(
   overrides: {
     shift?: StaffShift;
     shiftTypes?: readonly ShiftType[];
-    reducedPath?: boolean;
   } = {},
 ) {
   const onClose = vi.fn();
@@ -104,7 +103,6 @@ function renderDialog(
       sourceMember={source}
       staff={[source, other]}
       shiftTypes={overrides.shiftTypes ?? [shiftType]}
-      reducedPath={overrides.reducedPath}
       onClose={onClose}
       onDataChanged={onDataChanged}
     />,
@@ -159,14 +157,14 @@ describe("ShiftMoveDialog prefill", () => {
     ).toHaveTextContent("Betreuung");
   });
 
-  it("loads the target day through time tracking on the reduced path", () => {
+  it("loads the target day through closing-day state", () => {
     mockUseClosingDaysState.mockReturnValue({
       closingDays: new Map([["2026-07-06", "Pädagogischer Tag"]]),
       closingDayRanges: [],
       isLoading: false,
     });
 
-    renderDialog({ reducedPath: true });
+    renderDialog();
 
     expect(mockUseClosingDaysState).toHaveBeenCalledWith(
       "2026-07-06",
@@ -182,15 +180,19 @@ describe("ShiftMoveDialog prefill", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps move submission disabled while the reduced lookup is loading", () => {
+  it("keeps move submission disabled while full closing-day ranges load", () => {
     mockUseClosingDaysState.mockReturnValue({
       closingDays: new Map(),
       closingDayRanges: [],
       isLoading: true,
     });
 
-    renderDialog({ reducedPath: true });
+    renderDialog();
 
+    expect(mockUseClosingDaysState).toHaveBeenCalledWith(
+      "2026-07-06",
+      "2026-07-06",
+    );
     expect(screen.getByRole("button", { name: "Verschieben" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
     expect(staffShiftService.moveShift).not.toHaveBeenCalled();
