@@ -501,11 +501,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Cross-staff payroll/evidence export (#1417 2b): rows via the overview's
 	// prefetch (month) and the single-staff export cells (day); every download
 	// writes an audit.data_access_logs row or fails.
+	// One payroll-status instance: the /payroll page and the DATEV writers
+	// must judge completeness identically.
+	payrollStatusService := config.NewPayrollStatusService(settingsService, repos.Staff)
+
 	staffTimeExportService := active.NewStaffTimeExportService(
 		staffOverviewService,
 		workSessionService,
 		repos.Staff,
 		repos.DataAccessLog,
+		payrollStatusService,
 		activeLogger,
 	)
 
@@ -1789,7 +1794,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Checkin:                  checkinService,
 		StaffClock:               staffClockService,
 		Settings:                 settingsService,
-		PayrollStatus:            config.NewPayrollStatusService(settingsService, repos.Staff),
+		PayrollStatus:            payrollStatusService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
 		StaffShiftSeries:         staffShiftSeriesService,

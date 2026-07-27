@@ -76,3 +76,35 @@ func TestTimeTrackingExportAPI_Formats(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "Wochentag")
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), "zeiterfassung_alle_tage_2026.csv")
 }
+
+// The DATEV routes share the export permission gate; with the tenant's
+// payroll configuration empty (the legitimate initial state) both the report
+// and the download refuse with the stable payroll_config_incomplete code
+// instead of producing an empty file.
+func TestTimeTrackingExportAPI_Datev(t *testing.T) {
+	ctx := setupExportAPI(t)
+	reportPath := "/staff/time-tracking/export/datev-report?year=2026&month=1&format=datev_lodas"
+
+	rec := ctx.get(reportPath, "users:read")
+	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+
+	rec = ctx.get(reportPath, "time_tracking:manage")
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "payroll_config_incomplete")
+
+	rec = ctx.get("/staff/time-tracking/export?year=2026&month=1&format=datev_lug", "time_tracking:manage")
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+
+	// A DATEV request without a single month is a caller mistake.
+	rec = ctx.get("/staff/time-tracking/export/datev-report?year=2026&format=datev_lodas", "time_tracking:manage")
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	for _, format := range []string{"", "csv", "xlsx"} {
+		path := "/staff/time-tracking/export/datev-report?year=2026&month=1"
+		if format != "" {
+			path += "&format=" + format
+		}
+		rec = ctx.get(path, "time_tracking:manage")
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "format %q: %s", format, rec.Body.String())
+	}
+}

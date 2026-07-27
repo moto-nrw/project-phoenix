@@ -28,6 +28,7 @@ func (f *overviewFixture) newExportService() active.StaffTimeExportService {
 		f.repos.Staff,
 		f.repos.DataAccessLog,
 		nil,
+		nil,
 	)
 }
 
@@ -112,9 +113,11 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		assert.Equal(t, summary.ActualMinutes, row.ActualMinutes)
 		assert.Equal(t, summary.CreditedSickMinutes, row.CreditedSickMinutes)
 		assert.Equal(t, summary.CreditedVacationMinutes, row.CreditedVacationMinutes)
+		assert.Equal(t, summary.CreditedTrainingMinutes, row.CreditedTrainingMinutes)
 		assert.Equal(t, summary.CreditedOtherMinutes, row.CreditedOtherMinutes)
 		assert.Equal(t, summary.SickDays, row.SickDays)
 		assert.Equal(t, summary.VacationDays, row.VacationDays)
+		assert.Equal(t, summary.TrainingDays, row.TrainingDays)
 		assert.Equal(t, summary.BalanceMinutes, row.BalanceMinutes)
 		assert.Equal(t, summary.ClosingBalanceMinutes, row.ClosingBalanceMinutes)
 		assert.False(t, row.IsClosed)
@@ -258,7 +261,7 @@ func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
 	exportSvc := active.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{}, nil,
+		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{}, nil, nil,
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{
@@ -277,7 +280,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := active.NewStaffTimeExportService(
-		f.svc, sessionSvc, f.repos.Staff, f.repos.DataAccessLog, nil,
+		f.svc, sessionSvc, f.repos.Staff, f.repos.DataAccessLog, nil, nil,
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{

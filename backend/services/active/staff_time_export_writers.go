@@ -33,8 +33,8 @@ var exportEmploymentTypeLabels = map[string]string{
 var monthExportHeaders = []string{
 	"Nachname", "Vorname", "Beschäftigungstyp", "Jahr", "Monat",
 	"Übertrag Vormonat", "Soll", "Ist",
-	"Gutschrift Krank", "Gutschrift Urlaub", "Gutschrift Sonstige",
-	"Krank (Tage)", "Urlaub (Tage)",
+	"Gutschrift Krank", "Gutschrift Urlaub", "Gutschrift Fortbildung", "Gutschrift Sonstige",
+	"Krank (Tage)", "Urlaub (Tage)", "Fortbildung (Tage)",
 	"Auszahlung", "Freizeitausgleich", "Saldo-Reset",
 	"Saldo Monat", "Übertrag Monatsende", "Abweichung seit Abschluss", "Status",
 }
@@ -85,9 +85,11 @@ func monthExportCells(row MonthExportRow, timeFormat string) []string {
 		formatExportMinutes(row.ActualMinutes, timeFormat),
 		formatExportMinutes(row.CreditedSickMinutes, timeFormat),
 		formatExportMinutes(row.CreditedVacationMinutes, timeFormat),
+		formatExportMinutes(row.CreditedTrainingMinutes, timeFormat),
 		formatExportMinutes(row.CreditedOtherMinutes, timeFormat),
 		formatExportDays(row.SickDays),
 		formatExportDays(row.VacationDays),
+		formatExportDays(row.TrainingDays),
 		formatExportMinutes(row.PayoutMinutes, timeFormat),
 		formatExportMinutes(row.CompTimeMinutes, timeFormat),
 		formatExportMinutes(row.ResetMinutes, timeFormat),
@@ -112,27 +114,29 @@ func writeMonthXLSX(rows []MonthExportRow, timeFormat string) ([]byte, error) {
 		values := stringsToAny(monthExportCells(row, timeFormat))
 		values[3] = row.Year
 		values[4] = row.Month
-		values[11] = row.SickDays
-		values[12] = row.VacationDays
+		values[12] = row.SickDays
+		values[13] = row.VacationDays
+		values[14] = row.TrainingDays
 		if timeFormat == ExportTimeDecimal {
 			values[5] = float64(row.CarryInMinutes) / 60
 			values[6] = float64(row.TargetMinutes) / 60
 			values[7] = float64(row.ActualMinutes) / 60
 			values[8] = float64(row.CreditedSickMinutes) / 60
 			values[9] = float64(row.CreditedVacationMinutes) / 60
-			values[10] = float64(row.CreditedOtherMinutes) / 60
-			values[13] = float64(row.PayoutMinutes) / 60
-			values[14] = float64(row.CompTimeMinutes) / 60
-			values[15] = float64(row.ResetMinutes) / 60
-			values[16] = float64(row.BalanceMinutes) / 60
-			values[17] = float64(row.ClosingBalanceMinutes) / 60
-			values[18] = float64(row.DriftMinutes) / 60
+			values[10] = float64(row.CreditedTrainingMinutes) / 60
+			values[11] = float64(row.CreditedOtherMinutes) / 60
+			values[15] = float64(row.PayoutMinutes) / 60
+			values[16] = float64(row.CompTimeMinutes) / 60
+			values[17] = float64(row.ResetMinutes) / 60
+			values[18] = float64(row.BalanceMinutes) / 60
+			values[19] = float64(row.ClosingBalanceMinutes) / 60
+			values[20] = float64(row.DriftMinutes) / 60
 		}
 		cells = append(cells, values)
 	}
 	var decimalColumns []int
 	if timeFormat == ExportTimeDecimal {
-		decimalColumns = []int{6, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 19}
+		decimalColumns = []int{6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20, 21}
 	}
 	return writeExportXLSX("Zeiterfassung", monthExportHeaders, cells, decimalColumns)
 }
