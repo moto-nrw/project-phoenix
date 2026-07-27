@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -497,6 +498,55 @@ func (s *personService) GetStudentsByGroupID(ctx context.Context, groupID int64)
 // GetStudentsByGroupIDs retrieves the students of multiple groups.
 func (s *personService) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
 	return s.StudentRepo.FindByGroupIDs(ctx, groupIDs)
+}
+
+// GetEligibleStudentsByGroupIDsOnDate retrieves group students whose
+// enrollment covers the requested date. Current lifecycle status is only used
+// for legacy rows without enrollment dates.
+//
+// today is the caller's calendar day. It is a parameter rather than a fresh
+// timezone.TodayDate() read so a request that spans Berlin midnight keeps one
+// notion of "today": re-reading the process clock here could validate one day
+// and then build the roster for another, dropping a child who was activated
+// immediately and is deliberately part of the current day.
+func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error) {
+	students, err := s.StudentRepo.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	return filterStudentsEligibleOnDate(students, date, today), nil
+}
+
+// filterStudentsEligibleOnDate mirrors the enrollment rule the slot lists
+// already use (slotlists.eligibleOn, #1565): the enrollment interval is the
+// source of truth, with immediate activation
+// (enrollment.default_activation_mode = "immediate") as the single deliberate
+// exception — the decision service creates an already 'active' student while
+// enrolled_from still points at the phase's future start date, and that child
+// may check in from today. The override therefore lifts the enrolled_from
+// lower bound from today onward only; a past date keeps the bound so nobody is
+// retroactively enrolled. Whether a child whose enrollment has not started yet
+// is REPORTED for the day is a separate question the day log answers on its
+// own — being on the roster only means their records count.
+func filterStudentsEligibleOnDate(students []*userModels.Student, date, today timezone.Date) []*userModels.Student {
+	eligible := make([]*userModels.Student, 0, len(students))
+	for _, student := range students {
+		if student == nil {
+			continue
+		}
+		if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) &&
+			(student.Status != userModels.StudentStatusActive || date.Before(today)) {
+			continue
+		}
+		if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
+			continue
+		}
+		if student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == userModels.StudentStatusInactive {
+			continue
+		}
+		eligible = append(eligible, student)
+	}
+	return eligible
 }
 
 // CountStudentsByGroupIDs counts students per group in a single query.

@@ -17,6 +17,16 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mocks.push }),
 }));
 
+// Der Verschieben-Dialog fragt die Schließtage des Zieltags ab (#2032); der
+// echte Hook braucht eine NextAuth-Session, die dieses Raster nicht stellt.
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useClosingDaysState: () => ({
+    closingDays: new Map<string, string>(),
+    closingDayRanges: [],
+    isLoading: false,
+  }),
+}));
+
 const member: StaffScheduleStaff = {
   id: "7",
   firstName: "Ada",
@@ -155,6 +165,15 @@ describe("DienstplanResourceGrid stacking", () => {
       .getAllByText(/^\d\d:\d\d–\d\d:\d\d$/)
       .map((el) => el.textContent);
     expect(times).toEqual(["08:00–10:00", "10:30–15:00"]);
+  });
+
+  it("extends the filled-cell hover group across the cell height", () => {
+    renderGrid({ shiftsByStaff: shiftMap("2026-07-06", [baseShift()]) });
+
+    const addShiftButton = screen.getByRole("button", {
+      name: "Schicht anlegen, Ada Lovelace, Mo 06.07.",
+    });
+    expect(addShiftButton.parentElement).toHaveClass("group", "flex-1");
   });
 });
 

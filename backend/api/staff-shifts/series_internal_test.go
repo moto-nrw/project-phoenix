@@ -26,6 +26,7 @@ type fakeSeriesService struct {
 	createFn func(ctx context.Context, series *scheduleModel.StaffShiftSeries) (*scheduleSvc.SeriesResult, error)
 	splitFn  func(ctx context.Context, input scheduleSvc.SplitSeriesInput) (*scheduleSvc.SeriesResult, error)
 	endFn    func(ctx context.Context, seriesID int64, from timezone.Date) (*scheduleSvc.SeriesResult, error)
+	getFn    func(ctx context.Context, seriesID int64) (*scheduleModel.StaffShiftSeries, error)
 }
 
 func (f *fakeSeriesService) CreateSeries(ctx context.Context, series *scheduleModel.StaffShiftSeries) (*scheduleSvc.SeriesResult, error) {
@@ -47,6 +48,13 @@ func (f *fakeSeriesService) EndSeries(ctx context.Context, seriesID int64, from 
 		return f.endFn(ctx, seriesID, from)
 	}
 	return nil, errors.New("endFn not set")
+}
+
+func (f *fakeSeriesService) GetSeries(ctx context.Context, seriesID int64) (*scheduleModel.StaffShiftSeries, error) {
+	if f.getFn != nil {
+		return f.getFn(ctx, seriesID)
+	}
+	return nil, errors.New("getFn not set")
 }
 
 // seriesTestResource wires a Resource whose editorStaffID resolves to staff
@@ -315,4 +323,60 @@ func TestSplitSeriesHandler_RejectsOutOfRangeWeekdays(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 	assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
 	assert.Contains(t, recorder.Body.String(), "weekdays must be between 1 (Monday) and 7 (Sunday)")
+}
+
+// #2028: the rule behind a shift — what the series editor loads and writes
+// back through the split endpoint.
+
+func seriesRuleRouter(resource *Resource) chi.Router {
+	router := chi.NewRouter()
+	router.Get("/series/{id}", resource.getSeries)
+	return router
+}
+
+func TestGetSeriesHandler_ReturnsStoredRule(t *testing.T) {
+	series := &scheduleModel.StaffShiftSeries{
+		StaffID:          5,
+		Weekdays:         []int16{1, 3},
+		StartTime:        mustClock(t, "09:00"),
+		EndTime:          mustClock(t, "12:00"),
+		BreakMinutes:     15,
+		CalendarPeriodID: 8,
+		WeekPattern:      scheduleModel.WeekPatternB,
+		ValidFrom:        timezone.NewDate(2026, time.September, 1),
+	}
+	series.ID = 12
+	until := timezone.NewDate(2026, time.December, 1)
+	series.ValidUntil = &until
+	resource := seriesTestResource(&fakeSeriesService{
+		getFn: func(_ context.Context, id int64) (*scheduleModel.StaffShiftSeries, error) {
+			assert.Equal(t, int64(12), id)
+			return series, nil
+		},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodGet, "/series/12", nil))
+	seriesRuleRouter(resource).ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var envelope struct {
+		Data SeriesDetailResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	assert.Equal(t, int64(12), envelope.Data.ID)
+	assert.Equal(t, []int{1, 3}, envelope.Data.Weekdays)
+	assert.Equal(t, "09:00", envelope.Data.StartTime)
+	assert.Equal(t, "12:00", envelope.Data.EndTime)
+	assert.Equal(t, scheduleModel.WeekPatternB, envelope.Data.WeekPattern)
+	assert.Equal(t, "2026-09-01", envelope.Data.ValidFrom)
+	require.NotNil(t, envelope.Data.ValidUntil)
+	assert.Equal(t, "2026-12-01", *envelope.Data.ValidUntil)
+}
+
+func mustClock(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse("15:04", value)
+	require.NoError(t, err)
+	return parsed
 }

@@ -2,6 +2,8 @@ package schedule
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -69,4 +71,27 @@ func (r *StaffShiftSeriesRepository) CapAllByStaffID(ctx context.Context, staffI
 		return 0, &modelBase.DatabaseError{Op: "cap staff shift series by staff", Err: err}
 	}
 	return rows, nil
+}
+
+// FindNextInLineage returns the next chronological segment in one split
+// lineage. Root rows store a NULL series_root_id, so resolve both roots and
+// successors through COALESCE.
+func (r *StaffShiftSeriesRepository) FindNextInLineage(ctx context.Context, rootID int64, after timezone.Date) (*schedule.StaffShiftSeries, error) {
+	series := new(schedule.StaffShiftSeries)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(series).
+		ModelTableExpr(tableExprStaffShiftSeriesAsSeries).
+		Where(`COALESCE("staff_shift_series".series_root_id, "staff_shift_series".id) = ?`, rootID).
+		Where(`"staff_shift_series".valid_from > ?`, after).
+		OrderExpr(`"staff_shift_series".valid_from ASC`).
+		Limit(1)
+
+	query = base.WithTenantFilter(ctx, query, "staff_shift_series")
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "find next staff shift series in lineage", Err: err}
+	}
+	return series, nil
 }

@@ -100,8 +100,9 @@ interface SeriesPayload {
   validUntil: string | null;
 }
 
-/** Edited fields applied from the effective date on ("Ab jetzt dauerhaft").
- *  Rhythm fields stay with the series — the backend inherits them. */
+/** Edited fields applied from the effective date on ("Ab jetzt dauerhaft" and
+ *  the series editor). Omitted optional fields inherit the predecessor's
+ *  value, so editing only the times never has to re-send the rhythm (#2028). */
 interface SeriesSplitPayload {
   /** "YYYY-MM-DD" */
   effectiveDate: string;
@@ -109,6 +110,47 @@ interface SeriesSplitPayload {
   endTime: string;
   breakMinutes: number;
   shiftTypeId: string | null;
+  /** ISO weekdays; omitted keeps the days the series already runs on. */
+  weekdays?: number[];
+  /** 0 = jede Woche, 1 = Woche A, 2 = Woche B; omitted keeps the rhythm. */
+  weekPattern?: number;
+  /** "YYYY-MM-DD", exclusive. Omitted keeps the stored end, null runs the
+   *  series to the end of the calendar period. */
+  validUntil?: string | null;
+}
+
+/** The stored rule behind a series shift — weekdays, rhythm, window, and
+ *  validity. The series editor loads it and writes changes back through
+ *  splitSeries, so they apply from the opened occurrence onwards (#2028). */
+export interface SeriesRule {
+  id: string;
+  staffId: string;
+  /** ISO weekdays, 1 = Montag … 7 = Sonntag */
+  weekdays: number[];
+  startTime: string;
+  endTime: string;
+  breakMinutes: number;
+  shiftTypeId: string | null;
+  calendarPeriodId: string;
+  weekPattern: number;
+  /** "YYYY-MM-DD" */
+  validFrom: string;
+  /** "YYYY-MM-DD", exclusive; null = bis Periodenende */
+  validUntil: string | null;
+}
+
+interface BackendSeriesRule {
+  id: number;
+  staff_id: number;
+  weekdays: number[] | null;
+  start_time: string;
+  end_time: string;
+  break_minutes: number;
+  shift_type_id: number | null;
+  calendar_period_id: number;
+  week_pattern: number;
+  valid_from: string;
+  valid_until: string | null;
 }
 
 export interface SeriesResult {
@@ -122,6 +164,23 @@ interface BackendSeriesResult {
   series_id: number;
   created: number;
   skipped_dates: string[] | null;
+}
+
+function mapSeriesRule(data: BackendSeriesRule): SeriesRule {
+  return {
+    id: data.id.toString(),
+    staffId: data.staff_id.toString(),
+    weekdays: data.weekdays ?? [],
+    startTime: data.start_time,
+    endTime: data.end_time,
+    breakMinutes: data.break_minutes,
+    shiftTypeId:
+      data.shift_type_id != null ? data.shift_type_id.toString() : null,
+    calendarPeriodId: data.calendar_period_id.toString(),
+    weekPattern: data.week_pattern,
+    validFrom: data.valid_from,
+    validUntil: data.valid_until,
+  };
 }
 
 export class ShiftApiError extends Error {
@@ -402,10 +461,32 @@ class StaffShiftSeriesService {
             payload.shiftTypeId != null
               ? Number.parseInt(payload.shiftTypeId, 10)
               : null,
+          // Only sent when the caller actually edited the rule: an absent key
+          // means "keep what the series already has" on the backend.
+          ...(payload.weekdays !== undefined
+            ? { weekdays: payload.weekdays }
+            : {}),
+          ...(payload.weekPattern !== undefined
+            ? { week_pattern: payload.weekPattern }
+            : {}),
+          ...(payload.validUntil !== undefined
+            ? { valid_until: payload.validUntil }
+            : {}),
         }),
       },
     );
     return readSeriesResult(response);
+  }
+
+  /** The stored rule behind a series shift, so the modal can show and edit
+   *  weekdays, rhythm, and validity instead of only one occurrence (#2028). */
+  async getSeries(seriesId: string): Promise<SeriesRule> {
+    const response = await sessionFetch(`/api/staff/shifts/series/${seriesId}`);
+    if (!response.ok) {
+      throw await readShiftError(response, "Serie konnte nicht geladen werden");
+    }
+    const json = (await response.json()) as { data: BackendSeriesRule };
+    return mapSeriesRule(json.data);
   }
 
   async endSeries(seriesId: string, from: string): Promise<void> {

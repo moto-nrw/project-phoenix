@@ -7,16 +7,19 @@ interface SplitSeriesBody {
   end_time: string;
   break_minutes: number;
   shift_type_id: number | null;
-  /** Omitted fields (weekdays, week_pattern, notes) inherit the predecessor. */
+  /** Omitted fields inherit the predecessor's value. valid_until is
+   *  presence-aware: absent keeps the stored end, null runs to period end. */
   weekdays?: number[];
   week_pattern?: number;
+  valid_until?: string | null;
   notes?: string;
 }
 
 /**
  * PUT /api/staff/shifts/series/{seriesId}/split
- * "Ab jetzt dauerhaft": caps the series at the effective date and creates a
- * successor with the edited fields; deviations move to the successor.
+ * "Ab jetzt dauerhaft" and the series editor: caps the series at the effective
+ * date and creates a successor carrying the edited rule (times, weekdays,
+ * rhythm, validity); deviations move to the successor.
  */
 export const PUT = proxyPut<unknown, SplitSeriesBody>(
   (p) =>

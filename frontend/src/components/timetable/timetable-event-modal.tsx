@@ -315,12 +315,25 @@ export function TimetableEventModal({
     // Reuses the hook's unchanged validateForm and only looks at the fields of
     // the current step — no separate rule set.
     validateForm();
-    if (stepHasError(step, lastValidationErrors.current)) return;
+    const errors = lastValidationErrors.current;
+    if (stepHasError(step, errors)) return;
+    // A repeat choice in step 2 retroactively makes step-1 fields required (a
+    // Regeltermin needs a Kategorie). Once the current step is clean, block on
+    // an earlier step's error too and jump to it, instead of waving the user
+    // through to Speichern and only revealing the field there.
+    const earlier = STEP_FIELDS.findIndex(
+      (_, index) => index < step && stepHasError(index, errors),
+    );
+    if (earlier >= 0) {
+      setStep(earlier);
+      return;
+    }
     setStep((current) => Math.min(current + 1, LAST_STEP));
   };
 
-  // Speichern works from every step. When the full validation fails on a field
-  // the user cannot see, surface it by jumping to its step.
+  // Speichern only exists on the last step, but the full validation covers
+  // every step. When it fails on a field the user cannot see, surface it by
+  // jumping to its step.
   useEffect(() => {
     if (!submitAttempted.current) return;
     submitAttempted.current = false;
@@ -385,6 +398,14 @@ export function TimetableEventModal({
           ref={formRef}
           noValidate
           onSubmit={(event) => {
+            // Before the last step the submit button is "Weiter", so every
+            // submit — the click and the implicit one Enter triggers in a
+            // field — advances the wizard instead of saving. (#2025)
+            if (step < LAST_STEP) {
+              event.preventDefault();
+              goNext();
+              return;
+            }
             if (closingDaysLoading) {
               event.preventDefault();
               return;
@@ -615,33 +636,41 @@ export function TimetableEventModal({
                 Zurück
               </Button>
             )}
-            {step < LAST_STEP && (
+            {step < LAST_STEP ? (
+              // #2025: "Weiter" is the primary action so the eye lands on the
+              // path through the wizard; Speichern only exists on the last
+              // step, so no step can be saved unseen. It is the form's submit
+              // button (not just an onClick): a form without one suppresses
+              // implicit submission, so Enter in a field would do nothing at
+              // all. This way click and Enter take the same path — onSubmit,
+              // which routes everything before the last step into goNext.
               <Button
-                type="button"
-                variant="secondary"
+                type="submit"
+                form="timetable-event-form"
+                variant="primary"
                 size="md"
-                onClick={goNext}
                 disabled={submitting || deletingSeries}
               >
                 Weiter
               </Button>
+            ) : (
+              <Button
+                type="submit"
+                form="timetable-event-form"
+                variant="primary"
+                size="md"
+                isLoading={submitting}
+                loadingText="Speichere …"
+                disabled={
+                  submitting ||
+                  deletingSeries ||
+                  closingDaysLoading ||
+                  (isEditingInstance && initialInstance?.status !== "planned")
+                }
+              >
+                Speichern
+              </Button>
             )}
-            <Button
-              type="submit"
-              form="timetable-event-form"
-              variant="primary"
-              size="md"
-              isLoading={submitting}
-              loadingText="Speichere …"
-              disabled={
-                submitting ||
-                deletingSeries ||
-                closingDaysLoading ||
-                (isEditingInstance && initialInstance?.status !== "planned")
-              }
-            >
-              Speichern
-            </Button>
           </div>
         </SlideOverFooter>
 

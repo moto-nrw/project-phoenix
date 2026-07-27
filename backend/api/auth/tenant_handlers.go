@@ -101,6 +101,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		GradeLevelMax:          gradeLevelMax,
 		CareOfferingsEnabled:   resolved.careOfferingsEnabled,
 		AttendanceWebEnabled:   resolved.attendanceWebEnabled,
+		AttendanceLogEnabled:   resolved.attendanceLogEnabled,
 		GroupMode:              resolved.groupMode,
 		ShowTimetableCounts:    resolved.showTimetableCounts,
 		WaitlistEnabled:        resolved.waitlistEnabled,
@@ -132,6 +133,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	}
 	resolved.careOfferingsEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
 	resolved.attendanceWebEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
+	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)

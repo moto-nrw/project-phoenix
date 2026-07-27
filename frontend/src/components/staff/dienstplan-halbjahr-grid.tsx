@@ -426,6 +426,9 @@ function HalbjahrGridInner({
     </span>
   );
 
+  // Interaktive Zellinhalte tragen flex-1: das ResourceGrid gibt der Zelle eine
+  // Mindesthöhe, ohne Füllen bliebe die Klick-/Hoverfläche kleiner als ihre
+  // Zelle (Issue #2026).
   const renderCell = (
     member: StaffScheduleStaff,
     column: ResourceGridColumn,
@@ -448,7 +451,7 @@ function HalbjahrGridInner({
           type="button"
           onClick={() => state.retry()}
           aria-label={`Woche ${kw} erneut laden`}
-          className="flex min-h-8 w-full items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+          className="flex w-full flex-1 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
         >
           <RotateCw className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -465,7 +468,7 @@ function HalbjahrGridInner({
         type="button"
         onClick={() => onWeekClick(column.key)}
         aria-label={`Woche ${kw} öffnen, ${member.firstName} ${member.lastName}`}
-        className="flex w-full items-center justify-center rounded-md px-1 py-1.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+        className="flex w-full flex-1 items-center justify-center rounded-md px-1 py-1.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
       >
         <CoverageIndicator
           state="covered"

@@ -9,13 +9,21 @@
  * SubstitutionSlideOver; alle Schreibvorgänge laufen unverändert über den
  * atomaren Deviations-Pfad. Es gibt keine eigene Vertretungs-Entität.
  *
- * URL-Vokabular: höchstens `d`, `block`, `verlauf` (Abschnitt 1). `d` ist der
+ * Zusätzlich gibt es die Wochenansicht (#2030): dieselbe Fläche, nur über
+ * Mo–Fr — links die nach Tagen gruppierte Störungsliste
+ * (VertretungWeekList), rechts dasselbe Raster mit fünf Tagesspalten. Sie ist
+ * eine reine Anzeigevariante: dieselben Daten (die Woche wird ohnehin schon
+ * geladen), derselbe Editor, dieselbe Störungsdefinition. Die Tagesansicht
+ * bleibt der Standard beim Öffnen der Seite.
+ *
+ * URL-Vokabular: höchstens `d`, `view`, `block`, `verlauf`. `d` ist der
  * angezeigte Berlin-Kalendertag (ohne `d` gilt heute; Wochenendtage werden auf
- * den folgenden Montag normalisiert, die Leiste zeigt nur Mo–Fr), `block`
- * öffnet den Editor für die materialisierte Instanz mit dieser ID,
- * `verlauf=1` schaltet
- * den Editor auf den Verlaufs-Reiter. Der Filterzustand "Nur Störungen |
- * Ganzer Tag" ist lokaler State, kein URL-Parameter.
+ * den folgenden Montag normalisiert, die Leiste zeigt nur Mo–Fr) und ankert in
+ * der Wochenansicht die gezeigte Woche, `view=woche` schaltet auf die
+ * Wochenansicht (jeder andere Wert, auch ein fehlender, ist die Tagesansicht),
+ * `block` öffnet den Editor für die materialisierte Instanz mit dieser ID,
+ * `verlauf=1` schaltet den Editor auf den Verlaufs-Reiter. Der Filterzustand
+ * "Nur Störungen | Ganzer Tag" ist lokaler State, kein URL-Parameter.
  *
  * Das Ladeverhalten übernimmt die Orchestrierung der früheren
  * vertretungsplan-view.tsx als Verhaltensvertrag (Abschnitt 2.4): Woche laden,
@@ -43,6 +51,7 @@ import {
   VertretungDayList,
   type VertretungDayListMode,
 } from "~/components/timetable/vertretung-day-list";
+import { VertretungWeekList } from "~/components/timetable/vertretung-week-list";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { useToast } from "~/contexts/ToastContext";
@@ -64,6 +73,7 @@ import { timetableService } from "~/lib/timetable-api";
 import {
   VERTRETUNG_GAPS_KEY_PREFIX,
   VERTRETUNG_WEEK_KEY_PREFIX,
+  formatWeekLabel,
   getGermanWeekdayShort,
   getWeekRange,
   getWeekdays,
@@ -74,11 +84,14 @@ import type { ApplyDeviationsInput } from "~/lib/timetable-types";
 const logger = createLogger({ component: "Vertretung" });
 const HOUR_HEIGHT_PX = 90;
 const VERTRETUNG_STAFF_LIST_KEY = "vertretung-staff-list";
-// Das verbindliche Drei-Parameter-Vokabular (Abschnitt 1). updateUrlParams
-// baut die URL aus dieser Allowlist neu auf, damit fremde Params
-// (?utm_source=…) nicht jeden Tageswechsel überleben. Muss mit ALLOWED_PARAMS
-// in e2e/vertretung-flow.spec.ts übereinstimmen.
-const ALLOWED_URL_PARAMS = ["d", "block", "verlauf"] as const;
+// Das verbindliche URL-Vokabular. updateUrlParams baut die URL aus dieser
+// Allowlist neu auf, damit fremde Params (?utm_source=…) nicht jeden
+// Tageswechsel überleben. Muss mit ALLOWED_PARAMS in
+// e2e/vertretung-flow.spec.ts übereinstimmen.
+const ALLOWED_URL_PARAMS = ["d", "view", "block", "verlauf"] as const;
+
+/** Anzeigevariante der Fläche. Standard beim Öffnen ist immer "tag". */
+type VertretungViewMode = "tag" | "woche";
 
 function shiftDayISO(iso: string, delta: number): string {
   const d = parseISODate(iso);
@@ -118,6 +131,11 @@ function VertretungContent() {
   );
   const selectedInstanceId = params.block;
   const historyOpen = params.verlauf === "1";
+  // Ansichtsvariante aus der URL. Nur "woche" schaltet um; jeder andere Wert
+  // (auch ein fehlender oder ein Tippfehler) ist die Tagesansicht, damit ein
+  // kaputter Deep-Link nie auf einer unerwarteten Fläche landet.
+  const view: VertretungViewMode = params.view === "woche" ? "woche" : "tag";
+  const isWeekView = view === "woche";
 
   const today = berlinTodayISO();
   // Ziel des Heute-Buttons: am Wochenende der nächste Montag. `today` selbst
@@ -133,6 +151,22 @@ function VertretungContent() {
   const weekDays = useMemo(
     () => getWeekdays(range.from).slice(0, 5),
     [range.from],
+  );
+  // Label über Mo–Fr, nicht über das Mo–So-Fetch-Fenster: die Ansicht zeigt
+  // fünf Spalten, ein bis Sonntag laufendes Label würde zwei Tage versprechen,
+  // die es nicht gibt.
+  const weekLabel = useMemo(
+    () =>
+      formatWeekLabel(range.from, weekDays[weekDays.length - 1] ?? range.to),
+    [range.from, range.to, weekDays],
+  );
+  // Das Fetch-Fenster ist Mo–So, angezeigt wird nur Mo–Fr. Alles, was die
+  // Wochenansicht zeigt oder zählt, wird daher auf die Schultage begrenzt —
+  // sonst zählte ein (in einer OGS seltener) Wochenendtermin in einen Zähler,
+  // dessen Spalte es gar nicht gibt.
+  const weekDayISOSet = useMemo(
+    () => new Set(weekDays.map(toISODate)),
+    [weekDays],
   );
 
   const weekSwrKey = `${VERTRETUNG_WEEK_KEY_PREFIX}${fromISO}-${toISO}`;
@@ -215,6 +249,10 @@ function VertretungContent() {
   }, [staffErrorMessage, toast]);
 
   const instances = useMemo(() => data?.instances ?? [], [data?.instances]);
+  const weekdayInstances = useMemo(
+    () => instances.filter((inst) => weekDayISOSet.has(inst.date)),
+    [instances, weekDayISOSet],
+  );
   const dayInstances = useMemo(
     () => instances.filter((inst) => inst.date === dayISO),
     [instances, dayISO],
@@ -247,14 +285,30 @@ function VertretungContent() {
     return ids;
   }, [instances, selectedInstance?.date]);
 
+  // Wochenweite Lücken (das geladene Fenster) — Basis für die Wochenansicht
+  // und für die Tagesfilterung darunter.
+  const weekGaps = useMemo(
+    () => (gapsData?.gaps ?? []).filter((g) => weekDayISOSet.has(g.date)),
+    [gapsData?.gaps, weekDayISOSet],
+  );
+  const weekAcknowledged = useMemo(
+    () =>
+      (gapsData?.acknowledged ?? []).filter((g) => weekDayISOSet.has(g.date)),
+    [gapsData?.acknowledged, weekDayISOSet],
+  );
+  const weekGapInstanceIds = useMemo(
+    () => new Set(weekGaps.map((g) => g.instanceId)),
+    [weekGaps],
+  );
+
   // Tagesgefilterte Lücken für Liste und Zähler.
   const dayGaps = useMemo(
-    () => (gapsData?.gaps ?? []).filter((g) => g.date === dayISO),
-    [gapsData?.gaps, dayISO],
+    () => weekGaps.filter((g) => g.date === dayISO),
+    [weekGaps, dayISO],
   );
   const dayAcknowledged = useMemo(
-    () => (gapsData?.acknowledged ?? []).filter((g) => g.date === dayISO),
-    [gapsData?.acknowledged, dayISO],
+    () => weekAcknowledged.filter((g) => g.date === dayISO),
+    [weekAcknowledged, dayISO],
   );
   // Instanz-IDs der offenen (NICHT quittierten) Lücken des Tages für die
   // Block-Markierung im Kalender. Quittierte liegen in `acknowledged` und
@@ -266,11 +320,11 @@ function VertretungContent() {
   // Pro-Tag-Zahlen der Wochenleiste durch Client-Gruppierung der `gaps`.
   const gapsByDate = useMemo(() => {
     const m = new Map<string, number>();
-    for (const g of gapsData?.gaps ?? []) {
+    for (const g of weekGaps) {
       m.set(g.date, (m.get(g.date) ?? 0) + 1);
     }
     return m;
-  }, [gapsData?.gaps]);
+  }, [weekGaps]);
 
   // Der Bereich ist immer tageszentriert. Ein vergangener Tag (auch innerhalb
   // der laufenden Woche, wo loadGaps true bleibt, der Fensterstart aber auf
@@ -282,9 +336,32 @@ function VertretungContent() {
   const gapsLoaded =
     loadGaps && gapsErrorMessage === null && gapsData !== undefined;
   const gapsUnavailable = !gapsLoaded || dayISO < today;
+  // Erster Tag der Woche mit Lückendaten (das Fenster ist auf heute geklemmt);
+  // null, solange gar nichts geladen ist. Die Wochenliste leitet daraus pro Tag
+  // ab, ob sie eine Störungslage behaupten darf.
+  const hasVisibleWeekdayWithGaps = weekDays.some(
+    (day) => toISODate(day) >= gapsFromISO,
+  );
+  const gapsAvailableFrom =
+    gapsLoaded && hasVisibleWeekdayWithGaps ? gapsFromISO : null;
 
-  const openCount = dayGaps.length;
-  const ackCount = dayAcknowledged.length;
+  // Zähler der Kontextleiste: die Tagesansicht zählt den Tag, die
+  // Wochenansicht die geladene Woche. Ein auf heute geklemmtes Fenster ist
+  // keine vollständige Wochenaussage — das steht im Tooltip, statt eine
+  // vollständige Zahl vorzutäuschen.
+  const countsUnavailable = isWeekView
+    ? !gapsLoaded || !hasVisibleWeekdayWithGaps
+    : gapsUnavailable;
+  const countsClamped = isWeekView && gapsLoaded && fromISO < today;
+  const openCount = isWeekView ? weekGaps.length : dayGaps.length;
+  const ackCount = isWeekView
+    ? weekAcknowledged.length
+    : dayAcknowledged.length;
+  const countScope = isWeekView
+    ? countsClamped
+      ? "ab heute in dieser Woche"
+      : "in dieser Woche"
+    : "an diesem Tag";
 
   // Filterzustand ist LOKAL, kein URL-Parameter (verbindliches
   // Drei-Parameter-Vokabular). Standard "Nur Störungen" (aus K2).
@@ -292,6 +369,22 @@ function VertretungContent() {
 
   const goToDay = useCallback(
     (iso: string) => updateUrlParams({ d: iso, block: null, verlauf: null }),
+    [updateUrlParams],
+  );
+  // Ansichtswechsel schreibt nur `view` (die Tagesansicht ist die
+  // Param-Entfernung, damit sie der Standard bleibt). Datum und geöffneter
+  // Editor bleiben stehen: Woche und Tag sind zwei Sichten auf dieselben
+  // bereits geladenen Daten, kein Kontextwechsel.
+  const setView = useCallback(
+    (next: VertretungViewMode) =>
+      updateUrlParams({ view: next === "woche" ? "woche" : null }),
+    [updateUrlParams],
+  );
+  // Klick auf eine Tageskopfzeile der Wochenliste: in die Tagesansicht dieses
+  // Tages wechseln (der Weg von der Übersicht in die Bearbeitung).
+  const openDayView = useCallback(
+    (iso: string) =>
+      updateUrlParams({ d: iso, view: null, block: null, verlauf: null }),
     [updateUrlParams],
   );
   // `verlauf` wird bei jeder Blockauswahl explizit abgeräumt (Muster der alten
@@ -403,53 +496,81 @@ function VertretungContent() {
         previousLabel="Vorherige Woche"
         nextLabel="Nächste Woche"
         onToday={
-          dayISO !== todayTarget ? () => goToDay(todayTarget) : undefined
+          // Tagesansicht: der Button erscheint, sobald ein anderer Tag als das
+          // Heute-Ziel gezeigt wird. Wochenansicht: sobald das Heute-Ziel gar
+          // nicht in der sichtbaren Woche liegt.
+          (
+            isWeekView
+              ? todayTarget < fromISO || todayTarget > toISO
+              : dayISO !== todayTarget
+          )
+            ? () => goToDay(todayTarget)
+            : undefined
+        }
+        dateLabel={isWeekView ? weekLabel : undefined}
+        viewSwitcher={
+          <Tabs
+            value={view}
+            onValueChange={(v) => setView(v as VertretungViewMode)}
+          >
+            <TabsList variant="default">
+              <TabsTrigger value="tag">Tag</TabsTrigger>
+              <TabsTrigger value="woche">Woche</TabsTrigger>
+            </TabsList>
+          </Tabs>
         }
         navigationSlot={
-          <div className="flex items-center gap-0.5">
-            {weekDays.map((day) => {
-              const iso = toISODate(day);
-              const isPast = iso < today;
-              // Vergangene Tage und ein fehlgeschlagener/übersprungener/noch
-              // ladender Gaps-Abruf zeigen einen Platzhalter, nie eine
-              // erfundene 0 (Akzeptanzkriterium 5).
-              const showPlaceholder = isPast || !gapsLoaded;
-              return (
-                <PlanningDayChip
-                  key={iso}
-                  weekdayLabel={getGermanWeekdayShort(day)}
-                  dateLabel={dayChipLabel(day)}
-                  count={
-                    showPlaceholder ? undefined : (gapsByDate.get(iso) ?? 0)
-                  }
-                  showPlaceholder={showPlaceholder}
-                  selected={iso === dayISO}
-                  onClick={() => goToDay(iso)}
-                  aria-label={`${getGermanWeekdayShort(day)} ${dayChipLabel(day)}`}
-                />
-              );
-            })}
-          </div>
+          // In der Wochenansicht ersetzt das Wochenlabel die Tagesleiste: eine
+          // Tagesauswahl hätte dort keine sichtbare Wirkung. Die Lücken pro Tag
+          // zeigen dann die Kopfzeilen der Wochenliste.
+          isWeekView ? undefined : (
+            <div className="flex items-center gap-0.5">
+              {weekDays.map((day) => {
+                const iso = toISODate(day);
+                const isPast = iso < today;
+                // Vergangene Tage und ein fehlgeschlagener/übersprungener/noch
+                // ladender Gaps-Abruf zeigen einen Platzhalter, nie eine
+                // erfundene 0 (Akzeptanzkriterium 5).
+                const showPlaceholder = isPast || !gapsLoaded;
+                return (
+                  <PlanningDayChip
+                    key={iso}
+                    weekdayLabel={getGermanWeekdayShort(day)}
+                    dateLabel={dayChipLabel(day)}
+                    count={
+                      showPlaceholder ? undefined : (gapsByDate.get(iso) ?? 0)
+                    }
+                    showPlaceholder={showPlaceholder}
+                    selected={iso === dayISO}
+                    onClick={() => goToDay(iso)}
+                    aria-label={`${getGermanWeekdayShort(day)} ${dayChipLabel(day)}`}
+                  />
+                );
+              })}
+            </div>
+          )
         }
       >
         <CoverageIndicator
           size="sm"
-          state={!gapsUnavailable && openCount > 0 ? "gap" : "covered"}
-          label={`Offen: ${gapsUnavailable ? "–" : openCount}`}
+          state={!countsUnavailable && openCount > 0 ? "gap" : "covered"}
+          label={`Offen: ${countsUnavailable ? "–" : openCount}`}
           title={
-            gapsUnavailable
+            countsUnavailable
               ? "Offene Lücken nicht verfügbar"
-              : `${openCount} offene Lücke(n) an diesem Tag`
+              : `${openCount} offene Lücke(n) ${countScope}`
           }
         />
         <CoverageIndicator
           size="sm"
-          state={!gapsUnavailable && ackCount > 0 ? "acknowledged" : "covered"}
-          label={`Quittiert: ${gapsUnavailable ? "–" : ackCount}`}
+          state={
+            !countsUnavailable && ackCount > 0 ? "acknowledged" : "covered"
+          }
+          label={`Quittiert: ${countsUnavailable ? "–" : ackCount}`}
           title={
-            gapsUnavailable
+            countsUnavailable
               ? "Quittierte Lücken nicht verfügbar"
-              : `${ackCount} bewusst unbesetzt an diesem Tag`
+              : `${ackCount} bewusst unbesetzt ${countScope}`
           }
         />
         <Tabs
@@ -459,7 +580,9 @@ function VertretungContent() {
         >
           <TabsList variant="default">
             <TabsTrigger value="stoerungen">Nur Störungen</TabsTrigger>
-            <TabsTrigger value="ganzer-tag">Ganzer Tag</TabsTrigger>
+            <TabsTrigger value="ganzer-tag">
+              {isWeekView ? "Ganze Woche" : "Ganzer Tag"}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </PlanningContextBar>
@@ -490,38 +613,69 @@ function VertretungContent() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
-          <VertretungDayList
-            instances={dayInstances}
-            gaps={dayGaps}
-            acknowledged={dayAcknowledged}
-            gapsAvailable={!gapsUnavailable}
-            staffNames={staffNames}
-            mode={mode}
-            canManage={canManageSchedules}
-            onEdit={openEditor}
-          />
+          {isWeekView ? (
+            // Die Wochenliste darf die Seite nicht länger machen als das
+            // Raster daneben. Ab lg trägt sie deshalb nichts zur Zeilenhöhe
+            // bei (absolut positioniert), füllt die vom Raster gesetzte Höhe
+            // und scrollt in sich — ohne die Rasterhöhe als Zahl zu kennen.
+            // Darunter (einspaltig, ohne Raster) fließt sie normal und
+            // scrollt mit der Seite.
+            <div className="lg:relative">
+              <div className="lg:absolute lg:inset-0">
+                <VertretungWeekList
+                  weekDays={weekDays}
+                  instances={weekdayInstances}
+                  gaps={weekGaps}
+                  acknowledged={weekAcknowledged}
+                  gapsAvailableFrom={gapsAvailableFrom}
+                  staffNames={staffNames}
+                  mode={mode}
+                  canManage={canManageSchedules}
+                  onEdit={openEditor}
+                  onSelectDay={openDayView}
+                  todayISO={today}
+                  className="lg:h-full lg:overflow-hidden"
+                />
+              </div>
+            </div>
+          ) : (
+            <VertretungDayList
+              instances={dayInstances}
+              gaps={dayGaps}
+              acknowledged={dayAcknowledged}
+              gapsAvailable={!gapsUnavailable}
+              staffNames={staffNames}
+              mode={mode}
+              canManage={canManageSchedules}
+              onEdit={openEditor}
+            />
+          )}
           {/* Unterhalb lg entfällt die Kalenderspalte; die Liste bleibt allein
-              voll funktionsfähig (Abschnitt 2). */}
+              voll funktionsfähig (Abschnitt 2). Das Raster ist dasselbe, es
+              bekommt in der Wochenansicht nur fünf Tagesspalten statt einer. */}
           <div className="hidden lg:block">
             <WeeklyCalendarGrid
-              weekDays={[parseISODate(dayISO)]}
-              instances={dayInstances}
+              weekDays={isWeekView ? weekDays : [parseISODate(dayISO)]}
+              instances={isWeekView ? weekdayInstances : dayInstances}
               selectedId={selectedInstanceId}
               onInstanceClick={(inst) => openEditor(inst.id)}
-              gapInstanceIds={dayGapInstanceIds}
+              gapInstanceIds={
+                isWeekView ? weekGapInstanceIds : dayGapInstanceIds
+              }
               todayISO={today}
               dayStartHour={dayStartHour}
               dayEndHour={dayEndHour}
               hourHeightPx={HOUR_HEIGHT_PX}
               emptyState={
-                dayInstances.length > 0
+                (isWeekView ? weekdayInstances : dayInstances).length > 0
                   ? undefined
                   : isLoading
                     ? { title: "Lädt…", description: "Termine werden geladen." }
                     : {
                         title: "Keine Termine",
-                        description:
-                          "Für diesen Tag sind keine Termine geplant.",
+                        description: isWeekView
+                          ? "Für diese Woche sind keine Termine geplant."
+                          : "Für diesen Tag sind keine Termine geplant.",
                       }
               }
             />

@@ -7,6 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
+  useAttendanceLogEnabled,
   useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -141,6 +142,17 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
     activeColor: "text-[#83CD2D]",
     requiresPermission: "config:manage",
+  },
+  {
+    // Tagesauswertung (#1456): rückwirkender Tagesstatus pro Gruppe
+    // (Anwesend/Krank/Entschuldigt/Abwesend). Als Auswertung unten bei den
+    // Berichts-Einträgen einsortiert. Opt-in über
+    // gdpr.attendance_log_enabled — Gating siehe filteredNavItems.
+    href: "/day-log",
+    label: "Tagesauswertung",
+    icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
+    activeColor: "text-[#83CD2D]",
+    requiresPermission: "users:read",
   },
   {
     href: "#",
@@ -506,6 +518,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
   const displayEnabled = useDisplayEnabled();
+  const attendanceLogEnabled = useAttendanceLogEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
   // Fetch the settings schema for anyone the backend lets read config, not just
@@ -618,6 +631,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Info-Point Dashboard is opt-in (display.enabled, default off) — hide
     // the admin entry until a school explicitly turns the feature on.
     if (!displayEnabled && item.href === "/info-displays") return false;
+    // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
+    // (gdpr.attendance_log_enabled, Opt-in, Default aus).
+    if (!attendanceLogEnabled && item.href === "/day-log") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -638,6 +654,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!from) return "/students/search";
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
+    if (from.startsWith("/day-log")) return "/day-log";
     // Drill-in from a room ("Kinder im Raum"), both the legacy subpage
     // /rooms/{id} and the modal URL /rooms?room={id} count, so the
     // sidebar reflects the actual entry path in either flow.

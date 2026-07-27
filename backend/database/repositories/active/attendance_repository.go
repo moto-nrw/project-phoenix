@@ -295,6 +295,20 @@ func (r *AttendanceRepository) getTodayByStudentIDs(ctx context.Context, student
 
 // FindForDate finds all attendance records for a specific date
 func (r *AttendanceRepository) FindForDate(ctx context.Context, date timezone.Date) ([]*active.Attendance, error) {
+	return r.findForDate(ctx, date, nil)
+}
+
+// FindForDateByStudentIDs finds attendance records for a specific date and
+// student set. Restricting the query at the repository boundary prevents
+// scoped consumers from loading other students' attendance into memory.
+func (r *AttendanceRepository) FindForDateByStudentIDs(ctx context.Context, date timezone.Date, studentIDs []int64) ([]*active.Attendance, error) {
+	if len(studentIDs) == 0 {
+		return []*active.Attendance{}, nil
+	}
+	return r.findForDate(ctx, date, studentIDs)
+}
+
+func (r *AttendanceRepository) findForDate(ctx context.Context, date timezone.Date, studentIDs []int64) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -304,6 +318,9 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date timezone.Da
 		// Use OrderExpr to avoid Bun re-quoting the alias and direction together
 		OrderExpr(`"attendance".student_id ASC`).
 		OrderExpr(`"attendance".check_in_time ASC`)
+	if studentIDs != nil {
+		query = query.Where(`"attendance".student_id IN (?)`, bun.List(studentIDs))
+	}
 
 	query = base.WithTenantFilter(ctx, query, "attendance")
 
