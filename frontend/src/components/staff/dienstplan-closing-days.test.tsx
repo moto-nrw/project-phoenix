@@ -16,7 +16,11 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 vi.mock("~/lib/hooks/use-closing-days", () => ({
-  useClosingDays: () => new Map(),
+  useClosingDaysState: () => ({
+    closingDays: new Map(),
+    closingDayRanges: [],
+    isLoading: false,
+  }),
 }));
 
 import { DienstplanResourceGrid } from "./dienstplan-resource-grid";
@@ -127,6 +131,23 @@ describe("DienstplanResourceGrid closing days (#2032)", () => {
         name: /Schicht anlegen, Ada Lovelace, Mo 06\.07\./,
       }),
     ).not.toBeInTheDocument();
+    expect(onCellClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps filled-cell creation inactive until closing days have loaded", () => {
+    const { onCellClick } = renderGrid({
+      closingDays: new Map(),
+      closingDaysLoading: true,
+      shiftsByStaff: new Map([
+        [member.id, new Map([["2026-07-06", [baseShift()]]])],
+      ]),
+    });
+
+    const addButton = screen.getByRole("button", {
+      name: /Schicht anlegen, Ada Lovelace, Mo 06\.07\./,
+    });
+    expect(addButton).toBeDisabled();
+    fireEvent.click(addButton);
     expect(onCellClick).not.toHaveBeenCalled();
   });
 

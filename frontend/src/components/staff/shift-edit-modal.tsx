@@ -25,6 +25,7 @@ import {
   type ClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -282,7 +283,7 @@ export function ShiftEditModal({
   const periodHasCycle = (selectedPeriod?.weekCycleLength ?? 1) > 1;
   const defaultAbPattern = weekPatternForDate(selectedPeriod, date);
   const effectiveWeekPattern = biweekly && periodHasCycle ? abPattern : 0;
-  const seriesClosingDayConflict = useMemo(() => {
+  const seriesClosingDayWindow = useMemo(() => {
     if (!repeatEnabled || !selectedPeriod) return null;
     const tomorrow = dayAfterISO(berlinTodayISO());
     const from = [date, selectedPeriod.startDate, tomorrow].reduce(
@@ -299,9 +300,8 @@ export function ShiftEditModal({
         effectiveWeekPattern,
       ),
     );
-    return findFirstClosingDayConflict(closingDayRanges, dates);
+    return { from, to, dates };
   }, [
-    closingDayRanges,
     date,
     effectiveWeekPattern,
     repeatEnabled,
@@ -309,6 +309,24 @@ export function ShiftEditModal({
     validUntil,
     weekdays,
   ]);
+  const seriesClosingDayState = useClosingDaysState(
+    seriesClosingDayWindow?.from ?? "",
+    seriesClosingDayWindow?.to ?? "",
+  );
+  const seriesClosingDayConflict = useMemo(() => {
+    const dates = seriesClosingDayWindow?.dates ?? [];
+    for (const dateISO of dates) {
+      const reason = seriesClosingDayState.closingDays.get(dateISO);
+      if (reason !== undefined) return { dateISO, reason };
+    }
+    return findFirstClosingDayConflict(closingDayRanges, dates);
+  }, [
+    closingDayRanges,
+    seriesClosingDayState.closingDays,
+    seriesClosingDayWindow,
+  ]);
+  const seriesClosingDaysLoading =
+    seriesClosingDayWindow !== null && seriesClosingDayState.isLoading;
   const closingDayConfirmationKey =
     seriesClosingDayConflict === null
       ? null
@@ -603,6 +621,7 @@ export function ShiftEditModal({
   const handleSubmit = async () => {
     if (!validateInputs()) return;
     if (mode === "create" && repeatEnabled) {
+      if (seriesClosingDaysLoading) return;
       if (
         seriesClosingDayConflict !== null &&
         closingDayConfirmationKey !== null &&
@@ -729,7 +748,12 @@ export function ShiftEditModal({
         isLoading={isSaving}
         loadingText="Speichern…"
         disabled={
-          isSaving || isDeleting || !timesValid || !breakValid || !seriesValid
+          isSaving ||
+          isDeleting ||
+          !timesValid ||
+          !breakValid ||
+          !seriesValid ||
+          seriesClosingDaysLoading
         }
       >
         {submitLabel(mode, repeatEnabled)}

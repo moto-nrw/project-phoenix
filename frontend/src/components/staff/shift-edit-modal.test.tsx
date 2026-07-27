@@ -5,6 +5,14 @@ import { ShiftEditModal } from "./shift-edit-modal";
 import { staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useClosingDaysState: () => ({
+    closingDays: new Map(),
+    closingDayRanges: [],
+    isLoading: false,
+  }),
+}));
+
 vi.mock("~/lib/shift-api", () => ({
   ShiftApiError: class ShiftApiError extends Error {
     readonly status: number;

@@ -509,6 +509,17 @@ describe("TimetableEventModal", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it("keeps saving disabled until closing days have loaded", async () => {
+    renderModal({ closingDaysLoading: true });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toBeDisabled();
+
+    fireEvent.submit(document.querySelector("#timetable-event-form")!);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
   it("saves without asking when the date is no closing day (#2032)", async () => {
     renderModal({
       closingDayRanges: [

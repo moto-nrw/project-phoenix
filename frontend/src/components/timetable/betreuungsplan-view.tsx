@@ -58,10 +58,7 @@ import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { hasPermission } from "~/lib/auth-utils";
-import {
-  useClosingDayRanges,
-  useClosingDays,
-} from "~/lib/hooks/use-closing-days";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
@@ -340,11 +337,14 @@ function TimetablesContent() {
     [visibleDate],
   );
 
-  // OGS-Schließtage (#2032). Beide Hooks teilen sich einen SWR-Key, also einen
-  // Request: Woche und Monat markieren das sichtbare Fenster, der Termin-Dialog
-  // prüft sein frei wählbares Datum direkt gegen die Zeiträume.
-  const closingDayRanges = useClosingDayRanges();
-  const closingDays = useClosingDays(fetchFromISO, fetchToISO);
+  // OGS-Schließtage (#2032). Ein SWR-Zustand liefert sichtbares Fenster,
+  // vollständige Zeiträume und den Ladestatus: Raster und Termin-Dialog sehen
+  // dadurch immer denselben Datenstand.
+  const {
+    closingDays,
+    closingDayRanges,
+    isLoading: closingDaysLoading,
+  } = useClosingDaysState(fetchFromISO, fetchToISO);
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
   const shouldLoadInstances = view !== "series";
@@ -1197,6 +1197,7 @@ function TimetablesContent() {
         }}
         defaultDate={quickPrefill?.date ?? dayISO}
         closingDayRanges={closingDayRanges}
+        closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}
         weekTo={toISO}
         calendarPeriods={modalCalendarPeriods}

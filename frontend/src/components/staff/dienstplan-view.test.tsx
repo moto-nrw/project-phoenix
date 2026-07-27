@@ -613,10 +613,9 @@ describe("DienstplanView", () => {
   });
 
   it("hides the Halbjahr tab and falls back to Woche without schedules:read", () => {
-    // Die Halbjahres-Sicht lädt /api/timetable/periods (backend-seitig mit
-    // schedules:read geschützt) — ohne die Berechtigung liefe sie in einen 403.
-    // Ohne schedules:read greift zugleich der reduzierte Datenpfad, daher der
-    // Legacy-Stub (dienstplan-staff) statt mockOverviewLoaded.
+    // Die Halbjahres-Sicht zeigt den Soll-/Plan-Abgleich aus /overview, der
+    // schedules:read verlangt. Ohne die Berechtigung greift zugleich der
+    // reduzierte Datenpfad, daher der Legacy-Stub (dienstplan-staff).
     mocks.hasPermission.mockImplementation(
       (_session: unknown, permission: string) =>
         permission !== "schedules:read",

@@ -127,7 +127,10 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
 
 		r.Route("/periods", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPeriods)
+			// Shift-series creation is available to time-tracking managers and
+			// requires a period ID, so the read-only list must be available on
+			// that reduced Dienstplan path as well.
+			r.With(authorize.RequiresAnyPermission(permissions.SchedulesRead, permissions.TimeTrackingManage), withTx).Get("/", rs.listPeriods)
 			r.With(authorize.RequiresPermission(permissions.SchedulesCreate), withTx).Post("/", rs.createPeriod)
 			// WP-B1: idempotent school-year bootstrap. Same permission and tx
 			// middleware as POST /periods — it is just a specialized create.

@@ -14,12 +14,16 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 
 import { ShiftMoveDialog } from "./shift-move-dialog";
 
-const mockUseClosingDays = vi.hoisted(() =>
-  vi.fn(() => new Map<string, string>()),
+const mockUseClosingDaysState = vi.hoisted(() =>
+  vi.fn(() => ({
+    closingDays: new Map<string, string>(),
+    closingDayRanges: [],
+    isLoading: false,
+  })),
 );
 
 vi.mock("~/lib/hooks/use-closing-days", () => ({
-  useClosingDays: mockUseClosingDays,
+  useClosingDaysState: mockUseClosingDaysState,
 }));
 
 // Spy on the CRUD service while keeping the real ShiftApiError class (the
@@ -125,7 +129,11 @@ async function confirmMove() {
 }
 
 beforeEach(() => {
-  mockUseClosingDays.mockReturnValue(new Map());
+  mockUseClosingDaysState.mockReturnValue({
+    closingDays: new Map(),
+    closingDayRanges: [],
+    isLoading: false,
+  });
 });
 
 describe("ShiftMoveDialog prefill", () => {
@@ -152,13 +160,18 @@ describe("ShiftMoveDialog prefill", () => {
   });
 
   it("loads the target day through time tracking on the reduced path", () => {
-    mockUseClosingDays.mockReturnValue(
-      new Map([["2026-07-06", "Pädagogischer Tag"]]),
-    );
+    mockUseClosingDaysState.mockReturnValue({
+      closingDays: new Map([["2026-07-06", "Pädagogischer Tag"]]),
+      closingDayRanges: [],
+      isLoading: false,
+    });
 
     renderDialog({ reducedPath: true });
 
-    expect(mockUseClosingDays).toHaveBeenCalledWith("2026-07-06", "2026-07-06");
+    expect(mockUseClosingDaysState).toHaveBeenCalledWith(
+      "2026-07-06",
+      "2026-07-06",
+    );
     expect(
       screen.getByTitle("Schließtag: Pädagogischer Tag"),
     ).toBeInTheDocument();
@@ -167,6 +180,20 @@ describe("ShiftMoveDialog prefill", () => {
     expect(
       screen.getByText(/Am Zieltag ist ein Schließtag hinterlegt/),
     ).toBeInTheDocument();
+  });
+
+  it("keeps move submission disabled while the reduced lookup is loading", () => {
+    mockUseClosingDaysState.mockReturnValue({
+      closingDays: new Map(),
+      closingDayRanges: [],
+      isLoading: true,
+    });
+
+    renderDialog({ reducedPath: true });
+
+    expect(screen.getByRole("button", { name: "Verschieben" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+    expect(staffShiftService.moveShift).not.toHaveBeenCalled();
   });
 });
 

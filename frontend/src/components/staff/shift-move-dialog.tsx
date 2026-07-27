@@ -15,7 +15,7 @@ import {
   type ClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
-import { useClosingDays } from "~/lib/hooks/use-closing-days";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
 import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
@@ -156,21 +156,24 @@ export function ShiftMoveDialog({
   const selectedShiftType = shiftTypes.find((type) => type.id === shiftTypeId);
   const inactiveTypeBlocksMove =
     movingToOtherPerson && selectedShiftType?.isActive === false;
+  const reducedTargetClosingDayState = useClosingDaysState(
+    reducedPath ? targetDate : "",
+    reducedPath ? targetDate : "",
+  );
+  const closingDayLookupLoading =
+    reducedPath && reducedTargetClosingDayState.isLoading;
   const canSubmit =
     targetStaffId !== "" &&
     targetDate !== "" &&
     timesValid &&
     breakValid &&
-    !inactiveTypeBlocksMove;
+    !inactiveTypeBlocksMove &&
+    !closingDayLookupLoading;
 
   // Schließtag am Zieltag (#2032): Hinweis im Formular und in der ohnehin
   // vorhandenen Bestätigung — verschoben wird trotzdem, nichts wird gesperrt.
-  const reducedTargetClosingDays = useClosingDays(
-    reducedPath ? targetDate : "",
-    reducedPath ? targetDate : "",
-  );
   const targetClosingReason =
-    reducedTargetClosingDays.get(targetDate) ??
+    reducedTargetClosingDayState.closingDays.get(targetDate) ??
     findClosingDayReason(closingDayRanges, targetDate);
 
   const targetMember = staff.find((member) => member.id === targetStaffId);
@@ -180,6 +183,7 @@ export function ShiftMoveDialog({
     : sourceName;
   const handleSubmit = () => {
     setError(null);
+    if (closingDayLookupLoading) return;
     if (targetStaffId === "") {
       setError("Bitte eine Zielperson auswählen.");
       return;

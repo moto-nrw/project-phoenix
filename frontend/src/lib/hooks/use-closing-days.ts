@@ -23,6 +23,7 @@ import {
   type ClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { timeTrackingService } from "~/lib/time-tracking-api";
+import { chunkDateRange } from "~/lib/timetable-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 /** Shared SWR key of the full closure list — deduped across both plans. */
@@ -39,6 +40,28 @@ const CLOSING_DAYS_SWR_OPTIONS = {
 
 const EMPTY_RANGES: readonly ClosingDayRange[] = [];
 const EMPTY_CLOSING_DAYS: ReadonlyMap<string, string> = new Map();
+const TIME_TRACKING_CLOSING_DAY_CHUNK_DAYS = 401;
+
+async function getTimeTrackingClosingDays(
+  fromISO: string,
+  toISO: string,
+): Promise<ReadonlyMap<string, string>> {
+  const chunks = chunkDateRange(
+    fromISO,
+    toISO,
+    TIME_TRACKING_CLOSING_DAY_CHUNK_DAYS,
+  );
+  const chunkMaps = await Promise.all(
+    chunks.map((chunk) =>
+      timeTrackingService.getClosingDays(chunk.from, chunk.to),
+    ),
+  );
+  const combined = new Map<string, string>();
+  for (const chunkMap of chunkMaps) {
+    for (const [date, reason] of chunkMap) combined.set(date, reason);
+  }
+  return combined;
+}
 
 /** Invalidates the tenant-scoped full closing-day list after CRUD writes. */
 export function useInvalidateClosingDays() {
@@ -49,10 +72,9 @@ export function useInvalidateClosingDays() {
 /**
  * Alle gespeicherten Schließtag-Zeiträume des Tenants.
  *
- * Für Nachschlagen an einem BELIEBIGEN Datum (z. B. dem im Dialog gewählten
- * Zieltag), das außerhalb des sichtbaren Fensters liegen kann. Ohne
- * `schedules:read` bleibt die Liste leer — dann entfällt die Warnung im
- * Verschieben-Dialog, geplant werden kann weiterhin.
+ * Für Nutzer mit `schedules:read` werden alle Zeiträume einmal geladen.
+ * Reduzierte Dienstplan-Pfade laden stattdessen nur das benötigte Fenster
+ * über den Zeiterfassungs-Endpunkt.
  */
 function useClosingDayRangesData(canReadSchedules: boolean) {
   const { data, isLoading } = useSWRAuth(
@@ -62,12 +84,6 @@ function useClosingDayRangesData(canReadSchedules: boolean) {
   );
 
   return { ranges: data ?? EMPTY_RANGES, isLoading };
-}
-
-export function useClosingDayRanges(): readonly ClosingDayRange[] {
-  const { data: session } = useSession();
-  const canReadSchedules = hasPermission(session, "schedules:read");
-  return useClosingDayRangesData(canReadSchedules).ranges;
 }
 
 interface ClosingDaysState {
@@ -81,10 +97,10 @@ interface ClosingDaysState {
  *
  * Ein leeres Fenster (`""`) schaltet den Abruf ab. Wer nur `time_tracking:*`
  * hat (reduzierter Dienstplan-Pfad), bekommt die Tage über den
- * fensterbasierten Zeiterfassungs-Endpunkt; der lädt pro besuchter Woche
- * einmal nach. Fehler werden bewusst verschluckt: die Markierung ist ein
- * Hinweis, kein Sperrmechanismus — ein fehlgeschlagener Abruf darf die
- * Planung nicht blockieren.
+ * fensterbasierten Zeiterfassungs-Endpunkt. Lange Serienfenster werden passend
+ * zu dessen 400-Tage-Grenze gestückelt. Fehler werden bewusst verschluckt: die
+ * Markierung ist ein Hinweis, kein Sperrmechanismus — ein fehlgeschlagener
+ * Abruf darf die Planung nicht blockieren.
  */
 export function useClosingDaysState(
   fromISO: string,
@@ -104,7 +120,7 @@ export function useClosingDaysState(
     windowValid && !canReadSchedules && canReadTimeTracking
       ? `${CLOSING_DAYS_SWR_KEY}-${fromISO}-${toISO}`
       : null,
-    () => timeTrackingService.getClosingDays(fromISO, toISO),
+    () => getTimeTrackingClosingDays(fromISO, toISO),
     CLOSING_DAYS_SWR_OPTIONS,
   );
 
@@ -126,11 +142,4 @@ export function useClosingDaysState(
           ? rangesLoading
           : canReadTimeTracking && windowLoading)),
   };
-}
-
-export function useClosingDays(
-  fromISO: string,
-  toISO: string,
-): ReadonlyMap<string, string> {
-  return useClosingDaysState(fromISO, toISO).closingDays;
 }

@@ -17,6 +17,17 @@ const endSeries = vi.fn();
 const updateShift = vi.fn();
 const deleteShift = vi.fn();
 const listPeriods = vi.fn();
+const mockUseClosingDaysState = vi.hoisted(() =>
+  vi.fn(() => ({
+    closingDays: new Map<string, string>(),
+    closingDayRanges: [],
+    isLoading: false,
+  })),
+);
+
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useClosingDaysState: mockUseClosingDaysState,
+}));
 
 vi.mock("~/lib/shift-api", () => ({
   ShiftApiError: class ShiftApiError extends Error {
@@ -125,6 +136,11 @@ function renderModal(props: Partial<Parameters<typeof ShiftEditModal>[0]>) {
 beforeEach(() => {
   vi.clearAllMocks();
   listPeriods.mockResolvedValue([halbjahr]);
+  mockUseClosingDaysState.mockReturnValue({
+    closingDays: new Map(),
+    closingDayRanges: [],
+    isLoading: false,
+  });
 });
 
 describe("ShiftEditModal series creation", () => {
@@ -208,6 +224,43 @@ describe("ShiftEditModal series creation", () => {
       within(dialog).getByRole("button", { name: "Trotzdem planen" }),
     );
     await waitFor(() => expect(createSeries).toHaveBeenCalled());
+  });
+
+  it("uses the permitted window lookup when full closing-day ranges are unavailable", async () => {
+    mockUseClosingDaysState.mockReturnValue({
+      closingDays: new Map([["2026-09-14", "Pädagogischer Tag"]]),
+      closingDayRanges: [],
+      isLoading: false,
+    });
+    renderModal({});
+
+    fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
+    await screen.findByText("1. Halbjahr 2026/27");
+    fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "An einem Schließtag planen?",
+      }),
+    ).toBeInTheDocument();
+    expect(createSeries).not.toHaveBeenCalled();
+  });
+
+  it("keeps series submission disabled while closing days are loading", async () => {
+    mockUseClosingDaysState.mockReturnValue({
+      closingDays: new Map(),
+      closingDayRanges: [],
+      isLoading: true,
+    });
+    renderModal({});
+
+    fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
+    await screen.findByText("1. Halbjahr 2026/27");
+
+    const submit = screen.getByRole("button", { name: "Serie anlegen" });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(createSeries).not.toHaveBeenCalled();
   });
 
   it("drops a stale A/B pattern when switching to a period without a week cycle", async () => {

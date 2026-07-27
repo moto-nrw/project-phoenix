@@ -104,6 +104,9 @@ interface TimetableEventModalProps {
    * bestätigt wurde. Ohne die Liste verhält sich der Dialog wie bisher.
    */
   closingDayRanges?: readonly ClosingDayRange[];
+  /** Saving stays disabled until the range lookup completes, so an empty
+   *  loading state cannot be mistaken for a conflict-free date. */
+  closingDaysLoading?: boolean;
 }
 
 export function TimetableEventModal({
@@ -126,6 +129,7 @@ export function TimetableEventModal({
   defaultEndTime,
   canCheckShiftCoverage,
   closingDayRanges,
+  closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
   const {
@@ -381,6 +385,10 @@ export function TimetableEventModal({
           ref={formRef}
           noValidate
           onSubmit={(event) => {
+            if (closingDaysLoading) {
+              event.preventDefault();
+              return;
+            }
             // Schließtag: erst nachfragen, dann speichern (#2032). Die Frage
             // kommt erst, wenn das Formular auch wirklich speichern würde —
             // sonst stünde sie vor den Pflichtfeld-Fehlern.
@@ -628,6 +636,7 @@ export function TimetableEventModal({
               disabled={
                 submitting ||
                 deletingSeries ||
+                closingDaysLoading ||
                 (isEditingInstance && initialInstance?.status !== "planned")
               }
             >
