@@ -77,6 +77,7 @@ export function InstanceBlock({
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
   const showFooter = height >= FOOTER_MIN_HEIGHT_PX;
+  const showCompactStatus = !showFooter;
 
   // #1840 Vertretungsplan deviation signals. A removed substitute keeps
   // is_substitute=true but is marked is_absent=true — they are no longer
@@ -109,7 +110,7 @@ export function InstanceBlock({
   // bewusst unbesetzt (kein Icon, per CoverageIndicator-Vermerk) > Konflikt.
   let statusIcon: ReactNode = null;
   if (!isCancelled) {
-    if (isCompact && isUnderstaffedAck) {
+    if (showCompactStatus && isUnderstaffedAck) {
       // Der reguläre CoverageIndicator liegt in der Fußzeile. Bei kurzen
       // Blöcken ist diese bewusst ausgeblendet; der Check hält den
       // quittierten Personalmangel trotzdem unmittelbar sichtbar.
@@ -133,8 +134,9 @@ export function InstanceBlock({
           aria-label={`${instance.conflictWarnings.length} Konflikte`}
         />
       );
-    } else if (isCompact && compactStatusDetails.length > 0) {
-      // Ein kurzer Block bietet keinen Platz für die ausführliche Fußzeile.
+    } else if (showCompactStatus && compactStatusDetails.length > 0) {
+      // Ein Block ohne Fußzeile bietet keinen Platz für die ausführliche
+      // Statusdarstellung.
       // Die vier kleinen Marker bewahren deshalb die unabhängigen Signale
       // Besetzung, laufender Termin, Abwesenheit und Ersatz zugleich.
       statusIcon = (
@@ -282,7 +284,7 @@ export function InstanceBlock({
       }}
       aria-label={[
         `${instance.title}, ${instance.startTime} bis ${instance.endTime}`,
-        ...(isCompact ? compactStatusDetails : []),
+        ...(showCompactStatus ? compactStatusDetails : []),
       ].join(", ")}
     />
   );

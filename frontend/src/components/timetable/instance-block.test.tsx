@@ -109,8 +109,10 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
     expect(dot).toHaveStyle({ backgroundColor: "#6B7280" });
   });
 
-  it("keeps acknowledged understaffing visible in a short block", () => {
-    renderBlock(makeInstance({ understaffedAck: true }), {}, 45);
+  it("keeps acknowledged understaffing visible whenever the footer is hidden", () => {
+    // 60px liegt über der Zwei-Zeilen-Kurzblockschwelle, aber unter der
+    // Fußzeilenschwelle: auch dieser Zwischenbereich braucht den Fallback.
+    renderBlock(makeInstance({ understaffedAck: true }), {}, 60);
 
     expect(screen.getByLabelText("Bewusst unbesetzt")).toBeInTheDocument();
     expect(screen.getByRole("button")).toHaveAccessibleName(
@@ -118,7 +120,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
     );
   });
 
-  it("keeps compact coverage, live, absence, and substitute signals on a short block", () => {
+  it("keeps compact signals when the footer is hidden", () => {
     renderBlock(
       makeInstance({
         status: "active",
@@ -135,7 +137,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
         ],
       }),
       {},
-      45,
+      60,
     );
 
     expect(screen.getByRole("button")).toHaveAccessibleName(
