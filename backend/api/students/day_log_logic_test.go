@@ -74,13 +74,41 @@ func TestParseDayLogDateRejectsHistoryWithoutDatedGroupAssignments(t *testing.T)
 	today := timezone.TodayDate()
 	request := httptest.NewRequest("GET", "/day-log?date="+today.AddDays(-1).String(), nil)
 
-	_, err := parseDayLogDate(request)
+	_, err := parseDayLogDate(request, today)
 	require.ErrorContains(t, err, "dated group assignments")
 
 	request = httptest.NewRequest("GET", "/day-log?date="+today.String(), nil)
-	date, err := parseDayLogDate(request)
+	date, err := parseDayLogDate(request, today)
 	require.NoError(t, err)
 	assert.Equal(t, today, date)
+}
+
+// A request that starts just before Berlin midnight must keep evaluating the
+// day it validated: rolling over mid-request would drop the care plan and turn
+// every scheduled child into an unexcused absence.
+func TestDayLogClock_KeepsRequestDayAcrossMidnightRollover(t *testing.T) {
+	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, timezone.Berlin)
+	rs := &Resource{ResourceConfig: ResourceConfig{Now: func() time.Time { return beforeMidnight }}}
+
+	clock := rs.dayLogClock()
+	date, err := parseDayLogDate(httptest.NewRequest("GET", "/day-log", nil), clock.today)
+	require.NoError(t, err)
+	assert.Equal(t, timezone.NewDate(2026, time.July, 26), date)
+
+	// The care-plan branch runs after the rollover; the frozen clock still
+	// resolves the requested day as live.
+	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
+		10: scheduleService.CareDayNotScheduled,
+	}}
+	rs.CareDayService = stub
+	data := &dayLogData{
+		statusByStudent: map[int64][]*active.StudentStatusDay{},
+		careDays:        map[int64]scheduleService.CareDayStatus{},
+		arrivalTimes:    map[int64]*scheduleService.EffectiveArrivalTime{},
+	}
+	require.NoError(t, rs.loadDayLogSignOffs(context.Background(), data, []int64{10}, date, clock))
+	assert.Equal(t, []int64{10}, stub.askedFor)
+	assert.Equal(t, scheduleService.CareDayNotScheduled, data.careDays[10])
 }
 
 func TestDayLogArrivalIsStillPending(t *testing.T) {
@@ -88,12 +116,14 @@ func TestDayLogArrivalIsStillPending(t *testing.T) {
 	arrival := timezone.WallClock(now.Add(2 * time.Hour))
 	row := dayLogStudent{Status: dayLogStatusAbsent}
 
+	clock := dayLogClock{now: now, today: timezone.DateFromTime(now)}
+
 	assert.True(t, dayLogArrivalIsStillPending(row, scheduleService.CareDayScheduled,
-		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, timezone.DateFromTime(now), now))
+		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, clock.today, clock))
 	assert.False(t, dayLogArrivalIsStillPending(row, scheduleService.CareDayUnknown,
-		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, timezone.DateFromTime(now), now))
+		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, clock.today, clock))
 	assert.False(t, dayLogArrivalIsStillPending(row, scheduleService.CareDayScheduled,
-		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, timezone.DateFromTime(now).AddDays(-1), now))
+		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrival}, clock.today.AddDays(-1), clock))
 }
 
 func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
@@ -113,7 +143,7 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 		statusByStudent:     map[int64][]*active.StudentStatusDay{},
 		careDays:            map[int64]scheduleService.CareDayStatus{student.ID: scheduleService.CareDayScheduled},
 		arrivalTimes:        map[int64]*scheduleService.EffectiveArrivalTime{student.ID: {ArrivalTime: &arrival}},
-		now:                 now,
+		clock:               dayLogClock{now: now, today: date},
 	})
 
 	require.Len(t, response.Groups, 1)
@@ -134,7 +164,9 @@ func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 		arrivalTimes:    map[int64]*scheduleService.EffectiveArrivalTime{},
 	}
 
-	require.NoError(t, rs.loadDayLogSignOffs(context.Background(), pastData, []int64{10}, timezone.DateFromTime(now).AddDays(-1), now))
+	clock := dayLogClock{now: now, today: timezone.DateFromTime(now)}
+
+	require.NoError(t, rs.loadDayLogSignOffs(context.Background(), pastData, []int64{10}, clock.today.AddDays(-1), clock))
 	assert.Empty(t, stub.askedFor)
 	assert.Empty(t, pastData.careDays)
 
@@ -143,7 +175,7 @@ func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 		careDays:        map[int64]scheduleService.CareDayStatus{},
 		arrivalTimes:    map[int64]*scheduleService.EffectiveArrivalTime{},
 	}
-	require.NoError(t, rs.loadDayLogSignOffs(context.Background(), todayData, []int64{10}, timezone.DateFromTime(now), now))
+	require.NoError(t, rs.loadDayLogSignOffs(context.Background(), todayData, []int64{10}, clock.today, clock))
 	assert.Equal(t, []int64{10}, stub.askedFor)
 	assert.Equal(t, scheduleService.CareDayNotScheduled, todayData.careDays[10])
 }

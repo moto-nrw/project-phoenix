@@ -45,7 +45,8 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	date, err := parseDayLogDate(r)
+	clock := rs.dayLogClock()
+	date, err := parseDayLogDate(r, clock.today)
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -56,7 +57,7 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := rs.loadDayLogData(ctx, groups, date)
+	data, err := rs.loadDayLogData(ctx, groups, date, clock)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to load day log", err))
 		return

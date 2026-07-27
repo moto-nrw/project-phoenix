@@ -125,7 +125,8 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	date, err := parseDayLogDate(r)
+	clock := rs.dayLogClock()
+	date, err := parseDayLogDate(r, clock.today)
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -137,7 +138,7 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := rs.loadDayLogData(ctx, groups, date)
+	data, err := rs.loadDayLogData(ctx, groups, date, clock)
 	if err != nil {
 		logger.Error("day log source query failed",
 			slog.String("date", date.String()),
@@ -164,13 +165,29 @@ func (rs *Resource) dayLogLogger() *slog.Logger {
 	return slog.Default().With("handler", "day_log")
 }
 
+// dayLogClock freezes one request's notion of "now". Date validation and every
+// live-day decision must read the SAME instant: a request that starts at
+// 23:59:59 Berlin and reaches the care-plan branch after midnight would
+// otherwise validate against yesterday and then treat that date as historical,
+// skipping care-plan resolution and reporting scheduled children as absent.
+type dayLogClock struct {
+	now   time.Time
+	today timezone.Date
+}
+
+func (c dayLogClock) isToday(date timezone.Date) bool { return date == c.today }
+
+func (rs *Resource) dayLogClock() dayLogClock {
+	now := rs.dayLogNow()
+	return dayLogClock{now: now, today: timezone.DateFromTime(now)}
+}
+
 // parseDayLogDate reads the date query param (default: today). The student
 // record stores only its current group assignment, so a retrospective group
 // roster cannot be reconstructed safely after a transfer. Until group
 // assignments have a dated source of truth, the day log is deliberately a
 // live-day view rather than attributing historical attendance to a wrong group.
-func parseDayLogDate(r *http.Request) (timezone.Date, error) {
-	today := timezone.TodayDate()
+func parseDayLogDate(r *http.Request, today timezone.Date) (timezone.Date, error) {
 	date := today
 	if raw := strings.TrimSpace(r.URL.Query().Get("date")); raw != "" {
 		parsed, err := timezone.ParseDate(raw)
@@ -345,10 +362,10 @@ type dayLogData struct {
 	statusByStudent     map[int64][]*active.StudentStatusDay
 	careDays            map[int64]scheduleService.CareDayStatus
 	arrivalTimes        map[int64]*scheduleService.EffectiveArrivalTime
-	now                 time.Time
+	clock               dayLogClock
 }
 
-func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel.Group, date timezone.Date) (*dayLogData, error) {
+func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel.Group, date timezone.Date, clock dayLogClock) (*dayLogData, error) {
 	groupIDs := make([]int64, 0, len(groups))
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.ID)
@@ -362,14 +379,13 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 	// dated group assignments, so only enrollment eligibility can be evaluated
 	// retrospectively here.
 
-	now := rs.dayLogNow()
 	data := &dayLogData{
 		studentsByGroup:     make(map[int64][]*usersModel.Student, len(groups)),
 		attendanceByStudent: map[int64][]*active.Attendance{},
 		statusByStudent:     map[int64][]*active.StudentStatusDay{},
 		careDays:            map[int64]scheduleService.CareDayStatus{},
 		arrivalTimes:        map[int64]*scheduleService.EffectiveArrivalTime{},
-		now:                 now,
+		clock:               clock,
 	}
 	studentIDs, personIDs := indexDayLogStudents(data, students)
 
@@ -380,7 +396,7 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 	if err := rs.loadDayLogAttendance(ctx, data, date); err != nil {
 		return nil, err
 	}
-	if err := rs.loadDayLogSignOffs(ctx, data, studentIDs, date, now); err != nil {
+	if err := rs.loadDayLogSignOffs(ctx, data, studentIDs, date, clock); err != nil {
 		return nil, err
 	}
 	return data, nil
@@ -417,7 +433,7 @@ func (rs *Resource) loadDayLogAttendance(ctx context.Context, data *dayLogData, 
 	return nil
 }
 
-func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, studentIDs []int64, date timezone.Date, now time.Time) error {
+func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, studentIDs []int64, date timezone.Date, clock dayLogClock) error {
 	if rs.StudentStatusDayService != nil {
 		statuses, err := rs.StudentStatusDayService.GetSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
 		if err != nil {
@@ -431,15 +447,16 @@ func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, st
 	// Care plans are recurring and have no effective-date history. Derive them
 	// only for today's live log; a later plan edit must not relabel a completed
 	// day. Historical verdicts therefore use only persisted attendance and
-	// status-day facts.
-	if date == timezone.DateFromTime(now) && rs.CareDayService != nil {
+	// status-day facts. "Today" is the request's frozen Berlin day, so a
+	// midnight rollover mid-request cannot turn the requested day historical.
+	if clock.isToday(date) && rs.CareDayService != nil {
 		careDays, err := rs.CareDayService.ResolveForDate(ctx, studentIDs, date)
 		if err != nil {
 			return err
 		}
 		data.careDays = careDays
 	}
-	if date == timezone.DateFromTime(now) && rs.ArrivalScheduleService != nil {
+	if clock.isToday(date) && rs.ArrivalScheduleService != nil {
 		arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
 		if err != nil {
 			return err
@@ -466,7 +483,7 @@ func buildDayLogResponse(date timezone.Date, groups []*educationModel.Group, dat
 		}
 		for _, student := range data.studentsByGroup[group.ID] {
 			row := buildDayLogStudent(student, data)
-			if dayLogArrivalIsStillPending(row, data.careDays[student.ID], data.arrivalTimes[student.ID], date, data.now) {
+			if dayLogArrivalIsStillPending(row, data.careDays[student.ID], data.arrivalTimes[student.ID], date, data.clock) {
 				continue
 			}
 			entry.Counters.add(row.Status)
@@ -482,15 +499,15 @@ func buildDayLogResponse(date timezone.Date, groups []*educationModel.Group, dat
 // dayLogArrivalIsStillPending keeps a scheduled child out of today's live
 // absence verdict until their effective planned arrival is due. Retrospective
 // days always have a complete day and therefore never use this exception.
-func dayLogArrivalIsStillPending(row dayLogStudent, careDay scheduleService.CareDayStatus, arrival *scheduleService.EffectiveArrivalTime, date timezone.Date, now time.Time) bool {
+func dayLogArrivalIsStillPending(row dayLogStudent, careDay scheduleService.CareDayStatus, arrival *scheduleService.EffectiveArrivalTime, date timezone.Date, clock dayLogClock) bool {
 	if row.Status != dayLogStatusAbsent ||
 		careDay != scheduleService.CareDayScheduled ||
 		arrival == nil ||
 		arrival.ArrivalTime == nil ||
-		date != timezone.DateFromTime(now) {
+		!clock.isToday(date) {
 		return false
 	}
-	return timezone.WallClock(now).Before(timezone.WallClock(*arrival.ArrivalTime))
+	return timezone.WallClock(clock.now).Before(timezone.WallClock(*arrival.ArrivalTime))
 }
 
 func sortDayLogStudents(students []dayLogStudent) {
