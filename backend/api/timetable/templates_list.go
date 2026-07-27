@@ -25,6 +25,9 @@ type templateScheduleResponse struct {
 	EndTime          string `json:"end_time"`
 	WeekPattern      int    `json:"week_pattern"`
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+	// ValidFrom is the inclusive recurrence start (YYYY-MM-DD) set by a
+	// template split; empty = period start.
+	ValidFrom string `json:"valid_from,omitempty"`
 	// ValidUntil is the exclusive recurrence end (YYYY-MM-DD) set by a
 	// template split; empty = open-ended.
 	ValidUntil string `json:"valid_until,omitempty"`
@@ -127,6 +130,7 @@ func templateScheduleResponseFromRow(row templateRow) templateScheduleResponse {
 		EndTime:          row.EndTime.String,
 		WeekPattern:      row.WeekPattern,
 		CalendarPeriodID: nullableTemplateInt64(row.CalendarPeriodID.Valid, row.CalendarPeriodID.Int64),
+		ValidFrom:        row.ScheduleValidFrom.String,
 		ValidUntil:       row.ScheduleValidUntil.String,
 	}
 }

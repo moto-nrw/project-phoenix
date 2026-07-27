@@ -20,17 +20,14 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
-import {
-  shouldMaterializeWeekPattern,
-  type CalendarPeriod,
-} from "~/lib/calendar-period-helpers";
+import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
   findFirstClosingDayConflict,
   type ClosingDayConflict,
   type ClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
-import { weekdayDatesInRange } from "~/lib/timetable-helpers";
+import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -168,6 +165,9 @@ export function TimetableEventModal({
     choiceDialogOpen,
     setPendingSeriesEdit,
     handleScopeSelect,
+    scopeClosingDayWarning,
+    setScopeClosingDayWarning,
+    confirmScopeClosingDay,
     lostEdits,
     setLostEdits,
     confirmLostEdits,
@@ -220,6 +220,7 @@ export function TimetableEventModal({
     defaultStartTime,
     defaultEndTime,
     canCheckShiftCoverage,
+    closingDayRanges,
   });
 
   // Converting a one-off into a Regeltermin is a repeat decision — that entry
@@ -252,13 +253,15 @@ export function TimetableEventModal({
     const today = berlinTodayISO();
     const from =
       initialSeries && today > period.startDate ? today : period.startDate;
-    const dates = weekdayDatesInRange(
-      from,
-      period.endDate,
-      form.weekdays,
-    ).filter((dateISO) =>
-      shouldMaterializeWeekPattern(period, dateISO, form.weekPattern),
-    );
+    const validity = initialSeries?.schedules[0];
+    const dates = materializedRecurrenceDates({
+      period,
+      fromISO: from,
+      weekdays: form.weekdays,
+      weekPattern: form.weekPattern,
+      validFrom: validity?.validFrom,
+      validUntil: validity?.validUntil,
+    });
     // Converting preserves the concrete seed occurrence even when its date is
     // outside the selected recurrence slots.
     if (convertInstance && form.date && !dates.includes(form.date)) {
@@ -677,7 +680,7 @@ export function TimetableEventModal({
 
         {initialInstance && (
           <ChoiceModal
-            isOpen={choiceDialogOpen}
+            isOpen={choiceDialogOpen && scopeClosingDayWarning === null}
             onClose={() => setPendingSeriesEdit(null)}
             title="Wiederholenden Termin ändern"
             description={
@@ -718,6 +721,16 @@ export function TimetableEventModal({
             subject="termin"
             onCancel={() => setClosingDayPrompt(null)}
             onConfirm={submitAfterConfirm}
+          />
+        )}
+
+        {scopeClosingDayWarning !== null && (
+          <ClosingDayConfirmModal
+            dateISO={scopeClosingDayWarning.conflict.dateISO}
+            reason={scopeClosingDayWarning.conflict.reason}
+            subject="termin"
+            onCancel={() => setScopeClosingDayWarning(null)}
+            onConfirm={() => void confirmScopeClosingDay()}
           />
         )}
 

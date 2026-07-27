@@ -1411,6 +1411,37 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("ignores closing days before a direct series segment starts", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+
+    renderModal({
+      initialSeries: {
+        ...template,
+        schedules: template.schedules.map((schedule) => ({
+          ...schedule,
+          validFrom: "2026-06-01",
+        })),
+      },
+      closingDayRanges: [
+        {
+          startDate: "2026-05-11",
+          endDate: "2026-05-11",
+          reason: "Pädagogischer Tag",
+        },
+      ],
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("warns before a direct Regeltermin edit when single-occurrence edits exist (#1875)", async () => {
     mockCountEditedInWindow.mockResolvedValue({
       count: 2,
@@ -1852,6 +1883,48 @@ describe("TimetableEventModal", () => {
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "12" });
   });
+
+  it.each([
+    { scope: "Ab jetzt dauerhaft", write: "split" },
+    { scope: "Alle Termine der Serie", write: "update" },
+  ])(
+    "warns when '$scope' replans a later occurrence on a closing day",
+    async ({ scope, write }) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+      renderModal({
+        initialInstance: { ...savedInstance, activityGroupId: "7" },
+        closingDayRanges: [
+          {
+            startDate: "2026-05-11",
+            endDate: "2026-05-11",
+            reason: "Konzeptionstag",
+          },
+        ],
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(scope) }));
+
+      const dialog = await screen.findByRole("dialog", {
+        name: "An einem Schließtag planen?",
+      });
+      expect(within(dialog).getByText(/11\.05\.2026/)).toBeInTheDocument();
+      expect(mockSplitTemplate).not.toHaveBeenCalled();
+      expect(mockUpdateTemplate).not.toHaveBeenCalled();
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+      );
+      if (write === "split") {
+        await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+      } else {
+        await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+      }
+    },
+  );
 
   it("warns before 'Alle Termine' when single-occurrence edits would be lost (#1875)", async () => {
     mockCountEditedInWindow.mockResolvedValue({

@@ -65,6 +65,23 @@ describe("expandClosingDaysToMap", () => {
       expandClosingDaysToMap(undefined, "2026-12-01", "2026-12-31").size,
     ).toBe(0);
   });
+
+  it("does not truncate planning windows longer than 401 days", () => {
+    const map = expandClosingDaysToMap(
+      [
+        {
+          startDate: "2026-01-01",
+          endDate: "2027-12-31",
+          reason: "Langzeit-Schließung",
+        },
+      ],
+      "2026-01-01",
+      "2027-12-31",
+    );
+
+    expect(map.size).toBe(730);
+    expect(map.get("2027-12-31")).toBe("Langzeit-Schließung");
+  });
 });
 
 describe("findClosingDayReason", () => {

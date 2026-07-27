@@ -15,6 +15,10 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => mocks.mutateMatching,
 }));
 
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useClosingDays: () => new Map(),
+}));
+
 import { DienstplanResourceGrid } from "./dienstplan-resource-grid";
 import { ShiftMoveDialog } from "./shift-move-dialog";
 

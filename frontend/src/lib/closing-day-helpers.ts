@@ -58,11 +58,6 @@ export function formatClosingDayRange(day: ClosingDay): string {
 /** Ein Schließtag-Zeitraum ohne Identität — was die Tages-Expansion braucht. */
 export type ClosingDayRange = Omit<ClosingDay, "id">;
 
-// Defensive Obergrenze der Expansion: ein einzelner Zeitraum erzeugt nie mehr
-// als 401 Tageseinträge. Das entspricht dem größten Fenster, das der
-// Zeiterfassungs-Endpunkt zulässt (400 Tage Abstand, beidseitig inklusive).
-const MAX_CLOSING_DAY_WINDOW_DATES = 401;
-
 /**
  * Grund des Schließtags an einem einzelnen Kalendertag, oder `undefined`.
  * Für Datumsfelder, deren Wert außerhalb des sichtbaren Fensters liegen kann
@@ -127,15 +122,13 @@ export function expandClosingDaysToMap(
 
     const startDate = new Date(`${start}T00:00:00`);
     const endDate = new Date(`${end}T00:00:00`);
-    // Clamp before applying the hard cap: stored ranges can be much longer
-    // than the requested window. Math.round (not floor) keeps the count
-    // DST-safe across 23/25-hour days; setDate walks local calendar days.
-    const dayCount = Math.min(
-      Math.max(
-        0,
-        Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
-      ),
-      MAX_CLOSING_DAY_WINDOW_DATES,
+    // Math.round (not floor) keeps the count DST-safe across 23/25-hour days;
+    // setDate walks local calendar days. Do not cap this window: calendar
+    // periods may validly exceed the time-tracking endpoint's 400-day request
+    // limit, and planning views must still mark every configured closure.
+    const dayCount = Math.max(
+      0,
+      Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
     );
     for (let offset = 0; offset < dayCount; offset++) {
       const cursor = new Date(startDate);

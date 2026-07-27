@@ -678,6 +678,7 @@ export function DienstplanResourceGrid({
           staff={staff}
           shiftTypes={shiftTypes}
           closingDayRanges={closingDayRanges}
+          reducedPath={reducedPath}
           onClose={() => setMoveTarget(null)}
           onDataChanged={() => {
             void refreshAfterMove();

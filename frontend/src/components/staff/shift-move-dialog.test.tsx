@@ -14,6 +14,14 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 
 import { ShiftMoveDialog } from "./shift-move-dialog";
 
+const mockUseClosingDays = vi.hoisted(() =>
+  vi.fn(() => new Map<string, string>()),
+);
+
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useClosingDays: mockUseClosingDays,
+}));
+
 // Spy on the CRUD service while keeping the real ShiftApiError class (the
 // dialog classifies errors against it). vitest hoists this above the imports,
 // so `staffShiftService` above is the mocked singleton.
@@ -80,6 +88,7 @@ function renderDialog(
   overrides: {
     shift?: StaffShift;
     shiftTypes?: readonly ShiftType[];
+    reducedPath?: boolean;
   } = {},
 ) {
   const onClose = vi.fn();
@@ -91,6 +100,7 @@ function renderDialog(
       sourceMember={source}
       staff={[source, other]}
       shiftTypes={overrides.shiftTypes ?? [shiftType]}
+      reducedPath={overrides.reducedPath}
       onClose={onClose}
       onDataChanged={onDataChanged}
     />,
@@ -114,6 +124,10 @@ async function confirmMove() {
   });
 }
 
+beforeEach(() => {
+  mockUseClosingDays.mockReturnValue(new Map());
+});
+
 describe("ShiftMoveDialog prefill", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -135,6 +149,24 @@ describe("ShiftMoveDialog prefill", () => {
     expect(
       screen.getByRole("combobox", { name: "Schichtart" }),
     ).toHaveTextContent("Betreuung");
+  });
+
+  it("loads the target day through time tracking on the reduced path", () => {
+    mockUseClosingDays.mockReturnValue(
+      new Map([["2026-07-06", "Pädagogischer Tag"]]),
+    );
+
+    renderDialog({ reducedPath: true });
+
+    expect(mockUseClosingDays).toHaveBeenCalledWith("2026-07-06", "2026-07-06");
+    expect(
+      screen.getByTitle("Schließtag: Pädagogischer Tag"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+    expect(
+      screen.getByText(/Am Zieltag ist ein Schließtag hinterlegt/),
+    ).toBeInTheDocument();
   });
 });
 
