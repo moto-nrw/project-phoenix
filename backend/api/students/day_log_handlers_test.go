@@ -157,6 +157,21 @@ func TestGetStudentsDayLog_SupervisorLimitedToOwnGroup(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code, "foreign group must be refused. Body: %s", rr.Body.String())
 }
 
+func TestGetStudentsDayLog_UnlinkedStaffAccountForbidden(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+
+	// Account without a person/staff row: supervisor-only mode must answer
+	// with a 403 "no permitted groups", not a 500 dependency failure.
+	account := testpkg.CreateTestAccount(t, tc.db, "daylog-unlinked@example.com")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
+
+	req := testutil.NewRequest("GET", "/day-log", nil)
+	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "no_permitted_groups")
+}
+
 func TestGetStudentsDayLog_FutureDateRejected(t *testing.T) {
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)

@@ -225,6 +225,14 @@ func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, log
 func (rs *Resource) dayLogGroupsForDate(ctx context.Context, date timezone.Date) ([]*educationModel.Group, error) {
 	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
 	if err != nil {
+		// An account without a linked person/staff row cannot supervise any
+		// group. That is an expected state (e.g. admin-created accounts), not
+		// a dependency failure: return an empty permitted set so it renders
+		// as a 403, mirroring the room-history endpoint.
+		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) ||
+			errors.Is(err, userContextService.ErrUserNotLinkedToPerson) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	groupsByID := make(map[int64]*educationModel.Group)
