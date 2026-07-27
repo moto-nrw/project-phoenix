@@ -224,7 +224,19 @@ export function TimetableEventModal({
     // Reuses the hook's unchanged validateForm and only looks at the fields of
     // the current step — no separate rule set.
     validateForm();
-    if (stepHasError(step, lastValidationErrors.current)) return;
+    const errors = lastValidationErrors.current;
+    if (stepHasError(step, errors)) return;
+    // A repeat choice in step 2 retroactively makes step-1 fields required (a
+    // Regeltermin needs a Kategorie). Once the current step is clean, block on
+    // an earlier step's error too and jump to it, instead of waving the user
+    // through to Speichern and only revealing the field there.
+    const earlier = STEP_FIELDS.findIndex(
+      (_, index) => index < step && stepHasError(index, errors),
+    );
+    if (earlier >= 0) {
+      setStep(earlier);
+      return;
+    }
     setStep((current) => Math.min(current + 1, LAST_STEP));
   };
 

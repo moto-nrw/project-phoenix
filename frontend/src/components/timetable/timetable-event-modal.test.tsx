@@ -1645,13 +1645,16 @@ describe("TimetableEventModal", () => {
       screen.getByLabelText("Wiederholt sich"),
       "Jeden Wochentag (Mo–Fr)",
     );
-    await clickSave();
+    // Die Wiederholung macht Kategorie (Schritt 1) nachträglich zur Pflicht,
+    // deshalb blockt schon "Weiter" — Schritt 3 ist gar nicht mehr erreichbar.
+    // Gleicher Fehlertext, gleiche "nichts geschrieben"-Garantie.
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
 
     expect(
       await screen.findByText("Bitte eine Kategorie auswählen."),
     ).toBeInTheDocument();
-    // Der fehlgeschlagene Submit expandiert das Formular und springt auf den
-    // Fehler-Schritt: das im quick-Modus versteckte Kategorie-Feld ist samt
+    // Die fehlgeschlagene Validierung expandiert das Formular und springt auf
+    // den Fehler-Schritt: das im quick-Modus versteckte Kategorie-Feld ist samt
     // Inline-Fehler sichtbar. (Früher belegte der "Jede Woche"-Tab dasselbe;
     // er liegt jetzt in Schritt 2 und ist hinter dem Fehler nicht erreichbar.)
     expect(screen.getByLabelText("Kategorie*")).toBeInTheDocument();
@@ -3547,6 +3550,46 @@ describe("TimetableEventModal", () => {
     expect(
       screen.getByRole("button", { name: "Speichern" }),
     ).toBeInTheDocument();
+  });
+
+  it("sends Weiter back to step 1 when the repeat choice invalidates it", async () => {
+    // Choosing a Wiederholung in step 2 retroactively makes Kategorie (a
+    // step-1 field) required. "Weiter" must not carry the user to step 3 with
+    // that error hidden behind them — it jumps back and shows it.
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          json: async () => ({
+            data: [{ id: 3, name: "Mensa", building: "Haus A" }],
+          }),
+        })
+        // Empty category catalog — nothing to preselect, so Kategorie is empty.
+        .mockResolvedValueOnce({ json: async () => ({ data: [] }) })
+        .mockResolvedValueOnce({ json: async () => ({ data: [] }) }),
+    );
+    renderModal({ showPeriodField: true });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText("Bitte eine Kategorie auswählen."),
+    ).toBeInTheDocument();
+    expect(currentStep()).toBe(1);
+    expect(
+      screen.queryByRole("button", { name: "Speichern" }),
+    ).not.toBeInTheDocument();
   });
 
   it("makes Weiter the dominant action and leaves Abbrechen/Zurück neutral", async () => {
