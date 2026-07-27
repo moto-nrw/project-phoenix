@@ -94,9 +94,12 @@ export function ResourceGrid<TRow>({
     // inneren Container. Sonst zeichnet der Browser die Scrollleiste über die
     // volle Breite der Box, quer durch die abgerundeten Ecken und über den
     // unteren Rand hinaus. Der Fokusring wandert per :has() mit nach außen,
-    // weil overflow-hidden einen Ring am inneren Element abschneiden würde.
+    // weil der Ausschnitt einen Ring am inneren Element abschneiden würde.
+    // overflow-clip beschneidet dabei ohne einen zusätzlichen Scroll-Container
+    // zu erzeugen, damit die sticky Zeilenköpfe am inneren Scroll-Container
+    // ausgerichtet bleiben.
     <div
-      className={`max-w-full overflow-hidden rounded-2xl border border-gray-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-gray-900 ${className ?? ""}`}
+      className={`max-w-full overflow-clip rounded-2xl border border-gray-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-gray-900 ${className ?? ""}`}
     >
       <div
         role={ariaLabel ? "region" : undefined}

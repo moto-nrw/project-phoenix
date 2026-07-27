@@ -38,6 +38,13 @@ function renderGrid(
 }
 
 describe("ResourceGrid", () => {
+  it("clips the rounded surface without becoming a scroll container", () => {
+    const { container } = renderGrid();
+
+    expect(container.firstElementChild).toHaveClass("overflow-clip");
+    expect(container.firstElementChild).not.toHaveClass("overflow-hidden");
+  });
+
   it("renders the row header in a sticky first column", () => {
     renderGrid();
 
