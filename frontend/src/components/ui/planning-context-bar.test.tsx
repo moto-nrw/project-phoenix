@@ -6,7 +6,7 @@ import { PlanningContextBar, PlanningDayChip } from "./planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "./tabs";
 
 describe("PlanningContextBar", () => {
-  it("renders the page title and fires the previous/next navigation callbacks", () => {
+  it("shows the page title on mobile and hides it from the duplicate desktop header", () => {
     const onPrevious = vi.fn();
     const onNext = vi.fn();
     render(
@@ -17,9 +17,9 @@ describe("PlanningContextBar", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Vertretung" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vertretung" })).toHaveClass(
+      "md:sr-only",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
     expect(onPrevious).toHaveBeenCalledTimes(1);

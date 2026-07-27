@@ -43,8 +43,8 @@ const PRIMARY_ROW_MIN_H = "min-h-9";
 const CONTEXT_ROW_MIN_H = "min-h-8";
 
 interface PlanningContextBarProps {
-  /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". Nur für Screenreader —
-   *  sichtbar steht er in der App-Kopfzeile. */
+  /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". Auf kleinen
+   *  Ansichten sichtbar, ab md steht er in der App-Kopfzeile. */
   readonly title: string;
   readonly onPrevious?: () => void;
   readonly onNext?: () => void;
@@ -87,7 +87,9 @@ export function PlanningContextBar({
     <div
       className={`moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3 ${className ?? ""}`}
     >
-      <h1 className="sr-only">{title}</h1>
+      <h1 className="text-lg font-semibold text-gray-900 md:sr-only">
+        {title}
+      </h1>
 
       <div className={`flex flex-wrap items-center gap-3 ${PRIMARY_ROW_MIN_H}`}>
         {/* Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
