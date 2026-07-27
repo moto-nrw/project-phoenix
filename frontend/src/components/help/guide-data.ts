@@ -512,7 +512,8 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Home mit Begrüßung, den Status-Kacheln des Tages sowie den Karten Letzte Bewegungen und Laufende Aktivitäten.",
+          "Home mit Begrüßung, den Status-Kacheln des Tages sowie den Karten Letzte Bewegungen und Aktive Gruppen.",
+        image: "/help/screens/home.webp",
       },
       {
         id: "kindersuche",
@@ -708,6 +709,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Seite Notfall mit den Schaltflächen Notfallliste drucken und PDF herunterladen.",
+        image: "/help/screens/notfall.webp",
       },
       {
         id: "erinnerungen",
