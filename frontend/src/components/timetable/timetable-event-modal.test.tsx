@@ -3592,6 +3592,24 @@ describe("TimetableEventModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps Weiter as the form's submit button so Enter can advance", async () => {
+    // A form whose only submit control is missing suppresses implicit
+    // submission entirely, so Enter in a field would do nothing. jsdom does
+    // not implement implicit submission at all, so the browser-side precondition
+    // is asserted here on the button, and the routing itself below.
+    renderModal();
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    const weiter = screen.getByRole("button", { name: "Weiter" });
+    expect(weiter).toHaveAttribute("type", "submit");
+    expect(weiter).toHaveAttribute("form", "timetable-event-form");
+
+    await goToStep(2);
+    const weiterStep2 = screen.getByRole("button", { name: "Weiter" });
+    expect(weiterStep2).toHaveAttribute("type", "submit");
+    expect(weiterStep2).toHaveAttribute("form", "timetable-event-form");
+  });
+
   it("lets Enter advance instead of saving before the last step", async () => {
     // Enter in a text field submits the form implicitly, without any visible
     // Speichern button. With valid step-1 fields that used to write the

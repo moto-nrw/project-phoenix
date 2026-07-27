@@ -306,10 +306,9 @@ export function TimetableEventModal({
           id="timetable-event-form"
           noValidate
           onSubmit={(event) => {
-            // Enter in a text field submits the form implicitly, even on a
-            // step where Speichern is not rendered. Before the last step that
-            // has to advance the wizard, not save — otherwise Enter walks
-            // straight past the gate. (#2025)
+            // Before the last step the submit button is "Weiter", so every
+            // submit — the click and the implicit one Enter triggers in a
+            // field — advances the wizard instead of saving. (#2025)
             if (step < LAST_STEP) {
               event.preventDefault();
               goNext();
@@ -513,12 +512,16 @@ export function TimetableEventModal({
             {step < LAST_STEP ? (
               // #2025: "Weiter" is the primary action so the eye lands on the
               // path through the wizard; Speichern only exists on the last
-              // step, so no step can be saved unseen.
+              // step, so no step can be saved unseen. It is the form's submit
+              // button (not just an onClick): a form without one suppresses
+              // implicit submission, so Enter in a field would do nothing at
+              // all. This way click and Enter take the same path — onSubmit,
+              // which routes everything before the last step into goNext.
               <Button
-                type="button"
+                type="submit"
+                form="timetable-event-form"
                 variant="primary"
                 size="md"
-                onClick={goNext}
                 disabled={submitting || deletingSeries}
               >
                 Weiter
