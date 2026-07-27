@@ -16,6 +16,8 @@ export interface BackendStaffShift {
   shift_type_color?: string | null;
   notes?: string;
   series_id?: number | null;
+  /** Immutable source slot for a moved series occurrence. */
+  series_occurrence_date?: string | null;
   detached?: boolean;
   cancelled?: boolean;
   change_reason?: string | null;
@@ -42,6 +44,9 @@ export interface StaffShift {
   /** Id of the shift series this row was materialized from (#1889), or null
    *  for a standalone shift. */
   seriesId: string | null;
+  /** Original recurrence slot for a moved series occurrence, or null for a
+   * standalone shift. */
+  seriesOccurrenceDate?: string | null;
   /** True when the row was edited via "Nur diese Woche" — series re-plans
    *  leave it alone. */
   detached: boolean;
@@ -183,6 +188,7 @@ export function mapStaffShift(data: BackendStaffShift): StaffShift {
     shiftTypeColor: data.shift_type_color ?? null,
     notes: data.notes ?? "",
     seriesId: data.series_id != null ? data.series_id.toString() : null,
+    seriesOccurrenceDate: data.series_occurrence_date?.slice(0, 10) ?? null,
     detached: data.detached ?? false,
     cancelled: data.cancelled ?? false,
     changeReason: data.change_reason ?? null,

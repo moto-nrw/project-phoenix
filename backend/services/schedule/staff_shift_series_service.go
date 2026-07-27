@@ -161,6 +161,9 @@ func (s *staffShiftSeriesService) loadPeriodForSeries(ctx context.Context, serie
 	if series.ValidFrom.Before(period.StartDate) || series.ValidFrom.After(period.EndDate) {
 		return nil, fmt.Errorf("%w: valid from must lie within the calendar period", ErrSeriesInvalid)
 	}
+	if series.ValidUntil != nil && series.ValidUntil.After(period.EndDate.AddDays(1)) {
+		return nil, fmt.Errorf("%w: valid until must not exceed the calendar period", ErrSeriesInvalid)
+	}
 	return period, nil
 }
 
@@ -418,6 +421,17 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 
 	if err := s.lockShiftWrites(ctx, old.StaffID); err != nil {
 		return nil, err
+	}
+	// A predecessor can be edited after a later segment already exists. Keep
+	// the new segment strictly before that successor even when the editor clears
+	// a stored valid_until, otherwise two rules of one lineage overlap.
+	next, err := s.seriesRepo.FindNextInLineage(ctx, rootID, effective)
+	if err != nil {
+		return nil, err
+	}
+	if next != nil && (successor.ValidUntil == nil || next.ValidFrom.Before(*successor.ValidUntil)) {
+		until := next.ValidFrom
+		successor.ValidUntil = &until
 	}
 	if err := s.seriesRepo.CapValidUntil(ctx, old.ID, effective); err != nil {
 		return nil, err

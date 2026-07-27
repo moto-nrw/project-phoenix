@@ -460,7 +460,7 @@ export function ShiftEditModal({
     setIsSaving(true);
     try {
       const result = await staffShiftSeriesService.splitSeries(seriesRule.id, {
-        effectiveDate: shift.date,
+        effectiveDate: shift.seriesOccurrenceDate ?? shift.date,
         startTime,
         endTime,
         breakMinutes: breakMinutes ?? 0,
@@ -662,7 +662,7 @@ export function ShiftEditModal({
     setIsSaving(true);
     try {
       const result = await staffShiftSeriesService.splitSeries(shift.seriesId, {
-        effectiveDate: shift.date,
+        effectiveDate: shift.seriesOccurrenceDate ?? shift.date,
         startTime,
         endTime,
         breakMinutes: breakMinutes ?? 0,

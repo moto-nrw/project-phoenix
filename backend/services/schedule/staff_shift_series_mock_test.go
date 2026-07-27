@@ -23,6 +23,7 @@ type seriesMockRepo struct {
 	createFn        func(ctx context.Context, series *scheduleModels.StaffShiftSeries) error
 	findByIDFn      func(ctx context.Context, id any) (*scheduleModels.StaffShiftSeries, error)
 	capValidUntilFn func(ctx context.Context, id int64, until timezone.Date) error
+	findNextFn      func(ctx context.Context, rootID int64, after timezone.Date) (*scheduleModels.StaffShiftSeries, error)
 }
 
 func (m *seriesMockRepo) Create(ctx context.Context, series *scheduleModels.StaffShiftSeries) error {
@@ -52,6 +53,13 @@ func (m *seriesMockRepo) CapValidUntil(ctx context.Context, id int64, until time
 
 func (m *seriesMockRepo) CapAllByStaffID(context.Context, int64, timezone.Date) (int64, error) {
 	return 0, nil
+}
+
+func (m *seriesMockRepo) FindNextInLineage(ctx context.Context, rootID int64, after timezone.Date) (*scheduleModels.StaffShiftSeries, error) {
+	if m.findNextFn != nil {
+		return m.findNextFn(ctx, rootID, after)
+	}
+	return nil, nil
 }
 
 type seriesMockExceptionRepo struct {
@@ -353,6 +361,44 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		input.EndTime = input.StartTime
 		_, err := service.SplitSeries(context.Background(), input)
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
+	})
+
+	t.Run("valid until beyond calendar period", func(t *testing.T) {
+		periodEnd := timezone.TodayDate().AddDays(5)
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: found(t),
+			period: seriesFakePeriodRepo{period: &scheduleModels.CalendarPeriod{
+				StartDate:       timezone.TodayDate().AddDays(-30),
+				EndDate:         periodEnd,
+				WeekCycleLength: 1,
+				IsActive:        true,
+			}},
+		})
+		input := splitInput(t, 12)
+		tooLate := periodEnd.AddDays(2)
+		input.ValidUntil = &tooLate
+		input.ValidUntilSet = true
+		_, err := service.SplitSeries(context.Background(), input)
+		assert.ErrorIs(t, err, ErrSeriesInvalid)
+	})
+
+	t.Run("bounds successor at next lineage segment", func(t *testing.T) {
+		nextFrom := timezone.TodayDate().AddDays(8)
+		var created *scheduleModels.StaffShiftSeries
+		repo := found(t)
+		repo.findNextFn = func(context.Context, int64, timezone.Date) (*scheduleModels.StaffShiftSeries, error) {
+			return &scheduleModels.StaffShiftSeries{ValidFrom: nextFrom}, nil
+		}
+		repo.createFn = func(_ context.Context, successor *scheduleModels.StaffShiftSeries) error {
+			created = successor
+			successor.ID = 13
+			return nil
+		}
+		service := newSeriesServiceForTest(seriesServiceMocks{series: repo})
+		_, err := service.SplitSeries(context.Background(), splitInput(t, 12))
+		require.NoError(t, err)
+		require.NotNil(t, created.ValidUntil)
+		assert.Equal(t, nextFrom, *created.ValidUntil)
 	})
 
 	t.Run("cap failure", func(t *testing.T) {

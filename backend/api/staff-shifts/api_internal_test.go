@@ -99,6 +99,19 @@ func moveRouter(resource *Resource) chi.Router {
 	return router
 }
 
+func TestToShiftResponse_IncludesSeriesOccurrenceDate(t *testing.T) {
+	sourceDate := timezone.NewDate(2026, 7, 6)
+	seriesID := int64(9)
+	shift := &scheduleModel.StaffShift{
+		SeriesID:             &seriesID,
+		SeriesOccurrenceDate: &sourceDate,
+	}
+
+	response := ToShiftResponse(shift)
+	require.NotNil(t, response.SeriesOccurrenceDate)
+	assert.Equal(t, "2026-07-06", *response.SeriesOccurrenceDate)
+}
+
 func TestMoveHandler_MapsAtomicMovePayload(t *testing.T) {
 	var got scheduleSvc.MoveShiftInput
 	service := &fakeShiftService{

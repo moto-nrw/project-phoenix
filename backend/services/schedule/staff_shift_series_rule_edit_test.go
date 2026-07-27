@@ -124,3 +124,76 @@ func TestStaffShiftSeries_SplitKeepsStoredValidityWhenUnset(t *testing.T) {
 	assert.Equal(t, storedEnd, *result.Series.ValidUntil)
 	assert.Empty(t, env.shiftsInRange(t, storedEnd, today.AddDays(28)))
 }
+
+func TestStaffShiftSeries_SplitRejectsValidityBeyondCalendarPeriod(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodEnd := today.AddDays(14)
+	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
+	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	tooLate := periodEnd.AddDays(2) // valid_until is exclusive; periodEnd+1 is the limit.
+	err := env.inTxExpectErr(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: today.AddDays(1),
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ValidUntil:    &tooLate,
+			ValidUntilSet: true,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+}
+
+func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodEnd := today.AddDays(28)
+	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
+	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	downstreamFrom := today.AddDays(10)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: downstreamFrom,
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+
+	var result *scheduleSvc.SeriesResult
+	earlierFrom := today.AddDays(3)
+	env.inTx(t, func(ctx context.Context) error {
+		var err error
+		result, err = env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: earlierFrom,
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			// Clearing the end must not extend across the already-created successor.
+			ValidUntilSet: true,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+
+	require.NotNil(t, result.Series.ValidUntil)
+	assert.Equal(t, downstreamFrom, *result.Series.ValidUntil)
+}

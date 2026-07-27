@@ -410,6 +410,35 @@ describe("ShiftEditModal series rule editing", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("splits a moved occurrence from its original series date", async () => {
+    splitSeries.mockResolvedValue({
+      seriesId: "6",
+      created: 12,
+      skippedDates: [],
+    });
+    renderModal({
+      mode: "edit",
+      shift: {
+        ...seriesShift,
+        date: "2026-09-08",
+        detached: true,
+        seriesOccurrenceDate: "2026-09-07",
+      },
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Serie bearbeiten" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+
+    await waitFor(() => {
+      expect(splitSeries).toHaveBeenCalledWith(
+        "5",
+        expect.objectContaining({ effectiveDate: "2026-09-07" }),
+      );
+    });
+  });
+
   it("keeps the stored A/B pattern while its calendar period is unavailable", async () => {
     const alternatingRule = { ...seriesRule, weekPattern: 2 as const };
     listPeriods.mockRejectedValue(

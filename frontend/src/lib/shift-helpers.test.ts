@@ -41,6 +41,7 @@ describe("mapStaffShift", () => {
       shiftTypeColor: null,
       notes: "Frühdienst",
       seriesId: null,
+      seriesOccurrenceDate: null,
       detached: false,
       cancelled: false,
       changeReason: null,
@@ -100,6 +101,21 @@ describe("mapStaffShift", () => {
     });
     expect(mapped.seriesId).toBe("12");
     expect(mapped.detached).toBe(true);
+  });
+
+  it("maps the source date of a moved series occurrence", () => {
+    const mapped = mapStaffShift({
+      id: 44,
+      staff_id: 7,
+      date: "2026-07-07",
+      start_time: "08:00",
+      end_time: "16:00",
+      break_minutes: 0,
+      series_id: 12,
+      series_occurrence_date: "2026-07-06",
+    });
+
+    expect(mapped.seriesOccurrenceDate).toBe("2026-07-06");
   });
 
   it("truncates HH:MM:SS times and defaults missing notes", () => {
@@ -212,6 +228,7 @@ describe("mapStaffScheduleOverview", () => {
           shiftTypeColor: null,
           notes: "Frühdienst",
           seriesId: null,
+          seriesOccurrenceDate: null,
           detached: false,
           cancelled: false,
           changeReason: null,
