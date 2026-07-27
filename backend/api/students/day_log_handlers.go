@@ -483,6 +483,9 @@ func buildDayLogResponse(date timezone.Date, groups []*educationModel.Group, dat
 		}
 		for _, student := range data.studentsByGroup[group.ID] {
 			row := buildDayLogStudent(student, data)
+			if dayLogEnrollmentNotStarted(student, row, date) {
+				continue
+			}
 			if dayLogArrivalIsStillPending(row, data.careDays[student.ID], data.arrivalTimes[student.ID], date, data.clock) {
 				continue
 			}
@@ -494,6 +497,19 @@ func buildDayLogResponse(date timezone.Date, groups []*educationModel.Group, dat
 		resp.Groups = append(resp.Groups, entry)
 	}
 	return resp
+}
+
+// dayLogEnrollmentNotStarted suppresses the day verdict of a child whose
+// enrollment begins after the requested day. Immediate activation keeps such a
+// child on the roster on purpose — they may already check in, and a real
+// check-in or sick note must be reported — but before enrolled_from there is
+// nothing to be absent from: a derived absent / not-scheduled verdict would
+// report and count a child whose OGS time has not begun.
+func dayLogEnrollmentNotStarted(student *usersModel.Student, row dayLogStudent, date timezone.Date) bool {
+	if student.EnrolledFrom == nil || !date.Before(*student.EnrolledFrom) {
+		return false
+	}
+	return row.Status == dayLogStatusAbsent || row.Status == dayLogStatusNotScheduled
 }
 
 // dayLogArrivalIsStillPending keeps a scheduled child out of today's live

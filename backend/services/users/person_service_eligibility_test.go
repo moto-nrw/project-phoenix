@@ -38,3 +38,22 @@ func TestFilterStudentsEligibleOnDate_IncludesImmediatelyActiveFutureStudentToda
 	assert.Equal(t, tomorrow, *filtered[0].EnrolledFrom)
 	assert.Equal(t, today, *filtered[1].EnrolledFrom)
 }
+
+// Immediate activation lifts the enrolled_from bound from today onward only —
+// the same boundary slotlists.eligibleOn applies (#1565). A past day must keep
+// the bound, and a non-active child never gets the override.
+func TestFilterStudentsEligibleOnDate_ImmediateActivationOnlyFromTodayOnward(t *testing.T) {
+	today := timezone.TodayDate()
+	yesterday := today.AddDays(-1)
+	nextWeek := today.AddDays(7)
+
+	activeFuture := &userModels.Student{Status: userModels.StudentStatusActive, EnrolledFrom: &nextWeek}
+	pendingFuture := &userModels.Student{Status: userModels.StudentStatusPending, EnrolledFrom: &nextWeek}
+
+	assert.Empty(t, filterStudentsEligibleOnDate([]*userModels.Student{activeFuture}, yesterday, today),
+		"an active child is not retroactively enrolled before enrolled_from")
+	assert.Empty(t, filterStudentsEligibleOnDate([]*userModels.Student{pendingFuture}, today, today),
+		"only an active status gets the immediate-activation override")
+	assert.Len(t, filterStudentsEligibleOnDate([]*userModels.Student{activeFuture}, nextWeek, today), 1,
+		"the enrollment window itself still governs future dates")
+}

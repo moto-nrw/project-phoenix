@@ -154,6 +154,46 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 	assert.Equal(t, 0, response.Groups[0].Counters.Total)
 }
 
+// An immediately activated child may already check in, so they stay on the
+// roster — but before their enrollment starts there is nothing to be absent
+// from. A derived verdict must not be reported or counted; a real check-in
+// must.
+func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing.T) {
+	now := time.Date(2026, time.July, 26, 12, 0, 0, 0, timezone.Berlin)
+	date := timezone.DateFromTime(now)
+	startsLater := date.AddDays(7)
+	group := &educationModel.Group{Name: "Gruppe A"}
+	group.ID = 1
+
+	notYetStarted := &usersModel.Student{Status: usersModel.StudentStatusActive, EnrolledFrom: &startsLater}
+	notYetStarted.ID = 10
+	notYetStarted.GroupID = &group.ID
+	checkedIn := &usersModel.Student{Status: usersModel.StudentStatusActive, EnrolledFrom: &startsLater}
+	checkedIn.ID = 11
+	checkedIn.GroupID = &group.ID
+
+	response := buildDayLogResponse(date, []*educationModel.Group{group}, &dayLogData{
+		studentsByGroup: map[int64][]*usersModel.Student{group.ID: {notYetStarted, checkedIn}},
+		persons:         map[int64]*usersModel.Person{},
+		attendanceByStudent: map[int64][]*active.Attendance{
+			checkedIn.ID: {{StudentID: checkedIn.ID, Date: date, CheckInTime: now}},
+		},
+		statusByStudent: map[int64][]*active.StudentStatusDay{},
+		careDays: map[int64]scheduleService.CareDayStatus{
+			notYetStarted.ID: scheduleService.CareDayNotScheduled,
+		},
+		arrivalTimes: map[int64]*scheduleService.EffectiveArrivalTime{},
+		clock:        dayLogClock{now: now, today: date},
+	})
+
+	require.Len(t, response.Groups, 1)
+	require.Len(t, response.Groups[0].Students, 1, "only the child with a recorded fact is reported")
+	assert.Equal(t, dayLogStatusPresent, response.Groups[0].Students[0].Status)
+	assert.Equal(t, 0, response.Groups[0].Counters.NotScheduled)
+	assert.Equal(t, 0, response.Groups[0].Counters.Absent)
+	assert.Equal(t, 1, response.Groups[0].Counters.Total)
+}
+
 // The roster's enrollment eligibility must be judged against the SAME day the
 // request validated. A request that starts at 23:59:59 Berlin and reaches the
 // roster query after midnight would otherwise drop a child activated
