@@ -465,12 +465,18 @@ func (s *personService) GetStudentsByGroupIDs(ctx context.Context, groupIDs []in
 // GetEligibleStudentsByGroupIDsOnDate retrieves group students whose
 // enrollment covers the requested date. Current lifecycle status is only used
 // for legacy rows without enrollment dates.
-func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date timezone.Date) ([]*userModels.Student, error) {
+//
+// today is the caller's calendar day. It is a parameter rather than a fresh
+// timezone.TodayDate() read so a request that spans Berlin midnight keeps one
+// notion of "today": re-reading the process clock here could validate one day
+// and then build the roster for another, dropping a child who was activated
+// immediately and is deliberately part of the current day.
+func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error) {
 	students, err := s.StudentRepo.FindByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	return filterStudentsEligibleOnDate(students, date, timezone.TodayDate()), nil
+	return filterStudentsEligibleOnDate(students, date, today), nil
 }
 
 func filterStudentsEligibleOnDate(students []*userModels.Student, date, today timezone.Date) []*userModels.Student {

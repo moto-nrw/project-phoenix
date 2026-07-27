@@ -118,8 +118,9 @@ type PersonService interface {
 	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
 
 	// GetEligibleStudentsByGroupIDsOnDate retrieves group students enrolled on
-	// the requested calendar date.
-	GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date timezone.Date) ([]*userModels.Student, error)
+	// the requested calendar date. today is the caller's frozen calendar day,
+	// so a request crossing Berlin midnight keeps one notion of "today".
+	GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error)
 
 	// CountStudentsByGroupIDs counts students per group in a single query.
 	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)

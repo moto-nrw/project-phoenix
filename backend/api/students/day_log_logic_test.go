@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"errors"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -150,6 +152,35 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 	assert.Empty(t, response.Groups[0].Students)
 	assert.Equal(t, 0, response.Groups[0].Counters.Absent)
 	assert.Equal(t, 0, response.Groups[0].Counters.Total)
+}
+
+// The roster's enrollment eligibility must be judged against the SAME day the
+// request validated. A request that starts at 23:59:59 Berlin and reaches the
+// roster query after midnight would otherwise drop a child activated
+// immediately for the requested day (enrolled_from still in the future).
+func TestLoadDayLogData_PassesFrozenDayToRosterEligibility(t *testing.T) {
+	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, timezone.Berlin)
+	rs := &Resource{ResourceConfig: ResourceConfig{Now: func() time.Time { return beforeMidnight }}}
+	clock := rs.dayLogClock()
+
+	var gotDate, gotToday timezone.Date
+	// Returning an error stops loadDayLogData right after the roster query, so
+	// the assertion needs no downstream service doubles.
+	rosterQueried := errors.New("roster queried")
+	rs.PersonService = &userstest.PersonServiceMock{
+		GetEligibleGroupStudentsFn: func(_ context.Context, _ []int64, date, today timezone.Date) ([]*usersModel.Student, error) {
+			gotDate, gotToday = date, today
+			return nil, rosterQueried
+		},
+	}
+
+	group := &educationModel.Group{Name: "Gruppe A"}
+	group.ID = 1
+	_, err := rs.loadDayLogData(context.Background(), []*educationModel.Group{group}, clock.today, clock)
+
+	require.ErrorIs(t, err, rosterQueried)
+	assert.Equal(t, timezone.NewDate(2026, time.July, 26), gotDate)
+	assert.Equal(t, clock.today, gotToday, "eligibility must use the request's frozen day, not the process clock")
 }
 
 func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {

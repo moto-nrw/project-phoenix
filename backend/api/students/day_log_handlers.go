@@ -371,7 +371,7 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 		groupIDs = append(groupIDs, group.ID)
 	}
 
-	students, err := rs.PersonService.GetEligibleStudentsByGroupIDsOnDate(ctx, groupIDs, date)
+	students, err := rs.PersonService.GetEligibleStudentsByGroupIDsOnDate(ctx, groupIDs, date, clock.today)
 	if err != nil {
 		return nil, err
 	}
