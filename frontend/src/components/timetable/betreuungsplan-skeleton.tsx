@@ -187,6 +187,7 @@ function PlanningContextBarSkeleton() {
       data-testid="timetable-header-skeleton"
       className="moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3"
     >
+      <Skeleton className="h-7 w-40 md:hidden" />
       <div className="flex min-h-9 flex-wrap items-center gap-3">
         <Skeleton className="h-8 w-28 rounded-lg" />
         <Skeleton className="h-6 w-40" />
