@@ -121,6 +121,13 @@ interface ReplacementRow {
   shiftTypeId: string;
 }
 
+interface OccurrenceDraft {
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly breakMinutesStr: string;
+  readonly shiftTypeId: string;
+}
+
 export function ShiftEditModal({
   isOpen,
   mode,
@@ -202,6 +209,11 @@ export function ShiftEditModal({
   const [seriesWeekdays, setSeriesWeekdays] = useState<number[]>([]);
   const [seriesBiweekly, setSeriesBiweekly] = useState(false);
   const [seriesAbPattern, setSeriesAbPattern] = useState<1 | 2>(1);
+  // The series editor temporarily reuses the occurrence fields. Keep their
+  // draft so returning to the occurrence cannot turn a later single save into
+  // an unintended series value.
+  const [occurrenceDraft, setOccurrenceDraft] =
+    useState<OccurrenceDraft | null>(null);
   // Inclusive "Gültig bis" as shown in the picker; the stored valid_until is
   // exclusive (converted on load and on save).
   const [seriesValidUntil, setSeriesValidUntil] = useState("");
@@ -227,6 +239,7 @@ export function ShiftEditModal({
     setSeriesRule(null);
     setSeriesRuleError(false);
     setSeriesEditOpen(false);
+    setOccurrenceDraft(null);
     setChangeReason(shift?.changeReason ?? "");
     setCancelled(shift?.cancelled ?? false);
     // Seed the replacement rows from the covers already attached to this shift
@@ -419,6 +432,7 @@ export function ShiftEditModal({
       return;
     }
     setError(null);
+    setOccurrenceDraft({ startTime, endTime, breakMinutesStr, shiftTypeId });
     setSeriesWeekdays([...seriesRule.weekdays].sort((a, b) => a - b));
     setSeriesBiweekly(seriesRule.weekPattern !== 0);
     setSeriesAbPattern(seriesRule.weekPattern === 2 ? 2 : 1);
@@ -452,10 +466,15 @@ export function ShiftEditModal({
         breakMinutes: breakMinutes ?? 0,
         shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
         weekdays: seriesWeekdays,
-        // Guard against a stale A/B choice on a period without a week cycle,
-        // same as the create path.
+        // Keep the stored A/B pattern until the series period is available.
+        // Otherwise a save while its metadata is still loading would silently
+        // turn an alternating series into a weekly one.
         weekPattern:
-          seriesBiweekly && seriesPeriodHasCycle ? seriesAbPattern : 0,
+          seriesPeriod === null
+            ? seriesRule.weekPattern
+            : seriesBiweekly && seriesPeriodHasCycle
+              ? seriesAbPattern
+              : 0,
         // The picker is inclusive, the API's valid_until exclusive.
         validUntil:
           seriesValidUntil === "" ? null : dayAfterISO(seriesValidUntil),
@@ -756,7 +775,14 @@ export function ShiftEditModal({
         variant="outline"
         size="md"
         onClick={() => {
+          if (occurrenceDraft) {
+            setStartTime(occurrenceDraft.startTime);
+            setEndTime(occurrenceDraft.endTime);
+            setBreakMinutesStr(occurrenceDraft.breakMinutesStr);
+            setShiftTypeId(occurrenceDraft.shiftTypeId);
+          }
           setSeriesEditOpen(false);
+          setOccurrenceDraft(null);
           setError(null);
         }}
         disabled={isSaving}

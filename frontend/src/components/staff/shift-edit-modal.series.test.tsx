@@ -410,6 +410,61 @@ describe("ShiftEditModal series rule editing", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("keeps the stored A/B pattern while its calendar period is unavailable", async () => {
+    const alternatingRule = { ...seriesRule, weekPattern: 2 as const };
+    listPeriods.mockRejectedValue(
+      new Error("Kalenderzeiträume nicht verfügbar"),
+    );
+    getSeries.mockResolvedValue(alternatingRule);
+    splitSeries.mockResolvedValue({
+      seriesId: "6",
+      created: 4,
+      skippedDates: [],
+    });
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Serie bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByLabelText("Fr"));
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+
+    await waitFor(() => {
+      expect(splitSeries).toHaveBeenCalledWith(
+        "5",
+        expect.objectContaining({ weekPattern: 2 }),
+      );
+    });
+  });
+
+  it("restores the occurrence draft after returning from series editing", async () => {
+    updateShift.mockResolvedValue(undefined);
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    fireEvent.change(screen.getByLabelText("Ende"), {
+      target: { value: "13:00" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Serie bearbeiten" }),
+    );
+    expect(screen.getByLabelText("Ende")).toHaveValue("12:00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+    expect(screen.getByLabelText("Ende")).toHaveValue("13:00");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
+
+    await waitFor(() => {
+      expect(updateShift).toHaveBeenCalledWith(
+        "9",
+        expect.objectContaining({ endTime: "13:00" }),
+      );
+    });
+  });
+
   it("sends the inclusive 'G\u00fcltig bis' as the exclusive valid_until", async () => {
     splitSeries.mockResolvedValue({
       seriesId: "6",
