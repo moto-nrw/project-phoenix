@@ -327,7 +327,9 @@ function DienstplanContent() {
     );
   } else {
     content = (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      // Kein zusätzlicher Kartenrahmen um das Raster (#2031) — die ResourceGrid
+      // bringt ihre Fläche selbst mit, wie das Wochenraster im Betreuungsplan.
+      <div className="space-y-3">
         {shiftTypesError && (
           <Alert
             type="warning"
@@ -338,7 +340,7 @@ function DienstplanContent() {
           // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in
           // der Woche (docs/05 Abschnitt 4) — dezente Hinweiszeile über dem
           // Raster, keine Alert-Box.
-          <p className="mb-3 text-sm text-gray-500">
+          <p className="text-sm text-gray-500">
             In dieser Woche sind keine Schichten geplant.
           </p>
         )}

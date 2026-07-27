@@ -2,8 +2,9 @@
 
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions -- the labeled horizontal scroll region must be keyboard-focusable and arrow keys scroll it */
 
-import { Plus } from "lucide-react";
 import type { ReactNode } from "react";
+
+import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 
 /**
  * ResourceGrid is the generic rows-by-columns planning grid of the planning
@@ -104,7 +105,10 @@ export function ResourceGrid<TRow>({
           behavior: "smooth",
         });
       }}
-      className={`max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-gray-200 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none ${className ?? ""}`}
+      // Das Raster IST die Karte (#2031): vorher lag es in einer zusätzlichen
+      // weißen Karte des Aufrufers, also Rahmen im Rahmen mit 24px Luft
+      // dazwischen — keine andere Planungsfläche macht das.
+      className={`moto-content-surface max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border shadow-sm focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none ${className ?? ""}`}
     >
       <table className="w-full border-collapse text-sm">
         <thead>
@@ -161,9 +165,9 @@ export function ResourceGrid<TRow>({
                           type="button"
                           onClick={() => onEmptyCellClick(row, column)}
                           aria-label={emptyCellLabel(row, column)}
-                          className="flex min-h-14 w-full items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+                          className="group flex min-h-14 w-full items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
                         >
-                          <Plus className="h-4 w-4" aria-hidden="true" />
+                          <PlanAddAffordance />
                         </button>
                       ) : null}
                     </td>

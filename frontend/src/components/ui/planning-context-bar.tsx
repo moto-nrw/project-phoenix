@@ -15,30 +15,55 @@ import { Button } from "~/components/ui/button";
  * "Y7"); domain-specific content (a week strip of day chips, a Lückenzähler
  * chip, …) is composed by the caller via `navigationSlot`/`viewSwitcher`/
  * `actions`/`children`.
+ *
+ * Form (#2031): ein eigener Balken, damit die Leiste auf den ersten Blick als
+ * Kopfbereich lesbar ist und nicht wie freistehende Bedienelemente über dem
+ * Raster wirkt. Drei Regeln halten die drei Flächen zusammen:
+ *
+ * 1. Der Seitenname steht bereits in der App-Kopfzeile und wird hier nur noch
+ *    für Screenreader gerendert. Die sichtbare Überschrift ist das Datum, also
+ *    die Antwort auf "was sehe ich gerade".
+ * 2. Die Navigation ist EIN Objekt: eine gerahmte Gruppe aus Zurück, Heute und
+ *    Weiter. "Heute" ist immer da (deaktiviert, wenn man schon dort steht), weil
+ *    ein auftauchender und verschwindender Button die Zeile seitlich springen
+ *    ließ.
+ * 3. Zeile 2 ist eine ruhige 12px-Kontextzeile, keine Sammlung verschiedener
+ *    Pillen. Sie wird immer gerendert, damit der Inhalt darunter beim
+ *    Seitenwechsel nicht springt.
  */
 
+/**
+ * Feste Mindesthöhen beider Zeilen (#2031). Sie sind der einzige Grund, warum
+ * Betreuungsplan, Dienstplan und Vertretung gleich hoch beginnen: die Zeilen
+ * behalten ihre Höhe unabhängig davon, was eine Fläche einfüllt (ein Datum,
+ * eine Wochenleiste, gar nichts). Jedes Element, das in eine Zeile einzieht,
+ * muss in diese Höhe passen — siehe PlanningDayChip.
+ */
+const PRIMARY_ROW_MIN_H = "min-h-9";
+const CONTEXT_ROW_MIN_H = "min-h-8";
+
 interface PlanningContextBarProps {
-  /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". */
+  /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". Nur für Screenreader —
+   *  sichtbar steht er in der App-Kopfzeile. */
   readonly title: string;
   readonly onPrevious?: () => void;
   readonly onNext?: () => void;
   readonly previousLabel?: string;
   readonly nextLabel?: string;
-  /** Anzeigelabel zwischen den Pfeilen, z. B. "KW 29" oder "Mo 13.07.". Wird
-   *  ignoriert, wenn `navigationSlot` gesetzt ist. */
+  /** Sichtbare Überschrift der Fläche, z. B. "KW 31 · 27.07.–02.08.2026". */
   readonly dateLabel?: string;
-  /** Beliebiger Inhalt zwischen den Pfeilen statt des Anzeigelabels — z. B.
-   *  die Wochenleiste aus sieben `PlanningDayChip`s in der Vertretung. */
+  /** Beliebiger Inhalt anstelle des Datums, falls eine Fläche etwas anderes
+   *  als Überschrift braucht. */
   readonly navigationSlot?: ReactNode;
-  /** Callback des "Heute"-Buttons. Der Button wird nur gerendert, wenn diese
-   *  Prop gesetzt ist. */
+  /** Callback des "Heute"-Buttons. Ohne Callback bleibt der Button sichtbar,
+   *  aber deaktiviert (feste Geometrie, siehe Regel 2 oben). */
   readonly onToday?: () => void;
   readonly todayLabel?: string;
   /** Slot für den Ansichts-Umschalter (`ui/Tabs` kommt vom Aufrufer). */
   readonly viewSwitcher?: ReactNode;
   /** Rechtsbündige Aktionen (Primäraktion etc.). */
   readonly actions?: ReactNode;
-  /** Zeile 2, die Kontextzeile — nur gerendert, wenn vorhanden. */
+  /** Zeile 2, die Kontextzeile. */
   readonly children?: ReactNode;
   readonly className?: string;
 }
@@ -60,32 +85,40 @@ export function PlanningContextBar({
 }: PlanningContextBarProps) {
   return (
     <div
-      className={`moto-content-surface rounded-2xl border p-3 sm:p-4 ${className ?? ""}`}
+      className={`moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3 ${className ?? ""}`}
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
+      <h1 className="sr-only">{title}</h1>
 
-        <div className="flex items-center gap-1">
+      <div className={`flex flex-wrap items-center gap-3 ${PRIMARY_ROW_MIN_H}`}>
+        {/* Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
+            Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen. */}
+        <div className="inline-flex h-8 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white">
           <Button
             type="button"
             size="icon"
             variant="ghost"
+            className="rounded-none"
             onClick={onPrevious}
             disabled={!onPrevious}
             aria-label={previousLabel}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
-          {navigationSlot ??
-            (dateLabel && (
-              <span className="text-sm font-medium text-gray-900 tabular-nums">
-                {dateLabel}
-              </span>
-            ))}
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            className="rounded-none px-3"
+            onClick={onToday}
+            disabled={!onToday}
+          >
+            {todayLabel}
+          </Button>
           <Button
             type="button"
             size="icon"
             variant="ghost"
+            className="rounded-none"
             onClick={onNext}
             disabled={!onNext}
             aria-label={nextLabel}
@@ -94,22 +127,30 @@ export function PlanningContextBar({
           </Button>
         </div>
 
-        {onToday && (
-          <Button type="button" variant="outline" size="md" onClick={onToday}>
-            {todayLabel}
-          </Button>
-        )}
+        {navigationSlot ??
+          (dateLabel && (
+            <p className="text-base font-semibold text-gray-900 tabular-nums">
+              {dateLabel}
+            </p>
+          ))}
 
-        {viewSwitcher}
-
-        {actions && (
-          <div className="ml-auto flex items-center gap-2">{actions}</div>
+        {(viewSwitcher ?? actions) && (
+          <div className="ml-auto flex items-center gap-2">
+            {viewSwitcher}
+            {actions}
+          </div>
         )}
       </div>
 
-      {children && (
-        <div className="flex flex-wrap items-center gap-2 pt-2">{children}</div>
-      )}
+      {/* Haarlinie trennt Bedienung (oben) von Kontext (unten) INNERHALB des
+          Balkens: zwei Zonen, eine Fläche. */}
+      <div className="border-t border-gray-100 pt-2">
+        <div
+          className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 ${CONTEXT_ROW_MIN_H}`}
+        >
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
@@ -130,11 +171,18 @@ interface PlanningDayChipProps {
   readonly "aria-label"?: string;
 }
 
+/** Punktfarbe des Zählers: dieselbe Lückenfarbe wie im CoverageIndicator. */
+const COUNT_DOT_COLOR = "#F78C10";
+
 /**
- * PlanningDayChip is the building block of a week strip inside
- * `navigationSlot` (Wochentagskürzel + Datum + optionale Zähler-Ziffer). It
- * holds no date logic of its own — every label and the selection state come
- * from the caller.
+ * PlanningDayChip is the building block of a week strip in the context row
+ * (Wochentagskürzel + Datum + optionale Zähler-Ziffer). It holds no date logic
+ * of its own — every label and the selection state come from the caller.
+ *
+ * Einzeilig (#2031): der frühere dreizeilige Chip war so hoch wie die gesamte
+ * Bedienzeile und ließ die Leiste in der Vertretung höher werden als in den
+ * anderen Flächen. Eine Null wird nicht gezeigt: ein Tag ohne offene Lücke
+ * bleibt ruhig, sichtbar ist nur, wo etwas offen ist.
  */
 export function PlanningDayChip({
   weekdayLabel,
@@ -146,16 +194,13 @@ export function PlanningDayChip({
   className,
   "aria-label": ariaLabel,
 }: PlanningDayChipProps) {
-  const countClassName = selected ? "text-white" : "text-gray-900";
-  const placeholderClassName = selected ? "text-white/70" : "text-gray-400";
-
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={ariaLabel}
       className={[
-        "flex flex-col items-center rounded-md px-1 py-1 text-center focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none sm:px-2",
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
         selected
           ? "bg-gray-900 text-white"
           : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
@@ -164,16 +209,21 @@ export function PlanningDayChip({
         .filter(Boolean)
         .join(" ")}
     >
-      <span className="text-[11px] font-medium">{weekdayLabel}</span>
-      <span className="text-xs tabular-nums">{dateLabel}</span>
+      <span className="font-medium">{weekdayLabel}</span>
+      <span className="tabular-nums">{dateLabel}</span>
       {showPlaceholder ? (
-        <span className={`text-[11px] tabular-nums ${placeholderClassName}`}>
+        <span
+          className={`tabular-nums ${selected ? "text-white/60" : "text-gray-400"}`}
+        >
           –
         </span>
-      ) : count !== undefined ? (
-        <span
-          className={`text-[11px] font-semibold tabular-nums ${countClassName}`}
-        >
+      ) : count !== undefined && count > 0 ? (
+        <span className="inline-flex items-center gap-1 font-semibold tabular-nums">
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: COUNT_DOT_COLOR }}
+          />
           {count}
         </span>
       ) : null}

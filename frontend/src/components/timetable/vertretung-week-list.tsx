@@ -34,6 +34,7 @@ import { formatDayHeader, toISODate } from "~/lib/timetable-helpers";
 import type { EnrichedInstance, GapInstance } from "~/lib/timetable-types";
 
 import { timetableSurface } from "./timetable-style";
+import { VertretungListFilter } from "./vertretung-list-filter";
 
 export interface VertretungWeekListProps {
   /** Die angezeigten Wochentage (Mo–Fr). */
@@ -52,6 +53,8 @@ export interface VertretungWeekListProps {
   gapsAvailableFrom: string | null;
   staffNames: Map<string, string>;
   mode: VertretungDayListMode;
+  /** Setzt den Filter. Ohne Callback wird die Filterzeile nicht gerendert. */
+  onModeChange?: (mode: VertretungDayListMode) => void;
   canManage: boolean;
   onEdit: (instanceId: string) => void;
   /** Klick auf eine Tageskopfzeile — springt in die Tagesansicht des Tages. */
@@ -68,24 +71,33 @@ export function VertretungWeekList({
   gapsAvailableFrom,
   staffNames,
   mode,
+  onModeChange,
   canManage,
   onEdit,
   onSelectDay,
   todayISO,
   className,
 }: VertretungWeekListProps) {
+  // flex-col: die Filterzeile bleibt stehen, nur die Liste darunter scrollt.
   const containerClassName = className
-    ? `${timetableSurface} ${className}`
-    : timetableSurface;
+    ? `${timetableSurface} flex flex-col ${className}`
+    : `${timetableSurface} flex flex-col`;
 
   return (
     <div className={containerClassName} data-testid="vertretung-week-list">
+      {onModeChange && (
+        <VertretungListFilter
+          mode={mode}
+          onModeChange={onModeChange}
+          allLabel="Ganze Woche"
+        />
+      )}
       {/* Der Scroll-Container sitzt INNERHALB der Karte (die Karte selbst
           bekommt vom Aufrufer nur die Höhe und overflow-hidden): so bleibt die
           Scrollleiste innerhalb des Rahmens und die abgerundeten Ecken bleiben
           sauber, statt dass die Leiste auf dem Rand klebt. Die sticky
           Tageskopfzeilen kleben an diesem Container. */}
-      <div className="h-full overflow-y-auto rounded-2xl">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl">
         {weekDays.map((day) => {
           const iso = toISODate(day);
           const gapsAvailable =

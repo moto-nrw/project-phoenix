@@ -501,7 +501,7 @@ function VertretungContent() {
             ? () => goToDay(todayTarget)
             : undefined
         }
-        dateLabel={isWeekView ? weekLabel : undefined}
+        dateLabel={weekLabel}
         viewSwitcher={
           <Tabs
             value={view}
@@ -513,38 +513,39 @@ function VertretungContent() {
             </TabsList>
           </Tabs>
         }
-        navigationSlot={
-          // In der Wochenansicht ersetzt das Wochenlabel die Tagesleiste: eine
-          // Tagesauswahl hätte dort keine sichtbare Wirkung. Die Lücken pro Tag
-          // zeigen dann die Kopfzeilen der Wochenliste.
-          isWeekView ? undefined : (
-            <div className="flex items-center gap-0.5">
-              {weekDays.map((day) => {
-                const iso = toISODate(day);
-                const isPast = iso < today;
-                // Vergangene Tage und ein fehlgeschlagener/übersprungener/noch
-                // ladender Gaps-Abruf zeigen einen Platzhalter, nie eine
-                // erfundene 0 (Akzeptanzkriterium 5).
-                const showPlaceholder = isPast || !gapsLoaded;
-                return (
-                  <PlanningDayChip
-                    key={iso}
-                    weekdayLabel={getGermanWeekdayShort(day)}
-                    dateLabel={dayChipLabel(day)}
-                    count={
-                      showPlaceholder ? undefined : (gapsByDate.get(iso) ?? 0)
-                    }
-                    showPlaceholder={showPlaceholder}
-                    selected={iso === dayISO}
-                    onClick={() => goToDay(iso)}
-                    aria-label={`${getGermanWeekdayShort(day)} ${dayChipLabel(day)}`}
-                  />
-                );
-              })}
-            </div>
-          )
-        }
       >
+        {/* Die Tagesleiste steht in der Kontextzeile, nicht zwischen den
+            Pfeilen: sie wählt einen Tag INNERHALB der Woche, die oben schon
+            benannt ist. In der Wochenansicht entfällt sie, weil eine
+            Tagesauswahl dort keine sichtbare Wirkung hätte — die Lücken pro Tag
+            zeigen dann die Kopfzeilen der Wochenliste. */}
+        {!isWeekView && (
+          <>
+            {weekDays.map((day) => {
+              const iso = toISODate(day);
+              const isPast = iso < today;
+              // Vergangene Tage und ein fehlgeschlagener/übersprungener/noch
+              // ladender Gaps-Abruf zeigen einen Platzhalter, nie eine
+              // erfundene 0 (Akzeptanzkriterium 5).
+              const showPlaceholder = isPast || !gapsLoaded;
+              return (
+                <PlanningDayChip
+                  key={iso}
+                  weekdayLabel={getGermanWeekdayShort(day)}
+                  dateLabel={dayChipLabel(day)}
+                  count={
+                    showPlaceholder ? undefined : (gapsByDate.get(iso) ?? 0)
+                  }
+                  showPlaceholder={showPlaceholder}
+                  selected={iso === dayISO}
+                  onClick={() => goToDay(iso)}
+                  aria-label={`${getGermanWeekdayShort(day)} ${dayChipLabel(day)}`}
+                />
+              );
+            })}
+            <span aria-hidden className="h-4 w-px bg-gray-200" />
+          </>
+        )}
         <CoverageIndicator
           size="sm"
           state={!countsUnavailable && openCount > 0 ? "gap" : "covered"}
@@ -567,18 +568,6 @@ function VertretungContent() {
               : `${ackCount} bewusst unbesetzt ${countScope}`
           }
         />
-        <Tabs
-          value={mode}
-          onValueChange={(v) => setMode(v as VertretungDayListMode)}
-          className="ml-auto"
-        >
-          <TabsList variant="default">
-            <TabsTrigger value="stoerungen">Nur Störungen</TabsTrigger>
-            <TabsTrigger value="ganzer-tag">
-              {isWeekView ? "Ganze Woche" : "Ganzer Tag"}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
       </PlanningContextBar>
 
       {staffErrorMessage && (
@@ -624,6 +613,7 @@ function VertretungContent() {
                   gapsAvailableFrom={gapsAvailableFrom}
                   staffNames={staffNames}
                   mode={mode}
+                  onModeChange={setMode}
                   canManage={canManageSchedules}
                   onEdit={openEditor}
                   onSelectDay={openDayView}
@@ -640,6 +630,7 @@ function VertretungContent() {
               gapsAvailable={!gapsUnavailable}
               staffNames={staffNames}
               mode={mode}
+              onModeChange={setMode}
               canManage={canManageSchedules}
               onEdit={openEditor}
             />

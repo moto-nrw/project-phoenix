@@ -415,7 +415,8 @@ function HalbjahrGridInner({
   };
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    // Kein zusätzlicher Kartenrahmen um das Raster (#2031) — siehe ResourceGrid.
+    <div>
       {/* Invisible per-week loaders — no DOM, they only feed weekStates. */}
       {weeks.map((week) => (
         <HalbjahrColumnData

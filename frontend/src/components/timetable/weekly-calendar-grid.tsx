@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import { CapacityStrip } from "~/components/ui/capacity-strip";
+import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 import {
   assignBlockLanes,
   countPlannedStaff,
@@ -347,15 +348,16 @@ export function WeeklyCalendarGrid({
                       tabIndex={-1}
                       onClick={() => onSlotClick(iso, hour)}
                       aria-label={`Neuen Termin anlegen: ${formatDayHeader(day)}, ${String(hour).padStart(2, "0")}:00 Uhr`}
-                      className="group absolute inset-x-0 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
+                      className="group absolute inset-x-0 flex items-center justify-center p-0.5 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
                       style={{
                         top: `${(hour - renderStartHour) * hourHeightPx}px`,
                         height: `${hourHeightPx}px`,
                       }}
                     >
-                      <span className="pointer-events-none hidden rounded-lg border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-500 shadow-sm group-hover:inline group-focus-visible:inline">
-                        + Termin
-                      </span>
+                      {/* Dieselbe Anlege-Geste wie in den Zellen von Dienstplan
+                          und ResourceGrid (#2031) statt der früheren Textpille
+                          "+ Termin". */}
+                      <PlanAddAffordance />
                     </button>
                   ))}
 
@@ -399,16 +401,11 @@ export function WeeklyCalendarGrid({
                     />
                   </>
                 )}
-
-                {/* Per-column hint — only on a genuinely empty day, not when
-                    the whole-week empty overlay is showing. */}
-                {dayInstances.length === 0 && !emptyState && (
-                  <div className="pointer-events-none absolute inset-0 hidden items-center justify-center sm:flex">
-                    <span className="text-[11px] text-gray-400 italic">
-                      Keine Aktivitäten
-                    </span>
-                  </div>
-                )}
+                {/* Kein "Keine Aktivitäten" pro leerer Tagesspalte mehr
+                    (#2031): die leere Spalte sagt es selbst, die Spaltenkopfzeile
+                    zeigt zusätzlich die Personenzahl, und beim Hovern erscheint
+                    die Anlege-Fläche. Der Leerzustand für die KOMPLETT leere
+                    Woche (`emptyState`) bleibt. */}
               </div>
             );
           })}
