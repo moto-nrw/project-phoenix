@@ -12,6 +12,7 @@ import {
   mapPeriodsForDates,
   mapPeriodWarnings,
   mapPeriodWithWarnings,
+  shouldMaterializeWeekPattern,
   uniqueAssignedPeriods,
   weekCycleSlotForDate,
   weekPatternForDate,
@@ -112,6 +113,39 @@ describe("calendar-period-helpers", () => {
       expect(weekPatternForDate(threeWeekCycle, "2026-05-04")).toBe(1);
       expect(weekPatternForDate(threeWeekCycle, "2026-05-11")).toBe(2);
       expect(weekPatternForDate(threeWeekCycle, "2026-05-18")).toBeNull();
+    });
+  });
+
+  describe("shouldMaterializeWeekPattern", () => {
+    const cyclePeriod: CalendarPeriod = {
+      ...period("9", "A/B/C-Zeitraum", "2026-05-01", "2026-12-31"),
+      weekCycleLength: 3,
+      weekCycleAnchor: "2026-05-04",
+    };
+
+    it("matches weekly and A/B slots like the backend predicate", () => {
+      expect(shouldMaterializeWeekPattern(cyclePeriod, "2026-05-18", 0)).toBe(
+        true,
+      );
+      expect(shouldMaterializeWeekPattern(cyclePeriod, "2026-05-04", 1)).toBe(
+        true,
+      );
+      expect(shouldMaterializeWeekPattern(cyclePeriod, "2026-05-11", 1)).toBe(
+        false,
+      );
+      expect(shouldMaterializeWeekPattern(cyclePeriod, "2026-05-18", 1)).toBe(
+        false,
+      );
+    });
+
+    it("fails open when no usable cycle is configured", () => {
+      expect(
+        shouldMaterializeWeekPattern(
+          period("1", "Ohne Zyklus", "2026-05-01", "2026-12-31"),
+          "2026-05-04",
+          1,
+        ),
+      ).toBe(true);
     });
   });
 

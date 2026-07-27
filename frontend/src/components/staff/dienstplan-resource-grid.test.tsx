@@ -17,6 +17,16 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mocks.push }),
 }));
 
+// Der Verschieben-Dialog fragt die Schließtage des Zieltags ab (#2032); der
+// echte Hook braucht eine NextAuth-Session, die dieses Raster nicht stellt.
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useClosingDaysState: () => ({
+    closingDays: new Map<string, string>(),
+    closingDayRanges: [],
+    isLoading: false,
+  }),
+}));
+
 const member: StaffScheduleStaff = {
   id: "7",
   firstName: "Ada",

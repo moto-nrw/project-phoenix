@@ -366,6 +366,7 @@ interface TemplateSchedule {
   endTime: string;
   weekPattern: number;
   calendarPeriodId?: string;
+  validFrom?: string;
   validUntil?: string;
 }
 
@@ -424,6 +425,7 @@ interface BackendTemplateSchedule {
   end_time: string;
   week_pattern: number;
   calendar_period_id?: number;
+  valid_from?: string;
   valid_until?: string;
 }
 

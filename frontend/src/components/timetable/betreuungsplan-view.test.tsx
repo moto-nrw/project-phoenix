@@ -409,6 +409,7 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
     defaultDate?: string;
     defaultStartTime?: string;
     defaultEndTime?: string;
+    closingDaysLoading?: boolean;
     calendarPeriods?: Array<{ id: string }>;
     defaultCalendarPeriodId?: string | null;
     initialSeries?: { id: string } | null;
@@ -619,6 +620,7 @@ function setupSWR({
   gapsState = "ready" as "ready" | "loading" | "error",
   phases = [] as Array<Record<string, unknown>>,
   phasesState = "ready" as "ready" | "loading" | "error",
+  closingDaysLoading = false,
 }: {
   periods?: Array<typeof period>;
   templates?: TimetableTemplate[];
@@ -630,6 +632,7 @@ function setupSWR({
   gapsState?: "ready" | "loading" | "error";
   phases?: Array<Record<string, unknown>>;
   phasesState?: "ready" | "loading" | "error";
+  closingDaysLoading?: boolean;
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -643,6 +646,11 @@ function setupSWR({
     }
     if (key === "database-calendar-periods-list") {
       return { data: periods, isLoading: false };
+    }
+    if (key === "planning-closing-days") {
+      return closingDaysLoading
+        ? { data: undefined, isLoading: true }
+        : { data: [], isLoading: false };
     }
     if (key === "timetable-enrollment-phases") {
       if (phasesState === "loading") return { isLoading: true };
@@ -1313,6 +1321,24 @@ describe("BetreuungsplanView", () => {
         variant: "full",
         defaultStartTime: undefined,
         defaultEndTime: undefined,
+      }),
+    );
+  });
+
+  it("passes the closing-day loading state to the event modal", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    setupSWR({ closingDaysLoading: true });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        isOpen: true,
+        closingDaysLoading: true,
       }),
     );
   });

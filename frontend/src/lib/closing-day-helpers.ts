@@ -8,7 +8,7 @@
 // Backend reference: backend/models/schedule/closing_day.go,
 // backend/api/timetable/closing_days.go (ClosingDayRequest / Response).
 
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, toISODate } from "~/lib/date-helpers";
 
 /** Backend wire shape (snake_case, int64 IDs). */
 export interface BackendClosingDay {
@@ -53,4 +53,106 @@ export function formatClosingDayRange(day: ClosingDay): string {
     return formatDate(day.startDate);
   }
   return `${formatDate(day.startDate)} – ${formatDate(day.endDate)}`;
+}
+
+/** Ein Schließtag-Zeitraum ohne Identität — was die Tages-Expansion braucht. */
+export type ClosingDayRange = Omit<ClosingDay, "id">;
+
+// The largest planning viewport is the half-year grid's defensive 400-week
+// maximum. Keep expansion bounded to the same visible horizon: ordinary
+// week/month/time-tracking windows are far smaller, while direct recurrence
+// checks use range lookup instead of this per-day map.
+const MAX_CLOSING_DAY_EXPANSION_DAYS = 400 * 7;
+
+/**
+ * Grund des Schließtags an einem einzelnen Kalendertag, oder `undefined`.
+ * Für Datumsfelder, deren Wert außerhalb des sichtbaren Fensters liegen kann
+ * (Termin-Dialog, „Verschieben nach“). Der erste passende Zeitraum gewinnt.
+ */
+export function findClosingDayReason(
+  ranges: readonly ClosingDayRange[] | null | undefined,
+  dateISO: string,
+): string | undefined {
+  if (dateISO === "") return undefined;
+  const day = dateISO.slice(0, 10);
+  for (const entry of ranges ?? []) {
+    if (
+      entry.startDate.slice(0, 10) <= day &&
+      day <= entry.endDate.slice(0, 10)
+    ) {
+      return entry.reason;
+    }
+  }
+  return undefined;
+}
+
+export interface ClosingDayConflict {
+  dateISO: string;
+  reason: string;
+}
+
+/** First generated date that overlaps a stored closing-day range. */
+export function findFirstClosingDayConflict(
+  ranges: readonly ClosingDayRange[] | null | undefined,
+  dates: readonly string[],
+): ClosingDayConflict | null {
+  for (const dateISO of dates) {
+    const reason = findClosingDayReason(ranges, dateISO);
+    if (reason !== undefined) return { dateISO, reason };
+  }
+  return null;
+}
+
+/**
+ * Expands stored closure ranges into a per-day lookup (YYYY-MM-DD → Grund),
+ * clamped to [from, to]. Shared by every surface that marks closing days:
+ * the Zeiterfassung tables (#1418 3b) and the planning grids (#2032). The
+ * first range wins on overlap, matching the order the backend returns.
+ */
+export function expandClosingDaysToMap(
+  ranges: readonly ClosingDayRange[] | null | undefined,
+  from: string,
+  to: string,
+): ReadonlyMap<string, string> {
+  const closingDays = new Map<string, string>();
+  const windowStart = from.slice(0, 10);
+  const windowEnd = to.slice(0, 10);
+  if (windowEnd < windowStart) return closingDays;
+  const maximumEndDate = new Date(`${windowStart}T00:00:00`);
+  maximumEndDate.setDate(
+    maximumEndDate.getDate() + MAX_CLOSING_DAY_EXPANSION_DAYS - 1,
+  );
+  const maximumEnd = toISODate(maximumEndDate);
+  const boundedWindowEnd = windowEnd > maximumEnd ? maximumEnd : windowEnd;
+
+  for (const entry of ranges ?? []) {
+    const storedStart = entry.startDate.slice(0, 10);
+    const storedEnd = entry.endDate.slice(0, 10);
+    const start = storedStart < windowStart ? windowStart : storedStart;
+    const end = storedEnd > boundedWindowEnd ? boundedWindowEnd : storedEnd;
+    if (end < start) continue;
+
+    const startDate = new Date(`${start}T00:00:00`);
+    const endDate = new Date(`${end}T00:00:00`);
+    // Math.round (not floor) keeps the count DST-safe across 23/25-hour days;
+    // setDate walks local calendar days. The 400-week cap is deliberately
+    // larger than valid multi-year planning periods and prevents malformed
+    // ranges from allocating entries up to a remote end date.
+    const dayCount = Math.min(
+      MAX_CLOSING_DAY_EXPANSION_DAYS,
+      Math.max(
+        0,
+        Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
+      ),
+    );
+    for (let offset = 0; offset < dayCount; offset++) {
+      const cursor = new Date(startDate);
+      cursor.setDate(cursor.getDate() + offset);
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+      if (!closingDays.has(key)) {
+        closingDays.set(key, entry.reason);
+      }
+    }
+  }
+  return closingDays;
 }

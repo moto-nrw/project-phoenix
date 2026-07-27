@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
+import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { CapacityStrip } from "~/components/ui/capacity-strip";
 import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 import {
@@ -76,6 +77,12 @@ interface WeeklyCalendarGridProps {
    * Lücken-Icon, beide bestehenden Call-Sites bleiben verhaltensgleich.
    */
   gapInstanceIds?: ReadonlySet<string>;
+  /**
+   * OGS-Schließtage im sichtbaren Fenster, keyed YYYY-MM-DD → Grund (#2032).
+   * Betroffene Tagesspalten werden neutral eingefärbt und mit dem Grund
+   * beschriftet; geplant werden darf trotzdem (Ferien-/Notbetreuung).
+   */
+  closingDays?: ReadonlyMap<string, string>;
   emptyState?: {
     title: string;
     description: string;
@@ -101,6 +108,7 @@ export function WeeklyCalendarGrid({
   hourHeightPx,
   onSlotClick,
   gapInstanceIds,
+  closingDays,
   emptyState,
   showDayHeader = false,
 }: WeeklyCalendarGridProps) {
@@ -177,6 +185,7 @@ export function WeeklyCalendarGrid({
           const iso = toISODate(day);
           const isToday = iso === todayISO;
           const isSelected = index === safeSelectedIndex;
+          const closingReason = closingDays?.get(iso);
           return (
             <button
               key={iso}
@@ -199,6 +208,11 @@ export function WeeklyCalendarGrid({
               <span className="text-sm font-semibold tabular-nums">
                 {String(day.getDate()).padStart(2, "0")}
               </span>
+              {closingReason !== undefined && (
+                // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
+                // Beschriftung und Grund bleiben im Tooltip.
+                <ClosingDayChip reason={closingReason} text="" />
+              )}
               {isToday && !isSelected && (
                 <span
                   className="h-1 w-1 rounded-full bg-[#FF3130]"
@@ -223,7 +237,11 @@ export function WeeklyCalendarGrid({
           showDayHeader ? "max-h-[776px] sm:max-h-[808px]" : "max-h-[776px]"
         }`}
       >
-        {/* Day header (desktop — mobile uses the day strip above) */}
+        {/* Day header (desktop — mobile uses the day strip above). Die
+            Kopfzeile behält ihre feste Höhe, weil die Kapazitätszeile mit
+            `top-14` darunter klebt: Wochentag und Datum stehen deshalb an
+            einem Schließtag in einer eigenen Zeile, der Chip einzeilig
+            darunter. Der vollständige Grund steht im Tooltip. */}
         <div
           className={`sticky top-0 z-30 hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${gridColsClass}`}
         >
@@ -231,28 +249,39 @@ export function WeeklyCalendarGrid({
           {weekDays.map((day) => {
             const iso = toISODate(day);
             const isToday = iso === todayISO;
+            const closingReason = closingDays?.get(iso);
             return (
               <div
                 key={iso}
-                className="flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-gray-200 px-1 py-1 sm:flex-row sm:gap-2 sm:px-2 sm:py-2"
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-gray-200 px-1 py-1 sm:px-2 ${
+                  closingReason === undefined ? "" : "bg-gray-50"
+                }`}
               >
-                <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
-                  {getGermanWeekdayShort(day)}
-                </span>
-                {isToday ? (
-                  <span
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
-                    aria-label={formatDayHeader(day)}
-                  >
-                    {day.getDate()}
+                <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                  <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
+                    {getGermanWeekdayShort(day)}
                   </span>
-                ) : (
-                  <span
-                    className="text-xs font-semibold text-gray-900 tabular-nums sm:text-sm"
-                    aria-label={formatDayHeader(day)}
-                  >
-                    {String(day.getDate()).padStart(2, "0")}
-                  </span>
+                  {isToday ? (
+                    <span
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
+                      aria-label={formatDayHeader(day)}
+                    >
+                      {day.getDate()}
+                    </span>
+                  ) : (
+                    <span
+                      className="text-xs font-semibold text-gray-900 tabular-nums sm:text-sm"
+                      aria-label={formatDayHeader(day)}
+                    >
+                      {String(day.getDate()).padStart(2, "0")}
+                    </span>
+                  )}
+                </div>
+                {closingReason !== undefined && (
+                  <ClosingDayChip
+                    reason={closingReason}
+                    className="w-full justify-center text-center"
+                  />
                 )}
               </div>
             );
@@ -299,6 +328,7 @@ export function WeeklyCalendarGrid({
             const iso = toISODate(day);
             const isToday = iso === todayISO;
             const dayInstances = grouped.get(iso) ?? [];
+            const closingReason = closingDays?.get(iso);
             const laned = assignBlockLanes(dayInstances);
             const nowOffset = isToday
               ? getCurrentTimeOffset(
@@ -307,11 +337,17 @@ export function WeeklyCalendarGrid({
                   renderEndHour,
                 )
               : null;
+            let backgroundClass = "";
+            if (closingReason !== undefined) {
+              backgroundClass = "bg-gray-100/70";
+            } else if (isToday) {
+              backgroundClass = "bg-gray-50/60";
+            }
 
             return (
               <div
                 key={iso}
-                className={`relative min-w-0 border-l border-gray-200 ${isToday ? "bg-gray-50/60" : ""} ${dayIndex === safeSelectedIndex ? "" : "hidden sm:block"}`}
+                className={`relative min-w-0 border-l border-gray-200 ${backgroundClass} ${dayIndex === safeSelectedIndex ? "" : "hidden sm:block"}`}
                 style={{ height: `${gridHeightPx}px` }}
               >
                 {/* Hour grid lines */}
@@ -406,11 +442,23 @@ export function WeeklyCalendarGrid({
                     />
                   </>
                 )}
+
                 {/* Kein "Keine Aktivitäten" pro leerer Tagesspalte mehr
                     (#2031): die leere Spalte sagt es selbst, die Spaltenkopfzeile
                     zeigt zusätzlich die Personenzahl, und beim Hovern erscheint
                     die Anlege-Fläche. Der Leerzustand für die KOMPLETT leere
-                    Woche (`emptyState`) bleibt. */}
+                    Woche (`emptyState`) bleibt.
+
+                    Der Schließtag-Hinweis (#2032) bleibt dagegen stehen: er
+                    trägt einen Grund, den die leere Spalte nicht selbst
+                    zeigt. */}
+                {closingReason !== undefined &&
+                  dayInstances.length === 0 &&
+                  !emptyState && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-1">
+                      <ClosingDayChip reason={closingReason} />
+                    </div>
+                  )}
               </div>
             );
           })}

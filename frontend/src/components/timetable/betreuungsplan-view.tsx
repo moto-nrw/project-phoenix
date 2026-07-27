@@ -58,6 +58,7 @@ import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { hasPermission } from "~/lib/auth-utils";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
@@ -335,6 +336,15 @@ function TimetablesContent() {
     () => formatMonthLabel(visibleDate),
     [visibleDate],
   );
+
+  // OGS-Schließtage (#2032). Ein SWR-Zustand liefert sichtbares Fenster,
+  // vollständige Zeiträume und den Ladestatus: Raster und Termin-Dialog sehen
+  // dadurch immer denselben Datenstand.
+  const {
+    closingDays,
+    closingDayRanges,
+    isLoading: closingDaysLoading,
+  } = useClosingDaysState(fetchFromISO, fetchToISO);
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
   const shouldLoadInstances = view !== "series";
@@ -1073,6 +1083,7 @@ function TimetablesContent() {
                 monthDate={visibleDate}
                 instances={instances}
                 todayISO={todayISO}
+                closingDays={closingDays}
                 onDayClick={openWeekForDay}
               />
             ))}
@@ -1089,6 +1100,7 @@ function TimetablesContent() {
                   onInstanceClick={handleSelectInstance}
                   onSlotClick={openQuickCreate}
                   gapInstanceIds={gapInstanceIds}
+                  closingDays={closingDays}
                   todayISO={todayISO}
                   dayStartHour={dayStartHour}
                   dayEndHour={dayEndHour}
@@ -1194,6 +1206,8 @@ function TimetablesContent() {
           setQuickPrefill(null);
         }}
         defaultDate={quickPrefill?.date ?? dayISO}
+        closingDayRanges={closingDayRanges}
+        closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}
         weekTo={toISO}
         calendarPeriods={modalCalendarPeriods}

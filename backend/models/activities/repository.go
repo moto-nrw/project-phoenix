@@ -302,6 +302,7 @@ type TemplateListRow struct {
 	EndTime                 sql.NullString `bun:"end_time"`
 	WeekPattern             int            `bun:"week_pattern"`
 	CalendarPeriodID        sql.NullInt64  `bun:"calendar_period_id"`
+	ScheduleValidFrom       sql.NullString `bun:"schedule_valid_from"`
 	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
 }
 

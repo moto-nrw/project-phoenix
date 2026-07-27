@@ -64,10 +64,12 @@ vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
     weekDays,
     todayIso,
     assignmentsByStaff,
+    closingDaysLoading,
     onCellClick,
   }: {
     weekDays: string[];
     todayIso: string;
+    closingDaysLoading: boolean;
     assignmentsByStaff: Map<
       string,
       Map<string, Array<{ activityTitle: string }>>
@@ -81,6 +83,9 @@ vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
     <div data-testid="dienstplan-grid">
       <span data-testid="dienstplan-week-days">{weekDays.join(",")}</span>
       <span data-testid="dienstplan-today">{todayIso}</span>
+      <span data-testid="closing-days-loading">
+        {String(closingDaysLoading)}
+      </span>
       <span data-testid="dienstplan-assignments">
         {[...assignmentsByStaff.values()]
           .flatMap((byDate) => [...byDate.values()])
@@ -283,6 +288,47 @@ describe("DienstplanView", () => {
     expect(mocks.useSWRAuth).toHaveBeenCalledWith(
       "dienstplan-overview-2026-07-06-2026-07-10",
       expect.any(Function),
+    );
+  });
+
+  it("keeps shift creation gated while closing days are loading", () => {
+    mocks.useBerlinToday.mockReturnValue("2026-07-06");
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
+        return {
+          data: {
+            from: "2026-07-06",
+            to: "2026-07-10",
+            dienstplanInUse: true,
+            staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+            shifts: [],
+            assignments: [],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      if (key === "planning-closing-days") {
+        return {
+          data: undefined,
+          error: undefined,
+          isLoading: true,
+          mutate: vi.fn(),
+        };
+      }
+      return {
+        data: [],
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.getByTestId("closing-days-loading")).toHaveTextContent(
+      "true",
     );
   });
 
@@ -564,10 +610,9 @@ describe("DienstplanView", () => {
   });
 
   it("hides the Halbjahr tab and falls back to Woche without schedules:read", () => {
-    // Die Halbjahres-Sicht lädt /api/timetable/periods (backend-seitig mit
-    // schedules:read geschützt) — ohne die Berechtigung liefe sie in einen 403.
-    // Ohne schedules:read greift zugleich der reduzierte Datenpfad, daher der
-    // Legacy-Stub (dienstplan-staff) statt mockOverviewLoaded.
+    // Die Halbjahres-Sicht zeigt den Soll-/Plan-Abgleich aus /overview, der
+    // schedules:read verlangt. Ohne die Berechtigung greift zugleich der
+    // reduzierte Datenpfad, daher der Legacy-Stub (dienstplan-staff).
     mocks.hasPermission.mockImplementation(
       (_session: unknown, permission: string) =>
         permission !== "schedules:read",
