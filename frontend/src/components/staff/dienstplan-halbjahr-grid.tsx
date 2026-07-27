@@ -401,6 +401,7 @@ function HalbjahrGridInner({
         closing === undefined ? undefined : (
           <ClosingDayChip
             variant="compact"
+            compactLabel={String(closing.days.length)}
             label={`${closing.days.length} ${closing.days.length === 1 ? "Schließtag" : "Schließtage"}`}
             reason={closing.days.join(", ")}
             className="mx-auto flex w-fit"

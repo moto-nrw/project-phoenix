@@ -218,7 +218,7 @@ export function WeeklyCalendarGrid({
 
       {/* Sticky day header (desktop — mobile uses the day strip above) */}
       <div
-        className={`hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${gridColsClass}`}
+        className={`hidden min-h-[52px] border-b border-gray-200 bg-white sm:grid sm:min-h-14 ${gridColsClass}`}
       >
         <div aria-hidden />
         {weekDays.map((day) => {
@@ -255,7 +255,8 @@ export function WeeklyCalendarGrid({
               {closingReason !== undefined && (
                 <ClosingDayChip
                   reason={closingReason}
-                  className="w-full justify-center"
+                  wrap
+                  className="w-full justify-center text-center"
                 />
               )}
             </div>

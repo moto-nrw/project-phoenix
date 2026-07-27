@@ -36,6 +36,8 @@ export function ClosingDayChip({
   reason,
   label: caption = "Schließtag",
   variant = "full",
+  compactLabel,
+  wrap = false,
   className,
 }: {
   readonly reason: string;
@@ -43,6 +45,10 @@ export function ClosingDayChip({
    *  „3 Schließtage“ und übergeben die Tage als `reason`. */
   readonly label?: string;
   readonly variant?: "full" | "compact";
+  /** Kurzer Zusatz neben dem Symbol im compact-Modus, z. B. die Anzahl. */
+  readonly compactLabel?: string;
+  /** Text umbrechen statt kürzen, für schmale Spalten mit Platz nach unten. */
+  readonly wrap?: boolean;
   readonly className?: string;
 }) {
   const label = reason === "" ? caption : `${caption}: ${reason}`;
@@ -57,9 +63,16 @@ export function ClosingDayChip({
         aria-hidden
       />
       {variant === "compact" ? (
-        <span className="sr-only">{label}</span>
+        <>
+          {compactLabel === undefined ? null : (
+            <span aria-hidden className="tabular-nums">
+              {compactLabel}
+            </span>
+          )}
+          <span className="sr-only">{label}</span>
+        </>
       ) : (
-        <span className="truncate">
+        <span className={wrap ? "break-words" : "truncate"}>
           {caption}
           {reason === "" ? "" : ` · ${reason}`}
         </span>
@@ -115,8 +128,8 @@ export function ClosingDayConfirmModal({
         </p>
         <p className="text-sm leading-relaxed text-gray-600">
           {subjectLabel === "Termin"
-            ? "Der Termin wird trotzdem angelegt — etwa für eine Ferien- oder Notbetreuung."
-            : "Die Schicht wird trotzdem geplant — etwa für einen pädagogischen Tag oder eine Notbetreuung."}
+            ? "Der Termin wird trotzdem angelegt, etwa für eine Ferien- oder Notbetreuung."
+            : "Die Schicht wird trotzdem geplant, etwa für einen pädagogischen Tag oder eine Notbetreuung."}
         </p>
       </div>
     </ConfirmationModal>
