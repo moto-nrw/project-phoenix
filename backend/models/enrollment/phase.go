@@ -80,7 +80,7 @@ var validPhaseRolloverModes = map[string]bool{
 }
 
 // PhaseAudience values match enrollment.phases.audience (migration
-// 1.15.230 + 1.15.231, issue #1663). They answer "who may apply to this
+// 1.15.234 + 1.15.235, issue #1663). They answer "who may apply to this
 // phase":
 //
 //   - open              → everyone, including anonymous public visitors
@@ -182,7 +182,7 @@ type Phase struct {
 	AvailableSchoolClasses []string `bun:"available_school_classes,type:jsonb,notnull" json:"available_school_classes"`
 	RequireSchoolClass     bool     `bun:"require_school_class,notnull" json:"require_school_class"`
 
-	// Eligibility config (migration 1.15.230, issue #1663).
+	// Eligibility config (migration 1.15.234, issue #1663).
 	//
 	// Audience restricts who may apply (see PhaseAudience* constants).
 	// EligibleSchoolClasses, when non-empty, restricts submissions to
@@ -199,7 +199,7 @@ type Phase struct {
 	Audience              string   `bun:"audience,notnull,default:'open'" json:"audience"`
 	EligibleSchoolClasses []string `bun:"eligible_school_classes,type:jsonb,notnull" json:"eligible_school_classes"`
 
-	// EligibleGradeLevels (migration 1.15.233, issue #1663) is the
+	// EligibleGradeLevels (migration 1.15.237, issue #1663) is the
 	// grade-level counterpart of EligibleSchoolClasses: when non-empty,
 	// every submitted child must declare one of the listed grades. It is
 	// the representation for a phase aimed at a whole grade ("alle

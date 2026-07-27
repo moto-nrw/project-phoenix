@@ -143,6 +143,8 @@ describe("tenant-api", () => {
         // available until the server explicitly publishes false.
         careOfferingsEnabled: true,
         attendanceWebEnabled: false,
+        // Opt-in feature flag (#1456): missing on older backends means off.
+        attendanceLogEnabled: false,
         groupMode: "fixed_groups",
         showTimetableCounts: true,
         waitlistEnabled: true,

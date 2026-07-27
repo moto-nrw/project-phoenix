@@ -103,6 +103,10 @@ type AttendanceRepository interface {
 	// FindForDate finds all attendance records for a specific date
 	FindForDate(ctx context.Context, date timezone.Date) ([]*Attendance, error)
 
+	// FindForDateByStudentIDs finds attendance records for a specific date and
+	// the supplied students. An empty student list returns no rows.
+	FindForDateByStudentIDs(ctx context.Context, date timezone.Date, studentIDs []int64) ([]*Attendance, error)
+
 	// ListOpenStudentIDsForDate returns unique student IDs with an open
 	// attendance row for the given date.
 	ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error)

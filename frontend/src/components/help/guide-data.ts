@@ -646,6 +646,27 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/aktuelle-aufsicht.webp",
       },
       {
+        id: "tagesauswertung",
+        title: "Tagesauswertung",
+        icon: ClipboardList,
+        summary:
+          "Zeigt für den aktuellen Tag und jede Gruppe, welche Kinder anwesend, krank, entschuldigt oder abwesend sind – inklusive Druck und Export.",
+        steps: [
+          "`Tagesauswertung` in der Seitenleiste öffnen.",
+          "Die Tagesauswertung zeigt immer den aktuellen Tag.",
+          "Jede Gruppe erscheint als Kachel mit allen Status-Zahlen des Tages; unentschuldigt abwesende Kinder werden rot gezählt – diese Familien sollte man ansprechen.",
+          "Ein Klick auf eine Kachel öffnet die Detailansicht der Gruppe mit den Kindern nach Status sortiert; ein Klick auf ein Kind führt zu dessen Detailseite.",
+          "Über `Drucken`, `PDF` oder `Excel` die Auswertung ausgeben – oben für alle Gruppen, in der Detailansicht nur für die geöffnete Gruppe.",
+        ],
+        callout: {
+          title: "Seite nicht sichtbar?",
+          body: "Die Tagesauswertung gehört zum Anwesenheitsprotokoll und ist im Auslieferungszustand aus. Ein Admin schaltet sie unter `Einstellungen` -> `Datenschutz` mit `Anwesenheitsprotokoll` ein; dort steuert auch `Sichtbarkeit`, ob nur Gruppenleitungen ihre eigene Gruppe sehen oder das ganze Team alle Gruppen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tagesauswertung mit Status-Zählern und Kinderliste nach Status gruppiert.",
+      },
+      {
         id: "erinnerungen",
         title: "Erinnerungen",
         icon: Clock3,

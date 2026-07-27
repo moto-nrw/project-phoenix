@@ -305,6 +305,8 @@ GET /api/staff/{id}/vacation/quota
 GET /api/students/
 GET /api/students/care-schedule-change-requests
 GET /api/students/change-requests/pending-count
+GET /api/students/day-log
+GET /api/students/day-log/export
 GET /api/students/excused-absence-requests
 GET /api/students/master-data-change-requests
 GET /api/students/school-classes

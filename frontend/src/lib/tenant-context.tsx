@@ -244,6 +244,16 @@ export function useAttendanceWebEnabled(): boolean {
   return ctx?.tenant?.attendanceWebEnabled === true;
 }
 
+/**
+ * Returns whether the attendance log / Tagesauswertung
+ * (gdpr.attendance_log_enabled) is enabled for this tenant. Opt-in feature,
+ * defaults to false when tenant metadata is unavailable.
+ */
+export function useAttendanceLogEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.attendanceLogEnabled === true;
+}
+
 export function useOpenCareGroupMode(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.groupMode === "open_care";
