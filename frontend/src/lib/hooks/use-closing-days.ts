@@ -26,7 +26,7 @@ import { timeTrackingService } from "~/lib/time-tracking-api";
 import { useSWRAuth } from "~/lib/swr";
 
 /** Shared SWR key of the full closure list — deduped across both plans. */
-export const CLOSING_DAYS_SWR_KEY = "planning-closing-days";
+const CLOSING_DAYS_SWR_KEY = "planning-closing-days";
 
 const EMPTY_RANGES: readonly ClosingDayRange[] = [];
 const EMPTY_CLOSING_DAYS: ReadonlyMap<string, string> = new Map();
