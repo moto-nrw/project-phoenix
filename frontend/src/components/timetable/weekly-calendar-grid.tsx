@@ -336,11 +336,17 @@ export function WeeklyCalendarGrid({
                   renderEndHour,
                 )
               : null;
+            let backgroundClass = "";
+            if (closingReason !== undefined) {
+              backgroundClass = "bg-gray-100/70";
+            } else if (isToday) {
+              backgroundClass = "bg-gray-50/60";
+            }
 
             return (
               <div
                 key={iso}
-                className={`relative min-w-0 border-l border-gray-200 ${closingReason !== undefined ? "bg-gray-100/70" : isToday ? "bg-gray-50/60" : ""} ${dayIndex === safeSelectedIndex ? "" : "hidden sm:block"}`}
+                className={`relative min-w-0 border-l border-gray-200 ${backgroundClass} ${dayIndex === safeSelectedIndex ? "" : "hidden sm:block"}`}
                 style={{ height: `${gridHeightPx}px` }}
               >
                 {/* Hour grid lines */}

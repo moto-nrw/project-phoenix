@@ -40,7 +40,7 @@ import {
 } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
-import { weekdayDatesInRange } from "~/lib/timetable-helpers";
+import { latestISODate, weekdayDatesInRange } from "~/lib/timetable-helpers";
 
 import {
   formatWeekdays,
@@ -344,9 +344,7 @@ export function ShiftEditModal({
   const seriesClosingDayWindow = useMemo(() => {
     if (!repeatEnabled || !selectedPeriod) return null;
     const tomorrow = dayAfterISO(berlinTodayISO());
-    const from = [date, selectedPeriod.startDate, tomorrow].reduce(
-      (latest, candidate) => (candidate > latest ? candidate : latest),
-    );
+    const from = latestISODate(date, selectedPeriod.startDate, tomorrow);
     const to =
       validUntil !== "" && validUntil < selectedPeriod.endDate
         ? validUntil
@@ -432,8 +430,10 @@ export function ShiftEditModal({
   const seriesEditClosingDayWindow = useMemo(() => {
     if (!seriesEditOpen || !seriesPeriod) return null;
     const tomorrow = dayAfterISO(berlinTodayISO());
-    const from = [seriesEffectiveDate, seriesPeriod.startDate, tomorrow].reduce(
-      (latest, candidate) => (candidate > latest ? candidate : latest),
+    const from = latestISODate(
+      seriesEffectiveDate,
+      seriesPeriod.startDate,
+      tomorrow,
     );
     const to =
       seriesValidUntil !== "" && seriesValidUntil < seriesPeriod.endDate

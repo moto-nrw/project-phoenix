@@ -524,7 +524,7 @@ describe("DienstplanHalbjahrGrid closing days", () => {
     // KW 38 (Mo 14.09.) ist die Woche, in die beide Tage fallen.
     expect(marked.closest("th")).toHaveTextContent("KW 38");
     // Keine andere Woche trägt eine Kennzeichnung.
-    expect(screen.getAllByText(/Schließtag/).length).toBe(1);
+    expect(screen.getAllByText(/Schließtag/)).toHaveLength(1);
   });
 
   it("keeps every column unmarked without closing days", () => {

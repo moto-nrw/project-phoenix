@@ -81,7 +81,7 @@ describe("WeeklyCalendarGrid closing days (#2032)", () => {
     renderWeek();
 
     expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
-    expect(screen.getAllByText("Keine Aktivitäten").length).toBe(4);
+    expect(screen.getAllByText("Keine Aktivitäten")).toHaveLength(4);
   });
 });
 
@@ -116,7 +116,7 @@ describe("MonthPlannerGrid closing days (#2032)", () => {
       within(closingCell as HTMLElement).queryByText("Leer"),
     ).not.toBeInTheDocument();
     // Alle anderen Tage der Woche behalten ihren Leer-Hinweis.
-    expect(screen.getAllByText("Leer").length).toBe(monthDays.length - 1);
+    expect(screen.getAllByText("Leer")).toHaveLength(monthDays.length - 1);
   });
 
   it("shows nothing extra without closing days", () => {
@@ -131,6 +131,6 @@ describe("MonthPlannerGrid closing days (#2032)", () => {
     );
 
     expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
-    expect(screen.getAllByText("Leer").length).toBe(monthDays.length);
+    expect(screen.getAllByText("Leer")).toHaveLength(monthDays.length);
   });
 });

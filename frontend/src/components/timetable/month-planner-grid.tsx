@@ -65,19 +65,19 @@ export function MonthPlannerGrid({
 
           const visibleInstances = dayInstances.slice(0, 4);
           const moreCount = dayInstances.length - visibleInstances.length;
+          let backgroundClass = "bg-white";
+          if (closingReason !== undefined) {
+            backgroundClass = "bg-gray-100/70";
+          } else if (outsideMonth) {
+            backgroundClass = "bg-gray-50/40";
+          }
 
           return (
             <button
               key={iso}
               type="button"
               onClick={() => onDayClick(iso)}
-              className={`min-h-[112px] border-r border-b border-gray-100 p-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${
-                closingReason !== undefined
-                  ? "bg-gray-100/70"
-                  : outsideMonth
-                    ? "bg-gray-50/40"
-                    : "bg-white"
-              } ${outsideMonth ? "text-gray-400" : ""}`}
+              className={`min-h-[112px] border-r border-b border-gray-100 p-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${backgroundClass} ${outsideMonth ? "text-gray-400" : ""}`}
             >
               <div className="flex items-center justify-between gap-2">
                 {isToday ? (

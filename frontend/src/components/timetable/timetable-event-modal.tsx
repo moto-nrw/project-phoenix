@@ -71,6 +71,20 @@ const STEP_FIELDS: readonly (readonly (keyof EventFormState)[])[] = [
 
 const LAST_STEP = WIZARD_STEPS.length - 1;
 
+function getClosingDayWarningMessage(
+  isSeriesFlow: boolean,
+  conflict: ClosingDayConflict,
+): string {
+  let reason = "";
+  if (conflict.reason !== "") reason = ` (${conflict.reason})`;
+
+  const date = formatDate(conflict.dateISO);
+  if (isSeriesFlow) {
+    return `Hinweis: Der Regeltermin fällt am ${date} auf einen Schließtag${reason}. Planen ist weiterhin möglich.`;
+  }
+  return `Hinweis: Am ${date} ist ein Schließtag hinterlegt${reason}. Planen ist weiterhin möglich.`;
+}
+
 interface TimetableEventModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -582,11 +596,10 @@ export function TimetableEventModal({
             {closingDayConflict !== null && (
               <Alert
                 type="warning"
-                message={
-                  isSeriesFlow
-                    ? `Hinweis: Der Regeltermin fällt am ${formatDate(closingDayConflict.dateISO)} auf einen Schließtag${closingDayConflict.reason === "" ? "" : ` (${closingDayConflict.reason})`}. Planen ist weiterhin möglich.`
-                    : `Hinweis: Am ${formatDate(closingDayConflict.dateISO)} ist ein Schließtag hinterlegt${closingDayConflict.reason === "" ? "" : ` (${closingDayConflict.reason})`}. Planen ist weiterhin möglich.`
-                }
+                message={getClosingDayWarningMessage(
+                  isSeriesFlow,
+                  closingDayConflict,
+                )}
                 announce="off"
               />
             )}

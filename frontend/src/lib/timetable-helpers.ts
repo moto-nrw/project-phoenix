@@ -219,6 +219,14 @@ export function weekdayDatesInRange(
   return dates;
 }
 
+export function latestISODate(first: string, ...dates: string[]): string {
+  let latest = first;
+  for (const candidate of dates) {
+    if (candidate > latest) latest = candidate;
+  }
+  return latest;
+}
+
 /**
  * Concrete recurrence dates inside a calendar period and schedule segment.
  * `validFrom` is inclusive, `validUntil` exclusive, matching the backend
@@ -239,9 +247,7 @@ export function materializedRecurrenceDates({
   validFrom?: string;
   validUntil?: string;
 }): string[] {
-  const from = [period.startDate, fromISO, validFrom ?? ""].reduce(
-    (latest, candidate) => (candidate > latest ? candidate : latest),
-  );
+  const from = latestISODate(period.startDate, fromISO, validFrom ?? "");
   return weekdayDatesInRange(from, period.endDate, weekdays).filter(
     (dateISO) =>
       (validUntil === undefined || dateISO < validUntil) &&
