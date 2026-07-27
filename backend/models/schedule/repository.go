@@ -113,6 +113,10 @@ type StaffShiftSeriesRepository interface {
 	// CapAllByStaffID bounds every series segment of one staff member at the
 	// exclusive date (staff offboarding).
 	CapAllByStaffID(ctx context.Context, staffID int64, until timezone.Date) (int64, error)
+
+	// FindNextInLineage returns the first segment of a split lineage that starts
+	// after the given date. A newly inserted predecessor must not extend into it.
+	FindNextInLineage(ctx context.Context, rootID int64, after timezone.Date) (*StaffShiftSeries, error)
 }
 
 // StaffShiftSeriesExceptionRepository stores deliberately removed single

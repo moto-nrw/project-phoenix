@@ -64,6 +64,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/cancellation", rs.cancellation)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/series/{id}", rs.getSeries)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}/split", rs.splitSeries)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/series/{id}", rs.endSeries)
 	})
@@ -207,6 +208,10 @@ type ShiftResponse struct {
 	Cancelled      bool    `json:"cancelled"`
 	ChangeReason   *string `json:"change_reason,omitempty"`
 	OriginShiftID  *int64  `json:"origin_shift_id,omitempty"`
+	// SeriesOccurrenceDate is the immutable recurrence slot. It lets clients
+	// apply a rule edit from a moved occurrence's source date, not its current
+	// display date.
+	SeriesOccurrenceDate *string `json:"series_occurrence_date,omitempty"`
 }
 
 // ToShiftResponse maps a shift onto the wire format. Exported for the
@@ -226,6 +231,10 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 		Cancelled:     s.Cancelled,
 		ChangeReason:  s.ChangeReason,
 		OriginShiftID: s.OriginShiftID,
+	}
+	if s.SeriesOccurrenceDate != nil {
+		occurrenceDate := s.SeriesOccurrenceDate.String()
+		resp.SeriesOccurrenceDate = &occurrenceDate
 	}
 	if s.ShiftType != nil {
 		name := s.ShiftType.Name

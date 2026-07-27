@@ -23,6 +23,7 @@ type seriesMockRepo struct {
 	createFn        func(ctx context.Context, series *scheduleModels.StaffShiftSeries) error
 	findByIDFn      func(ctx context.Context, id any) (*scheduleModels.StaffShiftSeries, error)
 	capValidUntilFn func(ctx context.Context, id int64, until timezone.Date) error
+	findNextFn      func(ctx context.Context, rootID int64, after timezone.Date) (*scheduleModels.StaffShiftSeries, error)
 }
 
 func (m *seriesMockRepo) Create(ctx context.Context, series *scheduleModels.StaffShiftSeries) error {
@@ -52,6 +53,13 @@ func (m *seriesMockRepo) CapValidUntil(ctx context.Context, id int64, until time
 
 func (m *seriesMockRepo) CapAllByStaffID(context.Context, int64, timezone.Date) (int64, error) {
 	return 0, nil
+}
+
+func (m *seriesMockRepo) FindNextInLineage(ctx context.Context, rootID int64, after timezone.Date) (*scheduleModels.StaffShiftSeries, error) {
+	if m.findNextFn != nil {
+		return m.findNextFn(ctx, rootID, after)
+	}
+	return nil, nil
 }
 
 type seriesMockExceptionRepo struct {
@@ -84,6 +92,8 @@ type seriesShiftMockRepo struct {
 	bulkCreateFn        func(ctx context.Context, shifts []*scheduleModels.StaffShift) error
 	deleteNonDetachedFn func(ctx context.Context, seriesID int64, from timezone.Date) (int64, error)
 	repointDetachedFn   func(ctx context.Context, fromID, toID int64, from timezone.Date) (int64, error)
+	findDetachedFn      func(ctx context.Context, seriesID int64, from timezone.Date) ([]*scheduleModels.StaffShift, error)
+	deleteFn            func(ctx context.Context, id any) error
 }
 
 func (m *seriesShiftMockRepo) BulkCreate(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
@@ -105,6 +115,20 @@ func (m *seriesShiftMockRepo) RepointDetachedSeriesFrom(ctx context.Context, fro
 		return m.repointDetachedFn(ctx, fromID, toID, from)
 	}
 	return 0, nil
+}
+
+func (m *seriesShiftMockRepo) FindDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	if m.findDetachedFn != nil {
+		return m.findDetachedFn(ctx, seriesID, from)
+	}
+	return nil, nil
+}
+
+func (m *seriesShiftMockRepo) Delete(ctx context.Context, id any) error {
+	if m.deleteFn != nil {
+		return m.deleteFn(ctx, id)
+	}
+	return nil
 }
 
 type seriesFakePeriodRepo struct {
@@ -339,6 +363,44 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
 	})
 
+	t.Run("valid until beyond calendar period", func(t *testing.T) {
+		periodEnd := timezone.TodayDate().AddDays(5)
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: found(t),
+			period: seriesFakePeriodRepo{period: &scheduleModels.CalendarPeriod{
+				StartDate:       timezone.TodayDate().AddDays(-30),
+				EndDate:         periodEnd,
+				WeekCycleLength: 1,
+				IsActive:        true,
+			}},
+		})
+		input := splitInput(t, 12)
+		tooLate := periodEnd.AddDays(2)
+		input.ValidUntil = &tooLate
+		input.ValidUntilSet = true
+		_, err := service.SplitSeries(context.Background(), input)
+		assert.ErrorIs(t, err, ErrSeriesInvalid)
+	})
+
+	t.Run("bounds successor at next lineage segment", func(t *testing.T) {
+		nextFrom := timezone.TodayDate().AddDays(8)
+		var created *scheduleModels.StaffShiftSeries
+		repo := found(t)
+		repo.findNextFn = func(context.Context, int64, timezone.Date) (*scheduleModels.StaffShiftSeries, error) {
+			return &scheduleModels.StaffShiftSeries{ValidFrom: nextFrom}, nil
+		}
+		repo.createFn = func(_ context.Context, successor *scheduleModels.StaffShiftSeries) error {
+			created = successor
+			successor.ID = 13
+			return nil
+		}
+		service := newSeriesServiceForTest(seriesServiceMocks{series: repo})
+		_, err := service.SplitSeries(context.Background(), splitInput(t, 12))
+		require.NoError(t, err)
+		require.NotNil(t, created.ValidUntil)
+		assert.Equal(t, nextFrom, *created.ValidUntil)
+	})
+
 	t.Run("cap failure", func(t *testing.T) {
 		repo := found(t)
 		repo.capValidUntilFn = func(context.Context, int64, timezone.Date) error { return dbErr }
@@ -428,5 +490,55 @@ func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, timezone.TodayDate().AddDays(1), capped,
 			"an end date in the past must clamp to tomorrow (past rows stay)")
+	})
+}
+
+// GetSeries is what the series editor reads before it writes an edit back
+// through the split (#2028): it must hand out the stored rule unchanged and
+// report a missing series as ErrSeriesNotFound, never as a nil rule.
+func TestGetSeriesUnit(t *testing.T) {
+	t.Run("returns the stored rule", func(t *testing.T) {
+		stored := storedSeries(t)
+		stored.Weekdays = []int16{2, 4}
+		stored.WeekPattern = scheduleModels.WeekPatternA
+		until := timezone.TodayDate().AddDays(14)
+		stored.ValidUntil = &until
+
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: &seriesMockRepo{findByIDFn: func(_ context.Context, id any) (*scheduleModels.StaffShiftSeries, error) {
+				assert.Equal(t, int64(12), id)
+				return stored, nil
+			}},
+		})
+
+		got, err := service.GetSeries(context.Background(), stored.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, stored.ID, got.ID)
+		assert.Equal(t, []int16{2, 4}, got.Weekdays)
+		assert.Equal(t, scheduleModels.WeekPatternA, got.WeekPattern)
+		require.NotNil(t, got.ValidUntil)
+		assert.Equal(t, until, *got.ValidUntil)
+	})
+
+	t.Run("unknown id", func(t *testing.T) {
+		service := newSeriesServiceForTest(seriesServiceMocks{})
+		_, err := service.GetSeries(context.Background(), 12)
+		assert.ErrorIs(t, err, ErrSeriesNotFound)
+
+		_, err = service.GetSeries(context.Background(), 0)
+		assert.ErrorIs(t, err, ErrSeriesNotFound)
+	})
+
+	t.Run("lookup failure", func(t *testing.T) {
+		dbErr := errors.New("db down")
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: &seriesMockRepo{findByIDFn: func(context.Context, any) (*scheduleModels.StaffShiftSeries, error) {
+				return nil, dbErr
+			}},
+		})
+		_, err := service.GetSeries(context.Background(), 12)
+		assert.ErrorIs(t, err, dbErr)
+		assert.NotErrorIs(t, err, ErrSeriesNotFound)
 	})
 }
