@@ -35,8 +35,14 @@ import type {
 } from "~/lib/timetable-types";
 
 import { timetableSurface } from "./timetable-style";
+import {
+  VertretungListFilter,
+  type VertretungDayListMode as FilterMode,
+} from "./vertretung-list-filter";
 
-export type VertretungDayListMode = "stoerungen" | "ganzer-tag";
+// Der Typ lebt beim Filter (siehe dort), wird hier aber unter dem gewohnten
+// Namen weitergereicht, damit die bestehenden Aufrufer nichts ändern müssen.
+export type VertretungDayListMode = FilterMode;
 
 export interface StaffTriple {
   readonly planned: number;
@@ -61,6 +67,8 @@ export interface VertretungDayListProps {
    */
   staffNames: Map<string, string>;
   mode: VertretungDayListMode;
+  /** Setzt den Filter. Ohne Callback wird die Filterzeile nicht gerendert. */
+  onModeChange?: (mode: VertretungDayListMode) => void;
   canManage: boolean;
   onEdit: (instanceId: string) => void;
   className?: string;
@@ -219,6 +227,7 @@ export function VertretungDayList({
   gapsAvailable,
   staffNames,
   mode,
+  onModeChange,
   canManage,
   onEdit,
   className,
@@ -226,10 +235,18 @@ export function VertretungDayList({
   const containerClassName = className
     ? `${timetableSurface} ${className}`
     : timetableSurface;
+  const filter = onModeChange ? (
+    <VertretungListFilter
+      mode={mode}
+      onModeChange={onModeChange}
+      allLabel="Ganzer Tag"
+    />
+  ) : null;
 
   if (instances.length === 0) {
     return (
       <div className={containerClassName}>
+        {filter}
         <p className="p-4 text-sm text-gray-500">
           Keine Termine an diesem Tag.
         </p>
@@ -252,6 +269,7 @@ export function VertretungDayList({
 
   return (
     <div className={containerClassName}>
+      {filter}
       {!gapsAvailable && (
         <p className="border-b border-gray-200 p-3 text-xs font-medium text-gray-500">
           Störungslage konnte nicht vollständig geprüft werden

@@ -81,7 +81,9 @@ describe("WeeklyCalendarGrid closing days (#2032)", () => {
     renderWeek();
 
     expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
-    expect(screen.getAllByText("Keine Aktivitäten")).toHaveLength(4);
+    // Leere Tagesspalten tragen seit #2031 keine Beschriftung mehr; der
+    // Schließtag-Hinweis ist damit das Einzige, was hier je erscheint.
+    expect(screen.queryByText("Keine Aktivitäten")).not.toBeInTheDocument();
   });
 });
 

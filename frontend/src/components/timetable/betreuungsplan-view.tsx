@@ -945,14 +945,24 @@ function TimetablesContent() {
   // Anmeldung verknüpft") aus dem leeren Zwischenstand ableiten — neutraler
   // Platzhalter. Schlägt der Fetch fehl, entfällt der Chip (keine Aussage
   // ist ehrlicher als eine falsche).
+  // Rahmenlos in der Kontextzeile (#2031): dort stehen alle Angaben als ruhiger
+  // Text, eine gerahmte Pille daneben wäre das dritte Formvokabular in einer
+  // Zeile. Als Link bleibt sie unterstrichen bei Hover, sonst reiner Text.
+  const originChipClassName = "border-transparent bg-transparent px-0";
   const demandOriginChip = phasesError ? null : phasesData === undefined ? (
-    <OriginChip label="Bedarf wird ermittelt …" />
+    <OriginChip
+      label="Bedarf wird ermittelt …"
+      className={originChipClassName}
+    />
   ) : demandOrigin.href ? (
-    <Link href={tenantPath(demandOrigin.href)} className="inline-flex">
-      <OriginChip label={demandOrigin.label} />
+    <Link
+      href={tenantPath(demandOrigin.href)}
+      className="inline-flex hover:underline"
+    >
+      <OriginChip label={demandOrigin.label} className={originChipClassName} />
     </Link>
   ) : (
-    <OriginChip label={demandOrigin.label} />
+    <OriginChip label={demandOrigin.label} className={originChipClassName} />
   );
 
   // Dichte-Umschalter als kleines Kebab-Menü in der Aktionszeile (nur in der

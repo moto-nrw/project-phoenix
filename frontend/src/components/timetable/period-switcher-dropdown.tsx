@@ -160,12 +160,12 @@ export function PeriodSwitcherDropdown({
     <div className="relative" ref={containerRef}>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="compact"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="max-w-[240px]"
+        className="-ml-2.5 max-w-[240px]"
         title="Planungszeitraum wechseln"
       >
         <span
