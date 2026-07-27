@@ -16,6 +16,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -420,23 +421,21 @@ export function CalendarPeriodModal({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Startdatum" htmlFor="start_date" required>
-            <Input
+            <ISODatePicker
               id="start_date"
-              type="date"
+              controlSize="md"
               value={form.startDate}
-              controlSize="compact"
-              onChange={(e) => update("startDate", e.target.value)}
-              required
+              onChange={(next) => update("startDate", next)}
+              calendarLayout="popover"
             />
           </Field>
           <Field label="Enddatum" htmlFor="end_date" required>
-            <Input
+            <ISODatePicker
               id="end_date"
-              type="date"
+              controlSize="md"
               value={form.endDate}
-              controlSize="compact"
-              onChange={(e) => update("endDate", e.target.value)}
-              required
+              onChange={(next) => update("endDate", next)}
+              calendarLayout="popover"
             />
           </Field>
         </div>
@@ -461,13 +460,13 @@ export function CalendarPeriodModal({
             htmlFor="cycle_anchor"
             required={cycleLength > 1}
           >
-            <Input
+            <ISODatePicker
               id="cycle_anchor"
-              type="date"
+              controlSize="md"
               value={form.weekCycleAnchor}
-              controlSize="compact"
-              onChange={(e) => update("weekCycleAnchor", e.target.value)}
+              onChange={(next) => update("weekCycleAnchor", next)}
               disabled={cycleLength <= 1}
+              calendarLayout="popover"
             />
           </Field>
         </div>

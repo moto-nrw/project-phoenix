@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import {
   type CareException,
   type ChildCareSchedule,
@@ -646,6 +648,7 @@ export function SickNoteModal({
   excusedRequiresApproval?: boolean;
 }>) {
   const t = useTranslations("parentChildCare");
+  const datePicker = useLocalizedDatePicker();
   const initial = todayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
@@ -726,27 +729,31 @@ export function SickNoteModal({
             <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
               {t("sick.from")}
             </span>
-            <input
-              type="date"
+            <ISODatePicker
+              {...datePicker}
+              ariaLabel={t("sick.from")}
               value={from}
               min={initial}
-              onChange={(e) => {
-                setFrom(e.target.value);
-                if (e.target.value > to) setTo(e.target.value);
+              onChange={(next) => {
+                setFrom(next);
+                if (next > to) setTo(next);
               }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
+              calendarLayout="popover"
+              hideClearButton
             />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
               {t("sick.to")}
             </span>
-            <input
-              type="date"
+            <ISODatePicker
+              {...datePicker}
+              ariaLabel={t("sick.to")}
               value={to}
               min={from}
-              onChange={(e) => setTo(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
+              onChange={setTo}
+              calendarLayout="popover"
+              hideClearButton
             />
           </label>
         </div>
@@ -823,6 +830,7 @@ export function PickupTimeModal({
 }>) {
   const t = useTranslations("parentChildCare");
   const locale = useLocale();
+  const datePicker = useLocalizedDatePicker();
   const today = todayISO();
   const initial = useMemo(() => {
     if (pickupChangeEnabled) return today;
@@ -940,13 +948,15 @@ export function PickupTimeModal({
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {t("pickup.dateLabel")}
           </span>
-          <input
-            type="date"
+          <ISODatePicker
+            {...datePicker}
+            ariaLabel={t("pickup.dateLabel")}
             value={date}
             min={today}
             max={maxSelectable}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
+            onChange={setDate}
+            calendarLayout="popover"
+            hideClearButton
           />
         </label>
 

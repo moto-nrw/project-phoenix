@@ -46,6 +46,19 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+// The date and datetime fields moved from native inputs to the kit pickers;
+// these stubs keep them settable via fireEvent.change. Imported inside the
+// factories because vi.mock is hoisted above the imports.
+vi.mock("~/components/ui/date-picker", async (importOriginal) => {
+  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
+  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+});
+
+vi.mock("~/components/ui/date-time-picker", async (importOriginal) => {
+  const { dateTimePickerMock } = await import("~/test/mocks/date-time-picker");
+  return { ...(await importOriginal<object>()), ...dateTimePickerMock() };
+});
+
 vi.mock("next/navigation", () => ({
   useSearchParams: () => mocks.searchParams,
 }));
@@ -1724,6 +1737,29 @@ describe("PhasesEditor", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Schließung des Anmeldefensters muss nach der Öffnung liegen.",
+    );
+    expect(mocks.createPhase).not.toHaveBeenCalled();
+  });
+
+  it("does not save a phase without both service dates", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+    );
+    fireEvent.change(inputByName("name"), {
+      target: { value: "Unvollständiger Zeitraum" },
+    });
+    fireEvent.change(inputByName("service_start_date"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
     );
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });

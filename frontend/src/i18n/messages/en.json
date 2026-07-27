@@ -3,6 +3,14 @@
     "label": "Language",
     "saveError": "Couldn't save the language to your account. Your choice applies on this device."
   },
+  "datePicker": {
+    "placeholder": "Select date",
+    "clear": "Clear date",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "month": "Month",
+    "year": "Year"
+  },
   "parentAuthShell": {
     "badges": {
       "audience": "Made for after-school care",

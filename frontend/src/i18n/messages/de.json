@@ -3,6 +3,14 @@
     "label": "Sprache",
     "saveError": "Sprache konnte nicht in deinem Konto gespeichert werden. Die Auswahl gilt auf diesem Gerät."
   },
+  "datePicker": {
+    "placeholder": "Datum auswählen",
+    "clear": "Datum löschen",
+    "previousMonth": "Vorheriger Monat",
+    "nextMonth": "Nächster Monat",
+    "month": "Monat",
+    "year": "Jahr"
+  },
   "parentAuthShell": {
     "badges": {
       "audience": "Für den Ganztag gemacht",

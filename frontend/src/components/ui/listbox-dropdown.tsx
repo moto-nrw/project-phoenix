@@ -31,12 +31,24 @@ interface ListboxDropdownProps<K extends string> {
   readonly ariaDescribedBy?: string;
   readonly containerClassName?: string;
   readonly containerStyle?: CSSProperties;
+  /**
+   * Optional ancestor selector for the menu portal. Use when a fixed overlay
+   * already owns a FocusScope that must contain the listbox options.
+   */
+  readonly portalScopeSelector?: string;
   /** Receives the wrapper node, e.g. to locate the surrounding <form>. */
   readonly containerNodeRef?: RefObject<HTMLDivElement | null>;
   readonly className?: string;
   readonly menuClassName?: string;
   /** Horizontal anchor of the portaled menu relative to the trigger. */
   readonly menuAlign?: "start" | "end";
+  /**
+   * Stacking level of the portaled menu. The default clears modal overlays
+   * (z-[9999]); a caller that itself portals higher — the kit calendar sits at
+   * z-[10001] — has to lift the menu above its own surface, or the menu opens
+   * behind it.
+   */
+  readonly menuZIndex?: number;
   readonly optionClassName?: string;
   readonly activeOptionClassName?: string;
   readonly disabledOptionClassName?: string;
@@ -146,10 +158,12 @@ export function ListboxDropdown<K extends string>({
   ariaDescribedBy,
   containerClassName = "relative",
   containerStyle,
+  portalScopeSelector,
   containerNodeRef,
   className = "",
   menuClassName = "",
   menuAlign = "start",
+  menuZIndex = 10000,
   optionClassName = "",
   activeOptionClassName = "",
   disabledOptionClassName = "",
@@ -175,6 +189,12 @@ export function ListboxDropdown<K extends string>({
   const [focusIndex, setFocusIndex] = useState(selectedIndex);
   const selectedOption = options.find((option) => option.value === value);
   const selectedLabel = selectedOption?.label ?? placeholder;
+  const portalContainer =
+    typeof document === "undefined"
+      ? null
+      : ((portalScopeSelector
+          ? buttonRef.current?.closest(portalScopeSelector)
+          : null) ?? document.body);
 
   useEffect(() => {
     if (!open) return;
@@ -227,7 +247,7 @@ export function ListboxDropdown<K extends string>({
       position: "fixed",
       // Above the modal/dialog overlays (z-[9999]) so menus opened from
       // dialog forms stack on top of the dialog instead of behind it.
-      zIndex: 10000,
+      zIndex: menuZIndex,
       // Vaul/Radix dialogs run in modal mode set `body { pointer-events: none }`
       // and only re-enable it on the dialog content. Because this menu is
       // portaled to document.body (a sibling of that content), it would inherit
@@ -258,7 +278,7 @@ export function ListboxDropdown<K extends string>({
       style.top = rect.bottom + MENU_OFFSET_PX;
     }
     setMenuStyle(style);
-  }, [menuAlign]);
+  }, [menuAlign, menuZIndex]);
 
   // Layout effect so the first visible frame is already positioned (the menu
   // renders hidden until menuStyle is set). Scroll listens in capture phase to
@@ -279,8 +299,19 @@ export function ListboxDropdown<K extends string>({
 
   useEffect(() => {
     if (!open) return;
-    optionRefs.current[focusIndex]?.focus();
-  }, [open, focusIndex]);
+    const option = optionRefs.current[focusIndex];
+    option?.focus();
+    // A long list (the calendar's 101 years) otherwise opens scrolled to the
+    // top, with the current value off-screen. This waits for menuStyle, because
+    // the maxHeight it carries is what makes the menu scrollable at all —
+    // scrolling before that would move the page instead of the list.
+    if (menuStyle) {
+      // "center" puts the current value in the middle of the list, so the
+      // neighbouring options are reachable in both directions. A list
+      // short enough not to overflow has nothing to scroll and stays put.
+      option?.scrollIntoView({ block: "center" });
+    }
+  }, [open, focusIndex, menuStyle]);
 
   const resetTypeahead = useCallback(() => {
     typeaheadBufferRef.current = "";
@@ -499,10 +530,10 @@ export function ListboxDropdown<K extends string>({
           </>
         )}
       </button>
-      {open
-        ? // Portaled to document.body so scrollable/overflow-hidden ancestors
-          // (modal bodies, cards) cannot clip the menu; position is fixed and
-          // collision-aware (flips upward when the viewport bottom is close).
+      {open && portalContainer
+        ? // Menus generally portal to document.body so scrollable/overflow-hidden
+          // ancestors cannot clip them. Calendar navigation instead supplies its
+          // own fixed panel as the portal scope to stay inside that FocusScope.
           createPortal(
             <ul
               ref={menuRef}
@@ -572,7 +603,7 @@ export function ListboxDropdown<K extends string>({
                 );
               })}
             </ul>,
-            document.body,
+            portalContainer,
           )
         : null}
     </div>

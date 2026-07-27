@@ -12,6 +12,8 @@ import {
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { DateTimePicker } from "~/components/ui/date-time-picker";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -97,6 +99,14 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
     setError(null);
     setNameError(null);
     try {
+      if (!draft.service_start_date || !draft.service_end_date) {
+        throw new Error(
+          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
+        );
+      }
+      if (!deadlineLocal) {
+        throw new Error("Bitte eine Frist für die Eltern-Antwort angeben.");
+      }
       const payload: RolloverInput = {
         ...draft,
         rollover_deadline: localToRFC3339(deadlineLocal),
@@ -193,32 +203,47 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
           Betreuungszeitraum
         </legend>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="block text-xs font-semibold text-gray-700">
+          <div className="block">
+            <label
+              htmlFor="rollover-service-start"
+              className="block text-xs font-semibold text-gray-700"
+            >
               Betreuung von
-            </span>
-            <input
+            </label>
+            <ISODatePicker
               id="rollover-service-start"
-              type="date"
-              required
+              controlSize="md"
+              ariaLabel="Betreuung von"
               value={draft.service_start_date}
-              onChange={(e) => update("service_start_date", e.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            />
-          </label>
-          <label className="block">
-            <span className="block text-xs font-semibold text-gray-700">
-              Betreuung bis
-            </span>
-            <input
-              id="rollover-service-end"
-              type="date"
+              onChange={(next) => update("service_start_date", next)}
+              className="mt-1"
+              calendarLayout="popover"
+              // The required picker prevents deselection in the calendar; the
+              // submit validation remains the safety net for programmatic edits.
+              hideClearButton
               required
-              value={draft.service_end_date}
-              onChange={(e) => update("service_end_date", e.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
-          </label>
+          </div>
+          <div className="block">
+            <label
+              htmlFor="rollover-service-end"
+              className="block text-xs font-semibold text-gray-700"
+            >
+              Betreuung bis
+            </label>
+            <ISODatePicker
+              id="rollover-service-end"
+              controlSize="md"
+              ariaLabel="Betreuung bis"
+              min={draft.service_start_date || undefined}
+              value={draft.service_end_date}
+              onChange={(next) => update("service_end_date", next)}
+              className="mt-1"
+              calendarLayout="popover"
+              hideClearButton
+              required
+            />
+          </div>
         </div>
       </fieldset>
 
@@ -256,19 +281,28 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
                 : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."}
             </p>
           </label>
-          <label className="block">
-            <span className="block text-xs font-semibold text-gray-700">
+          <div className="block">
+            <label
+              htmlFor="rollover-deadline"
+              className="block text-xs font-semibold text-gray-700"
+            >
               Frist für die Eltern-Antwort
-            </span>
-            <input
+            </label>
+            <DateTimePicker
               id="rollover-deadline"
-              type="datetime-local"
-              required
+              controlSize="md"
+              dateAriaLabel="Frist für die Eltern-Antwort"
+              timeAriaLabel="Frist Uhrzeit"
+              className="mt-1"
               value={deadlineLocal}
-              onChange={(e) => setDeadlineLocal(e.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              onChange={setDeadlineLocal}
+              // A deadline without an explicit time should run to the end of the
+              // chosen day, not expire at midnight.
+              defaultTime="23:59"
+              hideClearButton
+              required
             />
-          </label>
+          </div>
         </div>
       </fieldset>
 

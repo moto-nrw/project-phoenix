@@ -39,6 +39,8 @@ import {
   updatePhase,
 } from "~/lib/enrollment-phase-api";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { DateTimePicker } from "~/components/ui/date-time-picker";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
   type CalendarPeriod,
@@ -375,6 +377,11 @@ export function PhasesEditor() {
       }
       if (schemaSource === "reuse" && !payload.form_schema_id) {
         throw new Error("Bitte ein Formular auswählen oder Basis wählen.");
+      }
+      if (!payload.service_start_date || !payload.service_end_date) {
+        throw new Error(
+          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
+        );
       }
       if (
         payload.service_start_date &&
@@ -1287,14 +1294,23 @@ function PhaseForm(props: PhaseFormProps) {
           </label>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-xs text-gray-600">Beginn</span>
-            <input
-              name="service_start_date"
-              type="date"
+          <div className="block">
+            <label
+              htmlFor="service_start_date"
+              className="text-xs text-gray-600"
+            >
+              Beginn
+            </label>
+            <ISODatePicker
+              id="service_start_date"
+              controlSize="md"
+              ariaLabel="Beginn"
               value={draft.service_start_date}
-              onChange={(e) => {
-                const next = e.target.value;
+              className="mt-1"
+              calendarLayout="popover"
+              hideClearButton
+              required
+              onChange={(next) => {
                 setDraft((prev) => {
                   if (!prev) return prev;
                   const patch: Partial<PhaseInput> = {
@@ -1310,23 +1326,25 @@ function PhaseForm(props: PhaseFormProps) {
                   return { ...prev, ...patch };
                 });
               }}
-              aria-required="true"
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
-          </label>
-          <label className="block">
-            <span className="text-xs text-gray-600">Ende</span>
-            <input
-              name="service_end_date"
-              key={draft.service_end_date === "" ? "empty" : "set"}
-              type="date"
+          </div>
+          <div className="block">
+            <label htmlFor="service_end_date" className="text-xs text-gray-600">
+              Ende
+            </label>
+            <ISODatePicker
+              id="service_end_date"
+              controlSize="md"
+              ariaLabel="Ende"
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
-              onChange={(e) => update({ service_end_date: e.target.value })}
-              aria-required="true"
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              onChange={(next) => update({ service_end_date: next })}
+              className="mt-1"
+              calendarLayout="popover"
+              hideClearButton
+              required
             />
-          </label>
+          </div>
         </div>
       </fieldset>
 
@@ -1340,14 +1358,22 @@ function PhaseForm(props: PhaseFormProps) {
           werden.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-xs text-gray-600">Öffnung</span>
-            <input
-              name="enrollment_open_at"
-              type="datetime-local"
+          <div className="block">
+            <label
+              htmlFor="enrollment_open_at"
+              className="text-xs text-gray-600"
+            >
+              Öffnung
+            </label>
+            <DateTimePicker
+              id="enrollment_open_at"
+              controlSize="md"
+              dateAriaLabel="Öffnung"
+              timeAriaLabel="Öffnung Uhrzeit"
+              className="mt-1"
               value={toLocalInputValue(draft.enrollment_open_at)}
-              onChange={(e) => {
-                const nextOpen = fromLocalInputValue(e.target.value);
+              onChange={(nextLocal) => {
+                const nextOpen = fromLocalInputValue(nextLocal);
                 setDraft((prev) => {
                   if (!prev) return prev;
                   const patch: Partial<PhaseInput> = {
@@ -1363,25 +1389,33 @@ function PhaseForm(props: PhaseFormProps) {
                   return { ...prev, ...patch };
                 });
               }}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
-          </label>
-          <label className="block">
-            <span className="text-xs text-gray-600">Schließung</span>
-            <input
-              name="enrollment_close_at"
-              key={draft.enrollment_close_at == null ? "empty" : "set"}
-              type="datetime-local"
+          </div>
+          <div className="block">
+            <label
+              htmlFor="enrollment_close_at"
+              className="text-xs text-gray-600"
+            >
+              Schließung
+            </label>
+            <DateTimePicker
+              id="enrollment_close_at"
+              controlSize="md"
+              dateAriaLabel="Schließung"
+              timeAriaLabel="Schließung Uhrzeit"
+              className="mt-1"
               min={toLocalInputValue(draft.enrollment_open_at) || undefined}
               value={toLocalInputValue(draft.enrollment_close_at)}
-              onChange={(e) =>
+              // A closing date picked without a time should end the day, not
+              // start it — otherwise the window shuts at midnight.
+              defaultTime="23:59"
+              onChange={(nextLocal) =>
                 update({
-                  enrollment_close_at: fromLocalInputValue(e.target.value),
+                  enrollment_close_at: fromLocalInputValue(nextLocal),
                 })
               }
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
-          </label>
+          </div>
         </div>
       </fieldset>
 
