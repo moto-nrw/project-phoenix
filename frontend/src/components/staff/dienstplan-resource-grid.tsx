@@ -545,7 +545,7 @@ export function DienstplanResourceGrid({
     // Die Mindesthöhe der Zelle liegt im ResourceGrid, damit leere und gefüllte
     // Zellen dieselbe Zeilenhöhe ergeben (Issue #2026).
     return (
-      <div className="group flex flex-col gap-1">
+      <div className="group flex flex-1 flex-col gap-1">
         {sortedShifts.map((shift) =>
           renderShiftEntry(member, date, shift, dayIsAbsent),
         )}
