@@ -131,7 +131,7 @@ describe("ResourceGrid", () => {
       DAY_COLUMNS.length + 1,
     );
     expect((table as HTMLTableElement).style.minWidth).toBe(
-      `calc(13rem + ${DAY_COLUMNS.length} * 7.5rem)`,
+      `${13 + DAY_COLUMNS.length * 7.5}rem`,
     );
   });
 
@@ -139,9 +139,7 @@ describe("ResourceGrid", () => {
     const { container } = renderGrid({ columnMode: "weeks" });
 
     const table = container.querySelector("table") as HTMLTableElement;
-    expect(table.style.minWidth).toBe(
-      `calc(13rem + ${DAY_COLUMNS.length} * 3.25rem)`,
-    );
+    expect(table.style.minWidth).toBe(`${13 + DAY_COLUMNS.length * 3.25}rem`);
   });
 
   it("gives empty, bare and filled cells the same height floor", () => {

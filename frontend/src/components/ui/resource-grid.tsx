@@ -81,6 +81,12 @@ const COLUMN_MIN_WIDTH_CLASS: Record<ResourceGridColumnMode, string> = {
   weeks: "min-w-[3.25rem]",
 };
 
+const ROW_HEADER_WIDTH_REM = 13;
+const COLUMN_WIDTH_REM: Record<ResourceGridColumnMode, number> = {
+  days: 7.5,
+  weeks: 3.25,
+};
+
 /**
  * Raster metrics — the reason an empty and a filled plan look identical
  * (issue #2026). The table runs in `table-layout: fixed`, so column widths come
@@ -101,10 +107,10 @@ export const RESOURCE_GRID_METRICS = {
   // Auto-Layout je nach Inhalt 194–259px breit. Auf 180px (oder 192px)
   // festgenagelt würden längere Namen ("Zimmermann, Frank") plötzlich
   // abgeschnitten — gemessen im Dienstplan mit 21 Personen.
-  rowHeaderWidth: "13rem",
+  rowHeaderWidth: `${ROW_HEADER_WIDTH_REM}rem`,
   columnWidth: {
-    days: "7.5rem",
-    weeks: "3.25rem",
+    days: `${COLUMN_WIDTH_REM.days}rem`,
+    weeks: `${COLUMN_WIDTH_REM.weeks}rem`,
   },
   cellMinHeightClass: {
     days: "min-h-16",
@@ -121,7 +127,7 @@ export function resourceGridMinWidth(
   columnCount: number,
   columnMode: ResourceGridColumnMode = "days",
 ): string {
-  return `calc(${RESOURCE_GRID_METRICS.rowHeaderWidth} + ${columnCount} * ${RESOURCE_GRID_METRICS.columnWidth[columnMode]})`;
+  return `${ROW_HEADER_WIDTH_REM + columnCount * COLUMN_WIDTH_REM[columnMode]}rem`;
 }
 
 export function ResourceGrid<TRow>({
