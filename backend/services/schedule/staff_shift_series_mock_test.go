@@ -446,3 +446,53 @@ func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
 			"an end date in the past must clamp to tomorrow (past rows stay)")
 	})
 }
+
+// GetSeries is what the series editor reads before it writes an edit back
+// through the split (#2028): it must hand out the stored rule unchanged and
+// report a missing series as ErrSeriesNotFound, never as a nil rule.
+func TestGetSeriesUnit(t *testing.T) {
+	t.Run("returns the stored rule", func(t *testing.T) {
+		stored := storedSeries(t)
+		stored.Weekdays = []int16{2, 4}
+		stored.WeekPattern = scheduleModels.WeekPatternA
+		until := timezone.TodayDate().AddDays(14)
+		stored.ValidUntil = &until
+
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: &seriesMockRepo{findByIDFn: func(_ context.Context, id any) (*scheduleModels.StaffShiftSeries, error) {
+				assert.Equal(t, int64(12), id)
+				return stored, nil
+			}},
+		})
+
+		got, err := service.GetSeries(context.Background(), stored.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, stored.ID, got.ID)
+		assert.Equal(t, []int16{2, 4}, got.Weekdays)
+		assert.Equal(t, scheduleModels.WeekPatternA, got.WeekPattern)
+		require.NotNil(t, got.ValidUntil)
+		assert.Equal(t, until, *got.ValidUntil)
+	})
+
+	t.Run("unknown id", func(t *testing.T) {
+		service := newSeriesServiceForTest(seriesServiceMocks{})
+		_, err := service.GetSeries(context.Background(), 12)
+		assert.ErrorIs(t, err, ErrSeriesNotFound)
+
+		_, err = service.GetSeries(context.Background(), 0)
+		assert.ErrorIs(t, err, ErrSeriesNotFound)
+	})
+
+	t.Run("lookup failure", func(t *testing.T) {
+		dbErr := errors.New("db down")
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: &seriesMockRepo{findByIDFn: func(context.Context, any) (*scheduleModels.StaffShiftSeries, error) {
+				return nil, dbErr
+			}},
+		})
+		_, err := service.GetSeries(context.Background(), 12)
+		assert.ErrorIs(t, err, dbErr)
+		assert.NotErrorIs(t, err, ErrSeriesNotFound)
+	})
+}
