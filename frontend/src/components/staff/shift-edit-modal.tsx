@@ -210,6 +210,8 @@ export function ShiftEditModal({
   const [closingDayPrompt, setClosingDayPrompt] = useState<{
     conflict: ClosingDayConflict;
     confirmationKey: string;
+    /** Welche Aktion nach dem Bestätigen weiterläuft. */
+    action: "submit" | "seriesRule";
   } | null>(null);
   const confirmedClosingConflict = useRef<string | null>(null);
   // Scope question ("Nur diese Woche" / "Ab jetzt dauerhaft" / "Alle Termine
@@ -387,6 +389,7 @@ export function ShiftEditModal({
     seriesClosingDayConflict === null
       ? null
       : JSON.stringify({
+          action: "create",
           conflict: seriesClosingDayConflict,
           weekdays,
           periodId,
@@ -412,6 +415,79 @@ export function ShiftEditModal({
     seriesPeriod,
     seriesEffectiveDate,
   );
+  // Keep the stored A/B pattern until the series period is available:
+  // otherwise a save while its metadata is still loading would silently turn
+  // an alternating series into a weekly one (#2028).
+  const seriesRuleWeekPattern =
+    seriesPeriod === null
+      ? (seriesRule?.weekPattern ?? 0)
+      : seriesBiweekly && seriesPeriodHasCycle
+        ? seriesAbPattern
+        : 0;
+
+  // Schließtage der Serienbearbeitung (#2032): "Alle Termine der Serie" plant
+  // ab dieser Stelle neu, kann also spätere Termine auf einen Schließtag
+  // legen — dieselbe Rückfrage wie beim Anlegen. Das Fenster beginnt frühestens
+  // morgen, weil die Materialisierung vergangene Tage ohnehin nicht anfasst.
+  const seriesEditClosingDayWindow = useMemo(() => {
+    if (!seriesEditOpen || !seriesPeriod) return null;
+    const tomorrow = dayAfterISO(berlinTodayISO());
+    const from = [seriesEffectiveDate, seriesPeriod.startDate, tomorrow].reduce(
+      (latest, candidate) => (candidate > latest ? candidate : latest),
+    );
+    const to =
+      seriesValidUntil !== "" && seriesValidUntil < seriesPeriod.endDate
+        ? seriesValidUntil
+        : seriesPeriod.endDate;
+    const dates = weekdayDatesInRange(from, to, seriesWeekdays).filter(
+      (dateISO) =>
+        shouldMaterializeWeekPattern(
+          seriesPeriod,
+          dateISO,
+          seriesRuleWeekPattern,
+        ),
+    );
+    return { from, to, dates };
+  }, [
+    seriesEditOpen,
+    seriesEffectiveDate,
+    seriesPeriod,
+    seriesRuleWeekPattern,
+    seriesValidUntil,
+    seriesWeekdays,
+  ]);
+  const seriesEditClosingDayState = useClosingDaysState(
+    seriesEditClosingDayWindow?.from ?? "",
+    seriesEditClosingDayWindow?.to ?? "",
+  );
+  const seriesEditClosingDayConflict = useMemo(() => {
+    const dates = seriesEditClosingDayWindow?.dates ?? [];
+    for (const dateISO of dates) {
+      const reason = seriesEditClosingDayState.closingDays.get(dateISO);
+      if (reason !== undefined) return { dateISO, reason };
+    }
+    return findFirstClosingDayConflict(closingDayRanges, dates);
+  }, [
+    closingDayRanges,
+    seriesEditClosingDayState.closingDays,
+    seriesEditClosingDayWindow,
+  ]);
+  // Solange die Zeiträume fehlen, ist das Fenster nicht bestimmbar und die
+  // Rückfrage ließe sich durch schnelles Speichern umgehen. Bleibt der
+  // Zeitraum der Serie dauerhaft unauffindbar, wird nicht blockiert: die
+  // Markierung ist ein Hinweis, kein Sperrmechanismus.
+  const seriesEditClosingDaysLoading =
+    seriesEditOpen && (periods === null || seriesEditClosingDayState.isLoading);
+  const seriesEditConfirmationKey =
+    seriesEditClosingDayConflict === null
+      ? null
+      : JSON.stringify({
+          action: "seriesRule",
+          conflict: seriesEditClosingDayConflict,
+          weekdays: seriesWeekdays,
+          weekPattern: seriesRuleWeekPattern,
+          validUntil: seriesValidUntil,
+        });
 
   const timesValid = startTime !== "" && endTime !== "" && startTime < endTime;
   const breakMaxMinutes = timesValid
@@ -539,6 +615,20 @@ export function ShiftEditModal({
       setError("Bitte mindestens einen Wochentag auswählen.");
       return;
     }
+    // Schließtag-Rückfrage vor dem Neuplanen (#2032).
+    if (seriesEditClosingDaysLoading) return;
+    if (
+      seriesEditClosingDayConflict !== null &&
+      seriesEditConfirmationKey !== null &&
+      confirmedClosingConflict.current !== seriesEditConfirmationKey
+    ) {
+      setClosingDayPrompt({
+        conflict: seriesEditClosingDayConflict,
+        confirmationKey: seriesEditConfirmationKey,
+        action: "seriesRule",
+      });
+      return;
+    }
     setIsSaving(true);
     try {
       const result = await staffShiftSeriesService.splitSeries(seriesRule.id, {
@@ -548,15 +638,7 @@ export function ShiftEditModal({
         breakMinutes: breakMinutes ?? 0,
         shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
         weekdays: seriesWeekdays,
-        // Keep the stored A/B pattern until the series period is available.
-        // Otherwise a save while its metadata is still loading would silently
-        // turn an alternating series into a weekly one.
-        weekPattern:
-          seriesPeriod === null
-            ? seriesRule.weekPattern
-            : seriesBiweekly && seriesPeriodHasCycle
-              ? seriesAbPattern
-              : 0,
+        weekPattern: seriesRuleWeekPattern,
         // The picker is inclusive, the API's valid_until exclusive.
         validUntil:
           seriesValidUntil === "" ? null : dayAfterISO(seriesValidUntil),
@@ -776,6 +858,7 @@ export function ShiftEditModal({
         setClosingDayPrompt({
           conflict: seriesClosingDayConflict,
           confirmationKey: closingDayConfirmationKey,
+          action: "submit",
         });
         return;
       }
@@ -894,7 +977,11 @@ export function ShiftEditModal({
         isLoading={isSaving}
         loadingText="Speichern…"
         disabled={
-          isSaving || !timesValid || !breakValid || seriesWeekdays.length === 0
+          isSaving ||
+          !timesValid ||
+          !breakValid ||
+          seriesWeekdays.length === 0 ||
+          seriesEditClosingDaysLoading
         }
       >
         Serie speichern
@@ -1362,9 +1449,11 @@ export function ShiftEditModal({
           subject="schicht"
           onCancel={() => setClosingDayPrompt(null)}
           onConfirm={() => {
-            confirmedClosingConflict.current = closingDayPrompt.confirmationKey;
+            const { action, confirmationKey } = closingDayPrompt;
+            confirmedClosingConflict.current = confirmationKey;
             setClosingDayPrompt(null);
-            void handleSubmit();
+            if (action === "seriesRule") void saveSeriesRule();
+            else void handleSubmit();
           }}
         />
       )}
