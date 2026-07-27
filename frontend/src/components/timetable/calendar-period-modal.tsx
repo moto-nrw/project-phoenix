@@ -317,8 +317,8 @@ export function CalendarPeriodModal({
         persisted ? "Kalenderzeitraum bearbeiten" : "Kalenderzeitraum anlegen"
       }
       footer={
-        <div className="flex w-full items-center justify-between gap-2">
-          <div>
+        <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full sm:w-auto">
             {isEdit && (
               <div className="flex max-w-sm flex-col gap-1">
                 <Button
@@ -340,7 +340,7 @@ export function CalendarPeriodModal({
               </div>
             )}
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
             {deleteConfirm && !deleting && (
               <Button
                 type="button"
@@ -419,7 +419,7 @@ export function CalendarPeriodModal({
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Startdatum" htmlFor="start_date" required>
             <ISODatePicker
               id="start_date"
@@ -440,7 +440,7 @@ export function CalendarPeriodModal({
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
             <Input
               id="cycle_length"
@@ -480,11 +480,15 @@ export function CalendarPeriodModal({
             checked={form.isActive}
             onChange={(e) => update("isActive", e.target.checked)}
           />
-          <span className="font-semibold text-gray-700">
-            Zeitraum im Plan verwenden
-          </span>
-          <span className="text-xs text-gray-500">
-            Nur aktive Zeiträume legen Termine aus Regelterminen an
+          {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
+              bricht die Beschriftung sonst über drei Zeilen (#2033). */}
+          <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+            <span className="font-semibold text-gray-700">
+              Zeitraum im Plan verwenden
+            </span>
+            <span className="text-xs text-gray-500">
+              Nur aktive Zeiträume legen Termine aus Regelterminen an
+            </span>
           </span>
         </label>
 

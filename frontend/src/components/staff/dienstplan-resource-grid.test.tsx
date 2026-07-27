@@ -156,6 +156,15 @@ describe("DienstplanResourceGrid stacking", () => {
       .map((el) => el.textContent);
     expect(times).toEqual(["08:00–10:00", "10:30–15:00"]);
   });
+
+  it("extends the filled-cell hover group across the cell height", () => {
+    renderGrid({ shiftsByStaff: shiftMap("2026-07-06", [baseShift()]) });
+
+    const addShiftButton = screen.getByRole("button", {
+      name: "Schicht anlegen, Ada Lovelace, Mo 06.07.",
+    });
+    expect(addShiftButton.parentElement).toHaveClass("group", "flex-1");
+  });
 });
 
 describe("DienstplanResourceGrid status mapping", () => {

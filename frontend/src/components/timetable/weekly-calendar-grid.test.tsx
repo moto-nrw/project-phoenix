@@ -113,7 +113,7 @@ describe("WeeklyCalendarGrid showDayHeader", () => {
   });
 
   it("shows the planned person count per day, only 'N P.' without a child value", () => {
-    render(
+    const { container } = render(
       <WeeklyCalendarGrid
         weekDays={weekDays}
         instances={[staffedInstance]}
@@ -132,5 +132,10 @@ describe("WeeklyCalendarGrid showDayHeader", () => {
     expect(screen.getByText("1 P.")).toBeInTheDocument();
     expect(screen.getAllByText("0 P.")).toHaveLength(4);
     expect(screen.queryByText(/~/)).not.toBeInTheDocument();
+    // Die Kapazitätszeile liegt im selben Scroll-Container wie der Header.
+    // Ihr eigenes Höhenbudget bewahrt die vorher sichtbaren 720px Raster.
+    expect(
+      container.querySelector(".sm\\:max-h-\\[808px\\]"),
+    ).toBeInTheDocument();
   });
 });

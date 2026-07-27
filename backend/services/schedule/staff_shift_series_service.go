@@ -54,7 +54,13 @@ type SplitSeriesInput struct {
 	ShiftTypeIDSet bool
 	Notes          *string // nil = keep predecessor notes
 	WeekPattern    *int    // nil = keep predecessor pattern
-	ActorStaffID   int64
+	// ValidUntil (exclusive) ends the successor earlier or later than the
+	// predecessor did. ValidUntilSet distinguishes "run until the period ends"
+	// (true, nil value) from "keep the predecessor's end" (false), so editing
+	// only the weekdays never silently drops a stored end date (#2028).
+	ValidUntil    *timezone.Date
+	ValidUntilSet bool
+	ActorStaffID  int64
 }
 
 // StaffShiftSeriesService manages recurring shift series (#1889). Series
@@ -71,6 +77,11 @@ type StaffShiftSeriesService interface {
 	// EndSeries caps the series at the given date and deletes its
 	// non-detached rows from that date onward.
 	EndSeries(ctx context.Context, seriesID int64, from timezone.Date) (*SeriesResult, error)
+	// GetSeries returns one series segment (the rule behind a shift), so the
+	// planner can edit weekdays, rhythm, and validity instead of only the
+	// window of a single occurrence (#2028). The edit itself goes through
+	// SplitSeries — it applies from the opened occurrence onwards.
+	GetSeries(ctx context.Context, seriesID int64) (*scheduleModels.StaffShiftSeries, error)
 }
 
 type staffShiftSeriesService struct {
@@ -149,6 +160,9 @@ func (s *staffShiftSeriesService) loadPeriodForSeries(ctx context.Context, serie
 	}
 	if series.ValidFrom.Before(period.StartDate) || series.ValidFrom.After(period.EndDate) {
 		return nil, fmt.Errorf("%w: valid from must lie within the calendar period", ErrSeriesInvalid)
+	}
+	if series.ValidUntil != nil && series.ValidUntil.After(period.EndDate.AddDays(1)) {
+		return nil, fmt.Errorf("%w: valid until must not exceed the calendar period", ErrSeriesInvalid)
 	}
 	return period, nil
 }
@@ -372,6 +386,10 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if input.Notes != nil {
 		notes = *input.Notes
 	}
+	validUntil := old.ValidUntil
+	if input.ValidUntilSet {
+		validUntil = input.ValidUntil
+	}
 	successor := &scheduleModels.StaffShiftSeries{
 		StaffID:          old.StaffID,
 		Weekdays:         weekdays,
@@ -383,7 +401,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		CalendarPeriodID: old.CalendarPeriodID,
 		WeekPattern:      weekPattern,
 		ValidFrom:        effective,
-		ValidUntil:       old.ValidUntil,
+		ValidUntil:       validUntil,
 		SeriesRootID:     &rootID,
 		CreatedBy:        input.ActorStaffID,
 	}
@@ -403,6 +421,17 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 
 	if err := s.lockShiftWrites(ctx, old.StaffID); err != nil {
 		return nil, err
+	}
+	// A predecessor can be edited after a later segment already exists. Keep
+	// the new segment strictly before that successor even when the editor clears
+	// a stored valid_until, otherwise two rules of one lineage overlap.
+	next, err := s.seriesRepo.FindNextInLineage(ctx, rootID, effective)
+	if err != nil {
+		return nil, err
+	}
+	if next != nil && (successor.ValidUntil == nil || next.ValidFrom.Before(*successor.ValidUntil)) {
+		until := next.ValidFrom
+		successor.ValidUntil = &until
 	}
 	if err := s.seriesRepo.CapValidUntil(ctx, old.ID, effective); err != nil {
 		return nil, err

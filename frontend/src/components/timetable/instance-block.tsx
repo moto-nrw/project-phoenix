@@ -15,7 +15,7 @@
 
 import type { ReactNode } from "react";
 
-import { TriangleAlert } from "lucide-react";
+import { CircleCheck, TriangleAlert } from "lucide-react";
 
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
 import { PlanBlock } from "~/components/ui/plan-block";
@@ -77,6 +77,7 @@ export function InstanceBlock({
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
   const showFooter = height >= FOOTER_MIN_HEIGHT_PX;
+  const showCompactStatus = !showFooter;
 
   // #1840 Vertretungsplan deviation signals. A removed substitute keeps
   // is_substitute=true but is marked is_absent=true — they are no longer
@@ -86,6 +87,19 @@ export function InstanceBlock({
     (s) => s.isSubstitute && !s.isAbsent,
   );
   const absentCount = instance.absentStaffCount;
+  const hasCoverageGap =
+    instance.requiredStaffCount > 0 &&
+    instance.assignedStaffCount < instance.requiredStaffCount;
+
+  const compactStatusDetails = [
+    isUnderstaffedAck ? "bewusst unbesetzt" : null,
+    !isUnderstaffedAck && hasCoverageGap
+      ? `${instance.assignedStaffCount} von ${instance.requiredStaffCount} Positionen besetzt`
+      : null,
+    isActive ? "läuft" : null,
+    absentCount > 0 ? `${absentCount} abwesend` : null,
+    hasSubstitute ? "Ersatz" : null,
+  ].filter((detail): detail is string => detail !== null);
 
   const edgeColor = isUnderstaffedAck
     ? ACK_EDGE_COLOR
@@ -96,7 +110,17 @@ export function InstanceBlock({
   // bewusst unbesetzt (kein Icon, per CoverageIndicator-Vermerk) > Konflikt.
   let statusIcon: ReactNode = null;
   if (!isCancelled) {
-    if (isGap) {
+    if (showCompactStatus && isUnderstaffedAck) {
+      // Der reguläre CoverageIndicator liegt in der Fußzeile. Bei kurzen
+      // Blöcken ist diese bewusst ausgeblendet; der Check hält den
+      // quittierten Personalmangel trotzdem unmittelbar sichtbar.
+      statusIcon = (
+        <CircleCheck
+          className="h-3.5 w-3.5 text-gray-500"
+          aria-label="Bewusst unbesetzt"
+        />
+      );
+    } else if (isGap) {
       statusIcon = (
         <TriangleAlert
           className="h-3.5 w-3.5 text-[#F78C10]"
@@ -109,6 +133,30 @@ export function InstanceBlock({
           className="h-3.5 w-3.5 text-[#EAB308]"
           aria-label={`${instance.conflictWarnings.length} Konflikte`}
         />
+      );
+    } else if (showCompactStatus && compactStatusDetails.length > 0) {
+      // Ein Block ohne Fußzeile bietet keinen Platz für die ausführliche
+      // Statusdarstellung.
+      // Die vier kleinen Marker bewahren deshalb die unabhängigen Signale
+      // Besetzung, laufender Termin, Abwesenheit und Ersatz zugleich.
+      statusIcon = (
+        <span
+          className="grid h-3.5 w-3.5 grid-cols-2 content-center justify-items-center gap-px"
+          aria-label={compactStatusDetails.join(", ")}
+        >
+          {hasCoverageGap && (
+            <span className="h-1.5 w-1.5 rounded-full bg-[#F78C10]" />
+          )}
+          {isActive && (
+            <span className="h-1.5 w-1.5 rounded-full bg-[#83CD2D]" />
+          )}
+          {absentCount > 0 && (
+            <span className="h-1.5 w-1.5 rounded-full bg-[#CC2626]" />
+          )}
+          {hasSubstitute && (
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5A8E1F]" />
+          )}
+        </span>
       );
     }
   }
@@ -234,7 +282,10 @@ export function InstanceBlock({
               paddingBottom: 2,
             }),
       }}
-      aria-label={`${instance.title}, ${instance.startTime} bis ${instance.endTime}`}
+      aria-label={[
+        `${instance.title}, ${instance.startTime} bis ${instance.endTime}`,
+        ...(showCompactStatus ? compactStatusDetails : []),
+      ].join(", ")}
     />
   );
 }

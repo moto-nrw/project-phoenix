@@ -339,13 +339,19 @@ function VertretungContent() {
   // Erster Tag der Woche mit Lückendaten (das Fenster ist auf heute geklemmt);
   // null, solange gar nichts geladen ist. Die Wochenliste leitet daraus pro Tag
   // ab, ob sie eine Störungslage behaupten darf.
-  const gapsAvailableFrom = gapsLoaded ? gapsFromISO : null;
+  const hasVisibleWeekdayWithGaps = weekDays.some(
+    (day) => toISODate(day) >= gapsFromISO,
+  );
+  const gapsAvailableFrom =
+    gapsLoaded && hasVisibleWeekdayWithGaps ? gapsFromISO : null;
 
   // Zähler der Kontextleiste: die Tagesansicht zählt den Tag, die
   // Wochenansicht die geladene Woche. Ein auf heute geklemmtes Fenster ist
   // keine vollständige Wochenaussage — das steht im Tooltip, statt eine
   // vollständige Zahl vorzutäuschen.
-  const countsUnavailable = isWeekView ? !gapsLoaded : gapsUnavailable;
+  const countsUnavailable = isWeekView
+    ? !gapsLoaded || !hasVisibleWeekdayWithGaps
+    : gapsUnavailable;
   const countsClamped = isWeekView && gapsLoaded && fromISO < today;
   const openCount = isWeekView ? weekGaps.length : dayGaps.length;
   const ackCount = isWeekView

@@ -646,6 +646,27 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/aktuelle-aufsicht.webp",
       },
       {
+        id: "tagesauswertung",
+        title: "Tagesauswertung",
+        icon: ClipboardList,
+        summary:
+          "Zeigt für den aktuellen Tag und jede Gruppe, welche Kinder anwesend, krank, entschuldigt oder abwesend sind – inklusive Druck und Export.",
+        steps: [
+          "`Tagesauswertung` in der Seitenleiste öffnen.",
+          "Die Tagesauswertung zeigt immer den aktuellen Tag.",
+          "Jede Gruppe erscheint als Kachel mit allen Status-Zahlen des Tages; unentschuldigt abwesende Kinder werden rot gezählt – diese Familien sollte man ansprechen.",
+          "Ein Klick auf eine Kachel öffnet die Detailansicht der Gruppe mit den Kindern nach Status sortiert; ein Klick auf ein Kind führt zu dessen Detailseite.",
+          "Über `Drucken`, `PDF` oder `Excel` die Auswertung ausgeben – oben für alle Gruppen, in der Detailansicht nur für die geöffnete Gruppe.",
+        ],
+        callout: {
+          title: "Seite nicht sichtbar?",
+          body: "Die Tagesauswertung gehört zum Anwesenheitsprotokoll und ist im Auslieferungszustand aus. Ein Admin schaltet sie unter `Einstellungen` -> `Datenschutz` mit `Anwesenheitsprotokoll` ein; dort steuert auch `Sichtbarkeit`, ob nur Gruppenleitungen ihre eigene Gruppe sehen oder das ganze Team alle Gruppen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tagesauswertung mit Status-Zählern und Kinderliste nach Status gruppiert.",
+      },
+      {
         id: "erinnerungen",
         title: "Erinnerungen",
         icon: Clock3,
@@ -854,7 +875,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Der `Zeitraum`-Chip in der Kontextzeile zeigt den Planungszeitraum des sichtbaren Datums; ein Klick öffnet eine Liste zum Umspringen, `Zeiträume verwalten` führt zur Verwaltungsseite. Der Chip `Bedarf: …` daneben zeigt, welche Anmeldephase den Bedarf des Zeitraums liefert.",
           "Der Lücken-Chip in der Kontextzeile zählt offene Personal-Lücken des sichtbaren Zeitraums; ein Klick öffnet eine Sprungliste mit Uhrzeit, Titel und Soll/Ist je Lücke, die direkt zum betroffenen Termin springt.",
           "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`). Das Formular öffnet sich als dreistufiger Assistent mit den Schritten `Termin`, `Wiederholung` und `Personal und Kinder`.",
-          "Schritt 1 `Termin`: `Titel` eintragen, bei Bedarf eine `Kategorie` und `Raum` wählen. Der `Schulhof` kann hier als reiner Planungsort verwendet werden; die laufende Aufsicht wird später unabhängig davon über den separaten Schulhof-Tab geführt. Zugeordnete Kinder und Mitarbeitende werden nicht automatisch in die Schulhof-Aufsicht übernommen. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen, dazu optional Notizen. Aus einer leeren Zelle heraus lässt sich der Termin schon nach Schritt 1 speichern; Wiederholung und Personal/Kinder sind optional und werden dann auf `Einmalig` ohne zugeordnetes Personal gesetzt.",
+          "Schritt 1 `Termin`: `Titel` eintragen, bei Bedarf eine `Kategorie` und `Raum` wählen. Der `Schulhof` kann hier als reiner Planungsort verwendet werden; die laufende Aufsicht wird später unabhängig davon über den separaten Schulhof-Tab geführt. Zugeordnete Kinder und Mitarbeitende werden nicht automatisch in die Schulhof-Aufsicht übernommen. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen, dazu optional Notizen. Mit `Weiter` geht es zum nächsten Schritt; `Speichern` erscheint erst im letzten Schritt `Personal und Kinder`. Angaben zu Wiederholung und Personal/Kinder bleiben freiwillig: Wer beide Schritte einfach mit `Weiter` durchklickt, legt einen einmaligen Termin ohne zugeordnetes Personal an.",
           "Schritt 2 `Wiederholung`: festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen. Bei `Alle 2 Wochen` erscheint zusätzlich die Auswahl `Woche A` oder `Woche B`; vorausgewählt ist die Woche des angeklickten Datums, sofern der Kalenderzeitraum einen A/B-Zyklus hat. Dieser Schritt legt außerdem den Planungszeitraum fest und zeigt beim Bearbeiten eines Serientermins die Optionen zum Splitten oder Beenden der Serie.",
           "Schritt 3 `Personal und Kinder`: `Personal` und `Kinder` zuordnen. Mit `Jahrgang/Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Zielgruppe auf einmal in die Auswahl. Suche und Filter helfen bei langen Kinderlisten. Hier erscheinen auch Hinweise zu doppelt belegten Räumen, Personal oder Kindern sowie zum Abgleich mit dem Dienstplan; sie verhindern das Speichern nicht.",
           "`Benötigtes Personal` legt in Schritt 3 den Personalbedarf des Blocks fest. Bleibt das Feld leer, berechnet Phoenix den Bedarf automatisch aus der Kinderzahl und dem Betreuungsschlüssel; eine eingetragene Zahl überschreibt diese Berechnung und bestimmt die Besetzungsanzeige (z. B. `2/3`).",
@@ -953,7 +974,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Optional lassen sich einer Schichtart eine oder mehrere `Timetable-Kategorien` zuordnen. Betreuungsblöcke dieser Kategorien werden dadurch der Schichtart zugeordnet und zeigen sie im Betreuungsplan als Kennzeichnung. Eine Kategorie kann nur einer Schichtart zugeordnet sein.",
           "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen, optional eine `Schichtart` auswählen und speichern. Jede Schicht erscheint als eigener Block mit der Farbkante der Schichtart; mehrere Schichten am selben Tag stapeln sich chronologisch, die Pause bleibt als sichtbare Lücke zwischen den Blöcken.",
           "Mit `Als Serie wiederholen` schreibt sich die Schicht automatisch fort: Wochentage anhaken, einen Kalenderzeitraum wählen und den Wochenrhythmus festlegen (`Jede Woche` oder bei zweiwöchigem Zyklus `Woche A`/`Woche B`). Die Serie plant die Schicht ab dem Folgetag für jede passende Woche bis zum Ende des Zeitraums oder bis zum optionalen Enddatum ein; Tage mit einer bereits vorhandenen Schicht werden übersprungen und nach dem Speichern aufgelistet.",
-          "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen. Serien-Schichten (graues Wiederhol-Symbol auf dem Block) fragen dabei nach dem Umfang: `Nur diese Woche` ändert oder löscht genau diesen Termin (die Serie plant ihn nicht erneut ein, das Symbol färbt sich gelb), `Ab jetzt dauerhaft` teilt die Serie ab diesem Datum. Einzeln angepasste Termine bleiben bei späteren Serienänderungen erhalten.",
+          "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen. Serien-Schichten (graues Wiederhol-Symbol auf dem Block) zeigen im Fenster direkt die Serie selbst, zum Beispiel `Di, Do · 08:00–15:00 · bis Ende des Kalenderzeitraums`. Beim Speichern fragt die App nach dem Umfang: `Nur diese Woche` ändert genau diesen Termin (die Serie plant ihn nicht erneut ein, das Symbol färbt sich gelb), `Ab jetzt dauerhaft` übernimmt die geänderten Zeiten für diesen und alle weiteren Termine.",
+          "Die Serie selbst ändern Sie über `Serie bearbeiten` im Serien-Hinweis. Dort lassen sich neben Zeiten und Pause auch `Wochentage`, `Wochenrhythmus` und `Gültig bis` anpassen, zum Beispiel wenn eine Schicht künftig auch freitags stattfindet. Die Änderung gilt ab dem geöffneten Termin für alle weiteren Termine der Serie; frühere Termine und Termine bis heute bleiben unverändert, ebenso einzeln angepasste Termine.",
+
           "Beim Bearbeiten `Beginn`, `Ende`, `Pause` oder `Schichtart` anpassen, um eine Schicht zu verlängern oder zu verkürzen. Im Feld `Grund der Änderung (optional)` lässt sich kurz festhalten, warum (z. B. Krankheit, Fortbildung, Tausch).",
           "Fällt eine Schicht aus, `Diese Schicht fällt aus` anhaken. Der Block erscheint danach durchgestrichen mit dem Vermerk `Fällt aus` samt Grund und zählt nicht mehr zur geplanten Zeit. Ohne Ersatzeintrag bleibt die Lücke bewusst offen.",
           "Für eine Vertretung stattdessen `+ Vertretung hinzufügen` wählen und eine Ersatzperson mit `Beginn` und `Ende` eintragen. Über mehrere Einträge lässt sich die Lücke auf mehrere Personen aufteilen; jede Vertretung erscheint am gewählten Tag als eigener Block der Ersatzperson mit blauem Vermerk `Vertretung`, die ausgefallene Person als schraffierter Block.",

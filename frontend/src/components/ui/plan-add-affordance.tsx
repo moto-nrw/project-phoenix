@@ -22,11 +22,16 @@ import { Plus } from "lucide-react";
  * Hover-Zustand gibt, über den man sie sonst entdecken könnte.
  */
 
-type PlanAddAffordanceSize = "cell" | "inline";
+type PlanAddAffordanceSize = "fill" | "inline";
 
 const SIZE_CLASS: Record<PlanAddAffordanceSize, string> = {
-  /** Füllt eine leere Zelle bzw. einen Stunden-Slot ganz aus. */
-  cell: "h-full min-h-14",
+  /**
+   * Füllt den Platz, den der Aufrufer vorgibt (leere Rasterzelle,
+   * Stunden-Slot). BEWUSST ohne eigene Mindesthöhe: die Zeilenhöhe des
+   * ResourceGrid kommt aus dessen Zellen-Wrapper (Issue #2026), eine zweite
+   * Mindesthöhe hier würde leere Zeilen wieder höher machen als gefüllte.
+   */
+  fill: "h-full",
   /** Schmale Zeile unter vorhandenem Zelleninhalt. */
   inline: "h-7",
 };
@@ -46,7 +51,7 @@ interface PlanAddAffordanceProps {
 }
 
 export function PlanAddAffordance({
-  size = "cell",
+  size = "fill",
   className,
 }: PlanAddAffordanceProps) {
   return (

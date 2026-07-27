@@ -310,273 +310,279 @@ export function StaffSessionTable({
           message="Der Stundenkonto-Start konnte nicht geladen werden. Soweit das Soll geladen wurde, werden Salden an Tagen ohne Soll weiterhin angezeigt; vor dem Kontostart können sie aber von der Monatskarte abweichen. Bitte die Seite neu laden."
         />
       )}
-      <div className="max-w-full overflow-x-auto rounded-2xl border border-gray-100">
-        <table className="w-full min-w-[960px] text-left text-sm">
-          <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            <tr>
-              <th className="px-4 py-3">Datum</th>
-              <th className="px-4 py-3">Tag</th>
-              {showPlan && (
-                <th className="px-4 py-3 tabular-nums">Plan (Schicht)</th>
-              )}
-              <th className="px-4 py-3 tabular-nums">Check-in</th>
-              <th className="px-4 py-3 tabular-nums">Check-out</th>
-              <th className="px-4 py-3 text-right tabular-nums">Pause</th>
-              <th className="px-4 py-3 text-right tabular-nums">Soll</th>
-              <th className="px-4 py-3 text-right tabular-nums">Ist</th>
-              <th className="px-4 py-3 text-right tabular-nums">Saldo</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Quelle</th>
-              <th className="px-4 py-3">Hinweis</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {days.map((day) => {
-              const key = toDateKey(day);
-              const dow = toIsoDayOfWeek(day);
-              const session = sessionsByDate.get(key);
-              const absence = absencesByDate.get(key);
-              const holidayName = holidays?.get(key);
-              const closingReason = closingDays?.get(key);
-              // Ein fehlgeschlagener ODER noch laufender Targets-Fetch darf
-              // NICHT auf den aktuellen Plan zurückfallen (#1842): der Tag
-              // bleibt ungelöst, damit die Tabelle keinen erfundenen
-              // Soll-/Saldo-Wert behauptet — weder dauerhaft (Fehler) noch
-              // kurzzeitig beim Zeitraumwechsel (pending, stale Map).
-              const { unresolved: targetUnresolved, displayed: target } =
-                resolveDayTarget(day);
-              const isFuture = day > today;
-              const isToday = sameDay(day, today);
-              const ist = session?.net_minutes ?? 0;
-              // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 auf
-              // einem geplanten freien Tag (#1967). Vor einem untermonatigen
-              // Stundenkonto-Start zählt die Monatskarte allerdings weder
-              // Soll noch Ist. GetDailyTargets liefert dort ebenfalls 0, kann
-              // diesen Fall also nicht allein von einem freien Tag
-              // unterscheiden; dafür braucht die Zeile zusätzlich den
-              // konfigurierten Starttag.
-              const isBeforeAccountStart =
-                accountStartDate !== null &&
-                accountStartDate !== "" &&
-                key.slice(0, 7) === accountStartDate.slice(0, 7) &&
-                key < accountStartDate;
-              const balanceUnresolved =
-                targetUnresolved || (target === 0 && accountStartDatePending);
-              const delta = session ? ist - target : 0;
-              const status = computeRowStatus(
-                session,
-                absence,
-                key,
-                holidayName,
-                closingReason,
-                target,
-                isFuture,
-              );
-              const isExpanded = expandedKey === key;
-              const hasAuditHistory = (session?.audit_count ?? 0) > 0;
-              // Only rows with audit history are interactive — clicking an
-              // unchanged row should not toggle anything since there is
-              // nothing to reveal.
-              const canExpand = hasAuditHistory && session != null;
-              // Edit / nachtragen is available for past or present days,
-              // regardless of whether a session already exists. The SquarePen
-              // action lands on Tranche 1b — for now the wiring is in place
-              // and the click is a no-op + logger entry. Future days and
-              // absence-only days don't get the action.
-              //
-              // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist
-              // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
-              // und genau die muss korrigierbar sein.
-              const isWeekend = dow >= 5;
-              const canEdit = isAdminView && !isFuture && absence == null;
-              return (
-                <Fragment key={key}>
-                  <tr
-                    onClick={() => {
-                      if (!canExpand) return;
-                      setExpandedKey((prev) => (prev === key ? null : key));
-                    }}
-                    onKeyDown={(event) => {
-                      if (
-                        !canExpand ||
-                        (event.key !== "Enter" && event.key !== " ")
-                      ) {
-                        return;
+      {/* Radius, Rand und Ausschnitt bleiben auf der Fläche, gescrollt wird im
+          inneren Container. Sonst zeichnet der Browser die Scrollleiste quer
+          durch die abgerundeten Ecken und über den unteren Rand hinaus. */}
+      <div className="max-w-full overflow-hidden rounded-2xl border border-gray-100">
+        <div className="max-w-full overflow-x-auto">
+          <table className="w-full min-w-[960px] text-left text-sm">
+            <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <tr>
+                <th className="px-4 py-3">Datum</th>
+                <th className="px-4 py-3">Tag</th>
+                {showPlan && (
+                  <th className="px-4 py-3 tabular-nums">Plan (Schicht)</th>
+                )}
+                <th className="px-4 py-3 tabular-nums">Check-in</th>
+                <th className="px-4 py-3 tabular-nums">Check-out</th>
+                <th className="px-4 py-3 text-right tabular-nums">Pause</th>
+                <th className="px-4 py-3 text-right tabular-nums">Soll</th>
+                <th className="px-4 py-3 text-right tabular-nums">Ist</th>
+                <th className="px-4 py-3 text-right tabular-nums">Saldo</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Quelle</th>
+                <th className="px-4 py-3">Hinweis</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {days.map((day) => {
+                const key = toDateKey(day);
+                const dow = toIsoDayOfWeek(day);
+                const session = sessionsByDate.get(key);
+                const absence = absencesByDate.get(key);
+                const holidayName = holidays?.get(key);
+                const closingReason = closingDays?.get(key);
+                // Ein fehlgeschlagener ODER noch laufender Targets-Fetch darf
+                // NICHT auf den aktuellen Plan zurückfallen (#1842): der Tag
+                // bleibt ungelöst, damit die Tabelle keinen erfundenen
+                // Soll-/Saldo-Wert behauptet — weder dauerhaft (Fehler) noch
+                // kurzzeitig beim Zeitraumwechsel (pending, stale Map).
+                const { unresolved: targetUnresolved, displayed: target } =
+                  resolveDayTarget(day);
+                const isFuture = day > today;
+                const isToday = sameDay(day, today);
+                const ist = session?.net_minutes ?? 0;
+                // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 auf
+                // einem geplanten freien Tag (#1967). Vor einem untermonatigen
+                // Stundenkonto-Start zählt die Monatskarte allerdings weder
+                // Soll noch Ist. GetDailyTargets liefert dort ebenfalls 0, kann
+                // diesen Fall also nicht allein von einem freien Tag
+                // unterscheiden; dafür braucht die Zeile zusätzlich den
+                // konfigurierten Starttag.
+                const isBeforeAccountStart =
+                  accountStartDate !== null &&
+                  accountStartDate !== "" &&
+                  key.slice(0, 7) === accountStartDate.slice(0, 7) &&
+                  key < accountStartDate;
+                const balanceUnresolved =
+                  targetUnresolved || (target === 0 && accountStartDatePending);
+                const delta = session ? ist - target : 0;
+                const status = computeRowStatus(
+                  session,
+                  absence,
+                  key,
+                  holidayName,
+                  closingReason,
+                  target,
+                  isFuture,
+                );
+                const isExpanded = expandedKey === key;
+                const hasAuditHistory = (session?.audit_count ?? 0) > 0;
+                // Only rows with audit history are interactive — clicking an
+                // unchanged row should not toggle anything since there is
+                // nothing to reveal.
+                const canExpand = hasAuditHistory && session != null;
+                // Edit / nachtragen is available for past or present days,
+                // regardless of whether a session already exists. The SquarePen
+                // action lands on Tranche 1b — for now the wiring is in place
+                // and the click is a no-op + logger entry. Future days and
+                // absence-only days don't get the action.
+                //
+                // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist
+                // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
+                // und genau die muss korrigierbar sein.
+                const isWeekend = dow >= 5;
+                const canEdit = isAdminView && !isFuture && absence == null;
+                return (
+                  <Fragment key={key}>
+                    <tr
+                      onClick={() => {
+                        if (!canExpand) return;
+                        setExpandedKey((prev) => (prev === key ? null : key));
+                      }}
+                      onKeyDown={(event) => {
+                        if (
+                          !canExpand ||
+                          (event.key !== "Enter" && event.key !== " ")
+                        ) {
+                          return;
+                        }
+                        event.preventDefault();
+                        setExpandedKey((prev) => (prev === key ? null : key));
+                      }}
+                      tabIndex={canExpand ? 0 : undefined}
+                      aria-expanded={canExpand ? isExpanded : undefined}
+                      aria-label={
+                        canExpand
+                          ? `${formatShortDate(day)}: Änderungshistorie ${isExpanded ? "schließen" : "öffnen"}`
+                          : undefined
                       }
-                      event.preventDefault();
-                      setExpandedKey((prev) => (prev === key ? null : key));
-                    }}
-                    tabIndex={canExpand ? 0 : undefined}
-                    aria-expanded={canExpand ? isExpanded : undefined}
-                    aria-label={
-                      canExpand
-                        ? `${formatShortDate(day)}: Änderungshistorie ${isExpanded ? "schließen" : "öffnen"}`
-                        : undefined
-                    }
-                    className={`${canExpand ? "cursor-pointer" : ""} transition-colors hover:bg-gray-50 ${
-                      isExpanded
-                        ? "bg-gray-50"
-                        : isToday
-                          ? "bg-amber-50/40"
-                          : isWeekend
-                            ? "bg-gray-50/60"
-                            : ""
-                    } ${isFuture ? "opacity-40" : ""}`}
-                  >
-                    <td className="px-4 py-3 text-gray-700 tabular-nums">
-                      <div className="flex items-center gap-1.5">
-                        {canExpand ? (
-                          <ChevronRight
-                            className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${
-                              isExpanded ? "rotate-90" : ""
-                            }`}
-                          />
-                        ) : (
-                          <span className="inline-block h-3.5 w-3.5 shrink-0" />
-                        )}
-                        {formatShortDate(day)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {dayLabels[dow]}
-                    </td>
-                    {showPlan && (
-                      <td className="px-4 py-3 text-gray-500 tabular-nums">
-                        <PlannedShiftCell shifts={shiftsByDate.get(key)} />
+                      className={`${canExpand ? "cursor-pointer" : ""} transition-colors hover:bg-gray-50 ${
+                        isExpanded
+                          ? "bg-gray-50"
+                          : isToday
+                            ? "bg-amber-50/40"
+                            : isWeekend
+                              ? "bg-gray-50/60"
+                              : ""
+                      } ${isFuture ? "opacity-40" : ""}`}
+                    >
+                      <td className="px-4 py-3 text-gray-700 tabular-nums">
+                        <div className="flex items-center gap-1.5">
+                          {canExpand ? (
+                            <ChevronRight
+                              className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${
+                                isExpanded ? "rotate-90" : ""
+                              }`}
+                            />
+                          ) : (
+                            <span className="inline-block h-3.5 w-3.5 shrink-0" />
+                          )}
+                          {formatShortDate(day)}
+                        </div>
                       </td>
-                    )}
-                    <td className="px-4 py-3 text-gray-700 tabular-nums">
-                      {session?.check_in_time
-                        ? formatTimeOnly(session.check_in_time)
-                        : "–"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 tabular-nums">
-                      {session?.check_out_time ? (
-                        formatTimeOnly(session.check_out_time)
-                      ) : session ? (
-                        <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
-                          <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-[#83CD2D]" />
-                          eingestempelt
-                        </span>
-                      ) : (
-                        "–"
+                      <td className="px-4 py-3 text-gray-500">
+                        {dayLabels[dow]}
+                      </td>
+                      {showPlan && (
+                        <td className="px-4 py-3 text-gray-500 tabular-nums">
+                          <PlannedShiftCell shifts={shiftsByDate.get(key)} />
+                        </td>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
-                      {session ? formatDuration(session.break_minutes) : "–"}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
-                      {targetUnresolved ? (
-                        <span
-                          title={
-                            dailyTargetsError === true
-                              ? "Soll konnte nicht geladen werden"
-                              : "Soll wird geladen"
-                          }
-                        >
-                          {dailyTargetsError === true ? "?" : "…"}
-                        </span>
-                      ) : target > 0 ? (
-                        formatDuration(target)
-                      ) : (
-                        "–"
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-700 tabular-nums">
-                      {session ? formatDuration(ist) : "–"}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {session &&
-                      !isFuture &&
-                      !balanceUnresolved &&
-                      !isBeforeAccountStart ? (
-                        <span className={deltaClass(delta)}>
-                          {formatSignedDuration(delta)}
-                        </span>
-                      ) : (
-                        "–"
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {status && <StatusBadge status={status} />}
-                    </td>
-                    <td className="px-4 py-3">
-                      <SourceBadge session={session} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <HintBadges
-                          session={session}
-                          holidayName={holidayName}
-                        />
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onEditDay) {
-                                onEditDay(
-                                  day,
-                                  session ?? null,
-                                  absence ?? null,
-                                );
-                              } else {
-                                setEditModal({
-                                  mode: session == null ? "nachtragen" : "edit",
-                                  date: day,
-                                  session: session ?? null,
-                                });
-                              }
-                            }}
-                            aria-label={
-                              session == null
-                                ? "Eintrag nachtragen"
-                                : "Eintrag bearbeiten"
-                            }
-                            title={
-                              session == null
-                                ? "Eintrag nachtragen"
-                                : "Eintrag bearbeiten"
-                            }
-                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-                          >
-                            <SquarePen className="h-4 w-4" />
-                          </button>
+                      <td className="px-4 py-3 text-gray-700 tabular-nums">
+                        {session?.check_in_time
+                          ? formatTimeOnly(session.check_in_time)
+                          : "–"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 tabular-nums">
+                        {session?.check_out_time ? (
+                          formatTimeOnly(session.check_out_time)
+                        ) : session ? (
+                          <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
+                            <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-[#83CD2D]" />
+                            eingestempelt
+                          </span>
+                        ) : (
+                          "–"
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                  {isExpanded && session && (
-                    <tr className="border-b border-gray-100 bg-gray-50/50">
-                      <td colSpan={columnCount} className="px-4 py-3">
-                        <SessionEditHistory
-                          staffId={staffId}
-                          sessionId={session.id}
-                          fetchEdits={fetchEdits}
-                          onEdit={
-                            isAdminView
-                              ? () => {
-                                  if (onEditDay) {
-                                    onEditDay(day, session, absence ?? null);
-                                  } else {
-                                    setEditModal({
-                                      mode: "edit",
-                                      date: day,
-                                      session,
-                                    });
-                                  }
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                        {session ? formatDuration(session.break_minutes) : "–"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                        {targetUnresolved ? (
+                          <span
+                            title={
+                              dailyTargetsError === true
+                                ? "Soll konnte nicht geladen werden"
+                                : "Soll wird geladen"
+                            }
+                          >
+                            {dailyTargetsError === true ? "?" : "…"}
+                          </span>
+                        ) : target > 0 ? (
+                          formatDuration(target)
+                        ) : (
+                          "–"
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-700 tabular-nums">
+                        {session ? formatDuration(ist) : "–"}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {session &&
+                        !isFuture &&
+                        !balanceUnresolved &&
+                        !isBeforeAccountStart ? (
+                          <span className={deltaClass(delta)}>
+                            {formatSignedDuration(delta)}
+                          </span>
+                        ) : (
+                          "–"
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {status && <StatusBadge status={status} />}
+                      </td>
+                      <td className="px-4 py-3">
+                        <SourceBadge session={session} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <HintBadges
+                            session={session}
+                            holidayName={holidayName}
+                          />
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onEditDay) {
+                                  onEditDay(
+                                    day,
+                                    session ?? null,
+                                    absence ?? null,
+                                  );
+                                } else {
+                                  setEditModal({
+                                    mode:
+                                      session == null ? "nachtragen" : "edit",
+                                    date: day,
+                                    session: session ?? null,
+                                  });
                                 }
-                              : undefined
-                          }
-                        />
+                              }}
+                              aria-label={
+                                session == null
+                                  ? "Eintrag nachtragen"
+                                  : "Eintrag bearbeiten"
+                              }
+                              title={
+                                session == null
+                                  ? "Eintrag nachtragen"
+                                  : "Eintrag bearbeiten"
+                              }
+                              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                            >
+                              <SquarePen className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                    {isExpanded && session && (
+                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                        <td colSpan={columnCount} className="px-4 py-3">
+                          <SessionEditHistory
+                            staffId={staffId}
+                            sessionId={session.id}
+                            fetchEdits={fetchEdits}
+                            onEdit={
+                              isAdminView
+                                ? () => {
+                                    if (onEditDay) {
+                                      onEditDay(day, session, absence ?? null);
+                                    } else {
+                                      setEditModal({
+                                        mode: "edit",
+                                        date: day,
+                                        session,
+                                      });
+                                    }
+                                  }
+                                : undefined
+                            }
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
         {!isAdminView && (
           <p className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-xs text-gray-500">
             Eigene Arbeitszeiten können in der Zeiterfassung-Seite bearbeitet

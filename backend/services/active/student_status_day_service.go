@@ -29,6 +29,13 @@ func (s *StudentStatusDayService) GetActiveByStudentIDsAndDate(ctx context.Conte
 	return s.repo.FindActiveByStudentIDsAndDate(ctx, studentIDs, date)
 }
 
+// GetSignedOffByStudentIDsAndDate returns the status rows of many students
+// that count as a registered sign-off for one date: active rows plus rows the
+// end-of-day scheduler archived (see the repository doc for why those stay in).
+func (s *StudentStatusDayService) GetSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+	return s.repo.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
+}
+
 // GetActiveByStudentAndDateRange returns a student's active status rows
 // within the date range.
 func (s *StudentStatusDayService) GetActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*activeModels.StudentStatusDay, error) {

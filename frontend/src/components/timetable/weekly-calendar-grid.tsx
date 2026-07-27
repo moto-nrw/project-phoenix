@@ -214,10 +214,15 @@ export function WeeklyCalendarGrid({
           Scroll-Container (sticky), nicht darüber: sonst verliert nur der
           Körper die Breite der Scrollleiste und die Kopfspalten stehen um
           diese Differenz versetzt über den Tagesspalten — über fünf, sieben
-          Spalten summiert sich das sichtbar auf. Die Maximalhöhe umfasst
-          deshalb jetzt Kopfzeile (56px) + Rasterkörper (720px), damit die
-          Karte so hoch bleibt wie zuvor. */}
-      <div className="relative max-h-[776px] overflow-y-auto">
+          Spalten summiert sich das sichtbar auf. Die Maximalhöhe umfasst den
+          Rasterkörper (720px) und die Sticky-Zeilen. Die optionale
+          Kapazitätszeile bekommt ihr eigenes Höhenbudget, damit sie im
+          Betreuungsplan nicht sichtbare Rasterhöhe wegnimmt. */}
+      <div
+        className={`relative overflow-y-auto ${
+          showDayHeader ? "max-h-[776px] sm:max-h-[808px]" : "max-h-[776px]"
+        }`}
+      >
         {/* Day header (desktop — mobile uses the day strip above) */}
         <div
           className={`sticky top-0 z-30 hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${gridColsClass}`}

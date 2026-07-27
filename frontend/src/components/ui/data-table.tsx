@@ -138,154 +138,163 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="moto-content-surface overflow-x-auto rounded-2xl border shadow-sm backdrop-blur-md">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
-              {columns.map((col) => {
-                const align = alignClass[col.align ?? "left"];
-                const sortable = Boolean(col.sortValue);
-                const active = sort?.key === col.key;
-                if (!sortable) {
+      {/* Radius, Rand und Ausschnitt bleiben auf der Kartenfläche, gescrollt
+          wird im inneren Container. Sonst zeichnet der Browser die
+          Scrollleiste quer durch die abgerundeten Ecken und über den unteren
+          Rand hinaus. */}
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+                {columns.map((col) => {
+                  const align = alignClass[col.align ?? "left"];
+                  const sortable = Boolean(col.sortValue);
+                  const active = sort?.key === col.key;
+                  if (!sortable) {
+                    return (
+                      <th
+                        key={col.key}
+                        scope="col"
+                        className={`px-3 py-3 sm:px-5 ${align} ${col.headerClassName ?? ""}`}
+                      >
+                        {col.header}
+                      </th>
+                    );
+                  }
+                  const ariaSort: "ascending" | "descending" | "none" = active
+                    ? sort?.direction === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : "none";
+                  const indicator = active
+                    ? sort?.direction === "asc"
+                      ? "↑"
+                      : "↓"
+                    : "↕";
+                  // Accessible name combines the visible header with a state hint.
+                  // We deliberately avoid embedding the column header verbatim
+                  // into a separate aria-label so the button's name is always
+                  // strictly more specific than the column header text — this
+                  // keeps name-based queries that target row-action buttons
+                  // (e.g. {name: "Konten"}) from matching the sort header.
+                  // The aria-sort attribute on the <th> communicates the
+                  // current sort direction to assistive tech independently.
+                  const stateHint = active
+                    ? sort?.direction === "asc"
+                      ? "aufsteigend sortiert"
+                      : "absteigend sortiert"
+                    : "Spalte sortieren";
                   return (
                     <th
                       key={col.key}
                       scope="col"
-                      className={`px-5 py-3 ${align} ${col.headerClassName ?? ""}`}
+                      aria-sort={ariaSort}
+                      className={`px-3 py-3 sm:px-5 ${align} ${col.headerClassName ?? ""}`}
                     >
-                      {col.header}
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(col.key)}
+                        className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${align}`}
+                      >
+                        <span>{col.header}</span>
+                        <span
+                          aria-hidden="true"
+                          className={active ? "text-gray-700" : "text-gray-300"}
+                        >
+                          {indicator}
+                        </span>
+                        <span className="sr-only">{` – ${stateHint}`}</span>
+                      </button>
                     </th>
                   );
-                }
-                const ariaSort: "ascending" | "descending" | "none" = active
-                  ? sort?.direction === "asc"
-                    ? "ascending"
-                    : "descending"
-                  : "none";
-                const indicator = active
-                  ? sort?.direction === "asc"
-                    ? "↑"
-                    : "↓"
-                  : "↕";
-                // Accessible name combines the visible header with a state hint.
-                // We deliberately avoid embedding the column header verbatim
-                // into a separate aria-label so the button's name is always
-                // strictly more specific than the column header text — this
-                // keeps name-based queries that target row-action buttons
-                // (e.g. {name: "Konten"}) from matching the sort header.
-                // The aria-sort attribute on the <th> communicates the
-                // current sort direction to assistive tech independently.
-                const stateHint = active
-                  ? sort?.direction === "asc"
-                    ? "aufsteigend sortiert"
-                    : "absteigend sortiert"
-                  : "Spalte sortieren";
-                return (
-                  <th
-                    key={col.key}
-                    scope="col"
-                    aria-sort={ariaSort}
-                    className={`px-5 py-3 ${align} ${col.headerClassName ?? ""}`}
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="px-5 py-10 text-center text-sm text-gray-500"
+                  >
+                    Wird geladen…
+                  </td>
+                </tr>
+              ) : sortedRows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="px-5 py-10 text-center text-sm text-gray-500"
+                  >
+                    {emptyState ?? "Keine Einträge vorhanden."}
+                  </td>
+                </tr>
+              ) : (
+                visibleRows.map((row) => {
+                  const rowKey = getRowKey(row);
+                  const rowClasses = [
+                    "border-b border-gray-50 last:border-0 transition-colors",
+                    clickable ? "cursor-pointer hover:bg-gray-50" : "",
+                    rowClassName ? rowClassName(row) : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+                  return (
+                    <tr
+                      key={rowKey}
+                      className={rowClasses}
+                      onClick={onRowClick ? () => onRowClick(row) : undefined}
+                      onKeyDown={
+                        onRowClick
+                          ? (event) => {
+                              if (event.target !== event.currentTarget) {
+                                return;
+                              }
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                onRowClick(row);
+                              }
+                            }
+                          : undefined
+                      }
+                      tabIndex={clickable ? 0 : undefined}
+                      role={clickable ? "button" : undefined}
+                    >
+                      {columns.map((col) => {
+                        const align = alignClass[col.align ?? "left"];
+                        return (
+                          <td
+                            key={col.key}
+                            className={`px-3 py-3 align-middle text-gray-900 sm:px-5 ${align} ${col.className ?? ""}`}
+                          >
+                            {col.render(row)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })
+              )}
+              {!isLoading && hasMore && (
+                <tr className="border-t border-gray-100">
+                  <td
+                    colSpan={columns.length}
+                    className="px-5 py-3 text-center"
                   >
                     <button
                       type="button"
-                      onClick={() => toggleSort(col.key)}
-                      className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${align}`}
+                      onClick={loadMore}
+                      className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
                     >
-                      <span>{col.header}</span>
-                      <span
-                        aria-hidden="true"
-                        className={active ? "text-gray-700" : "text-gray-300"}
-                      >
-                        {indicator}
-                      </span>
-                      <span className="sr-only">{` – ${stateHint}`}</span>
+                      {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
                     </button>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-5 py-10 text-center text-sm text-gray-500"
-                >
-                  Wird geladen…
-                </td>
-              </tr>
-            ) : sortedRows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-5 py-10 text-center text-sm text-gray-500"
-                >
-                  {emptyState ?? "Keine Einträge vorhanden."}
-                </td>
-              </tr>
-            ) : (
-              visibleRows.map((row) => {
-                const rowKey = getRowKey(row);
-                const rowClasses = [
-                  "border-b border-gray-50 last:border-0 transition-colors",
-                  clickable ? "cursor-pointer hover:bg-gray-50" : "",
-                  rowClassName ? rowClassName(row) : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-                return (
-                  <tr
-                    key={rowKey}
-                    className={rowClasses}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    onKeyDown={
-                      onRowClick
-                        ? (event) => {
-                            if (event.target !== event.currentTarget) {
-                              return;
-                            }
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              onRowClick(row);
-                            }
-                          }
-                        : undefined
-                    }
-                    tabIndex={clickable ? 0 : undefined}
-                    role={clickable ? "button" : undefined}
-                  >
-                    {columns.map((col) => {
-                      const align = alignClass[col.align ?? "left"];
-                      return (
-                        <td
-                          key={col.key}
-                          className={`px-5 py-3 align-middle text-gray-900 ${align} ${col.className ?? ""}`}
-                        >
-                          {col.render(row)}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })
-            )}
-            {!isLoading && hasMore && (
-              <tr className="border-t border-gray-100">
-                <td colSpan={columns.length} className="px-5 py-3 text-center">
-                  <button
-                    type="button"
-                    onClick={loadMore}
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-                  >
-                    {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
-                  </button>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
