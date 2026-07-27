@@ -8,7 +8,7 @@
 // Backend reference: backend/models/schedule/closing_day.go,
 // backend/api/timetable/closing_days.go (ClosingDayRequest / Response).
 
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, toISODate } from "~/lib/date-helpers";
 
 /** Backend wire shape (snake_case, int64 IDs). */
 export interface BackendClosingDay {
@@ -57,6 +57,12 @@ export function formatClosingDayRange(day: ClosingDay): string {
 
 /** Ein Schließtag-Zeitraum ohne Identität — was die Tages-Expansion braucht. */
 export type ClosingDayRange = Omit<ClosingDay, "id">;
+
+// The largest planning viewport is the half-year grid's defensive 400-week
+// maximum. Keep expansion bounded to the same visible horizon: ordinary
+// week/month/time-tracking windows are far smaller, while direct recurrence
+// checks use range lookup instead of this per-day map.
+const MAX_CLOSING_DAY_EXPANSION_DAYS = 400 * 7;
 
 /**
  * Grund des Schließtags an einem einzelnen Kalendertag, oder `undefined`.
@@ -112,23 +118,32 @@ export function expandClosingDaysToMap(
   const windowStart = from.slice(0, 10);
   const windowEnd = to.slice(0, 10);
   if (windowEnd < windowStart) return closingDays;
+  const maximumEndDate = new Date(`${windowStart}T00:00:00`);
+  maximumEndDate.setDate(
+    maximumEndDate.getDate() + MAX_CLOSING_DAY_EXPANSION_DAYS - 1,
+  );
+  const maximumEnd = toISODate(maximumEndDate);
+  const boundedWindowEnd = windowEnd > maximumEnd ? maximumEnd : windowEnd;
 
   for (const entry of ranges ?? []) {
     const storedStart = entry.startDate.slice(0, 10);
     const storedEnd = entry.endDate.slice(0, 10);
     const start = storedStart < windowStart ? windowStart : storedStart;
-    const end = storedEnd > windowEnd ? windowEnd : storedEnd;
+    const end = storedEnd > boundedWindowEnd ? boundedWindowEnd : storedEnd;
     if (end < start) continue;
 
     const startDate = new Date(`${start}T00:00:00`);
     const endDate = new Date(`${end}T00:00:00`);
     // Math.round (not floor) keeps the count DST-safe across 23/25-hour days;
-    // setDate walks local calendar days. Do not cap this window: calendar
-    // periods may validly exceed the time-tracking endpoint's 400-day request
-    // limit, and planning views must still mark every configured closure.
-    const dayCount = Math.max(
-      0,
-      Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
+    // setDate walks local calendar days. The 400-week cap is deliberately
+    // larger than valid multi-year planning periods and prevents malformed
+    // ranges from allocating entries up to a remote end date.
+    const dayCount = Math.min(
+      MAX_CLOSING_DAY_EXPANSION_DAYS,
+      Math.max(
+        0,
+        Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
+      ),
     );
     for (let offset = 0; offset < dayCount; offset++) {
       const cursor = new Date(startDate);

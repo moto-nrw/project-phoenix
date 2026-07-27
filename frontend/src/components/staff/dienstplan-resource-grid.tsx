@@ -94,6 +94,9 @@ interface DienstplanResourceGridProps {
   /** OGS-Schließtage der Woche, keyed YYYY-MM-DD → Grund (#2032). Markiert
    *  die Spalte und löst vor dem Anlegen einer Schicht die Rückfrage aus. */
   readonly closingDays?: ReadonlyMap<string, string>;
+  /** While the lookup is pending, empty cells stay inactive so creation
+   *  cannot bypass the closing-day confirmation. */
+  readonly closingDaysLoading?: boolean;
   /** Alle gespeicherten Schließtag-Zeiträume — für den Zieltag im
    *  „Verschieben nach“-Dialog, der außerhalb der Woche liegen kann. */
   readonly closingDayRanges?: readonly ClosingDayRange[];
@@ -293,6 +296,7 @@ export function DienstplanResourceGrid({
   weekDays,
   todayIso,
   closingDays,
+  closingDaysLoading = false,
   closingDayRanges,
   typesById,
   shiftTypes,
@@ -647,8 +651,10 @@ export function DienstplanResourceGrid({
         cornerHeader="Person"
         scrollHintId={scrollHintId}
         emptyCellLabel={createShiftAriaLabel}
-        onEmptyCellClick={(member, column) =>
-          openCell(member, column.key, null)
+        onEmptyCellClick={
+          closingDaysLoading
+            ? undefined
+            : (member, column) => openCell(member, column.key, null)
         }
         footer={
           <CapacityStrip

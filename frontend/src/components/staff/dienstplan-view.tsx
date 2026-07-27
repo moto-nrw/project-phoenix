@@ -26,10 +26,7 @@ import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import {
-  useClosingDayRanges,
-  useClosingDays,
-} from "~/lib/hooks/use-closing-days";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
@@ -190,8 +187,11 @@ function DienstplanContent() {
   // OGS-Schließtage (#2032): die Woche markiert ihre fünf Tage, der
   // Verschieben-Dialog prüft seinen frei wählbaren Zieltag gegen alle
   // gespeicherten Zeiträume. Die Halbjahres-Sicht lädt ihr eigenes Fenster.
-  const closingDays = useClosingDays(weekFrom, weekTo);
-  const closingDayRanges = useClosingDayRanges();
+  const {
+    closingDays,
+    closingDayRanges,
+    isLoading: closingDaysLoading,
+  } = useClosingDaysState(weekFrom, weekTo);
 
   const refreshAfterPlanMutation = useCallback(() => {
     refreshPlanCaches().catch((err: unknown) => {
@@ -361,6 +361,7 @@ function DienstplanContent() {
           weekDays={weekDays}
           todayIso={today}
           closingDays={closingDays}
+          closingDaysLoading={closingDaysLoading}
           closingDayRanges={closingDayRanges}
           typesById={typesById}
           shiftTypes={shiftTypes ?? []}

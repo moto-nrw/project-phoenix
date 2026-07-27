@@ -43,6 +43,28 @@ describe("expandClosingDaysToMap", () => {
     expect([...map.keys()]).toEqual(["2026-12-29", "2026-12-30", "2026-12-31"]);
   });
 
+  it("does not expand the remote ends of a mistakenly enormous stored range", () => {
+    const map = expandClosingDaysToMap(
+      [
+        {
+          startDate: "0001-01-01",
+          endDate: "9999-12-31",
+          reason: "Fehlkonfiguration",
+        },
+      ],
+      "2026-07-06",
+      "2026-07-10",
+    );
+
+    expect([...map.keys()]).toEqual([
+      "2026-07-06",
+      "2026-07-07",
+      "2026-07-08",
+      "2026-07-09",
+      "2026-07-10",
+    ]);
+  });
+
   it("keeps the first reason when ranges overlap", () => {
     const map = expandClosingDaysToMap(
       [
@@ -81,6 +103,22 @@ describe("expandClosingDaysToMap", () => {
 
     expect(map.size).toBe(730);
     expect(map.get("2027-12-31")).toBe("Langzeit-Schließung");
+  });
+
+  it("caps a malformed expansion at the largest visible planning horizon", () => {
+    const map = expandClosingDaysToMap(
+      [
+        {
+          startDate: "2026-01-01",
+          endDate: "9999-12-31",
+          reason: "Fehlkonfiguration",
+        },
+      ],
+      "2026-01-01",
+      "9999-12-31",
+    );
+
+    expect(map.size).toBe(2_800);
   });
 });
 

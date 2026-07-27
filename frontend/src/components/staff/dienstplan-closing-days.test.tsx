@@ -67,6 +67,7 @@ function baseShift(overrides: Partial<StaffShift> = {}): StaffShift {
 
 function renderGrid(options: {
   closingDays?: ReadonlyMap<string, string>;
+  closingDaysLoading?: boolean;
   shiftsByStaff?: Map<string, Map<string, StaffShift[]>>;
 }) {
   const onCellClick = vi.fn();
@@ -79,6 +80,7 @@ function renderGrid(options: {
       weekDays={WEEK_DAYS}
       todayIso={TODAY}
       closingDays={options.closingDays}
+      closingDaysLoading={options.closingDaysLoading}
       typesById={new Map()}
       shiftTypes={[]}
       onCellClick={onCellClick}
@@ -112,6 +114,20 @@ describe("DienstplanResourceGrid closing days (#2032)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Trotzdem planen" }));
     expect(onCellClick).toHaveBeenCalledWith(member, "2026-07-08", null);
+  });
+
+  it("keeps empty cells inactive until closing days have loaded", () => {
+    const { onCellClick } = renderGrid({
+      closingDays: new Map(),
+      closingDaysLoading: true,
+    });
+
+    expect(
+      screen.queryByRole("button", {
+        name: /Schicht anlegen, Ada Lovelace, Mo 06\.07\./,
+      }),
+    ).not.toBeInTheDocument();
+    expect(onCellClick).not.toHaveBeenCalled();
   });
 
   it("does not create the shift when the warning is dismissed", () => {

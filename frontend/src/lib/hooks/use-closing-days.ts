@@ -54,17 +54,26 @@ export function useInvalidateClosingDays() {
  * `schedules:read` bleibt die Liste leer — dann entfällt die Warnung im
  * Verschieben-Dialog, geplant werden kann weiterhin.
  */
-export function useClosingDayRanges(): readonly ClosingDayRange[] {
-  const { data: session } = useSession();
-  const canReadSchedules = hasPermission(session, "schedules:read");
-
-  const { data } = useSWRAuth(
+function useClosingDayRangesData(canReadSchedules: boolean) {
+  const { data, isLoading } = useSWRAuth(
     canReadSchedules ? CLOSING_DAYS_SWR_KEY : null,
     () => closingDayService.list(),
     CLOSING_DAYS_SWR_OPTIONS,
   );
 
-  return data ?? EMPTY_RANGES;
+  return { ranges: data ?? EMPTY_RANGES, isLoading };
+}
+
+export function useClosingDayRanges(): readonly ClosingDayRange[] {
+  const { data: session } = useSession();
+  const canReadSchedules = hasPermission(session, "schedules:read");
+  return useClosingDayRangesData(canReadSchedules).ranges;
+}
+
+interface ClosingDaysState {
+  readonly closingDays: ReadonlyMap<string, string>;
+  readonly closingDayRanges: readonly ClosingDayRange[];
+  readonly isLoading: boolean;
 }
 
 /**
@@ -77,20 +86,21 @@ export function useClosingDayRanges(): readonly ClosingDayRange[] {
  * Hinweis, kein Sperrmechanismus — ein fehlgeschlagener Abruf darf die
  * Planung nicht blockieren.
  */
-export function useClosingDays(
+export function useClosingDaysState(
   fromISO: string,
   toISO: string,
-): ReadonlyMap<string, string> {
-  const { data: session } = useSession();
+): ClosingDaysState {
+  const { data: session, status: sessionStatus } = useSession();
   const canReadSchedules = hasPermission(session, "schedules:read");
   const canReadTimeTracking =
     hasPermission(session, "time_tracking:manage") ||
     hasPermission(session, "time_tracking:own");
   const windowValid = fromISO !== "" && toISO !== "";
 
-  const ranges = useClosingDayRanges();
+  const { ranges, isLoading: rangesLoading } =
+    useClosingDayRangesData(canReadSchedules);
 
-  const { data: windowMap } = useSWRAuth(
+  const { data: windowMap, isLoading: windowLoading } = useSWRAuth(
     windowValid && !canReadSchedules && canReadTimeTracking
       ? `${CLOSING_DAYS_SWR_KEY}-${fromISO}-${toISO}`
       : null,
@@ -98,11 +108,29 @@ export function useClosingDays(
     CLOSING_DAYS_SWR_OPTIONS,
   );
 
-  return useMemo(() => {
+  const closingDays = useMemo(() => {
     if (!windowValid) return EMPTY_CLOSING_DAYS;
     if (canReadSchedules) {
       return expandClosingDaysToMap(ranges, fromISO, toISO);
     }
     return windowMap ?? EMPTY_CLOSING_DAYS;
   }, [canReadSchedules, fromISO, ranges, toISO, windowMap, windowValid]);
+
+  return {
+    closingDays,
+    closingDayRanges: ranges,
+    isLoading:
+      windowValid &&
+      (sessionStatus === "loading" ||
+        (canReadSchedules
+          ? rangesLoading
+          : canReadTimeTracking && windowLoading)),
+  };
+}
+
+export function useClosingDays(
+  fromISO: string,
+  toISO: string,
+): ReadonlyMap<string, string> {
+  return useClosingDaysState(fromISO, toISO).closingDays;
 }

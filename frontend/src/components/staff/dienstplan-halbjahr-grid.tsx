@@ -356,15 +356,19 @@ function HalbjahrGridInner({
   // Schließtage des Zeitraums (#2032). Die Halbjahres-Sicht plant nichts, sie
   // macht nur sichtbar, in welchen Wochen Schließtage liegen — gezählt werden
   // Mo–Fr, weil die Wochenansicht dieselben fünf Tage zeigt.
-  const closingDays = useMemo(
-    () =>
-      expandClosingDaysToMap(
-        closingDayRanges,
-        period.startDate,
-        period.endDate,
-      ),
-    [closingDayRanges, period.startDate, period.endDate],
-  );
+  const closingDays = useMemo(() => {
+    const firstWeek = weeks[0];
+    const lastWeek = weeks.at(-1);
+    if (!firstWeek || !lastWeek) return new Map<string, string>();
+    // weeksInPeriod has a defensive 400-column guard. Clamp the expansion to
+    // those actually rendered weeks as well, so a mistakenly huge period or
+    // closing-day range cannot allocate entries through its remote end date.
+    return expandClosingDaysToMap(
+      closingDayRanges,
+      firstWeek.shiftsFrom,
+      lastWeek.shiftsTo,
+    );
+  }, [closingDayRanges, weeks]);
   const closingByWeek = useMemo(() => {
     const byWeek = new Map<string, string[]>();
     if (closingDays.size === 0) return byWeek;
