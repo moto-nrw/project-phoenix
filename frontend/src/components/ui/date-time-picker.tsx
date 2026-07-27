@@ -23,6 +23,27 @@ function splitLocal(value: string): { day: string; time: string } {
 }
 
 /**
+ * On the boundary day the clock may sit below the minimum time — whether it was
+ * typed into the time half, carried over from an earlier selection or supplied
+ * by `defaultTime`. Both halves clamp through here so neither can emit a value
+ * that undercuts `min`. Later days are unconstrained and may start at 00:00.
+ * "HH:mm" compares correctly as a string.
+ *
+ * Exported for its own tests: jsdom blanks a time input whose value is below
+ * its `min` attribute, so the typed-below-minimum case cannot be driven through
+ * the rendered field the way a real browser would (browsers keep the value and
+ * only mark it `:invalid`).
+ */
+export function clampTimeToMin(
+  day: string,
+  time: string,
+  minParts: { day: string; time: string },
+): string {
+  if (day !== minParts.day || !minParts.time) return time;
+  return time < minParts.time ? minParts.time : time;
+}
+
+/**
  * Kit replacement for `<input type="datetime-local">`: the kit calendar for the
  * day plus a time field for the clock.
  *
@@ -84,18 +105,11 @@ export function DateTimePicker({
             onChange("");
             return;
           }
-          // On the boundary day the clock (whether typed earlier or the
-          // defaultTime fallback) may sit below the minimum time; clamp it so
-          // the emitted value never undercuts `min`. "HH:mm" compares
-          // correctly as a string.
-          let nextTime = time || defaultTime;
-          if (
-            nextDay === minParts.day &&
-            minParts.time &&
-            nextTime < minParts.time
-          ) {
-            nextTime = minParts.time;
-          }
+          const nextTime = clampTimeToMin(
+            nextDay,
+            time || defaultTime,
+            minParts,
+          );
           onChange(`${nextDay}T${nextTime}`);
         }}
         disabled={disabled}
@@ -113,13 +127,21 @@ export function DateTimePicker({
         aria-label={timeAriaLabel}
         value={time}
         // A lower bound only constrains the clock on the boundary day itself;
-        // any later day may start at 00:00.
+        // any later day may start at 00:00. The attribute only marks the field
+        // invalid — a typed-in lower time still reaches onChange, so the
+        // handler below clamps rather than trusting it.
         min={day && day === minParts.day ? minParts.time : undefined}
         disabled={disabled || !day}
         onChange={(event) => {
           const nextTime = event.target.value;
           if (!day) return;
-          onChange(nextTime ? `${day}T${nextTime}` : "");
+          // Clearing the time clears the whole value; an optional field has to
+          // stay emptiable.
+          if (!nextTime) {
+            onChange("");
+            return;
+          }
+          onChange(`${day}T${clampTimeToMin(day, nextTime, minParts)}`);
         }}
         className={`w-[7.5rem] shrink-0 rounded-lg border border-gray-200 bg-white text-gray-900 ${TIME_SIZE_CLASS[controlSize]} transition-colors hover:bg-gray-50 focus:border-gray-300 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400`}
       />
