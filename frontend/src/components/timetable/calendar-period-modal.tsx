@@ -316,8 +316,8 @@ export function CalendarPeriodModal({
         persisted ? "Kalenderzeitraum bearbeiten" : "Kalenderzeitraum anlegen"
       }
       footer={
-        <div className="flex w-full items-center justify-between gap-2">
-          <div>
+        <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full sm:w-auto">
             {isEdit && (
               <div className="flex max-w-sm flex-col gap-1">
                 <Button
@@ -339,7 +339,7 @@ export function CalendarPeriodModal({
               </div>
             )}
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
             {deleteConfirm && !deleting && (
               <Button
                 type="button"

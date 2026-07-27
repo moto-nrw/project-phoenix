@@ -69,9 +69,12 @@ describe("ClosingDaysEditor", () => {
     // Der Zeitraum steht doppelt im Markup: eigene Spalte ab sm, darunter die
     // Unterzeile für schmale Screens (#2033). Im Browser ist immer genau eine
     // Variante sichtbar, jsdom wertet die CSS-Sichtbarkeit aber nicht aus.
-    expect(
-      screen.getAllByText("24.12.2026 – 31.12.2026")[0],
-    ).toBeInTheDocument();
+    const mobileRange = (
+      await screen.findAllByText("24.12.2026 – 31.12.2026")
+    ).find((element) => element.tagName === "P");
+
+    expect(mobileRange).toHaveClass("break-words");
+    expect(mobileRange).not.toHaveClass("truncate");
   });
 
   it("zeigt für einen Eintages-Schließtag nur ein Datum", async () => {

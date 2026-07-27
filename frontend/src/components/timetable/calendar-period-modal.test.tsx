@@ -152,6 +152,11 @@ describe("CalendarPeriodModal", () => {
     expect(
       screen.getByText(/Beim Löschen werden bestehende Verknüpfungen/),
     ).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("button", { name: "Löschen bestätigen" })
+        .closest("div.flex.w-full"),
+    ).toHaveClass("flex-col");
     fireEvent.click(screen.getByRole("button", { name: "Löschen abbrechen" }));
     expect(
       screen.queryByText(/Beim Löschen werden bestehende Verknüpfungen/),

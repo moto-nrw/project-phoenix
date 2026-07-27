@@ -109,9 +109,9 @@ export function ClosingDaysEditor() {
         render: (day) => (
           // max-w wie im CalendarPeriodsEditor: verhindert, dass die
           // Unterzeile die Spalte über die Containerbreite hinaus aufzieht.
-          <div className="min-w-0 max-w-[44vw] sm:max-w-none">
+          <div className="max-w-[44vw] min-w-0 sm:max-w-none">
             <p className="truncate font-medium text-gray-900">{day.reason}</p>
-            <p className="mt-0.5 truncate text-xs text-gray-500 sm:hidden">
+            <p className="mt-0.5 text-xs leading-5 break-words text-gray-500 sm:hidden">
               {formatClosingDayRange(day)}
             </p>
           </div>
