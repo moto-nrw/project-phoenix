@@ -31,7 +31,11 @@ const SIZE_CLASS: Record<PlanAddAffordanceSize, string> = {
    * ResourceGrid kommt aus dessen Zellen-Wrapper (Issue #2026), eine zweite
    * Mindesthöhe hier würde leere Zeilen wieder höher machen als gefüllte.
    */
-  fill: "h-full",
+  // self-stretch statt h-full: die Fläche ist ein Flex-Kind des Aufrufers, und
+  // eine Prozenthöhe greift dort nicht zuverlässig (in der Rasterzelle blieb
+  // sie 18px hoch statt 64px). Über die Querachse zu strecken ist der Weg, der
+  // in beiden Aufrufern funktioniert — auch im Stunden-Slot mit items-center.
+  fill: "self-stretch",
   /** Schmale Zeile unter vorhandenem Zelleninhalt. */
   inline: "h-7",
 };
