@@ -46,6 +46,15 @@ interface InstanceBlockProps {
 
 const COMPACT_HEIGHT_PX = 48;
 const TINY_HEIGHT_PX = 30;
+/**
+ * Zeitzeile (17px) + Titel (15px) + Padding und Rahmen (14px) brauchen rund
+ * 46px, die Fußzeile (Besetzung, Raum, Zählungen) noch einmal rund 17px. Ein
+ * kürzerer Block bekommt daher keine Fußzeile: sie ragte sonst unten heraus,
+ * wurde von `overflow-hidden` abgeschnitten und drückte den Titel optisch an
+ * die Unterkante. Ein 30-Minuten-Block ist bei 90px/Stunde genau 45px hoch —
+ * der Regelfall, nicht der Ausnahmefall.
+ */
+const FOOTER_MIN_HEIGHT_PX = 64;
 
 /** Bewusst-unbesetzt-Blöcke lesen sich vollständig neutral: graue Kante, keine
  *  Tönung; die Semantik trägt der CoverageIndicator-Vermerk (Spec 5.3). */
@@ -67,6 +76,7 @@ export function InstanceBlock({
   const hasConflict = instance.conflictWarnings.length > 0;
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
+  const showFooter = height >= FOOTER_MIN_HEIGHT_PX;
 
   // #1840 Vertretungsplan deviation signals. A removed substitute keeps
   // is_substitute=true but is marked is_absent=true — they are no longer
@@ -135,7 +145,7 @@ export function InstanceBlock({
   const totalStudents =
     instance.expectedStudentsCount + instance.presentStudentsCount;
 
-  const footer = isTiny ? undefined : (
+  const footer = !showFooter ? undefined : (
     <span className="flex min-w-0 flex-col gap-0.5">
       {!isCompact && !isCancelled && instance.roomName && (
         <span className="truncate text-[10px] text-gray-500">
@@ -211,6 +221,18 @@ export function InstanceBlock({
         height: `${Math.max(height, 18)}px`,
         left,
         width,
+        // Ohne Fußzeile füllen Zeit und Titel den Block nicht aus: dann
+        // vertikal zentrieren mit knapperem Padding, statt beide oben
+        // anzuschlagen und den Titel an der Unterkante kleben zu lassen.
+        ...(showFooter
+          ? {}
+          : {
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              paddingTop: 2,
+              paddingBottom: 2,
+            }),
       }}
       aria-label={`${instance.title}, ${instance.startTime} bis ${instance.endTime}`}
     />

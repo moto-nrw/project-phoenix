@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EnrichedInstance } from "~/lib/timetable-types";
@@ -73,24 +79,33 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 
-vi.mock("~/components/timetable/vertretung-day-list", () => ({
-  VertretungDayList: (props: {
-    instances: Array<{ id: string }>;
-    gapsAvailable: boolean;
-    mode: string;
-    canManage: boolean;
-    onEdit: (id: string) => void;
-  }) => {
-    mockDayListProps(props);
-    return (
-      <div data-testid="day-list" data-mode={props.mode}>
-        <button type="button" onClick={() => props.onEdit("42")}>
-          day-list-edit
-        </button>
-      </div>
-    );
-  },
-}));
+// Nur die Tagesliste selbst ersetzen. Die übrigen Exporte (Klassifikation und
+// Zeilendarstellung) bleiben echt, weil die Wochenliste sie importiert — ein
+// Voll-Mock des Moduls würde sie beim Rendern der Wochenansicht verschlucken.
+vi.mock(
+  "~/components/timetable/vertretung-day-list",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/components/timetable/vertretung-day-list")
+    >()),
+    VertretungDayList: (props: {
+      instances: Array<{ id: string }>;
+      gapsAvailable: boolean;
+      mode: string;
+      canManage: boolean;
+      onEdit: (id: string) => void;
+    }) => {
+      mockDayListProps(props);
+      return (
+        <div data-testid="day-list" data-mode={props.mode}>
+          <button type="button" onClick={() => props.onEdit("42")}>
+            day-list-edit
+          </button>
+        </div>
+      );
+    },
+  }),
+);
 
 vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
   WeeklyCalendarGrid: (props: {
@@ -539,6 +554,168 @@ describe("VertretungView", () => {
     await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
     // block und verlauf sind aus der URL entfernt.
     expect(urlKeys()).toEqual(["d"]);
+  });
+
+  // --- Wochenansicht (#2030) -------------------------------------------
+  // Die Tagesansicht ist der Standard; die Woche ist eine zusätzliche Sicht
+  // auf dieselben bereits geladenen Daten und lebt in `view=woche`.
+
+  it("startet in der Tagesansicht und gibt dem Raster genau einen Tag", () => {
+    render(<VertretungView />);
+
+    expect(screen.getByRole("tab", { name: "Tag" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(mockGridProps.mock.calls.at(-1)?.[0].weekDays).toHaveLength(1);
+    expect(screen.getByTestId("day-list")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("vertretung-week-list"),
+    ).not.toBeInTheDocument();
+    expect(urlKeys()).toEqual([]);
+  });
+
+  it("schaltet über die Kontextleiste auf die Woche und schreibt view=woche in die URL", async () => {
+    render(<VertretungView />);
+
+    // Radix-Tabs aktivieren per mousedown, nicht click.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Woche" }), {
+      button: 0,
+    });
+
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get("view")).toBe(
+        "woche",
+      ),
+    );
+  });
+
+  it("stellt die Wochenansicht aus einem Deep-Link wieder her", () => {
+    mockSearch.value = "view=woche";
+    render(<VertretungView />);
+
+    expect(screen.getByRole("tab", { name: "Woche" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("vertretung-week-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
+    // Statt der Tagesleiste steht das Wochenlabel zwischen den Pfeilen — über
+    // Mo–Fr, nicht über das Mo–So-Fetch-Fenster.
+    expect(screen.getByText(/13\.07\.–17\.07\.2026/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Mi 15.07." }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("zeigt in der Wochenansicht alle fünf Schultage mit ihren Terminen", () => {
+    mockSearch.value = "view=woche";
+    render(<VertretungView />);
+
+    const grid = mockGridProps.mock.calls.at(-1)?.[0];
+    expect(grid.weekDays).toHaveLength(5);
+    // Mi und Do liegen in derselben Woche — beide Termine sind im Raster.
+    expect(grid.instances.map((i: EnrichedInstance) => i.id)).toEqual([
+      "42",
+      "43",
+    ]);
+    for (const iso of [
+      "2026-07-13",
+      "2026-07-14",
+      "2026-07-15",
+      "2026-07-16",
+      "2026-07-17",
+    ]) {
+      expect(
+        screen.getByTestId(`vertretung-week-list-day-${iso}`),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("markiert in der Wochenansicht die Lücken aller Tage und zählt sie über die Woche", () => {
+    setupSWR({
+      gapsData: {
+        from: "2026-07-15",
+        to: "2026-07-19",
+        gaps: [
+          { instanceId: "42", date: "2026-07-15" },
+          { instanceId: "43", date: "2026-07-16" },
+        ],
+        acknowledged: [],
+      },
+    });
+    mockSearch.value = "view=woche";
+    render(<VertretungView />);
+
+    const grid = mockGridProps.mock.calls.at(-1)?.[0];
+    expect([...(grid.gapInstanceIds as Set<string>)].sort()).toEqual([
+      "42",
+      "43",
+    ]);
+    // Der Zähler der Kontextleiste zählt in der Wochenansicht die Woche.
+    expect(screen.getByText("Offen: 2")).toBeInTheDocument();
+  });
+
+  it("öffnet aus der Wochenliste denselben Editor wie die Tagesansicht", () => {
+    // Der Donnerstags-Termin muss gestört sein, sonst steht er im Modus
+    // "Nur Störungen" nicht in der Liste.
+    setupSWR({
+      gapsData: {
+        from: "2026-07-15",
+        to: "2026-07-19",
+        gaps: [{ instanceId: "43", date: "2026-07-16" }],
+        acknowledged: [],
+      },
+    });
+    mockSearch.value = "view=woche";
+    window.history.replaceState(null, "", "/acme/vertretung?view=woche");
+    const { unmount } = render(<VertretungView />);
+
+    const thursday = screen.getByTestId("vertretung-week-list-day-2026-07-16");
+    fireEvent.click(
+      within(thursday).getByRole("button", { name: "Bearbeiten" }),
+    );
+
+    expect(new URLSearchParams(window.location.search).get("block")).toBe("43");
+    // Die Ansicht bleibt beim Öffnen des Editors erhalten.
+    expect(new URLSearchParams(window.location.search).get("view")).toBe(
+      "woche",
+    );
+
+    // Derselbe Editor wie in der Tagesansicht — der Klick schreibt nur `block`,
+    // gerendert wird daraus (der Suchparam-Mock re-rendert nicht von selbst).
+    unmount();
+    mockSearch.value = "view=woche&block=43";
+    render(<VertretungView />);
+    expect(mockEditorProps.mock.calls.at(-1)?.[0].instance?.id).toBe("43");
+    expect(screen.getByTestId("editor")).toBeInTheDocument();
+  });
+
+  it("springt per Tageskopfzeile aus der Woche in die Tagesansicht", () => {
+    mockSearch.value = "view=woche";
+    window.history.replaceState(null, "", "/acme/vertretung?view=woche");
+    render(<VertretungView />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Do 16.07. als Tagesansicht öffnen" }),
+    );
+
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("d")).toBe("2026-07-16");
+    expect(params.has("view")).toBe(false);
+  });
+
+  it("hält die URL auch mit view auf dem erlaubten Vokabular", () => {
+    mockSearch.value = "view=woche&block=42&utm_source=x";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?view=woche&block=42&utm_source=x",
+    );
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByText("editor-history"));
+    expect(urlKeys().sort()).toEqual(["block", "verlauf", "view"]);
   });
 
   it("renders the disabled state when timetable.enabled is false", () => {

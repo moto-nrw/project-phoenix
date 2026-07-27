@@ -14,7 +14,7 @@
  * positioning by time is the whole point of a week view.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import { CapacityStrip } from "~/components/ui/capacity-strip";
 import {
@@ -34,17 +34,18 @@ import { InstanceBlock } from "./instance-block";
 import { timetableSurface } from "./timetable-style";
 
 // Grid template columns: narrow time gutter + day columns. Mobile shows a
-// single day column (gutter + 1fr) via the day strip; sm+ shows all seven.
-// The two variants are static strings so Tailwind can generate both; the
-// single-day variant powers the Vertretungsplan's "Tag" view (#1840) — the
-// week planner always passes 7 days and keeps the seven-column layout.
-const GRID_COLS_CLASS_WEEK =
-  "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]";
-const GRID_COLS_CLASS_DAY =
-  "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)]";
-// Inline-Style-Pendant zu den sm+-Klassen oben (die Tageskopfzeile rendert
-// nur ab sm). Muss mit Gutter-Breite und Spaltenbasis der Klassen-Strings
-// übereinstimmen — bei Änderungen BEIDE Stellen anpassen.
+// single day column (gutter + 1fr) via the day strip; ab sm bekommt JEDER
+// übergebene Tag eine Spalte — eine feste Sieben würde die 1-Tages-Ansicht
+// der Vertretung (#1840) und ihre 5-Tage-Woche (#2030) auf einen Bruchteil
+// der Breite stauchen und den Rest der Fläche leer lassen.
+//
+// Tailwind kann nur statische Klassen erzeugen, deshalb kommt die Spaltenzahl
+// ab sm aus der CSS-Variable `--day-grid-cols` (auf dem Wurzelelement gesetzt,
+// vererbt an Kopfzeile und Raster). Damit gibt es genau EINE Quelle für die
+// Spaltenbreiten: `smGridTemplate` — die Tageskopfzeile (CapacityStrip) nutzt
+// dieselbe Funktion.
+const GRID_COLS_CLASS =
+  "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-(--day-grid-cols)";
 const SM_TIME_GUTTER_PX = 64;
 const smGridTemplate = (dayCount: number) =>
   `${SM_TIME_GUTTER_PX}px repeat(${dayCount}, minmax(0,1fr))`;
@@ -102,8 +103,7 @@ export function WeeklyCalendarGrid({
   emptyState,
   showDayHeader = false,
 }: WeeklyCalendarGridProps) {
-  const gridColsClass =
-    weekDays.length === 1 ? GRID_COLS_CLASS_DAY : GRID_COLS_CLASS_WEEK;
+  const gridColsClass = GRID_COLS_CLASS;
   const grouped = useMemo(() => groupInstancesByDate(instances), [instances]);
   // Zellen der Tageskopfzeile nur bei Daten-/Wochenwechsel neu ableiten —
   // nicht bei jedem unabhängigen Re-Render (Popover, Selektion, Modals).
@@ -164,7 +164,12 @@ export function WeeklyCalendarGrid({
   );
 
   return (
-    <div className={`${timetableSurface} overflow-hidden`}>
+    <div
+      className={`${timetableSurface} overflow-hidden`}
+      style={
+        { "--day-grid-cols": smGridTemplate(weekDays.length) } as CSSProperties
+      }
+    >
       {/* Mobile day strip — tap a day to switch (single-day view < sm) */}
       <div className="flex gap-1 border-b border-gray-200 bg-white p-2 sm:hidden">
         {weekDays.map((day, index) => {
@@ -204,61 +209,68 @@ export function WeeklyCalendarGrid({
         })}
       </div>
 
-      {/* Sticky day header (desktop — mobile uses the day strip above) */}
-      <div
-        className={`hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${gridColsClass}`}
-      >
-        <div aria-hidden />
-        {weekDays.map((day) => {
-          const iso = toISODate(day);
-          const isToday = iso === todayISO;
-          return (
-            <div
-              key={iso}
-              className="flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-gray-200 px-1 py-1 sm:flex-row sm:gap-2 sm:px-2 sm:py-2"
-            >
-              <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
-                {getGermanWeekdayShort(day)}
-              </span>
-              {isToday ? (
-                <span
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
-                  aria-label={formatDayHeader(day)}
-                >
-                  {day.getDate()}
+      {/* Scrollable body. Tageskopfzeile und Kapazitätszeile liegen MIT im
+          Scroll-Container (sticky), nicht darüber: sonst verliert nur der
+          Körper die Breite der Scrollleiste und die Kopfspalten stehen um
+          diese Differenz versetzt über den Tagesspalten — über fünf, sieben
+          Spalten summiert sich das sichtbar auf. Die Maximalhöhe umfasst
+          deshalb jetzt Kopfzeile (56px) + Rasterkörper (720px), damit die
+          Karte so hoch bleibt wie zuvor. */}
+      <div className="relative max-h-[776px] overflow-y-auto">
+        {/* Day header (desktop — mobile uses the day strip above) */}
+        <div
+          className={`sticky top-0 z-30 hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${gridColsClass}`}
+        >
+          <div aria-hidden />
+          {weekDays.map((day) => {
+            const iso = toISODate(day);
+            const isToday = iso === todayISO;
+            return (
+              <div
+                key={iso}
+                className="flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-gray-200 px-1 py-1 sm:flex-row sm:gap-2 sm:px-2 sm:py-2"
+              >
+                <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
+                  {getGermanWeekdayShort(day)}
                 </span>
-              ) : (
-                <span
-                  className="text-xs font-semibold text-gray-900 tabular-nums sm:text-sm"
-                  aria-label={formatDayHeader(day)}
-                >
-                  {String(day.getDate()).padStart(2, "0")}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Day-header capacity strip (Betreuungsplan opt-in, 06-betreuungsplan.md
-          Abschnitt 3.1) — sm+ only, matches the desktop day-header columns;
-          on mobile the day strip above already shows one day at a time. */}
-      {showDayHeader && (
-        <div className="hidden sm:block">
-          <CapacityStrip
-            as="div"
-            position="header"
-            stickyLabel={false}
-            labelWidthClassName="w-[64px]"
-            rowLabel=""
-            gridTemplateColumns={smGridTemplate(weekDays.length)}
-            cells={dayHeaderCells}
-          />
+                {isToday ? (
+                  <span
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
+                    aria-label={formatDayHeader(day)}
+                  >
+                    {day.getDate()}
+                  </span>
+                ) : (
+                  <span
+                    className="text-xs font-semibold text-gray-900 tabular-nums sm:text-sm"
+                    aria-label={formatDayHeader(day)}
+                  >
+                    {String(day.getDate()).padStart(2, "0")}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
-      )}
 
-      {/* Scrollable body */}
-      <div className="relative max-h-[720px] overflow-y-auto">
+        {/* Day-header capacity strip (Betreuungsplan opt-in, 06-betreuungsplan.md
+            Abschnitt 3.1) — sm+ only, matches the desktop day-header columns;
+            on mobile the day strip above already shows one day at a time.
+            Klebt unter der Tageskopfzeile (sm:h-14 = 56px). */}
+        {showDayHeader && (
+          <div className="sticky top-14 z-20 hidden bg-white sm:block">
+            <CapacityStrip
+              as="div"
+              position="header"
+              stickyLabel={false}
+              labelWidthClassName="w-[64px]"
+              rowLabel=""
+              gridTemplateColumns={smGridTemplate(weekDays.length)}
+              cells={dayHeaderCells}
+            />
+          </div>
+        )}
+
         <div className={`grid ${gridColsClass}`}>
           {/* Time gutter */}
           <div
@@ -363,7 +375,10 @@ export function WeeklyCalendarGrid({
                       top={top}
                       height={height}
                       left={`${lane * widthPct}%`}
-                      width={`calc(${widthPct}% - 4px)`}
+                      // Volle Spaltenbreite: der frühere 4px-Abzug ließ rechts
+                      // einen Streifen der Spalte frei und der Block stand
+                      // sichtbar neben seiner eigenen Spaltenkante.
+                      width={`${widthPct}%`}
                       isSelected={selectedId === instance.id}
                       isGap={gapInstanceIds?.has(instance.id) ?? false}
                       onClick={() => onInstanceClick(instance)}

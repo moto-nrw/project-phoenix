@@ -8,6 +8,11 @@
  * Tag angezeigt wird und der Umschalter "Nur Störungen"/"Ganzer Tag" leben im
  * Parent (vertretung-view.tsx); der Filterzustand kommt hier nur als Prop an.
  *
+ * Die Klassifikation (`classifyInstances`) und die Zeilendarstellung
+ * (`VertretungRowList`) sind exportiert, weil die Wochenansicht
+ * (vertretung-week-list.tsx, #2030) dieselben Regeln pro Tag anwendet. Es gibt
+ * genau eine Störungsdefinition, nicht zwei je Ansicht.
+ *
  * Störungsdefinition (Abschnitt 2.2, Bedingungen 1-4): eine Position gilt als
  * gestört, wenn sie in `gaps` steht (offene Lücke), in `acknowledged` steht
  * (quittiert), `status === "cancelled"` ist (abgesagt), oder mindestens eine
@@ -84,7 +89,7 @@ export function computeStaffTriple(instance: EnrichedInstance): StaffTriple {
   };
 }
 
-interface ClassifiedRow {
+export interface ClassifiedRow {
   instance: EnrichedInstance;
   ackMatch?: GapInstance;
   isCancelled: boolean;
@@ -165,6 +170,48 @@ function compareRows(a: ClassifiedRow, b: ClassifiedRow): number {
   return a.severityRank - b.severityRank;
 }
 
+/**
+ * Klassifiziert und sortiert die Instanzen eines Tages (Startzeit, bei
+ * Gleichstand Schwere). Reine Funktion, von Tages- und Wochenansicht geteilt.
+ */
+export function classifyInstances(
+  instances: EnrichedInstance[],
+  gaps: GapInstance[],
+  acknowledged: GapInstance[],
+  gapsAvailable: boolean,
+): ClassifiedRow[] {
+  return instances
+    .map((instance) => classify(instance, gaps, acknowledged, gapsAvailable))
+    .sort(compareRows);
+}
+
+/** Die Zeilenliste ohne Kartenrahmen — beide Ansichten rendern dieselben Zeilen. */
+export function VertretungRowList({
+  rows,
+  staffNames,
+  canManage,
+  onEdit,
+}: {
+  rows: ClassifiedRow[];
+  staffNames: Map<string, string>;
+  canManage: boolean;
+  onEdit: (instanceId: string) => void;
+}) {
+  return (
+    <ul className="divide-y divide-gray-200">
+      {rows.map((row) => (
+        <VertretungDayListRow
+          key={row.instance.id}
+          row={row}
+          staffNames={staffNames}
+          canManage={canManage}
+          onEdit={onEdit}
+        />
+      ))}
+    </ul>
+  );
+}
+
 export function VertretungDayList({
   instances,
   gaps,
@@ -190,9 +237,12 @@ export function VertretungDayList({
     );
   }
 
-  const classified = instances
-    .map((instance) => classify(instance, gaps, acknowledged, gapsAvailable))
-    .sort(compareRows);
+  const classified = classifyInstances(
+    instances,
+    gaps,
+    acknowledged,
+    gapsAvailable,
+  );
   const disturbed = classified.filter((row) => row.isDisturbed);
   // Ohne Gaps kann der Client nicht wissen, ob ein ansonsten unauffälliger
   // Block unterbesetzt ist. Deshalb weder Entwarnung noch Ganztags-Fallback.
@@ -212,17 +262,12 @@ export function VertretungDayList({
           Keine Störungen an diesem Tag
         </p>
       )}
-      <ul className="divide-y divide-gray-200">
-        {visibleRows.map((row) => (
-          <VertretungDayListRow
-            key={row.instance.id}
-            row={row}
-            staffNames={staffNames}
-            canManage={canManage}
-            onEdit={onEdit}
-          />
-        ))}
-      </ul>
+      <VertretungRowList
+        rows={visibleRows}
+        staffNames={staffNames}
+        canManage={canManage}
+        onEdit={onEdit}
+      />
     </div>
   );
 }
