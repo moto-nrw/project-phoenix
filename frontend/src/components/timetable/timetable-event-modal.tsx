@@ -228,8 +228,9 @@ export function TimetableEventModal({
     setStep((current) => Math.min(current + 1, LAST_STEP));
   };
 
-  // Speichern works from every step. When the full validation fails on a field
-  // the user cannot see, surface it by jumping to its step.
+  // Speichern only exists on the last step, but the full validation covers
+  // every step. When it fails on a field the user cannot see, surface it by
+  // jumping to its step.
   useEffect(() => {
     if (!submitAttempted.current) return;
     submitAttempted.current = false;
@@ -488,32 +489,36 @@ export function TimetableEventModal({
                 Zurück
               </Button>
             )}
-            {step < LAST_STEP && (
+            {step < LAST_STEP ? (
+              // #2025: "Weiter" is the primary action so the eye lands on the
+              // path through the wizard; Speichern only exists on the last
+              // step, so no step can be saved unseen.
               <Button
                 type="button"
-                variant="secondary"
+                variant="primary"
                 size="md"
                 onClick={goNext}
                 disabled={submitting || deletingSeries}
               >
                 Weiter
               </Button>
+            ) : (
+              <Button
+                type="submit"
+                form="timetable-event-form"
+                variant="primary"
+                size="md"
+                isLoading={submitting}
+                loadingText="Speichere …"
+                disabled={
+                  submitting ||
+                  deletingSeries ||
+                  (isEditingInstance && initialInstance?.status !== "planned")
+                }
+              >
+                Speichern
+              </Button>
             )}
-            <Button
-              type="submit"
-              form="timetable-event-form"
-              variant="primary"
-              size="md"
-              isLoading={submitting}
-              loadingText="Speichere …"
-              disabled={
-                submitting ||
-                deletingSeries ||
-                (isEditingInstance && initialInstance?.status !== "planned")
-              }
-            >
-              Speichern
-            </Button>
           </div>
         </SlideOverFooter>
 
