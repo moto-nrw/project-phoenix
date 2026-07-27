@@ -656,6 +656,28 @@ describe("VertretungView", () => {
     expect(screen.getByText("Offen: 2")).toBeInTheDocument();
   });
 
+  it("zeigt am Wochenende keine erfundenen Wochenzähler für ein leeres sichtbares Lückenfenster", () => {
+    // Für die laufende Woche lädt der Endpunkt ab Samstag. Die Wochenansicht
+    // zeigt aber nur Mo–Fr; ein erfolgreicher Request enthält damit keine
+    // sichtbaren Tage und darf nicht als bestätigte Null gewertet werden.
+    vi.setSystemTime(new Date("2026-07-18T12:00:00Z")); // Samstag
+    setupSWR({
+      gapsData: {
+        from: "2026-07-18",
+        to: "2026-07-19",
+        gaps: [],
+        acknowledged: [],
+      },
+    });
+    mockSearch.value = "d=2026-07-17&view=woche";
+    render(<VertretungView />);
+
+    expect(screen.getByText("Offen: –")).toBeInTheDocument();
+    expect(screen.getByText("Quittiert: –")).toBeInTheDocument();
+    expect(screen.queryByText("Offen: 0")).not.toBeInTheDocument();
+    expect(screen.queryByText("Quittiert: 0")).not.toBeInTheDocument();
+  });
+
   it("öffnet aus der Wochenliste denselben Editor wie die Tagesansicht", () => {
     // Der Donnerstags-Termin muss gestört sein, sonst steht er im Modus
     // "Nur Störungen" nicht in der Liste.
