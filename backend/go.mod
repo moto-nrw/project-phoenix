@@ -4,6 +4,7 @@ go 1.25.12
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/agnivade/levenshtein v1.2.1
 	github.com/getsentry/sentry-go v0.48.0
 	github.com/go-chi/chi/v5 v5.3.1
@@ -16,9 +17,9 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/k3a/html2text v1.4.0
 	github.com/lestrrat-go/jwx/v3 v3.1.1
-	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_golang v1.24.1
 	github.com/samber/slog-chi v1.19.1
-	github.com/signintech/gopdf v0.37.0
+	github.com/signintech/gopdf v0.38.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
@@ -41,7 +42,6 @@ require (
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0 // indirect
-	github.com/SherClockHolmes/webpush-go v1.4.0 // indirect
 	github.com/ajg/form v1.7.1 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -93,8 +93,8 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.66.1 // indirect
-	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/prometheus/common v0.70.1 // indirect
+	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/richardlehane/mscfb v1.0.7 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
@@ -118,15 +118,14 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.42.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.37.0 // indirect
-	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57 // indirect
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
-	google.golang.org/protobuf v1.36.8 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 	gotest.tools/gotestsum v1.13.0 // indirect
 	k8s.io/klog/v2 v2.90.1 // indirect
 	mellium.im/sasl v0.3.2 // indirect

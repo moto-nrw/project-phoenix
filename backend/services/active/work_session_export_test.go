@@ -463,7 +463,7 @@ func TestCrossStaffCSV_SanitizesUntrustedTextOnly(t *testing.T) {
 	assert.Equal(t, "'=1+1", records[1][0])
 	assert.Equal(t, "'+SUM(A1:A2)", records[1][1])
 	assert.Equal(t, "'@legacy", records[1][2])
-	assert.Equal(t, "-1,50", records[1][16], "trusted negative durations must remain numeric CSV values")
+	assert.Equal(t, "-1,50", records[1][18], "trusted negative durations must remain numeric CSV values")
 
 	dayData, err := writeDayCSV([]dayExportBlockRow{{
 		LastName:  "-danger",

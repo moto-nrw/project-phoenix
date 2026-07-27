@@ -144,6 +144,7 @@ func (rs *Resource) Router() chi.Router {
 		// per-person working-time data — time_tracking:manage only, and the
 		// service writes a GDPR access-audit row per download.
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/export", rs.exportTimeTracking)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/export/datev-report", rs.datevExportReport)
 
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/month-close", rs.listMonthCloseStatus)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/time-tracking/month-close", rs.closeMonth)

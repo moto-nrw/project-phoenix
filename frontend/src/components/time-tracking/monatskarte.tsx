@@ -149,6 +149,7 @@ export function Monatskarte({
   const creditedTotal =
     summary.creditedSickMinutes +
     summary.creditedVacationMinutes +
+    summary.creditedTrainingMinutes +
     summary.creditedOtherMinutes;
 
   const planCoverage = (() => {
@@ -219,9 +220,16 @@ export function Monatskarte({
                 value={formatDuration(summary.creditedVacationMinutes)}
               />
             )}
+            {summary.creditedTrainingMinutes > 0 && (
+              <SummaryRow
+                label="Gutschrift Fortbildung"
+                hint={formatDays(summary.trainingDays)}
+                value={formatDuration(summary.creditedTrainingMinutes)}
+              />
+            )}
             {summary.creditedOtherMinutes > 0 && (
               <SummaryRow
-                label="Gutschrift Fortbildung/Sonstiges"
+                label="Gutschrift Sonstiges"
                 value={formatDuration(summary.creditedOtherMinutes)}
               />
             )}
