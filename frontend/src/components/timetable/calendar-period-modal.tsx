@@ -418,7 +418,7 @@ export function CalendarPeriodModal({
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Startdatum" htmlFor="start_date" required>
             <Input
               id="start_date"
@@ -441,7 +441,7 @@ export function CalendarPeriodModal({
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
             <Input
               id="cycle_length"
@@ -481,11 +481,15 @@ export function CalendarPeriodModal({
             checked={form.isActive}
             onChange={(e) => update("isActive", e.target.checked)}
           />
-          <span className="font-semibold text-gray-700">
-            Zeitraum im Plan verwenden
-          </span>
-          <span className="text-xs text-gray-500">
-            Nur aktive Zeiträume legen Termine aus Regelterminen an
+          {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
+              bricht die Beschriftung sonst über drei Zeilen (#2033). */}
+          <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+            <span className="font-semibold text-gray-700">
+              Zeitraum im Plan verwenden
+            </span>
+            <span className="text-xs text-gray-500">
+              Nur aktive Zeiträume legen Termine aus Regelterminen an
+            </span>
           </span>
         </label>
 

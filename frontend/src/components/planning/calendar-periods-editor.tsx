@@ -206,13 +206,33 @@ export function CalendarPeriodsEditor() {
         key: "name",
         header: "Zeitraum",
         sortValue: (period) => period.name,
+        // Auf schmalen Screens tragen die ausgeblendeten Spalten (Art,
+        // Zeitraum, Status) hier als Unterzeile — die Tabelle bleibt damit
+        // ohne Seitwärts-Scrollen lesbar (#2033).
         render: (period) => (
-          <p className="truncate font-medium text-gray-900">{period.name}</p>
+          // max-w begrenzt die Zelle auf schmalen Screens, sonst diktiert der
+          // nicht umbrechende Unterzeilen-Text die Spaltenbreite und schiebt
+          // die Aktionsspalte aus dem sichtbaren Bereich.
+          <div className="min-w-0 max-w-[46vw] sm:max-w-none">
+            <p className="truncate font-medium text-gray-900">{period.name}</p>
+            <p className="mt-0.5 truncate text-xs text-gray-500 sm:hidden">
+              {formatPeriodRange(period)}
+            </p>
+            {/* Der Status steht nur mobil hier, und nur wenn er vom Normalfall
+                abweicht — angehängt an die Datumszeile würde er abgeschnitten. */}
+            {!period.isActive && (
+              <span className="mt-1 inline-flex sm:hidden">
+                <DataTableStatusBadge active={false} />
+              </span>
+            )}
+          </div>
         ),
       },
       {
         key: "type",
         header: "Art",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (period) => PERIOD_TYPE_LABELS[period.periodType],
         render: (period) => (
           <span className="text-sm text-gray-600">
@@ -223,6 +243,8 @@ export function CalendarPeriodsEditor() {
       {
         key: "range",
         header: "Von – Bis",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (period) => period.startDate,
         render: (period) => (
           <span className="text-sm whitespace-nowrap text-gray-600">
@@ -233,6 +255,8 @@ export function CalendarPeriodsEditor() {
       {
         key: "cycle",
         header: "Rhythmus",
+        className: "hidden lg:table-cell",
+        headerClassName: "hidden lg:table-cell",
         sortValue: (period) => period.weekCycleLength,
         render: (period) => (
           <span className="text-sm text-gray-600">
@@ -245,6 +269,8 @@ export function CalendarPeriodsEditor() {
       {
         key: "usage",
         header: "Verwendung",
+        className: "hidden lg:table-cell",
+        headerClassName: "hidden lg:table-cell",
         sortValue: usageTotal,
         render: (period) => {
           const usage = formatPeriodUsage(
@@ -270,6 +296,8 @@ export function CalendarPeriodsEditor() {
       {
         key: "status",
         header: "Status",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (period) => (period.isActive ? 0 : 1),
         render: (period) => <DataTableStatusBadge active={period.isActive} />,
       },

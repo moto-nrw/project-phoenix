@@ -91,6 +91,8 @@ export function ClosingDaysEditor() {
       {
         key: "range",
         header: "Von – Bis",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (day) => day.startDate,
         render: (day) => (
           <span className="text-sm whitespace-nowrap text-gray-600">
@@ -102,8 +104,17 @@ export function ClosingDaysEditor() {
         key: "reason",
         header: "Grund",
         sortValue: (day) => day.reason,
+        // Der Zeitraum rutscht auf schmalen Screens als Unterzeile hierher,
+        // weil die eigene Spalte dort ausgeblendet ist (#2033).
         render: (day) => (
-          <p className="truncate font-medium text-gray-900">{day.reason}</p>
+          // max-w wie im CalendarPeriodsEditor: verhindert, dass die
+          // Unterzeile die Spalte über die Containerbreite hinaus aufzieht.
+          <div className="min-w-0 max-w-[44vw] sm:max-w-none">
+            <p className="truncate font-medium text-gray-900">{day.reason}</p>
+            <p className="mt-0.5 truncate text-xs text-gray-500 sm:hidden">
+              {formatClosingDayRange(day)}
+            </p>
+          </div>
         ),
       },
       {
@@ -111,7 +122,9 @@ export function ClosingDaysEditor() {
         header: "",
         align: "right",
         render: (day) => (
-          <div className="flex justify-end gap-1">
+          // Auf schmalen Screens stapeln sich die beiden Aktionen, sonst
+          // passen Grund-Spalte und Buttons nicht nebeneinander (#2033).
+          <div className="flex flex-col items-end justify-end gap-1 sm:flex-row sm:items-center">
             <Button
               type="button"
               variant="ghost"
