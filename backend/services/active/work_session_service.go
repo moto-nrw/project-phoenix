@@ -1,11 +1,9 @@
 package active
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"database/sql"
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -24,8 +22,8 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/xuri/excelize/v2"
 )
 
 // Error message constants to avoid duplication
@@ -263,7 +261,10 @@ type WorkSessionService interface {
 	// be silently mislabelled as NFC. Returns nil if the staff member is
 	// already checked out today (no re-open).
 	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
-	ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error)
+	// ExportSessions renders the single-staff export. CSV serializes locally
+	// (data format); xlsx/pdf render through services/listexport so all
+	// downloadable files share one design (#1568).
+	ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*ExportFile, error)
 	// DayExportRows exposes the export's merged session/absence day rows for
 	// the cross-staff export (#1417 2b) — same loading, same cell rendering.
 	DayExportRows(ctx context.Context, staffID int64, from, to timezone.Date) ([]DayExportRow, error)
@@ -2151,11 +2152,42 @@ type exportRow struct {
 	Row  []string
 }
 
-// ExportSessions generates a CSV or XLSX export of work sessions and absences
-func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error) {
+// timeTrackingConfidentialityNote matches the wording of the other
+// printed exports (see slotlists.confidentialityNote).
+const timeTrackingConfidentialityNote = "Vertraulich, nur für berechtigte Personen. Nach Gebrauch sicher vernichten."
+
+// timeTrackingColumns is the single-staff export's column set; the labels
+// double as the CSV/XLSX header row.
+func timeTrackingColumns() []listexport.Column {
+	return []listexport.Column{
+		{ID: "tt_date", Label: "Datum"},
+		{ID: "tt_weekday", Label: "Wochentag"},
+		{ID: "tt_start", Label: "Start"},
+		{ID: "tt_end", Label: "Ende"},
+		{ID: "tt_break", Label: "Pause (Min)"},
+		{ID: "tt_net", Label: "Netto (Std)"},
+		{ID: "tt_status", Label: "Status"},
+		{ID: "tt_source", Label: "Quelle"},
+		{ID: "tt_notes", Label: "Bemerkungen"},
+	}
+}
+
+func timeTrackingHeaders() []string {
+	columns := timeTrackingColumns()
+	headers := make([]string, len(columns))
+	for i, column := range columns {
+		headers[i] = column.Label
+	}
+	return headers
+}
+
+// ExportSessions renders the single-staff export of work sessions and
+// absences. CSV and XLSX stay plain data files (shared writers below);
+// PDF renders through the listexport design (#1568) as the print artifact.
+func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*ExportFile, error) {
 	historyResp, err := s.GetHistory(ctx, staffID, from, to)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get sessions for export: %w", err)
+		return nil, fmt.Errorf("failed to get sessions for export: %w", err)
 	}
 
 	// Load absences for the same date range
@@ -2163,7 +2195,7 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	if s.absenceRepo != nil {
 		absences, err = s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to get absences for export: %w", err)
+			return nil, fmt.Errorf("failed to get absences for export: %w", err)
 		}
 	}
 
@@ -2173,20 +2205,87 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	fromStr := from.String()
 	toStr := to.String()
 
-	switch format {
-	case "xlsx":
-		data, err := s.exportXLSX(rows)
-		if err != nil {
-			return nil, "", err
-		}
-		return data, fmt.Sprintf("zeiterfassung_%s_%s.xlsx", fromStr, toStr), nil
-	default:
-		data, err := s.exportCSV(rows)
-		if err != nil {
-			return nil, "", err
-		}
-		return data, fmt.Sprintf("zeiterfassung_%s_%s.csv", fromStr, toStr), nil
+	cells := make([][]string, 0, len(rows))
+	for _, er := range rows {
+		cells = append(cells, er.Row)
 	}
+
+	switch format {
+	case "pdf":
+		doc, err := s.buildTimeTrackingDocument(ctx, staffID, rows, from, to)
+		if err != nil {
+			return nil, err
+		}
+		file, err := listexport.NewService().Render(doc, listexport.FormatPDF, "zeiterfassung")
+		if err != nil {
+			return nil, err
+		}
+		return &ExportFile{
+			Data:        file.Data,
+			Filename:    fmt.Sprintf("zeiterfassung_%s_%s.pdf", fromStr, toStr),
+			ContentType: file.ContentType,
+		}, nil
+	case "xlsx":
+		data, err := writeExportXLSX("Zeiterfassung", timeTrackingHeaders(), stringsRowsToAny(cells), nil)
+		if err != nil {
+			return nil, err
+		}
+		return &ExportFile{
+			Data:        data,
+			Filename:    fmt.Sprintf("zeiterfassung_%s_%s.xlsx", fromStr, toStr),
+			ContentType: contentTypeXLSX,
+		}, nil
+	default:
+		// Bemerkungen (column 8) carries untrusted free text — formula-escape
+		// it like the cross-staff CSV always has.
+		data, err := writeExportCSV(timeTrackingHeaders(), cells, []int{8})
+		if err != nil {
+			return nil, err
+		}
+		return &ExportFile{
+			Data:        data,
+			Filename:    fmt.Sprintf("zeiterfassung_%s_%s.csv", fromStr, toStr),
+			ContentType: contentTypeCSV,
+		}, nil
+	}
+}
+
+// buildTimeTrackingDocument shapes the merged export rows into the shared
+// listexport document: title block with the staff member's name, the
+// requested period as a filter pill, and the confidentiality footer.
+func (s *workSessionService) buildTimeTrackingDocument(ctx context.Context, staffID int64, rows []exportRow, from, to timezone.Date) (listexport.Document, error) {
+	subtitle := "Arbeitszeiten und Abwesenheiten"
+	if s.staffRepo != nil {
+		staffMap, err := s.staffRepo.FindWithPersonByIDs(ctx, []int64{staffID})
+		if err != nil {
+			return listexport.Document{}, fmt.Errorf("failed to load staff for export: %w", err)
+		}
+		if staff, ok := staffMap[staffID]; ok && staff != nil && staff.Person != nil {
+			subtitle = staff.Person.FirstName + " " + staff.Person.LastName
+		}
+	}
+
+	columns := timeTrackingColumns()
+	docRows := make([]listexport.Row, 0, len(rows))
+	for _, er := range rows {
+		values := make(map[listexport.ColumnID]string, len(columns))
+		for i, column := range columns {
+			if i < len(er.Row) {
+				values[column.ID] = er.Row[i]
+			}
+		}
+		docRows = append(docRows, listexport.Row{Values: values})
+	}
+
+	return listexport.Document{
+		Title:       "Zeiterfassung",
+		Subtitle:    subtitle,
+		GeneratedAt: s.now(),
+		Filters:     []string{"Zeitraum: " + from.Format("02.01.2006") + " bis " + to.Format("02.01.2006")},
+		Columns:     columns,
+		Rows:        docRows,
+		Footer:      timeTrackingConfidentialityNote,
+	}, nil
 }
 
 // clampAbsencesToRange returns shallow copies whose expanded day ranges stay
@@ -2258,85 +2357,6 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 	})
 
 	return rows
-}
-
-func (s *workSessionService) exportCSV(rows []exportRow) ([]byte, error) {
-	var buf bytes.Buffer
-
-	// UTF-8 BOM for Excel compatibility
-	buf.Write([]byte{0xEF, 0xBB, 0xBF})
-
-	w := csv.NewWriter(&buf)
-	w.Comma = ';'
-
-	// Header
-	if err := w.Write([]string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Status", "Quelle", "Bemerkungen"}); err != nil {
-		return nil, fmt.Errorf("failed to write CSV header: %w", err)
-	}
-
-	for _, er := range rows {
-		if err := w.Write(er.Row); err != nil {
-			return nil, fmt.Errorf("failed to write CSV row: %w", err)
-		}
-	}
-
-	w.Flush()
-	if err := w.Error(); err != nil {
-		return nil, fmt.Errorf("CSV write error: %w", err)
-	}
-
-	return buf.Bytes(), nil
-}
-
-func (s *workSessionService) exportXLSX(rows []exportRow) ([]byte, error) {
-	f := excelize.NewFile()
-	defer func() { _ = f.Close() }()
-
-	sheet := "Zeiterfassung"
-	idx, err := f.NewSheet(sheet)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create sheet: %w", err)
-	}
-	f.SetActiveSheet(idx)
-	// Remove default "Sheet1" if it exists and is different
-	if sheet != "Sheet1" {
-		_ = f.DeleteSheet("Sheet1")
-	}
-
-	headers := []string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Status", "Quelle", "Bemerkungen"}
-
-	// Header style
-	headerStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E2E8F0"}, Pattern: 1},
-	})
-
-	for i, h := range headers {
-		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-		_ = f.SetCellValue(sheet, cell, h)
-		_ = f.SetCellStyle(sheet, cell, cell, headerStyle)
-	}
-
-	// Data rows
-	for rowIdx, er := range rows {
-		for colIdx, val := range er.Row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
-			_ = f.SetCellValue(sheet, cell, val)
-		}
-	}
-
-	// Auto-width columns
-	for i := range headers {
-		col, _ := excelize.ColumnNumberToName(i + 1)
-		_ = f.SetColWidth(sheet, col, col, 16)
-	}
-
-	var buf bytes.Buffer
-	if err := f.Write(&buf); err != nil {
-		return nil, fmt.Errorf("failed to write XLSX: %w", err)
-	}
-
-	return buf.Bytes(), nil
 }
 
 func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {

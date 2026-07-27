@@ -94,41 +94,6 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 	}
 }
 
-func TestPhaseEligibilityReconciliationRunsBetweenPublishedMigrations(t *testing.T) {
-	registered := RegisteredMigrations()
-	positions := make(map[string]int, len(registered))
-	for index, migration := range registered {
-		positions[migration.Version] = index
-	}
-
-	reconciliation, ok := MigrationRegistry[phaseEligibilityReconciliationVersion]
-	if !ok {
-		t.Fatal("phase eligibility reconciliation migration is not registered")
-	}
-	if len(reconciliation.DependsOn) != 1 || reconciliation.DependsOn[0] != phaseEligibilityColumnsVersion {
-		t.Fatalf("unexpected reconciliation dependencies: %v", reconciliation.DependsOn)
-	}
-	if positions[phaseEligibilityColumnsVersion] >= positions[phaseEligibilityReconciliationVersion] ||
-		positions[phaseEligibilityReconciliationVersion] >= positions[phaseAudienceExistingStudentsVersion] {
-		t.Fatal("reconciliation must run after 1.15.230 and before 1.15.231")
-	}
-
-	var phasePosition, reconciliationPosition, audiencePosition int
-	for index, migration := range Migrations.Sorted() {
-		switch migration.Name {
-		case "001015230":
-			phasePosition = index
-		case "0010152301":
-			reconciliationPosition = index
-		case "001015231":
-			audiencePosition = index
-		}
-	}
-	if phasePosition >= reconciliationPosition || reconciliationPosition >= audiencePosition {
-		t.Fatal("Bun migration names must place reconciliation between 001015230 and 001015231")
-	}
-}
-
 func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
 	content, err := os.ReadFile("001015050_timeframes_use_time_without_timezone.go")
 	if err != nil {

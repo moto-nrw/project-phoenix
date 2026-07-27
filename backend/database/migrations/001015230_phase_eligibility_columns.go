@@ -33,7 +33,10 @@ func init() {
 
 func phaseEligibilityColumnsUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.230: Adding eligibility config columns to enrollment.phases...")
+	return ensurePhaseEligibilityColumns(ctx, db)
+}
 
+func ensurePhaseEligibilityColumns(ctx context.Context, db *bun.DB) error {
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
 		ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'open',

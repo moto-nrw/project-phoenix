@@ -88,9 +88,11 @@ func buildMonthExportRow(staff *userModels.Staff, summary *MonthSummary) MonthEx
 		ActualMinutes:           summary.ActualMinutes,
 		CreditedSickMinutes:     summary.CreditedSickMinutes,
 		CreditedVacationMinutes: summary.CreditedVacationMinutes,
+		CreditedTrainingMinutes: summary.CreditedTrainingMinutes,
 		CreditedOtherMinutes:    summary.CreditedOtherMinutes,
 		SickDays:                summary.SickDays,
 		VacationDays:            summary.VacationDays,
+		TrainingDays:            summary.TrainingDays,
 		BalanceMinutes:          summary.BalanceMinutes,
 		ClosingBalanceMinutes:   summary.ClosingBalanceMinutes,
 		DriftMinutes:            summary.DriftMinutes,
@@ -115,6 +117,9 @@ func buildMonthExportRow(staff *userModels.Staff, summary *MonthSummary) MonthEx
 	}
 	if staff.EmploymentType != nil {
 		row.EmploymentType = *staff.EmploymentType
+	}
+	if staff.PersonnelNumber != nil {
+		row.PersonnelNumber = *staff.PersonnelNumber
 	}
 	row.FirstName, row.LastName = staffNames(staff)
 	return row

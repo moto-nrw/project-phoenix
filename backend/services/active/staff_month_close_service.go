@@ -262,7 +262,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 		// the clamped one to keep target and actual on the same footing.
 		TargetMinutes:     summary.TargetMinutesToDate,
 		ActualMinutes:     summary.ActualMinutes,
-		CreditedMinutes:   summary.CreditedSickMinutes + summary.CreditedVacationMinutes + summary.CreditedOtherMinutes,
+		CreditedMinutes:   summary.CreditedSickMinutes + summary.CreditedVacationMinutes + summary.CreditedTrainingMinutes + summary.CreditedOtherMinutes,
 		AdjustmentMinutes: summary.AdjustmentMinutes,
 		ClosedAt:          closedAt,
 		ClosedBy:          closedBy,

@@ -491,27 +491,22 @@ func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	format := r.URL.Query().Get("format")
-	if format != "csv" && format != "xlsx" {
+	if format != "csv" && format != "xlsx" && format != "pdf" {
 		format = "csv"
 	}
 
-	fileBytes, filename, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
+	file, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Set response headers for file download
-	switch format {
-	case "xlsx":
-		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	default:
-		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	}
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
-	w.Header().Set("Content-Length", strconv.Itoa(len(fileBytes)))
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+file.Filename+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 
-	if _, err := w.Write(fileBytes); err != nil {
+	if _, err := w.Write(file.Data); err != nil {
 		// Response already started, just log the error
 		slog.Default().Error("failed to write export response", slog.String("error", err.Error()))
 		return

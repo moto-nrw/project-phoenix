@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,6 +171,59 @@ func TestGetStudentsDayLog_UnlinkedStaffAccountForbidden(t *testing.T) {
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "no_permitted_groups")
+}
+
+// setDayLogScopeAllStaff widens the attendance-log scope for the test tenant.
+func setDayLogScopeAllStaff(t *testing.T, tc *testContext) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeAllStaff, nil, nil))
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogScope, nil, nil)
+	})
+}
+
+func TestGetStudentsDayLog_ScopeAllStaffRequiresStaffRecord(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+	setDayLogScopeAllStaff(t, tc)
+
+	// all_staff widens what STAFF may read. An account holding users:read
+	// without a person/staff row is not staff and must not inherit the scope,
+	// otherwise it reads every group's attendance.
+	account := testpkg.CreateTestAccount(t, tc.db, "daylog-unlinked-allstaff@example.com")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog ScopeGuard")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID, group.ID)
+
+	req := testutil.NewRequest("GET", "/day-log", nil)
+	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "no_permitted_groups")
+
+	req = testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", group.ID), nil)
+	rr = authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
+}
+
+func TestGetStudentsDayLog_ScopeAllStaffAllowsLinkedStaff(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+	setDayLogScopeAllStaff(t, tc)
+
+	// Counterpart to the guard above: a real staff member keeps the widened
+	// view, including groups they do not supervise.
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DayLog", "AllStaff")
+	foreignGroup := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog ScopeForeign")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, account.ID, foreignGroup.ID)
+
+	req := testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", foreignGroup.ID), nil)
+	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body dayLogTestBody
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	require.Len(t, body.Data.Groups, 1)
+	assert.Equal(t, fmt.Sprintf("%d", foreignGroup.ID), body.Data.Groups[0].GroupID)
 }
 
 func TestGetStudentsDayLog_FutureDateRejected(t *testing.T) {

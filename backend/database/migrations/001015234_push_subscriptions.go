@@ -55,7 +55,10 @@ func init() {
 // services/notifications: Title/Body/DeepLink only, never child data.
 func pushSubscriptionsUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.234: Creating iot.push_subscriptions...")
+	return ensurePushSubscriptions(ctx, db)
+}
 
+func ensurePushSubscriptions(ctx context.Context, db *bun.DB) error {
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -119,25 +122,11 @@ func pushSubscriptionsUp(ctx context.Context, db *bun.DB) error {
 	return tx.Commit()
 }
 
-func pushSubscriptionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.234: Dropping iot.push_subscriptions...")
-
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
-		}
-	}()
-
-	_, err = tx.ExecContext(ctx, `
-		DROP TRIGGER IF EXISTS update_push_subscriptions_updated_at ON iot.push_subscriptions;
-		DROP TABLE IF EXISTS iot.push_subscriptions CASCADE;
-	`)
-	if err != nil {
-		return fmt.Errorf("error dropping iot.push_subscriptions: %w", err)
-	}
-	return tx.Commit()
+func pushSubscriptionsDown(_ context.Context, _ *bun.DB) error {
+	// The original feature branch used version 1.15.230 for this table before
+	// that version collided with the already-published eligibility migration.
+	// A database from that branch may therefore contain subscription data that
+	// predates 1.15.234. Rollbacks must preserve the table and those rows.
+	fmt.Println("Rolling back migration 1.15.234: Leaving iot.push_subscriptions intact...")
+	return nil
 }
