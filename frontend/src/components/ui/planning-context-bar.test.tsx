@@ -45,15 +45,18 @@ describe("PlanningContextBar", () => {
     expect(screen.queryByText("Mo 13.07.")).not.toBeInTheDocument();
   });
 
-  it('shows the "Heute" button only when onToday is provided', () => {
+  it('keeps the "Heute" button in place and only enables it with onToday', () => {
+    // #2031: der Button verschwindet nicht mehr, wenn er wirkungslos ist —
+    // ein auftauchendes und verschwindendes Segment ließ die Navigationsgruppe
+    // seitlich springen. Ohne Callback ist er deaktiviert.
     const { rerender } = render(<PlanningContextBar title="Vertretung" />);
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
 
     const onToday = vi.fn();
     rerender(<PlanningContextBar title="Vertretung" onToday={onToday} />);
-    fireEvent.click(screen.getByRole("button", { name: "Heute" }));
+    const todayButton = screen.getByRole("button", { name: "Heute" });
+    expect(todayButton).toBeEnabled();
+    fireEvent.click(todayButton);
     expect(onToday).toHaveBeenCalledTimes(1);
   });
 
@@ -72,7 +75,10 @@ describe("PlanningContextBar", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the second row only when children are given", () => {
+  it("reserves the context row even without children", () => {
+    // #2031: die zweite Zeile wird IMMER gerendert, sonst ist die Bar auf einer
+    // Fläche ohne Kontext eine Zeile niedriger und der Inhalt darunter springt
+    // beim Seitenwechsel. Leer heißt leer, nicht abwesend.
     const { rerender } = render(<PlanningContextBar title="Vertretung" />);
     expect(screen.queryByText("2 Lücken")).not.toBeInTheDocument();
 
@@ -113,6 +119,15 @@ describe("PlanningDayChip", () => {
     expect(screen.getByText("Mo")).toBeInTheDocument();
     expect(screen.getByText("13.07.")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("stays quiet on a day without open gaps", () => {
+    // #2031: eine Null ist keine Information, die eine Ziffer verdient — nur
+    // Tage mit offenen Lücken tragen einen Zähler.
+    render(<PlanningDayChip weekdayLabel="Di" dateLabel="14.07." count={0} />);
+
+    expect(screen.getByText("Di")).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
   it("renders a placeholder dash when no count is available", () => {

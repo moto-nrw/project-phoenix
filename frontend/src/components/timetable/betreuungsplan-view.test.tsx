@@ -836,11 +836,11 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().has("view")).toBe(false);
   });
 
-  it("shows the Heute button only when the visible week differs from today's", () => {
+  it("enables the Heute button only when the visible week differs from today's", () => {
     render(<BetreuungsplanView />);
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    // In der laufenden Woche bleibt der Button sichtbar und ist deaktiviert
+    // (#2031: die Navigationsgruppe behält ihre Geometrie).
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
 
     setUrl("d=2026-09-14");
     render(<BetreuungsplanView />);

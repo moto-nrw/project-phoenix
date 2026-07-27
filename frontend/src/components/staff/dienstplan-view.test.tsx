@@ -375,13 +375,12 @@ describe("DienstplanView", () => {
       "2026-07-06,2026-07-07,2026-07-08,2026-07-09,2026-07-10",
     );
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
-    // Woche ist aktiv: kein Halbjahres-Platzhalter, kein "Heute"-Button.
+    // Woche ist aktiv: kein Halbjahres-Platzhalter. Der "Heute"-Button steht
+    // in der laufenden Woche deaktiviert da, statt zu verschwinden (#2031).
     expect(
       screen.queryByText("Halbjahresansicht folgt."),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
   });
 
   it("invalidates all loaded plan caches after a shift is saved", () => {
@@ -502,21 +501,19 @@ describe("DienstplanView", () => {
     },
   );
 
-  it("shows the Heute button only when the visible week differs from today's", () => {
+  it("enables the Heute button only when the visible week differs from today's", () => {
     mocks.useBerlinToday.mockReturnValue("2026-07-06");
     mockOverviewLoaded();
 
-    // Aktuelle Woche -> kein Heute-Button.
+    // Aktuelle Woche -> Heute ist wirkungslos und deshalb deaktiviert.
     const { unmount } = render(<DienstplanView />);
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
     unmount();
 
-    // Andere Woche -> Heute-Button erscheint.
+    // Andere Woche -> Heute wird bedienbar.
     mocks.search.value = "d=2026-09-14";
     render(<DienstplanView />);
-    expect(screen.getByRole("button", { name: "Heute" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeEnabled();
   });
 
   it("renders the Halbjahr grid for view=halbjahr and writes the param on switch", async () => {

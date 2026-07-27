@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -293,10 +294,9 @@ describe("VertretungView", () => {
     const props = mockDayListProps.mock.calls.at(-1)?.[0];
     expect(props.instances.map((i: EnrichedInstance) => i.id)).toEqual(["42"]);
     expect(props.instances[0].date).toBe("2026-07-15");
-    // Kein "Heute"-Button, solange d der heutige Tag ist.
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    // Der "Heute"-Button bleibt sichtbar und ist deaktiviert, solange d der
+    // heutige Tag ist (#2031: feste Geometrie der Navigationsgruppe).
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
   });
 
   it("renders exactly the five Mo–Fr chips, never Sa/So", () => {
@@ -331,7 +331,7 @@ describe("VertretungView", () => {
     expect(props.instances).toEqual([]);
   });
 
-  it("defaults to next Monday on a weekend and hides the Heute button", () => {
+  it("defaults to next Monday on a weekend and disables the Heute button", () => {
     // Samstag 2026-07-18, Berlin (Sommerzeit UTC+2).
     vi.setSystemTime(new Date("2026-07-18T12:00:00Z"));
     render(<VertretungView />);
@@ -339,10 +339,9 @@ describe("VertretungView", () => {
     expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
       "bg-gray-900",
     );
-    // dayISO == Heute-Ziel (nächster Montag) -> kein Heute-Button.
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    // dayISO == Heute-Ziel (nächster Montag) -> Heute ist wirkungslos und
+    // deshalb deaktiviert, verschwindet aber nicht (#2031).
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
   });
 
   it("navigates to next Monday when Heute is clicked on a weekend", () => {
@@ -525,9 +524,12 @@ describe("VertretungView", () => {
 
     expect(mockDayListProps.mock.calls.at(-1)?.[0].mode).toBe("stoerungen");
 
-    // Radix-Tabs aktivieren per mousedown, nicht click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Ganzer Tag" }), {
-      button: 0,
+    // Der Umschalter sitzt seit #2031 in der Liste, die er filtert (die hier
+    // gemockt ist). Getestet wird deshalb die Verdrahtung: der Callback der
+    // Liste setzt den Modus, den sie beim nächsten Rendern zurückbekommt. Die
+    // Bedienung des Umschalters selbst prüft vertretung-list-filter.test.tsx.
+    act(() => {
+      mockDayListProps.mock.calls.at(-1)?.[0].onModeChange("ganzer-tag");
     });
 
     await waitFor(() =>
