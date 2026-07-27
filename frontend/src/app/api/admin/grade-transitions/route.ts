@@ -20,7 +20,17 @@ export const GET = createGetHandler(
   async (request: NextRequest, token): Promise<BackendGradeTransition[]> => {
     const search = request.nextUrl.searchParams;
     const query = new URLSearchParams();
-    for (const key of ["page", "page_size", "status", "academic_year"]) {
+    // `after_id` is the keyset cursor the list client pages with. Dropping it
+    // here silently pins every window to the first page: the loader would
+    // re-read the same 100 rows, stop at the safety bound, and never see the
+    // older transitions — including the next valid revert target (#405 review).
+    for (const key of [
+      "after_id",
+      "page",
+      "page_size",
+      "status",
+      "academic_year",
+    ]) {
       const value = search.get(key);
       if (value) query.set(key, value);
     }
