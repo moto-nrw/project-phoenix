@@ -152,7 +152,10 @@ export function FormModal({
         />
         {/* Dialog container */}
         <div
-          className={`relative w-full ${sizeClasses[size]} max-h-[90vh] md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${(() => {
+          // flex column so a tall footer (e.g. an expanded delete
+          // confirmation) steals height from the scrollable content area
+          // instead of being pushed past max-h and clipped by overflow-hidden.
+          className={`relative flex w-full flex-col ${sizeClasses[size]} max-h-[90vh] md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${(() => {
             if (isAnimating && !isExiting) return "animate-modalEnter";
             if (isExiting) return "animate-modalExit";
             return "translate-y-8 scale-75 -rotate-1 opacity-0";
@@ -169,7 +172,7 @@ export function FormModal({
           }}
         >
           {/* Header with close button */}
-          <div className="flex items-center justify-between border-b border-gray-100 p-4 md:p-6">
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-100 p-4 md:p-6">
             {title && (
               <h3
                 id={titleId}
@@ -212,7 +215,7 @@ export function FormModal({
           {/* Content area with custom scrollbar and reveal animation */}
           <div
             data-modal-content="true"
-            className={`${footer ? "max-h-[calc(90vh-240px)] md:max-h-[calc(85vh-240px)]" : "max-h-[60vh] md:max-h-[70vh]"} scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 overflow-y-auto`}
+            className={`${footer ? "max-h-[calc(90vh-240px)] md:max-h-[calc(85vh-240px)]" : "max-h-[60vh] md:max-h-[70vh]"} min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 overflow-y-auto`}
           >
             <div
               className={`p-4 leading-relaxed text-gray-700 md:p-6 ${
@@ -227,7 +230,7 @@ export function FormModal({
 
           {/* Footer if provided - now sticky at bottom */}
           {footer && (
-            <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-gray-100 bg-gray-50/95 p-4 backdrop-blur-sm md:p-6">
+            <div className="sticky bottom-0 flex shrink-0 flex-wrap justify-end gap-3 border-t border-gray-100 bg-gray-50/95 p-4 backdrop-blur-sm md:p-6">
               {footer}
             </div>
           )}

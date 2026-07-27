@@ -18,3 +18,11 @@ export const CustomTitle: Story = {
     title: "Diese Ansicht ist nur am Computer verfügbar",
   },
 };
+
+export const CustomDescription: Story = {
+  args: {
+    title: "Diese Ansicht ist nur am Computer verfügbar",
+    description:
+      "Der Formularbaukasten braucht zum Sortieren der Felder einen großen Bildschirm.",
+  },
+};

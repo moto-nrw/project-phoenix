@@ -156,7 +156,7 @@ export function DataTable<T>({
                       <th
                         key={col.key}
                         scope="col"
-                        className={`px-5 py-3 ${align} ${col.headerClassName ?? ""}`}
+                        className={`px-3 py-3 sm:px-5 ${align} ${col.headerClassName ?? ""}`}
                       >
                         {col.header}
                       </th>
@@ -190,7 +190,7 @@ export function DataTable<T>({
                       key={col.key}
                       scope="col"
                       aria-sort={ariaSort}
-                      className={`px-5 py-3 ${align} ${col.headerClassName ?? ""}`}
+                      className={`px-3 py-3 sm:px-5 ${align} ${col.headerClassName ?? ""}`}
                     >
                       <button
                         type="button"
@@ -266,7 +266,7 @@ export function DataTable<T>({
                         return (
                           <td
                             key={col.key}
-                            className={`px-5 py-3 align-middle text-gray-900 ${align} ${col.className ?? ""}`}
+                            className={`px-3 py-3 align-middle text-gray-900 sm:px-5 ${align} ${col.className ?? ""}`}
                           >
                             {col.render(row)}
                           </td>

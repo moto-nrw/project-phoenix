@@ -21,10 +21,6 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
 
-vi.mock("~/components/ui/desktop-only-notice", () => ({
-  DesktopOnlyNotice: () => null,
-}));
-
 import CalendarPeriodsPage from "./page";
 
 describe("CalendarPeriodsPage", () => {
@@ -40,6 +36,20 @@ describe("CalendarPeriodsPage", () => {
     render(<CalendarPeriodsPage />);
 
     expect(screen.getByTestId("calendar-periods-editor")).toBeInTheDocument();
+  });
+
+  // #2033: die Seite war hinter DesktopOnlyNotice plus "hidden lg:block"
+  // versteckt und zeigte mobil einen Anmeldungs-Text. Beide Editoren müssen
+  // ungegated rendern.
+  it("renders both editors without a desktop-only gate", () => {
+    render(<CalendarPeriodsPage />);
+
+    const editor = screen.getByTestId("calendar-periods-editor");
+    expect(editor.closest(".hidden")).toBeNull();
+    expect(
+      screen.getByTestId("closing-days-editor").closest(".hidden"),
+    ).toBeNull();
+    expect(screen.queryByText(/Bitte am Computer öffnen/)).not.toBeInTheDocument();
   });
 
   it("shows the loading state until the admin gate resolves", () => {

@@ -206,13 +206,40 @@ export function CalendarPeriodsEditor() {
         key: "name",
         header: "Zeitraum",
         sortValue: (period) => period.name,
+        // Auf schmalen Screens tragen die ausgeblendeten Spalten (Art,
+        // Zeitraum, Status) hier als Unterzeile — die Tabelle bleibt damit
+        // ohne Seitwärts-Scrollen lesbar (#2033).
         render: (period) => (
-          <p className="truncate font-medium text-gray-900">{period.name}</p>
+          // Kein fester max-w: die Zelle nimmt die Restbreite, die die
+          // schmale Aktionsspalte (w-px) übrig lässt. Umbrechender Text
+          // statt truncate hält die Spalte auch bei 320px im Container.
+          <div className="min-w-0">
+            {/* wrap-anywhere: ein einzelnes langes Wort im Namen darf die
+                Spalte nicht über die Tabellenbreite hinaus aufziehen. */}
+            <p className="font-medium wrap-anywhere text-gray-900">
+              {period.name}
+            </p>
+            <p className="mt-0.5 text-xs break-words text-gray-500 sm:hidden">
+              {PERIOD_TYPE_LABELS[period.periodType]}
+            </p>
+            <p className="text-xs leading-5 break-words text-gray-500 sm:hidden">
+              {formatPeriodRange(period)}
+            </p>
+            {/* Der Status steht nur mobil hier, und nur wenn er vom Normalfall
+                abweicht — angehängt an die Datumszeile würde er abgeschnitten. */}
+            {!period.isActive && (
+              <span className="mt-1 inline-flex sm:hidden">
+                <DataTableStatusBadge active={false} />
+              </span>
+            )}
+          </div>
         ),
       },
       {
         key: "type",
         header: "Art",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (period) => PERIOD_TYPE_LABELS[period.periodType],
         render: (period) => (
           <span className="text-sm text-gray-600">
@@ -223,6 +250,8 @@ export function CalendarPeriodsEditor() {
       {
         key: "range",
         header: "Von – Bis",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (period) => period.startDate,
         render: (period) => (
           <span className="text-sm whitespace-nowrap text-gray-600">
@@ -233,6 +262,8 @@ export function CalendarPeriodsEditor() {
       {
         key: "cycle",
         header: "Rhythmus",
+        className: "hidden lg:table-cell",
+        headerClassName: "hidden lg:table-cell",
         sortValue: (period) => period.weekCycleLength,
         render: (period) => (
           <span className="text-sm text-gray-600">
@@ -245,6 +276,8 @@ export function CalendarPeriodsEditor() {
       {
         key: "usage",
         header: "Verwendung",
+        className: "hidden lg:table-cell",
+        headerClassName: "hidden lg:table-cell",
         sortValue: usageTotal,
         render: (period) => {
           const usage = formatPeriodUsage(
@@ -270,6 +303,8 @@ export function CalendarPeriodsEditor() {
       {
         key: "status",
         header: "Status",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (period) => (period.isActive ? 0 : 1),
         render: (period) => <DataTableStatusBadge active={period.isActive} />,
       },
@@ -277,6 +312,10 @@ export function CalendarPeriodsEditor() {
         key: "actions",
         header: "",
         align: "right",
+        // w-px zwingt die Auto-Layout-Tabelle, dieser Spalte nur ihre
+        // Mindestbreite zu geben — der Rest bleibt für den Namen (#2033).
+        className: "w-px whitespace-nowrap",
+        headerClassName: "w-px",
         render: (period) => (
           <Button
             type="button"

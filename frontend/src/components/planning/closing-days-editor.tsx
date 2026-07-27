@@ -91,6 +91,8 @@ export function ClosingDaysEditor() {
       {
         key: "range",
         header: "Von – Bis",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (day) => day.startDate,
         render: (day) => (
           <span className="text-sm whitespace-nowrap text-gray-600">
@@ -102,16 +104,37 @@ export function ClosingDaysEditor() {
         key: "reason",
         header: "Grund",
         sortValue: (day) => day.reason,
+        // Der Zeitraum rutscht auf schmalen Screens als Unterzeile hierher,
+        // weil die eigene Spalte dort ausgeblendet ist (#2033).
         render: (day) => (
-          <p className="truncate font-medium text-gray-900">{day.reason}</p>
+          // Wie im CalendarPeriodsEditor: kein fester max-w, sondern
+          // Restbreite neben der schmalen Aktionsspalte plus umbrechender
+          // Text — so passt die Zeile auch auf 320px ohne Seitwärts-Scroll.
+          <div className="min-w-0">
+            {/* wrap-anywhere statt break-words: nur damit sinkt die
+                Mindestbreite der Spalte unter die Länge eines langen
+                Wortes wie "Weihnachtsschließung". */}
+            <p className="font-medium wrap-anywhere text-gray-900">
+              {day.reason}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 break-words text-gray-500 sm:hidden">
+              {formatClosingDayRange(day)}
+            </p>
+          </div>
         ),
       },
       {
         key: "actions",
         header: "",
         align: "right",
+        // w-px: die Aktionsspalte bekommt nur ihre Mindestbreite, die
+        // Grund-Spalte den Rest der Tabellenbreite (#2033).
+        className: "w-px",
+        headerClassName: "w-px",
         render: (day) => (
-          <div className="flex justify-end gap-1">
+          // Auf schmalen Screens stapeln sich die beiden Aktionen, sonst
+          // passen Grund-Spalte und Buttons nicht nebeneinander (#2033).
+          <div className="flex flex-col items-end justify-end gap-1 sm:flex-row sm:items-center">
             <Button
               type="button"
               variant="ghost"
