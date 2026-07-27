@@ -49,9 +49,7 @@ describe("CalendarPeriodsPage", () => {
     expect(
       screen.getByTestId("closing-days-editor").closest(".hidden"),
     ).toBeNull();
-    expect(
-      screen.queryByText(/Bitte am Computer öffnen/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Bitte am Computer öffnen/)).not.toBeInTheDocument();
   });
 
   it("shows the loading state until the admin gate resolves", () => {
