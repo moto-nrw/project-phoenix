@@ -2,7 +2,14 @@
 
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
-import type { VertretungDayListMode } from "./vertretung-day-list";
+/**
+ * Anzeigemodus der Störungslisten. Der Typ wohnt HIER und nicht in
+ * vertretung-day-list.tsx: die Liste rendert den Filter, ein Typ-Import in die
+ * Gegenrichtung wäre ein Import-Zyklus (depcruise no-circular). Die Liste
+ * exportiert ihn unter ihrem angestammten Namen weiter, damit die Aufrufer
+ * unverändert bleiben.
+ */
+export type VertretungDayListMode = "stoerungen" | "ganzer-tag";
 
 /**
  * Der Filter "Nur Störungen | Ganzer Tag" als Kopfzeile DER Liste, die er

@@ -35,9 +35,14 @@ import type {
 } from "~/lib/timetable-types";
 
 import { timetableSurface } from "./timetable-style";
-import { VertretungListFilter } from "./vertretung-list-filter";
+import {
+  VertretungListFilter,
+  type VertretungDayListMode as FilterMode,
+} from "./vertretung-list-filter";
 
-export type VertretungDayListMode = "stoerungen" | "ganzer-tag";
+// Der Typ lebt beim Filter (siehe dort), wird hier aber unter dem gewohnten
+// Namen weitergereicht, damit die bestehenden Aufrufer nichts ändern müssen.
+export type VertretungDayListMode = FilterMode;
 
 export interface StaffTriple {
   readonly planned: number;
