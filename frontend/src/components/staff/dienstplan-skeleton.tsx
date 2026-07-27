@@ -30,35 +30,37 @@ function HeaderSkeleton() {
 function GridSkeletonBody() {
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="max-w-full overflow-x-auto rounded-2xl border border-gray-100">
-        <table className="w-full min-w-[960px] border-collapse text-sm">
-          <tbody className="divide-y divide-gray-100">
-            {Array.from({ length: 6 }, (_, row) => (
-              <tr key={row} className="bg-white">
+      <div className="max-w-full overflow-hidden rounded-2xl border border-gray-100">
+        <div className="max-w-full overflow-x-auto">
+          <table className="w-full min-w-[960px] border-collapse text-sm">
+            <tbody className="divide-y divide-gray-100">
+              {Array.from({ length: 6 }, (_, row) => (
+                <tr key={row} className="bg-white">
+                  <td className="px-4 py-2">
+                    <Skeleton className="h-4 w-32 rounded" />
+                  </td>
+                  {Array.from({ length: 5 }, (_, col) => (
+                    <td key={col} className="px-3 py-2">
+                      <Skeleton className="h-9 w-full rounded-md" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-gray-200 bg-gray-50">
                 <td className="px-4 py-2">
-                  <Skeleton className="h-4 w-32 rounded" />
+                  <Skeleton className="h-4 w-28 rounded" />
                 </td>
                 {Array.from({ length: 5 }, (_, col) => (
                   <td key={col} className="px-3 py-2">
-                    <Skeleton className="h-9 w-full rounded-md" />
+                    <Skeleton className="h-4 w-8 rounded" />
                   </td>
                 ))}
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-gray-200 bg-gray-50">
-              <td className="px-4 py-2">
-                <Skeleton className="h-4 w-28 rounded" />
-              </td>
-              {Array.from({ length: 5 }, (_, col) => (
-                <td key={col} className="px-3 py-2">
-                  <Skeleton className="h-4 w-8 rounded" />
-                </td>
-              ))}
-            </tr>
-          </tfoot>
-        </table>
+            </tfoot>
+          </table>
+        </div>
       </div>
     </div>
   );
