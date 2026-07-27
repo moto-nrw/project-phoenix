@@ -77,10 +77,12 @@ interface CapacityStripProps {
    */
   readonly position?: "footer" | "header";
   /**
-   * Width utility class for the leading label cell. Default `min-w-[180px]`
-   * matches the ResourceGrid sticky person column. A narrow parent column
-   * (e.g. the 64px time gutter of the Betreuungsplan day header) overrides
-   * this so the label cell stops forcing extra width onto the grid.
+   * Width utility class for the leading label cell. Only relevant in `div`
+   * mode: a narrow parent column (e.g. the 64px time gutter of the
+   * Betreuungsplan day header) overrides the default so the label cell stops
+   * forcing extra width onto the grid. In `tr` mode the ResourceGrid runs a
+   * fixed table layout, where the <colgroup> owns every column width and a
+   * min-width on this cell has no effect.
    */
   readonly labelWidthClassName?: string;
 }

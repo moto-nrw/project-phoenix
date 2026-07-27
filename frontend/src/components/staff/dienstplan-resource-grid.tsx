@@ -542,8 +542,10 @@ export function DienstplanResourceGrid({
       a.startTime.localeCompare(b.startTime),
     );
 
+    // Die Mindesthöhe der Zelle liegt im ResourceGrid, damit leere und gefüllte
+    // Zellen dieselbe Zeilenhöhe ergeben (Issue #2026).
     return (
-      <div className="group flex min-h-14 flex-col gap-1">
+      <div className="group flex flex-1 flex-col gap-1">
         {sortedShifts.map((shift) =>
           renderShiftEntry(member, date, shift, dayIsAbsent),
         )}

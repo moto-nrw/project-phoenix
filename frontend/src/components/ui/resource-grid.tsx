@@ -42,11 +42,17 @@ interface ResourceGridProps<TRow> {
    * Cell content per (row, column). Returning null lets the grid render the
    * labelled empty-cell button (if `emptyCellLabel` + `onEmptyCellClick` are
    * given) — the caller decides emptiness, the grid owns the empty affordance.
+   *
+   * The returned node lands in a `flex flex-col` wrapper carrying the
+   * per-mode cell minimum height. Interactive content that should cover the
+   * whole cell (a click target, a hover surface) needs `flex-1` to fill that
+   * floor — otherwise it floats in the taller box.
    */
   readonly renderCell: (row: TRow, column: ResourceGridColumn) => ReactNode;
   /**
-   * Drives only the per-column minimum width: a handful of wide day columns vs.
-   * a couple dozen narrow week columns. Cell content itself is the caller's.
+   * Drives the per-column width and the uniform cell height: a handful of wide
+   * day columns vs. a couple dozen narrow week columns. Cell content itself is
+   * the caller's.
    */
   readonly columnMode?: ResourceGridColumnMode;
   /** Top-left corner header above the sticky row-header column. */
@@ -67,10 +73,62 @@ interface ResourceGridProps<TRow> {
   readonly className?: string;
 }
 
+// Declared per-column floor on the header cells. Under `table-layout: fixed`
+// the browser ignores min-width on table cells — the floor that actually binds
+// is the table's own minWidth below, computed from the same values.
 const COLUMN_MIN_WIDTH_CLASS: Record<ResourceGridColumnMode, string> = {
   days: "min-w-[7.5rem]",
   weeks: "min-w-[3.25rem]",
 };
+
+const ROW_HEADER_WIDTH_REM = 13;
+const COLUMN_WIDTH_REM: Record<ResourceGridColumnMode, number> = {
+  days: 7.5,
+  weeks: 3.25,
+};
+
+/**
+ * Raster metrics — the reason an empty and a filled plan look identical
+ * (issue #2026). The table runs in `table-layout: fixed`, so column widths come
+ * from the <colgroup> below and no longer from whatever a cell happens to
+ * contain. Fixed layout ignores `min-width` on cells, so the per-column floor
+ * has to be re-expressed as the table's own `minWidth` (row header + n columns)
+ * — below that the scroll container takes over. `cellMinHeightClass` is the
+ * matching floor for the row height: it applies to EVERY cell, empty or filled,
+ * and is sized so a cell holding one plain entry does not grow past it.
+ *
+ * The skeleton (dienstplan-skeleton.tsx) imports these so it keeps rastering
+ * like the real grid. `columnWidth` carries the same values as
+ * COLUMN_MIN_WIDTH_CLASS above as plain lengths — Tailwind only picks up class
+ * names written out as literals, hence the two shapes.
+ */
+export const RESOURCE_GRID_METRICS = {
+  // 13rem statt der alten Mindestbreite von 180px: die Spalte war im
+  // Auto-Layout je nach Inhalt 194–259px breit. Auf 180px (oder 192px)
+  // festgenagelt würden längere Namen ("Zimmermann, Frank") plötzlich
+  // abgeschnitten — gemessen im Dienstplan mit 21 Personen.
+  rowHeaderWidth: `${ROW_HEADER_WIDTH_REM}rem`,
+  columnWidth: {
+    days: `${COLUMN_WIDTH_REM.days}rem`,
+    weeks: `${COLUMN_WIDTH_REM.weeks}rem`,
+  },
+  cellMinHeightClass: {
+    days: "min-h-16",
+    weeks: "min-h-11",
+  },
+} as const satisfies {
+  rowHeaderWidth: string;
+  columnWidth: Record<ResourceGridColumnMode, string>;
+  cellMinHeightClass: Record<ResourceGridColumnMode, string>;
+};
+
+/** Table width below which the grid scrolls instead of squeezing columns. */
+export function resourceGridMinWidth(
+  columnCount: number,
+  columnMode: ResourceGridColumnMode = "days",
+): string {
+  return `${ROW_HEADER_WIDTH_REM + columnCount * COLUMN_WIDTH_REM[columnMode]}rem`;
+}
 
 export function ResourceGrid<TRow>({
   columns,
@@ -88,6 +146,7 @@ export function ResourceGrid<TRow>({
   className,
 }: ResourceGridProps<TRow>) {
   const columnMinWidth = COLUMN_MIN_WIDTH_CLASS[columnMode];
+  const cellWrapperClass = `flex ${RESOURCE_GRID_METRICS.cellMinHeightClass[columnMode]} flex-col`;
 
   return (
     // Radius, Rand und Ausschnitt sitzen auf der Fläche, gescrollt wird im
@@ -117,12 +176,25 @@ export function ResourceGrid<TRow>({
         }}
         className="max-w-full overflow-x-auto overscroll-x-contain focus-visible:outline-none"
       >
-        <table className="w-full border-collapse text-sm">
+        <table
+          className="w-full table-fixed border-collapse text-sm"
+          style={{ minWidth: resourceGridMinWidth(columns.length, columnMode) }}
+        >
+          {/* Fixed layout reads the column widths from here, so an empty and a
+              filled plan raster identically (issue #2026). Only the row header
+              is pinned; the data columns share the remaining width equally and
+              never fall below the floor baked into the table's minWidth. */}
+          <colgroup>
+            <col style={{ width: RESOURCE_GRID_METRICS.rowHeaderWidth }} />
+            {columns.map((column) => (
+              <col key={column.key} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="bg-gray-50 text-left">
               <th
                 scope="col"
-                className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
+                className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
               >
                 {cornerHeader}
               </th>
@@ -150,7 +222,7 @@ export function ResourceGrid<TRow>({
                 <tr key={getRowKey(row)} className="border-t border-gray-100">
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 min-w-[180px] bg-white px-2 py-1.5 text-left align-top font-normal"
+                    className="sticky left-0 z-10 bg-white px-2 py-1.5 text-left align-top font-normal"
                   >
                     {renderRowHeader(row)}
                   </th>
@@ -165,18 +237,24 @@ export function ResourceGrid<TRow>({
                           column.isCurrent ? "bg-gray-50" : ""
                         }`}
                       >
-                        {cell != null ? (
-                          cell
-                        ) : showEmptyButton ? (
-                          <button
-                            type="button"
-                            onClick={() => onEmptyCellClick(row, column)}
-                            aria-label={emptyCellLabel(row, column)}
-                            className="flex min-h-14 w-full items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
-                          >
-                            <Plus className="h-4 w-4" aria-hidden="true" />
-                          </button>
-                        ) : null}
+                        {/* The height floor sits on the wrapper, not on the
+                            cell content: an empty cell, a bare cell without an
+                            empty-cell affordance and a filled one all get the
+                            same row height (issue #2026). */}
+                        <div className={cellWrapperClass}>
+                          {cell != null ? (
+                            cell
+                          ) : showEmptyButton ? (
+                            <button
+                              type="button"
+                              onClick={() => onEmptyCellClick(row, column)}
+                              aria-label={emptyCellLabel(row, column)}
+                              className="flex w-full flex-1 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+                            >
+                              <Plus className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     );
                   })}
