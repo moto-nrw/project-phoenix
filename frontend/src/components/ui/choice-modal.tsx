@@ -18,6 +18,10 @@ interface ChoiceModalOption {
   value: string;
   label: string;
   description?: string;
+  /** Offers the scope but blocks it — e.g. when the data it needs failed to
+   *  load. Keeping the option visible explains what exists; hiding it would
+   *  make the dialog silently different from one attempt to the next. */
+  disabled?: boolean;
 }
 
 interface ChoiceModalProps {
@@ -72,7 +76,7 @@ export function ChoiceModal({
             type="button"
             variant="outline"
             size="md"
-            disabled={isBusy}
+            disabled={isBusy || option.disabled}
             onClick={() => onSelect(option.value)}
             className="w-full"
           >

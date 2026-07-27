@@ -276,6 +276,8 @@ GET /api/shift-types/
 GET /api/sse/events
 GET /api/staff-shifts/
 GET /api/staff-shifts/overview
+GET /api/staff-shifts/series/{id}
+GET /api/staff-shifts/series/{id}/deviations
 GET /api/staff/
 GET /api/staff/absences/pending
 GET /api/staff/available
@@ -763,6 +765,7 @@ PUT /api/schedules/recurrence-rules/{id}
 PUT /api/schedules/timeframes/{id}
 PUT /api/settings/values/{key}
 PUT /api/shift-types/{id}
+PUT /api/staff-shifts/series/{id}
 PUT /api/staff-shifts/series/{id}/split
 PUT /api/staff-shifts/{id}
 PUT /api/staff-shifts/{id}/cancellation

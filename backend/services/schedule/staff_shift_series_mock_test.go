@@ -84,6 +84,8 @@ type seriesShiftMockRepo struct {
 	bulkCreateFn        func(ctx context.Context, shifts []*scheduleModels.StaffShift) error
 	deleteNonDetachedFn func(ctx context.Context, seriesID int64, from timezone.Date) (int64, error)
 	repointDetachedFn   func(ctx context.Context, fromID, toID int64, from timezone.Date) (int64, error)
+	findDetachedFn      func(ctx context.Context, seriesID int64, from timezone.Date) ([]*scheduleModels.StaffShift, error)
+	deleteFn            func(ctx context.Context, id any) error
 }
 
 func (m *seriesShiftMockRepo) BulkCreate(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
@@ -105,6 +107,20 @@ func (m *seriesShiftMockRepo) RepointDetachedSeriesFrom(ctx context.Context, fro
 		return m.repointDetachedFn(ctx, fromID, toID, from)
 	}
 	return 0, nil
+}
+
+func (m *seriesShiftMockRepo) FindDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	if m.findDetachedFn != nil {
+		return m.findDetachedFn(ctx, seriesID, from)
+	}
+	return nil, nil
+}
+
+func (m *seriesShiftMockRepo) Delete(ctx context.Context, id any) error {
+	if m.deleteFn != nil {
+		return m.deleteFn(ctx, id)
+	}
+	return nil
 }
 
 type seriesFakePeriodRepo struct {

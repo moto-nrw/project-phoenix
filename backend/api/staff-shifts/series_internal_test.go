@@ -23,9 +23,12 @@ import (
 )
 
 type fakeSeriesService struct {
-	createFn func(ctx context.Context, series *scheduleModel.StaffShiftSeries) (*scheduleSvc.SeriesResult, error)
-	splitFn  func(ctx context.Context, input scheduleSvc.SplitSeriesInput) (*scheduleSvc.SeriesResult, error)
-	endFn    func(ctx context.Context, seriesID int64, from timezone.Date) (*scheduleSvc.SeriesResult, error)
+	createFn     func(ctx context.Context, series *scheduleModel.StaffShiftSeries) (*scheduleSvc.SeriesResult, error)
+	splitFn      func(ctx context.Context, input scheduleSvc.SplitSeriesInput) (*scheduleSvc.SeriesResult, error)
+	endFn        func(ctx context.Context, seriesID int64, from timezone.Date) (*scheduleSvc.SeriesResult, error)
+	getFn        func(ctx context.Context, seriesID int64) (*scheduleModel.StaffShiftSeries, error)
+	updateFn     func(ctx context.Context, input scheduleSvc.UpdateSeriesInput) (*scheduleSvc.SeriesResult, error)
+	deviationsFn func(ctx context.Context, seriesID int64) (*scheduleSvc.SeriesDeviations, error)
 }
 
 func (f *fakeSeriesService) CreateSeries(ctx context.Context, series *scheduleModel.StaffShiftSeries) (*scheduleSvc.SeriesResult, error) {
@@ -47,6 +50,27 @@ func (f *fakeSeriesService) EndSeries(ctx context.Context, seriesID int64, from 
 		return f.endFn(ctx, seriesID, from)
 	}
 	return nil, errors.New("endFn not set")
+}
+
+func (f *fakeSeriesService) GetSeries(ctx context.Context, seriesID int64) (*scheduleModel.StaffShiftSeries, error) {
+	if f.getFn != nil {
+		return f.getFn(ctx, seriesID)
+	}
+	return nil, errors.New("getFn not set")
+}
+
+func (f *fakeSeriesService) UpdateSeries(ctx context.Context, input scheduleSvc.UpdateSeriesInput) (*scheduleSvc.SeriesResult, error) {
+	if f.updateFn != nil {
+		return f.updateFn(ctx, input)
+	}
+	return nil, errors.New("updateFn not set")
+}
+
+func (f *fakeSeriesService) SeriesDeviations(ctx context.Context, seriesID int64) (*scheduleSvc.SeriesDeviations, error) {
+	if f.deviationsFn != nil {
+		return f.deviationsFn(ctx, seriesID)
+	}
+	return nil, errors.New("deviationsFn not set")
 }
 
 // seriesTestResource wires a Resource whose editorStaffID resolves to staff
@@ -315,4 +339,154 @@ func TestSplitSeriesHandler_RejectsOutOfRangeWeekdays(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 	assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
 	assert.Contains(t, recorder.Body.String(), "weekdays must be between 1 (Monday) and 7 (Sunday)")
+}
+
+// #2028: whole-series edit, the rule behind a shift, and the deviation preview.
+
+func wholeSeriesRouter(resource *Resource) chi.Router {
+	router := chi.NewRouter()
+	router.Get("/series/{id}", resource.getSeries)
+	router.Get("/series/{id}/deviations", resource.seriesDeviations)
+	router.Put("/series/{id}", resource.updateSeries)
+	return router
+}
+
+func TestGetSeriesHandler_ReturnsStoredRule(t *testing.T) {
+	series := &scheduleModel.StaffShiftSeries{
+		StaffID:          5,
+		Weekdays:         []int16{1, 3},
+		StartTime:        mustClock(t, "09:00"),
+		EndTime:          mustClock(t, "12:00"),
+		BreakMinutes:     15,
+		CalendarPeriodID: 8,
+		WeekPattern:      scheduleModel.WeekPatternB,
+		ValidFrom:        timezone.NewDate(2026, time.September, 1),
+	}
+	series.ID = 12
+	until := timezone.NewDate(2026, time.December, 1)
+	series.ValidUntil = &until
+	resource := seriesTestResource(&fakeSeriesService{
+		getFn: func(_ context.Context, id int64) (*scheduleModel.StaffShiftSeries, error) {
+			assert.Equal(t, int64(12), id)
+			return series, nil
+		},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodGet, "/series/12", nil))
+	wholeSeriesRouter(resource).ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var envelope struct {
+		Data SeriesDetailResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	assert.Equal(t, int64(12), envelope.Data.ID)
+	assert.Equal(t, []int{1, 3}, envelope.Data.Weekdays)
+	assert.Equal(t, "09:00", envelope.Data.StartTime)
+	assert.Equal(t, "12:00", envelope.Data.EndTime)
+	assert.Equal(t, scheduleModel.WeekPatternB, envelope.Data.WeekPattern)
+	assert.Equal(t, "2026-09-01", envelope.Data.ValidFrom)
+	require.NotNil(t, envelope.Data.ValidUntil)
+	assert.Equal(t, "2026-12-01", *envelope.Data.ValidUntil)
+}
+
+func TestUpdateSeriesHandler_MapsPayloadAndValidUntilPresence(t *testing.T) {
+	var got scheduleSvc.UpdateSeriesInput
+	service := &fakeSeriesService{
+		updateFn: func(_ context.Context, input scheduleSvc.UpdateSeriesInput) (*scheduleSvc.SeriesResult, error) {
+			got = input
+			updated := &scheduleModel.StaffShiftSeries{}
+			updated.ID = input.SeriesID
+			return &scheduleSvc.SeriesResult{Series: updated, Created: 6, Deleted: 6}, nil
+		},
+	}
+	router := wholeSeriesRouter(seriesTestResource(service))
+
+	body := `{"weekdays": [1], "start_time": "14:00", "end_time": "17:00", "break_minutes": 15, "week_pattern": 0, "valid_until": null}`
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/series/12", strings.NewReader(body)))
+	router.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	assert.Equal(t, int64(12), got.SeriesID)
+	assert.Equal(t, []int16{1}, got.Weekdays)
+	assert.Equal(t, 15, got.BreakMinutes)
+	assert.Equal(t, int64(42), got.ActorStaffID, "updated_by must come from the acting admin's staff record")
+	// An explicit null clears the end date; an omitted key must not.
+	assert.True(t, got.ValidUntilSet)
+	assert.Nil(t, got.ValidUntil)
+
+	recorder = httptest.NewRecorder()
+	request = seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/series/12",
+		strings.NewReader(`{"start_time": "14:00", "end_time": "17:00", "break_minutes": 0}`)))
+	router.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	assert.False(t, got.ValidUntilSet, "an omitted valid_until keeps the stored end date")
+	assert.Nil(t, got.Weekdays, "omitted weekdays keep the stored rule")
+	assert.Nil(t, got.WeekPattern)
+}
+
+func TestUpdateSeriesHandler_RejectsBadInput(t *testing.T) {
+	router := wholeSeriesRouter(seriesTestResource(&fakeSeriesService{}))
+	for name, body := range map[string]string{
+		"invalid json":    `{`,
+		"bad start_time":  `{"start_time": "morgens", "end_time": "17:00", "break_minutes": 0}`,
+		"bad weekday":     `{"weekdays": [9], "start_time": "14:00", "end_time": "17:00", "break_minutes": 0}`,
+		"bad valid_until": `{"start_time": "14:00", "end_time": "17:00", "break_minutes": 0, "valid_until": "Dezember"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/series/12", strings.NewReader(body)))
+			router.ServeHTTP(recorder, request)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+		})
+	}
+}
+
+func TestSeriesDeviationsHandler_SplitsOverwrittenAndPreserved(t *testing.T) {
+	resource := seriesTestResource(&fakeSeriesService{
+		deviationsFn: func(_ context.Context, id int64) (*scheduleSvc.SeriesDeviations, error) {
+			assert.Equal(t, int64(12), id)
+			return &scheduleSvc.SeriesDeviations{
+				From: timezone.NewDate(2026, time.September, 8),
+				Overwritten: []scheduleSvc.SeriesDeviation{{
+					Date:      timezone.NewDate(2026, time.September, 14),
+					Kind:      scheduleSvc.SeriesDeviationTimeEdit,
+					StartTime: mustClock(t, "11:00"),
+					EndTime:   mustClock(t, "13:00"),
+				}},
+				Preserved: []scheduleSvc.SeriesDeviation{{
+					Date: timezone.NewDate(2026, time.September, 21),
+					Kind: scheduleSvc.SeriesDeviationRemoved,
+				}},
+			}, nil
+		},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodGet, "/series/12/deviations", nil))
+	wholeSeriesRouter(resource).ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var envelope struct {
+		Data SeriesDeviationsResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	assert.Equal(t, "2026-09-08", envelope.Data.From)
+	require.Len(t, envelope.Data.Overwritten, 1)
+	assert.Equal(t, "2026-09-14", envelope.Data.Overwritten[0].Date)
+	assert.Equal(t, "time_edit", envelope.Data.Overwritten[0].Kind)
+	assert.Equal(t, "11:00", envelope.Data.Overwritten[0].StartTime)
+	require.Len(t, envelope.Data.Preserved, 1)
+	assert.Equal(t, "removed", envelope.Data.Preserved[0].Kind)
+	// A removed occurrence has no row, so it carries no window.
+	assert.Empty(t, envelope.Data.Preserved[0].StartTime)
+}
+
+func mustClock(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse("15:04", value)
+	require.NoError(t, err)
+	return parsed
 }

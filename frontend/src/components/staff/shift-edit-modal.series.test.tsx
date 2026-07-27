@@ -8,6 +8,9 @@ import type { StaffShift } from "~/lib/shift-helpers";
 const createSeries = vi.fn();
 const splitSeries = vi.fn();
 const endSeries = vi.fn();
+const getSeries = vi.fn();
+const updateSeries = vi.fn();
+const getSeriesDeviations = vi.fn();
 const updateShift = vi.fn();
 const deleteShift = vi.fn();
 const listPeriods = vi.fn();
@@ -33,6 +36,12 @@ vi.mock("~/lib/shift-api", () => ({
     createSeries: (...args: unknown[]) => createSeries(...args) as unknown,
     splitSeries: (...args: unknown[]) => splitSeries(...args) as unknown,
     endSeries: (...args: unknown[]) => endSeries(...args) as unknown,
+    // Opening a series shift now also loads the rule behind it (#2028); the
+    // mock must cover the whole module surface the modal touches.
+    getSeries: (...args: unknown[]) => getSeries(...args) as unknown,
+    updateSeries: (...args: unknown[]) => updateSeries(...args) as unknown,
+    getSeriesDeviations: (...args: unknown[]) =>
+      getSeriesDeviations(...args) as unknown,
   },
 }));
 
@@ -116,9 +125,29 @@ function renderModal(props: Partial<Parameters<typeof ShiftEditModal>[0]>) {
   );
 }
 
+const seriesRule = {
+  id: "5",
+  staffId: "7",
+  weekdays: [1, 3],
+  startTime: "08:00",
+  endTime: "12:00",
+  breakMinutes: 0,
+  shiftTypeId: null,
+  calendarPeriodId: "5",
+  weekPattern: 0,
+  validFrom: "2026-09-01",
+  validUntil: null,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   listPeriods.mockResolvedValue([halbjahr]);
+  getSeries.mockResolvedValue(seriesRule);
+  getSeriesDeviations.mockResolvedValue({
+    from: "2026-09-08",
+    overwritten: [],
+    preserved: [],
+  });
 });
 
 describe("ShiftEditModal series creation", () => {
@@ -327,6 +356,142 @@ describe("ShiftEditModal series scopes", () => {
 
     await waitFor(() => {
       expect(endSeries).toHaveBeenCalledWith("5", "2026-09-07");
+    });
+    expect(deleteShift).not.toHaveBeenCalled();
+  });
+});
+
+// #2028: editing the whole series, not just single days.
+describe("ShiftEditModal whole-series editing", () => {
+  it("states the series rule and opens the editor from the shift panel", async () => {
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    // The rule is visible without saving first: which days, which window,
+    // how long it runs.
+    expect(
+      await screen.findByText(
+        "Mo, Mi · 08:00–12:00 · bis Ende des Kalenderzeitraums",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ganze Serie bearbeiten" }),
+    );
+
+    expect(await screen.findByText("Serie bearbeiten")).toBeInTheDocument();
+    // Weekdays come from the rule, not from the clicked occurrence.
+    expect(screen.getByLabelText("Mo")).toBeChecked();
+    expect(screen.getByLabelText("Mi")).toBeChecked();
+    expect(screen.getByLabelText("Di")).not.toBeChecked();
+    expect(getSeriesDeviations).toHaveBeenCalledWith("5");
+  });
+
+  it("saves changed weekdays and window for every occurrence", async () => {
+    updateSeries.mockResolvedValue({
+      seriesId: "5",
+      created: 12,
+      skippedDates: [],
+    });
+    const onSaved = vi.fn();
+    const onClose = vi.fn();
+    renderModal({ mode: "edit", shift: seriesShift, onSaved, onClose });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Ganze Serie bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByLabelText("Fr"));
+    fireEvent.change(screen.getByLabelText("Ende"), {
+      target: { value: "14:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+
+    await waitFor(() => {
+      expect(updateSeries).toHaveBeenCalledWith("5", {
+        weekdays: [1, 3, 5],
+        startTime: "08:00",
+        endTime: "14:00",
+        breakMinutes: 0,
+        shiftTypeId: null,
+        weekPattern: 0,
+        validUntil: null,
+      });
+    });
+    expect(splitSeries).not.toHaveBeenCalled();
+    expect(updateShift).not.toHaveBeenCalled();
+    expect(onSaved).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("carries the typed window into the editor when picking 'Alle Termine der Serie'", async () => {
+    renderModal({ mode: "edit", shift: seriesShift });
+    await screen.findByRole("button", { name: "Ganze Serie bearbeiten" });
+
+    fireEvent.change(screen.getByLabelText("Ende"), {
+      target: { value: "15:30" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    expect(await screen.findByText("Serie bearbeiten")).toBeInTheDocument();
+    // The scope dialog must not discard what the user just typed.
+    expect(screen.getByLabelText("Ende")).toHaveValue("15:30");
+    expect(splitSeries).not.toHaveBeenCalled();
+    expect(updateSeries).not.toHaveBeenCalled();
+  });
+
+  it("names the single-day changes before they are overwritten", async () => {
+    getSeriesDeviations.mockResolvedValue({
+      from: "2026-09-08",
+      overwritten: [
+        {
+          date: "2026-09-14",
+          kind: "time_edit",
+          startTime: "09:00",
+          endTime: "13:00",
+          moved: false,
+        },
+      ],
+      preserved: [
+        {
+          date: "2026-09-21",
+          kind: "cancelled",
+          startTime: "08:00",
+          endTime: "12:00",
+          moved: false,
+        },
+      ],
+    });
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Ganze Serie bearbeiten" }),
+    );
+
+    expect(
+      await screen.findByText(/1 einzeln angepasster Termin/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/14\.09\.2026/)).toBeInTheDocument();
+    expect(screen.getByText(/21\.09\.2026 \(fällt aus\)/)).toBeInTheDocument();
+  });
+
+  it("ends every future occurrence for 'Ganze Serie beenden'", async () => {
+    endSeries.mockResolvedValue(undefined);
+    renderModal({ mode: "edit", shift: seriesShift });
+    await screen.findByRole("button", { name: "Ganze Serie bearbeiten" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Ganze Serie beenden/ }),
+    );
+
+    await waitFor(() => {
+      // From the series' own start, not from the clicked day — the backend
+      // clamps it to tomorrow so past days stay.
+      expect(endSeries).toHaveBeenCalledWith("5", "2026-09-01");
     });
     expect(deleteShift).not.toHaveBeenCalled();
   });

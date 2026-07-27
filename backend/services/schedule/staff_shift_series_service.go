@@ -71,6 +71,16 @@ type StaffShiftSeriesService interface {
 	// EndSeries caps the series at the given date and deletes its
 	// non-detached rows from that date onward.
 	EndSeries(ctx context.Context, seriesID int64, from timezone.Date) (*SeriesResult, error)
+	// GetSeries returns one series segment (the rule behind a shift), so the
+	// planner can edit weekdays, rhythm, and validity instead of only the
+	// window of a single occurrence (#2028).
+	GetSeries(ctx context.Context, seriesID int64) (*scheduleModels.StaffShiftSeries, error)
+	// UpdateSeries rewrites the rule itself and rebuilds every regenerable
+	// future occurrence ("Alle Termine der Serie", #2028).
+	UpdateSeries(ctx context.Context, input UpdateSeriesInput) (*SeriesResult, error)
+	// SeriesDeviations lists the individually adjusted occurrences a
+	// whole-series edit would overwrite, and those it leaves alone (#2028).
+	SeriesDeviations(ctx context.Context, seriesID int64) (*SeriesDeviations, error)
 }
 
 type staffShiftSeriesService struct {

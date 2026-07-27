@@ -95,6 +95,12 @@ type StaffShiftRepository interface {
 	// RepointDetachedSeriesFrom moves a series' detached rows on or after
 	// from to the successor series created by a split.
 	RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error)
+
+	// FindDetachedBySeriesFrom returns a series' individually adjusted rows on
+	// or after from ("Nur diese Woche" edits, moves, cancellations). A
+	// whole-series edit (#2028) lists them before overwriting and needs the
+	// concrete rows to decide which may be regenerated.
+	FindDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) ([]*StaffShift, error)
 }
 
 // StaffShiftSeriesRepository is the data-access boundary for recurring shift

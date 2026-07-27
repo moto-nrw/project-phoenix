@@ -20,17 +20,100 @@ import (
 // and the validity bounds stay with the series lineage there.
 type SeriesRequest struct {
 	StaffID          int64      `json:"staff_id"`
-	Weekdays         []int      `json:"weekdays"` // omitted on split = keep predecessor weekdays
+	Weekdays         []int      `json:"weekdays"` // omitted on split/update = keep stored weekdays
 	StartTime        string     `json:"start_time"`
 	EndTime          string     `json:"end_time"`
 	BreakMinutes     int        `json:"break_minutes"`
 	ShiftTypeID      optionalID `json:"shift_type_id"`
 	Notes            *string    `json:"notes"`
 	CalendarPeriodID int64      `json:"calendar_period_id"`
-	WeekPattern      *int       `json:"week_pattern"` // omitted: create = every week, split = keep predecessor
+	WeekPattern      *int       `json:"week_pattern"` // omitted: create = every week, split/update = keep stored
 	ValidFrom        string     `json:"valid_from"`
-	ValidUntil       *string    `json:"valid_until"`
-	EffectiveDate    string     `json:"effective_date"`
+	// ValidUntil is presence-aware on update (#2028): an omitted key keeps the
+	// stored end, an explicit null lets the series run to the period end.
+	ValidUntil    optionalString `json:"valid_until"`
+	EffectiveDate string         `json:"effective_date"`
+}
+
+// SeriesDetailResponse is the stored rule behind a shift: what the planner
+// edits when changing all occurrences of a series (#2028). Times are "HH:MM"
+// wall-clock, dates "YYYY-MM-DD"; valid_until is exclusive, as everywhere in
+// the series API.
+type SeriesDetailResponse struct {
+	ID               int64   `json:"id"`
+	StaffID          int64   `json:"staff_id"`
+	Weekdays         []int   `json:"weekdays"`
+	StartTime        string  `json:"start_time"`
+	EndTime          string  `json:"end_time"`
+	BreakMinutes     int     `json:"break_minutes"`
+	ShiftTypeID      *int64  `json:"shift_type_id"`
+	Notes            string  `json:"notes,omitempty"`
+	CalendarPeriodID int64   `json:"calendar_period_id"`
+	WeekPattern      int     `json:"week_pattern"`
+	ValidFrom        string  `json:"valid_from"`
+	ValidUntil       *string `json:"valid_until"`
+}
+
+// SeriesDeviationResponse is one individually adjusted occurrence, keyed by
+// its recurrence slot. kind: "time_edit" (rebuilt by a whole-series edit),
+// "cancelled" or "removed" (both survive it).
+type SeriesDeviationResponse struct {
+	Date      string `json:"date"`
+	Kind      string `json:"kind"`
+	StartTime string `json:"start_time,omitempty"`
+	EndTime   string `json:"end_time,omitempty"`
+	Moved     bool   `json:"moved,omitempty"`
+}
+
+// SeriesDeviationsResponse answers "what happens to my single-day changes?"
+// before a whole-series edit is written.
+type SeriesDeviationsResponse struct {
+	From        string                    `json:"from"`
+	Overwritten []SeriesDeviationResponse `json:"overwritten"`
+	Preserved   []SeriesDeviationResponse `json:"preserved"`
+}
+
+func toSeriesDetailResponse(series *scheduleModels.StaffShiftSeries) SeriesDetailResponse {
+	weekdays := make([]int, 0, len(series.Weekdays))
+	for _, wd := range series.Weekdays {
+		weekdays = append(weekdays, int(wd))
+	}
+	resp := SeriesDetailResponse{
+		ID:               series.ID,
+		StaffID:          series.StaffID,
+		Weekdays:         weekdays,
+		StartTime:        timezone.WallClock(series.StartTime).Format("15:04"),
+		EndTime:          timezone.WallClock(series.EndTime).Format("15:04"),
+		BreakMinutes:     series.BreakMinutes,
+		ShiftTypeID:      series.ShiftTypeID,
+		Notes:            series.Notes,
+		CalendarPeriodID: series.CalendarPeriodID,
+		WeekPattern:      series.WeekPattern,
+		ValidFrom:        series.ValidFrom.String(),
+	}
+	if series.ValidUntil != nil {
+		until := series.ValidUntil.String()
+		resp.ValidUntil = &until
+	}
+	return resp
+}
+
+func toSeriesDeviationResponses(deviations []scheduleSvc.SeriesDeviation) []SeriesDeviationResponse {
+	out := make([]SeriesDeviationResponse, 0, len(deviations))
+	for _, d := range deviations {
+		item := SeriesDeviationResponse{
+			Date:  d.Date.String(),
+			Kind:  string(d.Kind),
+			Moved: d.Moved,
+		}
+		// A removed occurrence has no row and therefore no window.
+		if d.Kind != scheduleSvc.SeriesDeviationRemoved {
+			item.StartTime = timezone.WallClock(d.StartTime).Format("15:04")
+			item.EndTime = timezone.WallClock(d.EndTime).Format("15:04")
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 // SeriesResponse is the wire format for series create/split/end results.
@@ -77,6 +160,20 @@ func toWeekdays(values []int) ([]int16, error) {
 	return out, nil
 }
 
+// parseOptionalValidUntil turns the presence-aware payload field into a date.
+// An absent key and an explicit null both mean "no end date" here; only the
+// update handler distinguishes them (via Present) to keep a stored end.
+func parseOptionalValidUntil(raw optionalString) (*timezone.Date, error) {
+	if raw.Value == nil || *raw.Value == "" {
+		return nil, nil
+	}
+	parsed, err := timezone.ParseDate(*raw.Value)
+	if err != nil {
+		return nil, errors.New("valid_until must be YYYY-MM-DD")
+	}
+	return &parsed, nil
+}
+
 func renderSeriesServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSeriesNotFound):
@@ -93,13 +190,9 @@ func (rs *Resource) buildSeries(req SeriesRequest) (*scheduleModels.StaffShiftSe
 	if err != nil {
 		return nil, errors.New("valid_from must be YYYY-MM-DD")
 	}
-	var validUntil *timezone.Date
-	if req.ValidUntil != nil && *req.ValidUntil != "" {
-		parsed, err := timezone.ParseDate(*req.ValidUntil)
-		if err != nil {
-			return nil, errors.New("valid_until must be YYYY-MM-DD")
-		}
-		validUntil = &parsed
+	validUntil, err := parseOptionalValidUntil(req.ValidUntil)
+	if err != nil {
+		return nil, err
 	}
 	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
 	if err != nil {
@@ -207,6 +300,96 @@ func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toSeriesResponse(result), "Staff shift series split")
+}
+
+// getSeries returns the rule behind a shift so the planner can edit the whole
+// series (weekdays, rhythm, validity), not just one occurrence (#2028).
+func (rs *Resource) getSeries(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	series, err := rs.SeriesService.GetSeries(r.Context(), id)
+	if err != nil {
+		renderSeriesServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toSeriesDetailResponse(series), "Staff shift series retrieved")
+}
+
+// seriesDeviations lists the single-day changes a whole-series edit would
+// rebuild, and those it leaves alone — shown before the edit is written.
+func (rs *Resource) seriesDeviations(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	deviations, err := rs.SeriesService.SeriesDeviations(r.Context(), id)
+	if err != nil {
+		renderSeriesServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, SeriesDeviationsResponse{
+		From:        deviations.From.String(),
+		Overwritten: toSeriesDeviationResponses(deviations.Overwritten),
+		Preserved:   toSeriesDeviationResponses(deviations.Preserved),
+	}, "Staff shift series deviations retrieved")
+}
+
+// updateSeries applies "Alle Termine der Serie": the rule itself changes and
+// every regenerable future occurrence is rebuilt from it.
+func (rs *Resource) updateSeries(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var req SeriesRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	weekdays, err := toWeekdays(req.Weekdays)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	validUntil, err := parseOptionalValidUntil(req.ValidUntil)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	editorID, err := rs.editorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	result, err := rs.SeriesService.UpdateSeries(r.Context(), scheduleSvc.UpdateSeriesInput{
+		SeriesID:       id,
+		Weekdays:       weekdays,
+		StartTime:      start,
+		EndTime:        end,
+		BreakMinutes:   req.BreakMinutes,
+		ShiftTypeID:    req.ShiftTypeID.Value,
+		ShiftTypeIDSet: req.ShiftTypeID.Present,
+		Notes:          req.Notes,
+		WeekPattern:    req.WeekPattern,
+		ValidUntil:     validUntil,
+		ValidUntilSet:  req.ValidUntil.Present,
+		ActorStaffID:   editorID,
+	})
+	if err != nil {
+		renderSeriesServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toSeriesResponse(result), "Staff shift series updated")
 }
 
 func (rs *Resource) endSeries(w http.ResponseWriter, r *http.Request) {
