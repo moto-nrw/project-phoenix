@@ -730,13 +730,16 @@ export function ShiftEditModal({
     if (!shift?.seriesId) return;
     setIsDeleting(true);
     try {
-      await staffShiftSeriesService.endSeries(shift.seriesId, shift.date);
+      await staffShiftSeriesService.endSeries(
+        shift.seriesId,
+        seriesEffectiveDate,
+      );
       onSaved();
       onClose();
     } catch (err: unknown) {
       logger.error("shift_series_end_failed", {
         series_id: shift.seriesId,
-        date: shift.date,
+        date: seriesEffectiveDate,
         error: err instanceof Error ? err.message : String(err),
       });
       setError(getShiftMutationErrorMessage(err, "löschen"));

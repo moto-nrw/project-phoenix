@@ -349,6 +349,26 @@ describe("ShiftEditModal series scopes", () => {
     });
     expect(deleteShift).not.toHaveBeenCalled();
   });
+
+  it("ends a moved occurrence's series from its original date", async () => {
+    endSeries.mockResolvedValue(undefined);
+    renderModal({
+      mode: "edit",
+      shift: {
+        ...seriesShift,
+        date: "2026-09-08",
+        detached: true,
+        seriesOccurrenceDate: "2026-09-07",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => {
+      expect(endSeries).toHaveBeenCalledWith("5", "2026-09-07");
+    });
+  });
 });
 
 // #2028: editing the series itself — its weekdays, rhythm, window and
