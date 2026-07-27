@@ -1,7 +1,7 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
@@ -20,12 +20,17 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
-import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
-  findClosingDayReason,
+  shouldMaterializeWeekPattern,
+  type CalendarPeriod,
+} from "~/lib/calendar-period-helpers";
+import {
+  findFirstClosingDayConflict,
+  type ClosingDayConflict,
   type ClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { weekdayDatesInRange } from "~/lib/timetable-helpers";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -227,21 +232,71 @@ export function TimetableEventModal({
     if (isOpen) {
       setStep(convertInstance ? 1 : 0);
       submitAttempted.current = false;
-      confirmedClosingDate.current = null;
+      confirmedClosingConflict.current = null;
+      setClosingDayPrompt(null);
     }
   }, [isOpen, convertInstance]);
 
-  // Schließtag-Warnung (#2032). Der Termin darf auf einem Schließtag liegen
-  // (Ferien-/Notbetreuung), das Speichern fragt aber einmal nach. Die
-  // Bestätigung gilt genau für das bestätigte Datum: wird danach ein anderer
-  // Schließtag gewählt, fragt der Dialog erneut.
-  const closingDayReason = findClosingDayReason(closingDayRanges, form.date);
-  const [closingDayPrompt, setClosingDayPrompt] = useState<string | null>(null);
-  const confirmedClosingDate = useRef<string | null>(null);
-  // Nach der Bestätigung ganz normal absenden: das Datum steht dann im Ref,
-  // die Rückfrage greift also nicht erneut, und der Submit-Pfad bleibt einer.
+  // Schließtag-Warnung (#2032). Bei Serien zählt nicht nur das Ankerdatum:
+  // dieselben Wochentag-/A-B-Regeln wie beim Materialisieren werden über den
+  // gewählten Zeitraum gelegt. Bestätigt wird die aktuelle Konfiguration;
+  // ändert sie sich danach, fragt der Dialog erneut.
+  const closingDayConflict = useMemo(() => {
+    if (!isSeriesFlow) {
+      return findFirstClosingDayConflict(closingDayRanges, [form.date]);
+    }
+    const period = calendarPeriods.find(
+      (candidate) => candidate.id === form.calendarPeriodId,
+    );
+    if (!period) return null;
+    const today = berlinTodayISO();
+    const from =
+      initialSeries && today > period.startDate ? today : period.startDate;
+    const dates = weekdayDatesInRange(
+      from,
+      period.endDate,
+      form.weekdays,
+    ).filter((dateISO) =>
+      shouldMaterializeWeekPattern(period, dateISO, form.weekPattern),
+    );
+    // Converting preserves the concrete seed occurrence even when its date is
+    // outside the selected recurrence slots.
+    if (convertInstance && form.date && !dates.includes(form.date)) {
+      dates.push(form.date);
+      dates.sort((left, right) => left.localeCompare(right));
+    }
+    return findFirstClosingDayConflict(closingDayRanges, dates);
+  }, [
+    calendarPeriods,
+    closingDayRanges,
+    convertInstance,
+    form.calendarPeriodId,
+    form.date,
+    form.weekPattern,
+    form.weekdays,
+    initialSeries,
+    isSeriesFlow,
+  ]);
+  const closingDayConfirmationKey =
+    closingDayConflict === null
+      ? null
+      : JSON.stringify({
+          conflict: closingDayConflict,
+          repeat: form.repeat,
+          weekdays: form.weekdays,
+          calendarPeriodId: form.calendarPeriodId,
+          weekPattern: form.weekPattern,
+        });
+  const [closingDayPrompt, setClosingDayPrompt] = useState<{
+    conflict: ClosingDayConflict;
+    confirmationKey: string;
+  } | null>(null);
+  const confirmedClosingConflict = useRef<string | null>(null);
+  // Nach der Bestätigung ganz normal absenden: die Serienkonfiguration steht
+  // dann im Ref, die Rückfrage greift also nicht erneut.
   const submitAfterConfirm = () => {
-    confirmedClosingDate.current = form.date;
+    if (!closingDayPrompt) return;
+    confirmedClosingConflict.current = closingDayPrompt.confirmationKey;
     setClosingDayPrompt(null);
     formRef.current?.requestSubmit();
   };
@@ -327,13 +382,17 @@ export function TimetableEventModal({
             // kommt erst, wenn das Formular auch wirklich speichern würde —
             // sonst stünde sie vor den Pflichtfeld-Fehlern.
             if (
-              closingDayReason !== undefined &&
-              confirmedClosingDate.current !== form.date &&
+              closingDayConflict !== null &&
+              closingDayConfirmationKey !== null &&
+              confirmedClosingConflict.current !== closingDayConfirmationKey &&
               !submitting &&
               validateForm()
             ) {
               event.preventDefault();
-              setClosingDayPrompt(closingDayReason);
+              setClosingDayPrompt({
+                conflict: closingDayConflict,
+                confirmationKey: closingDayConfirmationKey,
+              });
               return;
             }
             // Mirror handleSubmit's early-return guards: on those paths no
@@ -486,12 +545,16 @@ export function TimetableEventModal({
                 </div>
               )}
 
-            {/* Schließtag am gewählten Datum (#2032) — Hinweis, keine Sperre.
-                Beim Speichern folgt die bestätigbare Rückfrage. */}
-            {closingDayReason !== undefined && (
+            {/* Schließtag in der aktuellen Termin-/Serienkonfiguration (#2032)
+                — Hinweis, keine Sperre. Beim Speichern folgt die Rückfrage. */}
+            {closingDayConflict !== null && (
               <Alert
                 type="warning"
-                message={`Hinweis: Am ${formatDate(form.date)} ist ein Schließtag hinterlegt${closingDayReason === "" ? "" : ` (${closingDayReason})`}. Planen ist weiterhin möglich.`}
+                message={
+                  isSeriesFlow
+                    ? `Hinweis: Der Regeltermin fällt am ${formatDate(closingDayConflict.dateISO)} auf einen Schließtag${closingDayConflict.reason === "" ? "" : ` (${closingDayConflict.reason})`}. Planen ist weiterhin möglich.`
+                    : `Hinweis: Am ${formatDate(closingDayConflict.dateISO)} ist ein Schließtag hinterlegt${closingDayConflict.reason === "" ? "" : ` (${closingDayConflict.reason})`}. Planen ist weiterhin möglich.`
+                }
                 announce="off"
               />
             )}
@@ -650,8 +713,8 @@ export function TimetableEventModal({
             gespeichert wird. */}
         {closingDayPrompt !== null && (
           <ClosingDayConfirmModal
-            dateISO={form.date}
-            reason={closingDayPrompt}
+            dateISO={closingDayPrompt.conflict.dateISO}
+            reason={closingDayPrompt.conflict.reason}
             subject="termin"
             onCancel={() => setClosingDayPrompt(null)}
             onConfirm={submitAfterConfirm}

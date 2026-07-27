@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShiftEditModal } from "./shift-edit-modal";
@@ -170,6 +176,38 @@ describe("ShiftEditModal series creation", () => {
     });
     expect(onSaved).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("asks when a generated series shift falls on a closing day", async () => {
+    createSeries.mockResolvedValue({
+      seriesId: "5",
+      created: 20,
+      skippedDates: [],
+    });
+    renderModal({
+      closingDayRanges: [
+        {
+          startDate: "2026-09-14",
+          endDate: "2026-09-14",
+          reason: "Pädagogischer Tag",
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
+    await screen.findByText("1. Halbjahr 2026/27");
+    fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "An einem Schließtag planen?",
+    });
+    expect(within(dialog).getByText(/14\.09\.2026/)).toBeInTheDocument();
+    expect(createSeries).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+    );
+    await waitFor(() => expect(createSeries).toHaveBeenCalled());
   });
 
   it("drops a stale A/B pattern when switching to a period without a week cycle", async () => {

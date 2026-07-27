@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   expandClosingDaysToMap,
   findClosingDayReason,
+  findFirstClosingDayConflict,
   formatClosingDayRange,
   type ClosingDayRange,
 } from "./closing-day-helpers";
@@ -82,6 +83,26 @@ describe("findClosingDayReason", () => {
     ).toBeUndefined();
     expect(findClosingDayReason([WEIHNACHTEN], "")).toBeUndefined();
     expect(findClosingDayReason(undefined, "2026-12-24")).toBeUndefined();
+  });
+});
+
+describe("findFirstClosingDayConflict", () => {
+  it("returns the first generated occurrence inside a closing range", () => {
+    expect(
+      findFirstClosingDayConflict(
+        [WEIHNACHTEN, PAED_TAG],
+        ["2026-11-01", "2026-11-02", "2026-12-24"],
+      ),
+    ).toEqual({
+      dateISO: "2026-11-02",
+      reason: "Pädagogischer Tag",
+    });
+  });
+
+  it("returns null when generated dates do not overlap", () => {
+    expect(
+      findFirstClosingDayConflict([WEIHNACHTEN], ["2026-12-23"]),
+    ).toBeNull();
   });
 });
 

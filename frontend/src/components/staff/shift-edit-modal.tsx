@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceModal } from "~/components/ui/choice-modal";
@@ -14,10 +15,16 @@ import { getApiErrorMessage } from "~/lib/api-error-message";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
   findPeriodForDate,
+  shouldMaterializeWeekPattern,
   weekPatternForDate,
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  findFirstClosingDayConflict,
+  type ClosingDayConflict,
+  type ClosingDayRange,
+} from "~/lib/closing-day-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -32,6 +39,7 @@ import {
 } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
+import { weekdayDatesInRange } from "~/lib/timetable-helpers";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
@@ -41,6 +49,7 @@ const EMPTY_STAFF_OPTIONS: readonly StaffScheduleStaff[] = [];
 // Stable empty default for the optional existingReplacements prop (same
 // rationale as EMPTY_STAFF_OPTIONS).
 const EMPTY_REPLACEMENTS: readonly StaffShift[] = [];
+const EMPTY_CLOSING_DAY_RANGES: readonly ClosingDayRange[] = [];
 
 const WEEKDAY_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 1, label: "Mo" },
@@ -110,6 +119,8 @@ interface ShiftEditModalProps {
    *  the backend would delete every cover. Optional / empty for create and for
    *  never-cancelled shifts. */
   readonly existingReplacements?: readonly StaffShift[];
+  /** All stored ranges, used to warn for every generated series occurrence. */
+  readonly closingDayRanges?: readonly ClosingDayRange[];
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }
@@ -136,6 +147,7 @@ export function ShiftEditModal({
   shiftTypes,
   staffOptions = EMPTY_STAFF_OPTIONS,
   existingReplacements = EMPTY_REPLACEMENTS,
+  closingDayRanges = EMPTY_CLOSING_DAY_RANGES,
   onClose,
   onSaved,
 }: ShiftEditModalProps) {
@@ -191,6 +203,11 @@ export function ShiftEditModal({
   // After a series create/split with skipped days the modal shows this
   // notice instead of closing, so the admin sees which days were left out.
   const [seriesNotice, setSeriesNotice] = useState<string | null>(null);
+  const [closingDayPrompt, setClosingDayPrompt] = useState<{
+    conflict: ClosingDayConflict;
+    confirmationKey: string;
+  } | null>(null);
+  const confirmedClosingConflict = useRef<string | null>(null);
   // Scope question ("Nur diese Woche" / "Ab jetzt dauerhaft") for edits and
   // deletes of a series-backed row.
   const [scopeQuestion, setScopeQuestion] = useState<"edit" | "delete" | null>(
@@ -214,6 +231,8 @@ export function ShiftEditModal({
     setAbTouched(false);
     setValidUntil("");
     setSeriesNotice(null);
+    setClosingDayPrompt(null);
+    confirmedClosingConflict.current = null;
     setScopeQuestion(null);
     setChangeReason(shift?.changeReason ?? "");
     setCancelled(shift?.cancelled ?? false);
@@ -262,6 +281,44 @@ export function ShiftEditModal({
   );
   const periodHasCycle = (selectedPeriod?.weekCycleLength ?? 1) > 1;
   const defaultAbPattern = weekPatternForDate(selectedPeriod, date);
+  const effectiveWeekPattern = biweekly && periodHasCycle ? abPattern : 0;
+  const seriesClosingDayConflict = useMemo(() => {
+    if (!repeatEnabled || !selectedPeriod) return null;
+    const tomorrow = dayAfterISO(berlinTodayISO());
+    const from = [date, selectedPeriod.startDate, tomorrow].reduce(
+      (latest, candidate) => (candidate > latest ? candidate : latest),
+    );
+    const to =
+      validUntil !== "" && validUntil < selectedPeriod.endDate
+        ? validUntil
+        : selectedPeriod.endDate;
+    const dates = weekdayDatesInRange(from, to, weekdays).filter((dateISO) =>
+      shouldMaterializeWeekPattern(
+        selectedPeriod,
+        dateISO,
+        effectiveWeekPattern,
+      ),
+    );
+    return findFirstClosingDayConflict(closingDayRanges, dates);
+  }, [
+    closingDayRanges,
+    date,
+    effectiveWeekPattern,
+    repeatEnabled,
+    selectedPeriod,
+    validUntil,
+    weekdays,
+  ]);
+  const closingDayConfirmationKey =
+    seriesClosingDayConflict === null
+      ? null
+      : JSON.stringify({
+          conflict: seriesClosingDayConflict,
+          weekdays,
+          periodId,
+          weekPattern: effectiveWeekPattern,
+          validUntil,
+        });
 
   // Default the A/B choice to the parity of the clicked week (mirrors the
   // timetable Wochenrhythmus control from #1882); a manual choice sticks.
@@ -546,6 +603,17 @@ export function ShiftEditModal({
   const handleSubmit = async () => {
     if (!validateInputs()) return;
     if (mode === "create" && repeatEnabled) {
+      if (
+        seriesClosingDayConflict !== null &&
+        closingDayConfirmationKey !== null &&
+        confirmedClosingConflict.current !== closingDayConfirmationKey
+      ) {
+        setClosingDayPrompt({
+          conflict: seriesClosingDayConflict,
+          confirmationKey: closingDayConfirmationKey,
+        });
+        return;
+      }
       await createSeries();
       return;
     }
@@ -669,13 +737,13 @@ export function ShiftEditModal({
     </div>
   );
 
-  const scopeOverlayOpen = scopeQuestion !== null;
+  const scopeOverlayOpen = scopeQuestion !== null || closingDayPrompt !== null;
 
   return (
     <>
-      {/* Hidden while the delete confirmation or the scope question is open —
-          all use the same fixed z-index, so stacking them puts the topmost
-          dialog's buttons behind this modal's body. */}
+      {/* Hidden while another confirmation is open — all use the same fixed
+          z-index, so stacking them puts the topmost dialog's buttons behind
+          this modal's body. */}
       <Modal
         isOpen={isOpen && !confirmDeleteOpen && !scopeOverlayOpen}
         onClose={onClose}
@@ -1067,6 +1135,19 @@ export function ShiftEditModal({
           </div>
         )}
       </Modal>
+      {closingDayPrompt !== null && (
+        <ClosingDayConfirmModal
+          dateISO={closingDayPrompt.conflict.dateISO}
+          reason={closingDayPrompt.conflict.reason}
+          subject="schicht"
+          onCancel={() => setClosingDayPrompt(null)}
+          onConfirm={() => {
+            confirmedClosingConflict.current = closingDayPrompt.confirmationKey;
+            setClosingDayPrompt(null);
+            void handleSubmit();
+          }}
+        />
+      )}
       <ConfirmDeleteModal
         isOpen={confirmDeleteOpen}
         title="Schicht löschen"

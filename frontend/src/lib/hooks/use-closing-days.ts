@@ -13,7 +13,7 @@
  * jedes Halbjahr, und ein Wochenwechsel löst keinen neuen Request aus.
  */
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 
 import { hasPermission } from "~/lib/auth-utils";
@@ -23,7 +23,7 @@ import {
   type ClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 /** Shared SWR key of the full closure list — deduped across both plans. */
 const CLOSING_DAYS_SWR_KEY = "planning-closing-days";
@@ -39,6 +39,12 @@ const CLOSING_DAYS_SWR_OPTIONS = {
 
 const EMPTY_RANGES: readonly ClosingDayRange[] = [];
 const EMPTY_CLOSING_DAYS: ReadonlyMap<string, string> = new Map();
+
+/** Invalidates the tenant-scoped full closing-day list after CRUD writes. */
+export function useInvalidateClosingDays() {
+  const tenantMutate = useTenantMutate();
+  return useCallback(() => tenantMutate(CLOSING_DAYS_SWR_KEY), [tenantMutate]);
+}
 
 /**
  * Alle gespeicherten Schließtag-Zeiträume des Tenants.

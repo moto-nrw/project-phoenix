@@ -3,14 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ClosingDay } from "~/lib/closing-day-helpers";
 
-const { mockList, mockDelete, mockToastSuccess, mockToastError } = vi.hoisted(
-  () => ({
-    mockList: vi.fn(),
-    mockDelete: vi.fn(),
-    mockToastSuccess: vi.fn(),
-    mockToastError: vi.fn(),
-  }),
-);
+const {
+  mockList,
+  mockDelete,
+  mockInvalidate,
+  mockToastSuccess,
+  mockToastError,
+} = vi.hoisted(() => ({
+  mockList: vi.fn(),
+  mockDelete: vi.fn(),
+  mockInvalidate: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+}));
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
@@ -27,19 +32,29 @@ vi.mock("~/lib/closing-day-api", () => ({
   },
 }));
 
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useInvalidateClosingDays: () => mockInvalidate,
+}));
+
 vi.mock("~/components/planning/closing-day-modal", () => ({
   ClosingDayModal: ({
     isOpen,
     initial,
+    onSaved,
   }: {
     isOpen: boolean;
     initial?: ClosingDay | null;
+    onSaved: () => void;
   }) =>
     isOpen ? (
       <div
         data-testid="closing-day-modal"
         data-initial-reason={initial?.reason ?? ""}
-      />
+      >
+        <button type="button" onClick={onSaved}>
+          Mock speichern
+        </button>
+      </div>
     ) : null,
 }));
 
@@ -58,6 +73,7 @@ function makeClosingDay(overrides: Partial<ClosingDay> = {}): ClosingDay {
 describe("ClosingDaysEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockInvalidate.mockResolvedValue(undefined);
   });
 
   it("zeigt die Schließtage mit Zeitraum und Grund", async () => {
@@ -145,6 +161,20 @@ describe("ClosingDaysEditor", () => {
     );
   });
 
+  it("invalidiert den Planungs-Cache nach dem Speichern", async () => {
+    mockList.mockResolvedValue([]);
+
+    render(<ClosingDaysEditor />);
+    const createButtons = await screen.findAllByRole("button", {
+      name: /Schließtag anlegen/,
+    });
+    fireEvent.click(createButtons[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Mock speichern" }));
+
+    await waitFor(() => expect(mockInvalidate).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+  });
+
   it("löscht nach Bestätigung und lädt die Liste neu", async () => {
     mockList
       .mockResolvedValueOnce([makeClosingDay()])
@@ -159,6 +189,7 @@ describe("ClosingDaysEditor", () => {
     fireEvent.click(confirmButtons[confirmButtons.length - 1]!);
 
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("3"));
+    await waitFor(() => expect(mockInvalidate).toHaveBeenCalledOnce());
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
     expect(mockToastSuccess).toHaveBeenCalled();
   });

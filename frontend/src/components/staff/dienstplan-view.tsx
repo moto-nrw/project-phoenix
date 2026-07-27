@@ -463,6 +463,7 @@ function DienstplanContent() {
           shiftTypes={shiftTypes ?? []}
           staffOptions={sortedStaff}
           existingReplacements={modal.replacements}
+          closingDayRanges={closingDayRanges}
           onClose={() => setModal(null)}
           onSaved={refreshAfterPlanMutation}
         />

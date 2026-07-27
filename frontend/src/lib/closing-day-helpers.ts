@@ -85,6 +85,23 @@ export function findClosingDayReason(
   return undefined;
 }
 
+export interface ClosingDayConflict {
+  dateISO: string;
+  reason: string;
+}
+
+/** First generated date that overlaps a stored closing-day range. */
+export function findFirstClosingDayConflict(
+  ranges: readonly ClosingDayRange[] | null | undefined,
+  dates: readonly string[],
+): ClosingDayConflict | null {
+  for (const dateISO of dates) {
+    const reason = findClosingDayReason(ranges, dateISO);
+    if (reason !== undefined) return { dateISO, reason };
+  }
+  return null;
+}
+
 /**
  * Expands stored closure ranges into a per-day lookup (YYYY-MM-DD → Grund),
  * clamped to [from, to]. Shared by every surface that marks closing days:

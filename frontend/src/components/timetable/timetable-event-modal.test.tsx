@@ -527,6 +527,48 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
   });
 
+  it("asks when a later recurring occurrence falls on a closing day (#2032)", async () => {
+    renderModal({
+      variant: "quick",
+      closingDayRanges: [
+        {
+          startDate: "2026-05-11",
+          endDate: "2026-05-11",
+          reason: "Konzeptionstag",
+        },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Montagsangebot" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+
+    expect(
+      screen.getByText(
+        /Regeltermin fällt am 11\.05\.2026 auf einen Schließtag/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "An einem Schließtag planen?",
+    });
+    expect(within(dialog).getByText(/11\.05\.2026/)).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+    );
+    await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
+  });
+
   it("filters and bulk-selects visible student rows", async () => {
     mockFetchStudents.mockResolvedValue({
       students: [
