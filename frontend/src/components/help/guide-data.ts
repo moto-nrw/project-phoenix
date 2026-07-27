@@ -242,7 +242,7 @@ export const setupChapters: readonly GuideChapter[] = [
         steps: [
           "`Profil` öffnen.",
           "In der Sektion `Passkeys` auf `Hinzufügen` klicken.",
-          "Den Hinweis prüfen und `E-Mail senden` wählen.",
+          "Den Hinweis prüfen und `Sicherheitscode per E-Mail senden` wählen.",
           "Das E-Mail-Postfach öffnen, den Code eingeben und einen Namen für das Gerät vergeben.",
           "Den Passkey mit der Gerätefreigabe speichern.",
           "Bei der nächsten Anmeldung `Mit Passkey anmelden` wählen.",
@@ -494,6 +494,27 @@ export const appChapters: readonly GuideChapter[] = [
     tone: "green",
     steps: [
       {
+        id: "home",
+        title: "Home",
+        icon: LayoutDashboard,
+        summary:
+          "Die Startseite nach dem Login (nur für Admins). Sie zeigt in Kacheln, wie der Tag gerade steht, und führt von jeder Zahl direkt in den passenden Bereich.",
+        steps: [
+          "In der Seitenleiste ganz oben `Home` öffnen. Nach dem Login landen Admins automatisch hier.",
+          "Die Kacheln der oberen Reihe ablesen: `Kinder anwesend`, `In Räumen`, `Unterwegs`, `Schulhof`, `Krank`, `Entschuldigt`, `Aktive Gruppen`, `Aktive Aktivitäten`, `Freie Räume` und `Auslastung`.",
+          "Ein Klick auf eine Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in die bereits gefilterte `Kindersuche` oder von `Freie Räume` in die `Räume`-Übersicht.",
+          "Darunter zeigt `Letzte Bewegungen`, welche Kinder zuletzt ein- oder ausgecheckt oder den Raum gewechselt haben.",
+          "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen; die Karte erscheint nur bei Einrichtungen, die mit Aktivitäten arbeiten.",
+        ],
+        callout: {
+          title: "Kacheln passen sich der Einrichtung an",
+          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen, `Aktive Aktivitäten` und `Laufende Aktivitäten` nur bei Einrichtungen mit Aktivitäten. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
+          tone: "blue",
+        },
+        screenshot:
+          "Home mit Begrüßung, den Status-Kacheln des Tages sowie den Karten Letzte Bewegungen und Laufende Aktivitäten.",
+      },
+      {
         id: "kindersuche",
         title: "Kindersuche",
         icon: Search,
@@ -615,6 +636,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Anwesenheit der Gruppe ansehen und Kinder bearbeiten.",
           "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen; Klassenfahrt zählt als bekannte Entschuldigung und wird am Kind als eigener Status angezeigt.",
           "In der Schülerdatenbank bei Gruppierung nach Klasse oder Gruppe über das Drei-Punkte-Menü `Klassenfahrt planen` für mehrere Kinder gleichzeitig setzen.",
+          "Arbeitet Ihre Einrichtung in offener Betreuung ohne feste Gruppen, erscheint dieser Bereich nicht: Mitarbeitende arbeiten dann mit allen Kindern statt mit einer eigenen Gruppe.",
         ],
         screenshot:
           "Seitenleiste mit aufgeklappten eigenen Gruppen und Anwesenheitszahl.",
@@ -634,8 +656,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
           "Ungeplantes Kind über `Weiteres Kind suchen...` hinzufügen.",
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
-          "Den Schulhof über den Schulhof-Tab und `Aufsicht übernehmen` führen. Wird im Dialog für eine spontane Aktivität der Raum `Schulhof` gewählt, öffnet `Zur Schulhof-Aufsicht` direkt diesen separaten Tab.",
+          "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Wird im Dialog für eine spontane Aktivität der Raum `Schulhof` gewählt, öffnet `Zur Schulhof-Aufsicht` direkt diesen separaten Tab.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
+          "Erfasst Ihre Einrichtung nur, ob ein Kind da ist oder nicht (Anwesenheit ohne Raumzuordnung), erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Diesen Modus stellt das moto-Team ein.",
         ],
         callout: {
           title: "Warum steht ein Kind auf `Nicht eingeplant`?",
@@ -665,6 +688,26 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Tagesauswertung mit Status-Zählern und Kinderliste nach Status gruppiert.",
+      },
+      {
+        id: "notfall",
+        title: "Notfall",
+        icon: CircleStop,
+        summary:
+          "Der schnellste Weg zur Notfallliste: eine druckbare Liste aller Kinder, die gerade anwesend sind, mit Ort, Klasse, Telefonnummern und Kontaktpersonen. Der Eintrag steht für alle Mitarbeitenden ganz unten in der Seitenleiste.",
+        steps: [
+          "In der Seitenleiste unten `Notfall` öffnen.",
+          "`Notfallliste drucken` erzeugt die Liste und öffnet direkt den Druckdialog.",
+          "`PDF herunterladen` speichert dieselbe Liste als Datei, zum Beispiel für das Handy der Einsatzleitung.",
+          "Die Liste wird im Moment des Erstellens aus der aktuellen Anwesenheit erzeugt; sie ist also immer taggenau und kann nicht veralten.",
+        ],
+        callout: {
+          title: "Vor dem Ernstfall einmal üben",
+          body: "Den Weg zur Notfallliste einmal mit dem ganzen Team durchgehen und einen Ausdruck an einem festen Ort hinterlegen. Dieselbe Liste liegt auch unter `Datenverwaltung` -> `Exporte` im Abschnitt `Momentaufnahmen`, der Weg über die Seitenleiste ist im Ernstfall aber der kürzere.",
+          tone: "red",
+        },
+        screenshot:
+          "Seite Notfall mit den Schaltflächen Notfallliste drucken und PDF herunterladen.",
       },
       {
         id: "erinnerungen",
@@ -724,6 +767,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Eine Raumkarte öffnen, um die Kinderliste zu sehen.",
           "Bereich `Unterwegs` prüfen und ein Kind ohne Raum über `Zuweisen` zuordnen.",
         ],
+        callout: {
+          title: "Bereich nicht sichtbar?",
+          body: "Erfasst Ihre Einrichtung nur, ob ein Kind da ist oder nicht, ohne die Kinder einzelnen Räumen zuzuordnen, erscheinen `Räume` und `Aktivitäten` nicht in der Seitenleiste. Diesen Modus stellt das moto-Team ein.",
+          tone: "blue",
+        },
         screenshot:
           "Räume-Übersicht mit Statusfilter, Frei/Belegt und Unterwegs.",
         image: "/help/screens/raeume.webp",
@@ -762,7 +810,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Bündelt Auswertung, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten einer Person.",
         steps: [
-          "`Mitarbeiter` öffnen und eine Person auswählen. Admins sehen die vollständige Detailansicht. Leitungsrollen mit der Berechtigung `time_tracking:manage` erreichen ebenfalls das Profil und sehen die Reiter `Übersicht`, `Zeiterfassung` und `Abwesenheiten`; `Arbeitszeitmodell` und die weiteren Verwaltungsreiter bleiben Admins vorbehalten.",
+          "`Mitarbeiter` öffnen und eine Person auswählen. Admins sehen die vollständige Detailansicht. Leitungsrollen mit der Berechtigung `time_tracking:manage` erreichen ebenfalls das Profil und sehen die Reiter `Übersicht`, `Zeiterfassung`, `Abwesenheiten` und `Stammdaten` (dort liegt die Personalnummer für die Abrechnung); `Arbeitszeitmodell` bleibt Admins vorbehalten.",
           "Im Reiter `Übersicht` Stundenkonto, Urlaubstage und Krankheitstage prüfen. Die Diagramme lassen sich einzeln nach Zeitraum filtern.",
           "Im Bereich `Stundenkonto-Verwaltung` Plus-Stunden auszahlen (`Auszahlung`), pauschal als `Freizeitausgleich` verrechnen oder das Konto mit `Zurücksetzen` zum Stichtag (Schuljahresende 31.07.) auf null bzw. einen Rest-Übertrag setzen. Für einen Reset lässt sich nur ein bereits abgeschlossener Tag wählen, nicht der heutige Tag. Jede Buchung braucht eine Begründung und erscheint in der Historie darunter; eine Fehlbuchung lässt sich dort wieder löschen.",
           "Im Reiter `Zeiterfassung` zwischen Woche und Monat wechseln und Plan (geplante Schicht aus dem Dienstplan), Check-in, Check-out, Pause, Soll, Ist, Saldo, Quelle und Hinweise kontrollieren. So stehen geplante Schicht und tatsächliche Zeit nebeneinander.",
@@ -912,7 +960,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Zeigt für den heutigen Tag alle gestörten Positionen des Betreuungsplans und öffnet für jeden Block einen Editor für Abwesenheit, Ersatz, bewusst unbesetzte Blöcke oder eine Absage (nur für Admins).",
         steps: [
           "In der Seitenleiste den Bereich `Planung` aufklappen und `Vertretung` öffnen. Die Seite zeigt zunächst den heutigen Tag (am Wochenende den nächsten Montag).",
-          "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Eine abwesende Person ohne eingetragenen Ersatz zeigt `Ersatz: ??`, eine bewusst unbesetzte Position `bewusst unbesetzt`, ein abgesagter Termin `abgesagt` mit Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
+          "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Darunter steht je abwesender Person `Name abwesend` und blockweit die Zeile `Ersatzkräfte:` mit den Namen oder `keine`. Eine bewusst unbesetzte Position ist mit `bewusst unbesetzt` gekennzeichnet, ein abgesagter Termin mit `abgesagt` und Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
           "Oben in der Wochenleiste (Montag bis Freitag) zeigt jeder Tages-Chip die Zahl offener Lücken dieses Tages; ein Klick wechselt den Tag, die Pfeile springen wochenweise, `Heute` kehrt zum aktuellen Tag zurück. Daneben zeigen zwei Zähler `Offen` und `Quittiert` die offenen bzw. bewusst unbesetzten Lücken des angezeigten Tages; für vergangene Tage oder bei einem Ladefehler erscheint ein Strich statt einer erfundenen Null.",
           "Mit dem Umschalter `Nur Störungen | Ganzer Tag` zwischen der reinen Störungsliste und allen Terminen des Tages wechseln. Ein Tag ohne Störungen zeigt automatisch alle Termine mit dem Hinweis `Keine Störungen an diesem Tag`.",
           "Für den Blick auf die ganze Woche oben `Woche` wählen. Statt der Wochenleiste steht dann die Kalenderwoche zwischen den Pfeilen, links stehen die Störungen nach Wochentagen gruppiert und rechts zeigt der Kalender alle fünf Schultage. Ein Klick auf eine Tageskopfzeile führt zurück in die Tagesansicht dieses Tages, ein Klick auf einen Termin öffnet denselben Editor wie in der Tagesansicht. Mit `Tag` geht es zurück; beim Öffnen der Seite ist immer die Tagesansicht aktiv.",
@@ -936,7 +984,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Zeigt persönliche Termine, Einladungen, eigene Dienstplan-Schichten und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen, bearbeiten und sagen Termine für Team, Eltern oder ganze Gruppen ab und benachrichtigen Eltern optional per E-Mail.",
         steps: [
-          "`Mein Kalender` öffnen.",
+          "In der Seitenleiste `Kalender` öffnen. Die Seite selbst heißt `Mein Kalender`.",
           "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen. Samstag und Sonntag sind standardmäßig ausgeblendet; über `Sa/So` blendest du sie ein — steht dort ein Zähler, liegen Einträge am Wochenende.",
           "Die Tages- und Wochenansicht ordnen Einträge auf einer Stunden-Zeitachse an; Dienstplan-Schichten hinterlegen ihren Zeitraum als farbiges Band im Hintergrund, Termine und Betreuungsblöcke liegen darüber.",
           "Einträge an der Farbe unterscheiden: grüne Karten sind Termine (`Termin`), blaue Karten Betreuungsblöcke (`Betreuung`), orangefarbene die eigenen Dienstplan-Schichten (`Dienst`). Schichten kommen aus dem Dienstplan und lassen sich hier nicht bearbeiten.",
@@ -1167,7 +1215,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen einrichten",
         icon: LayoutDashboard,
         summary:
-          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten, Änderungsanfragen prüfen und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Änderungsanfragen`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
+          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten, Änderungsanfragen prüfen und in fünf Unterseiten den Ablauf einrichten: `Überblick`, `Änderungsanfragen`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen, der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`) und dem Einstieg zu offenen Änderungsanfragen.",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
@@ -1192,7 +1240,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Eingegangene Anmeldungen öffnen, Angaben prüfen, nach Betreuungsangeboten filtern und die passende Entscheidung setzen.",
         steps: [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
-          "Mit `Status`, den `Angeboten für die Auswertung`, der `Anzahl Betreuungstage`, `Zielklasse`, `Wochentag`, `Gehzeit` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
+          "Mit `Status`, `Berücksichtigte Angebote`, `Anzahl Betreuungstage`, `Zielklasse`, `Wochentag`, `Gehzeit` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
           "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden. Die Karte `Einsatzplanung` zeigt zusätzlich, wie viele Kinder je Wochentag bis zu welcher Gehzeit bleiben.",
           "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die gebuchten Angebote, zum Beispiel `Randstunde` oder `Ganztag`, inklusive Abholzeit, Geh-/Abholweise und Kontaktdaten der Erziehungsberechtigten.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
@@ -1445,7 +1493,7 @@ export const appChapters: readonly GuideChapter[] = [
     id: "info-displays",
     title: "Info-Displays",
     description:
-      "Ein Info-Display ist ein Dashboard für große Bildschirme im Eingangsbereich: Es zeigt live die Raumbelegung, laufende und kommende Aktivitäten sowie die nächsten Abholzeiten (nur als Anzahl, ohne Kindernamen). Es läuft in jedem Browser, ein Login am Fernseher ist nicht nötig.",
+      "Ein Info-Display ist ein Dashboard für große Bildschirme im Eingangsbereich: Es zeigt live die Raumbelegung, laufende und kommende Aktivitäten sowie die nächsten Abholzeiten (nur als Anzahl, ohne Kindernamen). Es läuft in jedem Browser, ein Login am Fernseher ist nicht nötig. Voraussetzung: Die Funktion ist im Auslieferungszustand aus. Ein Admin schaltet sie unter Einstellungen, Betrieb, Info-Displays aktivieren ein; vorher erscheint der Punkt Info-Displays gar nicht in der Seitenleiste.",
     icon: MonitorPlay,
     tone: "blue",
     steps: [
@@ -1456,7 +1504,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Admins erstellen pro Bildschirm ein Display und erhalten dafür einen geheimen Link. Der Link wird einmal am Fernseher oder Smartboard geöffnet, danach aktualisiert sich das Dashboard von selbst.",
         steps: [
-          "In der Seitenleiste `Info-Displays` öffnen und `Neues Display` klicken.",
+          "In der Seitenleiste `Info-Displays` öffnen und `Neues Display` klicken. Fehlt der Punkt, ist die Funktion noch nicht freigeschaltet, siehe die Voraussetzung oben.",
           "Einen Namen vergeben, der den Standort beschreibt, z. B. `Eingangsbereich`.",
           "Nach dem Erstellen erscheint der Link genau einmal: jetzt kopieren oder den QR-Code direkt mit dem Zielgerät scannen.",
           "Den Link im Browser des Fernsehers oder Smartboards öffnen. Fertig — das Dashboard lädt seine Daten automatisch alle paar Sekunden neu.",
@@ -1572,12 +1620,12 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Einstellungen sind in Reiter (Tabs) gegliedert. Jeder Reiter bündelt Optionen zu einem Thema. Änderungen werden automatisch gespeichert.",
         steps: [
           "In der Seitenleiste `Einstellungen` öffnen.",
-          "Oben den passenden Reiter wählen: `Betrieb` (Alltagsverhalten, z. B. Betreuungsplan oder Aktivitäts-Indikatoren), `Geräte` (NFC-Tablets, PIN, Auswahl-Buttons), `Anmeldung` (Online-Anmeldung der Eltern), `Datenschutz` (Aufbewahrung und Sichtbarkeit von Daten), `Sicherheit` sowie `Personalisierung` (Erscheinungsbild).",
+          "Oben den passenden Reiter wählen: `Betrieb` (Alltagsverhalten, z. B. Betreuungsplan oder Aktivitäts-Indikatoren), `Erinnerungen` (welche Erinnerungen an der Glocke erscheinen), `Geräte` (NFC-Tablets, PIN, Auswahl-Buttons), `Anmeldung` (Online-Anmeldung der Eltern), `Datenschutz` (Aufbewahrung und Sichtbarkeit von Daten), `System`, `Sicherheit` sowie `Personalisierung` (Erscheinungsbild).",
           "Schalter (an/aus) und Auswahlfelder werden sofort gespeichert; Text-, Zahl- und Zeitfelder kurz nach der Eingabe. Ein grüner Rahmen bestätigt das Speichern, ein roter weist auf einen Fehler hin.",
           "Steht neben einer Einstellung das Abzeichen `Standard`, ist noch der voreingestellte Wert aktiv. Nach einer Änderung erscheint `Zurücksetzen`, um wieder den Standard herzustellen.",
         ],
         screenshot:
-          "Einstellungen mit der Reiter-Leiste (Betrieb, Geräte, Anmeldung, Datenschutz, System, Sicherheit, Personalisierung) und der Sektion Aktivitäts-Indikatoren im Reiter Betrieb.",
+          "Einstellungen mit der Reiter-Leiste (Betrieb, Erinnerungen, Geräte, Anmeldung, Datenschutz, System, Sicherheit, Personalisierung) und der Sektion Aktivitäts-Indikatoren im Reiter Betrieb.",
         image: "/help/screens/einstellungen.webp",
       },
       {
