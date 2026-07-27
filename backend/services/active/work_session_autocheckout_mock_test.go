@@ -95,10 +95,6 @@ func (m *wsMockStaffShiftRepository) RepointDetachedSeriesFrom(context.Context, 
 	return 0, nil
 }
 
-func (m *wsMockStaffShiftRepository) FindDetachedBySeriesFrom(context.Context, int64, timezone.Date) ([]*scheduleModels.StaffShift, error) {
-	return nil, nil
-}
-
 // ============================================================================
 // Helpers
 // ============================================================================

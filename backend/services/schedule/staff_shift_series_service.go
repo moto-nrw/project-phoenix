@@ -54,7 +54,13 @@ type SplitSeriesInput struct {
 	ShiftTypeIDSet bool
 	Notes          *string // nil = keep predecessor notes
 	WeekPattern    *int    // nil = keep predecessor pattern
-	ActorStaffID   int64
+	// ValidUntil (exclusive) ends the successor earlier or later than the
+	// predecessor did. ValidUntilSet distinguishes "run until the period ends"
+	// (true, nil value) from "keep the predecessor's end" (false), so editing
+	// only the weekdays never silently drops a stored end date (#2028).
+	ValidUntil    *timezone.Date
+	ValidUntilSet bool
+	ActorStaffID  int64
 }
 
 // StaffShiftSeriesService manages recurring shift series (#1889). Series
@@ -73,14 +79,9 @@ type StaffShiftSeriesService interface {
 	EndSeries(ctx context.Context, seriesID int64, from timezone.Date) (*SeriesResult, error)
 	// GetSeries returns one series segment (the rule behind a shift), so the
 	// planner can edit weekdays, rhythm, and validity instead of only the
-	// window of a single occurrence (#2028).
+	// window of a single occurrence (#2028). The edit itself goes through
+	// SplitSeries — it applies from the opened occurrence onwards.
 	GetSeries(ctx context.Context, seriesID int64) (*scheduleModels.StaffShiftSeries, error)
-	// UpdateSeries rewrites the rule itself and rebuilds every regenerable
-	// future occurrence ("Alle Termine der Serie", #2028).
-	UpdateSeries(ctx context.Context, input UpdateSeriesInput) (*SeriesResult, error)
-	// SeriesDeviations lists the individually adjusted occurrences a
-	// whole-series edit would overwrite, and those it leaves alone (#2028).
-	SeriesDeviations(ctx context.Context, seriesID int64) (*SeriesDeviations, error)
 }
 
 type staffShiftSeriesService struct {
@@ -382,6 +383,10 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if input.Notes != nil {
 		notes = *input.Notes
 	}
+	validUntil := old.ValidUntil
+	if input.ValidUntilSet {
+		validUntil = input.ValidUntil
+	}
 	successor := &scheduleModels.StaffShiftSeries{
 		StaffID:          old.StaffID,
 		Weekdays:         weekdays,
@@ -393,7 +398,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		CalendarPeriodID: old.CalendarPeriodID,
 		WeekPattern:      weekPattern,
 		ValidFrom:        effective,
-		ValidUntil:       old.ValidUntil,
+		ValidUntil:       validUntil,
 		SeriesRootID:     &rootID,
 		CreatedBy:        input.ActorStaffID,
 	}

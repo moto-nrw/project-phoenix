@@ -1,38 +1,17 @@
 import { apiDelete } from "~/lib/api-helpers.server";
-import { proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-proxy.server";
 import {
   buildQueryString,
   requirePathSegmentParam,
 } from "~/lib/route-wrapper-utils.server";
 import { createDeleteHandler } from "~/lib/route-wrapper.server";
 
-/** Whole-series edit (#2028). Omitted optional fields keep the stored value;
- *  valid_until is presence-aware (null = run until the period ends). */
-interface UpdateSeriesBody {
-  weekdays?: number[];
-  start_time: string;
-  end_time: string;
-  break_minutes: number;
-  shift_type_id: number | null;
-  week_pattern?: number;
-  valid_until?: string | null;
-}
-
 /**
  * GET /api/staff/shifts/series/{seriesId}
  * The stored rule behind a shift (weekdays, rhythm, validity) — what the
- * planner edits when changing all occurrences of a series.
+ * series editor loads before writing the change back through /split.
  */
 export const GET = proxyGet(
-  (p) => `/api/staff-shifts/series/${requirePathSegmentParam(p, "seriesId")}`,
-);
-
-/**
- * PUT /api/staff/shifts/series/{seriesId}
- * "Alle Termine der Serie": rewrites the rule and rebuilds every regenerable
- * future occurrence. Past days, cancellations, and deleted occurrences stay.
- */
-export const PUT = proxyPut<unknown, UpdateSeriesBody>(
   (p) => `/api/staff-shifts/series/${requirePathSegmentParam(p, "seriesId")}`,
 );
 

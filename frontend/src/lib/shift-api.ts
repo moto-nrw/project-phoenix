@@ -100,8 +100,9 @@ interface SeriesPayload {
   validUntil: string | null;
 }
 
-/** Edited fields applied from the effective date on ("Ab jetzt dauerhaft").
- *  Rhythm fields stay with the series — the backend inherits them. */
+/** Edited fields applied from the effective date on ("Ab jetzt dauerhaft" and
+ *  the series editor). Omitted optional fields inherit the predecessor's
+ *  value, so editing only the times never has to re-send the rhythm (#2028). */
 interface SeriesSplitPayload {
   /** "YYYY-MM-DD" */
   effectiveDate: string;
@@ -109,26 +110,18 @@ interface SeriesSplitPayload {
   endTime: string;
   breakMinutes: number;
   shiftTypeId: string | null;
+  /** ISO weekdays; omitted keeps the days the series already runs on. */
+  weekdays?: number[];
+  /** 0 = jede Woche, 1 = Woche A, 2 = Woche B; omitted keeps the rhythm. */
+  weekPattern?: number;
+  /** "YYYY-MM-DD", exclusive. Omitted keeps the stored end, null runs the
+   *  series to the end of the calendar period. */
+  validUntil?: string | null;
 }
 
-/** Whole-series edit ("Alle Termine der Serie", #2028): rewrites the rule in
- *  place and rebuilds every regenerable future occurrence. Omitted optional
- *  fields keep the stored value; validUntil is presence-aware (see
- *  updateSeries). */
-interface SeriesUpdatePayload {
-  weekdays: number[];
-  startTime: string;
-  endTime: string;
-  breakMinutes: number;
-  shiftTypeId: string | null;
-  /** 0 = jede Woche, 1 = Woche A, 2 = Woche B */
-  weekPattern: number;
-  /** "YYYY-MM-DD", exclusive; null = bis Periodenende */
-  validUntil: string | null;
-}
-
-/** The stored rule behind a series shift — what "Alle Termine der Serie"
- *  edits (#2028). */
+/** The stored rule behind a series shift — weekdays, rhythm, window, and
+ *  validity. The series editor loads it and writes changes back through
+ *  splitSeries, so they apply from the opened occurrence onwards (#2028). */
 export interface SeriesRule {
   id: string;
   staffId: string;
@@ -160,40 +153,6 @@ interface BackendSeriesRule {
   valid_until: string | null;
 }
 
-/** One individually adjusted occurrence of a series, keyed by its recurrence
- *  slot. "time_edit" rows are rebuilt by a whole-series edit; "cancelled" and
- *  "removed" survive it. */
-export interface SeriesDeviation {
-  /** "YYYY-MM-DD" */
-  date: string;
-  kind: "time_edit" | "cancelled" | "removed";
-  startTime: string;
-  endTime: string;
-  /** The row no longer sits on its slot (moved to another day or person). */
-  moved: boolean;
-}
-
-export interface SeriesDeviations {
-  /** First day a whole-series edit touches — today and earlier stay. */
-  from: string;
-  overwritten: SeriesDeviation[];
-  preserved: SeriesDeviation[];
-}
-
-interface BackendSeriesDeviation {
-  date: string;
-  kind: string;
-  start_time?: string;
-  end_time?: string;
-  moved?: boolean;
-}
-
-interface BackendSeriesDeviations {
-  from: string;
-  overwritten: BackendSeriesDeviation[] | null;
-  preserved: BackendSeriesDeviation[] | null;
-}
-
 export interface SeriesResult {
   seriesId: string;
   created: number;
@@ -221,22 +180,6 @@ function mapSeriesRule(data: BackendSeriesRule): SeriesRule {
     weekPattern: data.week_pattern,
     validFrom: data.valid_from,
     validUntil: data.valid_until,
-  };
-}
-
-function mapSeriesDeviation(data: BackendSeriesDeviation): SeriesDeviation {
-  return {
-    date: data.date,
-    // Unknown kinds from a newer backend are treated as preserved-by-default
-    // by the caller, which reads the list they arrived in — the label falls
-    // back to the neutral "cancelled" wording rather than crashing.
-    kind:
-      data.kind === "time_edit" || data.kind === "removed"
-        ? data.kind
-        : "cancelled",
-    startTime: data.start_time ?? "",
-    endTime: data.end_time ?? "",
-    moved: data.moved ?? false,
   };
 }
 
@@ -518,6 +461,17 @@ class StaffShiftSeriesService {
             payload.shiftTypeId != null
               ? Number.parseInt(payload.shiftTypeId, 10)
               : null,
+          // Only sent when the caller actually edited the rule: an absent key
+          // means "keep what the series already has" on the backend.
+          ...(payload.weekdays !== undefined
+            ? { weekdays: payload.weekdays }
+            : {}),
+          ...(payload.weekPattern !== undefined
+            ? { week_pattern: payload.weekPattern }
+            : {}),
+          ...(payload.validUntil !== undefined
+            ? { valid_until: payload.validUntil }
+            : {}),
         }),
       },
     );
@@ -533,55 +487,6 @@ class StaffShiftSeriesService {
     }
     const json = (await response.json()) as { data: BackendSeriesRule };
     return mapSeriesRule(json.data);
-  }
-
-  /** What a whole-series edit would do to existing single-day changes —
-   *  shown before the edit is written (#2028). */
-  async getSeriesDeviations(seriesId: string): Promise<SeriesDeviations> {
-    const response = await sessionFetch(
-      `/api/staff/shifts/series/${seriesId}/deviations`,
-    );
-    if (!response.ok) {
-      throw await readShiftError(
-        response,
-        "Einzelanpassungen konnten nicht geladen werden",
-      );
-    }
-    const json = (await response.json()) as { data: BackendSeriesDeviations };
-    return {
-      from: json.data.from,
-      overwritten: (json.data.overwritten ?? []).map(mapSeriesDeviation),
-      preserved: (json.data.preserved ?? []).map(mapSeriesDeviation),
-    };
-  }
-
-  /** "Alle Termine der Serie": rewrites the rule and rebuilds its future
-   *  occurrences. valid_until is always sent (null = bis Periodenende), so
-   *  clearing the end date in the form actually clears it. */
-  async updateSeries(
-    seriesId: string,
-    payload: SeriesUpdatePayload,
-  ): Promise<SeriesResult> {
-    const response = await sessionFetch(
-      `/api/staff/shifts/series/${seriesId}`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weekdays: payload.weekdays,
-          start_time: payload.startTime,
-          end_time: payload.endTime,
-          break_minutes: payload.breakMinutes,
-          shift_type_id:
-            payload.shiftTypeId != null
-              ? Number.parseInt(payload.shiftTypeId, 10)
-              : null,
-          week_pattern: payload.weekPattern,
-          valid_until: payload.validUntil,
-        }),
-      },
-    );
-    return readSeriesResult(response);
   }
 
   async endSeries(seriesId: string, from: string): Promise<void> {

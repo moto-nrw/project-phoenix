@@ -262,30 +262,6 @@ func (r *StaffShiftRepository) RepointDetachedSeriesFrom(ctx context.Context, fr
 	return rows, nil
 }
 
-// FindDetachedBySeriesFrom returns a series' individually adjusted rows from
-// the given recurrence slot onwards (#2028). The slot, not the current date,
-// is the filter — a row moved to another day still belongs to the occurrence
-// it was generated for, exactly as RepointDetachedSeriesFrom treats it.
-func (r *StaffShiftRepository) FindDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) ([]*schedule.StaffShift, error) {
-	var shifts []*schedule.StaffShift
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&shifts).
-		ModelTableExpr(tableExprStaffShiftsAsShift).
-		Where(`"staff_shift".series_id = ?`, seriesID).
-		Where(`"staff_shift".detached = TRUE`).
-		Where(`COALESCE("staff_shift".series_occurrence_date, "staff_shift".date) >= ?`, from).
-		OrderExpr(`COALESCE("staff_shift".series_occurrence_date, "staff_shift".date) ASC`).
-		OrderExpr(`"staff_shift".start_time ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "staff_shift")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find detached staff shifts by series", Err: err}
-	}
-	normalizeShiftWallClock(shifts)
-	return shifts, nil
-}
-
 // DeleteUpcomingByStaffID removes planned shifts from the given date onwards.
 // Past Dienstplan rows stay as history after staff offboarding.
 func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {

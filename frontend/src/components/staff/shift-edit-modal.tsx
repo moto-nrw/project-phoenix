@@ -27,7 +27,6 @@ import {
   ShiftApiError,
   staffShiftService,
   staffShiftSeriesService,
-  type SeriesDeviations,
   type SeriesResult,
   type SeriesRule,
 } from "~/lib/shift-api";
@@ -206,7 +205,6 @@ export function ShiftEditModal({
   // Inclusive "Gültig bis" as shown in the picker; the stored valid_until is
   // exclusive (converted on load and on save).
   const [seriesValidUntil, setSeriesValidUntil] = useState("");
-  const [deviations, setDeviations] = useState<SeriesDeviations | null>(null);
 
   const isSeriesRow = mode === "edit" && shift?.seriesId != null;
 
@@ -229,7 +227,6 @@ export function ShiftEditModal({
     setSeriesRule(null);
     setSeriesRuleError(false);
     setSeriesEditOpen(false);
-    setDeviations(null);
     setChangeReason(shift?.changeReason ?? "");
     setCancelled(shift?.cancelled ?? false);
     // Seed the replacement rows from the covers already attached to this shift
@@ -411,19 +408,17 @@ export function ShiftEditModal({
     );
   };
 
-  /** Opens the "Alle Termine der Serie" editor. keepCurrentTimes carries the
-   *  window the user just typed (entry via Speichern → Scope); the direct
-   *  entry from the series panel starts from the stored rule instead. */
-  const openSeriesEdit = (keepCurrentTimes: boolean) => {
+  /** Opens the series editor: the same shift modal, but editing the rule
+   *  behind the shift (weekdays, rhythm, window, validity) instead of the
+   *  single day. */
+  const openSeriesEdit = () => {
     if (!seriesRule) {
       setError(
         "Die Serie konnte nicht geladen werden. Bitte schließen Sie das Fenster und versuchen Sie es erneut.",
       );
-      setScopeQuestion(null);
       return;
     }
     setError(null);
-    setScopeQuestion(null);
     setSeriesWeekdays([...seriesRule.weekdays].sort((a, b) => a - b));
     setSeriesBiweekly(seriesRule.weekPattern !== 0);
     setSeriesAbPattern(seriesRule.weekPattern === 2 ? 2 : 1);
@@ -431,29 +426,18 @@ export function ShiftEditModal({
     setSeriesValidUntil(
       seriesRule.validUntil ? dayBeforeISO(seriesRule.validUntil) : "",
     );
-    if (!keepCurrentTimes) {
-      setStartTime(seriesRule.startTime);
-      setEndTime(seriesRule.endTime);
-      setBreakMinutesStr(String(seriesRule.breakMinutes));
-      setShiftTypeId(seriesRule.shiftTypeId ?? "");
-    }
+    setStartTime(seriesRule.startTime);
+    setEndTime(seriesRule.endTime);
+    setBreakMinutesStr(String(seriesRule.breakMinutes));
+    setShiftTypeId(seriesRule.shiftTypeId ?? "");
     setSeriesEditOpen(true);
-    setDeviations(null);
-    staffShiftSeriesService
-      .getSeriesDeviations(seriesRule.id)
-      .then(setDeviations)
-      .catch((err: unknown) => {
-        // Advisory only: not knowing about single-day changes must never block
-        // the edit, so the panel simply stays hidden.
-        logger.warn("shift_series_deviations_load_failed", {
-          series_id: seriesRule.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
   };
 
-  const saveWholeSeries = async () => {
-    if (!seriesRule) return;
+  /** Writes the edited rule through the existing split: it takes effect from
+   *  this occurrence onwards, days before it keep the old rule. That is the
+   *  one behaviour a series edit has — no second write path (#2028). */
+  const saveSeriesRule = async () => {
+    if (!seriesRule || !shift) return;
     if (!validateInputs()) return;
     if (seriesWeekdays.length === 0) {
       setError("Bitte mindestens einen Wochentag auswählen.");
@@ -461,12 +445,13 @@ export function ShiftEditModal({
     }
     setIsSaving(true);
     try {
-      const result = await staffShiftSeriesService.updateSeries(seriesRule.id, {
-        weekdays: seriesWeekdays,
+      const result = await staffShiftSeriesService.splitSeries(seriesRule.id, {
+        effectiveDate: shift.date,
         startTime,
         endTime,
         breakMinutes: breakMinutes ?? 0,
         shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
+        weekdays: seriesWeekdays,
         // Guard against a stale A/B choice on a period without a week cycle,
         // same as the create path.
         weekPattern:
@@ -477,7 +462,7 @@ export function ShiftEditModal({
       });
       finishSeriesMutation(result);
     } catch (err: unknown) {
-      logger.error("shift_series_update_failed", {
+      logger.error("shift_series_rule_save_failed", {
         series_id: seriesRule.id,
         error: err instanceof Error ? err.message : String(err),
       });
@@ -744,44 +729,14 @@ export function ShiftEditModal({
     setConfirmDeleteOpen(true);
   };
 
-  /** "Ganze Serie beenden": ends the rule at its own start, so every future
-   *  occurrence goes. The backend clamps the date to tomorrow — days that
-   *  already happened stay in the plan as history. */
-  const endWholeSeries = async () => {
-    if (!shift?.seriesId) return;
-    setIsDeleting(true);
-    try {
-      await staffShiftSeriesService.endSeries(
-        shift.seriesId,
-        seriesRule?.validFrom ?? shift.date,
-      );
-      onSaved();
-      onClose();
-    } catch (err: unknown) {
-      logger.error("shift_series_end_all_failed", {
-        series_id: shift.seriesId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(getShiftMutationErrorMessage(err, "löschen"));
-    } finally {
-      setIsDeleting(false);
-      setScopeQuestion(null);
-    }
-  };
-
   const handleScopeSelect = (value: string) => {
     if (scopeQuestion === "edit") {
       if (value === "single") void saveSingleShift();
-      // "Alle Termine der Serie" does not write straight away: the rule has
-      // fields the occurrence form does not show (Wochentage, Rhythmus,
-      // Gültigkeit), so the editor opens with the typed window carried over.
-      else if (value === "all") openSeriesEdit(true);
       else void splitSeriesFromHere();
       return;
     }
     if (scopeQuestion === "delete") {
       if (value === "single") void deleteSingleShift();
-      else if (value === "all") void endWholeSeries();
       else void endSeriesFromHere();
     }
   };
@@ -812,7 +767,7 @@ export function ShiftEditModal({
         type="button"
         variant="primary"
         size="md"
-        onClick={() => void saveWholeSeries()}
+        onClick={() => void saveSeriesRule()}
         isLoading={isSaving}
         loadingText="Speichern…"
         disabled={
@@ -919,10 +874,10 @@ export function ShiftEditModal({
                     type="button"
                     variant="outline"
                     size="compact"
-                    onClick={() => openSeriesEdit(false)}
+                    onClick={openSeriesEdit}
                     disabled={seriesRule === null || isSaving || isDeleting}
                   >
-                    Ganze Serie bearbeiten
+                    Serie bearbeiten
                   </Button>
                 )}
               </div>
@@ -1004,9 +959,7 @@ export function ShiftEditModal({
             {seriesEditOpen && seriesRule && (
               <div className="space-y-3 rounded-md border border-gray-200 p-3">
                 <p className="text-xs text-gray-600">
-                  Diese Angaben gelten für die ganze Serie. Geplante Termine ab
-                  morgen werden neu aufgebaut; Termine bis heute bleiben
-                  unverändert.
+                  {`Die Änderungen gelten ab ${formatShortDate(date)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
                 </p>
                 <FieldGroup label="Wochentage">
                   <WeekdayPicker
@@ -1033,10 +986,12 @@ export function ShiftEditModal({
                   />
                 </FieldGroup>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Gültig ab">
+                  {/* The date the change takes effect — the occurrence the
+                      planner opened, not the original series start. */}
+                  <Field label="Gilt ab">
                     <input
                       type="text"
-                      value={formatShortDate(seriesRule.validFrom)}
+                      value={formatShortDate(date)}
                       disabled
                       className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
                     />
@@ -1057,9 +1012,6 @@ export function ShiftEditModal({
                     />
                   </FieldGroup>
                 </div>
-                {deviations && (
-                  <SeriesDeviationNotice deviations={deviations} />
-                )}
               </div>
             )}
             {mode === "edit" &&
@@ -1308,14 +1260,6 @@ export function ShiftEditModal({
             description:
               "Die Serie wird ab diesem Datum geteilt und mit den neuen Zeiten fortgeführt.",
           },
-          {
-            value: "all",
-            label: "Alle Termine der Serie",
-            description: seriesRule
-              ? "Öffnet die Serie: Wochentage, Rhythmus und Gültigkeit ändern und alle künftigen Termine neu aufbauen."
-              : "Die Serie konnte nicht geladen werden.",
-            disabled: seriesRule === null,
-          },
         ]}
         onSelect={handleScopeSelect}
         isBusy={isSaving}
@@ -1337,12 +1281,6 @@ export function ShiftEditModal({
             label: "Ab jetzt dauerhaft",
             description:
               "Die Serie endet ab diesem Datum; einzeln angepasste Termine bleiben bestehen.",
-          },
-          {
-            value: "all",
-            label: "Ganze Serie beenden",
-            description:
-              "Alle künftigen Termine der Serie entfallen. Termine bis heute und einzeln angepasste Termine bleiben bestehen.",
           },
         ]}
         onSelect={handleScopeSelect}
@@ -1369,54 +1307,6 @@ function describeSeriesRule(rule: SeriesRule): string {
       : "bis Ende des Kalenderzeitraums",
   );
   return parts.filter(Boolean).join(" · ");
-}
-
-/** The individually adjusted days a whole-series edit affects, split into what
- *  is rebuilt and what survives — shown before saving, not afterwards. */
-function SeriesDeviationNotice({
-  deviations,
-}: {
-  readonly deviations: SeriesDeviations;
-}) {
-  const { overwritten, preserved } = deviations;
-  if (overwritten.length === 0 && preserved.length === 0) return null;
-  return (
-    <div
-      className="space-y-1.5 rounded-md px-3 py-2 text-xs"
-      // Brand orange from LOCATION_COLORS (same tinted-notice pattern as the
-      // Vertretung hint above), not a generic Tailwind amber.
-      style={{
-        backgroundColor: `${LOCATION_COLORS.SCHOOLYARD}14`,
-        color: LOCATION_COLORS.SCHOOLYARD,
-      }}
-    >
-      {overwritten.length > 0 && (
-        <p>
-          <strong>
-            {overwritten.length === 1
-              ? "1 einzeln angepasster Termin"
-              : `${overwritten.length} einzeln angepasste Termine`}
-          </strong>{" "}
-          {overwritten.length === 1 ? "wird" : "werden"} mit den Serienzeiten
-          überschrieben:{" "}
-          {overwritten.map((d) => formatShortDate(d.date)).join(", ")}
-        </p>
-      )}
-      {preserved.length > 0 && (
-        <p>
-          Unverändert bleiben:{" "}
-          {preserved
-            .map(
-              (d) =>
-                `${formatShortDate(d.date)} (${
-                  d.kind === "removed" ? "gelöscht" : "fällt aus"
-                })`,
-            )
-            .join(", ")}
-        </p>
-      )}
-    </div>
-  );
 }
 
 function submitLabel(mode: ShiftEditMode, repeatEnabled: boolean): string {

@@ -133,10 +133,6 @@ func (m *shiftMockRepo) RepointDetachedSeriesFrom(context.Context, int64, int64,
 	return 0, nil
 }
 
-func (m *shiftMockRepo) FindDetachedBySeriesFrom(context.Context, int64, timezone.Date) ([]*scheduleModels.StaffShift, error) {
-	return nil, nil
-}
-
 type shiftMockStaffRepo struct {
 	findByIDFunc func(ctx context.Context, id interface{}) (*usersModels.Staff, error)
 }

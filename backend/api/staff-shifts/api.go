@@ -65,8 +65,6 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/series/{id}", rs.getSeries)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/series/{id}/deviations", rs.seriesDeviations)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}", rs.updateSeries)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}/split", rs.splitSeries)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/series/{id}", rs.endSeries)
 	})
