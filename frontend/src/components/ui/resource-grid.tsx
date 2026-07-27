@@ -90,91 +90,103 @@ export function ResourceGrid<TRow>({
   const columnMinWidth = COLUMN_MIN_WIDTH_CLASS[columnMode];
 
   return (
+    // Radius, Rand und Ausschnitt sitzen auf der Fläche, gescrollt wird im
+    // inneren Container. Sonst zeichnet der Browser die Scrollleiste über die
+    // volle Breite der Box, quer durch die abgerundeten Ecken und über den
+    // unteren Rand hinaus. Der Fokusring wandert per :has() mit nach außen,
+    // weil der Ausschnitt einen Ring am inneren Element abschneiden würde.
+    // overflow-clip beschneidet dabei ohne einen zusätzlichen Scroll-Container
+    // zu erzeugen, damit die sticky Zeilenköpfe am inneren Scroll-Container
+    // ausgerichtet bleiben.
     <div
-      role={ariaLabel ? "region" : undefined}
-      aria-label={ariaLabel}
-      aria-describedby={scrollHintId}
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-        event.preventDefault();
-        event.currentTarget.scrollBy({
-          left: event.key === "ArrowLeft" ? -240 : 240,
-          behavior: "smooth",
-        });
-      }}
-      className={`max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-gray-200 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none ${className ?? ""}`}
+      className={`max-w-full overflow-clip rounded-2xl border border-gray-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-gray-900 ${className ?? ""}`}
     >
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-gray-50 text-left">
-            <th
-              scope="col"
-              className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
-            >
-              {cornerHeader}
-            </th>
-            {columns.map((column) => (
+      <div
+        role={ariaLabel ? "region" : undefined}
+        aria-label={ariaLabel}
+        aria-describedby={scrollHintId}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          event.currentTarget.scrollBy({
+            left: event.key === "ArrowLeft" ? -240 : 240,
+            behavior: "smooth",
+          });
+        }}
+        className="max-w-full overflow-x-auto overscroll-x-contain focus-visible:outline-none"
+      >
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-left">
               <th
-                key={column.key}
                 scope="col"
-                className={`${columnMinWidth} px-2 py-1.5 text-xs font-medium text-gray-500 ${
-                  column.isCurrent ? "bg-gray-100" : ""
-                }`}
+                className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
               >
-                <span className="block">{column.label}</span>
-                {column.sublabel && (
-                  <span className="block font-normal text-gray-400">
-                    {column.sublabel}
-                  </span>
-                )}
+                {cornerHeader}
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            return (
-              <tr key={getRowKey(row)} className="border-t border-gray-100">
+              {columns.map((column) => (
                 <th
-                  scope="row"
-                  className="sticky left-0 z-10 min-w-[180px] bg-white px-2 py-1.5 text-left align-top font-normal"
+                  key={column.key}
+                  scope="col"
+                  className={`${columnMinWidth} px-2 py-1.5 text-xs font-medium text-gray-500 ${
+                    column.isCurrent ? "bg-gray-100" : ""
+                  }`}
                 >
-                  {renderRowHeader(row)}
+                  <span className="block">{column.label}</span>
+                  {column.sublabel && (
+                    <span className="block font-normal text-gray-400">
+                      {column.sublabel}
+                    </span>
+                  )}
                 </th>
-                {columns.map((column) => {
-                  const cell = renderCell(row, column);
-                  const showEmptyButton =
-                    cell == null && emptyCellLabel && onEmptyCellClick;
-                  return (
-                    <td
-                      key={column.key}
-                      className={`border-l border-gray-100 px-1 py-1 align-top ${
-                        column.isCurrent ? "bg-gray-50" : ""
-                      }`}
-                    >
-                      {cell != null ? (
-                        cell
-                      ) : showEmptyButton ? (
-                        <button
-                          type="button"
-                          onClick={() => onEmptyCellClick(row, column)}
-                          aria-label={emptyCellLabel(row, column)}
-                          className="flex min-h-14 w-full items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
-                        >
-                          <Plus className="h-4 w-4" aria-hidden="true" />
-                        </button>
-                      ) : null}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-        {footer && <tfoot>{footer}</tfoot>}
-      </table>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              return (
+                <tr key={getRowKey(row)} className="border-t border-gray-100">
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 min-w-[180px] bg-white px-2 py-1.5 text-left align-top font-normal"
+                  >
+                    {renderRowHeader(row)}
+                  </th>
+                  {columns.map((column) => {
+                    const cell = renderCell(row, column);
+                    const showEmptyButton =
+                      cell == null && emptyCellLabel && onEmptyCellClick;
+                    return (
+                      <td
+                        key={column.key}
+                        className={`border-l border-gray-100 px-1 py-1 align-top ${
+                          column.isCurrent ? "bg-gray-50" : ""
+                        }`}
+                      >
+                        {cell != null ? (
+                          cell
+                        ) : showEmptyButton ? (
+                          <button
+                            type="button"
+                            onClick={() => onEmptyCellClick(row, column)}
+                            aria-label={emptyCellLabel(row, column)}
+                            className="flex min-h-14 w-full items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+                          >
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        ) : null}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+          {footer && <tfoot>{footer}</tfoot>}
+        </table>
+      </div>
     </div>
   );
 }

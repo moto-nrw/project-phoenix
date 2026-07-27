@@ -15,15 +15,27 @@ import (
 // Set on creation by the parent-enrollment flow; transitions are driven by
 // the activate-students scheduler tick (pending→active when enrolled_from
 // arrives, active→inactive when enrolled_until passes). The "alumnus" value
-// is reserved for future graduation/leaver flows — no scheduler logic
-// transitions to it as of PR 2.
+// is set by the grade-transition graduation flow (soft delete): the row is
+// kept so a transition revert can restore the student, but alumni are
+// filtered out of all staff-facing read paths and kiosk check-in.
 type StudentStatus string
 
 const (
 	StudentStatusPending  StudentStatus = "pending"
 	StudentStatusActive   StudentStatus = "active"
 	StudentStatusInactive StudentStatus = "inactive"
+	StudentStatusAlumnus  StudentStatus = "alumnus"
 )
+
+// IsAlumnus reports whether the student is a graduated soft-delete. Nil-safe on
+// purpose: callers hold students out of unfiltered map lookups (FindByIDs) where
+// a missing row is a legitimate nil, and a nil row is not an alumnus — the
+// caller's own not-found handling decides what to do with it. Shared so the
+// staff-facing gates (review queues, request decisions, roster writes) all spell
+// the check the same way (#405).
+func (s *Student) IsAlumnus() bool {
+	return s != nil && s.Status == StudentStatusAlumnus
+}
 
 // MaxDepartureCompanionNoteLen caps the free-text "mit wem" companion note for
 // the accompanied departure mode (#1694). The column is TEXT; this bound keeps

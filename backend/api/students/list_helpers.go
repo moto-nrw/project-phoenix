@@ -166,6 +166,9 @@ func parseDayStatusParam(value string) string {
 // search still belongs in the broader `search` parameter.
 func (p *studentListParams) buildBaseFilter() *base.Filter {
 	filter := base.NewFilter()
+	// Alumni (graduated via grade transition, soft-deleted) are invisible to
+	// every staff list and export.
+	filter.NotIn("status", string(users.StudentStatusAlumnus))
 	if schoolClass := strings.TrimSpace(p.schoolClass); schoolClass != "" {
 		filter.TrimEqual("school_class", schoolClass)
 	}

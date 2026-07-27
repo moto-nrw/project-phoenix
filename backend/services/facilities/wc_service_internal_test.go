@@ -34,6 +34,7 @@ func setupWCServiceInternal(t *testing.T, db *bun.DB) *wcService {
 		repoFactory.StudentEnrollment,
 		repoFactory.ActiveGroup,
 		repoFactory.Staff,
+		repoFactory.Student,
 	)
 	require.NoError(t, err)
 
@@ -155,6 +156,7 @@ func TestWCService_EnsureInfrastructure_PropagatesRoomErrors(t *testing.T) {
 		repositories.NewFactory(db).StudentEnrollment,
 		repositories.NewFactory(db).ActiveGroup,
 		repositories.NewFactory(db).Staff,
+		repositories.NewFactory(db).Student,
 	)
 	require.NoError(t, err)
 

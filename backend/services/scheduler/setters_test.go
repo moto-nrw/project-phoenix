@@ -211,6 +211,14 @@ func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*sch
 func (f *fakeInstanceRepo) FindByIDs(_ context.Context, _ []int64) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+
+func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
+
+func (f *fakeInstanceRepo) MaxID(_ context.Context) (int64, error) {
+	return 0, nil
+}
 func (f *fakeInstanceRepo) MarkCompleted(_ context.Context, _ int64, _ time.Time) error {
 	return nil
 }

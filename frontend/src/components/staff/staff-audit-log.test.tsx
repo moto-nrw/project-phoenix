@@ -9,7 +9,16 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuditLogEvent, AuditLogPage } from "~/lib/staff-audit-log-api";
+import { isoDatePickerMock } from "~/test/mocks/date-picker";
 import { StaffAuditLog } from "./staff-audit-log";
+
+// The Von/Bis filters are kit date pickers, not native inputs. These tests are
+// about the audit log's own behaviour (stale-response handling, name
+// resolution), so the stub keeps them setting a date with fireEvent.change.
+vi.mock("~/components/ui/date-picker", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...isoDatePickerMock(),
+}));
 
 const getAuditLog = vi.hoisted(() => vi.fn());
 

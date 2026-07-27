@@ -94,6 +94,14 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 
 	resp, changeErr := rs.applySchoolCheckinAction(r.Context(), student, staffID, req.Action, current)
 	if changeErr != nil {
+		// A graduated (alumnus) student — reached via CheckInStudent's
+		// ensureStudentCheckinAllowed guard on a stale request or graduation
+		// race — is treated like an unknown/absent student (404), matching the
+		// IoT and timetable mappers rather than surfacing a 500 (#405).
+		if errors.Is(changeErr, activeService.ErrStudentGraduated) {
+			common.RenderError(w, r, common.ErrorNotFound(changeErr))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(changeErr))
 		return
 	}

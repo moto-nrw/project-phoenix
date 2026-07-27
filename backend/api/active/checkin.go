@@ -218,6 +218,15 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 		if errors.Is(createErr, activeService.ErrStudentAlreadyActive) {
 			return nil, &checkinError{http.StatusConflict, "Student already has an active visit"}
 		}
+		// A graduated (alumnus) student — CreateVisit's ensureStudentCheckinAllowed
+		// guard, reached from a stale page or when a graduation commits between
+		// this request's student lookup and the visit write — is treated like an
+		// unknown student (404), the same mapping errorRules, the IoT checkin
+		// mapper and the school-checkin handler use. Without it the row-lock race
+		// this guard exists to win surfaces as a 500 (#405).
+		if errors.Is(createErr, activeService.ErrStudentGraduated) {
+			return nil, &checkinError{http.StatusNotFound, "Student not found"}
+		}
 		rs.getLogger().ErrorContext(ctx, "failed to create visit during check-in",
 			slog.Int64("student_id", checkinCtx.studentID),
 			slog.Int64("active_group_id", checkinCtx.request.ActiveGroupID),

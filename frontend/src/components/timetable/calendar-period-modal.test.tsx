@@ -10,6 +10,15 @@ const { mockToastSuccess, mockToastError, mockCreate, mockUpdate, mockDelete } =
     mockDelete: vi.fn(),
   }));
 
+// The date fields moved from native inputs to the kit picker; this stub keeps
+// them settable via fireEvent.change and forwards min/max so the bound
+// assertions below still pin what the component computes. Imported inside the
+// factory because vi.mock is hoisted above the imports.
+vi.mock("~/components/ui/date-picker", async (importOriginal) => {
+  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
+  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+});
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));

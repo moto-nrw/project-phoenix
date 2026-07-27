@@ -7,11 +7,13 @@ vi.mock("react-day-picker", () => ({
   DayPicker: ({
     selected,
     onSelect,
+    required,
   }: {
     selected?: Date | Date[];
     onSelect: (date: Date | undefined) => void;
+    required?: boolean;
   }) => (
-    <div data-testid="day-picker">
+    <div data-testid="day-picker" data-required={required}>
       <button
         type="button"
         onClick={() => onSelect(new Date("2024-01-15T00:00:00Z"))}
@@ -229,6 +231,22 @@ describe("DatePicker", () => {
     expect(clearButton).not.toBeInTheDocument();
   });
 
+  it("keeps required dates non-clearable", () => {
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(<DatePicker value={testDate} onChange={mockOnChange} required />);
+
+    expect(
+      screen.queryByRole("button", { name: /datum löschen/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-required",
+      "true",
+    );
+  });
+
   it("clears date when clear button is clicked", () => {
     const testDate = new Date("2024-01-15T00:00:00Z");
     render(<DatePicker value={testDate} onChange={mockOnChange} />);
@@ -336,6 +354,19 @@ describe("DatePicker", () => {
     });
   });
 
+  it("closes an open calendar when the picker becomes disabled", async () => {
+    const { rerender } = render(
+      <DatePicker value={null} onChange={mockOnChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+
+    rerender(<DatePicker value={null} onChange={mockOnChange} disabled />);
+
+    expect(screen.queryByTestId("day-picker")).not.toBeInTheDocument();
+  });
+
   it("changes text color when date is selected", () => {
     const testDate = new Date("2024-01-15T00:00:00Z");
     const { rerender } = render(
@@ -393,6 +424,64 @@ describe("DatePicker", () => {
     // frame; this pins the resulting placement.
     const portal = screen.getByTestId("day-picker").closest(".fixed");
     expect(portal).toHaveStyle({ top: "244px", left: "120px" });
+    expect(portal).toHaveClass("max-h-[calc(100dvh-1rem)]", "overflow-y-auto");
+  });
+
+  it("keeps the calendar open while its short-viewport panel scrolls", () => {
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="popover"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    const panel = screen.getByTestId("day-picker").closest(".fixed")!;
+    fireEvent.scroll(panel);
+
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+  });
+
+  it("portals the calendar into the surrounding modal focus scope", () => {
+    render(
+      <div data-modal-focus-scope="true">
+        <DatePicker
+          value={null}
+          onChange={mockOnChange}
+          calendarLayout="popover"
+        />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("day-picker").closest("[data-modal-focus-scope]"),
+    ).not.toBeNull();
+  });
+
+  it("keeps month menus inside the calendar panel", () => {
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(
+      <DatePicker
+        value={testDate}
+        onChange={mockOnChange}
+        calendarLayout="popover"
+        monthYearNavigation
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Monat" }));
+
+    expect(screen.getByRole("listbox", { name: "Monat" })).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("listbox", { name: "Monat" })
+        .closest("[data-date-picker-panel]"),
+    ).not.toBeNull();
   });
 
   it("does not close calendar when clicking inside the calendar container", async () => {

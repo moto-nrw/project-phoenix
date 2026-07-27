@@ -158,6 +158,71 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 	return instances, nil
 }
 
+// FindPlannedTemplateBackedFrom returns planned instances dated on or after
+// `from` for the current tenant that were MATERIALIZED from a template. Feeds
+// the grade-transition revert reconciliation (re-adding restored students the
+// materializer skipped).
+//
+// "Materialized" is narrower than "has an activity_group_id". A planner can
+// create a one-off block by hand and link it to a template for its metadata
+// (CreateInstanceInput.ActivityGroupID); its roster is then whatever student
+// IDs that person submitted, NOT a copy of the template's enrollments. Filling
+// such an instance from enrollments would add children the planner never put
+// there. Only the materializer writes calendar_period_id together with
+// is_spontaneous = false — the manual create path leaves the period NULL — so
+// that pair is the marker for "this roster came from enrollments" (#405
+// review).
+//
+// The date bound is inclusive so an instance materialized during the alumnus
+// window and dated today is reconciled too: it carries no archive row (the
+// materializer never created the alumnus's row), so nothing else can repair it
+// afterwards. Instances that already started or finished today drop out via the
+// planned-status filter (#405 review).
+func (r *ActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*schedule.ActivityInstance, error) {
+	var instances []*schedule.ActivityInstance
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&instances).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".date >= ?`, from).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".activity_group_id IS NOT NULL`).
+		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
+		Where(`"activity_instance".is_spontaneous = FALSE`).
+		Order("date ASC", "start_time ASC")
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find planned template-backed instances from date",
+			Err: err,
+		}
+	}
+	return instances, nil
+}
+
+// MaxID returns the highest instance id visible to the current tenant, or 0 if
+// the tenant has none. See the interface doc for why the grade transition uses
+// an id high-water mark instead of created_at (#405 review).
+func (r *ActivityInstanceRepository) MaxID(ctx context.Context) (int64, error) {
+	var maxID sql.NullInt64
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		ColumnExpr(`MAX("activity_instance".id)`)
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	if err := query.Scan(ctx, &maxID); err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get max activity instance id",
+			Err: err,
+		}
+	}
+	return maxID.Int64, nil
+}
+
 // FindByTenantAndDateRange returns instances within an inclusive date range.
 func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance

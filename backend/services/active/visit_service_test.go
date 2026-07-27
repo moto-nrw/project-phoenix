@@ -661,3 +661,52 @@ func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
 		_ = err
 	})
 }
+
+// TestActiveService_CheckIn_RejectsAlumnus covers the #405 P1 write-path guard:
+// a graduated (alumnus) student must be rejected at the check-in write path
+// even if they reached it — the atomic backstop (FOR UPDATE lock + status
+// recheck) that closes the race against a concurrent grade-transition apply.
+// Covers both the visit path (detailed mode) and the attendance path.
+func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "alumnus-checkin")
+	room := testpkg.CreateTestRoom(t, db, "Alumnus Checkin Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Graduated", "Kid", "4a")
+	staff := testpkg.CreateTestStaff(t, db, "Check", "In")
+	iotDevice := testpkg.CreateTestDevice(t, db, "alumnus-checkin-device")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID)
+
+	// Graduate the student (soft delete) the same way the grade-transition flow does.
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("status = ?", "alumnus").
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+
+	t.Run("CreateVisit rejects alumnus", func(t *testing.T) {
+		visit := &activeModels.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: activeGroup.ID,
+			EntryTime:     time.Now(),
+		}
+		err := service.CreateVisit(deviceCtx, visit)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, active.ErrStudentGraduated)
+	})
+
+	t.Run("CheckInStudent rejects alumnus", func(t *testing.T) {
+		_, err := service.CheckInStudent(deviceCtx, student.ID, staff.ID, iotDevice.ID, true)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, active.ErrStudentGraduated)
+	})
+}

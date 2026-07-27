@@ -235,6 +235,14 @@ func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) err
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, timezone.Date, time.Time) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) RestoreArchivedByTransition(context.Context, int64, []int64, timezone.Date) (int, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) UpdateAttendanceFields(context.Context, int64, scheduleModel.AttendanceFieldPatch) error {
 	panic("unused")
 }
@@ -885,4 +893,12 @@ func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.Activit
 
 func (f *fakeInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
+}
+
+func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
+
+func (f *fakeInstanceRepo) MaxID(context.Context) (int64, error) {
+	return 0, nil
 }

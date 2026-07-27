@@ -36,6 +36,37 @@ import (
 // separate Unlock method to forget.
 const studentPhotoFeatureLockClass int32 = 0x70686F74
 
+// studentClassWritesLockClass is the pg_advisory_xact_lock class id ("clas" in
+// ASCII) that serializes a grade transition apply/revert against every write
+// which could put a child INTO one of the classes it is transitioning.
+//
+// Row locks cannot express that: a student created in a mapped class — or moved
+// in from an unmapped one — has no row the transition could have locked. The
+// apply's post-lock re-read (services/education.ensureNoLateArrivals) therefore
+// only sees arrivals that COMMITTED before it ran; one committing after that
+// statement but before the apply commits was silently left behind in a class the
+// transition had just emptied, while the transition reported success and wrote
+// no history row a revert could undo it with (#405 review).
+//
+// Writers take the gate SHARED — shared holders never conflict with each other,
+// so the normal path costs one in-memory advisory-lock round-trip and never
+// blocks. Apply/revert take it EXCLUSIVE for their whole transaction, which is
+// the only time a writer waits. Both forms are transaction-scoped: they release
+// at COMMIT/ROLLBACK (no Unlock to forget), and re-acquiring a lock the same
+// transaction already holds never waits — the transition's own student reads and
+// writes below pass straight through its exclusive hold.
+//
+// LOCK ORDER (must stay acyclic):
+//
+//  1. this gate, BEFORE the tenant recurrence gate and the grade-transition gate
+//     (services/education.lockRecurrenceThenTransitions takes all three in that
+//     order), and
+//  2. BEFORE any users.students row lock — every acquisition below sits in front
+//     of the row lock taken by the same method, so no transaction can hold a
+//     student row and then queue for the gate while the gate holder waits for
+//     that row.
+const studentClassWritesLockClass int32 = 0x636C6173
+
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
 	tableUsersStudents              = "users.students"
@@ -169,13 +200,15 @@ func (r *StudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64)
 	return result, nil
 }
 
-// FindByGroupID retrieves students by their group ID
+// FindByGroupID retrieves students by their group ID. Alumni (graduated,
+// soft-deleted) are excluded — their rows only exist for transition reverts.
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id = ?", groupID)
+		Where("group_id = ?", groupID).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -205,7 +238,8 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id IN (?)", bun.List(groupIDs))
+		Where("group_id IN (?)", bun.List(groupIDs)).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -225,13 +259,18 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	return students, nil
 }
 
-// FindBySchoolClass retrieves students by their school class
+// FindBySchoolClass retrieves students by their school class. Alumni
+// (graduated, soft-deleted) are excluded — staff-facing callers (arrival-plan
+// bulk upsert, enrollment reports, calendar targeting) must never write to or
+// count a graduate. Their rows survive only for transition reverts, which use
+// the education repository's by-ID paths, not this lookup.
 func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass)
+		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -331,6 +370,7 @@ func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, er
 		TableExpr(`users.students AS "student"`).
 		ColumnExpr(`DISTINCT TRIM("student".school_class)`).
 		Where(`TRIM("student".school_class) != ''`).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
 		OrderExpr(`TRIM("student".school_class) ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "student")
@@ -351,6 +391,13 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 		return fmt.Errorf("student cannot be nil")
 	}
 
+	// A brand-new row is exactly the arrival a grade transition cannot row-lock
+	// against; the shared gate makes the insert wait out a running apply/revert
+	// instead of landing in a class it has already emptied (#405 review).
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return err
+	}
+
 	// Validate student
 	if err := student.Validate(); err != nil {
 		return err
@@ -366,6 +413,15 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 func (r *StudentRepository) Update(ctx context.Context, student *users.Student) error {
 	if student == nil {
 		return fmt.Errorf("student cannot be nil")
+	}
+
+	// A full-row update rewrites school_class, so it can move a child into a
+	// class a concurrent grade transition is mid-way through emptying. Take the
+	// shared gate FIRST — before the row lock below and before any row lock the
+	// caller took through FindByIDForUpdate, which takes the same gate — so the
+	// acquisition order is gate-then-rows everywhere (#405 review).
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return err
 	}
 
 	// Take the subject's row lock BEFORE reading its stored departure plan or its
@@ -1082,6 +1138,14 @@ func (r *StudentRepository) List(ctx context.Context, filters map[string]interfa
 		}
 	}
 
+	// Exclude soft-deleted alumni by default so unscoped reads (e.g. database
+	// statistics counting Student.List(ctx, nil)) never count graduates. A
+	// caller that filters on status explicitly (pending / active / alumnus) is
+	// respected and gets exactly what it asked for.
+	if _, ok := filters["status"]; !ok {
+		filter.NotIn("status", string(users.StudentStatusAlumnus))
+	}
+
 	options.Filter = filter
 	return r.ListWithOptions(ctx, options)
 }
@@ -1156,6 +1220,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 		ColumnExpr(`"student".group_id`).
 		ColumnExpr("COUNT(*) AS count").
 		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
 		GroupExpr(`"student".group_id`)
 
 	query = base.WithTenantFilter(ctx, query, "student")
@@ -1249,6 +1314,14 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`)
 
 	query = base.WithTenantFilter(ctx, query, "student")
+
+	// Alumni (graduated students) are soft-deleted and must be invisible to
+	// every staff-facing and kiosk roster. This shared builder backs
+	// FindAllWithGroups and FindByTeacherIDWithGroups, which feed the IoT
+	// student roster (GET /api/iot/students) and the calendar student picker;
+	// without this filter graduates stayed visible on the tablet teacher list
+	// and bracelet-assignment despite the documented promise (#405).
+	query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	return query
 }
@@ -1488,6 +1561,52 @@ func (r *StudentRepository) LockPhotoFeature(ctx context.Context) error {
 	return nil
 }
 
+// LockStudentClassWrites takes the EXCLUSIVE per-tenant class-writes gate, so
+// no student can be created in — or moved into — a class while the caller runs.
+// Only the grade transition apply/revert takes it; every ordinary student write
+// takes the shared form (see studentClassWritesLockClass for the race, the lock
+// order, and why row locks cannot cover it).
+//
+// Transaction-scoped: releases at COMMIT/ROLLBACK, so the caller must already be
+// inside the tenant transaction.
+func (r *StudentRepository) LockStudentClassWrites(ctx context.Context) error {
+	return r.lockClassWrites(ctx, false)
+}
+
+// lockClassWritesShared takes the SHARED per-tenant class-writes gate. Called at
+// the top of every repository method that inserts a student, updates one, or
+// takes a student row lock the caller will update under — always BEFORE that
+// method's own row lock, which is what keeps the acquisition order acyclic.
+func (r *StudentRepository) lockClassWritesShared(ctx context.Context) error {
+	return r.lockClassWrites(ctx, true)
+}
+
+func (r *StudentRepository) lockClassWrites(ctx context.Context, shared bool) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		// No tenant in context: the CLI / migration / seeding paths that run
+		// outside the tenant transaction as superuser. There is no per-tenant
+		// gate to take there, and a grade transition (a tenant-scoped HTTP
+		// request) can never be one of those callers.
+		return nil
+	}
+	if tenantID > 0x7fffffff {
+		return fmt.Errorf("lockClassWrites: tenant_id %d exceeds advisory-lock obj id range", tenantID)
+	}
+
+	lockFn, op := "pg_advisory_xact_lock", "lock_student_class_writes"
+	if shared {
+		lockFn, op = "pg_advisory_xact_lock_shared", "lock_student_class_writes_shared"
+	}
+
+	if _, err := base.GetDB(ctx, r.db).
+		NewRaw("SELECT "+lockFn+"(?, ?)", studentClassWritesLockClass, int32(tenantID)).
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: op, Err: err}
+	}
+	return nil
+}
+
 // FindByIDForUpdate fetches a student row with a SELECT … FOR UPDATE so
 // the caller can re-validate state (consent, photo_path, …) under the
 // same row lock the subsequent UPDATE will use. Used by the photo upload
@@ -1519,6 +1638,16 @@ func (r *StudentRepository) FindByIDForUpdateNoWait(ctx context.Context, id int6
 }
 
 func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noWait bool) (*users.Student, error) {
+	// Callers of this method lock the row in order to update it, so the gate has
+	// to be taken here rather than only in Update — otherwise such a caller would
+	// hold a student row and THEN queue behind a grade transition that is waiting
+	// for exactly that row. noWait keeps its meaning for the ROW lock (55P03
+	// instead of waiting, which is what the companion lock protocol relies on);
+	// the gate itself is uncontended except while an apply/revert runs.
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return nil, err
+	}
+
 	lockClause := "UPDATE"
 	op := "find_by_id_for_update"
 	if noWait {
@@ -1763,6 +1892,12 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 }
 
 // FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+//
+// Alumni are excluded, matching the soft-delete default in List: graduation
+// keeps the student row around, and a graduate must not block the import of a
+// new child who happens to share their name and class. Before graduation became
+// a soft delete the row was gone and could not collide; leaving it visible here
+// would reject that import as already_exists (#405 review).
 func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -1771,7 +1906,8 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`LOWER("person".first_name) = LOWER(?)`, firstName).
 		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
-		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass)
+		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -1813,6 +1949,15 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 // TransitionStatus changes a student's lifecycle status only when the stored
 // status still matches expected. It returns false without error when another
 // writer changed or removed the row after the caller selected it.
+//
+// Background lifecycle work (the activate-students tick) selects due rows, then
+// updates them one by one. An unconditional update by id resurrects a student
+// whose status changed in that window: a grade transition graduating the child
+// commits `alumnus`, the pending update waits on the same row lock, and then
+// replaces it with `active` or `inactive` — putting a departed child back into
+// every staff list, roster and export, past all the alumnus read filters and
+// without any of apply's guards. Comparing against the status the caller
+// actually saw makes that update a no-op instead (#405 review).
 func (r *StudentRepository) TransitionStatus(
 	ctx context.Context,
 	studentID int64,

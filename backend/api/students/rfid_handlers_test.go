@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	iotModel "github.com/moto-nrw/project-phoenix/models/iot"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -229,5 +230,50 @@ func TestRFIDTagValidation(t *testing.T) {
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "at most 64 characters")
+	})
+}
+
+// TestRFIDTagRoutes_GraduatedStudent covers the P1 fix (#405 review): the shared
+// alumnus gate 404s every per-student route, which for a graduate still holding
+// a bracelet created a tag the kiosk could see but never release. Releasing must
+// therefore work on an alumnus, while assigning a NEW tag to a soft-deleted
+// child stays blocked.
+func TestRFIDTagRoutes_GraduatedStudent(t *testing.T) {
+	tc := setupTestContext(t)
+
+	device := testpkg.CreateTestDevice(t, tc.db, "rfid-alumnus")
+	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Graduated", "RG1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
+
+	// Assign while the child is still enrolled, then graduate them.
+	tagID := fmt.Sprintf("%016X", time.Now().UnixNano())
+	assignReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/rfid", student.ID),
+		map[string]interface{}{"rfid_tag": tagID})
+	require.Equal(t, http.StatusOK, deviceExec(t, tc, assignReq, device).Code)
+
+	_, err := tc.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+		Where("id = ?", student.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	t.Run("rejects_assigning_a_new_tag", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/rfid", student.ID),
+			map[string]interface{}{"rfid_tag": fmt.Sprintf("%016X", time.Now().UnixNano())})
+
+		rr := deviceExec(t, tc, req, device)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code,
+			"a soft-deleted child must not be given a bracelet. Body: %s", rr.Body.String())
+	})
+
+	t.Run("releases_the_tag_they_still_hold", func(t *testing.T) {
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/rfid", student.ID), nil)
+
+		rr := deviceExec(t, tc, req, device)
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "unassigned successfully")
 	})
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -274,6 +275,46 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, r3.InstancesCreated)
 	assert.Equal(t, 1, r3.CandidatesSkippedExisting)
+}
+
+// TestMaterializeForTenant_ExcludesGraduatedStudents covers the #405 fix:
+// a graduated (alumnus) student's enrollment row survives for transition
+// reverts, but future materialization must never copy them into a new
+// instance_students row — otherwise upcoming cards, staffing ratios and
+// slot-list exports keep counting a departed child.
+func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
+	materializeDate := timezone.NewDate(2026, time.April, 20) // Mon
+	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	defer s.runCleanup(t)
+
+	// Graduate one of the two students with a valid enrollment. Their enrollment
+	// row is intentionally left in place (soft delete).
+	_, err := s.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Where("id = ?", s.students[0]).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Equal(t, 1, r.InstancesCreated)
+	assert.Equal(t, 1, r.InstanceStudentsCreated,
+		"only the non-graduated student is materialized; the alumnus enrollment is skipped")
+
+	instanceRows := listInstancesForDate(t, s.db, s.template.ID, materializeDate)
+	require.Len(t, instanceRows, 1)
+	s.registerCleanup("schedule.activity_instances", instanceRows[0].ID)
+
+	// The graduated student must not appear in instance_students.
+	count, err := s.db.NewSelect().
+		TableExpr(`schedule.instance_students`).
+		Where("instance_id = ?", instanceRows[0].ID).
+		Where("student_id = ?", s.students[0]).
+		Count(s.ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count, "graduated student must not be copied into instance_students")
 }
 
 func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {

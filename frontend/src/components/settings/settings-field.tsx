@@ -1388,8 +1388,10 @@ function renderField(
         <DateField
           ariaLabel={setting.label}
           value={toStr(localValue)}
-          onChange={onLocalChange}
-          onBlur={onBlur}
+          // A picked calendar day is a finished value, so it saves right away
+          // like boolean and select do. The debounce-plus-blur pair only exists
+          // for fields you type into character by character.
+          onChange={(next) => void onImmediateSave(next)}
           disabled={disabled}
           emptyLabel={setting.default === "" ? "Kein Datum" : undefined}
         />

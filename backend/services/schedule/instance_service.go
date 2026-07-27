@@ -823,7 +823,19 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 	if tenantID <= 0 {
 		return nil, &ScheduleError{Op: "create instance", Err: errors.New("no tenant in context")}
 	}
-	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, req.CreatedByStaffID); err != nil {
+	if !s.hasTx(ctx) {
+		var created *scheduleModel.ActivityInstance
+		err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			var err error
+			created, err = s.Create(txCtx, req)
+			return err
+		})
+		return created, err
+	}
+	if err := s.lockRecurrenceThenGradeTransitions(ctx, "create instance"); err != nil {
+		return nil, err
+	}
+	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, req.CreatedByStaffID); err != nil {
 		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
 	}
 
@@ -899,6 +911,24 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 }
 
 func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput, actorAccountID *int64) (*scheduleModel.ActivityInstance, error) {
+	if !s.hasTx(ctx) {
+		var updated *scheduleModel.ActivityInstance
+		err := tenant.WithTenantTx(ctx, s.deps.DB, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+			var err error
+			updated, err = s.UpdatePlanned(txCtx, instanceID, req, actorAccountID)
+			return err
+		})
+		return updated, err
+	}
+
+	// Both tenant gates BEFORE the day locks below: this edit rewrites the
+	// block's roster, so it must not interleave with a grade transition's
+	// graduation + roster-archive pass, and the recurrence-gate-first order is
+	// what keeps that acquisition acyclic against the day locks (see the helper).
+	if err := s.lockRecurrenceThenGradeTransitions(ctx, "update instance"); err != nil {
+		return nil, err
+	}
+
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -939,7 +969,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
 
-	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
+	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
 		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
 	}
 
@@ -1287,8 +1317,54 @@ func (s *instanceService) ensureCancelledSlotException(ctx context.Context, acti
 	return nil
 }
 
+// hasTx reports whether the caller already runs inside the tenant transaction
+// the advisory gates need. False for direct service calls outside
+// TenantTxMiddleware (CLI, tests), which then get their own transaction.
+func (s *instanceService) hasTx(ctx context.Context) bool {
+	if s.deps.DB == nil {
+		return true // no DB wired (unit tests): nothing to lock, nothing to wrap
+	}
+	_, ok := modelBase.TxFromContext(ctx)
+	return ok
+}
+
+// lockRecurrenceThenGradeTransitions takes the two tenant-wide gates that every
+// writer of recurrence-derived roster state holds, in the project-wide order:
+// recurrence FIRST, grade transitions second (see
+// education.TenantTransitionsLockKey).
+//
+// The transitions gate is what makes the manual planner writes safe against a
+// concurrent graduation. Create and UpdatePlanned insert instance_students rows
+// from a student set the request validated; a grade transition committing its
+// graduation and its roster-archive pass in between would leave the departed
+// child back on an upcoming roster with nothing left to remove them — the same
+// race materialization already closes this way (#405 review).
+//
+// Taking the recurrence gate up front also keeps the acquisition order acyclic
+// against the per-day substitute locks: every path that holds BOTH a tenant gate
+// and a day lock (re-plan, and these two) takes the recurrence gate first, while
+// the day-lock-only paths (/deviations, /substitute, move-staff) never wait on a
+// gate at all.
+func (s *instanceService) lockRecurrenceThenGradeTransitions(ctx context.Context, op string) error {
+	if s.deps.DB == nil {
+		return nil
+	}
+	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
+		return &ScheduleError{Op: op + ": lock recurrence", Err: err}
+	}
+	if err := lockTenantGradeTransitions(ctx, s.deps.DB); err != nil {
+		return &ScheduleError{Op: op + ": lock grade transitions", Err: err}
+	}
+	return nil
+}
+
+// validateInstanceReferences checks every FK the caller supplied against the
+// current tenant. `date` is the date the instance's rows will LIVE on (the
+// request's date, i.e. the target date of a move), because it decides whether a
+// graduated student is still rejected — see the alumnus gate below.
 func (s *instanceService) validateInstanceReferences(
 	ctx context.Context,
+	date timezone.Date,
 	roomID int64,
 	activityGroupID *int64,
 	staffIDs []int64,
@@ -1350,6 +1426,27 @@ func (s *instanceService) validateInstanceReferences(
 		}
 		if len(found) != len(uniqueStudentIDs) {
 			return fmt.Errorf("%w: invalid student_ids", ErrInvalidInstanceReference)
+		}
+		// A graduated (alumnus) student is soft-deleted, and FindByIDs is
+		// unfiltered. Materialization already refuses to copy them onto new
+		// rosters, but these MANUAL paths write instance_students directly: a
+		// planner form opened before the graduation and saved afterwards — or any
+		// direct request carrying the id — would recreate exactly the roster rows
+		// apply archived, and slot lists, staffing ratios and exports would count
+		// the departed child again. The caller holds the grade-transition gate, so
+		// this status cannot flip under us (#405 review).
+		//
+		// The gate stops at the same boundary the graduation's archive pass uses
+		// (RemoveStudentsFromFutureRosters: today or later). A past-dated roster is
+		// frozen history — the archive left the graduate's row there and the roster
+		// READ still shows them — so rejecting the write would make such a block
+		// uneditable for good, not protect anything.
+		if !date.Before(timezone.TodayDate()) {
+			for _, id := range uniqueStudentIDs {
+				if found[id].IsAlumnus() {
+					return fmt.Errorf("%w: graduated student in student_ids", ErrInvalidInstanceReference)
+				}
+			}
 		}
 	}
 

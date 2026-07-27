@@ -6,6 +6,19 @@ import "@testing-library/jest-dom/vitest";
 // Mocks
 // ============================================================================
 
+// The date and datetime fields moved from native inputs to the kit pickers;
+// these stubs keep them settable via fireEvent.change. Imported inside the
+// factories because vi.mock is hoisted above the imports.
+vi.mock("~/components/ui/date-picker", async (importOriginal) => {
+  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
+  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+});
+
+vi.mock("~/components/ui/date-time-picker", async (importOriginal) => {
+  const { dateTimePickerMock } = await import("~/test/mocks/date-time-picker");
+  return { ...(await importOriginal<object>()), ...dateTimePickerMock() };
+});
+
 const { mockCreateRollover } = vi.hoisted(() => ({
   mockCreateRollover: vi.fn(),
 }));
@@ -202,6 +215,56 @@ describe("RolloverForm", () => {
       expect(screen.getByText("nichts zu übernehmen")).toBeInTheDocument();
     });
     expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("does not submit without the required service dates", async () => {
+    render(
+      <RolloverForm
+        source={makeSourcePhase()}
+        onCancel={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Betreuung von/), {
+      target: { value: "" },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: /Anschlussphase erstellen/ }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(mockCreateRollover).not.toHaveBeenCalled();
+  });
+
+  it("does not submit without the required response deadline", async () => {
+    render(
+      <RolloverForm
+        source={makeSourcePhase()}
+        onCancel={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Frist für die Eltern-Antwort/), {
+      target: { value: "" },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: /Anschlussphase erstellen/ }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Bitte eine Frist für die Eltern-Antwort angeben."),
+      ).toBeInTheDocument();
+    });
+    expect(mockCreateRollover).not.toHaveBeenCalled();
   });
 
   it("calls onCancel when the cancel button is clicked", () => {

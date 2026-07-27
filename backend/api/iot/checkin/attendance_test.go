@@ -1086,3 +1086,40 @@ func TestToggleAttendance_NormalToggle_CheckoutEndsOpenVisit(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, endedVisit.ExitTime, "toggle checkout must end the open room visit (issue #895)")
 }
+
+// TestToggleAttendance_AlumnusRejected: a graduated (alumnus) student's RFID
+// card must not check in anymore. The scan resolves person→student, but the
+// alumnus status makes the student invisible to the kiosk — same wire error
+// as "person is not a student" so PyrePortal needs no new mapping.
+func TestToggleAttendance_AlumnusRejected(t *testing.T) {
+	ctx := setupAttendanceTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-alumnus-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Former", "Alumnus", "4z")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_ALUM001")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	_, err := ctx.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Where("id = ?", student.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Mount("/", ctx.resource.Router())
+
+	body := map[string]interface{}{
+		"rfid":   rfidCard.ID,
+		"action": "confirm",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}

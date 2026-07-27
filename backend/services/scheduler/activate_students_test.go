@@ -61,6 +61,10 @@ func (f *fakeStudentLifecycleRepo) FindActiveDueForDeactivation(_ context.Contex
 	return f.activeDue, nil
 }
 
+// TransitionStatus records the transition like the old unconditional
+// UpdateStatus did; currentStatuses stages the compare-and-set MISS (the row's
+// status changed since it was selected — e.g. a grade transition graduated the
+// child) so the tick's skip path is exercised.
 func (f *fakeStudentLifecycleRepo) TransitionStatus(
 	_ context.Context,
 	studentID int64,

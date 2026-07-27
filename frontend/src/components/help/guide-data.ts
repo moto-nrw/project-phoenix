@@ -12,6 +12,7 @@ import {
   Download,
   Eye,
   FileText,
+  GraduationCap,
   KeyRound,
   LayoutDashboard,
   Megaphone,
@@ -1082,13 +1083,36 @@ export const appChapters: readonly GuideChapter[] = [
           "Der Admin-Bereich für alle Stammdaten: Kinder, Personal, Räume, Gruppen, Rollen und Berechtigungen. `Aktivitäten` und `Geräte` werden zusätzlich angezeigt, wenn Ihre Einrichtung mit NFC oder Tablets arbeitet.",
         steps: [
           "`Datenverwaltung` öffnen.",
-          "Den gewünschten Bereich wählen: `Kinder`, `Personal`, `Räume`, `Gruppen`, `Rollen` oder `Berechtigungen`.",
+          "Den gewünschten Bereich wählen: `Kinder`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
           "Einträge anlegen, bearbeiten oder prüfen.",
           "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
         image: "/help/screens/datenverwaltung.webp",
+      },
+      {
+        id: "jahrgangswechsel",
+        title: "Jahrgangswechsel zum neuen Schuljahr",
+        icon: GraduationCap,
+        summary:
+          "Versetzt alle Kinder in einem Schritt in die nächste Klasse (z. B. 1a in 2a) und verwaltet Abgänge. Vor dem Anwenden zeigt eine Vorschau genau, was passiert; alles lässt sich über `Zurücksetzen` rückgängig machen.",
+        steps: [
+          "`Datenverwaltung` -> `Jahrgangswechsel` öffnen und `Neuer Jahrgangswechsel` wählen.",
+          "Die App schlägt für jede Klasse automatisch die nächste Klasse vor (z. B. 1a in 2a). Die Zielklasse lässt sich pro Klasse frei anpassen, auch ein Wechsel wie 1a in 2c ist möglich.",
+          "Für Abschlussklassen ist `Abgang (verlässt die OGS)` vorausgewählt: Diese Kinder werden nach dem Anwenden in der App nicht mehr angezeigt, ihre Daten bleiben aber erhalten.",
+          "`Weiter zur Vorschau` zeigt vor dem Anwenden, wie viele Kinder versetzt werden, wie viele die OGS verlassen und welche Klassen nicht berücksichtigt sind.",
+          "`Jahrgangswechsel anwenden` führt den Wechsel nach einer Sicherheitsabfrage für alle Kinder auf einmal durch.",
+          "Falls etwas nicht stimmt: In der Liste beim angewendeten Jahrgangswechsel `Zurücksetzen` wählen. Versetzte Kinder kehren in ihre alte Klasse zurück, Abgänge werden wiederhergestellt.",
+          "`Abgänge` beim angewendeten Jahrgangswechsel zeigt alle Kinder, die die OGS verlassen haben. Dort lassen sich einzelne Kinder auch endgültig löschen, wenn ihre Daten wirklich verschwinden sollen.",
+        ],
+        callout: {
+          title: "Abgänge sind kein Löschen",
+          body: "Kinder mit `Abgang` werden nur ausgeblendet, nicht gelöscht. Sie tauchen in Kinderlisten, Gruppen und an den Tablets nicht mehr auf, bleiben aber für ein `Zurücksetzen` erhalten. Wer die Daten endgültig entfernen will, tut das gezielt über `Abgänge` beim angewendeten Jahrgangswechsel. Danach kann `Zurücksetzen` diese Kinder nicht mehr zurückholen.",
+          tone: "orange",
+        },
+        screenshot:
+          "Jahrgangswechsel-Seite mit Klassenzuordnungen und Vorschau.",
       },
       {
         id: "listen-exportieren",

@@ -114,6 +114,10 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 				OR %[5]s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- Graduated (alumnus) students are soft-deleted: their guardians must
+			-- drop out of every announcement audience (reach count, feed
+			-- visibility, and e-mails) once the child has left the OGS (#405).
+			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = %[2]s
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = %[2]s
@@ -390,6 +394,10 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- Graduated (alumnus) students are soft-deleted: their guardians must
+			-- drop out of every announcement audience (reach count, feed
+			-- visibility, and e-mails) once the child has left the OGS (#405).
+			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -503,6 +511,10 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			OR %s
 		)
 		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		-- Graduated (alumnus) students are soft-deleted: their guardians must
+		-- drop out of every announcement audience (reach count, feed
+		-- visibility, and e-mails) once the child has left the OGS (#405).
+		AND s.status <> 'alumnus'
 		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -576,6 +588,10 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- Graduated (alumnus) students are soft-deleted: their guardians must
+			-- drop out of every announcement audience (reach count, feed
+			-- visibility, and e-mails) once the child has left the OGS (#405).
+			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -773,6 +789,10 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- Graduated (alumnus) students are soft-deleted: their guardians must
+			-- drop out of every announcement audience (reach count, feed
+			-- visibility, and e-mails) once the child has left the OGS (#405).
+			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?

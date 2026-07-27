@@ -82,7 +82,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Go with cache
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -115,13 +115,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@6ff44f8e5255f9d8aa31ef22f7e57a2d926b7da0 # v1.11.0
+        uses: useblacksmith/setup-docker-builder@33803e640bd9d674f2843a8c323aa2a7da478d23 # v2.0.0
+        with:
+          # Required since v2. Scopes the sticky-disk layer cache to this
+          # Dockerfile; must differ from the frontend job to avoid cache thrash.
+          cache-key: backend/Dockerfile
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -173,13 +177,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@6ff44f8e5255f9d8aa31ef22f7e57a2d926b7da0 # v1.11.0
+        uses: useblacksmith/setup-docker-builder@33803e640bd9d674f2843a8c323aa2a7da478d23 # v2.0.0
+        with:
+          # Required since v2. Scopes the sticky-disk layer cache to this
+          # Dockerfile; must differ from the backend job to avoid cache thrash.
+          cache-key: frontend/Dockerfile.prod
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -352,7 +360,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
 
@@ -446,7 +454,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.ref }}
 

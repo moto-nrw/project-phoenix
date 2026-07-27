@@ -119,6 +119,9 @@ func (s *studentPhotoService) CommitUpload(ctx context.Context, req CommitUpload
 			}
 			return err
 		}
+		if student.IsAlumnus() {
+			return ErrPhotoStudentNotFound
+		}
 		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
 			return ErrPhotoStudentForbidden
 		}
@@ -140,6 +143,9 @@ func (s *studentPhotoService) CommitUpload(ctx context.Context, req CommitUpload
 				return ErrPhotoStudentNotFound
 			}
 			return err
+		}
+		if fresh.IsAlumnus() {
+			return ErrPhotoStudentNotFound
 		}
 		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), fresh, s.UserContext); !ok {
 			return ErrPhotoStudentReassigned
@@ -195,6 +201,9 @@ func (s *studentPhotoService) CommitDelete(ctx context.Context, studentID int64)
 			}
 			return err
 		}
+		if snapshot.IsAlumnus() {
+			return ErrPhotoStudentNotFound
+		}
 		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), snapshot, s.UserContext); !ok {
 			return ErrPhotoStudentForbidden
 		}
@@ -208,6 +217,9 @@ func (s *studentPhotoService) CommitDelete(ctx context.Context, studentID int64)
 				return ErrPhotoStudentNotFound
 			}
 			return err
+		}
+		if fresh.IsAlumnus() {
+			return ErrPhotoStudentNotFound
 		}
 		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), fresh, s.UserContext); !ok {
 			return ErrPhotoStudentReassigned
@@ -260,6 +272,9 @@ func (s *studentPhotoService) LookupForRead(ctx context.Context, studentID int64
 				return ErrPhotoStudentNotFound
 			}
 			return err
+		}
+		if student.IsAlumnus() {
+			return ErrPhotoStudentNotFound
 		}
 		if !authorize.CanReadStudent(
 			ctx,

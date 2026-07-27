@@ -7,7 +7,7 @@ import { useModal } from "~/components/dashboard/modal-context";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
-import { Input } from "~/components/ui/input";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
@@ -541,19 +541,18 @@ export function TimetableEventModal({
                 required
                 error={deleteError ?? undefined}
               >
-                <Input
+                <ISODatePicker
                   id="series_delete_effective_date"
-                  type="date"
+                  controlSize="md"
                   value={deleteEffectiveDate}
                   min={berlinTodayISO()}
-                  controlSize="compact"
-                  aria-invalid={deleteError ? true : undefined}
+                  invalid={Boolean(deleteError)}
                   disabled={deletingSeries}
-                  onChange={(event) => {
-                    setDeleteEffectiveDate(event.target.value);
+                  calendarLayout="popover"
+                  onChange={(next) => {
+                    setDeleteEffectiveDate(next);
                     setDeleteError(null);
                   }}
-                  required
                 />
               </Field>
             </div>

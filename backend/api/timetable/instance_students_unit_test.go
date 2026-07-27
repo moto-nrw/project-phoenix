@@ -95,6 +95,12 @@ func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, timezon
 	panic("unused")
 }
 func (f *fakeRepo) DeleteByInstanceID(context.Context, int64) error { panic("unused") }
+func (f *fakeRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, timezone.Date, time.Time) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) RestoreArchivedByTransition(context.Context, int64, []int64, timezone.Date) (int, error) {
+	panic("unused")
+}
 func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
 	panic("unused")
 }

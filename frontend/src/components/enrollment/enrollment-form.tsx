@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { useTenant } from "~/lib/tenant-context";
 import deMessages from "~/i18n/messages/de.json";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
@@ -3313,6 +3315,7 @@ function CustomFieldInput({
   onCompanionNoteChange,
   companionNoteError,
 }: CustomFieldInputProps) {
+  const datePicker = useLocalizedDatePicker();
   const labelEl = (
     <>
       <span className="block text-sm font-semibold text-gray-700">
@@ -3476,12 +3479,31 @@ function CustomFieldInput({
     );
   }
 
-  const inputType =
-    field.type === "number"
-      ? "number"
-      : field.type === "date"
-        ? "date"
-        : "text";
+  if (field.type === "date") {
+    const dateId = `enrollment-${field.key}`;
+    return (
+      <div className="block">
+        <label htmlFor={dateId}>{labelEl}</label>
+        <ISODatePicker
+          {...datePicker}
+          id={dateId}
+          controlSize="md"
+          value={valueStr}
+          onChange={onChange}
+          invalid={Boolean(error)}
+          className="mt-1"
+          calendarLayout="popover"
+          // A school-defined date field can be anything from a birthday to a
+          // future appointment, so the year dropdown stays available and no
+          // bound is imposed.
+          monthYearNavigation
+        />
+        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+      </div>
+    );
+  }
+
+  const inputType = field.type === "number" ? "number" : "text";
   return (
     <label className="block">
       {labelEl}

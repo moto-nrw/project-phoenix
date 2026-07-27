@@ -230,6 +230,11 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 	}
 }
 
+func TestEnrollmentStudentIsAlumnus_UnloadedStudent(t *testing.T) {
+	enrollment := &activities.StudentEnrollment{}
+	assert.False(t, enrollmentStudentIsAlumnus(enrollment))
+}
+
 // -----------------------------------------------------------------------------
 // TestIsSupervisorValidOn — same shape as enrollments (ensures the two
 // predicates stay symmetric by design).
