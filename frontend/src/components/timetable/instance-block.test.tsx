@@ -47,13 +47,14 @@ function makeInstance(
 function renderBlock(
   instance: EnrichedInstance,
   extra: { isGap?: boolean } = {},
+  height = 90,
 ) {
   return render(
     <div className="relative h-96">
       <InstanceBlock
         instance={instance}
         top={20}
-        height={90}
+        height={height}
         left="0%"
         width="100%"
         isSelected={false}
@@ -106,6 +107,40 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
     // acknowledged dot color (the only aria-hidden element in this render)
     const dot = document.querySelector('[aria-hidden="true"]');
     expect(dot).toHaveStyle({ backgroundColor: "#6B7280" });
+  });
+
+  it("keeps acknowledged understaffing visible in a short block", () => {
+    renderBlock(makeInstance({ understaffedAck: true }), {}, 45);
+
+    expect(screen.getByLabelText("Bewusst unbesetzt")).toBeInTheDocument();
+    expect(screen.getByRole("button")).toHaveAccessibleName(
+      /bewusst unbesetzt/i,
+    );
+  });
+
+  it("keeps compact coverage, live, absence, and substitute signals on a short block", () => {
+    renderBlock(
+      makeInstance({
+        status: "active",
+        assignedStaffCount: 1,
+        requiredStaffCount: 2,
+        absentStaffCount: 1,
+        staff: [
+          {
+            staffId: "13",
+            isPrimary: false,
+            isAbsent: false,
+            isSubstitute: true,
+          },
+        ],
+      }),
+      {},
+      45,
+    );
+
+    expect(screen.getByRole("button")).toHaveAccessibleName(
+      /1 von 2 Positionen besetzt, läuft, 1 abwesend, Ersatz/i,
+    );
   });
 
   it("shows the single #F78C10 gap icon when the block is an open gap", () => {
