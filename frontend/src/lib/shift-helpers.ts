@@ -188,7 +188,9 @@ export function mapStaffShift(data: BackendStaffShift): StaffShift {
     shiftTypeColor: data.shift_type_color ?? null,
     notes: data.notes ?? "",
     seriesId: data.series_id != null ? data.series_id.toString() : null,
-    seriesOccurrenceDate: data.series_occurrence_date?.slice(0, 10) ?? null,
+    ...(data.series_occurrence_date != null
+      ? { seriesOccurrenceDate: data.series_occurrence_date.slice(0, 10) }
+      : {}),
     detached: data.detached ?? false,
     cancelled: data.cancelled ?? false,
     changeReason: data.change_reason ?? null,
