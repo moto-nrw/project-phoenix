@@ -42,6 +42,11 @@ interface ResourceGridProps<TRow> {
    * Cell content per (row, column). Returning null lets the grid render the
    * labelled empty-cell button (if `emptyCellLabel` + `onEmptyCellClick` are
    * given) — the caller decides emptiness, the grid owns the empty affordance.
+   *
+   * The returned node lands in a `flex flex-col` wrapper carrying the
+   * per-mode cell minimum height. Interactive content that should cover the
+   * whole cell (a click target, a hover surface) needs `flex-1` to fill that
+   * floor — otherwise it floats in the taller box.
    */
   readonly renderCell: (row: TRow, column: ResourceGridColumn) => ReactNode;
   /**
@@ -135,7 +140,7 @@ export function ResourceGrid<TRow>({
   className,
 }: ResourceGridProps<TRow>) {
   const columnMinWidth = COLUMN_MIN_WIDTH_CLASS[columnMode];
-  const cellMinHeight = RESOURCE_GRID_METRICS.cellMinHeightClass[columnMode];
+  const cellWrapperClass = `flex ${RESOURCE_GRID_METRICS.cellMinHeightClass[columnMode]} flex-col`;
 
   return (
     // Radius, Rand und Ausschnitt sitzen auf der Fläche, gescrollt wird im
@@ -183,7 +188,7 @@ export function ResourceGrid<TRow>({
             <tr className="bg-gray-50 text-left">
               <th
                 scope="col"
-                className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
+                className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
               >
                 {cornerHeader}
               </th>
@@ -211,7 +216,7 @@ export function ResourceGrid<TRow>({
                 <tr key={getRowKey(row)} className="border-t border-gray-100">
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 min-w-[180px] bg-white px-2 py-1.5 text-left align-top font-normal"
+                    className="sticky left-0 z-10 bg-white px-2 py-1.5 text-left align-top font-normal"
                   >
                     {renderRowHeader(row)}
                   </th>
@@ -230,7 +235,7 @@ export function ResourceGrid<TRow>({
                             cell content: an empty cell, a bare cell without an
                             empty-cell affordance and a filled one all get the
                             same row height (issue #2026). */}
-                        <div className={`flex ${cellMinHeight} flex-col`}>
+                        <div className={cellWrapperClass}>
                           {cell != null ? (
                             cell
                           ) : showEmptyButton ? (

@@ -1,17 +1,23 @@
 "use client";
 
+import { CapacityStrip } from "~/components/ui/capacity-strip";
 import {
   RESOURCE_GRID_METRICS,
   resourceGridMinWidth,
 } from "~/components/ui/resource-grid";
 import { Skeleton } from "~/components/ui/skeleton";
 
-// Das Skelett rastert wie das echte Wochenraster: dieselbe Spaltenzahl,
-// dieselben Spaltenbreiten aus RESOURCE_GRID_METRICS und dieselbe
-// Zellen-Mindesthöhe (Issue #2026). Ändert sich die Metrik im ResourceGrid,
-// wandert sie automatisch mit.
+// Das Skelett rastert wie das echte Wochenraster (Issue #2026). Die Maße —
+// Spaltenbreiten und Zellen-Mindesthöhe — kommen aus RESOURCE_GRID_METRICS und
+// wandern mit; die Tabellenstruktur (Ränder, Paddings, sticky Personenspalte)
+// ist bewusst nachgebaut, weil das ResourceGrid Textspalten-Köpfe erwartet und
+// hier nur Platzhalter stehen. Ändert sich dort die Struktur, muss sie hier
+// nachgezogen werden.
 const SKELETON_DAY_COLUMNS = 5;
-const CELL_MIN_HEIGHT = RESOURCE_GRID_METRICS.cellMinHeightClass.days;
+const DAY_COLUMN_INDEXES = Array.from(
+  { length: SKELETON_DAY_COLUMNS },
+  (_, index) => index,
+);
 
 // The PlanningContextBar header placeholder (title, week nav, view switcher,
 // "Schichtarten verwalten" action). Only used by the full-page skeleton — once
@@ -49,16 +55,16 @@ function GridSkeletonBody() {
           >
             <colgroup>
               <col style={{ width: RESOURCE_GRID_METRICS.rowHeaderWidth }} />
-              {Array.from({ length: SKELETON_DAY_COLUMNS }, (_, col) => (
+              {DAY_COLUMN_INDEXES.map((col) => (
                 <col key={col} />
               ))}
             </colgroup>
             <thead>
               <tr className="bg-gray-50">
-                <th className="px-2 py-1.5 text-left">
+                <th className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-left">
                   <Skeleton className="h-4 w-16 rounded" />
                 </th>
-                {Array.from({ length: SKELETON_DAY_COLUMNS }, (_, col) => (
+                {DAY_COLUMN_INDEXES.map((col) => (
                   <th key={col} className="px-2 py-1.5 text-left">
                     <Skeleton className="h-4 w-14 rounded" />
                   </th>
@@ -67,17 +73,17 @@ function GridSkeletonBody() {
             </thead>
             <tbody>
               {Array.from({ length: 6 }, (_, row) => (
-                <tr key={row} className="border-t border-gray-100 bg-white">
-                  <td className="px-2 py-1.5 align-top">
+                <tr key={row} className="border-t border-gray-100">
+                  <th className="sticky left-0 z-10 bg-white px-2 py-1.5 text-left align-top font-normal">
                     <Skeleton className="h-4 w-32 rounded" />
-                  </td>
-                  {Array.from({ length: SKELETON_DAY_COLUMNS }, (_, col) => (
+                  </th>
+                  {DAY_COLUMN_INDEXES.map((col) => (
                     <td
                       key={col}
                       className="border-l border-gray-100 px-1 py-1 align-top"
                     >
                       <Skeleton
-                        className={`${CELL_MIN_HEIGHT} w-full rounded-md`}
+                        className={`${RESOURCE_GRID_METRICS.cellMinHeightClass.days} w-full rounded-md`}
                       />
                     </td>
                   ))}
@@ -85,19 +91,13 @@ function GridSkeletonBody() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t border-gray-200 bg-gray-50">
-                <td className="px-2 py-1.5">
-                  <Skeleton className="h-4 w-28 rounded" />
-                </td>
-                {Array.from({ length: SKELETON_DAY_COLUMNS }, (_, col) => (
-                  <td
-                    key={col}
-                    className="border-l border-gray-100 px-2 py-1.5 text-center"
-                  >
-                    <Skeleton className="mx-auto h-4 w-8 rounded" />
-                  </td>
-                ))}
-              </tr>
+              <CapacityStrip
+                rowLabel={<Skeleton className="h-4 w-28 rounded" />}
+                cells={DAY_COLUMN_INDEXES.map((col) => ({
+                  key: String(col),
+                  content: <Skeleton className="mx-auto h-4 w-8 rounded" />,
+                }))}
+              />
             </tfoot>
           </table>
         </div>
