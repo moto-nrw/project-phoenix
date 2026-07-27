@@ -3,6 +3,7 @@ package timetable
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1466,6 +1467,23 @@ func setCapacityScheduleWindow(
 		Where("weekday = ?", weekday).
 		Exec(s.ctx)
 	require.NoError(t, err)
+}
+
+func TestTemplateScheduleResponseIncludesValidityBounds(t *testing.T) {
+	row := templateRow{
+		ScheduleID:         9,
+		Weekday:            1,
+		StartTime:          sql.NullString{String: "14:00", Valid: true},
+		EndTime:            sql.NullString{String: "15:00", Valid: true},
+		WeekPattern:        0,
+		ScheduleValidFrom:  sql.NullString{String: "2026-05-04", Valid: true},
+		ScheduleValidUntil: sql.NullString{String: "2026-06-01", Valid: true},
+	}
+
+	response := templateScheduleResponseFromRow(row)
+
+	assert.Equal(t, "2026-05-04", response.ValidFrom)
+	assert.Equal(t, "2026-06-01", response.ValidUntil)
 }
 
 func listCapacityTemplate(t *testing.T, router chi.Router, periodID, templateID int64) templateResponse {

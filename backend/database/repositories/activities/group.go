@@ -464,6 +464,7 @@ const templateListSelect = `
 			COALESCE(TO_CHAR(tf.end_time, 'HH24:MI'), '') AS end_time,
 			s.week_pattern,
 			s.calendar_period_id,
+			TO_CHAR(s.valid_from, 'YYYY-MM-DD') AS schedule_valid_from,
 			TO_CHAR(s.valid_until, 'YYYY-MM-DD') AS schedule_valid_until
 		FROM activities.groups AS g
 		INNER JOIN activities.schedules AS s

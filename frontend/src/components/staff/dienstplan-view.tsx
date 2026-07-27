@@ -26,6 +26,7 @@ import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
@@ -87,11 +88,10 @@ function DienstplanContent() {
   const { params, updateParams: updateUrlParams } =
     useUrlParams(ALLOWED_URL_PARAMS);
   const canEdit = isAdmin(session);
-  // Die Halbjahres-Sicht lädt die Planungszeiträume (/api/timetable/periods),
-  // die das Backend mit `schedules:read` schützt, und je nach Datenpfad
-  // /api/staff-shifts oder /overview. Beide verlangen zusätzlich
-  // `time_tracking:manage`; Tab und Deep-Link sind darum auf beide
-  // Berechtigungen gegated.
+  // Die Halbjahres-Sicht zeigt Soll-/Plan-Abgleiche aus /overview. Dieser
+  // Endpunkt verlangt zusätzlich `schedules:read`; Tab und Deep-Link sind
+  // darum weiterhin auf beide Berechtigungen gegated, auch wenn die
+  // Zeitraumsliste für Schichtserien ebenfalls im reduzierten Pfad lesbar ist.
   const canViewHalbjahr =
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "schedules:read");
@@ -182,6 +182,15 @@ function DienstplanContent() {
     reducedPath,
     refreshPlanCaches,
   } = useDienstplanData(weekFrom, weekTo);
+
+  // OGS-Schließtage (#2032): die Woche markiert ihre fünf Tage, der
+  // Verschieben-Dialog prüft seinen frei wählbaren Zieltag gegen alle
+  // gespeicherten Zeiträume. Die Halbjahres-Sicht lädt ihr eigenes Fenster.
+  const {
+    closingDays,
+    closingDayRanges,
+    isLoading: closingDaysLoading,
+  } = useClosingDaysState(weekFrom, weekTo);
 
   const refreshAfterPlanMutation = useCallback(() => {
     refreshPlanCaches().catch((err: unknown) => {
@@ -322,6 +331,7 @@ function DienstplanContent() {
         staff={sortedStaff}
         reducedPath={reducedPath}
         todayIso={today}
+        closingDayRanges={closingDayRanges}
         onWeekClick={(monday) => updateUrlParams({ d: monday, view: null })}
       />
     );
@@ -349,6 +359,9 @@ function DienstplanContent() {
           summaryByStaff={summaryByStaff}
           weekDays={weekDays}
           todayIso={today}
+          closingDays={closingDays}
+          closingDaysLoading={closingDaysLoading}
+          closingDayRanges={closingDayRanges}
           typesById={typesById}
           shiftTypes={shiftTypes ?? []}
           reducedPath={reducedPath}
@@ -450,6 +463,7 @@ function DienstplanContent() {
           shiftTypes={shiftTypes ?? []}
           staffOptions={sortedStaff}
           existingReplacements={modal.replacements}
+          closingDayRanges={closingDayRanges}
           onClose={() => setModal(null)}
           onSaved={refreshAfterPlanMutation}
         />

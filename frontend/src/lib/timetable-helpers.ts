@@ -9,6 +9,10 @@
 
 import { parseISODate, toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
+import {
+  shouldMaterializeWeekPattern,
+  type CalendarPeriod,
+} from "./calendar-period-helpers";
 import type {
   ActivityType,
   BackendConflictCheckResult,
@@ -213,6 +217,42 @@ export function weekdayDatesInRange(
     date = next;
   }
   return dates;
+}
+
+export function latestISODate(first: string, ...dates: string[]): string {
+  let latest = first;
+  for (const candidate of dates) {
+    if (candidate > latest) latest = candidate;
+  }
+  return latest;
+}
+
+/**
+ * Concrete recurrence dates inside a calendar period and schedule segment.
+ * `validFrom` is inclusive, `validUntil` exclusive, matching the backend
+ * materializer and split-series contract.
+ */
+export function materializedRecurrenceDates({
+  period,
+  fromISO,
+  weekdays,
+  weekPattern,
+  validFrom,
+  validUntil,
+}: {
+  period: CalendarPeriod;
+  fromISO: string;
+  weekdays: number[];
+  weekPattern: number;
+  validFrom?: string;
+  validUntil?: string;
+}): string[] {
+  const from = latestISODate(period.startDate, fromISO, validFrom ?? "");
+  return weekdayDatesInRange(from, period.endDate, weekdays).filter(
+    (dateISO) =>
+      (validUntil === undefined || dateISO < validUntil) &&
+      shouldMaterializeWeekPattern(period, dateISO, weekPattern),
+  );
 }
 
 export { toISODate };
@@ -877,6 +917,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           schedule.calendar_period_id !== null
             ? String(schedule.calendar_period_id)
             : undefined,
+        validFrom: schedule.valid_from,
         validUntil: schedule.valid_until,
       })),
     })),

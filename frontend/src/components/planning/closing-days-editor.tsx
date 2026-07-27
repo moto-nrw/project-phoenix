@@ -20,6 +20,7 @@ import {
   formatClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { useToast } from "~/contexts/ToastContext";
+import { useInvalidateClosingDays } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ClosingDaysEditor" });
@@ -33,6 +34,7 @@ export function ClosingDaysEditor() {
   const [deleting, setDeleting] = useState<ClosingDay | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const { success: toastSuccess, error: toastError } = useToast();
+  const invalidateClosingDays = useInvalidateClosingDays();
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -53,6 +55,15 @@ export function ClosingDaysEditor() {
     void load();
   }, [load]);
 
+  const refreshAfterMutation = useCallback(() => {
+    void invalidateClosingDays().catch((err: unknown) => {
+      logger.warn("closing_days_cache_invalidation_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+    void load({ silent: true });
+  }, [invalidateClosingDays, load]);
+
   const beginCreate = () => {
     setEditing(null);
     setModalOpen(true);
@@ -70,7 +81,7 @@ export function ClosingDaysEditor() {
       await closingDayService.delete(deleting.id);
       toastSuccess(`Schließtag "${deleting.reason}" gelöscht`);
       setDeleting(null);
-      await load({ silent: true });
+      refreshAfterMutation();
     } catch (err) {
       const message =
         err instanceof Error
@@ -84,7 +95,7 @@ export function ClosingDaysEditor() {
     } finally {
       setDeleteLoading(false);
     }
-  }, [deleting, load, toastSuccess, toastError]);
+  }, [deleting, refreshAfterMutation, toastSuccess, toastError]);
 
   const columns = useMemo<DataTableColumn<ClosingDay>[]>(
     () => [
@@ -235,7 +246,7 @@ export function ClosingDaysEditor() {
       <ClosingDayModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSaved={() => void load({ silent: true })}
+        onSaved={refreshAfterMutation}
         initial={editing}
       />
 

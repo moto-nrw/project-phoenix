@@ -28,6 +28,16 @@ export interface ResourceGridColumn {
    * NEUTRAL gray, never a semantic hue.
    */
   readonly isCurrent?: boolean;
+  /**
+   * Marks a column as non-operational (e.g. a closing day). Rendered with a
+   * slightly stronger NEUTRAL gray tint than `isCurrent` and taking
+   * precedence over it. The grid stays domain-agnostic: what "muted" means
+   * and how it is labelled is entirely the caller's business — supply the
+   * wording via `headerNote`.
+   */
+  readonly isMuted?: boolean;
+  /** Extra header line below label/sublabel, e.g. a caller-owned marker. */
+  readonly headerNote?: ReactNode;
 }
 
 type ResourceGridColumnMode = "days" | "weeks";
@@ -86,6 +96,16 @@ const COLUMN_WIDTH_REM: Record<ResourceGridColumnMode, number> = {
   days: 7.5,
   weeks: 3.25,
 };
+
+function getColumnBackgroundClass(
+  column: ResourceGridColumn,
+  mutedClass: string,
+  currentClass: string,
+): string {
+  if (column.isMuted) return mutedClass;
+  if (column.isCurrent) return currentClass;
+  return "";
+}
 
 /**
  * Raster metrics — the reason an empty and a filled plan look identical
@@ -202,14 +222,21 @@ export function ResourceGrid<TRow>({
                 <th
                   key={column.key}
                   scope="col"
-                  className={`${columnMinWidth} px-2 py-1.5 text-xs font-medium text-gray-500 ${
-                    column.isCurrent ? "bg-gray-100" : ""
-                  }`}
+                  className={`${columnMinWidth} px-2 py-1.5 text-xs font-medium text-gray-500 ${getColumnBackgroundClass(
+                    column,
+                    "bg-gray-200/70",
+                    "bg-gray-100",
+                  )}`}
                 >
                   <span className="block">{column.label}</span>
                   {column.sublabel && (
                     <span className="block font-normal text-gray-400">
                       {column.sublabel}
+                    </span>
+                  )}
+                  {column.headerNote && (
+                    <span className="mt-0.5 block font-normal">
+                      {column.headerNote}
                     </span>
                   )}
                 </th>
@@ -233,9 +260,11 @@ export function ResourceGrid<TRow>({
                     return (
                       <td
                         key={column.key}
-                        className={`border-l border-gray-100 px-1 py-1 align-top ${
-                          column.isCurrent ? "bg-gray-50" : ""
-                        }`}
+                        className={`border-l border-gray-100 px-1 py-1 align-top ${getColumnBackgroundClass(
+                          column,
+                          "bg-gray-100/70",
+                          "bg-gray-50",
+                        )}`}
                       >
                         {/* The height floor sits on the wrapper, not on the
                             cell content: an empty cell, a bare cell without an

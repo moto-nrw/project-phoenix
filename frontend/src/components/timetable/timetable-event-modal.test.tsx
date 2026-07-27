@@ -453,6 +453,153 @@ describe("TimetableEventModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  // #2032: Ein Termin darf auf einem Schließtag liegen, das Speichern fragt
+  // aber einmal nach.
+  const closingRanges = [
+    {
+      startDate: "2026-05-04",
+      endDate: "2026-05-04",
+      reason: "Pädagogischer Tag",
+    },
+  ];
+
+  it("asks before saving on a closing day and saves after confirming (#2032)", async () => {
+    renderModal({ closingDayRanges: closingRanges });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    expect(
+      screen.getByText(/Am 04\.05\.2026 ist ein Schließtag hinterlegt/),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Ferienbetreuung" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await clickSave();
+
+    expect(
+      await screen.findByText("An einem Schließtag planen?"),
+    ).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Trotzdem planen" }));
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Ferienbetreuung" }),
+      ),
+    );
+  });
+
+  it("writes nothing when the closing-day warning is dismissed (#2032)", async () => {
+    renderModal({ closingDayRanges: closingRanges });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Ferienbetreuung" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await clickSave();
+
+    const dialogCancel = within(
+      await screen.findByRole("dialog", {
+        name: "An einem Schließtag planen?",
+      }),
+    ).getByRole("button", { name: "Abbrechen" });
+    fireEvent.click(dialogCancel);
+
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("shows the required-field errors before the closing-day question (#2032)", async () => {
+    renderModal({ closingDayRanges: closingRanges });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    // Titel und Raum bleiben leer: das Formular würde gar nicht speichern.
+    // #2025: Speichern gibt es erst im letzten Schritt, den Pflichtfeld-Fehler
+    // zeigt deshalb schon das blockierte "Weiter".
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText("Bitte einen Titel eingeben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("An einem Schließtag planen?"),
+    ).not.toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("keeps saving disabled until closing days have loaded", async () => {
+    renderModal({ closingDaysLoading: true });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toBeDisabled();
+
+    fireEvent.submit(document.querySelector("#timetable-event-form")!);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("saves without asking when the date is no closing day (#2032)", async () => {
+    renderModal({
+      closingDayRanges: [
+        { startDate: "2026-05-05", endDate: "2026-05-05", reason: "Brücke" },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await clickSave();
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+  });
+
+  it("asks when a later recurring occurrence falls on a closing day (#2032)", async () => {
+    renderModal({
+      variant: "quick",
+      closingDayRanges: [
+        {
+          startDate: "2026-05-11",
+          endDate: "2026-05-11",
+          reason: "Konzeptionstag",
+        },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Montagsangebot" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+
+    expect(
+      screen.getByText(
+        /Regeltermin fällt am 11\.05\.2026 auf einen Schließtag/,
+      ),
+    ).toBeInTheDocument();
+    await clickSave();
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "An einem Schließtag planen?",
+    });
+    expect(within(dialog).getByText(/11\.05\.2026/)).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+    );
+    await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
+  });
+
   it("filters and bulk-selects visible student rows", async () => {
     mockFetchStudents.mockResolvedValue({
       students: [
@@ -1301,6 +1448,37 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("ignores closing days before a direct series segment starts", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+
+    renderModal({
+      initialSeries: {
+        ...template,
+        schedules: template.schedules.map((schedule) => ({
+          ...schedule,
+          validFrom: "2026-06-01",
+        })),
+      },
+      closingDayRanges: [
+        {
+          startDate: "2026-05-11",
+          endDate: "2026-05-11",
+          reason: "Pädagogischer Tag",
+        },
+      ],
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
+    await clickSave();
+
+    await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("warns before a direct Regeltermin edit when single-occurrence edits exist (#1875)", async () => {
     mockCountEditedInWindow.mockResolvedValue({
       count: 2,
@@ -1745,6 +1923,48 @@ describe("TimetableEventModal", () => {
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "12" });
   });
+
+  it.each([
+    { scope: "Ab jetzt dauerhaft", write: "split" },
+    { scope: "Alle Termine der Serie", write: "update" },
+  ])(
+    "warns when '$scope' replans a later occurrence on a closing day",
+    async ({ scope, write }) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+      renderModal({
+        initialInstance: { ...savedInstance, activityGroupId: "7" },
+        closingDayRanges: [
+          {
+            startDate: "2026-05-11",
+            endDate: "2026-05-11",
+            reason: "Konzeptionstag",
+          },
+        ],
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(scope) }));
+
+      const dialog = await screen.findByRole("dialog", {
+        name: "An einem Schließtag planen?",
+      });
+      expect(within(dialog).getByText(/11\.05\.2026/)).toBeInTheDocument();
+      expect(mockSplitTemplate).not.toHaveBeenCalled();
+      expect(mockUpdateTemplate).not.toHaveBeenCalled();
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+      );
+      if (write === "split") {
+        await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+      } else {
+        await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+      }
+    },
+  );
 
   it("warns before 'Alle Termine' when single-occurrence edits would be lost (#1875)", async () => {
     mockCountEditedInWindow.mockResolvedValue({

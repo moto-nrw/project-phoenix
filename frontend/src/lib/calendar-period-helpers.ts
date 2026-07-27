@@ -216,6 +216,21 @@ export function weekPatternForDate(
 }
 
 /**
+ * Mirrors backend ShouldMaterializeWeekPattern for advisory frontend checks.
+ * A missing cycle remains fail-open; in longer cycles, A/B schedules skip
+ * slots C and beyond exactly like the materializer.
+ */
+export function shouldMaterializeWeekPattern(
+  period: CalendarPeriod | null | undefined,
+  isoDate: string,
+  weekPattern: number,
+): boolean {
+  if (weekPattern === 0) return true;
+  const slot = weekCycleSlotForDate(period, isoDate);
+  return slot === null || slot === weekPattern;
+}
+
+/**
  * Letter for a 1-based week-cycle slot (1=A, 2=B, 3=C, …). Falls back to the
  * numeric slot for cycles longer than 26 weeks (the UI caps at 4, the backend
  * only enforces >= 1).
