@@ -345,10 +345,14 @@ function VertretungDayListRow({
         {/* Auch Lesenutzer brauchen ein Klickziel: unterhalb lg gibt es keine
             Kalenderspalte, und der Verlauf muss ohne schedules:manage lesbar
             bleiben (Kriterium 8). Der Editor selbst rendert ohne canManage
-            nur Lese-Inhalte. */}
+            nur Lese-Inhalte.
+            Mit Verwaltungsrechten ist "Bearbeiten" die Hauptaktion der Zeile
+            und trägt deshalb die weiße Kit-Fläche mit Rahmen (#2029). Ohne die
+            Rechte bleibt "Details" die ruhigere Ghost-Variante, damit ein
+            reiner Lesezugriff nicht wie eine Aufforderung zum Ändern wirkt. */}
         <Button
           type="button"
-          variant="ghost"
+          variant={canManage ? "outline" : "ghost"}
           size="compact"
           onClick={() => onEdit(instance.id)}
         >
