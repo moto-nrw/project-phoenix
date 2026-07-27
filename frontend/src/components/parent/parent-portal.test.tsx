@@ -173,6 +173,9 @@ describe("Parent portal components", () => {
     expect(screen.getByText("Lina Muster")).toBeInTheDocument();
     expect(screen.getByText("Mila Neu")).toBeInTheDocument();
     expect(screen.getByText("Offen")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Push-Benachrichtigungen" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the Neue Anmeldung action on the dashboard", async () => {

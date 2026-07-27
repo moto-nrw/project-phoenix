@@ -523,7 +523,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
-	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, db)
+	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -557,6 +557,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		db,
 	)
 	api.Parent.SetCalendarService(api.Services.Calendar)
+	api.Parent.SetPushService(api.Services.PushSubscriptions)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware

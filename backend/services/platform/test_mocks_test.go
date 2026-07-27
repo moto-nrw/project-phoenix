@@ -225,6 +225,10 @@ func (m *mockAccountTenantRepo) FindActiveByAccountID(ctx context.Context, accou
 	return nil, nil
 }
 
+func (m *mockAccountTenantRepo) FindActiveGuardianByAccountID(context.Context, int64) ([]auth.AccountTenant, error) {
+	panic("unexpected FindActiveGuardianByAccountID")
+}
+
 func (m *mockAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	if m.existsByAccountAndTenantFn != nil {
 		return m.existsByAccountAndTenantFn(ctx, accountID, tenantID)

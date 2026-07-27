@@ -18,6 +18,7 @@ import { PasswordChangeModal } from "~/components/ui/password-change-modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
+import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
@@ -271,6 +272,7 @@ function ProfileContent() {
 
         {/* Trusted Devices Section — personal device management.
             Mirrors the Operator profile page (app/operator/settings/page.tsx). */}
+        <PushNotificationSection />
         <PasskeySettingsSection />
         <TrustedDevicesSection />
       </div>

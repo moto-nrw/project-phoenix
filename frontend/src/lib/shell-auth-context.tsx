@@ -7,6 +7,7 @@ import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
 import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
+import { unsubscribePushSilently } from "~/lib/push-api";
 
 const logger = createLogger({ component: "ShellAuthContext" });
 
@@ -95,6 +96,9 @@ export function TeacherShellProvider({
         } catch {
           // sessionStorage unavailable (e.g. private browsing quota)
         }
+        // Best-effort: drop this device's Web Push registration while the
+        // session is still valid. Must never block logout.
+        await unsubscribePushSilently("tenant");
         // Finish backend revocation before clearing the Auth.js cookie. The
         // response-aware route may persist a just-refreshed session cookie;
         // awaiting it guarantees signOut remains the final cookie mutation.
@@ -229,6 +233,8 @@ export function ParentShellProvider({
         // Parent backend has no logout endpoint yet — tokens expire
         // naturally. NextAuth signOut clears the parent.session-token
         // cookie locally and redirects to the parents login page.
+        // Best-effort: drop this device's Web Push registration first.
+        await unsubscribePushSilently("parent");
         clearSessionCache();
         await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
       },

@@ -37,31 +37,31 @@ describe("Alert", () => {
     render(<Alert type="error" message="Error message" />);
 
     const alert = screen.getByText("Error message").parentElement;
-    expect(alert?.className).toContain("bg-red-50");
-    expect(alert?.className).toContain("text-red-700");
+    expect(alert?.className).toContain("bg-[#FF3130]/10");
+    expect(alert?.className).toContain("text-[#CC2626]");
   });
 
   it("applies success styles", () => {
     render(<Alert type="success" message="Success message" />);
 
     const alert = screen.getByText("Success message").parentElement;
-    expect(alert?.className).toContain("text-[#6BA023]");
+    expect(alert?.className).toContain("text-[#4A7A15]");
   });
 
   it("applies warning styles", () => {
     render(<Alert type="warning" message="Warning message" />);
 
     const alert = screen.getByText("Warning message").parentElement;
-    expect(alert?.className).toContain("bg-yellow-50");
-    expect(alert?.className).toContain("text-yellow-700");
+    expect(alert?.className).toContain("bg-[#F78C10]/10");
+    expect(alert?.className).toContain("text-[#8A5600]");
   });
 
   it("applies info styles", () => {
     render(<Alert type="info" message="Info message" />);
 
     const alert = screen.getByText("Info message").parentElement;
-    expect(alert?.className).toContain("bg-blue-50");
-    expect(alert?.className).toContain("text-blue-700");
+    expect(alert?.className).toContain("bg-[#5080D8]/10");
+    expect(alert?.className).toContain("text-[#355A9A]");
   });
 
   it("renders with icon for error type", () => {

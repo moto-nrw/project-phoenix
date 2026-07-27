@@ -66,14 +66,47 @@ For example, an aggregate derived from an admin-wide view must use
 | Channel | Status | Transport |
 |---|---|---|
 | SSE / in-app | active | `realtime.Broadcaster` → SSE event `notification` → toast |
-| Web Push | prepared stub | see activation plan in `services/notifications/webpush_channel.go` |
+| Web Push | active (#2003) | `webpush-go` (VAPID) → browser push service → service worker notification |
 | E-Mail | future | wrap `email.Mailer` + audience→address resolution as a `Channel` |
 
 The existing SSE cache-invalidation events are untouched: the `notification`
-event type is additive, and SSE remains the open-app channel while Web Push
-is planned for closed/locked devices. Web Push subscription persistence
-(multiple devices per account/tenant) is intentionally deferred until the
-channel is activated, per the issue.
+event type is additive. SSE remains the open-app channel; Web Push covers
+closed/locked devices.
+
+### Web Push (#2003)
+
+- **Keys**: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBSCRIBER`
+  (mailto contact). With all three unset the channel is inert and the subscribe
+  endpoints return an error. Partial configs, malformed or mismatched P-256
+  keys, and invalid contact URIs prevent server startup. Generate a pair with
+  `npx web-push generate-vapid-keys`.
+- **Subscriptions** live in `iot.push_subscriptions` (RLS, unique per
+  `(tenant_id, endpoint)`, multiple devices per account, `portal` =
+  `staff`/`parent`). Staff endpoints: `GET /api/notifications/push/public-key`,
+  `POST`/`DELETE /api/notifications/push/subscriptions` (DELETE takes
+  `?endpoint=…`). Parent endpoints mirror them under `/parent/me/push/*` and
+  register one row per active guardian tenant mapping.
+- **Audience mapping**: `tenant` → all staff-portal subscriptions of the
+  tenant; `admin` → staff-portal subscriptions of accounts with the admin
+  role; `guardian` → the one account's parent-portal subscriptions.
+  `group` is deliberately NOT delivered over push (no persisted
+  device-to-group membership; follow-up if a producer ever needs it).
+  Announcement recipients reached only through `pending_enrollment` are also
+  deliberately excluded from Web Push until they have an active guardian
+  mapping for that school. Their announcement remains available in the parent
+  feed and through the announcement's optional e-mail delivery.
+- **Payload** is `{title, body, deepLink, type, priority}` — never `Data`
+  (GDPR contract above). Priority maps to TTL/urgency: high = 1h/high,
+  normal/low = 24h/normal/low.
+- **Pruning**: a push-service response of 404/410 deletes the subscription.
+  Logout removes the device's registration best-effort; the frontend also
+  re-syncs the subscription on opt-in.
+- **Frontend**: `public/sw.js` (notification + deep-link click handling),
+  `lib/push-api.ts`, opt-in section on the staff profile page and the parents
+  dashboard. The permission prompt only ever runs from the button click
+  (iOS requirement); on iOS Safari outside an installed home-screen app the
+  section explains the install prerequisite instead (help guide chapter
+  "App installieren & Benachrichtigungen", #1915).
 
 ## Frontend
 

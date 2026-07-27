@@ -36,9 +36,9 @@ export function FilterButton({
       aria-label={showCountBadge ? `Filter (${activeCount} aktiv)` : "Filter"}
       className={`relative rounded-2xl p-2.5 transition-all duration-200 ${
         isOpen
-          ? "border border-blue-500 bg-blue-500 text-white"
+          ? "border border-[#5080D8] bg-[#5080D8] text-white"
           : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-      } ${showRing ? "ring-2 ring-blue-500 ring-offset-1" : ""} ${className}`}
+      } ${showRing ? "ring-2 ring-[#5080D8] ring-offset-1" : ""} ${className}`}
     >
       <svg
         className="h-4 w-4"
@@ -55,7 +55,7 @@ export function FilterButton({
       </svg>
       {showCountBadge ? (
         <span
-          className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold text-white tabular-nums shadow-sm"
+          className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#5080D8] px-1 text-[10px] font-bold text-white tabular-nums shadow-sm"
           aria-hidden
         >
           {activeCount}

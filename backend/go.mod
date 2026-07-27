@@ -41,6 +41,7 @@ require (
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0 // indirect
+	github.com/SherClockHolmes/webpush-go v1.4.0 // indirect
 	github.com/ajg/form v1.7.1 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect

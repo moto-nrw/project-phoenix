@@ -165,8 +165,8 @@ func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Conte
 	}
 	return &activeModels.WorkSession{}, nil
 }
-func (w *workSessionServiceForSessionUnitTest) ExportSessions(context.Context, int64, timezone.Date, timezone.Date, string) ([]byte, string, error) {
-	return nil, "", nil
+func (w *workSessionServiceForSessionUnitTest) ExportSessions(context.Context, int64, timezone.Date, timezone.Date, string) (*ExportFile, error) {
+	return nil, nil
 }
 func (w *workSessionServiceForSessionUnitTest) DayExportRows(context.Context, int64, timezone.Date, timezone.Date) ([]DayExportRow, error) {
 	return nil, nil
