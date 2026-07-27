@@ -84,7 +84,19 @@ export function DateTimePicker({
             onChange("");
             return;
           }
-          onChange(`${nextDay}T${time || defaultTime}`);
+          // On the boundary day the clock (whether typed earlier or the
+          // defaultTime fallback) may sit below the minimum time; clamp it so
+          // the emitted value never undercuts `min`. "HH:mm" compares
+          // correctly as a string.
+          let nextTime = time || defaultTime;
+          if (
+            nextDay === minParts.day &&
+            minParts.time &&
+            nextTime < minParts.time
+          ) {
+            nextTime = minParts.time;
+          }
+          onChange(`${nextDay}T${nextTime}`);
         }}
         disabled={disabled}
         hideClearButton={hideClearButton}
