@@ -306,6 +306,15 @@ export function TimetableEventModal({
           id="timetable-event-form"
           noValidate
           onSubmit={(event) => {
+            // Enter in a text field submits the form implicitly, even on a
+            // step where Speichern is not rendered. Before the last step that
+            // has to advance the wizard, not save — otherwise Enter walks
+            // straight past the gate. (#2025)
+            if (step < LAST_STEP) {
+              event.preventDefault();
+              goNext();
+              return;
+            }
             // Mirror handleSubmit's early-return guards: on those paths no
             // validation runs, so the flag would stay set and a later,
             // unrelated fieldErrors change could trigger a spurious step jump.

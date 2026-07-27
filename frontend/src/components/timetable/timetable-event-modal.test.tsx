@@ -3592,6 +3592,46 @@ describe("TimetableEventModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("lets Enter advance instead of saving before the last step", async () => {
+    // Enter in a text field submits the form implicitly, without any visible
+    // Speichern button. With valid step-1 fields that used to write the
+    // termin straight from step 1 and bypass the wizard gate.
+    renderModal();
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+
+    const form = document.getElementById("timetable-event-form")!;
+    fireEvent.submit(form);
+
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(currentStep()).toBe(2);
+
+    fireEvent.submit(form);
+
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(currentStep()).toBe(3);
+
+    fireEvent.submit(form);
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps Enter from leaving a step whose own fields are invalid", async () => {
+    renderModal();
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.submit(document.getElementById("timetable-event-form")!);
+
+    expect(
+      await screen.findByText("Bitte einen Titel eingeben."),
+    ).toBeInTheDocument();
+    expect(currentStep()).toBe(1);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
   it("makes Weiter the dominant action and leaves Abbrechen/Zurück neutral", async () => {
     renderModal();
 
