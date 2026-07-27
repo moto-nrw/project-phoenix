@@ -1,6 +1,17 @@
 "use client";
 
+import {
+  RESOURCE_GRID_METRICS,
+  resourceGridMinWidth,
+} from "~/components/ui/resource-grid";
 import { Skeleton } from "~/components/ui/skeleton";
+
+// Das Skelett rastert wie das echte Wochenraster: dieselbe Spaltenzahl,
+// dieselben Spaltenbreiten aus RESOURCE_GRID_METRICS und dieselbe
+// Zellen-Mindesthöhe (Issue #2026). Ändert sich die Metrik im ResourceGrid,
+// wandert sie automatisch mit.
+const SKELETON_DAY_COLUMNS = 5;
+const CELL_MIN_HEIGHT = RESOURCE_GRID_METRICS.cellMinHeightClass.days;
 
 // The PlanningContextBar header placeholder (title, week nav, view switcher,
 // "Schichtarten verwalten" action). Only used by the full-page skeleton — once
@@ -30,18 +41,44 @@ function HeaderSkeleton() {
 function GridSkeletonBody() {
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="max-w-full overflow-hidden rounded-2xl border border-gray-100">
+      <div className="max-w-full overflow-clip rounded-2xl border border-gray-200">
         <div className="max-w-full overflow-x-auto">
-          <table className="w-full min-w-[960px] border-collapse text-sm">
-            <tbody className="divide-y divide-gray-100">
+          <table
+            className="w-full table-fixed border-collapse text-sm"
+            style={{ minWidth: resourceGridMinWidth(SKELETON_DAY_COLUMNS) }}
+          >
+            <colgroup>
+              <col style={{ width: RESOURCE_GRID_METRICS.rowHeaderWidth }} />
+              {Array.from({ length: SKELETON_DAY_COLUMNS }, (_, col) => (
+                <col key={col} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-2 py-1.5 text-left">
+                  <Skeleton className="h-4 w-16 rounded" />
+                </th>
+                {Array.from({ length: SKELETON_DAY_COLUMNS }, (_, col) => (
+                  <th key={col} className="px-2 py-1.5 text-left">
+                    <Skeleton className="h-4 w-14 rounded" />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
               {Array.from({ length: 6 }, (_, row) => (
-                <tr key={row} className="bg-white">
-                  <td className="px-4 py-2">
+                <tr key={row} className="border-t border-gray-100 bg-white">
+                  <td className="px-2 py-1.5 align-top">
                     <Skeleton className="h-4 w-32 rounded" />
                   </td>
-                  {Array.from({ length: 5 }, (_, col) => (
-                    <td key={col} className="px-3 py-2">
-                      <Skeleton className="h-9 w-full rounded-md" />
+                  {Array.from({ length: SKELETON_DAY_COLUMNS }, (_, col) => (
+                    <td
+                      key={col}
+                      className="border-l border-gray-100 px-1 py-1 align-top"
+                    >
+                      <Skeleton
+                        className={`${CELL_MIN_HEIGHT} w-full rounded-md`}
+                      />
                     </td>
                   ))}
                 </tr>
@@ -49,12 +86,15 @@ function GridSkeletonBody() {
             </tbody>
             <tfoot>
               <tr className="border-t border-gray-200 bg-gray-50">
-                <td className="px-4 py-2">
+                <td className="px-2 py-1.5">
                   <Skeleton className="h-4 w-28 rounded" />
                 </td>
-                {Array.from({ length: 5 }, (_, col) => (
-                  <td key={col} className="px-3 py-2">
-                    <Skeleton className="h-4 w-8 rounded" />
+                {Array.from({ length: SKELETON_DAY_COLUMNS }, (_, col) => (
+                  <td
+                    key={col}
+                    className="border-l border-gray-100 px-2 py-1.5 text-center"
+                  >
+                    <Skeleton className="mx-auto h-4 w-8 rounded" />
                   </td>
                 ))}
               </tr>
