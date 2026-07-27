@@ -290,6 +290,7 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },
   { href: "/database/permissions", label: "Berechtigungen" },
+  { href: "/database/grade-transitions", label: "Jahrgangswechsel" },
   { href: "/database/exports", label: "Exporte" },
 ];
 
@@ -554,10 +555,18 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const databaseSubPages = useMemo(
     () =>
-      DATABASE_SUB_PAGES.filter(
-        (page) => nfcEnabled || !NFC_ONLY_HREFS.has(page.href),
-      ),
-    [nfcEnabled],
+      DATABASE_SUB_PAGES.filter((page) => {
+        if (!nfcEnabled && NFC_ONLY_HREFS.has(page.href)) return false;
+        // Jahrgangswechsel is gated on grade_transitions:read so a user without
+        // it isn't sent to a page that only 403s.
+        if (page.href === "/database/grade-transitions") {
+          return (
+            userIsAdmin || hasPermission(session, "grade_transitions:read")
+          );
+        }
+        return true;
+      }),
+    [nfcEnabled, userIsAdmin, session],
   );
 
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat

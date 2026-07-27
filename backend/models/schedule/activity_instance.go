@@ -165,6 +165,38 @@ type ActivityInstanceRepository interface {
 	// given active.group, or nil if none.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*ActivityInstance, error)
 
+	// FindPlannedTemplateBackedFrom returns every planned instance dated on or
+	// after `from` that the MATERIALIZER produced (activity_group_id and
+	// calendar_period_id both set, is_spontaneous false), tenant-scoped and
+	// ordered by date then start time. Used to reconcile already-materialized
+	// rosters when a reverted grade transition restores students the
+	// insert-only materializer had skipped while they were alumni (#405
+	// review).
+	//
+	// Hand-created blocks are excluded even when they link a template for its
+	// metadata: their roster is the list of students the planner submitted, so
+	// refilling it from the template's enrollments would add children nobody
+	// assigned. Only the materializer stamps calendar_period_id (#405 review).
+	//
+	// The bound is INCLUSIVE of `from` (today, at revert time). An instance
+	// materialized after the apply but dated today has no archive row — the
+	// materializer skipped the alumnus outright — so excluding the boundary date
+	// would leave a same-day apply-then-revert child permanently missing from
+	// today's roster with nothing left to repair it. Today's instances that
+	// already started or finished are excluded by the planned-status filter.
+	FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*ActivityInstance, error)
+
+	// MaxID returns the highest instance id currently visible to this tenant, or
+	// 0 when it has none. It is an ORDERING MARKER, not a count: a grade
+	// transition records it while applying so its revert can tell instances that
+	// already existed from instances materialized afterwards, during the alumnus
+	// window. created_at cannot answer that — it defaults to the transaction
+	// start time, so a materialization that started earlier and then blocked on
+	// the tenant transition lock backdates rows it inserts after the apply
+	// commits. Sequence ids are assigned at INSERT and do reflect that order
+	// (#405 review).
+	MaxID(ctx context.Context) (int64, error)
+
 	// MarkCompleted updates only lifecycle columns. Do not use a full-row
 	// Update for DB-loaded instances because SQL TIME columns do not round-trip
 	// safely through Bun.

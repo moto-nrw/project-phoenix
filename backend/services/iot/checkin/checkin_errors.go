@@ -90,6 +90,11 @@ const (
 	checkinErrCreateSession     = "failed to create session"
 	checkinErrNoGroupsInRoom    = "no active groups in specified room"
 	checkinErrNoActiveSession   = "no active session - please start an activity first"
+	// checkinErrPersonNotStudent mirrors shared.ErrMsgPersonNotStudent (the api
+	// layer can't be imported here). A graduated student who races a check-in is
+	// surfaced with this exact wire string so PyrePortal treats it like an
+	// unknown/absent student and needs no new mapping (#405).
+	checkinErrPersonNotStudent  = "person is not a student"
 	checkinErrLoadSupervisors   = "failed to load session supervisors"
 	checkinErrUpdateSupervisors = "failed to update session supervisors"
 	checkinErrRoomIDRequired    = "room_id is required for check-in"

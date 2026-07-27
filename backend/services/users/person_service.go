@@ -2,6 +2,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -354,6 +356,34 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 	return nil
 }
 
+// LinkStudentToRFIDCard assigns a bracelet to a student, refusing a graduated
+// (alumnus) child under a row lock held for the caller's transaction.
+//
+// The alumnus check the handler already ran happened before the write, and the
+// write itself only waits on users.persons. A graduation apply locks the
+// student row first and clears the tag second, so an assignment that passed the
+// handler gate can sit waiting on the person row while the apply commits, and
+// then re-link a bracelet onto a departed child — the exact state graduation
+// releases tags to avoid, and one no staff-facing route can undo because every
+// one of them 404s on an alumnus. Re-reading the student under the SAME lock
+// order the apply uses (student row, then person row) closes the window: either
+// this call wins the row and the apply observes the tag it must release, or the
+// apply wins and this call sees the alumnus status and refuses (#405 review).
+func (s *personService) LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error {
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &UsersError{Op: opLinkToRFIDCard, Err: ErrStudentNotFound}
+		}
+		return &UsersError{Op: opLinkToRFIDCard, Err: err}
+	}
+	if student.Status == userModels.StudentStatusAlumnus {
+		return &UsersError{Op: opLinkToRFIDCard, Err: ErrStudentGraduated}
+	}
+
+	return s.LinkToRFIDCard(ctx, student.PersonID, tagID)
+}
+
 // UnlinkFromRFIDCard removes RFID card association from a person
 func (s *personService) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
 	if err := s.PersonRepo.UnlinkFromRFIDCard(ctx, personID); err != nil {
@@ -439,6 +469,14 @@ func (s *personService) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*
 // GetStudentByID retrieves a student by ID.
 func (s *personService) GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error) {
 	return s.StudentRepo.FindByID(ctx, id)
+}
+
+// GetStudentByIDForUpdate retrieves a student by ID under a row lock held until
+// the caller's transaction ends. Callers that validate the status before writing
+// a row that references the student need it: an unlocked read can be obsolete
+// the moment a grade transition commits.
+func (s *personService) GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	return s.StudentRepo.FindByIDForUpdate(ctx, id)
 }
 
 // GetStudentByPersonID retrieves the student record belonging to a person.

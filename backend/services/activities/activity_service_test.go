@@ -15,6 +15,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -770,7 +771,7 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 
 	t.Run("returns empty map without repository call for empty input", func(t *testing.T) {
 		repo := &fakeActiveEnrollmentRepo{}
-		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil, nil)
 		require.NoError(t, err)
 
 		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), nil, onDate)
@@ -782,7 +783,7 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 
 	t.Run("wraps repository errors", func(t *testing.T) {
 		repo := &fakeActiveEnrollmentRepo{err: errors.New("database unavailable")}
-		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil, nil)
 		require.NoError(t, err)
 
 		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), []int64{10}, onDate)
@@ -807,7 +808,7 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 				{StudentID: 20, ActivityGroupID: groupB.ID, ActivityGroup: groupB},
 			},
 		}
-		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil, nil)
 		require.NoError(t, err)
 
 		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), []int64{10, 20}, onDate)
@@ -3008,4 +3009,107 @@ func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, c2.ShiftTypeID)
 	assert.Equal(t, st.ID, *c2.ShiftTypeID)
+}
+
+// TestActivityService_UpdateGroupEnrollments_PreservesAlumnusEnrollment covers
+// the #405 review fix: GetEnrolledStudents hides alumni, so the roster a caller
+// reads (GET /api/activities/{id}/students) never lists them and the PUT that
+// replaces it cannot either. Treating "not submitted" as "delete" would wipe
+// exactly the enrollments a grade transition preserved on purpose — the rows the
+// transition's revert and future materialization still need.
+func TestActivityService_UpdateGroupEnrollments_PreservesAlumnusEnrollment(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-enrollments")
+	activeStudent := testpkg.CreateTestStudent(t, db, "Still", "Here", "1a")
+	graduated := testpkg.CreateTestStudent(t, db, "Already", "Gone", "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, group.ID, activeStudent.ID, graduated.ID)
+
+	require.NoError(t, service.UpdateGroupEnrollments(ctx, group.ID, []int64{activeStudent.ID, graduated.ID}))
+
+	// The grade transition graduates the second child; the enrollment row stays.
+	_, err := db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Where("id = ?", graduated.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// What a staff member sees, and therefore submits back unchanged.
+	visible, err := service.GetEnrolledStudents(ctx, group.ID)
+	require.NoError(t, err)
+	visibleIDs := make([]int64, 0, len(visible))
+	for _, s := range visible {
+		visibleIDs = append(visibleIDs, s.ID)
+	}
+	assert.Equal(t, []int64{activeStudent.ID}, visibleIDs, "the alumnus is hidden from the roster read")
+
+	require.NoError(t, service.UpdateGroupEnrollments(ctx, group.ID, visibleIDs))
+
+	count, err := db.NewSelect().
+		TableExpr(`activities.student_enrollments`).
+		Where("activity_group_id = ?", group.ID).
+		Where("student_id = ?", graduated.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count,
+		"a hidden alumnus enrollment must survive a replacement update that could not show it")
+}
+
+// TestActivityService_EnrollmentWritesRejectAlumni covers the other half of the
+// same asymmetry (#405 review): an alumnus enrollment survives because no edit
+// can display it — which is exactly why no edit may CREATE one either. Such a
+// row is invisible in the roster and its counts, cannot be removed again, and
+// still feeds materialization and a transition revert.
+func TestActivityService_EnrollmentWritesRejectAlumni(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-enroll-guard")
+	activeStudent := testpkg.CreateTestStudent(t, db, "Still", "Enrolled", "1a")
+	graduated := testpkg.CreateTestStudent(t, db, "Long", "Graduated", "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, group.ID, activeStudent.ID, graduated.ID)
+
+	_, err := db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Where("id = ?", graduated.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	enrollmentCount := func(studentID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`activities.student_enrollments`).
+			Where("activity_group_id = ?", group.ID).
+			Where("student_id = ?", studentID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+
+	t.Run("EnrollStudent refuses a graduated child", func(t *testing.T) {
+		err := service.EnrollStudent(ctx, group.ID, graduated.ID)
+		require.ErrorIs(t, err, activities.ErrStudentIsAlumnus)
+		assert.Equal(t, 0, enrollmentCount(graduated.ID))
+	})
+
+	t.Run("UpdateGroupEnrollments refuses to add a graduated child", func(t *testing.T) {
+		err := service.UpdateGroupEnrollments(ctx, group.ID, []int64{activeStudent.ID, graduated.ID})
+		require.ErrorIs(t, err, activities.ErrStudentIsAlumnus)
+		assert.Equal(t, 0, enrollmentCount(graduated.ID))
+		assert.Equal(t, 0, enrollmentCount(activeStudent.ID),
+			"the whole write is rejected before any row is created")
+	})
+
+	t.Run("UpdateGroupEnrollments still accepts active students", func(t *testing.T) {
+		require.NoError(t, service.UpdateGroupEnrollments(ctx, group.ID, []int64{activeStudent.ID}))
+		assert.Equal(t, 1, enrollmentCount(activeStudent.ID))
+	})
 }

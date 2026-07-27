@@ -139,14 +139,20 @@ type StudentRepository interface {
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
 	FindAllWithGroups(ctx context.Context) ([]*StudentWithGroupInfo, error)
 
-	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection).
+	// Alumni are excluded: a graduate is soft-deleted and must not block the
+	// import of a new child sharing their name and class.
 	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
 
 	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
+	// Unconditional: it overwrites whatever status the row currently carries, so
+	// it must NOT be used by background lifecycle work that decided on a status
+	// it read earlier — use TransitionStatus for that.
 	UpdateStatus(ctx context.Context, studentID int64, newStatus StudentStatus) error
 
-	// TransitionStatus changes a student's lifecycle status only when its
-	// current status matches expected. Returns false for a stale transition.
+	// TransitionStatus is the compare-and-set form: the row flips to next only
+	// while it still holds expected. Returns false for a stale transition.
+	// Tenant-scoped via context.
 	TransitionStatus(ctx context.Context, studentID int64, expected, next StudentStatus) (bool, error)
 
 	// FindPendingDueForActivation returns students whose status='pending' AND
@@ -179,6 +185,19 @@ type StudentRepository interface {
 	// releases on commit/rollback. See implementation for the full race
 	// rationale.
 	LockPhotoFeature(ctx context.Context) error
+
+	// LockStudentClassWrites acquires the per-tenant advisory gate that keeps
+	// students from being created in — or moved into — a class while the caller
+	// runs. Taken EXCLUSIVELY by the grade transition apply/revert; every
+	// ordinary student write takes the shared form inside the repository, so no
+	// caller has to remember it. Row locks cannot cover this case: a child who
+	// arrives in a mapped class during an apply has no row the apply could have
+	// locked, and would otherwise be left behind in a class the transition just
+	// emptied while the transition reported success (#405 review).
+	//
+	// Must be called inside a tenant tx; releases on commit/rollback. Take it
+	// BEFORE the recurrence and grade-transition gates.
+	LockStudentClassWrites(ctx context.Context) error
 
 	// FindByIDForUpdate retrieves a student by id with SELECT … FOR
 	// UPDATE so the caller can re-validate state under the same row

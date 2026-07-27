@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // checkDeviceAuth verifies device authentication and returns the device
@@ -58,8 +59,16 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 		previousTag = person.TagID
 	}
 
-	// Assign the RFID tag (this handles unlinking old assignments automatically)
-	if err := rs.PersonService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
+	// Assign the RFID tag (this handles unlinking old assignments automatically).
+	// Routed through the student-aware variant so the alumnus gate above is
+	// re-checked under the student row lock: the parseAndGetStudent read happened
+	// before this write, and a graduation apply committing in between would
+	// otherwise hand a fresh bracelet to a departed child (#405 review).
+	if err := rs.PersonService.LinkStudentToRFIDCard(r.Context(), student.ID, req.RFIDTag); err != nil {
+		if errors.Is(err, userService.ErrStudentGraduated) || errors.Is(err, userService.ErrStudentNotFound) {
+			renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+			return
+		}
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -96,8 +105,12 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse ID and get student
-	student, ok := rs.parseAndGetStudent(w, r)
+	// Parse ID and get student. Alumni pass on purpose: releasing a bracelet is
+	// the one action that must still work on a departed child, otherwise a tag
+	// left over from a graduation applied before graduation released tags itself
+	// can never be freed (#405 review). Assignment stays gated — a soft-deleted
+	// child must not be given a new tag.
+	student, ok := rs.parseAndGetStudentIncludingAlumni(w, r)
 	if !ok {
 		return
 	}

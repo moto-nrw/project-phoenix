@@ -392,10 +392,12 @@ func diffOccurrence(
 	}
 
 	// Students. Expected = template enrollments valid on this date; actual =
-	// instance_students membership.
+	// instance_students membership. Graduated (alumnus) students are excluded to
+	// mirror copyEnrollments — materialization no longer copies them, so counting
+	// their enrollment here would flag a phantom "students changed" edit (#405).
 	expectedStudents := make(map[int64]struct{})
 	for _, e := range enrollments {
-		if isEnrollmentValidOn(e, inst.Date, periodID) {
+		if isEnrollmentValidOn(e, inst.Date, periodID) && !enrollmentStudentIsAlumnus(e) {
 			expectedStudents[e.StudentID] = struct{}{}
 		}
 	}

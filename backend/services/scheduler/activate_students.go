@@ -18,6 +18,9 @@ import (
 type StudentLifecycleRepository interface {
 	FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
 	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
+	// Compare-and-set, deliberately not the unconditional UpdateStatus: the tick
+	// decides from rows it read earlier, and by the time it writes, a grade
+	// transition may have graduated the child (see the repository method's doc).
 	TransitionStatus(ctx context.Context, studentID int64, expected, next userModels.StudentStatus) (bool, error)
 }
 
@@ -149,6 +152,14 @@ func (s *Scheduler) runActivateStudentsForTenantWithError(ctx context.Context, t
 // info entry per transition. Status-update errors are logged and skipped;
 // audit errors abort the tenant transaction. GDPR: student IDs only — no names
 // at info level (CLAUDE.md backend logging rule).
+//
+// The write is a compare-and-set on `from` — the status the row carried when the
+// Find query selected it. Between that query and this update a grade transition
+// can graduate the child; the update then waits on its row lock and would
+// otherwise overwrite `alumnus` with active/inactive, resurrecting a departed
+// student past every alumnus read filter and without any of apply's guards. A row
+// whose status moved on is skipped, not an error — the next tick re-evaluates it
+// from current data (#405 review).
 func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, students []*userModels.Student, from, to userModels.StudentStatus) error {
 	if len(students) == 0 {
 		return nil
@@ -200,6 +211,7 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 		slog.String("from", string(from)),
 		slog.String("to", string(to)),
 		slog.Int("transitions", transitions),
+		slog.Int("candidates", len(students)),
 	)
 	return nil
 }

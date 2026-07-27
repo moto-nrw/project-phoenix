@@ -760,6 +760,282 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 	return nil
 }
 
+// ArchivePlannedByStudentIDsFrom removes the given students' still-planned
+// attendance rows on non-cancelled instances dated on or after `from`, and
+// snapshots every removed row into schedule.grade_transition_roster_removals
+// under `transitionID` so the transition's revert can put them back verbatim.
+//
+// "Planned" is deliberately wider than status = 'expected': a future status day
+// (planned sickness, excusal, class trip) rewrites the row to 'absent' with a
+// student_status_day_id, and a graduated child left on such a row stays visible
+// and counted in slot-list Plan/Abgleich reads and future exports, which load
+// every instance row regardless of status. So the predicate excludes every row
+// that records something that actually HAPPENED — a stamped check-in/checkout,
+// or an attendance marker a human put there ('present', or any status finalized
+// BY HAND via manual_status_at) on an occurrence that has already started or
+// become history — plus every row on an instance that ran to completion (#405
+// review).
+//
+// 'present' is NOT an unconditional exemption. The status alone does not prove
+// an observation: every real check-in either stamps checked_in_at (the visit
+// mirror, the unplanned-slot insert) or runs against an already-started
+// instance (markPlannedStudentPresent stamps manual_status_at while the block
+// is 'active'), and both are excluded by the clauses above. What a blanket
+// `status <> 'present'` additionally kept was a presence somebody pre-marked on
+// a block that has not started — a plan, treated below exactly like any other
+// hand-set status (#405 review).
+//
+// The exclusions are not cosmetic. The revert deliberately refuses to replay
+// archived rows into completed or past instances (that attendance is frozen
+// history), while consuming their ledger entries — so anything this statement
+// deletes there is gone for good. A hand-finalized absence on today's completed
+// block is exactly such a row: recorded attendance, not a plan. Deleting it
+// would erase a supervisor's observation permanently.
+//
+// A hand-set status on a block that has NOT started yet is the opposite case:
+// nothing was observed, it is still a plan, and `at` is where the line is drawn.
+// Exempting those rows too would leave the departed child on the roster of every
+// future occurrence a supervisor happened to touch — visible in the timetable
+// list and in slot-list/export reads, and counted for staffing on an 'expected'
+// row, since none of those readers filter alumni. They are archived like any
+// other plan, and the replay restores the hand-set status verbatim (#405
+// review).
+//
+// The date bound is INCLUSIVE of `from` (today, for a graduation): slot-list
+// eligibleOn decides visibility from the enrollment interval, not from alumnus
+// status, so a still-planned row on a later block of the current day would keep
+// a departed child in today's Plan/Abgleich lists and staffing counts. Rows that
+// already recorded an event today are excluded by the predicate above and stay
+// as the historical record (#405 review).
+//
+// Cross-table predicate (join on activity_instances for date/status) plus the
+// archive write, so it is expressed as one data-modifying CTE in the repository
+// rather than the generic builder. Tenant-scoped; a nil/empty student set is a
+// no-op.
+func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
+	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date, at time.Time,
+) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	today := timezone.DateFromTime(at)
+	clock := at.In(timezone.Berlin).Format("15:04:05")
+
+	const rawSQL = `
+		WITH removed AS (
+			DELETE FROM schedule.instance_students AS s
+			USING schedule.activity_instances AS ai
+			WHERE s.instance_id = ai.id
+			  AND s.student_id IN (?)
+			  AND s.checked_in_at IS NULL
+			  AND s.checked_out_at IS NULL
+			  AND (
+			        (s.manual_status_at IS NULL AND s.status <> ?)
+			        OR (
+			              ai.status = ?
+			              AND (ai.date > ? OR (ai.date = ? AND ai.start_time > ?::time))
+			        )
+			  )
+			  AND ai.date >= ?
+			  AND ai.status NOT IN (?, ?)
+			  AND s.tenant_id = ?
+			RETURNING s.*
+		)
+		INSERT INTO schedule.grade_transition_roster_removals (
+			tenant_id, transition_id, instance_id, student_id, room_id, status,
+			substatus, note, is_unplanned, not_scheduled, manual_status_at,
+			student_status_day_id
+		)
+		SELECT removed.tenant_id, ?, removed.instance_id, removed.student_id,
+		       removed.room_id, removed.status, removed.substatus, removed.note,
+		       removed.is_unplanned, removed.not_scheduled, removed.manual_status_at,
+		       removed.student_status_day_id
+		FROM removed
+		ON CONFLICT (transition_id, instance_id, student_id) DO UPDATE SET
+			room_id               = EXCLUDED.room_id,
+			status                = EXCLUDED.status,
+			substatus             = EXCLUDED.substatus,
+			note                  = EXCLUDED.note,
+			is_unplanned          = EXCLUDED.is_unplanned,
+			not_scheduled         = EXCLUDED.not_scheduled,
+			manual_status_at      = EXCLUDED.manual_status_at,
+			student_status_day_id = EXCLUDED.student_status_day_id,
+			created_at            = NOW()`
+
+	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
+		bun.List(studentIDs),
+		schedule.AttendanceStatusPresent,
+		schedule.InstanceStatusPlanned,
+		today,
+		today,
+		clock,
+		from,
+		schedule.InstanceStatusCompleted,
+		schedule.InstanceStatusCancelled,
+		tenant.FromContext(ctx),
+		transitionID,
+	)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "archive planned by student ids from",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+	return int(affected), nil
+}
+
+// RestoreArchivedByTransition replays the rows ArchivePlannedByStudentIDsFrom
+// removed for `transitionID` and consumes the archive entries, so the revert is
+// the exact inverse of the apply: an occurrence a supervisor had customized by
+// hand comes back exactly as it was, and a row the apply did NOT remove is never
+// invented (reconstructing rosters from enrollments does both wrong — #405
+// review).
+//
+// "Verbatim" covers the STRUCTURAL fields — room, note, unplanned / non-booking
+// markers — but NOT the attendance state. status / substatus /
+// student_status_day_id are re-derived from the day statuses that are active
+// NOW, because the archived pair only ever describes a PLAN (the archive
+// predicate excludes everything that recorded an event), and plans expire: an
+// alumnus window of several weeks is ample time for a sickness to be reported or
+// cleared. Replaying the snapshot would resurrect the pre-graduation state —
+// expected for a child who has since been reported sick, absent for one whose
+// status day was cleared. The reconciler's active-status pass cannot repair
+// either: it only touches rows it just materialized, never these replayed ones
+// (#405 review).
+//
+// Rows marked not_scheduled keep their own status: a non-booking is not an
+// attendance plan, and ApplyActiveStatusDaysForInstance skips them for the same
+// reason. So do rows a supervisor had set by hand to something other than
+// 'expected' (manual_status_at with a non-expected status): the archive only
+// takes those off occurrences that had not started yet, and re-deriving would
+// silently drop the decision the archive is supposed to hand back. Their
+// status-day provenance stays NULL — the PATCH that set the status cleared it
+// (#405 review).
+//
+// room_id is re-validated against its current row instead of being trusted: a
+// room deleted during the alumnus window restores as NULL rather than failing
+// the whole revert on a foreign key. ON CONFLICT DO NOTHING covers a row that
+// already exists again (a re-run, or a manual re-add during the alumnus
+// window) — the existing row wins.
+//
+// Only STILL-ACTIONABLE instances are replayed: dated on or after `from`
+// (today at revert time) and neither completed nor cancelled. The alumnus
+// window can span weeks, so archived rows routinely describe occurrences that
+// have since become history. Replaying an 'expected' or status-day 'absent' row
+// into a past or completed instance would retroactively insert a child into
+// frozen attendance — after every chance to record what actually happened has
+// passed — corrupting reports and exports. Their ledger entries are still
+// consumed by the same DELETE (they are obsolete, and leaving them would make a
+// re-apply's upsert collide with a stale snapshot); only the INSERT is filtered
+// (#405 review).
+//
+// (The archiving direction upserts instead, so a repeated archive of the same
+// pair refreshes the snapshot rather than silently keeping a stale one.)
+func (r *InstanceStudentRepository) RestoreArchivedByTransition(
+	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date,
+) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	const rawSQL = `
+		WITH restored AS (
+			DELETE FROM schedule.grade_transition_roster_removals AS rm
+			WHERE rm.transition_id = ?
+			  AND rm.student_id IN (?)
+			  AND rm.tenant_id = ?
+			RETURNING rm.*
+		)
+		INSERT INTO schedule.instance_students (
+			tenant_id, instance_id, student_id, room_id, status, substatus, note,
+			is_unplanned, not_scheduled, manual_status_at, student_status_day_id,
+			created_at, updated_at
+		)
+		SELECT restored.tenant_id, restored.instance_id, restored.student_id,
+		       room.id,
+		       CASE
+		           WHEN restored.not_scheduled          THEN restored.status
+		           WHEN hand_set.kept                   THEN restored.status
+		           WHEN active_day.id IS NOT NULL       THEN ?
+		           ELSE ?
+		       END,
+		       CASE
+		           WHEN restored.not_scheduled          THEN restored.substatus
+		           WHEN hand_set.kept                   THEN restored.substatus
+		           WHEN active_day.status = 'sick'       THEN ?
+		           WHEN active_day.status = 'excused'    THEN ?
+		           WHEN active_day.status = 'class_trip' THEN ?
+		           ELSE NULL
+		       END,
+		       restored.note,
+		       restored.is_unplanned, restored.not_scheduled, restored.manual_status_at,
+		       CASE WHEN restored.not_scheduled OR hand_set.kept THEN NULL ELSE active_day.id END,
+		       NOW(), NOW()
+		FROM restored
+		JOIN schedule.activity_instances AS ai
+		       ON ai.id = restored.instance_id
+		      AND ai.tenant_id = restored.tenant_id
+		LEFT JOIN facilities.rooms AS room
+		       ON room.id = restored.room_id
+		      AND room.tenant_id = restored.tenant_id
+		CROSS JOIN LATERAL (
+		       SELECT restored.manual_status_at IS NOT NULL
+		              AND restored.status <> ? AS kept
+		) AS hand_set
+		LEFT JOIN LATERAL (
+		       SELECT sd.id, sd.status
+		       FROM active.student_status_days AS sd
+		       WHERE sd.student_id = restored.student_id
+		         AND sd.tenant_id  = restored.tenant_id
+		         AND sd.date       = ai.date
+		         AND sd.cleared_at IS NULL
+		       ORDER BY sd.reported_at DESC, sd.id DESC
+		       LIMIT 1
+		) AS active_day ON TRUE
+		WHERE ai.date >= ?
+		  AND ai.status NOT IN (?, ?)
+		ON CONFLICT (instance_id, student_id) DO NOTHING`
+
+	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
+		transitionID,
+		bun.List(studentIDs),
+		tenant.FromContext(ctx),
+		schedule.AttendanceStatusAbsent,
+		schedule.AttendanceStatusExpected,
+		schedule.AttendanceSubstatusSick,
+		schedule.AttendanceSubstatusExcused,
+		schedule.AttendanceSubstatusFieldTrip,
+		schedule.AttendanceStatusExpected,
+		from,
+		schedule.InstanceStatusCompleted,
+		schedule.InstanceStatusCancelled,
+	)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "restore archived rows by transition",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+	return int(affected), nil
+}
+
 // MarkExpectedAbsentByActiveGroupIDs flips status 'expected' → 'absent' for
 // students on still-active instances bridged to the given active.groups.
 // Custom method (backend-conventions Rule 2): the subquery join on

@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // ChildRepository implements parentModels.ChildRepository.
@@ -36,6 +37,12 @@ func NewChildRepository(db *bun.DB) parentModels.ChildRepository {
 // Soft-deleted person rows are filtered with p.deleted_at IS NULL.
 // Inactive account_tenants are excluded so a parent who lost access to
 // a school doesn't continue seeing its children.
+//
+// Alumni are excluded for the same reason. Graduation is a soft delete:
+// the student row survives but the child has left the OGS, and every
+// staff-facing read path already filters them out. Leaving them visible
+// here would let a guardian keep filing sick notes, care exceptions and
+// notes for a child the school no longer cares for (#405 review).
 //
 // Result ordering: school name, then student first/last so the dashboard
 // can render with stable grouping.
@@ -97,12 +104,17 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		WHERE at.account_id = ?
 		  AND at.status     = 'active'
 		  AND p.deleted_at IS NULL
+		  AND s.status     <> ?
 		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 		ORDER BY school_name, first_name, last_name
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID, authorize.GuardianPermissionPortalAccess).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(query,
+		accountID,
+		string(usersModels.StudentStatusAlumnus),
+		authorize.GuardianPermissionPortalAccess,
+	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list children: %w", err)
 	}
 
@@ -130,6 +142,12 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 // Same cross-tenant join as ListByAccount, narrowed to one student id.
 // Returns nil, nil when the student is not linked to the account so the
 // caller can map "not yours" to a 403/404 without leaking existence.
+//
+// This is THE authorization gate for every per-child parent write
+// (services/parent resolvePermittedChild), so the alumnus exclusion that
+// hides graduates from the dashboard also stops the writes: a guardian
+// cannot submit a future-dated sick note or care exception for a child
+// who has left the school (#405 review).
 //
 // MUST run inside a tenant.WithAdminTx — the join spans tenant_id
 // boundaries scoped only by auth.account_tenants membership.
@@ -189,12 +207,18 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		  AND s.id          = ?
 		  AND at.status     = 'active'
 		  AND p.deleted_at IS NULL
+		  AND s.status     <> ?
 		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 		LIMIT 1
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID, studentID, authorize.GuardianPermissionPortalAccess).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(query,
+		accountID,
+		studentID,
+		string(usersModels.StudentStatusAlumnus),
+		authorize.GuardianPermissionPortalAccess,
+	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: find child for account: %w", err)
 	}
 	if len(rows) == 0 {

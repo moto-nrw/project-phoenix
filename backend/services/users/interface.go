@@ -51,6 +51,13 @@ type PersonService interface {
 	// LinkToRFIDCard associates a person with an RFID card
 	LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error
 
+	// LinkStudentToRFIDCard assigns a bracelet to a student, re-reading the
+	// student row under a FOR UPDATE lock first so a graduation committing in
+	// the meantime is refused with ErrStudentGraduated instead of leaving a tag
+	// linked to an alumnus. Every student-facing tag assignment must go through
+	// this method rather than LinkToRFIDCard (#405).
+	LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error
+
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
 
@@ -103,6 +110,13 @@ type PersonService interface {
 
 	// GetStudentByID retrieves a student by ID.
 	GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error)
+
+	// GetStudentByIDForUpdate retrieves a student by ID under a SELECT … FOR
+	// UPDATE row lock held for the caller's transaction, so a status the caller
+	// validates cannot be changed by a concurrent grade transition before the
+	// caller's own write commits. Errors are returned verbatim like the other
+	// entity lookups (sql.ErrNoRows stays unwrappable).
+	GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
 
 	// GetStudentByPersonID retrieves the student record belonging to a person.
 	GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error)

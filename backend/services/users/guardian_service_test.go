@@ -783,6 +783,30 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 		assert.Equal(t, student.ID, result[0].Student.ID)
 	})
 
+	t.Run("excludes graduated students", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "alumnus-child")
+		student := testpkg.CreateTestStudent(t, db, "Former", "Student", "4a")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "guardian",
+		})
+		require.NoError(t, err)
+
+		_, err = db.NewUpdate().
+			TableExpr("users.students").
+			Set("status = ?", string(usermodels.StudentStatusAlumnus)).
+			Where("id = ?", student.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		result, err := service.GetGuardianStudents(ctx, guardian.ID)
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
 	t.Run("returns empty list when no students", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-students")

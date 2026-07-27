@@ -198,6 +198,9 @@ func (s *Service) canReadStudent(ctx context.Context, studentID int64) error {
 	if student == nil {
 		return ErrForbidden
 	}
+	if student.IsAlumnus() {
+		return ErrForbidden
+	}
 	perms := jwt.PermissionsFromCtx(ctx)
 	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext, s.Settings, s.Logger) {
 		return ErrForbidden

@@ -19,6 +19,8 @@ interface DatabaseStats {
     canViewRoles: boolean;
     canViewDevices: boolean;
     canViewPermissions: boolean;
+    canViewTimetables: boolean;
+    canViewGradeTransitions: boolean;
   };
 }
 

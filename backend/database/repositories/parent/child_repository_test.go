@@ -478,3 +478,63 @@ func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) 
 	assert.Nil(t, findChild(t, db, account.ID, student.ID),
 		"an inactive tenant mapping must drop the child")
 }
+
+// A grade transition graduates a child by flipping their status to 'alumnus' —
+// a soft delete that hides them from every staff-facing read path. The parent
+// portal must follow: the guardian relation survives graduation, so without this
+// filter a guardian keeps seeing the departed child AND keeps write access,
+// because FindForAccount is the authorization gate for every per-child parent
+// write (#405 review).
+func TestChildRepository_AlumnusChildIsHiddenAndUnwritable(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "parentchild-alumnus")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	graduate := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lena", "Abgang", "4a")
+	sibling := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Timo", "Bleibt", "1a")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("users.students").
+			Where("id IN (?, ?)", graduate.ID, sibling.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.persons").
+			Where("id IN (?, ?)", graduate.PersonID, sibling.PersonID).Exec(context.Background())
+	})
+	linkChildToAccount(t, db, account.ID, tenantID, graduate.ID)
+	linkChildToAccount(t, db, account.ID, tenantID, sibling.ID)
+
+	// Before graduation both children are the guardian's to see and write.
+	repo := parentRepo.NewChildRepository(db)
+	var before []*parentModels.ChildSummary
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		before, lErr = repo.ListByAccount(ctx, account.ID)
+		return lErr
+	}))
+	require.Len(t, before, 2)
+	require.NotNil(t, findChild(t, db, account.ID, graduate.ID))
+
+	_, err := db.NewRaw(`UPDATE users.students SET status = 'alumnus' WHERE id = ?`, graduate.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	var after []*parentModels.ChildSummary
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		after, lErr = repo.ListByAccount(ctx, account.ID)
+		return lErr
+	}))
+	require.Len(t, after, 1, "the graduate must drop out of the parent dashboard")
+	assert.Equal(t, sibling.ID, after[0].StudentID, "the sibling still at the school stays")
+
+	assert.Nil(t, findChild(t, db, account.ID, graduate.ID),
+		"the authorization gate must refuse the graduate, so no parent write can target them")
+	assert.NotNil(t, findChild(t, db, account.ID, sibling.ID),
+		"graduating one child must not revoke access to the others")
+}

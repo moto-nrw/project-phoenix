@@ -543,6 +543,30 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 	return s.buildRosterWithCareDay(ctx, instanceID, nil)
 }
 
+// rosterExcludedAlumni returns the set of student IDs to drop from a
+// current/future roster because the student has graduated (alumnus) and is
+// therefore soft-deleted from all staff-facing operations. Frozen history —
+// a past-dated, completed, or cancelled instance — excludes nobody so its
+// recorded attendance stays intact (#405).
+func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int64]*usersModel.Student) map[int64]bool {
+	excluded := map[int64]bool{}
+	if inst == nil {
+		return excluded
+	}
+	if inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled {
+		return excluded
+	}
+	if inst.Date.Before(timezone.TodayDate()) {
+		return excluded
+	}
+	for id, st := range students {
+		if st != nil && st.Status == usersModel.StudentStatusAlumnus {
+			excluded[id] = true
+		}
+	}
+	return excluded
+}
+
 // buildRosterWithCareDay builds the roster, optionally reusing a care-day map
 // the caller already resolved. PlannedNow resolves once for every instance of
 // the day; passing nil makes this method resolve for itself.
@@ -582,6 +606,12 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	if err != nil {
 		return nil, err
 	}
+	// Graduated (alumnus) students are soft-deleted: their instance_students
+	// rows are kept for historical attendance, but they must drop off any
+	// roster a supervisor can still act on, so a departed child never appears on
+	// an upcoming staff list nor has their attendance patched. Frozen history
+	// (past-dated or completed/cancelled instances) keeps every row (#405).
+	excludedAlumni := rosterExcludedAlumni(inst, students)
 	templateGroup, err := s.loadRosterTemplateGroup(ctx, inst.ActivityGroupID)
 	if err != nil {
 		return nil, err
@@ -620,9 +650,15 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	}
 	rows := make([]OperationRosterRow, 0, len(seen))
 	for _, planned := range plannedRows {
+		if excludedAlumni[planned.StudentID] {
+			continue
+		}
 		rows = append(rows, s.mapRosterRow(inst, planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups, warningsByStudent[planned.StudentID], careDay))
 	}
 	for _, visit := range latestVisits {
+		if excludedAlumni[visit.StudentID] {
+			continue
+		}
 		if _, planned := findPlanned(plannedRows, visit.StudentID); planned {
 			continue
 		}

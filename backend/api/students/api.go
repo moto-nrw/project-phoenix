@@ -37,9 +37,14 @@ type Resource struct {
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService          userService.PersonService
-	GuardianService        *userService.GuardianService
-	EducationService       educationService.Service
+	PersonService    userService.PersonService
+	GuardianService  *userService.GuardianService
+	EducationService educationService.Service
+	// GradeTransitionService is required by the purge route only: it strips the
+	// child's name from the transition ledger in the same transaction as the
+	// delete. Optional so bare test Resources still compile; the purge handler
+	// refuses rather than silently skipping the anonymization when it is nil.
+	GradeTransitionService *educationService.GradeTransitionService
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
@@ -150,6 +155,10 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStudent)
+		// Hard-deletes a child that a grade transition graduated. Separate from
+		// the route above because the alumnus gate that route relies on is
+		// exactly what this one has to bypass — see purgeGraduatedStudent.
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}/purge", rs.purgeGraduatedStudent)
 
 		// Privacy consent routes
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)

@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -198,6 +199,50 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertNotFound(t, rr)
+}
+
+// A graduated (alumnus) student is soft-deleted and gone from every kiosk and
+// staff workflow, but GetStudentByID is unfiltered. A feedback submission that
+// races the graduation apply (or arrives from a kiosk holding a stale roster)
+// must therefore be rejected here with the same 404 an unknown student gets, so
+// no new row is written against a graduate and PyrePortal needs no new error
+// mapping (#405).
+func TestSubmitFeedback_Alumnus(t *testing.T) {
+	ctx := setupFeedbackTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-alumnus")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Graduate", "4a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	_, err := ctx.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+		Where("id = ?", student.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	router := ctx.resource.Router()
+
+	body := map[string]interface{}{
+		"student_id": student.ID,
+		"value":      "positive",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+
+	count, err := ctx.db.NewSelect().
+		TableExpr(`feedback.entries`).
+		Where("student_id = ?", student.ID).
+		Count(t.Context())
+	require.NoError(t, err)
+	assert.Zero(t, count, "no feedback entry may be written for a graduated student")
 }
 
 func TestSubmitFeedback_Success(t *testing.T) {

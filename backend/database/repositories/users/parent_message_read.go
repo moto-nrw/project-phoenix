@@ -206,6 +206,7 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		ColumnExpr(unreadSub, accountID).
 		Join("JOIN users.students AS s ON s.id = t.student_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
+		Where("s.status <> ?", users.StudentStatusAlumnus).
 		Join("LEFT JOIN platform.schools AS sch ON sch.id = t.tenant_id").
 		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
 		// gp.tenant_id = t.tenant_id is REQUIRED: guardian_profiles is
@@ -292,12 +293,15 @@ var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 // filters (staff scope, or guardian + tenant set) and Count().
 //
 // parent_messages is the base table; the threads/persons joins reuse inboxSelect's
-// soft-delete and tenant-index discipline: pn.deleted_at IS NULL hides an
-// offboarded child's messages (so a badge can't outlive every openable thread),
-// and um.tenant_id = t.tenant_id binds the leading index column so the guardian
-// cross-tenant variant under WithAdminTx still uses the (tenant_id, thread_id,
-// created_at) index. The r LEFT JOIN is unique per (thread, account), so no row
-// fans out and COUNT(*) is an exact message count.
+// soft-delete, alumnus, and tenant-index discipline: pn.deleted_at IS NULL hides
+// an offboarded child's messages, s.status <> alumnus hides a graduated child's
+// (both so a badge can't outlive every openable thread — the inboxes filter
+// these threads out, and a count that didn't would leave a nonzero badge no
+// portal can clear, #405 review), and um.tenant_id = t.tenant_id binds the
+// leading index column so the guardian cross-tenant variant under WithAdminTx
+// still uses the (tenant_id, thread_id, created_at) index. The r LEFT JOIN is
+// unique per (thread, account), so no row fans out and COUNT(*) is an exact
+// message count.
 func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.SelectQuery {
 	return q.
 		TableExpr("users.parent_messages AS um").
@@ -305,6 +309,7 @@ func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader b
 		Join("JOIN users.students AS s ON s.id = t.student_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
 		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
+		Where("s.status <> ?", users.StudentStatusAlumnus).
 		Where(counterpartUnread("um", staffReader)).
 		Where(afterReadCursor("um")).
 		Where(notReaderAuthored("um"), accountID)
@@ -404,8 +409,9 @@ func (r *ParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.
 // badge source. It counts messages (not threads) so the badge matches the staff
 // side and the per-thread pills. Cross-tenant: run under WithAdminTx. See
 // ListThreadsForGuardianTenants for the ownership/scoping rationale; the
-// persons deleted_at IS NULL join inside unreadMessageCountSelect hides an
-// offboarded child's messages so the badge can't outlive its openable thread.
+// persons deleted_at IS NULL join and the alumnus filter inside
+// unreadMessageCountSelect hide an offboarded or graduated child's messages so
+// the badge can't outlive its openable thread.
 func (r *ParentMessageReadRepository) UnreadMessageCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
 	if len(tenantIDs) == 0 {
 		return 0, nil

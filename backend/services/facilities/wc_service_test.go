@@ -58,6 +58,7 @@ func setupWCService(t *testing.T, db *bun.DB) facilitiesSvc.WCService {
 		repoFactory.StudentEnrollment,
 		repoFactory.ActiveGroup,
 		repoFactory.Staff,
+		repoFactory.Student,
 	)
 	require.NoError(t, err)
 

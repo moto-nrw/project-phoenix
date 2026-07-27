@@ -148,6 +148,13 @@ func (s *CheckinService) ResolvePersonByRFID(ctx context.Context, rfid string) (
 
 // ResolveStudentFromPerson finds a student from a person record. A missing
 // student returns (nil, nil); repository failures are returned.
+//
+// A graduated (alumnus) student is soft-deleted by the grade-transition flow:
+// treat them as "no active student" so the primary kiosk check-in
+// (POST /api/iot/checkin) and pickup-query flows reject the scan exactly like
+// an unknown tag. Without this, a graduate's RFID could still open a room visit
+// (detailed mode) or an attendance row (binary mode), because neither this
+// resolver nor lookupStudentFromPerson checked the status (#405).
 func (s *CheckinService) ResolveStudentFromPerson(ctx context.Context, personID int64) (*users.Student, error) {
 	student, err := s.users.GetStudentByPersonID(ctx, personID)
 	if err != nil {
@@ -155,6 +162,9 @@ func (s *CheckinService) ResolveStudentFromPerson(ctx context.Context, personID 
 			return nil, nil
 		}
 		return nil, err
+	}
+	if student != nil && student.Status == users.StudentStatusAlumnus {
+		return nil, nil
 	}
 	return student, nil
 }
@@ -350,6 +360,18 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 				slog.String("error", err.Error()),
 			)
 			return nil, nil, s.buildStudentAlreadyActiveConflict(ctx, student.ID)
+		}
+		// Graduation committed between resolving this student (as active) and
+		// creating the visit — a race with a concurrent grade-transition apply.
+		// CreateVisit's guard returns ErrStudentGraduated; surface it as the same
+		// 404 "not a student" the pre-resolution path already returns for an
+		// alumnus, instead of letting the generic wrapper below turn it into a 500
+		// that tells the kiosk to retry (#405).
+		if errors.Is(err, activeSvc.ErrStudentGraduated) {
+			s.getLogger().InfoContext(ctx, "check-in rejected: student graduated mid-scan",
+				slog.Int64("student_id", student.ID),
+			)
+			return nil, nil, newNotFoundError(checkinErrPersonNotStudent)
 		}
 		s.getLogger().ErrorContext(ctx, "failed to create visit",
 			slog.Int64("student_id", student.ID),

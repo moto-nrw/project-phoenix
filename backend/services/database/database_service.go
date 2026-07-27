@@ -77,8 +77,19 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 		}
 	}
 	collectTimetableStats(claims, response)
+	collectGradeTransitionStats(claims, response)
 
 	return response, nil
+}
+
+// collectGradeTransitionStats flips CanViewGradeTransitions when the user has
+// the grade_transitions:read permission. Flag-only like timetables — the
+// Jahrgangswechsel card links into a workflow, not a flat list.
+func collectGradeTransitionStats(claims jwt.AppClaims, response *StatsResponse) {
+	if !checkUserPermission(claims, permissions.GradeTransitionsRead) {
+		return
+	}
+	response.Permissions.CanViewGradeTransitions = true
 }
 
 // collectTimetableStats flips CanViewTimetables when the user has the

@@ -1480,3 +1480,496 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 		assert.Empty(t, m)
 	})
 }
+
+// TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom pins the
+// graduation-reconciliation predicate (#405 review): every still-PLANNED row of
+// a graduated student from `from` onwards goes — today's included, because
+// slot-list reads decide visibility from the enrollment interval and not from
+// alumnus status, so a leftover row keeps the departed child in the current
+// day's Plan/Abgleich lists — including the ones a status day already rewrote to
+// 'absent'. Anything recording an actual event and anything before `from`
+// survives, and every removed row is archived for the revert to replay.
+func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	account := testpkg.CreateTestAccount(t, db, "roster-archive@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	today := timezone.TodayDate()
+	future := today.AddDays(7)
+	past := today.AddDays(-7)
+
+	futureInst, cleanupFuture := createInstanceFixture(t, db, "delfut", future)
+	defer cleanupFuture()
+	pastInst, cleanupPast := createInstanceFixture(t, db, "delpast", past)
+	defer cleanupPast()
+	todayInst, cleanupToday := createInstanceFixture(t, db, "deltoday", today)
+	defer cleanupToday()
+
+	suffix := time.Now().UnixNano()
+	graduate := testpkg.CreateTestStudent(t, db, "Abgang", fmt.Sprintf("G-%d", suffix), "4a")
+	stayer := testpkg.CreateTestStudent(t, db, "Bleibt", fmt.Sprintf("S-%d", suffix), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID, stayer.ID)
+
+	// A planned sickness on the future date: ApplyActiveStatusDaysForInstance has
+	// already turned the graduate's row into an absence owned by the status day.
+	// This is the row the old status='expected' predicate left behind.
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, graduate.ID, future, "sick")
+	defer testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
+
+	// Deleted: dated from today onwards and still planned.
+	futureExpected := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	todayExpected := testpkg.CreateTestInstanceStudent(t, db, todayInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	// Kept: before `from`.
+	pastExpected := testpkg.CreateTestInstanceStudent(t, db, pastInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	// Kept: another child's future row must be untouched.
+	stayerExpected := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, stayer.ID,
+		scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
+		futureExpected.ID, pastExpected.ID, todayExpected.ID, stayerExpected.ID)
+
+	archived := func(instanceID, studentID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`schedule.grade_transition_roster_removals`).
+			Where("transition_id = ?", transition.ID).
+			Where("instance_id = ?", instanceID).
+			Where("student_id = ?", studentID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+	require.NoError(t, err)
+	assert.Equal(t, 2, removed, "the graduate's planned rows from today onwards are removed")
+	assert.Equal(t, 1, archived(futureInst.ID, graduate.ID), "every removed row is archived for the revert")
+	assert.Equal(t, 1, archived(todayInst.ID, graduate.ID))
+
+	assertRowGone := func(t *testing.T, instanceID, studentID int64) {
+		t.Helper()
+		got, err := repo.FindByInstanceAndStudent(ctx, instanceID, studentID)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	}
+	assertRowKept := func(t *testing.T, instanceID, studentID int64) {
+		t.Helper()
+		got, err := repo.FindByInstanceAndStudent(ctx, instanceID, studentID)
+		require.NoError(t, err)
+		assert.NotNil(t, got)
+	}
+
+	assertRowGone(t, futureInst.ID, graduate.ID)
+	assertRowGone(t, todayInst.ID, graduate.ID)
+	assertRowKept(t, pastInst.ID, graduate.ID)
+	assertRowKept(t, futureInst.ID, stayer.ID)
+
+	t.Run("restores exactly the archived rows", func(t *testing.T) {
+		restored, err := repo.RestoreArchivedByTransition(ctx, transition.ID, []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assert.Equal(t, 2, restored, "both archived rows come back")
+		assertRowKept(t, futureInst.ID, graduate.ID)
+		assertRowKept(t, todayInst.ID, graduate.ID)
+		assert.Equal(t, 0, archived(futureInst.ID, graduate.ID), "the archive entry is consumed")
+
+		// Re-archive so the remaining subtests keep their original starting
+		// state (the graduate has no planned row from today onwards).
+		_, err = repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, err)
+		assertRowGone(t, futureInst.ID, graduate.ID)
+	})
+
+	t.Run("keeps today's row that records an actual presence", func(t *testing.T) {
+		// An observed presence carries the check-in stamp every real check-in
+		// path writes. The status alone is not the proof — see the
+		// pre-marked-presence subtest below (#405 review).
+		checkedInAt := time.Now()
+		row := &scheduleModels.InstanceStudent{
+			InstanceID:  todayInst.ID,
+			StudentID:   graduate.ID,
+			Status:      scheduleModels.AttendanceStatusPresent,
+			CheckedInAt: &checkedInAt,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, todayInst.ID, graduate.ID)
+	})
+
+	t.Run("removes a future absence a status day owns", func(t *testing.T) {
+		absent := scheduleModels.AttendanceStatusAbsent
+		sick := scheduleModels.AttendanceSubstatusSick
+		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID, absent,
+			testpkg.InstanceStudentOpts{StudentStatusDayID: &statusDay.ID})
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
+			scheduleModels.AttendanceFieldPatch{Substatus: &sick}))
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, 1, removed)
+		assertRowGone(t, futureInst.ID, graduate.ID)
+	})
+
+	t.Run("keeps a future row that records an actual presence", func(t *testing.T) {
+		checkedInAt := time.Now()
+		row := &scheduleModels.InstanceStudent{
+			InstanceID:  futureInst.ID,
+			StudentID:   graduate.ID,
+			Status:      scheduleModels.AttendanceStatusPresent,
+			CheckedInAt: &checkedInAt,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+
+	// The counterpart: 'present' WITHOUT any attendance stamp on a block that
+	// has not started is a pre-marked plan, not an observation. Keeping it left
+	// the graduate on that future roster — visible in timetable/slot-list reads
+	// and counted for staffing, since none of those readers filter alumni
+	// (#405 review).
+	t.Run("removes a future presence nobody observed yet", func(t *testing.T) {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: futureInst.ID,
+			StudentID:  graduate.ID,
+			Status:     scheduleModels.AttendanceStatusPresent,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, 1, removed)
+		assertRowGone(t, futureInst.ID, graduate.ID)
+		// Archived like any other plan, so the revert can replay it verbatim.
+		assert.Equal(t, 1, archived(futureInst.ID, graduate.ID))
+	})
+
+	t.Run("keeps a future row carrying a stamped check-in", func(t *testing.T) {
+		checkedInAt := time.Now()
+		row := &scheduleModels.InstanceStudent{
+			InstanceID:  futureInst.ID,
+			StudentID:   graduate.ID,
+			Status:      scheduleModels.AttendanceStatusExpected,
+			CheckedInAt: &checkedInAt,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+
+	t.Run("empty student set is a no-op", func(t *testing.T) {
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, nil, today, time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+	})
+
+	t.Run("tenant isolation leaves other tenants alone", func(t *testing.T) {
+		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
+			scheduleModels.AttendanceStatusExpected)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(
+			testpkg.TenantContext(999), transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+}
+
+// TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRows
+// pins where the manual_status_at exemption stops (#405 review). A status a
+// supervisor set BY HAND is an observation only once the occurrence has started
+// — before that it is still a plan, and leaving it behind keeps the departed
+// child on the timetable list, in slot-list/export reads and (on an 'expected'
+// row) in staffing counts, none of which filter alumni. The replay hands the
+// hand-set status back verbatim instead of re-deriving it from day statuses.
+func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRows(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	account := testpkg.CreateTestAccount(t, db, "roster-archive-manual@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	today := timezone.TodayDate()
+
+	// createInstanceFixture builds a 14:00-15:00 block, so "now" on either side
+	// of 14:00 decides whether the occurrence has started. Both clocks are
+	// explicit, which keeps the test independent of the wall clock it runs at.
+	inst, cleanupInst := createInstanceFixture(t, db, "manualtoday", today)
+	defer cleanupInst()
+
+	midnight := today.BerlinMidnight()
+	beforeStart := midnight.Add(12 * time.Hour)
+	afterStart := midnight.Add(14*time.Hour + 30*time.Minute)
+
+	graduate := testpkg.CreateTestStudent(t, db, "Abgang", fmt.Sprintf("M-%d", time.Now().UnixNano()), "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
+
+	// A hand-set absence: the PATCH stamps manual_status_at, clears any
+	// status-day provenance and drops the non-booking marker.
+	handSetAbsence := func(t *testing.T) *scheduleModels.InstanceStudent {
+		t.Helper()
+		row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, graduate.ID,
+			scheduleModels.AttendanceStatusExpected)
+		absent := scheduleModels.AttendanceStatusAbsent
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
+			scheduleModels.AttendanceFieldPatch{Status: &absent}))
+		stored, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored.ManualStatusAt, "the PATCH must record that a human decided this row")
+		return stored
+	}
+
+	t.Run("keeps a hand-set status once the occurrence has started", func(t *testing.T) {
+		row := handSetAbsence(t)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(
+			ctx, transition.ID, []int64{graduate.ID}, today, afterStart)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed, "a status finalized on a block that has run is an observation")
+
+		kept, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, kept)
+	})
+
+	t.Run("removes a hand-set status on a block that has not started", func(t *testing.T) {
+		row := handSetAbsence(t)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(
+			ctx, transition.ID, []int64{graduate.ID}, today, beforeStart)
+		require.NoError(t, err)
+		assert.Equal(t, 1, removed, "nothing was observed yet — the row is still a plan")
+
+		gone, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
+		require.NoError(t, err)
+		assert.Nil(t, gone)
+
+		// The replay must not re-derive the status from day statuses: there is
+		// none here, so re-deriving would silently turn the hand-set absence
+		// back into 'expected' and put the child back on the staffing count.
+		restored, err := repo.RestoreArchivedByTransition(ctx, transition.ID, []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assert.Equal(t, 1, restored)
+
+		back, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
+		require.NoError(t, err)
+		require.NotNil(t, back)
+		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, back.Status,
+			"the supervisor's decision comes back verbatim")
+		assert.NotNil(t, back.ManualStatusAt, "and it is still marked as hand-set")
+		assert.Nil(t, back.StudentStatusDayID, "a hand-set status carries no day-status provenance")
+	})
+}
+
+// TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen pins the
+// other half of the revert predicate (#405 review): an alumnus window can span
+// weeks, so by the time a transition is reverted some archived rows describe
+// occurrences that have become history. Replaying an 'expected' row into a past
+// or completed instance would rewrite attendance long after anyone could still
+// observe what happened. Those ledger entries are dropped, not replayed — but
+// they ARE consumed, so a later re-apply starts from a clean snapshot.
+func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	today := timezone.TodayDate()
+	soon := today.AddDays(3)
+
+	// Two occurrences that were both still ahead when the transition was
+	// applied: one finishes during the alumnus window, the other stays open.
+	finishedInst, cleanupFinished := createInstanceFixture(t, db, "frozdone", today)
+	defer cleanupFinished()
+	openInst, cleanupOpen := createInstanceFixture(t, db, "frozopen", soon)
+	defer cleanupOpen()
+
+	suffix := time.Now().UnixNano()
+	graduate := testpkg.CreateTestStudent(t, db, "Abgang", fmt.Sprintf("F-%d", suffix), "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
+
+	finishedRow := testpkg.CreateTestInstanceStudent(t, db, finishedInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	openRow := testpkg.CreateTestInstanceStudent(t, db, openInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", finishedRow.ID, openRow.ID)
+
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, 2, removed, "both planned rows are archived on apply")
+
+	// The alumnus window passes: today's occurrence runs and is completed.
+	require.NoError(t, instanceRepo.MarkCompleted(ctx, finishedInst.ID, time.Now()))
+
+	restored, err := repo.RestoreArchivedByTransition(ctx, transition.ID, []int64{graduate.ID}, today)
+	require.NoError(t, err)
+	assert.Equal(t, 1, restored, "only the still-actionable occurrence is replayed")
+
+	gotOpen, err := repo.FindByInstanceAndStudent(ctx, openInst.ID, graduate.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotOpen, "the open occurrence gets its row back")
+	// The replay inserts a fresh row, so it carries a new id the fixture cleanup
+	// above does not know about.
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", gotOpen.ID)
+
+	gotFinished, err := repo.FindByInstanceAndStudent(ctx, finishedInst.ID, graduate.ID)
+	require.NoError(t, err)
+	assert.Nil(t, gotFinished, "the completed occurrence keeps the attendance it recorded")
+
+	remaining, err := db.NewSelect().
+		TableExpr(`schedule.grade_transition_roster_removals`).
+		Where("transition_id = ?", transition.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, remaining, "obsolete ledger entries are consumed, not left behind")
+
+	t.Run("an occurrence that fell into the past is not replayed either", func(t *testing.T) {
+		// Re-archive the row the replay just put back on the open occurrence.
+		n, aErr := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, aErr)
+		require.Equal(t, 1, n)
+
+		// Revert runs a week later — the occurrence is now behind us.
+		replayed, rErr := repo.RestoreArchivedByTransition(
+			ctx, transition.ID, []int64{graduate.ID}, soon.AddDays(1))
+		require.NoError(t, rErr)
+		assert.Equal(t, 0, replayed)
+
+		got, fErr := repo.FindByInstanceAndStudent(ctx, openInst.ID, graduate.ID)
+		require.NoError(t, fErr)
+		assert.Nil(t, got)
+	})
+}
+
+// The archive captures a PLAN, and plans expire. An alumnus window of weeks is
+// ample time for a sickness to be reported or cleared, so the replay must take
+// its attendance state from the day statuses active at REVERT time rather than
+// resurrecting the pre-graduation one. Nothing downstream repairs it: the
+// reconciler's active-status pass only touches instances it just materialized
+// (#405 review).
+func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	account := testpkg.CreateTestAccount(t, db, "roster-restore-status@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	today := timezone.TodayDate()
+	soon := today.AddDays(3)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "statusderiv", soon)
+	defer cleanupInst()
+
+	suffix := time.Now().UnixNano()
+	// One child per scenario: the occurrence carries at most one row per student.
+	sickened := testpkg.CreateTestStudent(t, db, "WirdKrank", fmt.Sprintf("D1-%d", suffix), "4a")
+	recovered := testpkg.CreateTestStudent(t, db, "WirdGesund", fmt.Sprintf("D2-%d", suffix), "4a")
+	unbooked := testpkg.CreateTestStudent(t, db, "OhneBuchung", fmt.Sprintf("D3-%d", suffix), "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, sickened.ID, recovered.ID, unbooked.ID)
+
+	// The state at apply time: `recovered` was already down for a planned
+	// sickness, the other two were plain plan rows.
+	oldStatusDay := testpkg.CreateTestStudentStatusDay(t, db, recovered.ID, soon, "sick")
+	defer testpkg.CleanupStudentStatusDays(t, db, oldStatusDay.ID)
+
+	sickenedRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, sickened.ID,
+		scheduleModels.AttendanceStatusExpected)
+	recoveredRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, recovered.ID,
+		scheduleModels.AttendanceStatusAbsent,
+		testpkg.InstanceStudentOpts{StudentStatusDayID: &oldStatusDay.ID})
+	unbookedRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID,
+		scheduleModels.AttendanceStatusExpected,
+		testpkg.InstanceStudentOpts{NotScheduled: true})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
+		sickenedRow.ID, recoveredRow.ID, unbookedRow.ID)
+
+	graduates := []int64{sickened.ID, recovered.ID, unbooked.ID}
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, graduates, today, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, 3, removed, "all three plan rows are archived on apply")
+
+	// The alumnus window: one child is reported sick, the other's sickness is
+	// cleared. Neither change could reach the archived snapshot.
+	newStatusDay := testpkg.CreateTestStudentStatusDay(t, db, sickened.ID, soon, "sick")
+	defer testpkg.CleanupStudentStatusDays(t, db, newStatusDay.ID)
+	_, err = db.NewRaw(`UPDATE active.student_status_days SET cleared_at = NOW() WHERE id = ?`,
+		oldStatusDay.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	replayed, err := repo.RestoreArchivedByTransition(ctx, transition.ID, graduates, today)
+	require.NoError(t, err)
+	require.Equal(t, 3, replayed)
+
+	get := func(studentID int64) *scheduleModels.InstanceStudent {
+		got, gErr := repo.FindByInstanceAndStudent(ctx, inst.ID, studentID)
+		require.NoError(t, gErr)
+		require.NotNil(t, got)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", got.ID)
+		return got
+	}
+
+	gotSickened := get(sickened.ID)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotSickened.Status,
+		"a sickness reported while the child was an alumnus must win over the archived plan")
+	require.NotNil(t, gotSickened.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *gotSickened.Substatus)
+	require.NotNil(t, gotSickened.StudentStatusDayID)
+	assert.Equal(t, newStatusDay.ID, *gotSickened.StudentStatusDayID,
+		"the row must be owned by the status day that is active now")
+
+	gotRecovered := get(recovered.ID)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotRecovered.Status,
+		"a cleared status day must not come back as an absence")
+	assert.Nil(t, gotRecovered.Substatus)
+	assert.Nil(t, gotRecovered.StudentStatusDayID)
+
+	gotUnbooked := get(unbooked.ID)
+	assert.True(t, gotUnbooked.NotScheduled, "the non-booking marker is structural and replays verbatim")
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotUnbooked.Status)
+	assert.Nil(t, gotUnbooked.StudentStatusDayID)
+}
