@@ -203,7 +203,9 @@ export function WeeklyCalendarGrid({
                 {String(day.getDate()).padStart(2, "0")}
               </span>
               {closingReason !== undefined && (
-                <ClosingDayChip reason={closingReason} variant="compact" />
+                // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
+                // Beschriftung und Grund bleiben im Tooltip.
+                <ClosingDayChip reason={closingReason} text="" />
               )}
               {isToday && !isSelected && (
                 <span

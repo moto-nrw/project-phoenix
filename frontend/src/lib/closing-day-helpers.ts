@@ -55,15 +55,12 @@ export function formatClosingDayRange(day: ClosingDay): string {
   return `${formatDate(day.startDate)} – ${formatDate(day.endDate)}`;
 }
 
-/** Minimal range shape the day expansion needs. */
-export interface ClosingDayRange {
-  readonly startDate: string; // YYYY-MM-DD
-  readonly endDate: string; // YYYY-MM-DD
-  readonly reason: string;
-}
+/** Ein Schließtag-Zeitraum ohne Identität — was die Tages-Expansion braucht. */
+export type ClosingDayRange = Omit<ClosingDay, "id">;
 
-// The backend accepts a maximum date distance of 400 days. Because both
-// endpoints are inclusive, that window contains up to 401 calendar dates.
+// Defensive Obergrenze der Expansion: ein einzelner Zeitraum erzeugt nie mehr
+// als 401 Tageseinträge. Das entspricht dem größten Fenster, das der
+// Zeiterfassungs-Endpunkt zulässt (400 Tage Abstand, beidseitig inklusive).
 const MAX_CLOSING_DAY_WINDOW_DATES = 401;
 
 /**

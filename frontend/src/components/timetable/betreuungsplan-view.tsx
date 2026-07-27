@@ -58,8 +58,10 @@ import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { hasPermission } from "~/lib/auth-utils";
-import { expandClosingDaysToMap } from "~/lib/closing-day-helpers";
-import { useClosingDayRanges } from "~/lib/hooks/use-closing-days";
+import {
+  useClosingDayRanges,
+  useClosingDays,
+} from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
@@ -338,14 +340,11 @@ function TimetablesContent() {
     [visibleDate],
   );
 
-  // OGS-Schließtage (#2032). Die Liste umfasst alle gespeicherten Zeiträume:
-  // Woche und Monat markieren daraus ihr sichtbares Fenster, der Termin-Dialog
+  // OGS-Schließtage (#2032). Beide Hooks teilen sich einen SWR-Key, also einen
+  // Request: Woche und Monat markieren das sichtbare Fenster, der Termin-Dialog
   // prüft sein frei wählbares Datum direkt gegen die Zeiträume.
   const closingDayRanges = useClosingDayRanges();
-  const closingDays = useMemo(
-    () => expandClosingDaysToMap(closingDayRanges, fetchFromISO, fetchToISO),
-    [closingDayRanges, fetchFromISO, fetchToISO],
-  );
+  const closingDays = useClosingDays(fetchFromISO, fetchToISO);
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
   const shouldLoadInstances = view !== "series";

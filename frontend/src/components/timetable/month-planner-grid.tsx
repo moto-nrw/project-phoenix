@@ -75,7 +75,7 @@ export function MonthPlannerGrid({
                 closingReason !== undefined
                   ? "bg-gray-100/70"
                   : outsideMonth
-                    ? "bg-gray-50/40 text-gray-400"
+                    ? "bg-gray-50/40"
                     : "bg-white"
               } ${outsideMonth ? "text-gray-400" : ""}`}
             >
@@ -102,7 +102,7 @@ export function MonthPlannerGrid({
               )}
 
               {dayInstances.length === 0 ? (
-                closingReason !== undefined ? null : (
+                closingReason === undefined && (
                   <div className="mt-5 flex items-center gap-1 text-[11px] text-gray-400">
                     <CalendarDays className="h-3 w-3" />
                     Leer

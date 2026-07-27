@@ -493,6 +493,22 @@ describe("TimetableEventModal", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it("shows the required-field errors before the closing-day question (#2032)", async () => {
+    renderModal({ closingDayRanges: closingRanges });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    // Titel und Raum bleiben leer: das Formular würde gar nicht speichern.
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Bitte einen Titel eingeben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("An einem Schließtag planen?"),
+    ).not.toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
   it("saves without asking when the date is no closing day (#2032)", async () => {
     renderModal({
       closingDayRanges: [

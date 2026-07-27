@@ -28,6 +28,15 @@ import { useSWRAuth } from "~/lib/swr";
 /** Shared SWR key of the full closure list — deduped across both plans. */
 const CLOSING_DAYS_SWR_KEY = "planning-closing-days";
 
+// Schließtage ändern sich ein paar Mal im Schuljahr. Die globale Voreinstellung
+// (5 s) würde bei jedem Wechsel zwischen Betreuungs- und Dienstplan neu laden;
+// eine Minute bündelt das, ohne einen frisch angelegten Schließtag für den Rest
+// der Sitzung zu verstecken (revalidateIfStale bleibt an).
+const CLOSING_DAYS_SWR_OPTIONS = {
+  revalidateOnFocus: false,
+  dedupingInterval: 60_000,
+} as const;
+
 const EMPTY_RANGES: readonly ClosingDayRange[] = [];
 const EMPTY_CLOSING_DAYS: ReadonlyMap<string, string> = new Map();
 
@@ -36,19 +45,17 @@ const EMPTY_CLOSING_DAYS: ReadonlyMap<string, string> = new Map();
  *
  * Für Nachschlagen an einem BELIEBIGEN Datum (z. B. dem im Dialog gewählten
  * Zieltag), das außerhalb des sichtbaren Fensters liegen kann. Ohne
- * `schedules:read` bleibt die Liste leer — dann entfällt die Warnung, geplant
- * werden kann weiterhin.
+ * `schedules:read` bleibt die Liste leer — dann entfällt die Warnung im
+ * Verschieben-Dialog, geplant werden kann weiterhin.
  */
-export function useClosingDayRanges(
-  enabled = true,
-): readonly ClosingDayRange[] {
+export function useClosingDayRanges(): readonly ClosingDayRange[] {
   const { data: session } = useSession();
   const canReadSchedules = hasPermission(session, "schedules:read");
 
   const { data } = useSWRAuth(
-    enabled && canReadSchedules ? CLOSING_DAYS_SWR_KEY : null,
+    canReadSchedules ? CLOSING_DAYS_SWR_KEY : null,
     () => closingDayService.list(),
-    { revalidateOnFocus: false },
+    CLOSING_DAYS_SWR_OPTIONS,
   );
 
   return data ?? EMPTY_RANGES;
@@ -57,17 +64,16 @@ export function useClosingDayRanges(
 /**
  * Schließtage im Fenster [fromISO, toISO], keyed YYYY-MM-DD → Grund.
  *
- * Ein leeres Fenster (`""`) oder `enabled: false` schaltet den Abruf ab und
- * liefert eine leere Map. Wer nur `time_tracking:*` hat (reduzierter
- * Dienstplan-Pfad), bekommt die Tage über den fensterbasierten
- * Zeiterfassungs-Endpunkt. Fehler werden bewusst verschluckt: die Markierung
- * ist ein Hinweis, kein Sperrmechanismus — ein fehlgeschlagener Abruf darf
- * die Planung nicht blockieren.
+ * Ein leeres Fenster (`""`) schaltet den Abruf ab. Wer nur `time_tracking:*`
+ * hat (reduzierter Dienstplan-Pfad), bekommt die Tage über den
+ * fensterbasierten Zeiterfassungs-Endpunkt; der lädt pro besuchter Woche
+ * einmal nach. Fehler werden bewusst verschluckt: die Markierung ist ein
+ * Hinweis, kein Sperrmechanismus — ein fehlgeschlagener Abruf darf die
+ * Planung nicht blockieren.
  */
 export function useClosingDays(
   fromISO: string,
   toISO: string,
-  enabled = true,
 ): ReadonlyMap<string, string> {
   const { data: session } = useSession();
   const canReadSchedules = hasPermission(session, "schedules:read");
@@ -76,29 +82,21 @@ export function useClosingDays(
     hasPermission(session, "time_tracking:own");
   const windowValid = fromISO !== "" && toISO !== "";
 
-  const ranges = useClosingDayRanges(enabled && windowValid);
+  const ranges = useClosingDayRanges();
 
   const { data: windowMap } = useSWRAuth(
-    enabled && windowValid && !canReadSchedules && canReadTimeTracking
+    windowValid && !canReadSchedules && canReadTimeTracking
       ? `${CLOSING_DAYS_SWR_KEY}-${fromISO}-${toISO}`
       : null,
     () => timeTrackingService.getClosingDays(fromISO, toISO),
-    { revalidateOnFocus: false },
+    CLOSING_DAYS_SWR_OPTIONS,
   );
 
   return useMemo(() => {
-    if (!enabled || !windowValid) return EMPTY_CLOSING_DAYS;
+    if (!windowValid) return EMPTY_CLOSING_DAYS;
     if (canReadSchedules) {
       return expandClosingDaysToMap(ranges, fromISO, toISO);
     }
     return windowMap ?? EMPTY_CLOSING_DAYS;
-  }, [
-    canReadSchedules,
-    enabled,
-    fromISO,
-    ranges,
-    toISO,
-    windowMap,
-    windowValid,
-  ]);
+  }, [canReadSchedules, fromISO, ranges, toISO, windowMap, windowValid]);
 }

@@ -366,7 +366,7 @@ function HalbjahrGridInner({
     [closingDayRanges, period.startDate, period.endDate],
   );
   const closingByWeek = useMemo(() => {
-    const byWeek = new Map<string, { days: string[]; allWeekdays: boolean }>();
+    const byWeek = new Map<string, string[]>();
     if (closingDays.size === 0) return byWeek;
     for (const week of weeks) {
       const monday = parseISODate(week.monday);
@@ -380,35 +380,39 @@ function HalbjahrGridInner({
           days.push(`${formatColumnDate(iso)} ${reason}`.trim());
         }
       }
-      if (days.length > 0) {
-        byWeek.set(week.monday, { days, allWeekdays: days.length === 5 });
-      }
+      if (days.length > 0) byWeek.set(week.monday, days);
     }
     return byWeek;
   }, [weeks, closingDays]);
 
   const currentMonday = toISODate(startOfWeek(parseISODate(todayIso)));
 
-  const columns: ResourceGridColumn[] = weeks.map((week) => {
-    const closing = closingByWeek.get(week.monday);
-    return {
-      key: week.monday,
-      label: `KW ${week.kw}`,
-      sublabel: formatColumnDate(week.monday),
-      isCurrent: week.monday === currentMonday,
-      isMuted: closing?.allWeekdays ?? false,
-      headerNote:
-        closing === undefined ? undefined : (
-          <ClosingDayChip
-            variant="compact"
-            compactLabel={String(closing.days.length)}
-            label={`${closing.days.length} ${closing.days.length === 1 ? "Schließtag" : "Schließtage"}`}
-            reason={closing.days.join(", ")}
-            className="mx-auto flex w-fit"
-          />
-        ),
-    };
-  });
+  // Jede fertig geladene Woche meldet ihren Zustand hoch, das Raster rendert
+  // während des Ladens also ein gutes Dutzend Mal neu. Die Spalten hängen an
+  // keinem dieser Zustände, sie werden nur einmal je Zeitraum gebaut.
+  const columns: ResourceGridColumn[] = useMemo(
+    () =>
+      weeks.map((week) => {
+        const closing = closingByWeek.get(week.monday);
+        return {
+          key: week.monday,
+          label: `KW ${week.kw}`,
+          sublabel: formatColumnDate(week.monday),
+          isCurrent: week.monday === currentMonday,
+          isMuted: closing?.length === 5,
+          headerNote:
+            closing === undefined ? undefined : (
+              <ClosingDayChip
+                text={String(closing.length)}
+                label={`${closing.length} ${closing.length === 1 ? "Schließtag" : "Schließtage"}`}
+                reason={closing.join(", ")}
+                className="mx-auto flex w-fit"
+              />
+            ),
+        };
+      }),
+    [weeks, closingByWeek, currentMonday],
+  );
 
   const firstStaffId = staff[0]?.id ?? null;
 

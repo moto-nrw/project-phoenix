@@ -1,7 +1,6 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
@@ -223,10 +222,12 @@ export function TimetableEventModal({
   // instance edit, series edit) starts at step 1 with all steps reachable.
   const [step, setStep] = useState(0);
   const submitAttempted = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (isOpen) {
       setStep(convertInstance ? 1 : 0);
       submitAttempted.current = false;
+      confirmedClosingDate.current = null;
     }
   }, [isOpen, convertInstance]);
 
@@ -237,19 +238,12 @@ export function TimetableEventModal({
   const closingDayReason = findClosingDayReason(closingDayRanges, form.date);
   const [closingDayPrompt, setClosingDayPrompt] = useState<string | null>(null);
   const confirmedClosingDate = useRef<string | null>(null);
-  useEffect(() => {
-    if (isOpen) confirmedClosingDate.current = null;
-  }, [isOpen]);
-  // handleSubmit liest aus dem Event ausschließlich preventDefault(), deshalb
-  // genügt nach der Bestätigung dieses minimale Ersatz-Event — der Umweg über
-  // form.requestSubmit() würde die Warnung erneut auslösen.
+  // Nach der Bestätigung ganz normal absenden: das Datum steht dann im Ref,
+  // die Rückfrage greift also nicht erneut, und der Submit-Pfad bleibt einer.
   const submitAfterConfirm = () => {
     confirmedClosingDate.current = form.date;
     setClosingDayPrompt(null);
-    submitAttempted.current = true;
-    void handleSubmit({
-      preventDefault: () => undefined,
-    } as unknown as FormEvent<HTMLFormElement>);
+    formRef.current?.requestSubmit();
   };
 
   const stepHasError = (index: number, errors: Record<string, string>) =>
@@ -326,13 +320,17 @@ export function TimetableEventModal({
 
         <form
           id="timetable-event-form"
+          ref={formRef}
           noValidate
           onSubmit={(event) => {
-            // Schließtag: erst nachfragen, dann speichern (#2032).
+            // Schließtag: erst nachfragen, dann speichern (#2032). Die Frage
+            // kommt erst, wenn das Formular auch wirklich speichern würde —
+            // sonst stünde sie vor den Pflichtfeld-Fehlern.
             if (
               closingDayReason !== undefined &&
               confirmedClosingDate.current !== form.date &&
-              !submitting
+              !submitting &&
+              validateForm()
             ) {
               event.preventDefault();
               setClosingDayPrompt(closingDayReason);
@@ -650,14 +648,15 @@ export function TimetableEventModal({
 
         {/* #2032: bestätigbare Warnung, bevor ein Termin auf einem Schließtag
             gespeichert wird. */}
-        <ClosingDayConfirmModal
-          isOpen={closingDayPrompt !== null}
-          dateISO={form.date}
-          reason={closingDayPrompt ?? ""}
-          subject="termin"
-          onCancel={() => setClosingDayPrompt(null)}
-          onConfirm={submitAfterConfirm}
-        />
+        {closingDayPrompt !== null && (
+          <ClosingDayConfirmModal
+            dateISO={form.date}
+            reason={closingDayPrompt}
+            subject="termin"
+            onCancel={() => setClosingDayPrompt(null)}
+            onConfirm={submitAfterConfirm}
+          />
+        )}
 
         {/* #1875: warn before a series edit discards single-occurrence edits. */}
         <ConfirmationModal

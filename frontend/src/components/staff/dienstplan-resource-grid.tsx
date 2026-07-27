@@ -684,19 +684,19 @@ export function DienstplanResourceGrid({
           }}
         />
       )}
-      <ClosingDayConfirmModal
-        isOpen={closingDayPrompt !== null}
-        dateISO={closingDayPrompt?.date ?? ""}
-        reason={closingDayPrompt?.reason ?? ""}
-        subject="schicht"
-        onCancel={() => setClosingDayPrompt(null)}
-        onConfirm={() => {
-          if (!closingDayPrompt) return;
-          const { member, date } = closingDayPrompt;
-          setClosingDayPrompt(null);
-          onCellClick(member, date, null);
-        }}
-      />
+      {closingDayPrompt && (
+        <ClosingDayConfirmModal
+          dateISO={closingDayPrompt.date}
+          reason={closingDayPrompt.reason}
+          subject="schicht"
+          onCancel={() => setClosingDayPrompt(null)}
+          onConfirm={() => {
+            const { member, date } = closingDayPrompt;
+            setClosingDayPrompt(null);
+            onCellClick(member, date, null);
+          }}
+        />
+      )}
     </div>
   );
 }
