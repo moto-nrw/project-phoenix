@@ -213,9 +213,10 @@ export function CalendarPeriodsEditor() {
           // max-w begrenzt die Zelle auf schmalen Screens, sonst diktiert der
           // nicht umbrechende Unterzeilen-Text die Spaltenbreite und schiebt
           // die Aktionsspalte aus dem sichtbaren Bereich.
-          <div className="min-w-0 max-w-[46vw] sm:max-w-none">
+          <div className="max-w-[46vw] min-w-0 sm:max-w-none">
             <p className="truncate font-medium text-gray-900">{period.name}</p>
             <p className="mt-0.5 truncate text-xs text-gray-500 sm:hidden">
+              {PERIOD_TYPE_LABELS[period.periodType]} ·{" "}
               {formatPeriodRange(period)}
             </p>
             {/* Der Status steht nur mobil hier, und nur wenn er vom Normalfall

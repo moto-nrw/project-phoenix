@@ -150,6 +150,16 @@ describe("CalendarPeriodsEditor", () => {
     mockSetPhaseCalendarPeriod.mockResolvedValue(makePhase());
   });
 
+  it("shows the period type in the mobile row summary", async () => {
+    mockListPeriods.mockResolvedValue([makePeriod({ periodType: "holiday" })]);
+
+    render(<CalendarPeriodsEditor />);
+
+    expect(
+      await screen.findByText("Ferien · 01.08.2026 – 31.07.2027"),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the modal mounted while the post-save refresh is in flight", async () => {
     const refresh = deferred<CalendarPeriod[]>();
     mockListPeriods
