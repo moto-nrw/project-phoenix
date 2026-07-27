@@ -411,6 +411,7 @@ describe("ShiftEditModal series rule editing", () => {
   });
 
   it("splits a moved occurrence from its original series date", async () => {
+    getSeries.mockResolvedValue({ ...seriesRule, weekPattern: 1 });
     splitSeries.mockResolvedValue({
       seriesId: "6",
       created: 12,
@@ -422,19 +423,28 @@ describe("ShiftEditModal series rule editing", () => {
         ...seriesShift,
         date: "2026-09-08",
         detached: true,
-        seriesOccurrenceDate: "2026-09-07",
+        seriesOccurrenceDate: "2026-09-14",
       },
     });
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Serie bearbeiten" }),
     );
+    expect(
+      screen.getByText(/Die Änderungen gelten ab 14\.09\.2026/),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("14.09.2026")).toBeDisabled();
+    await waitFor(() => {
+      expect(
+        screen.getByText("Die Woche vom 14.09.2026 ist Woche A."),
+      ).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
 
     await waitFor(() => {
       expect(splitSeries).toHaveBeenCalledWith(
         "5",
-        expect.objectContaining({ effectiveDate: "2026-09-07" }),
+        expect.objectContaining({ effectiveDate: "2026-09-14" }),
       );
     });
   });

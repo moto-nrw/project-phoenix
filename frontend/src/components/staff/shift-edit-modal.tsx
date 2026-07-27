@@ -219,6 +219,9 @@ export function ShiftEditModal({
   const [seriesValidUntil, setSeriesValidUntil] = useState("");
 
   const isSeriesRow = mode === "edit" && shift?.seriesId != null;
+  // A moved occurrence keeps its original recurrence slot. Series changes
+  // begin at that slot, so every editor hint must describe the same date.
+  const seriesEffectiveDate = shift?.seriesOccurrenceDate ?? date;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -329,7 +332,10 @@ export function ShiftEditModal({
     [periods, seriesRule],
   );
   const seriesPeriodHasCycle = (seriesPeriod?.weekCycleLength ?? 1) > 1;
-  const seriesDefaultAbPattern = weekPatternForDate(seriesPeriod, date);
+  const seriesDefaultAbPattern = weekPatternForDate(
+    seriesPeriod,
+    seriesEffectiveDate,
+  );
 
   const timesValid = startTime !== "" && endTime !== "" && startTime < endTime;
   const breakMaxMinutes = timesValid
@@ -460,7 +466,7 @@ export function ShiftEditModal({
     setIsSaving(true);
     try {
       const result = await staffShiftSeriesService.splitSeries(seriesRule.id, {
-        effectiveDate: shift.seriesOccurrenceDate ?? shift.date,
+        effectiveDate: seriesEffectiveDate,
         startTime,
         endTime,
         breakMinutes: breakMinutes ?? 0,
@@ -662,7 +668,7 @@ export function ShiftEditModal({
     setIsSaving(true);
     try {
       const result = await staffShiftSeriesService.splitSeries(shift.seriesId, {
-        effectiveDate: shift.seriesOccurrenceDate ?? shift.date,
+        effectiveDate: seriesEffectiveDate,
         startTime,
         endTime,
         breakMinutes: breakMinutes ?? 0,
@@ -985,7 +991,7 @@ export function ShiftEditModal({
             {seriesEditOpen && seriesRule && (
               <div className="space-y-3 rounded-md border border-gray-200 p-3">
                 <p className="text-xs text-gray-600">
-                  {`Die Änderungen gelten ab ${formatShortDate(date)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
+                  {`Die Änderungen gelten ab ${formatShortDate(seriesEffectiveDate)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
                 </p>
                 <FieldGroup label="Wochentage">
                   <WeekdayPicker
@@ -1004,7 +1010,7 @@ export function ShiftEditModal({
                     periodHasCycle={seriesPeriodHasCycle}
                     weekHint={
                       seriesDefaultAbPattern !== null
-                        ? `Die Woche vom ${formatShortDate(date)} ist Woche ${
+                        ? `Die Woche vom ${formatShortDate(seriesEffectiveDate)} ist Woche ${
                             seriesDefaultAbPattern === 1 ? "A" : "B"
                           }.`
                         : undefined
@@ -1017,7 +1023,7 @@ export function ShiftEditModal({
                   <Field label="Gilt ab">
                     <input
                       type="text"
-                      value={formatShortDate(date)}
+                      value={formatShortDate(seriesEffectiveDate)}
                       disabled
                       className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
                     />
