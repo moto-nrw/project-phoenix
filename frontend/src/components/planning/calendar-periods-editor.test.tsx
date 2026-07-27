@@ -167,6 +167,26 @@ describe("CalendarPeriodsEditor", () => {
     expect(mobileRange).not.toHaveClass("truncate");
   });
 
+  it("lets the period name wrap and keeps the action column narrow", async () => {
+    mockListPeriods.mockResolvedValue([
+      makePeriod({ name: "Sommerferienbetreuung" }),
+    ]);
+
+    render(<CalendarPeriodsEditor />);
+
+    // Ohne Umbruch an beliebiger Stelle zieht ein langes Wort die
+    // Namensspalte über die Tabellenbreite hinaus (320px, #2033).
+    const name = await screen.findByText("Sommerferienbetreuung");
+    expect(name).toHaveClass("wrap-anywhere");
+    expect(name).not.toHaveClass("truncate");
+    expect(name.parentElement?.className).not.toMatch(/max-w-\[/);
+
+    const actionCell = screen
+      .getByRole("button", { name: "Bearbeiten" })
+      .closest("td");
+    expect(actionCell).toHaveClass("w-px");
+  });
+
   it("keeps the modal mounted while the post-save refresh is in flight", async () => {
     const refresh = deferred<CalendarPeriod[]>();
     mockListPeriods

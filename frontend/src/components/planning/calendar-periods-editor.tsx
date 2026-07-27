@@ -210,11 +210,16 @@ export function CalendarPeriodsEditor() {
         // Zeitraum, Status) hier als Unterzeile — die Tabelle bleibt damit
         // ohne Seitwärts-Scrollen lesbar (#2033).
         render: (period) => (
-          // max-w begrenzt die Zelle auf schmalen Screens, damit sie die
-          // Aktionsspalte nicht aus dem sichtbaren Bereich schiebt.
-          <div className="max-w-[46vw] min-w-0 sm:max-w-none">
-            <p className="truncate font-medium text-gray-900">{period.name}</p>
-            <p className="mt-0.5 truncate text-xs text-gray-500 sm:hidden">
+          // Kein fester max-w: die Zelle nimmt die Restbreite, die die
+          // schmale Aktionsspalte (w-px) übrig lässt. Umbrechender Text
+          // statt truncate hält die Spalte auch bei 320px im Container.
+          <div className="min-w-0">
+            {/* wrap-anywhere: ein einzelnes langes Wort im Namen darf die
+                Spalte nicht über die Tabellenbreite hinaus aufziehen. */}
+            <p className="font-medium wrap-anywhere text-gray-900">
+              {period.name}
+            </p>
+            <p className="mt-0.5 text-xs break-words text-gray-500 sm:hidden">
               {PERIOD_TYPE_LABELS[period.periodType]}
             </p>
             <p className="text-xs leading-5 break-words text-gray-500 sm:hidden">
@@ -307,6 +312,10 @@ export function CalendarPeriodsEditor() {
         key: "actions",
         header: "",
         align: "right",
+        // w-px zwingt die Auto-Layout-Tabelle, dieser Spalte nur ihre
+        // Mindestbreite zu geben — der Rest bleibt für den Namen (#2033).
+        className: "w-px whitespace-nowrap",
+        headerClassName: "w-px",
         render: (period) => (
           <Button
             type="button"

@@ -77,6 +77,28 @@ describe("ClosingDaysEditor", () => {
     expect(mobileRange).not.toHaveClass("truncate");
   });
 
+  it("lässt den Grund umbrechen und hält die Aktionsspalte schmal", async () => {
+    mockList.mockResolvedValue([
+      makeClosingDay({ reason: "Weihnachtsschließung" }),
+    ]);
+
+    render(<ClosingDaysEditor />);
+
+    // Ein langes Wort darf die Grund-Spalte nicht über die Tabellenbreite
+    // hinaus aufziehen — sonst scrollt die Tabelle auf 320px seitwärts.
+    const reason = await screen.findByText("Weihnachtsschließung");
+    expect(reason).toHaveClass("wrap-anywhere");
+    expect(reason).not.toHaveClass("truncate");
+    expect(reason.parentElement?.className).not.toMatch(/max-w-\[/);
+
+    // Die Aktionsspalte bekommt nur ihre Mindestbreite, den Rest der
+    // Tabellenbreite behält der Grund.
+    const actionCell = screen
+      .getByRole("button", { name: "Bearbeiten" })
+      .closest("td");
+    expect(actionCell).toHaveClass("w-px");
+  });
+
   it("zeigt für einen Eintages-Schließtag nur ein Datum", async () => {
     mockList.mockResolvedValue([
       makeClosingDay({
