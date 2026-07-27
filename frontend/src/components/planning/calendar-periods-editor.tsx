@@ -210,13 +210,14 @@ export function CalendarPeriodsEditor() {
         // Zeitraum, Status) hier als Unterzeile — die Tabelle bleibt damit
         // ohne Seitwärts-Scrollen lesbar (#2033).
         render: (period) => (
-          // max-w begrenzt die Zelle auf schmalen Screens, sonst diktiert der
-          // nicht umbrechende Unterzeilen-Text die Spaltenbreite und schiebt
-          // die Aktionsspalte aus dem sichtbaren Bereich.
+          // max-w begrenzt die Zelle auf schmalen Screens, damit sie die
+          // Aktionsspalte nicht aus dem sichtbaren Bereich schiebt.
           <div className="max-w-[46vw] min-w-0 sm:max-w-none">
             <p className="truncate font-medium text-gray-900">{period.name}</p>
             <p className="mt-0.5 truncate text-xs text-gray-500 sm:hidden">
-              {PERIOD_TYPE_LABELS[period.periodType]} ·{" "}
+              {PERIOD_TYPE_LABELS[period.periodType]}
+            </p>
+            <p className="text-xs leading-5 break-words text-gray-500 sm:hidden">
               {formatPeriodRange(period)}
             </p>
             {/* Der Status steht nur mobil hier, und nur wenn er vom Normalfall

@@ -150,14 +150,21 @@ describe("CalendarPeriodsEditor", () => {
     mockSetPhaseCalendarPeriod.mockResolvedValue(makePhase());
   });
 
-  it("shows the period type in the mobile row summary", async () => {
+  it("shows the mobile type separately without truncating the period range", async () => {
     mockListPeriods.mockResolvedValue([makePeriod({ periodType: "holiday" })]);
 
     render(<CalendarPeriodsEditor />);
 
-    expect(
-      await screen.findByText("Ferien · 01.08.2026 – 31.07.2027"),
-    ).toBeInTheDocument();
+    const mobileType = (await screen.findAllByText("Ferien")).find(
+      (element) => element.tagName === "P",
+    );
+    const mobileRange = (
+      await screen.findAllByText("01.08.2026 – 31.07.2027")
+    ).find((element) => element.tagName === "P");
+
+    expect(mobileType).toBeInTheDocument();
+    expect(mobileRange).toHaveClass("break-words");
+    expect(mobileRange).not.toHaveClass("truncate");
   });
 
   it("keeps the modal mounted while the post-save refresh is in flight", async () => {
