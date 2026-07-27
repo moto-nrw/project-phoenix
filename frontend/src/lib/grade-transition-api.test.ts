@@ -320,19 +320,34 @@ describe("listGradeTransitions", () => {
     can_revert: true,
   });
 
-  const page = (from: number, count: number) =>
+  const rows = (from: number, count: number) =>
     Array.from({ length: count }, (_, i) => makeRow(from + i));
 
-  const stubFetch = (pages: BackendGradeTransition[][]) => {
+  // Serves the loader the way the keyset endpoint does: every request returns
+  // the next window of `store` with id > after_id, id ASC. `afterRequest` runs
+  // after a window has been served and before the next request, modelling a
+  // concurrent writer.
+  const stubFetch = (
+    store: BackendGradeTransition[],
+    afterRequest?: (requestIndex: number) => void,
+  ) => {
     const urls: string[] = [];
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
         urls.push(url);
-        const requested = Number(/[?&]page=(\d+)/.exec(url)?.[1] ?? "1");
+        const afterID = BigInt(/[?&]after_id=(\d+)/.exec(url)?.[1] ?? "0");
+        const windowSize = Number(
+          /[?&]page_size=(\d+)/.exec(url)?.[1] ?? "100",
+        );
+        const data = store
+          .filter((row) => BigInt(String(row.id)) > afterID)
+          .sort((a, b) => Number(BigInt(String(a.id)) - BigInt(String(b.id))))
+          .slice(0, windowSize);
+        afterRequest?.(urls.length - 1);
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ data: pages[requested - 1] ?? [] }),
+          json: () => Promise.resolve({ data }),
         } as unknown as Response);
       }),
     );
@@ -343,31 +358,54 @@ describe("listGradeTransitions", () => {
     vi.unstubAllGlobals();
   });
 
-  it("stops after a short page", async () => {
-    const urls = stubFetch([page(1, 3)]);
+  it("stops after a short window and returns newest-first", async () => {
+    const urls = stubFetch(rows(1, 3));
     const result = await listGradeTransitions();
-    expect(result.map((t) => t.id)).toEqual(["1", "2", "3"]);
+    expect(result.map((t) => t.id)).toEqual(["3", "2", "1"]);
     expect(urls).toHaveLength(1);
+    expect(urls[0]).toContain("after_id=0");
   });
 
-  it("keeps fetching while pages come back full", async () => {
-    // 100 + 100 + 1: the last applied transition sits on page three and would be
-    // invisible to a single-page fetch — the revert dialog would then target a
-    // stale row and 409 forever (#405 review).
-    const urls = stubFetch([page(1, 100), page(101, 100), page(201, 1)]);
+  it("keeps fetching while windows come back full", async () => {
+    // 100 + 100 + 1: the last applied transition sits in window three and would
+    // be invisible to a single-window fetch — the revert dialog would then
+    // target a stale row and 409 forever (#405 review).
+    const urls = stubFetch(rows(1, 201));
     const result = await listGradeTransitions();
     expect(result).toHaveLength(201);
-    expect(result.at(-1)?.id).toBe("201");
+    expect(result[0]?.id).toBe("201");
     expect(urls).toHaveLength(3);
+    expect(urls[1]).toContain("after_id=100");
+    expect(urls[2]).toContain("after_id=200");
   });
 
-  it("dedupes rows that shift across page boundaries", async () => {
-    // A concurrent insert pushes rows down under created_at DESC, so the same id
-    // can appear on two pages.
-    const urls = stubFetch([page(1, 100), [makeRow(100), ...page(101, 2)]]);
+  it("misses no pre-existing row when rows are created between windows", async () => {
+    // Under offset paging a row created between two requests shifted the
+    // slicing and could push a survivor out of the merged result. The id
+    // cursor re-slices nothing: the insert lands behind the cursor and shows
+    // up in a later window instead (#405 review).
+    const store = rows(1, 150);
+    const urls = stubFetch(store, (requestIndex) => {
+      if (requestIndex === 0) store.push(makeRow(151));
+    });
     const result = await listGradeTransitions();
-    expect(result).toHaveLength(102);
-    expect(new Set(result.map((t) => t.id)).size).toBe(102);
+    expect(result).toHaveLength(151);
+    expect(new Set(result.map((t) => t.id)).size).toBe(151);
+    expect(urls).toHaveLength(2);
+  });
+
+  it("misses no surviving row when rows are deleted between windows", async () => {
+    // A delete shrank the offset result and pulled an unread row forward into
+    // an already-fetched page, silently dropping it. With the cursor the
+    // remaining rows keep their ids and still satisfy id > after_id.
+    const store = rows(1, 150);
+    const urls = stubFetch(store, (requestIndex) => {
+      if (requestIndex === 0) store.splice(0, 1); // row 1 deleted after window one
+    });
+    const result = await listGradeTransitions();
+    // Row 1 was already read before the delete; rows 2-150 must all survive.
+    expect(result).toHaveLength(150);
+    expect(new Set(result.map((t) => t.id)).size).toBe(150);
     expect(urls).toHaveLength(2);
   });
 });

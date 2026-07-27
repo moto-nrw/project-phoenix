@@ -2,6 +2,7 @@ package education_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -357,4 +359,45 @@ func TestGradeTransitionService_ApplyChecked_RejectsStalePreview(t *testing.T) {
 	require.NoError(t, err)
 	assertStudentStatus(reviewed.ID, users.StudentStatusAlumnus)
 	assertStudentStatus(latecomer.ID, users.StudentStatusAlumnus)
+}
+
+// failingCountRepo wraps the real repository and fails every per-class student
+// count, simulating the transient database error the suggestion loop used to
+// swallow.
+type failingCountRepo struct {
+	educationModel.GradeTransitionRepository
+}
+
+var errCountUnavailable = errors.New("student count unavailable")
+
+func (r *failingCountRepo) GetStudentCountByClass(_ context.Context, _ string) (int, error) {
+	return 0, errCountUnavailable
+}
+
+// TestGradeTransitionService_SuggestMappings_CountErrorPropagates covers the
+// #405 review fix: a failed GetStudentCountByClass must fail the whole
+// suggestion instead of silently dropping the class — an admin could otherwise
+// create a transition that omits an affected cohort without ever seeing an
+// error.
+func TestGradeTransitionService_SuggestMappings_CountErrorPropagates(t *testing.T) {
+	_, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	defer cancel()
+
+	// At least one non-empty class so the loop reaches the failing count.
+	className := "3f" + letterOnlySuffix(t)
+	student := testpkg.CreateTestStudent(t, db, "Count", "Fails", className)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
+		TransitionRepo: &failingCountRepo{
+			GradeTransitionRepository: educationRepo.NewGradeTransitionRepository(db),
+		},
+	})
+
+	suggestions, err := service.SuggestMappings(ctx)
+	require.ErrorIs(t, err, errCountUnavailable)
+	assert.Nil(t, suggestions)
 }

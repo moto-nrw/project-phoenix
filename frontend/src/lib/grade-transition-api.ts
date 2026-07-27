@@ -415,10 +415,24 @@ async function readJSON<T>(response: Response): Promise<T> {
 
 const LIST_PAGE_SIZE = 100;
 
-// Safety bound against a backend that ignores `page` and would loop forever —
-// 100 pages is 10.000 transitions, far past anything a school can produce, so
-// it never truncates in practice.
+// Safety bound against a backend that ignores `after_id` and would loop
+// forever — 100 windows is 10.000 transitions, far past anything a school can
+// produce, so it never truncates in practice.
 const LIST_PAGE_LIMIT = 100;
+
+// Newest-first, the order the offset endpoint used to return. Compared as
+// BigInt of the exact string id — creation order for an autoincrement key —
+// never as a number, so ids above 2^53 cannot collapse through float rounding
+// (#405 review).
+function compareByIdDesc(
+  a: BackendGradeTransition,
+  b: BackendGradeTransition,
+): number {
+  const aID = BigInt(toIdString(a.id));
+  const bID = BigInt(toIdString(b.id));
+  if (aID === bID) return 0;
+  return aID > bID ? -1 : 1;
+}
 
 // Fetches every transition, not just the first page. The list feeds both the
 // table and the revert-target picker, and reverts must unwind newest-first: with
@@ -427,25 +441,36 @@ const LIST_PAGE_LIMIT = 100;
 // latest — which 409s, refreshes the same truncated window, and re-picks the
 // same dead target (#405 review).
 export async function listGradeTransitions(): Promise<GradeTransition[]> {
-  // created_at DESC: a row inserted between page fetches shifts the rows behind
-  // it, so pages can overlap. Keyed by id rather than concatenated — as the
-  // exact string id, never a number, so two rows can never share a key through
-  // float rounding (#405 review).
+  // Keyset windows (`after_id`, id ASC) instead of page offsets: offset pages
+  // re-slice the whole result on every request, so a row created or deleted
+  // between two requests shifts the slicing and a survivor can fall between
+  // pages and vanish from the merged list — including the next valid revert
+  // target. An id cursor never re-slices what was already read: concurrent
+  // inserts sort behind the cursor and arrive in a later window, deletions
+  // cannot move unread rows across it (#405 review). The cursor travels as the
+  // exact string id so values above 2^53 cannot round.
+  // Keyed by the exact string id: a correct keyset backend never repeats a
+  // row, but one that ignores `after_id` would send the same window forever —
+  // the map keeps that failure mode at "truncated list", not "duplicated
+  // rows".
   const byID = new Map<string, BackendGradeTransition>();
+  let afterID = "0";
 
-  for (let page = 1; page <= LIST_PAGE_LIMIT; page++) {
+  for (let window = 0; window < LIST_PAGE_LIMIT; window++) {
     const response = await fetch(
-      `${BASE}?page=${page}&page_size=${LIST_PAGE_SIZE}`,
+      `${BASE}?after_id=${encodeURIComponent(afterID)}&page_size=${LIST_PAGE_SIZE}`,
       { cache: "no-store" },
     );
     const data = (await readJSON<BackendGradeTransition[]>(response)) ?? [];
     for (const transition of data) {
       byID.set(toIdString(transition.id), transition);
     }
-    if (data.length < LIST_PAGE_SIZE) break;
+    const last = data.at(-1);
+    if (data.length < LIST_PAGE_SIZE || !last) break;
+    afterID = toIdString(last.id);
   }
 
-  return Array.from(byID.values()).map(mapTransition);
+  return Array.from(byID.values()).sort(compareByIdDesc).map(mapTransition);
 }
 
 export async function createGradeTransition(

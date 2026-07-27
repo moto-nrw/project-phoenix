@@ -1686,7 +1686,13 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 
 	for _, className := range classes {
 		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-		if err != nil || count == 0 {
+		if err != nil {
+			// Skipping a failed count would silently drop the class from the
+			// suggestion, and an admin could create a transition that omits an
+			// affected cohort without ever seeing an error (#405 review).
+			return nil, fmt.Errorf("failed to count students in class %q: %w", className, err)
+		}
+		if count == 0 {
 			continue
 		}
 

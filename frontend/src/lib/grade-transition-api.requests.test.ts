@@ -548,12 +548,12 @@ describe("purgeGraduatedStudent", () => {
 });
 
 describe("listGradeTransitions request handling", () => {
-  it("requests uncached pages of 100", async () => {
+  it("requests uncached keyset windows of 100", async () => {
     stubOnce(okData([transitionRow]));
 
     await listGradeTransitions();
 
-    expect(calls[0]?.url).toBe(`${BASE}?page=1&page_size=100`);
+    expect(calls[0]?.url).toBe(`${BASE}?after_id=0&page_size=100`);
     expect(calls[0]?.init?.cache).toBe("no-store");
   });
 
@@ -564,9 +564,10 @@ describe("listGradeTransitions request handling", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("stops at the page limit against a backend that ignores `page`", async () => {
-    // A backend that returns the same full page forever would otherwise spin
-    // this loop without end; the 100-page bound is the safety stop.
+  it("stops at the window limit against a backend that ignores `after_id`", async () => {
+    // A backend that returns the same full window forever would otherwise spin
+    // this loop without end; the 100-window bound is the safety stop, and the
+    // id map keeps the repeated rows from duplicating in the result.
     const fullPage = Array.from({ length: 100 }, (_, i) => ({
       ...transitionRow,
       id: String(i + 1),

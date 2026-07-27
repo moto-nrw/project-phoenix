@@ -158,6 +158,50 @@ func TestGradeTransitionResource_List(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 		testutil.AssertForbidden(t, rr)
 	})
+
+	t.Run("list with after_id returns only newer rows ascending", func(t *testing.T) {
+		// Keyset window (#405 review): a cursor at t1 must exclude t1 and
+		// everything before it, and the rows must come back id ASC so the
+		// client can carry the last id as the next cursor. Other fixtures may
+		// share the tenant, so the assertions tolerate extra rows.
+		url := fmt.Sprintf("/?after_id=%d&page_size=50", t1.ID)
+		req := testutil.NewAuthenticatedRequest(t, "GET", url, nil,
+			testutil.WithJWTBearer(token),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		rows, ok := response["data"].([]interface{})
+		require.True(t, ok, "data must be a list")
+
+		prev := t1.ID
+		foundT2 := false
+		for _, raw := range rows {
+			row, ok := raw.(map[string]interface{})
+			require.True(t, ok)
+			idStr, ok := row["id"].(string)
+			require.True(t, ok, "ids serialize as strings")
+			id, err := strconv.ParseInt(idStr, 10, 64)
+			require.NoError(t, err)
+			assert.Greater(t, id, prev, "window must be strictly ascending past the cursor")
+			prev = id
+			if id == t2.ID {
+				foundT2 = true
+			}
+		}
+		assert.True(t, foundT2, "the row created after the cursor row must be in the window")
+	})
+
+	t.Run("list with invalid after_id is rejected", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "GET", "/?after_id=abc", nil,
+			testutil.WithJWTBearer(token),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
 }
 
 // ============================================================================
@@ -473,13 +517,15 @@ func TestGradeTransitionResource_Preview(t *testing.T) {
 		assert.NotNil(t, data["total_students"])
 	})
 
-	t.Run("preview non-existent transition returns error", func(t *testing.T) {
+	t.Run("preview non-existent transition returns 404", func(t *testing.T) {
+		// A missing id is the same normal outcome the detail and history
+		// endpoints classify as 404, not a server fault (#405 review).
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/999999/preview", nil,
 			testutil.WithJWTBearer(token),
 		)
 
 		rr := testutil.ExecuteRequest(router, req)
-		assert.NotEqual(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
 	})
 }
 

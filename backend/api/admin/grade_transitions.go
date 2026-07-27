@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -272,7 +273,6 @@ func (rs *GradeTransitionResource) list(w http.ResponseWriter, r *http.Request) 
 
 	// Parse pagination
 	page, pageSize := common.ParsePagination(r)
-	options.WithPagination(page, pageSize)
 
 	// Parse filters
 	filter := base.NewFilter()
@@ -282,6 +282,29 @@ func (rs *GradeTransitionResource) list(w http.ResponseWriter, r *http.Request) 
 	if academicYear := r.URL.Query().Get("academic_year"); academicYear != "" {
 		filter.Equal("academic_year", academicYear)
 	}
+
+	// Keyset mode: `after_id` windows by strictly increasing id instead of page
+	// offsets. Offset pages re-slice the whole result on every request, so a row
+	// created or deleted between two requests shifts the slicing and a survivor
+	// can fall between pages. An id cursor never re-slices what was already
+	// read: rows created during the iteration sort behind the cursor and appear
+	// in a later window, deletions cannot move unread rows across the cursor
+	// (#405 review).
+	if rawAfterID := r.URL.Query().Get("after_id"); rawAfterID != "" {
+		afterID, err := strconv.ParseInt(rawAfterID, 10, 64)
+		if err != nil || afterID < 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid after_id")))
+			return
+		}
+		filter.GreaterThan("id", afterID)
+		sorting := &base.Sorting{}
+		sorting.AddField("id", base.SortAsc)
+		options.Sorting = sorting
+		// A cursor request is always the first offset window of its remainder.
+		page = 1
+	}
+
+	options.WithPagination(page, pageSize)
 	options.Filter = filter
 
 	transitions, total, err := rs.service.List(r.Context(), options)
@@ -466,6 +489,13 @@ func (rs *GradeTransitionResource) preview(w http.ResponseWriter, r *http.Reques
 
 	preview, err := rs.service.Preview(r.Context(), id)
 	if err != nil {
+		// A missing or foreign-tenant id is the same normal outcome the detail
+		// and history endpoints classify as 404 — not a server fault (#405
+		// review).
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
