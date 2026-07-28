@@ -227,7 +227,7 @@ describe("CarePlanEditorModal", () => {
       screen.getByRole("radio", { name: /Mehrere Tage/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("radio", { name: /Jeden Montag/ }),
+      screen.getByRole("radio", { name: /Wochenplan bearbeiten/ }),
     ).toBeInTheDocument();
   });
 
@@ -347,17 +347,20 @@ describe("CarePlanEditorModal", () => {
     expect(onSubmitExceptions).not.toHaveBeenCalled();
   });
 
-  it("changes only the opened weekday when the recurring scope is chosen", async () => {
-    // The scope is called "Jeden Montag", so it must edit Monday and nothing
-    // else. Showing the full five-day table here was what made the label lie.
+  it("edits the whole weekly plan when the recurring scope is chosen", async () => {
+    // The third option is the weekly plan itself, whichever entry it is opened
+    // from — there is no second, weekday-shaped way to change a recurring time.
     const { onSubmitWeekly } = renderEditor();
 
-    fireEvent.click(screen.getByRole("radio", { name: /Jeden Montag/ }));
-    expect(screen.queryByText("Dienstag")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Wochenplan bearbeiten/ }),
+    );
+    expect(screen.getByText("Dienstag")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Uhrzeit", {
-      selector: "#weekday-arrival-time",
-    }), { target: { value: "08:45" } });
+    fireEvent.change(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+      { target: { value: "08:45" } },
+    );
     save();
 
     await waitFor(() => {
@@ -371,46 +374,6 @@ describe("CarePlanEditorModal", () => {
           { weekday: 2, pickupTime: "16:00", notes: undefined },
         ],
       });
-    });
-  });
-
-  it("removes the weekday from the plan via 'Keine Abholung'", async () => {
-    const { onSubmitWeekly } = renderEditor();
-
-    fireEvent.click(screen.getByRole("radio", { name: /Jeden Montag/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Keine Abholung" }));
-    save();
-
-    await waitFor(() => {
-      expect(onSubmitWeekly).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pickupSchedules: [{ weekday: 2, pickupTime: "16:00", notes: undefined }],
-        }),
-      );
-    });
-  });
-
-  it("edits the recurring note of the opened weekday", async () => {
-    const { onSubmitWeekly } = renderEditor();
-
-    fireEvent.click(screen.getByRole("radio", { name: /Jeden Montag/ }));
-    fireEvent.change(
-      screen.getByLabelText("Notiz (jede Woche)", {
-        selector: "#weekday-pickup-note",
-      }),
-      { target: { value: "Fährt mit dem Bus" } },
-    );
-    save();
-
-    await waitFor(() => {
-      expect(onSubmitWeekly).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pickupSchedules: [
-            { weekday: 1, pickupTime: "15:00", notes: "Fährt mit dem Bus" },
-            { weekday: 2, pickupTime: "16:00", notes: undefined },
-          ],
-        }),
-      );
     });
   });
 
@@ -461,7 +424,7 @@ describe("CarePlanEditorModal", () => {
       screen.getAllByRole("button", { name: "Im Wochenplan ändern" })[0]!,
     );
 
-    expect(screen.getByRole("radio", { name: /Jeden Montag/ })).toHaveAttribute(
+    expect(screen.getByRole("radio", { name: /Wochenplan bearbeiten/ })).toHaveAttribute(
       "aria-checked",
       "true",
     );

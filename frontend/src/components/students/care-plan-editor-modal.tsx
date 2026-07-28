@@ -114,25 +114,6 @@ interface WeeklyRow {
   readonly pickupNotes: string;
 }
 
-/** One weekday of the recurring plan, as edited from a day card. */
-interface WeekdayDraft {
-  readonly arrivalTime: string;
-  readonly arrivalOff: boolean;
-  readonly arrivalNote: string;
-  readonly pickupTime: string;
-  readonly pickupOff: boolean;
-  readonly pickupNote: string;
-}
-
-const EMPTY_WEEKDAY: WeekdayDraft = {
-  arrivalTime: "",
-  arrivalOff: false,
-  arrivalNote: "",
-  pickupTime: "",
-  pickupOff: false,
-  pickupNote: "",
-};
-
 export function CarePlanEditorModal({
   isOpen,
   onClose,
@@ -162,10 +143,6 @@ export function CarePlanEditorModal({
   const [pickupReason, setPickupReason] = useState("");
   const [noteTarget, setNoteTarget] = useState<NoteTarget>("pickup");
   const [noteContent, setNoteContent] = useState("");
-  // The "jeden <Wochentag>" scope edits exactly the weekday the editor was
-  // opened from — nothing else. Its own state, because it is seeded from the
-  // weekly plan while the fields above are seeded from that one day's override.
-  const [weekdayDraft, setWeekdayDraft] = useState<WeekdayDraft>(EMPTY_WEEKDAY);
   const [weeklyRows, setWeeklyRows] = useState<WeeklyRow[]>([]);
   const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
     () => new Set(),
@@ -203,10 +180,6 @@ export function CarePlanEditorModal({
     setPickupMode(pickupInit.mode);
     setPickupTime(pickupInit.time);
     setPickupReason(pickupInit.reason);
-
-    setWeekdayDraft(
-      buildWeekdayDraft(arrivalDay?.weekday ?? 0, weeklyArrival, weeklyPickup),
-    );
 
     setWeeklyRows(buildWeeklyRows(weeklyArrival, weeklyPickup));
     setExpandedWeekdays(
@@ -265,16 +238,20 @@ export function CarePlanEditorModal({
     pickup: writePickup ? guardianPickupDates : [],
   });
 
+  // The weekly plan is one and the same thing wherever it is opened from: the
+  // header button, or the third "Gilt für" option on a day. Both show the same
+  // five-day table, so there is no second way to edit a recurring time.
+  const isWeeklyPlan = !hasDayContext || scope === "weekly";
+
   const dayNotes = getDayNotes(arrivalDay?.notes ?? [], pickupDay?.notes ?? []);
   const recurringNotes = getRecurringNotes(arrivalDay, pickupDay);
 
-  // The title always names the reach the form currently has. A weekday scope
-  // that still said "Dienstag, 28.07." read as if it edited that one date.
+  // The title always names the reach the form currently has, so it never
+  // describes something other than what is on screen.
   const weekdayLabel = hasDayContext ? getWeekdayLabel(arrivalDay.weekday) : "";
-  const title = !hasDayContext
-    ? "Wochenplan bearbeiten"
-    : scope === "weekly"
-      ? `Jeden ${weekdayLabel}`
+  const title =
+    !hasDayContext || scope === "weekly"
+      ? "Wochenplan bearbeiten"
       : scope === "range"
         ? rangeEnd
           ? `${formatShortDate(arrivalDay.date)} bis ${formatISOShort(rangeEnd)}`
@@ -285,9 +262,7 @@ export function CarePlanEditorModal({
     event.preventDefault();
     setError(null);
 
-    // The full five-day table exists only when the editor was opened from the
-    // week header. From a day card, "jeden <Wochentag>" edits that one weekday.
-    if (!hasDayContext) {
+    if (isWeeklyPlan) {
       const invalidWeekly = validateWeeklyRows(weeklyRows);
       if (invalidWeekly) {
         setError(invalidWeekly);
@@ -295,16 +270,6 @@ export function CarePlanEditorModal({
       }
       if (weeklyRemovals.length > 0) {
         openConfirm({ kind: "weekly-removal" });
-        return;
-      }
-      void performSave();
-      return;
-    }
-
-    if (scope === "weekly") {
-      const invalidWeekday = validateWeekdayDraft(weekdayDraft);
-      if (invalidWeekday) {
-        setError(invalidWeekday);
         return;
       }
       void performSave();
@@ -355,20 +320,9 @@ export function CarePlanEditorModal({
     setError(null);
     setIsSubmitting(true);
     try {
-      if (!hasDayContext) {
+      if (isWeeklyPlan) {
         await onSubmitWeekly(toWeeklySubmit(weeklyRows));
         toast.success("Wochenplan wurde gespeichert");
-      } else if (scope === "weekly") {
-        await onSubmitWeekly(
-          toWeeklySubmit(
-            applyWeekdayDraft(
-              buildWeeklyRows(weeklyArrival, weeklyPickup),
-              arrivalDay.weekday,
-              weekdayDraft,
-            ),
-          ),
-        );
-        toast.success(`Wochenplan für jeden ${weekdayLabel} gespeichert`);
       } else {
         await onSubmitExceptions({
           dates: batchDates,
@@ -463,7 +417,7 @@ export function CarePlanEditorModal({
       onClose={onClose}
       title={title}
       footer={footer}
-      size={hasDayContext ? "lg" : "xl"}
+      size={isWeeklyPlan ? "xl" : "lg"}
       mobilePosition="bottom"
     >
       {/* noValidate: a half-cleared <input type="time"> (e.g. backspacing the
@@ -489,7 +443,6 @@ export function CarePlanEditorModal({
             scope={scope}
             onChange={setScope}
             dayLabel={formatShortDate(arrivalDay.date)}
-            weekdayLabel={getWeekdayLabel(arrivalDay.weekday)}
           />
         ) : null}
 
@@ -522,7 +475,7 @@ export function CarePlanEditorModal({
           </div>
         ) : null}
 
-        {!hasDayContext ? (
+        {isWeeklyPlan ? (
           <WeeklySection
             rows={weeklyRows}
             expandedWeekdays={expandedWeekdays}
@@ -544,14 +497,6 @@ export function CarePlanEditorModal({
                   row.weekday === weekday ? { ...row, [field]: value } : row,
                 ),
               )
-            }
-          />
-        ) : scope === "weekly" ? (
-          <WeekdaySection
-            weekdayLabel={weekdayLabel}
-            draft={weekdayDraft}
-            onChange={(patch) =>
-              setWeekdayDraft((current) => ({ ...current, ...patch }))
             }
           />
         ) : (
@@ -684,12 +629,10 @@ function ScopePicker({
   scope,
   onChange,
   dayLabel,
-  weekdayLabel,
 }: {
   readonly scope: CarePlanScope;
   readonly onChange: (scope: CarePlanScope) => void;
   readonly dayLabel: string;
-  readonly weekdayLabel: string;
 }) {
   const options: ReadonlyArray<{
     value: CarePlanScope;
@@ -711,8 +654,8 @@ function ScopePicker({
     },
     {
       value: "weekly",
-      title: `Jeden ${weekdayLabel}`,
-      hint: "Dauerhaft im Wochenplan",
+      title: "Wochenplan bearbeiten",
+      hint: "Gilt jede Woche",
       icon: <Repeat className="h-4 w-4" aria-hidden="true" />,
     },
   ];
@@ -739,12 +682,16 @@ function ScopePicker({
               }`}
             >
               <span className="mt-0.5 shrink-0">{option.icon}</span>
+              {/* Wrapping, not truncating: "Wochenplan bearbeiten" does not
+                  fit one line in a third of the modal, and a scope option that
+                  reads "Wochenplan bearb…" is exactly the kind of half-label
+                  this editor is meant to get rid of. */}
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold">
+                <span className="block text-sm font-semibold">
                   {option.title}
                 </span>
                 <span
-                  className={`block truncate text-xs ${
+                  className={`block text-xs ${
                     isActive ? "text-gray-300" : "text-gray-500"
                   }`}
                 >
@@ -756,151 +703,6 @@ function ScopePicker({
         })}
       </div>
     </fieldset>
-  );
-}
-
-/**
- * The "jeden <Wochentag>" form: the recurring times for exactly the weekday the
- * editor was opened from. It deliberately does NOT show the five-day table —
- * that would contradict its own label, which is what made the first version
- * confusing. The whole week is edited through the header button instead.
- */
-function WeekdaySection({
-  weekdayLabel,
-  draft,
-  onChange,
-}: {
-  readonly weekdayLabel: string;
-  readonly draft: WeekdayDraft;
-  readonly onChange: (patch: Partial<WeekdayDraft>) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-sm leading-6 text-gray-600">
-        Gilt ab sofort für jeden {weekdayLabel}. Einzelne Tagesänderungen
-        bleiben bestehen.
-      </p>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <WeekdayLeg
-          label="Ankunft"
-          icon={<Clock className="h-4 w-4" aria-hidden="true" />}
-          color={LOCATION_COLORS.GROUP_ROOM}
-          offLabel="Kommt nicht"
-          idPrefix="weekday-arrival"
-          time={draft.arrivalTime}
-          off={draft.arrivalOff}
-          note={draft.arrivalNote}
-          onTimeChange={(value) => onChange({ arrivalTime: value })}
-          onOffChange={(value) => onChange({ arrivalOff: value })}
-          onNoteChange={(value) => onChange({ arrivalNote: value })}
-        />
-        <WeekdayLeg
-          label="Abholung"
-          icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
-          color={LOCATION_COLORS.SCHOOLYARD}
-          offLabel="Keine Abholung"
-          idPrefix="weekday-pickup"
-          time={draft.pickupTime}
-          off={draft.pickupOff}
-          note={draft.pickupNote}
-          onTimeChange={(value) => onChange({ pickupTime: value })}
-          onOffChange={(value) => onChange({ pickupOff: value })}
-          onNoteChange={(value) => onChange({ pickupNote: value })}
-        />
-      </div>
-    </div>
-  );
-}
-
-function WeekdayLeg({
-  label,
-  icon,
-  color,
-  offLabel,
-  idPrefix,
-  time,
-  off,
-  note,
-  onTimeChange,
-  onOffChange,
-  onNoteChange,
-}: {
-  readonly label: string;
-  readonly icon: React.ReactNode;
-  readonly color: string;
-  readonly offLabel: string;
-  readonly idPrefix: string;
-  readonly time: string;
-  readonly off: boolean;
-  readonly note: string;
-  readonly onTimeChange: (value: string) => void;
-  readonly onOffChange: (value: boolean) => void;
-  readonly onNoteChange: (value: string) => void;
-}) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4">
-      <div className="mb-3 flex items-start gap-3">
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-          style={{ backgroundColor: `${color}14`, color }}
-        >
-          {icon}
-        </span>
-        <h3 className="text-sm font-semibold text-gray-900">{label}</h3>
-      </div>
-
-      <div className="grid gap-2">
-        <Button
-          type="button"
-          size="md"
-          variant={off ? "outline" : "primary"}
-          className="w-full justify-start"
-          onClick={() => onOffChange(false)}
-        >
-          Feste Zeit
-        </Button>
-        <Button
-          type="button"
-          size="md"
-          variant={off ? "primary" : "outline"}
-          className="w-full justify-start"
-          onClick={() => onOffChange(true)}
-        >
-          {offLabel}
-        </Button>
-      </div>
-
-      {!off ? (
-        <label className="mt-3 block" htmlFor={`${idPrefix}-time`}>
-          <span className="mb-1 block text-xs font-medium text-gray-500">
-            Uhrzeit
-          </span>
-          <input
-            id={`${idPrefix}-time`}
-            type="time"
-            value={time}
-            onChange={(event) => onTimeChange(event.target.value)}
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
-          />
-        </label>
-      ) : null}
-
-      <label className="mt-3 block" htmlFor={`${idPrefix}-note`}>
-        <span className="mb-1 block text-xs font-medium text-gray-500">
-          Notiz (jede Woche)
-        </span>
-        <input
-          id={`${idPrefix}-note`}
-          type="text"
-          value={note}
-          onChange={(event) => onNoteChange(event.target.value)}
-          maxLength={500}
-          className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
-          placeholder="Optional"
-        />
-      </label>
-    </section>
   );
 }
 
@@ -1416,56 +1218,6 @@ function buildWeeklyRows(
       pickupNotes: pickupEntry?.notes ?? "",
     };
   });
-}
-
-function buildWeekdayDraft(
-  weekday: number,
-  arrival: readonly ArrivalScheduleFormEntry[],
-  pickup: readonly PickupScheduleFormData[],
-): WeekdayDraft {
-  const arrivalEntry = arrival.find((entry) => entry.weekday === weekday);
-  const pickupEntry = pickup.find((entry) => entry.weekday === weekday);
-  const arrivalTime = arrivalEntry?.expected_arrival ?? "";
-  const pickupTime = pickupEntry?.pickupTime ?? "";
-  return {
-    arrivalTime,
-    // No time in the plan means the child is not expected that weekday, which
-    // is exactly what "Kommt nicht" says — so the form opens on that option.
-    arrivalOff: arrivalTime === "",
-    arrivalNote: arrivalEntry?.notes ?? "",
-    pickupTime,
-    pickupOff: pickupTime === "",
-    pickupNote: pickupEntry?.notes ?? "",
-  };
-}
-
-function validateWeekdayDraft(draft: WeekdayDraft): string | null {
-  if (!draft.arrivalOff && !TIME_PATTERN.test(draft.arrivalTime)) {
-    return "Bitte eine gültige Ankunftszeit eingeben oder 'Kommt nicht' wählen.";
-  }
-  if (!draft.pickupOff && !TIME_PATTERN.test(draft.pickupTime)) {
-    return "Bitte eine gültige Abholzeit eingeben oder 'Keine Abholung' wählen.";
-  }
-  return null;
-}
-
-/** Fold one weekday's draft into the full set of rows the bulk write expects. */
-function applyWeekdayDraft(
-  rows: readonly WeeklyRow[],
-  weekday: number,
-  draft: WeekdayDraft,
-): WeeklyRow[] {
-  return rows.map((row) =>
-    row.weekday === weekday
-      ? {
-          weekday,
-          arrivalTime: draft.arrivalOff ? "" : draft.arrivalTime,
-          arrivalNotes: draft.arrivalNote,
-          pickupTime: draft.pickupOff ? "" : draft.pickupTime,
-          pickupNotes: draft.pickupNote,
-        }
-      : row,
-  );
 }
 
 function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
