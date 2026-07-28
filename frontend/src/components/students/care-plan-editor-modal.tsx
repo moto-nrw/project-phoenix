@@ -292,7 +292,7 @@ export function CarePlanEditorModal({
   return (
     <>
       <FormModal
-        isOpen={isOpen && formVisible}
+        isOpen={formVisible}
         onClose={onClose}
         title={title}
         footer={footer}
