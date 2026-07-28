@@ -162,7 +162,9 @@ function renderEditor(
   const onSubmitException = vi.fn().mockResolvedValue(undefined);
   const onSubmitWeekly = vi.fn().mockResolvedValue(undefined);
   const onClose = vi.fn();
-  render(
+  const renderModal = (
+    nextProps: Partial<React.ComponentProps<typeof CarePlanEditorModal>> = {},
+  ) => (
     <CarePlanEditorModal
       isOpen
       onClose={onClose}
@@ -174,9 +176,11 @@ function renderEditor(
       onSubmitException={onSubmitException}
       onSubmitWeekly={onSubmitWeekly}
       {...props}
-    />,
+      {...nextProps}
+    />
   );
-  return { onSubmitException, onSubmitWeekly, onClose };
+  const result = render(renderModal());
+  return { onSubmitException, onSubmitWeekly, onClose, renderModal, ...result };
 }
 
 function save(): void {
@@ -191,9 +195,7 @@ describe("CarePlanEditorModal", () => {
   it("names itself an exception when opened from a day", () => {
     renderEditor();
 
-    expect(
-      screen.getByText("Ausnahme für Montag, 25.05."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Ausnahme für Montag, 25.05.")).toBeInTheDocument();
     expect(screen.getByText(/Gilt nur an diesem Tag/)).toBeInTheDocument();
     // No scope control: the door you came through IS the reach.
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
@@ -213,7 +215,9 @@ describe("CarePlanEditorModal", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Andere Zeit" })[1]!);
     fireEvent.change(
-      screen.getByLabelText("Uhrzeit", { selector: "#exception-abholung-time" }),
+      screen.getByLabelText("Uhrzeit", {
+        selector: "#exception-abholung-time",
+      }),
       { target: { value: "16:30" } },
     );
     fireEvent.change(
@@ -322,7 +326,9 @@ describe("CarePlanEditorModal", () => {
     });
 
     fireEvent.change(
-      screen.getByLabelText("Uhrzeit", { selector: "#exception-abholung-time" }),
+      screen.getByLabelText("Uhrzeit", {
+        selector: "#exception-abholung-time",
+      }),
       { target: { value: "16:30" } },
     );
     save();
@@ -341,6 +347,34 @@ describe("CarePlanEditorModal", () => {
     await waitFor(() => {
       expect(onSubmitException).toHaveBeenCalled();
     });
+    expect(
+      screen.queryByRole("dialog", { name: "Eltern-Angabe überschreiben?" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps an exception draft when weekly inputs receive new references", () => {
+    const { rerender, renderModal } = renderEditor();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Andere Zeit" })[1]!);
+    fireEvent.change(
+      screen.getByLabelText("Uhrzeit", {
+        selector: "#exception-abholung-time",
+      }),
+      { target: { value: "16:30" } },
+    );
+
+    rerender(
+      renderModal({
+        weeklyArrival: [...weeklyArrival],
+        weeklyPickup: [...weeklyPickup],
+      }),
+    );
+
+    expect(
+      screen.getByLabelText("Uhrzeit", {
+        selector: "#exception-abholung-time",
+      }),
+    ).toHaveValue("16:30");
   });
 
   it("writes the weekly plan from the plan view", async () => {

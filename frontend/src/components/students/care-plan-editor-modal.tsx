@@ -118,10 +118,11 @@ export function CarePlanEditorModal({
   const [formVisible, setFormVisible] = useState(true);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !isException) return;
 
     setError(null);
     setShowRemovalConfirm(false);
+    setShowParentConfirm(false);
     setFormVisible(true);
 
     const arrivalInit = arrivalInitialState(arrivalDay);
@@ -133,6 +134,15 @@ export function CarePlanEditorModal({
     setPickupMode(pickupInit.mode);
     setPickupTime(pickupInit.time);
     setPickupReason(pickupInit.reason);
+  }, [isOpen, isException, arrivalDay, pickupDay]);
+
+  useEffect(() => {
+    if (!isOpen || isException) return;
+
+    setError(null);
+    setShowRemovalConfirm(false);
+    setShowParentConfirm(false);
+    setFormVisible(true);
 
     const rows = buildWeeklyRows(weeklyArrival, weeklyPickup);
     setWeeklyRows(rows);
@@ -143,7 +153,7 @@ export function CarePlanEditorModal({
           .map((row) => row.weekday),
       ),
     );
-  }, [isOpen, arrivalDay, pickupDay, weeklyArrival, weeklyPickup]);
+  }, [isOpen, isException, weeklyArrival, weeklyPickup]);
 
   if (!isOpen) return null;
 
@@ -244,6 +254,7 @@ export function CarePlanEditorModal({
         });
         toast.success("Ausnahme wurde gespeichert");
       }
+      setShowParentConfirm(false);
       onClose();
     } catch (err) {
       const raw =
