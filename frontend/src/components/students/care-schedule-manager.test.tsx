@@ -102,7 +102,9 @@ vi.mock("./care-plan-editor-modal", () => ({
     }) => Promise<void>;
   }) =>
     isOpen ? (
-      <div data-testid={date ? "care-plan-editor-day" : "care-plan-editor-week"}>
+      <div
+        data-testid={date ? "care-plan-editor-day" : "care-plan-editor-week"}
+      >
         <button
           type="button"
           onClick={() =>
@@ -125,7 +127,7 @@ vi.mock("./care-plan-editor-modal", () => ({
               date: "2026-05-25",
               arrival: { kind: "time", time: "10:10", reason: "Arzt" },
               pickup: { kind: "time", time: "15:15", reason: "Training" },
-            })
+            }).catch(() => undefined)
           }
         >
           Ausnahme im Test speichern
@@ -626,6 +628,25 @@ describe("CareScheduleManager", () => {
           reason: "Training",
         },
       );
+    });
+  });
+
+  it("refreshes after a partially saved day exception", async () => {
+    mockUpdateStudentPickupException.mockRejectedValueOnce(
+      new Error("Abholung konnte nicht gespeichert werden"),
+    );
+
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    fireEvent.click(screen.getByText("Ausnahme im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateArrivalException).toHaveBeenCalled();
+      expect(mockUpdateStudentPickupException).toHaveBeenCalled();
+      expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
+      expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
     });
   });
 

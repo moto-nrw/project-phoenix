@@ -512,47 +512,75 @@ export function CareScheduleManager({
   const handleSubmitException = useCallback(
     async (payload: CareExceptionSubmit) => {
       const { date: dayISO, arrival, pickup } = payload;
+      let persistedChange = false;
 
-      if (arrival) {
-        const existing = arrivalData.exceptions.find(
-          (exception) => exception.exception_date.slice(0, 10) === dayISO,
-        );
-        if (arrival.kind === "regular") {
-          if (existing) await deleteArrivalException(studentId, existing.id);
-        } else {
-          const input = {
-            exception_date: dayISO,
-            expected_arrival: arrival.kind === "time" ? arrival.time : null,
-            reason: arrival.reason,
-          };
-          if (existing) {
-            await updateArrivalException(studentId, existing.id, input);
+      try {
+        if (arrival) {
+          const existing = arrivalData.exceptions.find(
+            (exception) => exception.exception_date.slice(0, 10) === dayISO,
+          );
+          if (arrival.kind === "regular") {
+            if (existing) {
+              await deleteArrivalException(studentId, existing.id);
+              persistedChange = true;
+            }
           } else {
-            await createArrivalException(studentId, input);
+            const input = {
+              exception_date: dayISO,
+              expected_arrival: arrival.kind === "time" ? arrival.time : null,
+              reason: arrival.reason,
+            };
+            if (existing) {
+              await updateArrivalException(studentId, existing.id, input);
+            } else {
+              await createArrivalException(studentId, input);
+            }
+            persistedChange = true;
           }
         }
-      }
 
-      if (pickup) {
-        const existing = pickupData.exceptions.find(
-          (exception) => exception.exceptionDate.slice(0, 10) === dayISO,
-        );
-        if (pickup.kind === "regular") {
-          if (existing) {
-            await deleteStudentPickupException(studentId, existing.id);
-          }
-        } else {
-          const input = {
-            exceptionDate: dayISO,
-            pickupTime: pickup.kind === "time" ? pickup.time : undefined,
-            reason: pickup.reason ?? undefined,
-          };
-          if (existing) {
-            await updateStudentPickupException(studentId, existing.id, input);
+        if (pickup) {
+          const existing = pickupData.exceptions.find(
+            (exception) => exception.exceptionDate.slice(0, 10) === dayISO,
+          );
+          if (pickup.kind === "regular") {
+            if (existing) {
+              await deleteStudentPickupException(studentId, existing.id);
+              persistedChange = true;
+            }
           } else {
-            await createStudentPickupException(studentId, input);
+            const input = {
+              exceptionDate: dayISO,
+              pickupTime: pickup.kind === "time" ? pickup.time : undefined,
+              reason: pickup.reason ?? undefined,
+            };
+            if (existing) {
+              await updateStudentPickupException(studentId, existing.id, input);
+            } else {
+              await createStudentPickupException(studentId, input);
+            }
+            persistedChange = true;
           }
         }
+      } catch (err) {
+        // Arrival and pickup are separate endpoints, so a failed second request
+        // can leave the first change persisted. Refresh before reporting the
+        // error so the open editor reflects that server state.
+        if (persistedChange) {
+          try {
+            await refreshCareData();
+            invalidatePickupCaches();
+          } catch (refreshErr) {
+            logger.error("care_schedule_partial_exception_refresh_failed", {
+              error:
+                refreshErr instanceof Error
+                  ? refreshErr.message
+                  : String(refreshErr),
+              student_id: studentId,
+            });
+          }
+        }
+        throw err;
       }
 
       await refreshCareData();
@@ -1015,7 +1043,6 @@ function CareDayCard({
           <CareAppointmentSection appointments={appointments} />
         ) : null}
         {notes.length > 0 ? <CareNotesSection notes={notes} /> : null}
-
       </div>
     </article>
   );
