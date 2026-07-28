@@ -1016,7 +1016,13 @@ function TimetablesContent() {
         actions={
           <>
             {view === "week" && (
-              <OverflowMenu ariaLabel="Zeilenhöhe" items={densityMenuItems} />
+              // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
+              // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
+              // war mit den drei Ansichts-Tabs und "Neu" zusammen breiter als
+              // die Kopfzeile — das Datum wurde dadurch auf null gequetscht.
+              <span className="hidden sm:contents">
+                <OverflowMenu ariaLabel="Zeilenhöhe" items={densityMenuItems} />
+              </span>
             )}
             <TimetableAddMenu
               onAddInstance={openEventCreate}

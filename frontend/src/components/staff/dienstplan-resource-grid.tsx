@@ -9,7 +9,14 @@ import {
   Thermometer,
   TriangleAlert,
 } from "lucide-react";
-import { useId, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
   ClosingDayChip,
@@ -32,6 +39,7 @@ import {
 import { Tooltip } from "~/components/ui/tooltip";
 import type { ClosingDayRange } from "~/lib/closing-day-helpers";
 import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";
+import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   formatColumnDate,
@@ -641,46 +649,166 @@ export function DienstplanResourceGrid({
     [shiftTypes],
   );
 
+  // Ausgewählter Tag der mobilen Tagesansicht. Voreinstellung ist heute, wenn
+  // es in der gezeigten Woche liegt, sonst der Wochenanfang — dieselbe Regel
+  // wie im Tagesstreifen des Betreuungsplan-Rasters.
+  const todayColumnIndex = weekDays.indexOf(todayIso);
+  const weekStart = weekDays[0];
+  const [mobileDayIndex, setMobileDayIndex] = useState(
+    todayColumnIndex >= 0 ? todayColumnIndex : 0,
+  );
+  const mobileWeekStart = useRef(weekStart);
+  useEffect(() => {
+    if (mobileWeekStart.current === weekStart) return;
+    mobileWeekStart.current = weekStart;
+    setMobileDayIndex(todayColumnIndex >= 0 ? todayColumnIndex : 0);
+  }, [todayColumnIndex, weekStart]);
+  const safeMobileDayIndex = Math.min(
+    Math.max(mobileDayIndex, 0),
+    Math.max(columns.length - 1, 0),
+  );
+  const mobileColumn = columns[safeMobileDayIndex];
+
+  // Tagesansicht und Wochenmatrix schließen einander aus — sie dürfen NICHT
+  // beide im Dokument stehen und per `lg:hidden` weggeblendet werden: jede
+  // Person, jeder Schichtblock und jedes Aktionsmenü läge sonst doppelt im
+  // Baum, Screenreader läsen den Plan zweimal vor und die Tabulator-Reihenfolge
+  // liefe durch eine unsichtbare Kopie.
+  const isCompact = useMediaQuery(BELOW_LG);
+
   return (
     <div>
-      <p id={scrollHintId} className="mb-2 text-xs text-gray-600 sm:hidden">
-        Wische horizontal, um weitere Wochentage zu sehen.
-      </p>
-      <ResourceGrid
-        columns={columns}
-        rows={staff}
-        getRowKey={(member) => member.id}
-        renderRowHeader={renderRowHeader}
-        renderCell={renderCell}
-        columnMode="days"
-        cornerHeader="Person"
-        scrollHintId={scrollHintId}
-        emptyCellLabel={createShiftAriaLabel}
-        onEmptyCellClick={
-          closingDaysLoading
-            ? undefined
-            : (member, column) => openCell(member, column.key, null)
-        }
-        footer={
-          <CapacityStrip
-            rowLabel={
+      {/* Unterhalb lg ersetzt eine Tagesansicht die Wochenmatrix: Personen×Tage
+          passt nicht auf ein Telefon — die Namensspalte fraß dort die halbe
+          Breite, sichtbar blieb rund eine Tagesspalte, und der Rest der Woche
+          lag hinter einer Wischgeste. Gezeigt wird EIN Tag, die Personen
+          untereinander. Es ist bewusst dieselbe Darstellung wie im
+          Betreuungsplan, damit die drei Planungsflächen sich mobil gleich
+          verhalten. Zeilenkopf und Zelleninhalt sind exakt dieselben
+          Render-Funktionen wie in der Matrix, also bleiben Menüs, Blöcke und
+          die Anlege-Geste identisch. */}
+      {isCompact && mobileColumn ? (
+        <div>
+          <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+            <div className="flex gap-1 border-b border-gray-200 bg-white p-2">
+              {columns.map((column, index) => {
+                const isSelected = index === safeMobileDayIndex;
+                return (
+                  <button
+                    key={column.key}
+                    type="button"
+                    onClick={() => setMobileDayIndex(index)}
+                    aria-pressed={isSelected}
+                    className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                      isSelected
+                        ? "bg-gray-900 text-white"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span
+                      className={`text-[10px] font-medium tracking-wide uppercase ${
+                        isSelected ? "text-white/80" : "text-gray-500"
+                      }`}
+                    >
+                      {column.label}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {column.sublabel}
+                    </span>
+                    {column.headerNote}
+                    {column.isCurrent && !isSelected && (
+                      <span
+                        aria-hidden
+                        className="h-1 w-1 rounded-full bg-[#FF3130]"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <ul className="divide-y divide-gray-100">
+              {staff.map((member) => (
+                <li key={member.id} className="px-3 py-2.5">
+                  {renderRowHeader(member)}
+                  <div className="mt-1.5">
+                    {renderCell(member, mobileColumn) ?? (
+                      // Leerer Tag: dieselbe Anlege-Fläche, die das Raster in
+                      // einer leeren Zelle rendert — ohne sie ließe sich mobil
+                      // keine Schicht anlegen.
+                      <button
+                        type="button"
+                        disabled={closingDaysLoading}
+                        onClick={() => openCell(member, mobileColumn.key, null)}
+                        aria-label={createShiftAriaLabel(member, mobileColumn)}
+                        className="group flex w-full rounded-md focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none disabled:cursor-wait disabled:opacity-40"
+                      >
+                        <PlanAddAffordance size="inline" />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
               <span title="Übergangslösung: Pausen sind in dieser Zahl nicht herausgerechnet.">
                 Kapazität 12–16
               </span>
-            }
-            cells={weekDays.map((date) => ({
-              key: date,
-              content: capacityByDay.get(date) ?? 0,
-            }))}
+              <span className="font-semibold text-gray-900 tabular-nums">
+                {capacityByDay.get(mobileColumn.key) ?? 0}
+              </span>
+            </div>
+          </div>
+          <PlanLegend
+            className="mt-3 px-1"
+            entries={legendEntries}
+            aria-label="Legende Schichtarten und Zustände"
           />
-        }
-        ariaLabel="Dienstplan-Wochenansicht"
-      />
-      <PlanLegend
-        className="mt-3 px-1"
-        entries={legendEntries}
-        aria-label="Legende Schichtarten und Zustände"
-      />
+        </div>
+      ) : (
+        <div>
+          <p id={scrollHintId} className="mb-2 text-xs text-gray-600 sm:hidden">
+            Wische horizontal, um weitere Wochentage zu sehen.
+          </p>
+          <ResourceGrid
+            columns={columns}
+            rows={staff}
+            getRowKey={(member) => member.id}
+            renderRowHeader={renderRowHeader}
+            renderCell={renderCell}
+            columnMode="days"
+            cornerHeader="Person"
+            scrollHintId={scrollHintId}
+            emptyCellLabel={createShiftAriaLabel}
+            onEmptyCellClick={
+              closingDaysLoading
+                ? undefined
+                : (member, column) => openCell(member, column.key, null)
+            }
+            footer={
+              <CapacityStrip
+                rowLabel={
+                  <span title="Übergangslösung: Pausen sind in dieser Zahl nicht herausgerechnet.">
+                    Kapazität 12–16
+                  </span>
+                }
+                cells={weekDays.map((date) => ({
+                  key: date,
+                  content: capacityByDay.get(date) ?? 0,
+                }))}
+              />
+            }
+            ariaLabel="Dienstplan-Wochenansicht"
+          />
+          <PlanLegend
+            className="mt-3 px-1"
+            entries={legendEntries}
+            aria-label="Legende Schichtarten und Zustände"
+          />
+        </div>
+      )}
+
       {moveTarget && (
         <ShiftMoveDialog
           isOpen

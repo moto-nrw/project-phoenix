@@ -130,12 +130,15 @@ describe("PlanningDayChip", () => {
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
-  it("renders a placeholder dash when no count is available", () => {
-    render(
-      <PlanningDayChip weekdayLabel="Sa" dateLabel="18.07." showPlaceholder />,
-    );
+  it("stays quiet when no count is available at all", () => {
+    // Ein Tag ohne verfügbaren Zähler (vergangener Tag, Abruf übersprungen
+    // oder fehlgeschlagen) zeigt NICHTS. Früher stand dort ein Strich, dessen
+    // Bedeutung man nur mit Kenntnis der Ladelogik erraten konnte.
+    render(<PlanningDayChip weekdayLabel="Sa" dateLabel="18.07." />);
 
-    expect(screen.getByText("–")).toBeInTheDocument();
+    expect(screen.getByText("Sa")).toBeInTheDocument();
+    expect(screen.getByText("18.07.")).toBeInTheDocument();
+    expect(screen.queryByText("–")).not.toBeInTheDocument();
   });
 
   it("uses the dark fill instead of neutral gray when selected", () => {

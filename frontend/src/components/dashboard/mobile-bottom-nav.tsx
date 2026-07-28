@@ -283,7 +283,6 @@ const PLANNING_ICON_KEYS: Record<
   "/betreuungsplan": "betreuungsplan",
   "/dienstplan": "dienstplan",
   "/vertretung": "vertretung",
-  // Desktop-only (showInMobileNav: false), Eintrag nur für die Typ-Vollständigkeit.
   "/lists": "calendar",
   "/calendar-periods": "calendar",
 };
@@ -627,7 +626,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
-    if (isPlanningPageHref(item.href) && !timetableEnabled) return false;
+    if (
+      isPlanningPageHref(item.href) &&
+      item.href !== "/calendar-periods" &&
+      !timetableEnabled
+    ) {
+      return false;
+    }
     if (item.href === "/substitutions" && openCareGroupMode) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;

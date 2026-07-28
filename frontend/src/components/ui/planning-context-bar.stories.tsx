@@ -36,8 +36,8 @@ const WEEK_DAYS = [
   { weekdayLabel: "Mi", dateLabel: "15.07.", count: 1 },
   { weekdayLabel: "Do", dateLabel: "16.07.", count: 0 },
   { weekdayLabel: "Fr", dateLabel: "17.07.", count: 0 },
-  { weekdayLabel: "Sa", dateLabel: "18.07.", showPlaceholder: true as const },
-  { weekdayLabel: "So", dateLabel: "19.07.", showPlaceholder: true as const },
+  { weekdayLabel: "Sa", dateLabel: "18.07." },
+  { weekdayLabel: "So", dateLabel: "19.07." },
 ];
 
 export const WithWeekStrip: Story = {
