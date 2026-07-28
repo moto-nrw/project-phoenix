@@ -30,7 +30,6 @@ import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
-import { formatCalendarDate } from "~/lib/localized-date-format";
 import { createLogger } from "~/lib/logger";
 import { getSettingValue } from "~/lib/settings-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
@@ -38,8 +37,10 @@ import { startOfWeek } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { getWeekNumber } from "~/lib/time-tracking-helpers";
-import { firstSchoolDayInPeriod } from "~/lib/timetable-helpers";
+import {
+  firstSchoolDayInPeriod,
+  formatWeekLabel,
+} from "~/lib/timetable-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 
 import {
@@ -214,19 +215,15 @@ function DienstplanContent() {
   const isOnCurrentWeek =
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
 
+  // Dasselbe Wochenetikett wie in Vertretung und Betreuungsplan
+  // ("KW 31 · 27.07.–31.07.2026"). Der Dienstplan schrieb es früher als
+  // "KW 31: 27. Juli bis 31. Juli 2026" selbst zusammen: drei benachbarte
+  // Flächen mit drei Schreibweisen für dieselbe Woche, und auf einem Telefon
+  // 220px Text in einer 199px breiten Kopfzeile, also abgeschnitten.
   const weekLabel = useMemo(() => {
     const end = new Date(weekAnchor);
     end.setDate(end.getDate() + 4);
-    const startLabel = formatCalendarDate(toISODate(weekAnchor), "de-DE", {
-      day: "numeric",
-      month: "short",
-    });
-    const endLabel = formatCalendarDate(toISODate(end), "de-DE", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-    return `KW ${getWeekNumber(weekAnchor)}: ${startLabel} bis ${endLabel}`;
+    return formatWeekLabel(weekAnchor, end);
   }, [weekAnchor]);
 
   // Wochen-Navigation schreibt den Montag der Zielwoche nach `d`.
@@ -413,15 +410,24 @@ function DienstplanContent() {
           ) : undefined
         }
         actions={
+          // Unter sm nur das Zahnrad: der volle Text brach in der Kopfzeile
+          // zweizeilig um und schob zusammen mit dem Ansichtsumschalter die
+          // ganze Zeile aus dem Viewport. EIN Button mit ausgeblendetem Label
+          // statt zweier Breakpoint-Varianten — das `aria-label` hält ihn für
+          // Screenreader und Tests unter demselben Namen auffindbar.
           <Button
             type="button"
             variant="primary"
             size="md"
+            aria-label="Schichtarten verwalten"
+            className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
             onClick={() => setManageOpen(true)}
             disabled={Boolean(shiftTypesError)}
           >
-            <Settings2 className="mr-1.5 h-4 w-4" />
-            Schichtarten verwalten
+            <Settings2 className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+            <span className="hidden whitespace-nowrap sm:inline">
+              Schichtarten verwalten
+            </span>
           </Button>
         }
       >

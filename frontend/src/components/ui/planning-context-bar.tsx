@@ -22,7 +22,9 @@ import { Button } from "~/components/ui/button";
  *
  * 1. Der Seitenname steht bereits in der App-Kopfzeile und wird hier nur noch
  *    für Screenreader gerendert. Die sichtbare Überschrift ist das Datum, also
- *    die Antwort auf "was sehe ich gerade".
+ *    die Antwort auf "was sehe ich gerade". Ausnahme ist die mobile Ansicht:
+ *    dort zeigt die App-Kopfzeile den Schulnamen, nicht die Seite, deshalb
+ *    bleibt der Titel unter md sichtbar (klein, in der Bedienzeile).
  * 2. Die Navigation ist EIN Objekt: eine gerahmte Gruppe aus Zurück, Heute und
  *    Weiter. "Heute" ist immer da (deaktiviert, wenn man schon dort steht), weil
  *    ein auftauchender und verschwindender Button die Zeile seitlich springen
@@ -30,6 +32,15 @@ import { Button } from "~/components/ui/button";
  * 3. Zeile 2 ist eine ruhige 12px-Kontextzeile, keine Sammlung verschiedener
  *    Pillen. Sie wird immer gerendert, damit der Inhalt darunter beim
  *    Seitenwechsel nicht springt.
+ *
+ * Mobiles Verhalten: die Bar darf auf einem Handy nicht per `flex-wrap` in vier
+ * Zeilen zerfallen — gemessen fraß sie so ein Viertel bis ein Drittel des
+ * Viewports, bevor der erste Inhalt kam. Sie ordnet sich deshalb unter md in
+ * genau zwei Bedienzeilen (Titel + Navigation / Datum + Umschalter) und die
+ * Kontextzeile scrollt horizontal, statt umzubrechen. Beide Layouts rendern
+ * DIESELBEN Slot-Knoten — nichts wird für eine Breakpoint-Variante doppelt in
+ * den DOM gehängt, sonst kollidieren Radix-IDs und Tests finden jedes Element
+ * zweimal.
  */
 
 /**
@@ -85,16 +96,34 @@ export function PlanningContextBar({
 }: PlanningContextBarProps) {
   return (
     <div
-      className={`moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3 ${className ?? ""}`}
+      className={`moto-content-surface flex flex-col gap-2 rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 ${className ?? ""}`}
     >
-      <h1 className="text-lg font-semibold text-gray-900 md:sr-only">
-        {title}
-      </h1>
+      <div
+        className={`flex flex-wrap items-center gap-2 sm:gap-3 ${PRIMARY_ROW_MIN_H}`}
+      >
+        {/* Titelblock: unter md ein zweizeiliger Block (Seitenname klein
+            darüber, Datum groß darunter), der die Zeile links füllt, während
+            die Zeitnavigation rechts sitzt. Ab md löst `contents` den Wrapper
+            auf — Überschrift und Datum werden wieder direkte Kinder der Zeile,
+            die Überschrift verschwindet in `sr-only` (die App-Kopfzeile trägt
+            den Seitennamen), und die Zeile ist exakt die alte. */}
+        <div className="flex min-w-0 flex-1 flex-col md:contents">
+          <h1 className="truncate text-xs font-medium tracking-wide text-gray-500 uppercase md:sr-only md:text-base md:normal-case">
+            {title}
+          </h1>
+          {navigationSlot ??
+            (dateLabel && (
+              <p className="min-w-0 truncate text-sm font-semibold text-gray-900 tabular-nums md:order-2 md:text-base">
+                {dateLabel}
+              </p>
+            ))}
+        </div>
 
-      <div className={`flex flex-wrap items-center gap-3 ${PRIMARY_ROW_MIN_H}`}>
         {/* Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
-            Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen. */}
-        <div className="inline-flex h-8 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white">
+            Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen.
+            Mobil sitzt sie rechts neben dem Titelblock, ab md rückt sie per
+            `order` wieder an den Anfang der Zeile. */}
+        <div className="inline-flex h-8 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1">
           <Button
             type="button"
             size="icon"
@@ -129,15 +158,35 @@ export function PlanningContextBar({
           </Button>
         </div>
 
-        {navigationSlot ??
-          (dateLabel && (
-            <p className="text-base font-semibold text-gray-900 tabular-nums">
-              {dateLabel}
-            </p>
-          ))}
+        {/* Umschalter und Aktionen: unter md eine eigene Zeile über die VOLLE
+            Breite (`basis-full`), in der sich der Ansichtsumschalter breit
+            macht statt links zu kleben. Vorher standen dort zwei angeschnittene
+            Bedienelemente und daneben viel ungenutzte Fläche. Ab md rutscht die
+            Gruppe zurück an das rechte Ende derselben Zeile.
 
+            Der Selektor streckt den Tab-Umschalter, ohne dass jede aufrufende
+            Fläche daran denken muss: die Kit-Tabs sind `inline-flex`, also
+            genau so breit wie ihre Beschriftungen.
+
+            `flex-wrap` ist nötig, weil einzelne Aktionen ihre eigene mobile
+            Breite mitbringen: `TimetableAddMenu` ist unter sm `w-full`. Ohne
+            Umbruch kämpften zwei Elemente um dieselbe Zeile und der breitere
+            drückte den Umschalter auf null (im Betreuungsplan lag der
+            "Neu"-Knopf über den Ansichts-Tabs). Mit Umbruch nimmt jeder, was er
+            braucht, und beide bleiben vollständig sichtbar. */}
         {(viewSwitcher ?? actions) && (
-          <div className="ml-auto flex items-center gap-2">
+          <div
+            className={`flex basis-full flex-wrap items-center gap-2 md:order-3 md:ml-auto md:basis-auto md:flex-nowrap ${
+              viewSwitcher
+                ? // Drei Ebenen, weil der Umschalter drei verschachtelte
+                  // Elemente hat: der Tabs-Rahmen muss die freie Breite nehmen
+                  // (flex-1), die Liste darin sie ausfüllen (w-full), und die
+                  // Schaltflächen sie untereinander aufteilen (flex-1). Fehlt
+                  // eine davon, bleibt alles auf Textbreite stehen.
+                  "[&_[role=tab]]:flex-1 md:[&_[role=tab]]:flex-none [&_[role=tablist]]:w-full md:[&_[role=tablist]]:w-auto [&>*:first-child]:min-w-0 [&>*:first-child]:flex-1 md:[&>*:first-child]:flex-none"
+                : ""
+            }`}
+          >
             {viewSwitcher}
             {actions}
           </div>
@@ -147,8 +196,11 @@ export function PlanningContextBar({
       {/* Haarlinie trennt Bedienung (oben) von Kontext (unten) INNERHALB des
           Balkens: zwei Zonen, eine Fläche. */}
       <div className="border-t border-gray-100 pt-2">
+        {/* Unter sm eine scrollende Zeile statt eines Zeilenumbruchs: eine
+            umbrechende Wochenleiste warf die Trennlinie und die Zähler mitten
+            in die zweite Zeile und ließ die Bar um zwei Zeilen wachsen. */}
         <div
-          className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 ${CONTEXT_ROW_MIN_H}`}
+          className={`flex [scrollbar-width:none] items-center gap-x-3 gap-y-1 overflow-x-auto text-xs text-gray-500 sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
         >
           {children}
         </div>
@@ -164,9 +216,6 @@ interface PlanningDayChipProps {
   readonly dateLabel: string;
   /** Kleine Zähler-Ziffer, z. B. Anzahl offener Lücken. */
   readonly count?: number;
-  /** Zeigt einen Strich statt einer Ziffer, wenn kein Zähler verfügbar ist
-   *  (z. B. vergangene Tage oder ein fehlgeschlagener Abruf). */
-  readonly showPlaceholder?: boolean;
   readonly selected?: boolean;
   readonly onClick?: () => void;
   readonly className?: string;
@@ -183,14 +232,15 @@ const COUNT_DOT_COLOR = "#F78C10";
  *
  * Einzeilig (#2031): der frühere dreizeilige Chip war so hoch wie die gesamte
  * Bedienzeile und ließ die Leiste in der Vertretung höher werden als in den
- * anderen Flächen. Eine Null wird nicht gezeigt: ein Tag ohne offene Lücke
- * bleibt ruhig, sichtbar ist nur, wo etwas offen ist.
+ * anderen Flächen. Ohne Zähler bleibt der Chip einfach still: eine Null wird
+ * nicht gezeigt (ein Tag ohne offene Lücke ist keine Meldung wert), und ein
+ * Tag ohne verfügbare Zahl bekommt auch keinen Platzhalter. Der frühere Strich
+ * war nicht deutbar, ohne dass man die Ladelogik dahinter kennt.
  */
 export function PlanningDayChip({
   weekdayLabel,
   dateLabel,
   count,
-  showPlaceholder = false,
   selected = false,
   onClick,
   className,
@@ -213,13 +263,7 @@ export function PlanningDayChip({
     >
       <span className="font-medium">{weekdayLabel}</span>
       <span className="tabular-nums">{dateLabel}</span>
-      {showPlaceholder ? (
-        <span
-          className={`tabular-nums ${selected ? "text-white/60" : "text-gray-400"}`}
-        >
-          –
-        </span>
-      ) : count !== undefined && count > 0 ? (
+      {count !== undefined && count > 0 ? (
         <span className="inline-flex items-center gap-1 font-semibold tabular-nums">
           <span
             aria-hidden

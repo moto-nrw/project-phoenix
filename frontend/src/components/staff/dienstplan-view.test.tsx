@@ -450,10 +450,14 @@ describe("DienstplanView", () => {
       render(<DienstplanView />);
 
       // 14.09.2026 ist ein Montag; die Woche ist KW 38. The label must retain
-      // those calendar days even when the browser is east of Berlin.
-      const label = screen.getByText(/KW 38:/);
-      expect(label).toHaveTextContent(/^KW 38: 14\./);
-      expect(label).toHaveTextContent(/bis 18\./);
+      // those calendar days even when the browser is east of Berlin. Das
+      // Etikett kommt seit der Kopfzeilen-Vereinheitlichung aus
+      // formatWeekLabel und lautet damit wie in Vertretung und Betreuungsplan
+      // "KW 38 · 14.09.–18.09.2026"; die Zeitzonen-Aussage dieses Tests bleibt
+      // unverändert.
+      const label = screen.getByText(/KW 38 ·/);
+      expect(label).toHaveTextContent(/^KW 38 · 14\.09\./);
+      expect(label).toHaveTextContent(/–18\.09\./);
       expect(screen.getByTestId("dienstplan-week-days")).toHaveTextContent(
         "2026-09-14,2026-09-15,2026-09-16,2026-09-17,2026-09-18",
       );

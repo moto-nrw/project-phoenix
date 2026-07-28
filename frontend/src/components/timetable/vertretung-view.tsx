@@ -531,18 +531,17 @@ function VertretungContent() {
               const iso = toISODate(day);
               const isPast = iso < today;
               // Vergangene Tage und ein fehlgeschlagener/übersprungener/noch
-              // ladender Gaps-Abruf zeigen einen Platzhalter, nie eine
-              // erfundene 0 (Akzeptanzkriterium 5).
-              const showPlaceholder = isPast || !gapsLoaded;
+              // ladender Gaps-Abruf bekommen GAR KEINEN Zähler, nie eine
+              // erfundene 0 (Akzeptanzkriterium 5). Der Chip bleibt dann still.
+              const countUnavailable = isPast || !gapsLoaded;
               return (
                 <PlanningDayChip
                   key={iso}
                   weekdayLabel={getGermanWeekdayShort(day)}
                   dateLabel={dayChipLabel(day)}
                   count={
-                    showPlaceholder ? undefined : (gapsByDate.get(iso) ?? 0)
+                    countUnavailable ? undefined : (gapsByDate.get(iso) ?? 0)
                   }
-                  showPlaceholder={showPlaceholder}
                   selected={iso === dayISO}
                   onClick={() => goToDay(iso)}
                   aria-label={`${getGermanWeekdayShort(day)} ${dayChipLabel(day)}`}
@@ -641,10 +640,15 @@ function VertretungContent() {
               onEdit={openEditor}
             />
           )}
-          {/* Unterhalb lg entfällt die Kalenderspalte; die Liste bleibt allein
-              voll funktionsfähig (Abschnitt 2). Das Raster ist dasselbe, es
-              bekommt in der Wochenansicht nur fünf Tagesspalten statt einer. */}
-          <div className="hidden lg:block">
+          {/* Das Raster läuft auch unterhalb lg mit, dort einspaltig unter der
+              Liste: es war früher desktop-only, wodurch die Vertretung mobil
+              weniger zeigte als am Rechner — anders als der Betreuungsplan, der
+              dasselbe Raster auf demselben Gerät sehr wohl darstellt.
+              WeeklyCalendarGrid bringt die mobile Tagesauswahl selbst mit
+              (eigener Tagesstreifen, alle übrigen Spalten unter sm verborgen),
+              deshalb braucht es hier keine zweite Umschaltmechanik. In der
+              Wochenansicht bekommt es fünf Tagesspalten statt einer. */}
+          <div>
             <WeeklyCalendarGrid
               weekDays={isWeekView ? weekDays : [parseISODate(dayISO)]}
               instances={isWeekView ? weekdayInstances : dayInstances}

@@ -179,8 +179,15 @@ export function WeeklyCalendarGrid({
         { "--day-grid-cols": smGridTemplate(weekDays.length) } as CSSProperties
       }
     >
-      {/* Mobile day strip — tap a day to switch (single-day view < sm) */}
-      <div className="flex gap-1 border-b border-gray-200 bg-white p-2 sm:hidden">
+      {/* Mobile day strip — tap a day to switch (single-day view < sm).
+          Bei genau einem übergebenen Tag entfällt er: ein Umschalter mit einer
+          einzigen Option schaltet nichts, kostet aber eine fette Zeile direkt
+          unter der Tagesauswahl der Kopfzeile (Vertretung, Tagesansicht). */}
+      <div
+        className={`gap-1 border-b border-gray-200 bg-white p-2 sm:hidden ${
+          weekDays.length > 1 ? "flex" : "hidden"
+        }`}
+      >
         {weekDays.map((day, index) => {
           const iso = toISODate(day);
           const isToday = iso === todayISO;
