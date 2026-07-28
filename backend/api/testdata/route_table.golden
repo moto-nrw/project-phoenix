@@ -400,7 +400,9 @@ GET /health
 GET /internal/metrics
 GET /operator/accounts
 GET /operator/accounts/{accountId}/mfa/global-override
+GET /operator/accounts/{accountId}/tenants
 GET /operator/accounts/{accountId}/tenants/
+GET /operator/accounts/{accountId}/tenants/{tenantId}/roles
 GET /operator/announcements/
 GET /operator/announcements/{id}
 GET /operator/announcements/{id}/stats
@@ -688,6 +690,7 @@ POST /auth/roles/
 POST /auth/roles/{roleId}/permissions/{permissionId}
 POST /auth/switch-tenant
 POST /internal/metrics
+POST /operator/accounts/{accountId}/tenants
 POST /operator/accounts/{accountId}/tenants/
 POST /operator/announcements/
 POST /operator/announcements/{id}/publish
