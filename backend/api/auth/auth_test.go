@@ -1383,6 +1383,24 @@ func TestAccountRoleAssignment(t *testing.T) {
 		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
+
+	t.Run("rejects direct assignment of guardian roles", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("guardian-assignment%d", time.Now().UnixNano()))
+		guardianRole := testpkg.CreateTestRole(t, tc.db, "guardian-assignment")
+		guardianBaseRole := authModel.BaseRoleGuardian
+		guardianRole.BaseRole = &guardianBaseRole
+		_, err := tc.db.NewUpdate().Model(guardianRole).Column("base_role").WherePK().Exec(context.Background())
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
+			testpkg.CleanupRoleRecords(t, tc.db, guardianRole.ID)
+		})
+
+		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, guardianRole.ID), nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
 }
 
 // ============================================================================

@@ -1,12 +1,20 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TeachersPage from "./page";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+    data: {
+      user: {
+        id: "1",
+        token: "test-token",
+        permissions: ["users:manage"],
+      },
+      expires: "2099-01-01",
+    },
     status: "authenticated",
   })),
 }));
@@ -319,6 +327,19 @@ describe("TeachersPage", () => {
     vi.clearAllMocks();
     currentSearch = new URLSearchParams();
 
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockTeachers,
       isLoading: false,
@@ -444,6 +465,28 @@ describe("TeachersPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("invitation-form")).toBeInTheDocument();
     });
+  });
+
+  it("hides invitation controls without users:manage", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:create"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    expect(
+      screen.queryByLabelText("Personal hinzufügen"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("invitation-form")).not.toBeInTheDocument();
   });
 
   it("renders the pending invitations list above the master-detail", async () => {

@@ -187,6 +187,34 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Account roles retrieved successfully")
 }
 
+// assignRoleToAccount applies the same school-role assignment policy as
+// invitations and registration before creating an account-role mapping. The
+// guardian invitation flow remains the only path that may grant guardian
+// access.
+func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
+		return
+	}
+	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
+	if !ok {
+		return
+	}
+
+	requestedRoleID := int64(roleID)
+	approvedRoleID, _, abort := rs.authorizeRoleAssignment(w, r, &requestedRoleID)
+	if abort {
+		return
+	}
+
+	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, int(*approvedRoleID)); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.RespondNoContent(w, r)
+}
+
 // createPermission handles creating a new permission
 func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 	req := &CreatePermissionRequest{}
