@@ -81,16 +81,6 @@ type ArrivalExceptionRequest struct {
 	Reason          *string `json:"reason,omitempty"`
 }
 
-// BulkArrivalExceptionRequest represents a request to apply the same arrival
-// override to several dates at once (the "gilt für mehrere Tage" scope of the
-// care plan editor). An omitted or empty expected_arrival means "kommt nicht"
-// on every listed date.
-type BulkArrivalExceptionRequest struct {
-	Dates           []string `json:"dates"` // YYYY-MM-DD entries
-	ExpectedArrival *string  `json:"expected_arrival,omitempty"`
-	Reason          *string  `json:"reason,omitempty"`
-}
-
 // ArrivalNoteRequest represents a request to create/update an arrival note
 type ArrivalNoteRequest struct {
 	NoteDate string `json:"note_date"` // YYYY-MM-DD format
@@ -154,16 +144,6 @@ func toArrivalScheduleModels(items []ArrivalScheduleRequestItem, studentID, staf
 func (r *ArrivalExceptionRequest) Bind(_ *http.Request) error {
 	return validateCareExceptionRequest(
 		r.ExceptionDate,
-		r.ExpectedArrival,
-		r.Reason,
-		"expected_arrival",
-	)
-}
-
-// Bind implements render.Binder for BulkArrivalExceptionRequest
-func (r *BulkArrivalExceptionRequest) Bind(_ *http.Request) error {
-	return validateCareExceptionBatch(
-		r.Dates,
 		r.ExpectedArrival,
 		r.Reason,
 		"expected_arrival",
@@ -453,53 +433,6 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusCreated, mapArrivalExceptionToResponse(exception), "Arrival exception created successfully")
-}
-
-// bulkUpsertStudentArrivalExceptions handles POST /students/{id}/arrival-exceptions/bulk.
-// Every listed date receives the same override in ONE transaction, so a range
-// edit never leaves half the days changed.
-func (rs *Resource) bulkUpsertStudentArrivalExceptions(w http.ResponseWriter, r *http.Request) {
-	student := rs.requireArrivalWriteAccess(w, r, "create arrival exceptions")
-	if student == nil {
-		return
-	}
-
-	req := &BulkArrivalExceptionRequest{}
-	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	staffID, err := rs.getStaffIDFromJWT(r)
-	if err != nil {
-		renderError(w, r, common.ErrorForbidden(err))
-		return
-	}
-
-	dates, arrivalTime := parseCareExceptionBatch(req.Dates, req.ExpectedArrival)
-
-	tenantID := tenant.FromContext(r.Context())
-	exceptions, err := rs.ArrivalScheduleService.UpsertExceptions(
-		r.Context(), student.ID, dates, arrivalTime, req.Reason, staffID,
-		func() (int64, error) { return rs.getStaffIDFromJWT(r) },
-	)
-	if err != nil {
-		renderExceptionWriteError(w, r, err)
-		return
-	}
-
-	// Same after-commit deferral as the single-date path above.
-	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(student.ID)
-		rs.wakeChildGuardians(tenantID, student.ID)
-	})
-
-	responses := make([]ArrivalExceptionResponse, 0, len(exceptions))
-	for _, exception := range exceptions {
-		responses = append(responses, mapArrivalExceptionToResponse(exception))
-	}
-
-	common.Respond(w, r, http.StatusCreated, responses, "Arrival exceptions saved successfully")
 }
 
 // updateStudentArrivalException handles PUT /students/{id}/arrival-exceptions/{exceptionId}

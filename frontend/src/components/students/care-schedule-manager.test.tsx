@@ -25,8 +25,6 @@ const mockUpdateStudentPickupException = vi.fn();
 const mockDeleteStudentPickupException = vi.fn();
 const mockCreateStudentPickupNote = vi.fn();
 const mockDeleteStudentPickupNote = vi.fn();
-const mockBulkUpsertArrivalExceptions = vi.fn();
-const mockBulkUpsertStudentPickupExceptions = vi.fn();
 const FROZEN_NOW = new Date("2026-05-27T12:00:00");
 
 vi.mock("~/lib/student-arrival-api", () => ({
@@ -39,8 +37,6 @@ vi.mock("~/lib/student-arrival-api", () => ({
     mockUpdateArrivalException(...args),
   deleteArrivalException: (...args: unknown[]) =>
     mockDeleteArrivalException(...args),
-  bulkUpsertArrivalExceptions: (...args: unknown[]) =>
-    mockBulkUpsertArrivalExceptions(...args),
   createArrivalNote: (...args: unknown[]) => mockCreateArrivalNote(...args),
   deleteArrivalNote: (...args: unknown[]) => mockDeleteArrivalNote(...args),
 }));
@@ -56,8 +52,6 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
     mockUpdateStudentPickupException(...args),
   deleteStudentPickupException: (...args: unknown[]) =>
     mockDeleteStudentPickupException(...args),
-  bulkUpsertStudentPickupExceptions: (...args: unknown[]) =>
-    mockBulkUpsertStudentPickupExceptions(...args),
   createStudentPickupNote: (...args: unknown[]) =>
     mockCreateStudentPickupNote(...args),
   deleteStudentPickupNote: (...args: unknown[]) =>
@@ -67,13 +61,16 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
 // The editor is exercised in its own test file; here it is reduced to the two
 // callbacks the manager wires up, so these tests stay about the manager's
 // persistence and refresh behaviour.
+// The editor is exercised in its own test file; here it is reduced to the two
+// callbacks the manager wires up, so these tests stay about the manager's
+// persistence and refresh behaviour.
 vi.mock("./care-plan-editor-modal", () => ({
   CarePlanEditorModal: ({
     isOpen,
     date,
     onClose,
     onSubmitWeekly,
-    onSubmitExceptions,
+    onSubmitException,
   }: {
     isOpen: boolean;
     date: Date | null;
@@ -90,8 +87,8 @@ vi.mock("./care-plan-editor-modal", () => ({
         notes?: string;
       }>;
     }) => Promise<void>;
-    onSubmitExceptions: (payload: {
-      dates: string[];
+    onSubmitException: (payload: {
+      date: string;
       arrival:
         | { kind: "regular" }
         | { kind: "time"; time: string; reason: string | null }
@@ -102,13 +99,10 @@ vi.mock("./care-plan-editor-modal", () => ({
         | { kind: "time"; time: string; reason: string | null }
         | { kind: "none"; reason: string | null }
         | null;
-      note: { target: "arrival" | "pickup"; content: string } | null;
     }) => Promise<void>;
   }) =>
     isOpen ? (
-      <div
-        data-testid={date ? "care-plan-editor-day" : "care-plan-editor-week"}
-      >
+      <div data-testid={date ? "care-plan-editor-day" : "care-plan-editor-week"}>
         <button
           type="button"
           onClick={() =>
@@ -127,37 +121,22 @@ vi.mock("./care-plan-editor-modal", () => ({
         <button
           type="button"
           onClick={() =>
-            void onSubmitExceptions({
-              dates: ["2026-05-25"],
+            void onSubmitException({
+              date: "2026-05-25",
               arrival: { kind: "time", time: "10:10", reason: "Arzt" },
               pickup: { kind: "time", time: "15:15", reason: "Training" },
-              note: { target: "pickup", content: "P" },
             })
           }
         >
-          Tag im Test speichern
+          Ausnahme im Test speichern
         </button>
         <button
           type="button"
           onClick={() =>
-            void onSubmitExceptions({
-              dates: ["2026-05-25", "2026-05-26", "2026-05-27"],
-              arrival: null,
-              pickup: { kind: "none", reason: "Ferien" },
-              note: null,
-            })
-          }
-        >
-          Zeitraum im Test speichern
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            void onSubmitExceptions({
-              dates: ["2026-05-25"],
+            void onSubmitException({
+              date: "2026-05-25",
               arrival: { kind: "regular" },
               pickup: { kind: "regular" },
-              note: null,
             })
           }
         >
@@ -624,64 +603,45 @@ describe("CareScheduleManager", () => {
     });
   });
 
-  it("opens day editing and persists day changes", async () => {
+  it("opens the exception editor and persists the day change", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungsplan");
 
-    fireEvent.click(screen.getAllByText("10:10")[0]!);
+    fireEvent.click(screen.getAllByText("Ausnahme ändern")[0]!);
     expect(screen.getByTestId("care-plan-editor-day")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Tag im Test speichern"));
+    fireEvent.click(screen.getByText("Ausnahme im Test speichern"));
 
     await waitFor(() => {
-      expect(mockBulkUpsertArrivalExceptions).toHaveBeenCalledWith("42", {
-        dates: ["2026-05-25"],
+      expect(mockUpdateArrivalException).toHaveBeenCalledWith("42", 10, {
+        exception_date: "2026-05-25",
         expected_arrival: "10:10",
         reason: "Arzt",
       });
-      expect(mockBulkUpsertStudentPickupExceptions).toHaveBeenCalledWith("42", {
-        dates: ["2026-05-25"],
-        pickupTime: "15:15",
-        reason: "Training",
-      });
-      expect(mockCreateStudentPickupNote).toHaveBeenCalledWith("42", {
-        noteDate: "2026-05-25",
-        content: "P",
-      });
+      expect(mockUpdateStudentPickupException).toHaveBeenCalledWith(
+        "42",
+        "20",
+        {
+          exceptionDate: "2026-05-25",
+          pickupTime: "15:15",
+          reason: "Training",
+        },
+      );
     });
   });
 
-  it("writes a multi-day range in one bulk call per touched leg", async () => {
+  it("removes the existing exceptions when the day is set back to regular", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungsplan");
 
-    fireEvent.click(screen.getAllByText("10:10")[0]!);
-    fireEvent.click(screen.getByText("Zeitraum im Test speichern"));
-
-    await waitFor(() => {
-      expect(mockBulkUpsertStudentPickupExceptions).toHaveBeenCalledWith("42", {
-        dates: ["2026-05-25", "2026-05-26", "2026-05-27"],
-        pickupTime: undefined,
-        reason: "Ferien",
-      });
-    });
-    // The arrival leg was reported untouched, so it must not be rewritten —
-    // re-saving it would reclaim a guardian-authored day from the parent.
-    expect(mockBulkUpsertArrivalExceptions).not.toHaveBeenCalled();
-  });
-
-  it("removes the existing exceptions when a day is set back to regular", async () => {
-    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
-    await screen.findByText("Betreuungsplan");
-
-    fireEvent.click(screen.getAllByText("10:10")[0]!);
+    fireEvent.click(screen.getAllByText("Ausnahme ändern")[0]!);
     fireEvent.click(screen.getByText("Auf Regulär zurücksetzen"));
 
     await waitFor(() => {
       expect(mockDeleteArrivalException).toHaveBeenCalledWith("42", 10);
       expect(mockDeleteStudentPickupException).toHaveBeenCalledWith("42", "20");
     });
-    expect(mockBulkUpsertArrivalExceptions).not.toHaveBeenCalled();
-    expect(mockBulkUpsertStudentPickupExceptions).not.toHaveBeenCalled();
+    expect(mockCreateArrivalException).not.toHaveBeenCalled();
+    expect(mockCreateStudentPickupException).not.toHaveBeenCalled();
   });
 
   it("opens confirmation before deleting a planned status day", async () => {

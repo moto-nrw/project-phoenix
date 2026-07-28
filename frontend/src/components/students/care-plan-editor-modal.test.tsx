@@ -1,9 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  CarePlanEditorModal,
-  schoolDaysBetween,
-} from "./care-plan-editor-modal";
+import { CarePlanEditorModal } from "./care-plan-editor-modal";
 import type { ArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import type { DayData as PickupDayData } from "~/lib/pickup-schedule-helpers";
 
@@ -68,28 +65,6 @@ vi.mock("~/components/ui/modal", () => ({
         </button>
       </div>
     ) : null,
-}));
-
-// The kit date picker renders a calendar popover; a plain date input keeps
-// these tests about the editor's scope logic rather than calendar interaction.
-vi.mock("~/components/ui/date-picker", () => ({
-  ISODatePicker: ({
-    id,
-    value,
-    onChange,
-  }: {
-    id?: string;
-    value: string;
-    onChange: (value: string) => void;
-  }) => (
-    <input
-      id={id}
-      type="date"
-      aria-label="Enddatum"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  ),
 }));
 
 const MONDAY = new Date("2026-05-25T00:00:00");
@@ -184,7 +159,7 @@ const weeklyPickup = [
 function renderEditor(
   props: Partial<React.ComponentProps<typeof CarePlanEditorModal>> = {},
 ) {
-  const onSubmitExceptions = vi.fn().mockResolvedValue(undefined);
+  const onSubmitException = vi.fn().mockResolvedValue(undefined);
   const onSubmitWeekly = vi.fn().mockResolvedValue(undefined);
   const onClose = vi.fn();
   render(
@@ -196,16 +171,12 @@ function renderEditor(
       pickupDay={basePickupDay}
       weeklyArrival={weeklyArrival}
       weeklyPickup={weeklyPickup}
-      guardianArrivalDates={[]}
-      guardianPickupDates={[]}
-      onSubmitExceptions={onSubmitExceptions}
+      onSubmitException={onSubmitException}
       onSubmitWeekly={onSubmitWeekly}
-      onDeleteArrivalNote={vi.fn().mockResolvedValue(undefined)}
-      onDeletePickupNote={vi.fn().mockResolvedValue(undefined)}
       {...props}
     />,
   );
-  return { onSubmitExceptions, onSubmitWeekly, onClose };
+  return { onSubmitException, onSubmitWeekly, onClose };
 }
 
 function save(): void {
@@ -217,145 +188,167 @@ describe("CarePlanEditorModal", () => {
     vi.clearAllMocks();
   });
 
-  it("offers all three scopes when opened from a day", () => {
+  it("names itself an exception when opened from a day", () => {
     renderEditor();
 
     expect(
-      screen.getByRole("radio", { name: /Nur an diesem Tag/ }),
-    ).toHaveAttribute("aria-checked", "true");
-    expect(
-      screen.getByRole("radio", { name: /Mehrere Tage/ }),
+      screen.getByText("Ausnahme für Montag, 25.05."),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("radio", { name: /Wochenplan bearbeiten/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Gilt nur an diesem Tag/)).toBeInTheDocument();
+    // No scope control: the door you came through IS the reach.
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 
-  it("shows only the weekly plan when opened without a day", () => {
+  it("shows the recurring plan when opened without a day", () => {
     renderEditor({ date: null, arrivalDay: null, pickupDay: null });
 
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(screen.getByText("Wochenplan bearbeiten")).toBeInTheDocument();
     expect(
       screen.getByText(/Gilt ab sofort für alle kommenden Wochen/),
     ).toBeInTheDocument();
   });
 
-  it("saves a single-day override with a note", async () => {
-    const { onSubmitExceptions } = renderEditor();
+  it("saves a day exception with a Grund", async () => {
+    const { onSubmitException } = renderEditor();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Andere Zeit" })[1]!);
-    fireEvent.change(screen.getByLabelText("Uhrzeit"), {
-      target: { value: "16:30" },
-    });
-    fireEvent.change(screen.getByLabelText("Neue Notiz"), {
-      target: { value: "Oma holt ab" },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Uhrzeit", { selector: "#exception-abholung-time" }),
+      { target: { value: "16:30" } },
+    );
+    fireEvent.change(
+      screen.getByLabelText("Grund", {
+        selector: "#exception-abholung-reason",
+      }),
+      { target: { value: "Oma holt ab" } },
+    );
     save();
 
     await waitFor(() => {
-      expect(onSubmitExceptions).toHaveBeenCalledWith({
-        dates: ["2026-05-25"],
+      expect(onSubmitException).toHaveBeenCalledWith({
+        date: "2026-05-25",
         arrival: null,
-        pickup: { kind: "time", time: "16:30", reason: null },
-        note: { target: "pickup", content: "Oma holt ab" },
+        pickup: { kind: "time", time: "16:30", reason: "Oma holt ab" },
       });
     });
   });
 
-  it("can set 'keine Abholung', which the old day editor could not express", async () => {
-    const { onSubmitExceptions } = renderEditor();
+  it("can set 'Keine Abholung', which the old day editor could not express", async () => {
+    const { onSubmitException } = renderEditor();
 
     fireEvent.click(screen.getByRole("button", { name: "Keine Abholung" }));
     save();
 
     await waitFor(() => {
-      expect(onSubmitExceptions).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pickup: { kind: "none", reason: null },
-        }),
+      expect(onSubmitException).toHaveBeenCalledWith(
+        expect.objectContaining({ pickup: { kind: "none", reason: null } }),
       );
     });
   });
 
-  it("expands a range to its school days and skips the weekend", async () => {
-    const { onSubmitExceptions } = renderEditor();
-
-    fireEvent.click(screen.getByRole("radio", { name: /Mehrere Tage/ }));
-    fireEvent.change(screen.getByLabelText("Enddatum"), {
-      target: { value: "2026-06-01" },
+  it("removes the override when a leg is set back to Regulär", async () => {
+    const { onSubmitException } = renderEditor({
+      pickupDay: {
+        ...basePickupDay,
+        exception: {
+          id: "99",
+          studentId: "42",
+          exceptionDate: "2026-05-25",
+          pickupTime: "16:30",
+          reason: "Termin",
+          source: "staff",
+          createdBy: "1",
+          createdAt: "2026-05-20T00:00:00Z",
+          updatedAt: "2026-05-20T00:00:00Z",
+        },
+        isException: true,
+      },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Keine Abholung" }));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Regulär" })[1]!);
     save();
 
     await waitFor(() => {
-      expect(onSubmitExceptions).toHaveBeenCalledWith(
-        expect.objectContaining({
-          dates: [
-            "2026-05-25",
-            "2026-05-26",
-            "2026-05-27",
-            "2026-05-28",
-            "2026-05-29",
-            "2026-06-01",
-          ],
-        }),
-      );
-    });
-  });
-
-  it("leaves an untouched leg alone across a range", async () => {
-    // The form is seeded from ONE day, so "Regulär" on the arrival side says
-    // nothing about the other days in the range. Writing it anyway would delete
-    // arrival overrides (parent-set ones included) across the whole range.
-    const { onSubmitExceptions } = renderEditor();
-
-    fireEvent.click(screen.getByRole("radio", { name: /Mehrere Tage/ }));
-    fireEvent.change(screen.getByLabelText("Enddatum"), {
-      target: { value: "2026-05-27" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Keine Abholung" }));
-    save();
-
-    await waitFor(() => {
-      expect(onSubmitExceptions).toHaveBeenCalledWith(
-        expect.objectContaining({ arrival: null }),
+      expect(onSubmitException).toHaveBeenCalledWith(
+        expect.objectContaining({ pickup: { kind: "regular" } }),
       );
     });
   });
 
   it("refuses to save when nothing was changed", async () => {
-    const { onSubmitExceptions } = renderEditor();
+    const { onSubmitException } = renderEditor();
 
     save();
 
     expect(
-      await screen.findByText("Bitte zuerst eine Zeit oder eine Notiz ändern."),
+      await screen.findByText("Bitte zuerst eine Zeit ändern."),
     ).toBeInTheDocument();
-    expect(onSubmitExceptions).not.toHaveBeenCalled();
+    expect(onSubmitException).not.toHaveBeenCalled();
   });
 
-  it("refuses a range without an end date", async () => {
-    const { onSubmitExceptions } = renderEditor();
+  it("rejects an invalid time", async () => {
+    const { onSubmitException } = renderEditor();
 
-    fireEvent.click(screen.getByRole("radio", { name: /Mehrere Tage/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Andere Zeit" })[0]!);
+    fireEvent.change(
+      screen.getByLabelText("Uhrzeit", { selector: "#exception-ankunft-time" }),
+      { target: { value: "99:99" } },
+    );
     save();
 
     expect(
-      await screen.findByText(/Bitte ein Enddatum wählen/),
+      await screen.findByText("Bitte eine gültige Ankunftszeit eingeben."),
     ).toBeInTheDocument();
-    expect(onSubmitExceptions).not.toHaveBeenCalled();
+    expect(onSubmitException).not.toHaveBeenCalled();
   });
 
-  it("edits the whole weekly plan when the recurring scope is chosen", async () => {
-    // The third option is the weekly plan itself, whichever entry it is opened
-    // from — there is no second, weekday-shaped way to change a recurring time.
-    const { onSubmitWeekly } = renderEditor();
+  it("asks before overwriting a parent-set time", async () => {
+    const { onSubmitException } = renderEditor({
+      pickupDay: {
+        ...basePickupDay,
+        exception: {
+          id: "99",
+          studentId: "42",
+          exceptionDate: "2026-05-25",
+          pickupTime: "15:00",
+          reason: "Arzttermin",
+          source: "guardian",
+          createdBy: "0",
+          createdAt: "2026-05-20T00:00:00Z",
+          updatedAt: "2026-05-20T00:00:00Z",
+        },
+        isException: true,
+      },
+    });
+
+    fireEvent.change(
+      screen.getByLabelText("Uhrzeit", { selector: "#exception-abholung-time" }),
+      { target: { value: "16:30" } },
+    );
+    save();
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Eltern-Angabe überschreiben?",
+      }),
+    ).toBeInTheDocument();
+    expect(onSubmitException).not.toHaveBeenCalled();
 
     fireEvent.click(
-      screen.getByRole("radio", { name: /Wochenplan bearbeiten/ }),
+      screen.getByRole("button", { name: "Trotzdem überschreiben" }),
     );
-    expect(screen.getByText("Dienstag")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(onSubmitException).toHaveBeenCalled();
+    });
+  });
+
+  it("writes the weekly plan from the plan view", async () => {
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+    });
 
     fireEvent.change(
       screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
@@ -377,8 +370,7 @@ describe("CarePlanEditorModal", () => {
     });
   });
 
-  it("confirms before an emptied field of the full weekly plan deletes a time", async () => {
-    // The five-day table (and this confirmation) belongs to the header entry.
+  it("confirms before an emptied weekly field deletes a time", async () => {
     const { onSubmitWeekly } = renderEditor({
       date: null,
       arrivalDay: null,
@@ -406,114 +398,5 @@ describe("CarePlanEditorModal", () => {
         }),
       );
     });
-  });
-
-  it("surfaces a recurring note in the day view instead of hiding it", () => {
-    renderEditor();
-
-    // The weekly note used to appear on the day card but nowhere in the day
-    // editor, leaving no way to reach it (#893).
-    expect(screen.getByText("Haupteingang")).toBeInTheDocument();
-    expect(screen.getAllByText(/Jede Woche/).length).toBeGreaterThan(0);
-  });
-
-  it("switches to the weekly scope from a recurring note", () => {
-    renderEditor();
-
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "Im Wochenplan ändern" })[0]!,
-    );
-
-    expect(screen.getByRole("radio", { name: /Wochenplan bearbeiten/ })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-  });
-
-  it("asks before overwriting a parent-set time", async () => {
-    const { onSubmitExceptions } = renderEditor({
-      guardianPickupDates: ["2026-05-25"],
-    });
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Andere Zeit" })[1]!);
-    fireEvent.change(screen.getByLabelText("Uhrzeit"), {
-      target: { value: "16:30" },
-    });
-    save();
-
-    expect(
-      await screen.findByRole("dialog", {
-        name: "Eltern-Angabe überschreiben?",
-      }),
-    ).toBeInTheDocument();
-    expect(onSubmitExceptions).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Trotzdem überschreiben" }),
-    );
-
-    await waitFor(() => {
-      expect(onSubmitExceptions).toHaveBeenCalled();
-    });
-  });
-
-  it("does not ask, and does not rewrite the leg, when only a note is added", async () => {
-    const { onSubmitExceptions } = renderEditor({
-      guardianPickupDates: ["2026-05-25"],
-    });
-
-    fireEvent.change(screen.getByLabelText("Neue Notiz"), {
-      target: { value: "Nur eine Notiz" },
-    });
-    save();
-
-    await waitFor(() => {
-      expect(onSubmitExceptions).toHaveBeenCalledWith({
-        dates: ["2026-05-25"],
-        arrival: null,
-        pickup: null,
-        note: { target: "pickup", content: "Nur eine Notiz" },
-      });
-    });
-    expect(
-      screen.queryByRole("dialog", { name: "Eltern-Angabe überschreiben?" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("rejects an invalid time", async () => {
-    const { onSubmitExceptions } = renderEditor();
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Andere Zeit" })[0]!);
-    fireEvent.change(screen.getByLabelText("Uhrzeit"), {
-      target: { value: "99:99" },
-    });
-    save();
-
-    expect(
-      await screen.findByText("Bitte eine gültige Ankunftszeit eingeben."),
-    ).toBeInTheDocument();
-    expect(onSubmitExceptions).not.toHaveBeenCalled();
-  });
-});
-
-describe("schoolDaysBetween", () => {
-  it("returns the weekdays of an inclusive range", () => {
-    expect(schoolDaysBetween("2026-05-25", "2026-05-27")).toEqual([
-      "2026-05-25",
-      "2026-05-26",
-      "2026-05-27",
-    ]);
-  });
-
-  it("drops Saturday and Sunday", () => {
-    expect(schoolDaysBetween("2026-05-29", "2026-06-01")).toEqual([
-      "2026-05-29",
-      "2026-06-01",
-    ]);
-  });
-
-  it("returns nothing for an inverted or incomplete range", () => {
-    expect(schoolDaysBetween("2026-05-27", "2026-05-25")).toEqual([]);
-    expect(schoolDaysBetween("2026-05-27", "")).toEqual([]);
   });
 });

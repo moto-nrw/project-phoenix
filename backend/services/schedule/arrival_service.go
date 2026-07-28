@@ -35,7 +35,6 @@ type ArrivalScheduleService interface {
 	DeleteStudentArrivalException(ctx context.Context, exceptionID int64) error
 	DeleteAllStudentArrivalExceptions(ctx context.Context, studentID int64) error
 	CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error)
-	UpsertExceptions(ctx context.Context, studentID int64, dates []timezone.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) ([]*schedule.StudentArrivalException, error)
 	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, arrivalTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error)
 
 	GetStudentArrivalNoteByID(ctx context.Context, noteID int64) (*schedule.StudentArrivalNote, error)
@@ -245,26 +244,6 @@ func (s *arrivalScheduleService) CreateOrReclaimException(
 		ctx,
 		studentID,
 		date,
-		arrivalTime,
-		reason,
-		staffID,
-		resolveStaffID,
-	)
-}
-
-func (s *arrivalScheduleService) UpsertExceptions(
-	ctx context.Context,
-	studentID int64,
-	dates []timezone.Date,
-	arrivalTime *time.Time,
-	reason *string,
-	staffID int64,
-	resolveStaffID func() (int64, error),
-) ([]*schedule.StudentArrivalException, error) {
-	return s.core.UpsertExceptions(
-		ctx,
-		studentID,
-		dates,
 		arrivalTime,
 		reason,
 		staffID,

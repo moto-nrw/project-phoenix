@@ -30,7 +30,6 @@ type PickupScheduleService interface {
 	DeleteStudentPickupException(ctx context.Context, exceptionID int64) error
 	DeleteAllStudentPickupExceptions(ctx context.Context, studentID int64) error
 	CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, pickupTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentPickupException, error)
-	UpsertExceptions(ctx context.Context, studentID int64, dates []timezone.Date, pickupTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) ([]*schedule.StudentPickupException, error)
 	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, pickupTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentPickupException, error)
 
 	GetStudentPickupNoteByID(ctx context.Context, noteID int64) (*schedule.StudentPickupNote, error)
@@ -200,26 +199,6 @@ func (s *pickupScheduleService) CreateOrReclaimException(
 		ctx,
 		studentID,
 		date,
-		pickupTime,
-		reason,
-		staffID,
-		resolveStaffID,
-	)
-}
-
-func (s *pickupScheduleService) UpsertExceptions(
-	ctx context.Context,
-	studentID int64,
-	dates []timezone.Date,
-	pickupTime *time.Time,
-	reason *string,
-	staffID int64,
-	resolveStaffID func() (int64, error),
-) ([]*schedule.StudentPickupException, error) {
-	return s.core.UpsertExceptions(
-		ctx,
-		studentID,
-		dates,
 		pickupTime,
 		reason,
 		staffID,

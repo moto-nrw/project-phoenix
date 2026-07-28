@@ -15,18 +15,17 @@ import {
   X,
 } from "lucide-react";
 import {
-  type CarePlanExceptionSubmit,
+  type CareExceptionSubmit,
   type CarePlanWeeklySubmit,
   CarePlanEditorModal,
 } from "./care-plan-editor-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   type ArrivalData,
-  bulkUpsertArrivalExceptions,
-  createArrivalNote,
+  createArrivalException,
   deleteArrivalException,
-  deleteArrivalNote,
   fetchArrivalData,
+  updateArrivalException,
   updateArrivalSchedules,
 } from "~/lib/student-arrival-api";
 import {
@@ -39,11 +38,10 @@ import {
   mergeSchedulesWithTemplate as mergeArrivalSchedulesWithTemplate,
 } from "~/lib/arrival-schedule-helpers";
 import {
-  bulkUpsertStudentPickupExceptions,
-  createStudentPickupNote,
+  createStudentPickupException,
   deleteStudentPickupException,
-  deleteStudentPickupNote,
   fetchStudentPickupData,
+  updateStudentPickupException,
   updateStudentPickupSchedules,
 } from "~/lib/pickup-schedule-api";
 import {
@@ -505,87 +503,55 @@ export function CareScheduleManager({
     );
   }, [editingDayDate, pickupData, isSick, isExcused, statusByDate]);
 
-  // Days a guardian currently owns, across ALL loaded exceptions rather than
-  // the visible week: a range edit can reach beyond the week on screen, and the
-  // editor must warn before reclaiming any of those days from the parent.
-  const guardianArrivalDates = useMemo(
-    () =>
-      arrivalData.exceptions
-        .filter((exception) => exception.source === "guardian")
-        .map((exception) => exception.exception_date.slice(0, 10)),
-    [arrivalData.exceptions],
-  );
-
-  const guardianPickupDates = useMemo(
-    () =>
-      pickupData.exceptions
-        .filter((exception) => exception.source === "guardian")
-        .map((exception) => exception.exceptionDate.slice(0, 10)),
-    [pickupData.exceptions],
-  );
-
   /**
-   * Apply one date-scoped edit to every day it covers.
-   *
-   * "Regulär" removes the override, so it maps to deletes of the exceptions
-   * that exist on the covered days; every other mode is a single bulk write the
-   * backend commits in one transaction. A leg the editor reports as untouched
-   * (`null`) is skipped entirely — writing it would reclaim a guardian-authored
-   * day from the parent for no reason.
+   * Write the exception for one day. "Regulär" means the day has no override,
+   * so it maps to a delete; every other mode creates or updates the row. A leg
+   * the editor reports as untouched (`null`) is skipped entirely — writing it
+   * would reclaim a guardian-authored day from the parent for no reason.
    */
-  const handleSubmitExceptions = useCallback(
-    async (payload: CarePlanExceptionSubmit) => {
-      const { dates, arrival, pickup, note } = payload;
-      const dateSet = new Set(dates);
+  const handleSubmitException = useCallback(
+    async (payload: CareExceptionSubmit) => {
+      const { date: dayISO, arrival, pickup } = payload;
 
       if (arrival) {
+        const existing = arrivalData.exceptions.find(
+          (exception) => exception.exception_date.slice(0, 10) === dayISO,
+        );
         if (arrival.kind === "regular") {
-          const doomed = arrivalData.exceptions.filter((exception) =>
-            dateSet.has(exception.exception_date.slice(0, 10)),
-          );
-          for (const exception of doomed) {
-            await deleteArrivalException(studentId, exception.id);
-          }
+          if (existing) await deleteArrivalException(studentId, existing.id);
         } else {
-          await bulkUpsertArrivalExceptions(studentId, {
-            dates,
+          const input = {
+            exception_date: dayISO,
             expected_arrival: arrival.kind === "time" ? arrival.time : null,
             reason: arrival.reason,
-          });
+          };
+          if (existing) {
+            await updateArrivalException(studentId, existing.id, input);
+          } else {
+            await createArrivalException(studentId, input);
+          }
         }
       }
 
       if (pickup) {
+        const existing = pickupData.exceptions.find(
+          (exception) => exception.exceptionDate.slice(0, 10) === dayISO,
+        );
         if (pickup.kind === "regular") {
-          const doomed = pickupData.exceptions.filter((exception) =>
-            dateSet.has(exception.exceptionDate.slice(0, 10)),
-          );
-          for (const exception of doomed) {
-            await deleteStudentPickupException(studentId, exception.id);
+          if (existing) {
+            await deleteStudentPickupException(studentId, existing.id);
           }
         } else {
-          await bulkUpsertStudentPickupExceptions(studentId, {
-            dates,
+          const input = {
+            exceptionDate: dayISO,
             pickupTime: pickup.kind === "time" ? pickup.time : undefined,
             reason: pickup.reason ?? undefined,
-          });
-        }
-      }
-
-      // Notes are date-scoped and the editor only offers them for a single day,
-      // so there is exactly one date to attach them to.
-      const noteDate = dates[0];
-      if (note && noteDate) {
-        if (note.target === "arrival") {
-          await createArrivalNote(studentId, {
-            note_date: noteDate,
-            content: note.content,
-          });
-        } else {
-          await createStudentPickupNote(studentId, {
-            noteDate,
-            content: note.content,
-          });
+          };
+          if (existing) {
+            await updateStudentPickupException(studentId, existing.id, input);
+          } else {
+            await createStudentPickupException(studentId, input);
+          }
         }
       }
 
@@ -593,23 +559,6 @@ export function CareScheduleManager({
       invalidatePickupCaches();
     },
     [arrivalData.exceptions, pickupData.exceptions, studentId, refreshCareData],
-  );
-
-  const handleDeleteArrivalNote = useCallback(
-    async (noteId: number) => {
-      await deleteArrivalNote(studentId, noteId);
-      await refreshCareData();
-    },
-    [studentId, refreshCareData],
-  );
-
-  const handleDeletePickupNote = useCallback(
-    async (noteId: string) => {
-      await deleteStudentPickupNote(studentId, noteId);
-      await refreshCareData();
-      invalidatePickupCaches();
-    },
-    [studentId, refreshCareData],
   );
 
   const handleDeleteStatusDay = useCallback(
@@ -777,12 +726,8 @@ export function CareScheduleManager({
         pickupDay={currentEditingPickupDay}
         weeklyArrival={mergeArrivalSchedulesWithTemplate(arrivalData.schedules)}
         weeklyPickup={mergePickupSchedulesWithTemplate(pickupData.schedules)}
-        guardianArrivalDates={guardianArrivalDates}
-        guardianPickupDates={guardianPickupDates}
-        onSubmitExceptions={handleSubmitExceptions}
+        onSubmitException={handleSubmitException}
         onSubmitWeekly={handleUpdateWeeklyPlan}
-        onDeleteArrivalNote={handleDeleteArrivalNote}
-        onDeletePickupNote={handleDeletePickupNote}
       />
       <ConfirmationModal
         isOpen={statusDayToDelete !== null}
@@ -980,6 +925,7 @@ function CareDayCard({
 }) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const hasStatus = day.status !== null;
+  const hasException = day.arrival.isException || day.pickup.isException;
   // A guardian-sourced exception means a parent changed this day's pickup or
   // arrival time from the parents portal — flag it so staff don't mistake it
   // for their own edit at the door.
@@ -1044,12 +990,29 @@ function CareDayCard({
             onRequestDeleteStatusDay={onRequestDeleteStatusDay}
           />
         ) : (
-          <CareBoundarySection boundaries={boundaries} readOnly={readOnly} />
+          <CareBoundarySection
+            boundaries={boundaries}
+            onEdit={readOnly ? undefined : () => onEditDay(day.date)}
+          />
         )}
         {appointments.length > 0 ? (
           <CareAppointmentSection appointments={appointments} />
         ) : null}
         {notes.length > 0 ? <CareNotesSection notes={notes} /> : null}
+
+        {/* ONE labelled entry per day, and it names what it does. Two pencils
+            per card that both opened the same dialog, plus a third namesless
+            pencil for the week, is the confusion #893 reports. */}
+        {!readOnly && !hasStatus ? (
+          <button
+            type="button"
+            onClick={() => onEditDay(day.date)}
+            className="mt-auto inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
+            {hasException ? "Ausnahme ändern" : "Ausnahme eintragen"}
+          </button>
+        ) : null}
       </div>
     </article>
   );
@@ -1125,88 +1088,81 @@ function AbsencePlaceholder({
 
 function CareBoundarySection({
   boundaries,
-  readOnly,
+  onEdit,
 }: {
   readonly boundaries: CareBoundaryItem[];
-  readonly readOnly: boolean;
+  /** undefined = read-only; the whole block opens the day editor otherwise. */
+  readonly onEdit?: () => void;
 }) {
+  const rows = (
+    <div className="flex flex-1 flex-col divide-y divide-gray-100">
+      {boundaries.map((boundary) => (
+        <CareBoundaryRow key={boundary.key} boundary={boundary} />
+      ))}
+    </div>
+  );
+
+  // The block is ONE target rather than one per line: tapping a time still
+  // opens the editor, but the card shows a single pencil (in its header)
+  // instead of one per row.
+  if (onEdit) {
+    return (
+      <button
+        type="button"
+        onClick={onEdit}
+        className="flex min-h-[134px] w-full flex-col rounded-lg border border-gray-100 bg-gray-50 text-left transition-colors hover:bg-gray-100/70 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        {rows}
+      </button>
+    );
+  }
+
   return (
     <div className="flex min-h-[134px] flex-col rounded-lg border border-gray-100 bg-gray-50">
-      <div className="flex flex-1 flex-col divide-y divide-gray-100">
-        {boundaries.map((boundary) => (
-          <CareBoundaryRow
-            key={boundary.key}
-            boundary={boundary}
-            readOnly={readOnly}
-          />
-        ))}
-      </div>
+      {rows}
     </div>
   );
 }
 
 function CareBoundaryRow({
   boundary,
-  readOnly,
 }: {
   readonly boundary: CareBoundaryItem;
-  readonly readOnly: boolean;
 }) {
-  const content = (
-    <>
-      <span
-        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm"
-        style={{
-          backgroundColor: `${boundary.color}14`,
-          color: boundary.color,
-        }}
-      >
-        {boundary.icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-          {boundary.label}
-        </div>
-        {/* Flex-wrapped rather than inline: the badge is taller than the 20px
-            line box, so as an inline element it painted over the next line
-            whenever the value wrapped ("Keine Abholung" in a day column). */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
-          <span className="min-w-0 break-words">{boundary.value}</span>
-          {boundary.marker ? (
-            <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
-              {boundary.marker}
-            </span>
-          ) : null}
-        </div>
-        {boundary.description ? (
-          <div className="mt-0.5 text-xs leading-5 text-gray-500">
-            {boundary.description}
-          </div>
-        ) : null}
-      </div>
-      {!readOnly && boundary.onEdit ? (
-        <span className="rounded-md p-1.5 text-gray-400 transition-colors group-hover:bg-gray-200/70 group-hover:text-gray-700">
-          <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-      ) : null}
-    </>
-  );
-
-  if (!readOnly && boundary.onEdit) {
-    return (
-      <button
-        type="button"
-        onClick={boundary.onEdit}
-        className="group flex w-full min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-gray-100/70 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        {content}
-      </button>
-    );
-  }
-
   return (
     <div className="flex flex-1 px-3 py-2.5">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">{content}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <span
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm"
+          style={{
+            backgroundColor: `${boundary.color}14`,
+            color: boundary.color,
+          }}
+        >
+          {boundary.icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+            {boundary.label}
+          </div>
+          {/* Flex-wrapped rather than inline: the badge is taller than the 20px
+              line box, so as an inline element it painted over the next line
+              whenever the value wrapped ("Keine Abholung" in a day column). */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
+            <span className="min-w-0 break-words">{boundary.value}</span>
+            {boundary.marker ? (
+              <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
+                {boundary.marker}
+              </span>
+            ) : null}
+          </div>
+          {boundary.description ? (
+            <div className="mt-0.5 text-xs leading-5 text-gray-500">
+              {boundary.description}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

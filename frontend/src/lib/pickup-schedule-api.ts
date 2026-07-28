@@ -206,39 +206,6 @@ export async function createStudentPickupException(
 }
 
 /**
- * Apply the same pickup override to several dates in one request. The backend
- * writes all dates in a single transaction, so a range never lands half-saved.
- * An omitted `pickupTime` means "keine Abholung" on every listed date.
- */
-export async function bulkUpsertStudentPickupExceptions(
-  studentId: string,
-  data: { dates: string[]; pickupTime?: string; reason?: string },
-): Promise<PickupException[]> {
-  const response = await fetch(
-    `/api/students/${studentId}/pickup-exceptions/bulk`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        dates: data.dates,
-        pickup_time: data.pickupTime,
-        reason: data.reason,
-      }),
-    },
-  );
-
-  if (!response.ok) {
-    await throwResponseError(response, "Failed to save pickup exceptions");
-  }
-
-  const result = await parseApiResult<BackendPickupException[]>(
-    response,
-    "Failed to save pickup exceptions",
-  );
-  return result.map(mapPickupExceptionResponse);
-}
-
-/**
  * Update a pickup exception
  */
 export async function updateStudentPickupException(

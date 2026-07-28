@@ -1,24 +1,18 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarDays,
-  CalendarRange,
   ChevronDown,
   Clock,
   Loader2,
-  Repeat,
   StickyNote,
-  Trash2,
   Users,
 } from "lucide-react";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
-import { CustomSelect } from "~/components/ui/custom-select";
-import { ISODatePicker } from "~/components/ui/date-picker";
 import { useToast } from "~/contexts/ToastContext";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
 import {
   type ArrivalDayData,
   type ArrivalScheduleFormEntry,
@@ -26,44 +20,39 @@ import {
   formatShortDate,
   getWeekdayLabel,
 } from "~/lib/arrival-schedule-helpers";
-import type { ArrivalNote } from "~/lib/student-arrival-api";
 import type {
   DayData as PickupDayData,
-  PickupNote,
   PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
 import { formatPickupTime } from "~/lib/pickup-schedule-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
 /**
- * How far a care-plan edit reaches. The three values are the three things a
- * user actually wants to do (issue #893): change today only, change a stretch
- * of days, or change the recurring plan from now on. Before this editor the
- * middle one did not exist and the other two lived behind two identical-looking
- * pencils.
+ * The care plan is edited through exactly two doors, and each one owns one kind
+ * of thing (issue #893):
+ *
+ *   day card         -> an EXCEPTION for that date, with a Grund
+ *   "Wochenplan"     -> the recurring times of the week, with Notizen
+ *
+ * That split is the whole fix: before, two identical-looking pencils both led
+ * to dialogs that mixed exceptions and notes, and a note gave no hint whether
+ * it applied once or every week.
  */
-export type CarePlanScope = "single" | "range" | "weekly";
-
 type ArrivalMode = "regular" | "time" | "absent";
 type PickupMode = "regular" | "time" | "none";
-type NoteTarget = "arrival" | "pickup";
 
-/** One leg (arrival or pickup) of a date-scoped edit. */
+/** One leg (arrival or pickup) of a day exception. */
 export type CareLegSubmit =
   | { kind: "regular" }
   | { kind: "time"; time: string; reason: string | null }
   | { kind: "none"; reason: string | null };
 
-export interface CarePlanExceptionSubmit {
-  /** ISO days the override applies to, ascending. Never empty. */
-  readonly dates: string[];
+export interface CareExceptionSubmit {
+  /** The single ISO day this exception applies to. */
+  readonly date: string;
   /** null = this leg was not touched and must stay exactly as it is. */
   readonly arrival: CareLegSubmit | null;
   readonly pickup: CareLegSubmit | null;
-  readonly note: {
-    readonly target: NoteTarget;
-    readonly content: string;
-  } | null;
 }
 
 export interface CarePlanWeeklySubmit {
@@ -74,37 +63,17 @@ export interface CarePlanWeeklySubmit {
 interface CarePlanEditorModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  /** The day the editor was opened from. null = opened from the week header. */
+  /** The day the editor was opened from. null = the weekly plan. */
   readonly date: Date | null;
   readonly arrivalDay: ArrivalDayData | null;
   readonly pickupDay: PickupDayData | null;
   readonly weeklyArrival: ArrivalScheduleFormEntry[];
   readonly weeklyPickup: PickupScheduleFormData[];
-  /**
-   * ISO days that currently carry a GUARDIAN-authored exception. Used to warn
-   * before a batch silently reclaims a parent's entry — the modal only sees one
-   * day's data, so the caller supplies the full set.
-   */
-  readonly guardianArrivalDates: readonly string[];
-  readonly guardianPickupDates: readonly string[];
-  readonly onSubmitExceptions: (
-    payload: CarePlanExceptionSubmit,
-  ) => Promise<void>;
+  readonly onSubmitException: (payload: CareExceptionSubmit) => Promise<void>;
   readonly onSubmitWeekly: (payload: CarePlanWeeklySubmit) => Promise<void>;
-  readonly onDeleteArrivalNote: (noteId: number) => Promise<void>;
-  readonly onDeletePickupNote: (noteId: string) => Promise<void>;
 }
 
 const TIME_PATTERN = /^([01]?\d|2[0-3]):[0-5]\d$/;
-
-/**
- * Calendar span a range edit may cover, and the resulting cap on school days.
- * The backend rejects more than 60 dates per bulk write (one request
- * transaction locks every day it touches), so the form refuses earlier with a
- * readable message instead of surfacing a 400.
- */
-const MAX_RANGE_SPAN_DAYS = 120;
-const MAX_RANGE_SCHOOL_DAYS = 60;
 
 interface WeeklyRow {
   readonly weekday: number;
@@ -122,54 +91,38 @@ export function CarePlanEditorModal({
   pickupDay,
   weeklyArrival,
   weeklyPickup,
-  guardianArrivalDates,
-  guardianPickupDates,
-  onSubmitExceptions,
+  onSubmitException,
   onSubmitWeekly,
-  onDeleteArrivalNote,
-  onDeletePickupNote,
 }: CarePlanEditorModalProps) {
   const toast = useToast();
-  const hasDayContext =
+  const isException =
     date !== null && arrivalDay !== null && pickupDay !== null;
 
-  const [scope, setScope] = useState<CarePlanScope>("single");
-  const [rangeEnd, setRangeEnd] = useState("");
   const [arrivalMode, setArrivalMode] = useState<ArrivalMode>("regular");
   const [arrivalTime, setArrivalTime] = useState("");
   const [arrivalReason, setArrivalReason] = useState("");
   const [pickupMode, setPickupMode] = useState<PickupMode>("regular");
   const [pickupTime, setPickupTime] = useState("");
   const [pickupReason, setPickupReason] = useState("");
-  const [noteTarget, setNoteTarget] = useState<NoteTarget>("pickup");
-  const [noteContent, setNoteContent] = useState("");
   const [weeklyRows, setWeeklyRows] = useState<WeeklyRow[]>([]);
   const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
     () => new Set(),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingNoteKey, setDeletingNoteKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
-    null,
-  );
-  // The form steps aside while a confirmation is up so the two dialogs never
+  const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
+  const [showParentConfirm, setShowParentConfirm] = useState(false);
+  // The form steps aside while the confirmation is up so the two dialogs never
   // stack. Kept out of `isOpen` on purpose: the reset effect keys on `isOpen`,
   // so toggling this preserves what the user typed.
   const [formVisible, setFormVisible] = useState(true);
-  const noteTargetId = useId();
-  const rangeEndId = useId();
 
   useEffect(() => {
     if (!isOpen) return;
 
-    setScope(hasDayContext ? "single" : "weekly");
-    setRangeEnd("");
     setError(null);
-    setPendingConfirm(null);
+    setShowRemovalConfirm(false);
     setFormVisible(true);
-    setNoteTarget("pickup");
-    setNoteContent("");
 
     const arrivalInit = arrivalInitialState(arrivalDay);
     setArrivalMode(arrivalInit.mode);
@@ -181,30 +134,16 @@ export function CarePlanEditorModal({
     setPickupTime(pickupInit.time);
     setPickupReason(pickupInit.reason);
 
-    setWeeklyRows(buildWeeklyRows(weeklyArrival, weeklyPickup));
+    const rows = buildWeeklyRows(weeklyArrival, weeklyPickup);
+    setWeeklyRows(rows);
     setExpandedWeekdays(
       new Set(
-        buildWeeklyRows(weeklyArrival, weeklyPickup)
+        rows
           .filter((row) => row.arrivalNotes || row.pickupNotes)
           .map((row) => row.weekday),
       ),
     );
-  }, [
-    isOpen,
-    hasDayContext,
-    arrivalDay,
-    pickupDay,
-    weeklyArrival,
-    weeklyPickup,
-  ]);
-
-  const startISO = date ? toISODate(date) : "";
-  const batchDates = useMemo(() => {
-    if (!startISO) return [];
-    if (scope === "single") return [startISO];
-    if (scope === "range") return schoolDaysBetween(startISO, rangeEnd);
-    return [];
-  }, [scope, startISO, rangeEnd]);
+  }, [isOpen, arrivalDay, pickupDay, weeklyArrival, weeklyPickup]);
 
   if (!isOpen) return null;
 
@@ -212,7 +151,7 @@ export function CarePlanEditorModal({
   const pickupInit = pickupInitialState(pickupDay);
   // An untouched leg is NOT re-saved: re-saving routes through the staff
   // override path, which reclaims a guardian-authored row and drops the
-  // parent's editability. A note-only edit must leave the parent's row alone.
+  // parent's editability.
   const arrivalChanged = legChanged(
     { mode: arrivalMode, time: arrivalTime, reason: arrivalReason },
     arrivalInit,
@@ -221,55 +160,37 @@ export function CarePlanEditorModal({
     { mode: pickupMode, time: pickupTime, reason: pickupReason },
     pickupInit,
   );
-  // The same rule holds for a range: the form is seeded from ONE day, so an
-  // untouched leg says nothing about the other days it covers. Writing it
-  // anyway would let "keine Abholung ab Montag" quietly delete arrival
-  // overrides (including parent-set ones) across the whole range.
-  const writeArrival = arrivalChanged;
-  const writePickup = pickupChanged;
 
   const weeklyRemovals = collectWeeklyRemovals(
     weeklyRows,
     weeklyArrival,
     weeklyPickup,
   );
-  const guardianHits = collectGuardianHits(batchDates, {
-    arrival: writeArrival ? guardianArrivalDates : [],
-    pickup: writePickup ? guardianPickupDates : [],
-  });
 
-  // The weekly plan is one and the same thing wherever it is opened from: the
-  // header button, or the third "Gilt für" option on a day. Both show the same
-  // five-day table, so there is no second way to edit a recurring time.
-  const isWeeklyPlan = !hasDayContext || scope === "weekly";
+  const parentAuthored =
+    arrivalDay?.exception?.source === "guardian" ||
+    pickupDay?.exception?.source === "guardian";
+  const overwritesParent =
+    (arrivalDay?.exception?.source === "guardian" && arrivalChanged) ||
+    (pickupDay?.exception?.source === "guardian" && pickupChanged);
 
-  const dayNotes = getDayNotes(arrivalDay?.notes ?? [], pickupDay?.notes ?? []);
-  const recurringNotes = getRecurringNotes(arrivalDay, pickupDay);
-
-  // The title always names the reach the form currently has, so it never
-  // describes something other than what is on screen.
-  const weekdayLabel = hasDayContext ? getWeekdayLabel(arrivalDay.weekday) : "";
-  const title =
-    !hasDayContext || scope === "weekly"
-      ? "Wochenplan bearbeiten"
-      : scope === "range"
-        ? rangeEnd
-          ? `${formatShortDate(arrivalDay.date)} bis ${formatISOShort(rangeEnd)}`
-          : `Ab ${weekdayLabel}, ${formatShortDate(arrivalDay.date)}`
-        : `${weekdayLabel}, ${formatShortDate(arrivalDay.date)}`;
+  const title = isException
+    ? `Ausnahme für ${getWeekdayLabel(arrivalDay.weekday)}, ${formatShortDate(arrivalDay.date)}`
+    : "Wochenplan bearbeiten";
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
-    if (isWeeklyPlan) {
+    if (!isException) {
       const invalidWeekly = validateWeeklyRows(weeklyRows);
       if (invalidWeekly) {
         setError(invalidWeekly);
         return;
       }
       if (weeklyRemovals.length > 0) {
-        openConfirm({ kind: "weekly-removal" });
+        setFormVisible(false);
+        setShowRemovalConfirm(true);
         return;
       }
       void performSave();
@@ -284,64 +205,44 @@ export function CarePlanEditorModal({
       setError("Bitte eine gültige Abholzeit eingeben.");
       return;
     }
-    if (scope === "range" && batchDates.length === 0) {
-      setError("Bitte ein Enddatum wählen, das nach dem Starttag liegt.");
+    if (!arrivalChanged && !pickupChanged) {
+      setError("Bitte zuerst eine Zeit ändern.");
       return;
     }
-    if (!writeArrival && !writePickup && !noteContent.trim()) {
-      setError("Bitte zuerst eine Zeit oder eine Notiz ändern.");
-      return;
-    }
-    if (batchDates.length > MAX_RANGE_SCHOOL_DAYS) {
-      setError(
-        `Ein Zeitraum darf höchstens ${MAX_RANGE_SCHOOL_DAYS} Schultage umfassen. Bitte einen kürzeren Zeitraum wählen.`,
-      );
-      return;
-    }
-    if (guardianHits.length > 0) {
-      openConfirm({ kind: "guardian-overwrite" });
+    if (overwritesParent) {
+      setFormVisible(false);
+      setShowRemovalConfirm(false);
+      setShowParentConfirm(true);
       return;
     }
 
     void performSave();
   };
 
-  function openConfirm(next: PendingConfirm): void {
-    setFormVisible(false);
-    setPendingConfirm(next);
-  }
-
-  function cancelConfirm(): void {
-    setPendingConfirm(null);
+  const cancelConfirm = () => {
+    setShowRemovalConfirm(false);
+    setShowParentConfirm(false);
     setFormVisible(true);
-  }
+  };
 
   const performSave = async () => {
     setError(null);
     setIsSubmitting(true);
     try {
-      if (isWeeklyPlan) {
+      if (!isException) {
         await onSubmitWeekly(toWeeklySubmit(weeklyRows));
         toast.success("Wochenplan wurde gespeichert");
       } else {
-        await onSubmitExceptions({
-          dates: batchDates,
-          arrival: writeArrival
+        await onSubmitException({
+          date: toDayISO(arrivalDay.date),
+          arrival: arrivalChanged
             ? toLegSubmit(arrivalMode, arrivalTime, arrivalReason)
             : null,
-          pickup: writePickup
+          pickup: pickupChanged
             ? toLegSubmit(pickupMode, pickupTime, pickupReason)
             : null,
-          note:
-            scope === "single" && noteContent.trim()
-              ? { target: noteTarget, content: noteContent.trim() }
-              : null,
         });
-        toast.success(
-          batchDates.length > 1
-            ? `Änderung für ${batchDates.length} Tage gespeichert`
-            : "Tagesänderung wurde gespeichert",
-        );
+        toast.success("Ausnahme wurde gespeichert");
       }
       onClose();
     } catch (err) {
@@ -356,32 +257,9 @@ export function CarePlanEditorModal({
         : raw;
       setError(message);
       toast.error(message);
-      setPendingConfirm(null);
-      setFormVisible(true);
+      cancelConfirm();
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteNote = async (note: CareDayNote) => {
-    setDeletingNoteKey(note.key);
-    setError(null);
-    try {
-      if (note.kind === "arrival") {
-        await onDeleteArrivalNote(Number(note.id));
-      } else {
-        await onDeletePickupNote(String(note.id));
-      }
-      toast.success("Notiz wurde gelöscht");
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Notiz konnte nicht gelöscht werden";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setDeletingNoteKey(null);
     }
   };
 
@@ -411,177 +289,125 @@ export function CarePlanEditorModal({
     </>
   );
 
-  const modal = (
-    <FormModal
-      isOpen={isOpen && formVisible}
-      onClose={onClose}
-      title={title}
-      footer={footer}
-      size={isWeeklyPlan ? "xl" : "lg"}
-      mobilePosition="bottom"
-    >
-      {/* noValidate: a half-cleared <input type="time"> (e.g. backspacing the
-          hour of "15:00") reports validity.badInput, which makes the browser
-          refuse the submit — the Save button then does nothing beyond a native
-          bubble on an off-screen field. Such a field reads back as "", which is
-          exactly the "remove this time" the removal warning already announces,
-          so validation is left to the checks below. */}
-      <form
-        id="care-plan-editor-form"
-        noValidate
-        onSubmit={handleSubmit}
-        className="space-y-5"
-      >
-        {error ? (
-          <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-3 text-sm text-[#CC2626]">
-            {error}
-          </div>
-        ) : null}
-
-        {hasDayContext ? (
-          <ScopePicker
-            scope={scope}
-            onChange={setScope}
-            dayLabel={formatShortDate(arrivalDay.date)}
-          />
-        ) : null}
-
-        {/* One input, not two: the start is the day the editor was opened
-            from, so a second field would only be a box that cannot be typed
-            into. It is stated as a sentence instead. */}
-        {scope === "range" && hasDayContext ? (
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-4">
-            <label
-              htmlFor={rangeEndId}
-              className="mb-1 block text-sm text-gray-700"
-            >
-              Ab{" "}
-              <span className="font-semibold text-gray-900">
-                {weekdayLabel}, {formatShortDate(arrivalDay.date)}
-              </span>{" "}
-              bis einschließlich
-            </label>
-            <ISODatePicker
-              id={rangeEndId}
-              value={rangeEnd}
-              onChange={setRangeEnd}
-              min={startISO}
-            />
-            <p className="mt-2 text-xs leading-5 text-gray-500">
-              {batchDates.length > 0
-                ? `Gilt für ${batchDates.length} Schultage. Wochenenden werden übersprungen.`
-                : "Wochenenden werden übersprungen."}
-            </p>
-          </div>
-        ) : null}
-
-        {isWeeklyPlan ? (
-          <WeeklySection
-            rows={weeklyRows}
-            expandedWeekdays={expandedWeekdays}
-            removals={weeklyRemovals}
-            onToggleNotes={(weekday) =>
-              setExpandedWeekdays((current) => {
-                const next = new Set(current);
-                if (next.has(weekday)) {
-                  next.delete(weekday);
-                } else {
-                  next.add(weekday);
-                }
-                return next;
-              })
-            }
-            onChange={(weekday, field, value) =>
-              setWeeklyRows((rows) =>
-                rows.map((row) =>
-                  row.weekday === weekday ? { ...row, [field]: value } : row,
-                ),
-              )
-            }
-          />
-        ) : (
-          <>
-            {guardianHits.length > 0 ? (
-              <div className="flex items-start gap-2.5 rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/10 px-4 py-3 text-sm text-[#3a63b0]">
-                <Users className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>
-                  {guardianHits.length === 1
-                    ? "An diesem Tag haben die Eltern eine Zeit über das Elternportal gesetzt. Deine Eingabe ersetzt die Angabe der Eltern."
-                    : `An ${guardianHits.length} der gewählten Tage haben die Eltern eine Zeit über das Elternportal gesetzt. Deine Eingabe ersetzt diese Angaben.`}
-                </span>
-              </div>
-            ) : null}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <LegSection
-                label="Ankunft"
-                icon={<Clock className="h-4 w-4" aria-hidden="true" />}
-                color={LOCATION_COLORS.GROUP_ROOM}
-                regularLabel={`Regulär: ${formatRegularArrival(arrivalDay)}`}
-                mode={arrivalMode}
-                onModeChange={(mode) => setArrivalMode(mode as ArrivalMode)}
-                options={[
-                  ["regular", "Regulär"],
-                  ["time", "Andere Zeit"],
-                  ["absent", "Kommt nicht"],
-                ]}
-                time={arrivalTime}
-                onTimeChange={setArrivalTime}
-                reason={arrivalReason}
-                onReasonChange={setArrivalReason}
-                showTime={arrivalMode === "time"}
-                showReason={arrivalMode !== "regular"}
-              />
-              <LegSection
-                label="Abholung"
-                icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
-                color={LOCATION_COLORS.SCHOOLYARD}
-                regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
-                mode={pickupMode}
-                onModeChange={(mode) => setPickupMode(mode as PickupMode)}
-                options={[
-                  ["regular", "Regulär"],
-                  ["time", "Andere Zeit"],
-                  ["none", "Keine Abholung"],
-                ]}
-                time={pickupTime}
-                onTimeChange={setPickupTime}
-                reason={pickupReason}
-                onReasonChange={setPickupReason}
-                showTime={pickupMode === "time"}
-                showReason={pickupMode !== "regular"}
-              />
-            </div>
-
-            <NotesSection
-              dayNotes={dayNotes}
-              recurringNotes={recurringNotes}
-              deletingNoteKey={deletingNoteKey}
-              onDeleteNote={(note) => void handleDeleteNote(note)}
-              onSwitchToWeekly={() => setScope("weekly")}
-              composer={
-                scope === "single"
-                  ? {
-                      noteTargetId,
-                      noteTarget,
-                      onTargetChange: setNoteTarget,
-                      noteContent,
-                      onContentChange: setNoteContent,
-                    }
-                  : null
-              }
-            />
-          </>
-        )}
-      </form>
-    </FormModal>
-  );
-
   return (
     <>
-      {modal}
+      <FormModal
+        isOpen={isOpen && formVisible}
+        onClose={onClose}
+        title={title}
+        footer={footer}
+        size={isException ? "lg" : "xl"}
+        mobilePosition="bottom"
+      >
+        {/* noValidate: a half-cleared <input type="time"> (e.g. backspacing the
+            hour of "15:00") reports validity.badInput, which makes the browser
+            refuse the submit — the Save button then does nothing beyond a native
+            bubble on an off-screen field. Such a field reads back as "", which
+            is the removal the warning below already announces. */}
+        <form
+          id="care-plan-editor-form"
+          noValidate
+          onSubmit={handleSubmit}
+          className="space-y-5"
+        >
+          {error ? (
+            <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-3 text-sm text-[#CC2626]">
+              {error}
+            </div>
+          ) : null}
+
+          {isException ? (
+            <>
+              <p className="text-sm leading-6 text-gray-600">
+                Gilt nur an diesem Tag. Die festen Zeiten der Woche bleiben
+                unverändert.
+              </p>
+
+              {parentAuthored ? (
+                <div className="flex items-start gap-2.5 rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/10 px-4 py-3 text-sm text-[#3a63b0]">
+                  <Users
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    Diese Zeiten wurden von den Eltern über das Elternportal
+                    gesetzt. Wenn du sie änderst, ersetzt deine Eingabe die
+                    Angabe der Eltern.
+                  </span>
+                </div>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <LegSection
+                  label="Ankunft"
+                  icon={<Clock className="h-4 w-4" aria-hidden="true" />}
+                  color={LOCATION_COLORS.GROUP_ROOM}
+                  regularLabel={`Regulär: ${formatRegularArrival(arrivalDay)}`}
+                  mode={arrivalMode}
+                  onModeChange={(mode) => setArrivalMode(mode as ArrivalMode)}
+                  options={[
+                    ["regular", "Regulär"],
+                    ["time", "Andere Zeit"],
+                    ["absent", "Kommt nicht"],
+                  ]}
+                  time={arrivalTime}
+                  onTimeChange={setArrivalTime}
+                  reason={arrivalReason}
+                  onReasonChange={setArrivalReason}
+                  showTime={arrivalMode === "time"}
+                  showReason={arrivalMode !== "regular"}
+                />
+                <LegSection
+                  label="Abholung"
+                  icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
+                  color={LOCATION_COLORS.SCHOOLYARD}
+                  regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
+                  mode={pickupMode}
+                  onModeChange={(mode) => setPickupMode(mode as PickupMode)}
+                  options={[
+                    ["regular", "Regulär"],
+                    ["time", "Andere Zeit"],
+                    ["none", "Keine Abholung"],
+                  ]}
+                  time={pickupTime}
+                  onTimeChange={setPickupTime}
+                  reason={pickupReason}
+                  onReasonChange={setPickupReason}
+                  showTime={pickupMode === "time"}
+                  showReason={pickupMode !== "regular"}
+                />
+              </div>
+            </>
+          ) : (
+            <WeeklySection
+              rows={weeklyRows}
+              expandedWeekdays={expandedWeekdays}
+              removals={weeklyRemovals}
+              onToggleNotes={(weekday) =>
+                setExpandedWeekdays((current) => {
+                  const next = new Set(current);
+                  if (next.has(weekday)) {
+                    next.delete(weekday);
+                  } else {
+                    next.add(weekday);
+                  }
+                  return next;
+                })
+              }
+              onChange={(weekday, field, value) =>
+                setWeeklyRows((rows) =>
+                  rows.map((row) =>
+                    row.weekday === weekday ? { ...row, [field]: value } : row,
+                  ),
+                )
+              }
+            />
+          )}
+        </form>
+      </FormModal>
+
       <ConfirmationModal
-        isOpen={pendingConfirm?.kind === "guardian-overwrite"}
+        isOpen={showParentConfirm}
         onClose={cancelConfirm}
         onConfirm={() => void performSave()}
         title="Eltern-Angabe überschreiben?"
@@ -591,13 +417,14 @@ export function CarePlanEditorModal({
         confirmButtonClass="bg-[#CC2626] hover:bg-[#B91C1C]"
       >
         <p className="text-sm leading-6 text-gray-600">
-          {guardianHits.length === 1
-            ? "Du überschreibst eine von den Eltern gesetzte Zeit. Die ursprüngliche Angabe wird ersetzt und der Tag gilt anschließend als von der Einrichtung geändert."
-            : `Du überschreibst von den Eltern gesetzte Zeiten an ${guardianHits.length} Tagen. Die ursprünglichen Angaben werden ersetzt.`}
+          Du überschreibst eine von den Eltern gesetzte Zeit. Die ursprüngliche
+          Angabe wird ersetzt und der Tag gilt anschließend als von der
+          Einrichtung geändert.
         </p>
       </ConfirmationModal>
+
       <ConfirmationModal
-        isOpen={pendingConfirm?.kind === "weekly-removal"}
+        isOpen={showRemovalConfirm}
         onClose={cancelConfirm}
         onConfirm={() => void performSave()}
         title="Zeiten entfernen?"
@@ -619,90 +446,6 @@ export function CarePlanEditorModal({
         </div>
       </ConfirmationModal>
     </>
-  );
-}
-
-type PendingConfirm =
-  { readonly kind: "guardian-overwrite" } | { readonly kind: "weekly-removal" };
-
-function ScopePicker({
-  scope,
-  onChange,
-  dayLabel,
-}: {
-  readonly scope: CarePlanScope;
-  readonly onChange: (scope: CarePlanScope) => void;
-  readonly dayLabel: string;
-}) {
-  const options: ReadonlyArray<{
-    value: CarePlanScope;
-    title: string;
-    hint: string;
-    icon: React.ReactNode;
-  }> = [
-    {
-      value: "single",
-      title: "Nur an diesem Tag",
-      hint: dayLabel,
-      icon: <CalendarDays className="h-4 w-4" aria-hidden="true" />,
-    },
-    {
-      value: "range",
-      title: "Mehrere Tage",
-      hint: "Bis-Datum wählen",
-      icon: <CalendarRange className="h-4 w-4" aria-hidden="true" />,
-    },
-    {
-      value: "weekly",
-      title: "Wochenplan bearbeiten",
-      hint: "Gilt jede Woche",
-      icon: <Repeat className="h-4 w-4" aria-hidden="true" />,
-    },
-  ];
-
-  return (
-    <fieldset>
-      <legend className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        Gilt für
-      </legend>
-      <div className="grid gap-2 sm:grid-cols-3">
-        {options.map((option) => {
-          const isActive = scope === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={isActive}
-              onClick={() => onChange(option.value)}
-              className={`flex min-w-0 items-start gap-2.5 rounded-lg border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                isActive
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <span className="mt-0.5 shrink-0">{option.icon}</span>
-              {/* Wrapping, not truncating: "Wochenplan bearbeiten" does not
-                  fit one line in a third of the modal, and a scope option that
-                  reads "Wochenplan bearb…" is exactly the kind of half-label
-                  this editor is meant to get rid of. */}
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold">
-                  {option.title}
-                </span>
-                <span
-                  className={`block text-xs ${
-                    isActive ? "text-gray-300" : "text-gray-500"
-                  }`}
-                >
-                  {option.hint}
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </fieldset>
   );
 }
 
@@ -735,6 +478,8 @@ function LegSection({
   readonly showTime: boolean;
   readonly showReason: boolean;
 }) {
+  const timeId = `exception-${label.toLowerCase()}-time`;
+  const reasonId = `exception-${label.toLowerCase()}-reason`;
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4">
       <div className="mb-3 flex items-start gap-3">
@@ -766,11 +511,12 @@ function LegSection({
       </div>
 
       {showTime ? (
-        <label className="mt-3 block">
+        <label className="mt-3 block" htmlFor={timeId}>
           <span className="mb-1 block text-xs font-medium text-gray-500">
             Uhrzeit
           </span>
           <input
+            id={timeId}
             type="time"
             value={time}
             onChange={(event) => onTimeChange(event.target.value)}
@@ -779,12 +525,16 @@ function LegSection({
         </label>
       ) : null}
 
+      {/* "Grund", not "Notiz": on a day the free text explains the deviation,
+          and calling it a note was half of what made #893 confusing. Notes live
+          in the weekly plan and mean "every week". */}
       {showReason ? (
-        <label className="mt-3 block">
+        <label className="mt-3 block" htmlFor={reasonId}>
           <span className="mb-1 block text-xs font-medium text-gray-500">
             Grund
           </span>
           <input
+            id={reasonId}
             type="text"
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
@@ -794,126 +544,6 @@ function LegSection({
           />
         </label>
       ) : null}
-    </section>
-  );
-}
-
-function NotesSection({
-  dayNotes,
-  recurringNotes,
-  deletingNoteKey,
-  onDeleteNote,
-  onSwitchToWeekly,
-  composer,
-}: {
-  readonly dayNotes: CareDayNote[];
-  readonly recurringNotes: RecurringNote[];
-  readonly deletingNoteKey: string | null;
-  readonly onDeleteNote: (note: CareDayNote) => void;
-  readonly onSwitchToWeekly: () => void;
-  readonly composer: {
-    readonly noteTargetId: string;
-    readonly noteTarget: NoteTarget;
-    readonly onTargetChange: (target: NoteTarget) => void;
-    readonly noteContent: string;
-    readonly onContentChange: (value: string) => void;
-  } | null;
-}) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <StickyNote className="h-4 w-4 text-gray-400" aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-gray-900">Notizen</h3>
-      </div>
-
-      {dayNotes.length > 0 || recurringNotes.length > 0 ? (
-        <div className="mb-4 space-y-2">
-          {dayNotes.map((note) => (
-            <div
-              key={note.key}
-              className="flex items-start gap-2 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700"
-            >
-              <span className="mt-0.5 shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
-                {note.kind === "arrival" ? "Ankunft" : "Abholung"}
-              </span>
-              <span className="min-w-0 flex-1 break-words">{note.content}</span>
-              <button
-                type="button"
-                onClick={() => onDeleteNote(note)}
-                disabled={deletingNoteKey === note.key}
-                className="rounded-md p-1.5 text-gray-400 hover:bg-white hover:text-[#CC2626] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-                aria-label="Notiz löschen"
-              >
-                {deletingNoteKey === note.key ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
-          ))}
-
-          {/* Recurring notes live on the weekly schedule, not on this date. They
-              used to appear on the day card but nowhere in the day editor, so a
-              user who wanted to remove one had no way to get there (#893). */}
-          {recurringNotes.map((note) => (
-            <div
-              key={note.key}
-              className="flex items-start gap-2 rounded-xl border border-dashed border-gray-200 px-3 py-2 text-sm text-gray-600"
-            >
-              <span className="mt-0.5 shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
-                {note.kind === "arrival" ? "Ankunft" : "Abholung"} · Jede Woche
-              </span>
-              <span className="min-w-0 flex-1 break-words">{note.content}</span>
-              <button
-                type="button"
-                onClick={onSwitchToWeekly}
-                className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                Im Wochenplan ändern
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {composer ? (
-        <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-          <label htmlFor={composer.noteTargetId} className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-500">
-              Bereich
-            </span>
-            <CustomSelect
-              id={composer.noteTargetId}
-              value={composer.noteTarget}
-              options={[
-                { value: "arrival", label: "Ankunft" },
-                { value: "pickup", label: "Abholung" },
-              ]}
-              onChange={(next) => composer.onTargetChange(next as NoteTarget)}
-              ariaLabel="Bereich"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-500">
-              Neue Notiz
-            </span>
-            <input
-              type="text"
-              value={composer.noteContent}
-              onChange={(event) => composer.onContentChange(event.target.value)}
-              maxLength={500}
-              className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
-              placeholder="Optional"
-            />
-          </label>
-        </div>
-      ) : (
-        <p className="text-xs leading-5 text-gray-500">
-          Notizen lassen sich für einen einzelnen Tag hinterlegen. Für mehrere
-          Tage trage den Anlass als Grund bei Ankunft oder Abholung ein.
-        </p>
-      )}
     </section>
   );
 }
@@ -938,8 +568,8 @@ function WeeklySection({
   return (
     <div className="space-y-3">
       <p className="text-sm leading-6 text-gray-600">
-        Gilt ab sofort für alle kommenden Wochen. Bereits eingetragene
-        Tagesänderungen bleiben bestehen.
+        Gilt ab sofort für alle kommenden Wochen. Bereits eingetragene Ausnahmen
+        bleiben bestehen.
       </p>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:rounded-2xl">
@@ -1109,6 +739,13 @@ function toLegSubmit(
   return { kind: "none", reason: trimmed };
 }
 
+/** Local calendar day of a Date, never via toISOString (UTC shifts a day). */
+function toDayISO(value: Date): string {
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  return `${value.getFullYear()}-${month}-${day}`;
+}
+
 function arrivalInitialState(day: ArrivalDayData | null): {
   mode: ArrivalMode;
   time: string;
@@ -1145,12 +782,6 @@ function pickupInitialState(day: PickupDayData | null): {
   };
 }
 
-/** "2026-07-31" → "31.07." — the same short shape the day cards use. */
-function formatISOShort(iso: string): string {
-  const parsed = parseISODate(iso);
-  return Number.isNaN(parsed.getTime()) ? iso : formatShortDate(parsed);
-}
-
 function formatRegularArrival(day: ArrivalDayData | null): string {
   return day?.baseSchedule?.expected_arrival
     ? day.baseSchedule.expected_arrival.slice(0, 5)
@@ -1161,42 +792,6 @@ function formatRegularPickup(day: PickupDayData | null): string {
   return day?.baseSchedule?.pickupTime
     ? formatPickupTime(day.baseSchedule.pickupTime)
     : "nicht geplant";
-}
-
-/**
- * Every Monday-to-Friday day from `startISO` to `endISO` inclusive. Weekends
- * carry no care plan, so including them would write exceptions nobody reads.
- * Returns [] when the range is empty or inverted.
- */
-export function schoolDaysBetween(startISO: string, endISO: string): string[] {
-  if (!startISO || !endISO) return [];
-  const start = new Date(`${startISO}T00:00:00`);
-  const end = new Date(`${endISO}T00:00:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
-  if (end < start) return [];
-
-  const days: string[] = [];
-  // Stepping a fresh Date by an offset (rather than mutating one cursor) keeps
-  // the arithmetic DST-exact and the loop condition obviously terminating.
-  for (let offset = 0; offset <= MAX_RANGE_SPAN_DAYS; offset += 1) {
-    const cursor = new Date(start);
-    cursor.setDate(cursor.getDate() + offset);
-    if (cursor > end) break;
-    const weekday = cursor.getDay();
-    if (weekday >= 1 && weekday <= 5) days.push(toISODate(cursor));
-  }
-  return days;
-}
-
-function collectGuardianHits(
-  dates: readonly string[],
-  guardian: {
-    readonly arrival: readonly string[];
-    readonly pickup: readonly string[];
-  },
-): string[] {
-  const touched = new Set([...guardian.arrival, ...guardian.pickup]);
-  return dates.filter((date) => touched.has(date));
 }
 
 function buildWeeklyRows(
@@ -1234,10 +829,10 @@ function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
 }
 
 /**
- * Which previously scheduled times an emptied weekly field would delete. The
- * weekly bulk write REPLACES the plan, so clearing a field really does remove
- * that day — this is what the removal warning and confirmation are built from,
- * so a mistyped Friday cannot vanish silently.
+ * Which previously scheduled times an emptied field would delete. The weekly
+ * write REPLACES the plan, so clearing a field really does remove that day —
+ * this is what the warning and the confirmation are built from, so a mistyped
+ * Friday cannot vanish silently.
  */
 function collectWeeklyRemovals(
   rows: readonly WeeklyRow[],
@@ -1281,59 +876,4 @@ function toWeeklySubmit(rows: readonly WeeklyRow[]): CarePlanWeeklySubmit {
         notes: row.pickupNotes.trim() ? row.pickupNotes : undefined,
       })),
   };
-}
-
-interface CareDayNote {
-  readonly key: string;
-  readonly id: number | string;
-  readonly kind: NoteTarget;
-  readonly content: string;
-}
-
-interface RecurringNote {
-  readonly key: string;
-  readonly kind: NoteTarget;
-  readonly content: string;
-}
-
-function getDayNotes(
-  arrivalNotes: readonly ArrivalNote[],
-  pickupNotes: readonly PickupNote[],
-): CareDayNote[] {
-  return [
-    ...arrivalNotes.map((note) => ({
-      key: `arrival-${note.id}`,
-      id: note.id,
-      kind: "arrival" as const,
-      content: note.content,
-    })),
-    ...pickupNotes.map((note) => ({
-      key: `pickup-${note.id}`,
-      id: note.id,
-      kind: "pickup" as const,
-      content: note.content,
-    })),
-  ];
-}
-
-function getRecurringNotes(
-  arrivalDay: ArrivalDayData | null,
-  pickupDay: PickupDayData | null,
-): RecurringNote[] {
-  const notes: RecurringNote[] = [];
-  if (arrivalDay?.baseSchedule?.notes) {
-    notes.push({
-      key: "recurring-arrival",
-      kind: "arrival",
-      content: arrivalDay.baseSchedule.notes,
-    });
-  }
-  if (pickupDay?.baseSchedule?.notes) {
-    notes.push({
-      key: "recurring-pickup",
-      kind: "pickup",
-      content: pickupDay.baseSchedule.notes,
-    });
-  }
-  return notes;
 }

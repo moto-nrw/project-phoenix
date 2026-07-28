@@ -145,12 +145,8 @@ const meta: Meta<typeof CarePlanEditorModal> = {
     pickupDay: regularPickupDay,
     weeklyArrival,
     weeklyPickup,
-    guardianArrivalDates: [],
-    guardianPickupDates: [],
-    onSubmitExceptions: fn().mockResolvedValue(undefined),
+    onSubmitException: fn().mockResolvedValue(undefined),
     onSubmitWeekly: fn().mockResolvedValue(undefined),
-    onDeleteArrivalNote: fn().mockResolvedValue(undefined),
-    onDeletePickupNote: fn().mockResolvedValue(undefined),
   },
 };
 
@@ -158,11 +154,11 @@ export default meta;
 
 type Story = StoryObj<typeof CarePlanEditorModal>;
 
-/** Opened from a day card: all three scopes are available. */
-export const FromDay: Story = {};
+/** Opened from a day card: the exception for that date. */
+export const Ausnahme: Story = {};
 
-/** Opened from the week header: no day context, so only the weekly plan. */
-export const FromWeekHeader: Story = {
+/** Opened from the week header: the recurring plan. */
+export const Wochenplan: Story = {
   args: {
     date: null,
     arrivalDay: null,
@@ -174,8 +170,6 @@ export const GuardianAuthored: Story = {
   args: {
     arrivalDay: guardianArrivalDay,
     pickupDay: guardianPickupDay,
-    guardianArrivalDates: ["2026-07-01"],
-    guardianPickupDates: ["2026-07-01"],
   },
 };
 
