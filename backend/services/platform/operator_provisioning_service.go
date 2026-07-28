@@ -92,6 +92,7 @@ type OperatorProvisioningService interface {
 	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
 	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
 	ListAccountTenantAccess(ctx context.Context, accountID int64) ([]AccountTenantAccessEntry, error)
+	ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error)
 	GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, req GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
 	UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
 	RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
@@ -136,25 +137,26 @@ type operatorProvisioningService struct {
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
 type OperatorProvisioningServiceConfig struct {
-	OrganizationRepo    platform.OrganizationRepository
-	SchoolRepo          platform.SchoolRepository
-	SummariesRepo       platform.OperatorSummariesRepository
-	CategoryRepo        activityModels.CategoryRepository
-	DeviceRepo          iotModels.DeviceRepository
-	RoleRepo            authModels.RoleRepository
-	AccountTenantRepo   authModels.AccountTenantRepository
-	AccountRoleRepo     authModels.AccountRoleRepository
-	AuthEventRepo       auditModels.AuthEventRepository
-	PersonRepo          userModels.PersonRepository
-	StaffRepo           userModels.StaffRepository
-	AccountRepo         authModels.AccountRepository
-	TeacherRepo         userModels.TeacherRepository
-	GroupSupervisorRepo activeModels.GroupSupervisorRepository
-	InvitationService   authSvc.InvitationService
-	AuthService         authSvc.AuthService
-	AuditLogRepo        platform.OperatorAuditLogRepository
-	DB                  *bun.DB
-	Logger              *slog.Logger
+	OrganizationRepo      platform.OrganizationRepository
+	SchoolRepo            platform.SchoolRepository
+	SummariesRepo         platform.OperatorSummariesRepository
+	CategoryRepo          activityModels.CategoryRepository
+	DeviceRepo            iotModels.DeviceRepository
+	RoleRepo              authModels.RoleRepository
+	AccountTenantRepo     authModels.AccountTenantRepository
+	AccountRoleRepo       authModels.AccountRoleRepository
+	AccountPermissionRepo authModels.AccountPermissionRepository
+	AuthEventRepo         auditModels.AuthEventRepository
+	PersonRepo            userModels.PersonRepository
+	StaffRepo             userModels.StaffRepository
+	AccountRepo           authModels.AccountRepository
+	TeacherRepo           userModels.TeacherRepository
+	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
+	InvitationService     authSvc.InvitationService
+	AuthService           authSvc.AuthService
+	AuditLogRepo          platform.OperatorAuditLogRepository
+	DB                    *bun.DB
+	Logger                *slog.Logger
 }
 
 // NewOperatorProvisioningService creates a provisioning service.

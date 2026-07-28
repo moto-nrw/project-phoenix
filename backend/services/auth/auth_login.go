@@ -984,7 +984,15 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 	// guardian invitation flow), no retired teacher role, and no role belonging
 	// to a different school (issue #1021).
 	if roleID != nil && *roleID > 0 {
-		if _, err := ValidateAssignableSchoolRole(ctx, s.repos.Role, *roleID, tenantID); err != nil {
+		var roleErr error
+		// A tenant context only exposes its own roles and therefore hides
+		// platform roles (tenant_id IS NULL). Resolve through the admin view;
+		// ValidateAssignableSchoolRole still enforces the target-school policy.
+		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
+			_, roleErr = ValidateAssignableSchoolRole(adminCtx, s.repos.Role, *roleID, tenantID)
+			return roleErr
+		})
+		if err != nil {
 			return nil, &AuthError{Op: op, Err: err}
 		}
 	}

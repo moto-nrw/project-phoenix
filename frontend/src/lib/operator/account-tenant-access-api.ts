@@ -121,6 +121,25 @@ async function request(
   return (payload.data ?? []).map(mapAccess);
 }
 
+async function requestRoles(
+  endpoint: string,
+): Promise<{ id: string; name: string }[]> {
+  const response = await fetch(endpoint, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+  const payload = (await response.json()) as {
+    data?: { id: number; name: string }[] | null;
+  };
+  return (payload.data ?? []).map((role) => ({
+    id: role.id.toString(),
+    name: role.name,
+  }));
+}
+
 function basePath(accountId: string): string {
   return `/api/operator/accounts/${encodeURIComponent(accountId)}/tenants`;
 }
@@ -128,6 +147,12 @@ function basePath(accountId: string): string {
 class AccountTenantAccessService {
   list(accountId: string) {
     return request(basePath(accountId));
+  }
+
+  listAssignableRoles(accountId: string, tenantId: string) {
+    return requestRoles(
+      `${basePath(accountId)}/${encodeURIComponent(tenantId)}/roles`,
+    );
   }
 
   grant(accountId: string, body: GrantAccountTenantAccessRequest) {

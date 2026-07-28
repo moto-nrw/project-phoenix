@@ -356,12 +356,15 @@ func (rs *Resource) mountAccountMFARoutes(r chi.Router) {
 // single account (issue #1021). Keyed by account, not by school, because the
 // whole point is to see and change every school one account can reach.
 func (rs *Resource) mountAccountTenantAccessRoutes(r chi.Router) {
-	r.Route("/accounts/{accountId}/tenants", func(r chi.Router) {
-		r.Get("/", rs.provisioningResource.ListAccountTenantAccess)
-		r.Post("/", rs.provisioningResource.GrantAccountTenantAccess)
-		r.Put("/{tenantId}", rs.provisioningResource.UpdateAccountTenantRole)
-		r.Delete("/{tenantId}", rs.provisioningResource.RevokeAccountTenantAccess)
-	})
+	// Chi treats collection paths with and without a trailing slash as distinct
+	// routes. The operator client deliberately uses the canonical no-slash form.
+	r.Get("/accounts/{accountId}/tenants", rs.provisioningResource.ListAccountTenantAccess)
+	r.Get("/accounts/{accountId}/tenants/", rs.provisioningResource.ListAccountTenantAccess)
+	r.Post("/accounts/{accountId}/tenants", rs.provisioningResource.GrantAccountTenantAccess)
+	r.Post("/accounts/{accountId}/tenants/", rs.provisioningResource.GrantAccountTenantAccess)
+	r.Get("/accounts/{accountId}/tenants/{tenantId}/roles", rs.provisioningResource.ListAssignableSchoolRoles)
+	r.Put("/accounts/{accountId}/tenants/{tenantId}", rs.provisioningResource.UpdateAccountTenantRole)
+	r.Delete("/accounts/{accountId}/tenants/{tenantId}", rs.provisioningResource.RevokeAccountTenantAccess)
 }
 
 // mountSuggestionRoutes registers suggestions management.

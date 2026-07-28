@@ -63,6 +63,7 @@ type mockProvisioningService struct {
 	listOrgSchoolSummariesFn  func(context.Context, int64) ([]*platformSvc.SchoolSummary, error)
 	listOrgPersonsFn          func(context.Context, int64) ([]platformSvc.OperatorPersonInfo, error)
 	listTenantAccessFn        func(context.Context, int64) ([]platformSvc.AccountTenantAccessEntry, error)
+	listAssignableRolesFn     func(context.Context, int64) ([]*authModels.Role, error)
 	grantTenantAccessFn       func(context.Context, int64, int64, platformSvc.GrantAccountTenantAccessRequest, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
 	updateTenantRoleFn        func(context.Context, int64, int64, int64, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
 	revokeTenantAccessFn      func(context.Context, int64, int64, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
@@ -71,6 +72,13 @@ type mockProvisioningService struct {
 func (m *mockProvisioningService) ListAccountTenantAccess(ctx context.Context, accountID int64) ([]platformSvc.AccountTenantAccessEntry, error) {
 	if m.listTenantAccessFn != nil {
 		return m.listTenantAccessFn(ctx, accountID)
+	}
+	return nil, nil
+}
+
+func (m *mockProvisioningService) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error) {
+	if m.listAssignableRolesFn != nil {
+		return m.listAssignableRolesFn(ctx, schoolID)
 	}
 	return nil, nil
 }

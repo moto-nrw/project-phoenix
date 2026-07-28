@@ -73,7 +73,12 @@ export function AccountTenantAccessModal({
 
   const [access, setAccess] = useState<AccountTenantAccess[]>([]);
   const [schools, setSchools] = useState<{ id: string; label: string }[]>([]);
-  const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
+  const [systemRoles, setSystemRoles] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [rolesBySchool, setRolesBySchool] = useState<
+    Record<string, { id: string; name: string }[]>
+  >({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -105,13 +110,28 @@ export function AccountTenantAccessModal({
             label: `${school.name} (${school.organizationName})`,
           })),
       );
-      setRoles(
+      setSystemRoles(
         roleList
           .filter(
             (role) => role.isSystem && !NON_ASSIGNABLE_ROLES.has(role.name),
           )
           .map((role) => ({ id: role.id, name: role.name })),
       );
+      const rolesForActiveSchools = await Promise.all(
+        entries
+          .filter((entry) => entry.status === "active")
+          .map(
+            async (entry) =>
+              [
+                entry.tenantId,
+                await accountTenantAccessService.listAssignableRoles(
+                  accountId,
+                  entry.tenantId,
+                ),
+              ] as const,
+          ),
+      );
+      setRolesBySchool(Object.fromEntries(rolesForActiveSchools));
     } catch (error) {
       logger.error("failed to load school access", {
         error: error instanceof Error ? error.message : String(error),
@@ -136,8 +156,29 @@ export function AccountTenantAccessModal({
       setFirstName("");
       setLastName("");
       setErrorMessage("");
+      setRolesBySchool({});
     }
   }, [isOpen, load]);
+
+  useEffect(() => {
+    if (!isOpen || !addSchoolId || rolesBySchool[addSchoolId]) return;
+    void accountTenantAccessService
+      .listAssignableRoles(accountId, addSchoolId)
+      .then((schoolRoles) =>
+        setRolesBySchool((current) => ({
+          ...current,
+          [addSchoolId]: schoolRoles,
+        })),
+      )
+      .catch((error) => {
+        logger.error("failed to load assignable school roles", {
+          error: error instanceof Error ? error.message : String(error),
+          accountId,
+          schoolId: addSchoolId,
+        });
+        setErrorMessage("Die Rollen der Schule konnten nicht geladen werden.");
+      });
+  }, [accountId, addSchoolId, isOpen, rolesBySchool]);
 
   // Schools the account can still be added to.
   const availableSchools = useMemo(() => {
@@ -151,6 +192,10 @@ export function AccountTenantAccessModal({
 
   const knowsName = access.some((entry) => entry.hasPerson);
   const needsName = !knowsName;
+
+  function rolesForSchool(schoolId: string) {
+    return rolesBySchool[schoolId] ?? systemRoles;
+  }
 
   async function runMutation(
     action: () => Promise<AccountTenantAccess[]>,
@@ -303,10 +348,12 @@ export function AccountTenantAccessModal({
                         <div className="w-44">
                           <CustomSelect
                             value={primaryRoleId(entry)}
-                            options={roles.map((role) => ({
-                              value: role.id,
-                              label: roleLabel(role.name),
-                            }))}
+                            options={rolesForSchool(entry.tenantId).map(
+                              (role) => ({
+                                value: role.id,
+                                label: roleLabel(role.name),
+                              }),
+                            )}
                             onChange={(value) =>
                               void handleRoleChange(entry, value)
                             }
@@ -370,7 +417,7 @@ export function AccountTenantAccessModal({
                   <CustomSelect
                     id="account-access-role"
                     value={addRoleId}
-                    options={roles.map((role) => ({
+                    options={rolesForSchool(addSchoolId).map((role) => ({
                       value: role.id,
                       label: roleLabel(role.name),
                     }))}

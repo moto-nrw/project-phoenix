@@ -10,6 +10,7 @@ const {
   mockGrant,
   mockUpdateRole,
   mockRevoke,
+  mockListAssignableRoles,
   mockListSchoolSummaries,
   mockListSystemRoles,
   MockApiError,
@@ -20,6 +21,7 @@ const {
   mockGrant: vi.fn(),
   mockUpdateRole: vi.fn(),
   mockRevoke: vi.fn(),
+  mockListAssignableRoles: vi.fn(),
   mockListSchoolSummaries: vi.fn(),
   mockListSystemRoles: vi.fn(),
   MockApiError: class MockAccountTenantAccessApiError extends Error {
@@ -155,6 +157,7 @@ vi.mock("~/lib/operator/account-tenant-access-api", () => ({
     grant: mockGrant,
     updateRole: mockUpdateRole,
     revoke: mockRevoke,
+    listAssignableRoles: mockListAssignableRoles,
   },
   AccountTenantAccessApiError: MockApiError,
 }));
@@ -221,6 +224,10 @@ describe("AccountTenantAccessModal", () => {
       { id: "1", name: "admin", isSystem: true },
       { id: "2", name: "user", isSystem: true },
       { id: "6", name: "guardian", isSystem: true },
+    ]);
+    mockListAssignableRoles.mockResolvedValue([
+      { id: "1", name: "admin" },
+      { id: "2", name: "user" },
     ]);
   });
 

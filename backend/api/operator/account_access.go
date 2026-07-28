@@ -63,6 +63,24 @@ func (rs *ProvisioningResource) ListAccountTenantAccess(w http.ResponseWriter, r
 	common.Respond(w, r, http.StatusOK, entries, "Account school access retrieved successfully")
 }
 
+// ListAssignableSchoolRoles handles GET /operator/accounts/{accountId}/tenants/{tenantId}/roles.
+func (rs *ProvisioningResource) ListAssignableSchoolRoles(w http.ResponseWriter, r *http.Request) {
+	accountID, schoolID, ok := parseAccountTenantParams(w, r)
+	if !ok {
+		return
+	}
+	if _, err := rs.service.ListAccountTenantAccess(r.Context(), accountID); err != nil {
+		common.RenderError(w, r, accountTenantAccessErrorRenderer(err))
+		return
+	}
+	roles, err := rs.service.ListAssignableSchoolRoles(r.Context(), schoolID)
+	if err != nil {
+		common.RenderError(w, r, accountTenantAccessErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, roles, "Assignable school roles retrieved successfully")
+}
+
 // GrantAccountTenantAccess handles POST /operator/accounts/{accountId}/tenants.
 func (rs *ProvisioningResource) GrantAccountTenantAccess(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := common.ParseInt64IDWithError(w, r, "accountId", "invalid account ID")

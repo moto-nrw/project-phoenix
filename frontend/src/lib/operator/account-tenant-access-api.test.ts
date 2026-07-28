@@ -114,6 +114,21 @@ describe("accountTenantAccessService", () => {
     );
   });
 
+  it("loads assignable roles for the selected school", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ data: [{ id: 4, name: "teamleitung" }] }),
+    );
+
+    await expect(
+      accountTenantAccessService.listAssignableRoles("42", "7"),
+    ).resolves.toEqual([{ id: "4", name: "teamleitung" }]);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/operator/accounts/42/tenants/7/roles",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
   it("throws the backend message so the modal can show the real reason", async () => {
     mockFetch.mockResolvedValue(
       jsonResponse(

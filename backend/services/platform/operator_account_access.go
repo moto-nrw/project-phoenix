@@ -124,7 +124,7 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		// the operator does not have to retype them.
 		firstName, lastName := strings.TrimSpace(req.FirstName), strings.TrimSpace(req.LastName)
 		if firstName == "" || lastName == "" {
-			existing, findErr := s.PersonRepo.FindByAccountID(adminCtx, accountID)
+			existing, findErr := s.activePersonForAccount(adminCtx, accountID)
 			if findErr != nil {
 				return findErr
 			}
@@ -170,12 +170,14 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 			"roleID":   role.ID,
 			"roleName": role.Name,
 		})
-		s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, auditModels.EventTypeTenantAccessGranted, map[string]any{
+		if err := s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, auditModels.EventTypeTenantAccessGranted, map[string]any{
 			"school_id":   school.ID,
 			"school_name": school.Name,
 			"role":        role.Name,
 			"operator_id": operatorID,
-		})
+		}); err != nil {
+			return err
+		}
 
 		entries, listErr := s.loadAccountTenantAccess(adminCtx, accountID)
 		if listErr != nil {
@@ -246,6 +248,9 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 			}
 			removed = append(removed, existing.Name)
 		}
+		if err := s.AuthService.RevokeAllTokens(adminCtx, int(accountID)); err != nil {
+			return fmt.Errorf("revoke tokens after role change: %w", err)
+		}
 
 		// A role change can turn a non-caregiver into one; make sure the
 		// school-side records exist either way.
@@ -260,13 +265,15 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 			"roleName":     role.Name,
 			"removedRoles": removed,
 		})
-		s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, auditModels.EventTypeTenantRoleChanged, map[string]any{
+		if err := s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, auditModels.EventTypeTenantRoleChanged, map[string]any{
 			"school_id":     school.ID,
 			"school_name":   school.Name,
 			"role":          role.Name,
 			"removed_roles": removed,
 			"operator_id":   operatorID,
-		})
+		}); err != nil {
+			return err
+		}
 
 		entries, listErr := s.loadAccountTenantAccess(adminCtx, accountID)
 		if listErr != nil {
@@ -322,6 +329,15 @@ func (s *operatorProvisioningService) RevokeAccountTenantAccess(
 				return err
 			}
 		}
+		if s.AccountPermissionRepo == nil {
+			return fmt.Errorf("account permission repository is not configured")
+		}
+		if _, err := s.AccountPermissionRepo.DeleteByAccountID(tenant.WithTenantID(adminCtx, schoolID), accountID); err != nil {
+			return fmt.Errorf("delete direct account permissions: %w", err)
+		}
+		if err := s.AuthService.RevokeAllTokens(adminCtx, int(accountID)); err != nil {
+			return fmt.Errorf("revoke tokens after access revocation: %w", err)
+		}
 
 		if err := s.AccountTenantRepo.Deactivate(adminCtx, accountID, schoolID); err != nil {
 			return err
@@ -342,12 +358,14 @@ func (s *operatorProvisioningService) RevokeAccountTenantAccess(
 			"email":              account.Email,
 			"accountDeactivated": len(remaining) == 0,
 		})
-		s.recordAccessAuthEvent(tenant.WithTenantID(adminCtx, schoolID), accountID, schoolID, auditModels.EventTypeTenantAccessRevoked, map[string]any{
+		if err := s.recordAccessAuthEvent(tenant.WithTenantID(adminCtx, schoolID), accountID, schoolID, auditModels.EventTypeTenantAccessRevoked, map[string]any{
 			"school_id":           school.ID,
 			"school_name":         school.Name,
 			"account_deactivated": len(remaining) == 0,
 			"operator_id":         operatorID,
-		})
+		}); err != nil {
+			return err
+		}
 
 		entries, listErr := s.loadAccountTenantAccess(adminCtx, accountID)
 		if listErr != nil {
@@ -439,6 +457,52 @@ func (s *operatorProvisioningService) validateAssignableSchoolRole(ctx context.C
 	return role, nil
 }
 
+// ListAssignableSchoolRoles returns the system and target-school roles that
+// may be selected by the operator. The same policy as mutation paths is
+// applied so the UI cannot offer roles the backend would reject.
+func (s *operatorProvisioningService) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error) {
+	var result []*authModels.Role
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+		if _, err := s.loadActiveSchool(adminCtx, schoolID); err != nil {
+			return err
+		}
+		roles, err := s.RoleRepo.List(tenant.WithTenantID(adminCtx, schoolID), nil)
+		if err != nil {
+			return err
+		}
+		result = make([]*authModels.Role, 0, len(roles))
+		for _, role := range roles {
+			if role == nil {
+				continue
+			}
+			if _, err := authSvc.ValidateAssignableSchoolRole(adminCtx, s.RoleRepo, role.ID, schoolID); err == nil {
+				result = append(result, role)
+			}
+		}
+		return nil
+	})
+	return result, err
+}
+
+// activePersonForAccount chooses a non-deleted source identity deterministically
+// when an account is linked to people at more than one school.
+func (s *operatorProvisioningService) activePersonForAccount(ctx context.Context, accountID int64) (*userModels.Person, error) {
+	persons, err := s.PersonRepo.List(ctx, map[string]interface{}{"account_id": accountID})
+	if err != nil {
+		return nil, err
+	}
+	var selected *userModels.Person
+	for _, person := range persons {
+		if person == nil || person.DeletedAt != nil {
+			continue
+		}
+		if selected == nil || person.TenantID < selected.TenantID || (person.TenantID == selected.TenantID && person.ID < selected.ID) {
+			selected = person
+		}
+	}
+	return selected, nil
+}
+
 // ensureSchoolIdentity creates the person, staff and (for caregiver roles)
 // teacher rows the account needs to be usable at a school. Every step is
 // idempotent so a re-grant after a revoke reuses the existing records.
@@ -455,7 +519,14 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 	firstName, lastName, position string,
 	createPerson bool,
 ) error {
+	baseRole := role.Name
 	if !role.IsSystem {
+		if role.BaseRole == nil || strings.EqualFold(*role.BaseRole, authModels.BaseRoleGuardian) {
+			return nil
+		}
+		baseRole = *role.BaseRole
+	}
+	if strings.EqualFold(baseRole, authModels.BaseRoleGuardian) {
 		return nil
 	}
 
@@ -496,7 +567,7 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 		}
 	}
 
-	if !shouldCreateTeacher(role.Name) {
+	if !shouldCreateTeacher(baseRole) {
 		return nil
 	}
 
@@ -520,16 +591,16 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 
 // recordAccessAuthEvent writes the tenant-visible audit trail. The operator
 // audit log records the same change on the platform side; this one exists so
-// the affected school can see access changes to its own data. Failures are
-// logged, never fatal — the access change itself already happened.
+// the affected school can see access changes to its own data. It is part of
+// the surrounding transaction, so failures are returned rather than swallowed.
 func (s *operatorProvisioningService) recordAccessAuthEvent(
 	ctx context.Context,
 	accountID, schoolID int64,
 	eventType string,
 	metadata map[string]any,
-) {
+) error {
 	if s.AuthEventRepo == nil {
-		return
+		return nil
 	}
 	event := auditModels.NewAuthEvent(accountID, eventType, true, accessAuditIP)
 	event.SetTenantID(schoolID)
@@ -537,10 +608,7 @@ func (s *operatorProvisioningService) recordAccessAuthEvent(
 		event.SetMetadata(key, value)
 	}
 	if err := s.AuthEventRepo.Create(ctx, event); err != nil {
-		s.getLogger().Error("failed to record tenant access auth event",
-			"error", err,
-			"event_type", eventType,
-			"tenant_id", schoolID,
-		)
+		return fmt.Errorf("record tenant access auth event: %w", err)
 	}
+	return nil
 }
