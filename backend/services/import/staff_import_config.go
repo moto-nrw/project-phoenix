@@ -209,6 +209,15 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 
 	role, err := c.RoleRepo.FindByName(ctx, lookup)
 	if err == nil && role != nil {
+		role, err = authsvc.ValidateResolvedAssignableSchoolRole(role, tenant.FromContext(ctx))
+		if err != nil {
+			return []importModels.ValidationError{{
+				Field:    "role",
+				Message:  err.Error(),
+				Code:     "role_not_assignable",
+				Severity: importModels.ErrorSeverityError,
+			}}
+		}
 		row.RoleID = role.ID
 		if c.PermissionRepo != nil {
 			role.Permissions, err = c.PermissionRepo.FindByRoleID(ctx, role.ID)

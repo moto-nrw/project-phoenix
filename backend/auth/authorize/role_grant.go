@@ -20,8 +20,9 @@ import (
 // EffectiveBaseRole returns the privilege tier a role hands out, as one of the
 // values in auth.ValidBaseRoles(). Custom roles carry base_role explicitly (the
 // create API requires it); system roles predate the column and are identified by
-// name. Returns "" when the tier cannot be determined — callers must treat that
-// as the highest tier, not the lowest.
+// name. Returns "" when the tier cannot be determined; callers must fail
+// closed unless they can prove the target permissions do not exceed the
+// caller's permissions for a legacy tenant role.
 func EffectiveBaseRole(role *auth.Role) string {
 	if role == nil {
 		return ""
@@ -55,8 +56,9 @@ func EffectiveBaseRole(role *auth.Role) string {
 // roles may only be handed out when every effective permission of the target
 // role is already held by the caller. base_role is a classification for UI and
 // portal behavior, not a permission boundary, so a tenant role with
-// base_role=user is not implicitly safe. Roles of unknown tier are treated as
-// admin-tier.
+// base_role=user is not implicitly safe. Legacy tenant roles without a
+// base_role use the same effective-permission check; unknown system roles
+// remain fail-closed.
 // Whether a guardian role may be handed out through a staff flow at all is a
 // separate question, answered by ValidateAssignableSchoolRole.
 func CanGrantRole(role *auth.Role, callerPermissions []string) bool {
@@ -70,13 +72,22 @@ func CanGrantRole(role *auth.Role, callerPermissions []string) bool {
 
 	switch EffectiveBaseRole(role) {
 	case auth.BaseRoleUser, auth.BaseRoleGuardian:
-		for _, permission := range role.Permissions {
-			if permission == nil || !HasPermission(permission.Name, callerPermissions) {
-				return false
-			}
+		return permissionsAreSubset(role.Permissions, callerPermissions)
+	case "":
+		if role.TenantID != nil && role.BaseRole == nil {
+			return permissionsAreSubset(role.Permissions, callerPermissions)
 		}
-		return true
+		return false
 	default:
 		return false
 	}
+}
+
+func permissionsAreSubset(rolePermissions []*auth.Permission, callerPermissions []string) bool {
+	for _, permission := range rolePermissions {
+		if permission == nil || !HasPermission(permission.Name, callerPermissions) {
+			return false
+		}
+	}
+	return true
 }

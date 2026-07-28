@@ -76,7 +76,7 @@ func TestCanGrantRole(t *testing.T) {
 		{"custom admin-tier role needs users:manage", tenantRole("Leitung", &admin), betreuer, false},
 		{"custom user-tier role with no permissions may be granted", tenantRole("Sekretariat", &user), betreuer, true},
 		{"users:manage may grant a custom user-tier role", tenantRole("Sekretariat", &user), adminPerms, true},
-		{"unknown tier fails closed", tenantRole("Legacy", nil), betreuer, false},
+		{"legacy tenant role with no permissions is grantable", tenantRole("Legacy", nil), betreuer, true},
 		{"unknown tier is grantable by an admin", tenantRole("Legacy", nil), adminPerms, true},
 	}
 
@@ -90,6 +90,13 @@ func TestCanGrantRole(t *testing.T) {
 func TestCanGrantRole_RejectsTargetPermissionsTheCallerLacks(t *testing.T) {
 	user := authModels.BaseRoleUser
 	role := tenantRole("Sekretariat", &user)
+	role.Permissions = []*authModels.Permission{{Name: permissions.UsersManage}}
+
+	assert.False(t, authorize.CanGrantRole(role, []string{permissions.UsersCreate}))
+}
+
+func TestCanGrantRole_RejectsElevatedLegacyTenantRole(t *testing.T) {
+	role := tenantRole("Legacy", nil)
 	role.Permissions = []*authModels.Permission{{Name: permissions.UsersManage}}
 
 	assert.False(t, authorize.CanGrantRole(role, []string{permissions.UsersCreate}))

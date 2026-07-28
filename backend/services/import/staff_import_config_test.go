@@ -265,11 +265,13 @@ func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
 
 func TestStaffImportConfig_Validate_RequiresManagePermissionForTenantRole(t *testing.T) {
 	baseRole := authModels.BaseRoleUser
+	tenantID := staffImportTestTenantID
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
 				return &authModels.Role{
 					Model:    base.Model{ID: staffImportTestRoleID},
+					TenantID: &tenantID,
 					Name:     name,
 					BaseRole: &baseRole,
 					Permissions: []*authModels.Permission{
@@ -287,13 +289,43 @@ func TestStaffImportConfig_Validate_RequiresManagePermissionForTenantRole(t *tes
 		RoleName:  "Sekretariat",
 	}
 
-	errs := config.Validate(context.Background(), row)
+	ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
+	errs := config.Validate(ctx, row)
 
 	require.Len(t, errs, 1)
 	assert.Equal(t, "role_grant_not_permitted", errs[0].Code)
 
-	ctx := ContextWithImporterPermissions(context.Background(), []string{"users:manage"})
+	ctx = ContextWithImporterPermissions(ctx, []string{"users:manage"})
 	assert.Empty(t, config.Validate(ctx, row))
+}
+
+func TestStaffImportConfig_Validate_RejectsRolesReservedForOtherFlows(t *testing.T) {
+	guardian := authModels.BaseRoleGuardian
+	tenantID := staffImportTestTenantID
+	role := &authModels.Role{
+		Model:    base.Model{ID: staffImportTestRoleID},
+		TenantID: &tenantID,
+		Name:     "guardian-custom",
+		BaseRole: &guardian,
+	}
+	config := NewStaffImportConfig(StaffImportDeps{
+		RoleRepo: stubStaffRoleRepo{
+			findByName: func(context.Context, string) (*authModels.Role, error) {
+				return role, nil
+			},
+		},
+	})
+	row := &importModels.StaffImportRow{
+		FirstName: "Max",
+		LastName:  "Mustermann",
+		Email:     "max@example.com",
+		RoleName:  "guardian-custom",
+	}
+
+	errs := config.Validate(tenant.WithTenantID(context.Background(), staffImportTestTenantID), row)
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, "role_not_assignable", errs[0].Code)
 }
 
 func TestStaffImportConfig_ValidateBatch_DetectsDuplicateEmailsAfterNormalization(t *testing.T) {

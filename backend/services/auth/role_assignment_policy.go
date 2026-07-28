@@ -67,6 +67,17 @@ func ValidateAssignableSchoolRole(
 	if role == nil {
 		return nil, ErrRoleNotAssignable
 	}
+	return ValidateResolvedAssignableSchoolRole(role, tenantID)
+}
+
+// ValidateResolvedAssignableSchoolRole applies the school-role policy to a
+// role that was resolved by the caller. It keeps preview validation on the
+// same policy as invitation creation without making the preview resolve the
+// role a second time.
+func ValidateResolvedAssignableSchoolRole(role *authModels.Role, tenantID int64) (*authModels.Role, error) {
+	if role == nil {
+		return nil, ErrRoleNotAssignable
+	}
 	if role.TenantID != nil && *role.TenantID != tenantID {
 		return nil, ErrRoleForeignTenant
 	}
