@@ -132,6 +132,62 @@ describe("accountTenantAccessService", () => {
     );
   });
 
+  it("falls back to the error field when the payload has no message", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ error: "Unauthorized" }, 401));
+
+    await expect(accountTenantAccessService.list("42")).rejects.toThrowError(
+      new AccountTenantAccessApiError("Unauthorized", 401),
+    );
+  });
+
+  it("stays usable when the error body is not JSON", async () => {
+    mockFetch.mockResolvedValue(
+      new Response("<html>gateway timeout</html>", { status: 504 }),
+    );
+
+    await expect(accountTenantAccessService.list("42")).rejects.toThrowError(
+      new AccountTenantAccessApiError(
+        "Die Anfrage ist fehlgeschlagen (504).",
+        504,
+      ),
+    );
+  });
+
+  it("treats a missing data envelope as an empty list", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ data: null }));
+
+    await expect(accountTenantAccessService.list("42")).resolves.toEqual([]);
+  });
+
+  it("keeps the deactivation timestamp of a revoked access", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        data: [
+          {
+            tenant_id: 7,
+            school_name: "OGS Nord",
+            school_slug: "ogs-nord",
+            school_active: false,
+            organization_id: 3,
+            organization_name: "Träger",
+            status: "inactive",
+            activated_at: "2026-07-01T10:00:00Z",
+            deactivated_at: "2026-07-20T09:00:00Z",
+            has_person: true,
+            has_staff: true,
+            roles: [],
+          },
+        ],
+      }),
+    );
+
+    const [entry] = await accountTenantAccessService.list("42");
+
+    expect(entry?.status).toBe("inactive");
+    expect(entry?.deactivatedAt).toBe("2026-07-20T09:00:00Z");
+    expect(entry?.schoolActive).toBe(false);
+  });
+
   it("revokes via DELETE on the school-scoped path", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ data: [] }));
 

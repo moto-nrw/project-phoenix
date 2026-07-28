@@ -303,6 +303,184 @@ func TestIntegration_ListAccountTenantAccess_UnknownAccount(t *testing.T) {
 	require.ErrorAs(t, err, &notFound)
 }
 
+func TestIntegration_ListAccountTenantAccess_ReturnsSchoolsWithRoles(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+	adminRoleID := systemRoleID(t, db, "admin")
+
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
+	require.NoError(t, err)
+
+	entries, err := service.ListAccountTenantAccess(ctx, account.ID)
+	require.NoError(t, err)
+
+	granted := entryFor(entries, accessTargetTenantID)
+	require.NotNil(t, granted)
+	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID))
+	assert.NotEmpty(t, granted.SchoolName)
+	assert.NotEmpty(t, granted.OrganizationName)
+	assert.True(t, granted.SchoolActive)
+	assert.NotNil(t, entryFor(entries, testSchoolID), "the original school is listed as well")
+}
+
+func TestIntegration_ListAccountTenantAccess_UnknownAccountID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+
+	_, err := service.ListAccountTenantAccess(context.Background(), 99999999)
+
+	var notFound *platformSvc.AccountNotFoundError
+	require.ErrorAs(t, err, &notFound)
+}
+
+func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	// An account that carries no person anywhere: there is no name to copy, so
+	// the operator has to supply one.
+	account := testpkg.CreateTestAccount(t, db, "access-nameless")
+	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	defer func() {
+		cleanupAccessFixtures(t, db, account.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	operator := testpkg.CreateTestOperator(t, db)
+
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")},
+		operator.ID, testClientIP)
+
+	var invalid *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalid)
+}
+
+func TestIntegration_GrantAccountTenantAccess_ReactivatesDeactivatedAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	account := testpkg.CreateTestAccount(t, db, "access-reactivate")
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	defer func() {
+		cleanupAccessFixtures(t, db, account.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	operator := testpkg.CreateTestOperator(t, db)
+
+	// Revoking the only school deactivates the account...
+	_, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	require.NoError(t, err)
+	assertAccountActive(t, db, account.ID, false)
+
+	// ...and granting access again has to undo that, otherwise the person
+	// still cannot log in despite having a school.
+	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{
+			RoleID:    systemRoleID(t, db, "user"),
+			FirstName: "Wieder",
+			LastName:  "Aktiv",
+			Position:  "Gruppenleitung",
+		}, operator.ID, testClientIP)
+	require.NoError(t, err)
+
+	granted := entryFor(entries, accessTargetTenantID)
+	require.NotNil(t, granted)
+	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
+	assertAccountActive(t, db, account.ID, true)
+
+	// The caregiver role also creates the teacher record, carrying the position.
+	var position string
+	err = db.NewSelect().
+		ColumnExpr(`"t".role`).
+		TableExpr(`users.teachers AS "t"`).
+		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
+		Join(`JOIN users.persons AS "p" ON "p".id = "s".person_id`).
+		Where(`"p".account_id = ?`, account.ID).
+		Scan(ctx, &position)
+	require.NoError(t, err)
+	assert.Equal(t, "Gruppenleitung", position)
+}
+
+func TestIntegration_RevokeAccountTenantAccess_UnknownSchool(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+
+	_, err := service.RevokeAccountTenantAccess(context.Background(), account.ID, 99999999, operator.ID, testClientIP)
+
+	var notFound *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFound)
+}
+
+func TestIntegration_RevokeAccountTenantAccess_WithoutExistingAccess(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+
+	_, err := service.RevokeAccountTenantAccess(context.Background(), account.ID, accessTargetTenantID, operator.ID, testClientIP)
+
+	var notFound *platformSvc.AccountTenantAccessNotFoundError
+	require.ErrorAs(t, err, &notFound)
+}
+
+// An account can be mapped to a school without being staff there (a guardian
+// mapping, or one created by the older link-to-tenant flow). Changing its role
+// must not turn it into staff as a side effect.
+func TestIntegration_UpdateAccountTenantRole_WithoutPersonCreatesNoStaff(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	account := testpkg.CreateTestAccount(t, db, "access-no-person")
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	defer func() {
+		cleanupAccessFixtures(t, db, account.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	operator := testpkg.CreateTestOperator(t, db)
+
+	entries, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+		systemRoleID(t, db, "admin"), operator.ID, testClientIP)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID))
+
+	updated := entryFor(entries, accessTargetTenantID)
+	require.NotNil(t, updated)
+	assert.False(t, updated.HasPerson, "a role change must not create a person record")
+	assert.False(t, updated.HasStaff, "a role change must not create a staff record")
+}
+
 func assertAccountActive(t *testing.T, db *bun.DB, accountID int64, want bool) {
 	t.Helper()
 	var active bool
