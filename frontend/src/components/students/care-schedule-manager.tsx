@@ -694,8 +694,11 @@ export function CareScheduleManager({
                 className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 title="Wochenplan bearbeiten"
               >
-                <SquarePen className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Wochenplan</span>
+                <SquarePen className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {/* Label kept on mobile too: an icon-only pencil here is the
+                    exact ambiguity with the per-day pencils that #893 reports,
+                    and the header has room for the word on both layouts. */}
+                <span>Wochenplan</span>
               </button>
             ) : null}
           </div>
@@ -1164,10 +1167,13 @@ function CareBoundaryRow({
         <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
           {boundary.label}
         </div>
-        <div className="text-sm leading-5 font-semibold text-gray-900">
-          {boundary.value}
+        {/* Flex-wrapped rather than inline: the badge is taller than the 20px
+            line box, so as an inline element it painted over the next line
+            whenever the value wrapped ("Keine Abholung" in a day column). */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
+          <span className="min-w-0 break-words">{boundary.value}</span>
           {boundary.marker ? (
-            <span className="ml-2 rounded-full bg-white px-1.5 py-0.5 align-middle text-[11px] font-semibold text-gray-500 shadow-sm">
+            <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
               {boundary.marker}
             </span>
           ) : null}

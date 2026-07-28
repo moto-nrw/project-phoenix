@@ -407,8 +407,15 @@ export function CarePlanEditorModal({
       size={scope === "weekly" ? "xl" : "lg"}
       mobilePosition="bottom"
     >
+      {/* noValidate: a half-cleared <input type="time"> (e.g. backspacing the
+          hour of "15:00") reports validity.badInput, which makes the browser
+          refuse the submit — the Save button then does nothing beyond a native
+          bubble on an off-screen field. Such a field reads back as "", which is
+          exactly the "remove this time" the removal warning already announces,
+          so validation is left to the checks below. */}
       <form
         id="care-plan-editor-form"
+        noValidate
         onSubmit={handleSubmit}
         className="space-y-5"
       >
