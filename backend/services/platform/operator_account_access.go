@@ -99,7 +99,7 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 ) ([]AccountTenantAccessEntry, error) {
 	var result []AccountTenantAccessEntry
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
-		account, err := s.loadAccount(adminCtx, accountID)
+		account, err := s.loadAccountForUpdate(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -157,14 +157,6 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 			return err
 		}
 
-		// An account without any school mapping is deactivated on revoke; the
-		// grant has to undo that or the person still cannot log in.
-		if !account.Active {
-			if err := s.AuthService.ActivateAccount(adminCtx, int(accountID)); err != nil {
-				return err
-			}
-		}
-
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceAccountTenant, &accountID, clientIP, map[string]any{
 			"schoolID": school.ID,
 			"email":    account.Email,
@@ -208,7 +200,7 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 ) ([]AccountTenantAccessEntry, error) {
 	var result []AccountTenantAccessEntry
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
-		account, err := s.loadAccount(adminCtx, accountID)
+		account, err := s.loadAccountForUpdate(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -304,7 +296,7 @@ func (s *operatorProvisioningService) RevokeAccountTenantAccess(
 ) ([]AccountTenantAccessEntry, error) {
 	var result []AccountTenantAccessEntry
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
-		account, err := s.loadAccount(adminCtx, accountID)
+		account, err := s.loadAccountForUpdate(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -445,6 +437,21 @@ func (s *operatorProvisioningService) loadAccount(ctx context.Context, accountID
 		return nil, &AccountNotFoundError{AccountID: accountID}
 	}
 	account, err := s.AccountRepo.FindByID(ctx, accountID)
+	if err != nil || account == nil {
+		return nil, &AccountNotFoundError{AccountID: accountID}
+	}
+	return account, nil
+}
+
+// loadAccountForUpdate serializes account-scoped access changes. Grants,
+// revocations and role changes all derive their mapping and active-account
+// state from this locked row, avoiding competing decisions in parallel admin
+// requests.
+func (s *operatorProvisioningService) loadAccountForUpdate(ctx context.Context, accountID int64) (*authModels.Account, error) {
+	if accountID <= 0 {
+		return nil, &AccountNotFoundError{AccountID: accountID}
+	}
+	account, err := s.AccountRepo.FindByIDForUpdate(ctx, accountID)
 	if err != nil || account == nil {
 		return nil, &AccountNotFoundError{AccountID: accountID}
 	}

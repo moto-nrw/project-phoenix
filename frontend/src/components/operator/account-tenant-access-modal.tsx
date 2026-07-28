@@ -117,9 +117,9 @@ export function AccountTenantAccessModal({
           )
           .map((role) => ({ id: role.id, name: role.name })),
       );
-      const rolesForActiveSchools = await Promise.all(
+      const rolesForActiveSchools = await Promise.allSettled(
         entries
-          .filter((entry) => entry.status === "active")
+          .filter((entry) => entry.status === "active" && entry.schoolActive)
           .map(
             async (entry) =>
               [
@@ -131,7 +131,21 @@ export function AccountTenantAccessModal({
               ] as const,
           ),
       );
-      setRolesBySchool(Object.fromEntries(rolesForActiveSchools));
+      setRolesBySchool(
+        Object.fromEntries(
+          rolesForActiveSchools.flatMap((result) => {
+            if (result.status === "fulfilled") return [result.value];
+            logger.warn("failed to load assignable school roles", {
+              error:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : String(result.reason),
+              accountId,
+            });
+            return [];
+          }),
+        ),
+      );
     } catch (error) {
       logger.error("failed to load school access", {
         error: error instanceof Error ? error.message : String(error),
@@ -357,7 +371,7 @@ export function AccountTenantAccessModal({
                             onChange={(value) =>
                               void handleRoleChange(entry, value)
                             }
-                            disabled={saving}
+                            disabled={saving || !entry.schoolActive}
                             ariaLabel={`Rolle an ${entry.schoolName}`}
                             placeholder="Rolle wählen"
                           />

@@ -417,7 +417,7 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 	require.ErrorAs(t, err, &invalid)
 }
 
-func TestIntegration_GrantAccountTenantAccess_ReactivatesDeactivatedAccount(t *testing.T) {
+func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateDeactivatedAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -439,8 +439,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesDeactivatedAccount(t *t
 	require.NoError(t, err)
 	assertAccountActive(t, db, account.ID, false)
 
-	// ...and granting access again has to undo that, otherwise the person
-	// still cannot log in despite having a school.
+	// A new mapping must not silently override an explicit account deactivation.
 	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
 		platformSvc.GrantAccountTenantAccessRequest{
 			RoleID:    systemRoleID(t, db, "user"),
@@ -453,7 +452,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesDeactivatedAccount(t *t
 	granted := entryFor(entries, accessTargetTenantID)
 	require.NotNil(t, granted)
 	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
-	assertAccountActive(t, db, account.ID, true)
+	assertAccountActive(t, db, account.ID, false)
 
 	// The caregiver role also creates the teacher record, carrying the position.
 	var position string
