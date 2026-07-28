@@ -118,6 +118,7 @@ export interface BackendBulkPickupScheduleRequest {
 export interface PickupExceptionFormData {
   exceptionDate: string; // YYYY-MM-DD format
   pickupTime?: string; // HH:MM format, undefined = no pickup
+  clearPickupTime?: boolean;
   reason?: string;
 }
 
@@ -125,6 +126,7 @@ export interface PickupExceptionFormData {
 export interface BackendPickupExceptionRequest {
   exception_date: string;
   pickup_time?: string;
+  clear_pickup_time?: boolean;
   reason?: string;
 }
 
@@ -218,6 +220,7 @@ export function mapPickupExceptionFormToBackend(
   return {
     exception_date: data.exceptionDate,
     pickup_time: data.pickupTime,
+    ...(data.clearPickupTime ? { clear_pickup_time: true } : {}),
     reason: data.reason,
   };
 }

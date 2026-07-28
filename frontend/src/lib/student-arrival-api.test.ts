@@ -223,6 +223,7 @@ describe("student-arrival-api", () => {
       await updateArrivalException("42", 77, {
         exception_date: "2024-01-15",
         expected_arrival: null,
+        clear_expected_arrival: true,
       });
 
       expect(fetchSpy).toHaveBeenCalledWith(

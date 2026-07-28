@@ -462,6 +462,7 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 	date timezone.Date,
 	reason *string,
 	value *time.Time,
+	clearValue bool,
 	resolveStaffID func() (int64, error),
 ) (E, error) {
 	var result E
@@ -504,6 +505,8 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 		}
 		if value != nil {
 			fields.Time = value
+		} else if clearValue {
+			fields.Time = nil
 		}
 
 		result = c.domain.NewException(fields)

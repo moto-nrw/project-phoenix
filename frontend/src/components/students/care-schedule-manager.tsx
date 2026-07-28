@@ -528,6 +528,9 @@ export function CareScheduleManager({
             const input = {
               exception_date: dayISO,
               expected_arrival: arrival.kind === "time" ? arrival.time : null,
+              ...(arrival.kind === "none"
+                ? { clear_expected_arrival: true }
+                : {}),
               reason: arrival.reason,
             };
             if (existing) {
@@ -552,6 +555,7 @@ export function CareScheduleManager({
             const input = {
               exceptionDate: dayISO,
               pickupTime: pickup.kind === "time" ? pickup.time : undefined,
+              ...(pickup.kind === "none" ? { clearPickupTime: true } : {}),
               reason: pickup.reason ?? undefined,
             };
             if (existing) {

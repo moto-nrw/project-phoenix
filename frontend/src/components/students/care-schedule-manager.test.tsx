@@ -137,6 +137,30 @@ vi.mock("./care-plan-editor-modal", () => ({
           onClick={() =>
             void onSubmitException({
               date: "2026-05-25",
+              arrival: { kind: "none", reason: null },
+              pickup: null,
+            }).catch(() => undefined)
+          }
+        >
+          Kommt nicht im Test speichern
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void onSubmitException({
+              date: "2026-05-25",
+              arrival: null,
+              pickup: { kind: "none", reason: null },
+            }).catch(() => undefined)
+          }
+        >
+          Keine Abholung im Test speichern
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void onSubmitException({
+              date: "2026-05-25",
               arrival: { kind: "regular" },
               pickup: { kind: "regular" },
             })
@@ -626,6 +650,44 @@ describe("CareScheduleManager", () => {
           exceptionDate: "2026-05-25",
           pickupTime: "15:15",
           reason: "Training",
+        },
+      );
+    });
+  });
+
+  it("clears an existing arrival time when the student does not come", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    fireEvent.click(screen.getByText("Kommt nicht im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateArrivalException).toHaveBeenCalledWith("42", 10, {
+        exception_date: "2026-05-25",
+        expected_arrival: null,
+        clear_expected_arrival: true,
+        reason: null,
+      });
+    });
+  });
+
+  it("clears an existing pickup time when there is no pickup", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    fireEvent.click(screen.getByText("Keine Abholung im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateStudentPickupException).toHaveBeenCalledWith(
+        "42",
+        "20",
+        {
+          exceptionDate: "2026-05-25",
+          pickupTime: undefined,
+          clearPickupTime: true,
+          reason: undefined,
         },
       );
     });

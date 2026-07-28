@@ -268,6 +268,15 @@ describe("mapPickupExceptionFormToBackend", () => {
 
     expect(result.pickup_time).toBeUndefined();
   });
+
+  it("marks an existing pickup time for clearing", () => {
+    const result = mapPickupExceptionFormToBackend({
+      exceptionDate: "2024-01-20",
+      clearPickupTime: true,
+    });
+
+    expect(result.clear_pickup_time).toBe(true);
+  });
 });
 
 describe("getWeekdayLabel", () => {

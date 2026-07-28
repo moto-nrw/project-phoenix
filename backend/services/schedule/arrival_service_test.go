@@ -513,6 +513,7 @@ func TestArrivalScheduleService_UpdateExceptionPreservesOmittedArrivalTime(t *te
 		exceptionDate,
 		&updatedReason,
 		nil,
+		false,
 		func() (int64, error) { return staffID, nil },
 	)
 	require.NoError(t, err)
@@ -523,6 +524,40 @@ func TestArrivalScheduleService_UpdateExceptionPreservesOmittedArrivalTime(t *te
 	require.NoError(t, err)
 	require.NotNil(t, fresh.ExpectedArrival)
 	assert.Equal(t, expectedArrival.Format("15:04"), fresh.ExpectedArrival.Format("15:04"))
+}
+
+func TestArrivalScheduleService_UpdateExceptionClearsArrivalTime(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupArrivalScheduleService(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Test", "ArrivalClear", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	ctx := testpkg.TenantContext(student.TenantID)
+	staffID := createArrivalServiceTestStaffID(t, db)
+	exceptionDate := timezone.NewDate(2024, 4, 2)
+	expectedArrival := time.Date(2000, 1, 1, 8, 15, 0, 0, time.UTC)
+	exception := &scheduleModels.StudentArrivalException{
+		StudentID:       student.ID,
+		ExceptionDate:   exceptionDate,
+		ExpectedArrival: &expectedArrival,
+		CreatedBy:       staffID,
+	}
+	require.NoError(t, service.CreateStudentArrivalException(ctx, exception))
+
+	updated, err := service.UpdateException(
+		ctx,
+		exception.ID,
+		student.ID,
+		exceptionDate,
+		nil,
+		nil,
+		true,
+		func() (int64, error) { return staffID, nil },
+	)
+	require.NoError(t, err)
+	assert.Nil(t, updated.ExpectedArrival)
 }
 
 func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {

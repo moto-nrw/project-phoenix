@@ -76,9 +76,10 @@ type ArrivalScheduleRequestItem struct {
 
 // ArrivalExceptionRequest represents a request to create/update an arrival exception
 type ArrivalExceptionRequest struct {
-	ExceptionDate   string  `json:"exception_date"`             // YYYY-MM-DD format
-	ExpectedArrival *string `json:"expected_arrival,omitempty"` // HH:MM or null (null = absent)
-	Reason          *string `json:"reason,omitempty"`
+	ExceptionDate        string  `json:"exception_date"`             // YYYY-MM-DD format
+	ExpectedArrival      *string `json:"expected_arrival,omitempty"` // HH:MM or null (null = absent)
+	ClearExpectedArrival bool    `json:"clear_expected_arrival,omitempty"`
+	Reason               *string `json:"reason,omitempty"`
 }
 
 // ArrivalNoteRequest represents a request to create/update an arrival note
@@ -469,7 +470,7 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 
 	tenantID := tenant.FromContext(r.Context())
 	exception, err := rs.ArrivalScheduleService.UpdateException(
-		r.Context(), exceptionID, student.ID, exceptionDate, req.Reason, arrivalTime,
+		r.Context(), exceptionID, student.ID, exceptionDate, req.Reason, arrivalTime, req.ClearExpectedArrival,
 		func() (int64, error) { return rs.getStaffIDFromJWT(r) },
 	)
 	if err != nil {

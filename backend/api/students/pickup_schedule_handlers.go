@@ -77,9 +77,10 @@ type BulkPickupScheduleRequest struct {
 
 // PickupExceptionRequest represents a request to create/update a pickup exception
 type PickupExceptionRequest struct {
-	ExceptionDate string  `json:"exception_date"` // YYYY-MM-DD format
-	PickupTime    *string `json:"pickup_time,omitempty"`
-	Reason        *string `json:"reason,omitempty"`
+	ExceptionDate   string  `json:"exception_date"` // YYYY-MM-DD format
+	PickupTime      *string `json:"pickup_time,omitempty"`
+	ClearPickupTime bool    `json:"clear_pickup_time,omitempty"`
+	Reason          *string `json:"reason,omitempty"`
 }
 
 // PickupNoteRequest represents a request to create/update a pickup note
@@ -516,7 +517,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	exception, err := rs.PickupScheduleService.UpdateException(
-		r.Context(), exceptionID, student.ID, exceptionDate, req.Reason, pickupTime,
+		r.Context(), exceptionID, student.ID, exceptionDate, req.Reason, pickupTime, req.ClearPickupTime,
 		func() (int64, error) { return rs.getStaffIDFromJWT(r) },
 	)
 	if err != nil {
