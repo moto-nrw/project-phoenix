@@ -136,7 +136,7 @@ func (rs *Resource) PreviewStaffImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := importService.ContextWithImporterPermissions(r.Context(), jwt.PermissionsFromCtx(r.Context()))
+	ctx := importService.ContextWithImporterPermissions(r.Context(), jwt.ClaimsFromCtx(r.Context()).Permissions)
 	request := importModels.ImportRequest[importModels.StaffImportRow]{
 		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeCreate,
@@ -171,7 +171,7 @@ func (rs *Resource) ImportStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := importService.ContextWithImporterPermissions(r.Context(), jwt.PermissionsFromCtx(r.Context()))
+	ctx := importService.ContextWithImporterPermissions(r.Context(), jwt.ClaimsFromCtx(r.Context()).Permissions)
 	tenantID := tenant.FromContext(ctx)
 	var result *importModels.ImportResult[importModels.StaffImportRow]
 	if err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
