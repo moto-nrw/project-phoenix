@@ -503,7 +503,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste ganz oben `Home` öffnen. Admin-Konten ohne Betreuungsrolle landen nach dem Login automatisch hier; Admins mit Betreuungsrolle starten in ihrem Betreuungsbereich.",
           "Die sichtbaren Kacheln der oberen Reihe ablesen: `Kinder anwesend`, `Schulhof`, `Krank`, `Entschuldigt`, `Aktive Gruppen`, `Aktive Aktivitäten` und `Auslastung`. Bei detaillierter Anwesenheit kommen `In Räumen`, `Unterwegs` und `Freie Räume` hinzu.",
           "Ein Klick auf fast jede Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in die bereits gefilterte `Kindersuche`. Bei detaillierter Anwesenheit öffnet `Freie Räume` die `Räume`-Übersicht. `Auslastung` zeigt nur den aktuellen Wert.",
-          "Darunter zeigt `Letzte Bewegungen`, welche Kinder zuletzt ein- oder ausgecheckt oder den Raum gewechselt haben.",
+          "Darunter zeigt `Letzte Bewegungen` bis zu fünf laufende Gruppen, die in den vergangenen 30 Minuten gestartet wurden, mit Raum und Kinderzahl. Einzelne Check-ins, Check-outs oder Raumwechsel von Kindern sind dort nicht sichtbar.",
           "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen. Gibt es keine, steht dort `Keine laufenden Aktivitäten`.",
         ],
         callout: {
