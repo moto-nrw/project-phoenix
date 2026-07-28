@@ -18,7 +18,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { useToast } from "~/contexts/ToastContext";
-import { toISODate } from "~/lib/date-helpers";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
 import {
   type ArrivalDayData,
   type ArrivalScheduleFormEntry,
@@ -114,6 +114,25 @@ interface WeeklyRow {
   readonly pickupNotes: string;
 }
 
+/** One weekday of the recurring plan, as edited from a day card. */
+interface WeekdayDraft {
+  readonly arrivalTime: string;
+  readonly arrivalOff: boolean;
+  readonly arrivalNote: string;
+  readonly pickupTime: string;
+  readonly pickupOff: boolean;
+  readonly pickupNote: string;
+}
+
+const EMPTY_WEEKDAY: WeekdayDraft = {
+  arrivalTime: "",
+  arrivalOff: false,
+  arrivalNote: "",
+  pickupTime: "",
+  pickupOff: false,
+  pickupNote: "",
+};
+
 export function CarePlanEditorModal({
   isOpen,
   onClose,
@@ -143,6 +162,10 @@ export function CarePlanEditorModal({
   const [pickupReason, setPickupReason] = useState("");
   const [noteTarget, setNoteTarget] = useState<NoteTarget>("pickup");
   const [noteContent, setNoteContent] = useState("");
+  // The "jeden <Wochentag>" scope edits exactly the weekday the editor was
+  // opened from — nothing else. Its own state, because it is seeded from the
+  // weekly plan while the fields above are seeded from that one day's override.
+  const [weekdayDraft, setWeekdayDraft] = useState<WeekdayDraft>(EMPTY_WEEKDAY);
   const [weeklyRows, setWeeklyRows] = useState<WeeklyRow[]>([]);
   const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
     () => new Set(),
@@ -180,6 +203,10 @@ export function CarePlanEditorModal({
     setPickupMode(pickupInit.mode);
     setPickupTime(pickupInit.time);
     setPickupReason(pickupInit.reason);
+
+    setWeekdayDraft(
+      buildWeekdayDraft(arrivalDay?.weekday ?? 0, weeklyArrival, weeklyPickup),
+    );
 
     setWeeklyRows(buildWeeklyRows(weeklyArrival, weeklyPickup));
     setExpandedWeekdays(
@@ -241,15 +268,26 @@ export function CarePlanEditorModal({
   const dayNotes = getDayNotes(arrivalDay?.notes ?? [], pickupDay?.notes ?? []);
   const recurringNotes = getRecurringNotes(arrivalDay, pickupDay);
 
-  const title = hasDayContext
-    ? `${getWeekdayLabel(arrivalDay.weekday)}, ${formatShortDate(arrivalDay.date)}`
-    : "Wochenplan bearbeiten";
+  // The title always names the reach the form currently has. A weekday scope
+  // that still said "Dienstag, 28.07." read as if it edited that one date.
+  const weekdayLabel = hasDayContext ? getWeekdayLabel(arrivalDay.weekday) : "";
+  const title = !hasDayContext
+    ? "Wochenplan bearbeiten"
+    : scope === "weekly"
+      ? `Jeden ${weekdayLabel}`
+      : scope === "range"
+        ? rangeEnd
+          ? `${formatShortDate(arrivalDay.date)} bis ${formatISOShort(rangeEnd)}`
+          : `Ab ${weekdayLabel}, ${formatShortDate(arrivalDay.date)}`
+        : `${weekdayLabel}, ${formatShortDate(arrivalDay.date)}`;
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
-    if (scope === "weekly") {
+    // The full five-day table exists only when the editor was opened from the
+    // week header. From a day card, "jeden <Wochentag>" edits that one weekday.
+    if (!hasDayContext) {
       const invalidWeekly = validateWeeklyRows(weeklyRows);
       if (invalidWeekly) {
         setError(invalidWeekly);
@@ -257,6 +295,16 @@ export function CarePlanEditorModal({
       }
       if (weeklyRemovals.length > 0) {
         openConfirm({ kind: "weekly-removal" });
+        return;
+      }
+      void performSave();
+      return;
+    }
+
+    if (scope === "weekly") {
+      const invalidWeekday = validateWeekdayDraft(weekdayDraft);
+      if (invalidWeekday) {
+        setError(invalidWeekday);
         return;
       }
       void performSave();
@@ -307,9 +355,20 @@ export function CarePlanEditorModal({
     setError(null);
     setIsSubmitting(true);
     try {
-      if (scope === "weekly") {
+      if (!hasDayContext) {
         await onSubmitWeekly(toWeeklySubmit(weeklyRows));
         toast.success("Wochenplan wurde gespeichert");
+      } else if (scope === "weekly") {
+        await onSubmitWeekly(
+          toWeeklySubmit(
+            applyWeekdayDraft(
+              buildWeeklyRows(weeklyArrival, weeklyPickup),
+              arrivalDay.weekday,
+              weekdayDraft,
+            ),
+          ),
+        );
+        toast.success(`Wochenplan für jeden ${weekdayLabel} gespeichert`);
       } else {
         await onSubmitExceptions({
           dates: batchDates,
@@ -404,7 +463,7 @@ export function CarePlanEditorModal({
       onClose={onClose}
       title={title}
       footer={footer}
-      size={scope === "weekly" ? "xl" : "lg"}
+      size={hasDayContext ? "lg" : "xl"}
       mobilePosition="bottom"
     >
       {/* noValidate: a half-cleared <input type="time"> (e.g. backspacing the
@@ -434,34 +493,36 @@ export function CarePlanEditorModal({
           />
         ) : null}
 
-        {scope === "range" ? (
+        {/* One input, not two: the start is the day the editor was opened
+            from, so a second field would only be a box that cannot be typed
+            into. It is stated as a sentence instead. */}
+        {scope === "range" && hasDayContext ? (
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <span className="mb-1 block text-xs font-medium text-gray-500">
-                  Von
-                </span>
-                <div className="flex h-11 items-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm sm:h-10">
-                  {startISO ? formatShortDate(arrivalDay!.date) : ""}
-                </div>
-              </div>
-              <ISODatePicker
-                id={rangeEndId}
-                label="Bis"
-                value={rangeEnd}
-                onChange={setRangeEnd}
-                min={startISO}
-              />
-            </div>
+            <label
+              htmlFor={rangeEndId}
+              className="mb-1 block text-sm text-gray-700"
+            >
+              Ab{" "}
+              <span className="font-semibold text-gray-900">
+                {weekdayLabel}, {formatShortDate(arrivalDay.date)}
+              </span>{" "}
+              bis einschließlich
+            </label>
+            <ISODatePicker
+              id={rangeEndId}
+              value={rangeEnd}
+              onChange={setRangeEnd}
+              min={startISO}
+            />
             <p className="mt-2 text-xs leading-5 text-gray-500">
               {batchDates.length > 0
-                ? `Gilt für ${batchDates.length} Schultage (Montag bis Freitag).`
+                ? `Gilt für ${batchDates.length} Schultage. Wochenenden werden übersprungen.`
                 : "Wochenenden werden übersprungen."}
             </p>
           </div>
         ) : null}
 
-        {scope === "weekly" ? (
+        {!hasDayContext ? (
           <WeeklySection
             rows={weeklyRows}
             expandedWeekdays={expandedWeekdays}
@@ -483,6 +544,14 @@ export function CarePlanEditorModal({
                   row.weekday === weekday ? { ...row, [field]: value } : row,
                 ),
               )
+            }
+          />
+        ) : scope === "weekly" ? (
+          <WeekdaySection
+            weekdayLabel={weekdayLabel}
+            draft={weekdayDraft}
+            onChange={(patch) =>
+              setWeekdayDraft((current) => ({ ...current, ...patch }))
             }
           />
         ) : (
@@ -636,14 +705,14 @@ function ScopePicker({
     },
     {
       value: "range",
-      title: "An mehreren Tagen",
-      hint: "Zeitraum wählen",
+      title: "Mehrere Tage",
+      hint: "Bis-Datum wählen",
       icon: <CalendarRange className="h-4 w-4" aria-hidden="true" />,
     },
     {
       value: "weekly",
       title: `Jeden ${weekdayLabel}`,
-      hint: "Ändert den Wochenplan",
+      hint: "Dauerhaft im Wochenplan",
       icon: <Repeat className="h-4 w-4" aria-hidden="true" />,
     },
   ];
@@ -687,6 +756,151 @@ function ScopePicker({
         })}
       </div>
     </fieldset>
+  );
+}
+
+/**
+ * The "jeden <Wochentag>" form: the recurring times for exactly the weekday the
+ * editor was opened from. It deliberately does NOT show the five-day table —
+ * that would contradict its own label, which is what made the first version
+ * confusing. The whole week is edited through the header button instead.
+ */
+function WeekdaySection({
+  weekdayLabel,
+  draft,
+  onChange,
+}: {
+  readonly weekdayLabel: string;
+  readonly draft: WeekdayDraft;
+  readonly onChange: (patch: Partial<WeekdayDraft>) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm leading-6 text-gray-600">
+        Gilt ab sofort für jeden {weekdayLabel}. Einzelne Tagesänderungen
+        bleiben bestehen.
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <WeekdayLeg
+          label="Ankunft"
+          icon={<Clock className="h-4 w-4" aria-hidden="true" />}
+          color={LOCATION_COLORS.GROUP_ROOM}
+          offLabel="Kommt nicht"
+          idPrefix="weekday-arrival"
+          time={draft.arrivalTime}
+          off={draft.arrivalOff}
+          note={draft.arrivalNote}
+          onTimeChange={(value) => onChange({ arrivalTime: value })}
+          onOffChange={(value) => onChange({ arrivalOff: value })}
+          onNoteChange={(value) => onChange({ arrivalNote: value })}
+        />
+        <WeekdayLeg
+          label="Abholung"
+          icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
+          color={LOCATION_COLORS.SCHOOLYARD}
+          offLabel="Keine Abholung"
+          idPrefix="weekday-pickup"
+          time={draft.pickupTime}
+          off={draft.pickupOff}
+          note={draft.pickupNote}
+          onTimeChange={(value) => onChange({ pickupTime: value })}
+          onOffChange={(value) => onChange({ pickupOff: value })}
+          onNoteChange={(value) => onChange({ pickupNote: value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function WeekdayLeg({
+  label,
+  icon,
+  color,
+  offLabel,
+  idPrefix,
+  time,
+  off,
+  note,
+  onTimeChange,
+  onOffChange,
+  onNoteChange,
+}: {
+  readonly label: string;
+  readonly icon: React.ReactNode;
+  readonly color: string;
+  readonly offLabel: string;
+  readonly idPrefix: string;
+  readonly time: string;
+  readonly off: boolean;
+  readonly note: string;
+  readonly onTimeChange: (value: string) => void;
+  readonly onOffChange: (value: boolean) => void;
+  readonly onNoteChange: (value: string) => void;
+}) {
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4">
+      <div className="mb-3 flex items-start gap-3">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: `${color}14`, color }}
+        >
+          {icon}
+        </span>
+        <h3 className="text-sm font-semibold text-gray-900">{label}</h3>
+      </div>
+
+      <div className="grid gap-2">
+        <Button
+          type="button"
+          size="md"
+          variant={off ? "outline" : "primary"}
+          className="w-full justify-start"
+          onClick={() => onOffChange(false)}
+        >
+          Feste Zeit
+        </Button>
+        <Button
+          type="button"
+          size="md"
+          variant={off ? "primary" : "outline"}
+          className="w-full justify-start"
+          onClick={() => onOffChange(true)}
+        >
+          {offLabel}
+        </Button>
+      </div>
+
+      {!off ? (
+        <label className="mt-3 block" htmlFor={`${idPrefix}-time`}>
+          <span className="mb-1 block text-xs font-medium text-gray-500">
+            Uhrzeit
+          </span>
+          <input
+            id={`${idPrefix}-time`}
+            type="time"
+            value={time}
+            onChange={(event) => onTimeChange(event.target.value)}
+            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
+          />
+        </label>
+      ) : null}
+
+      <label className="mt-3 block" htmlFor={`${idPrefix}-note`}>
+        <span className="mb-1 block text-xs font-medium text-gray-500">
+          Notiz (jede Woche)
+        </span>
+        <input
+          id={`${idPrefix}-note`}
+          type="text"
+          value={note}
+          onChange={(event) => onNoteChange(event.target.value)}
+          maxLength={500}
+          className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
+          placeholder="Optional"
+        />
+      </label>
+    </section>
   );
 }
 
@@ -1129,6 +1343,12 @@ function pickupInitialState(day: PickupDayData | null): {
   };
 }
 
+/** "2026-07-31" → "31.07." — the same short shape the day cards use. */
+function formatISOShort(iso: string): string {
+  const parsed = parseISODate(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : formatShortDate(parsed);
+}
+
 function formatRegularArrival(day: ArrivalDayData | null): string {
   return day?.baseSchedule?.expected_arrival
     ? day.baseSchedule.expected_arrival.slice(0, 5)
@@ -1196,6 +1416,56 @@ function buildWeeklyRows(
       pickupNotes: pickupEntry?.notes ?? "",
     };
   });
+}
+
+function buildWeekdayDraft(
+  weekday: number,
+  arrival: readonly ArrivalScheduleFormEntry[],
+  pickup: readonly PickupScheduleFormData[],
+): WeekdayDraft {
+  const arrivalEntry = arrival.find((entry) => entry.weekday === weekday);
+  const pickupEntry = pickup.find((entry) => entry.weekday === weekday);
+  const arrivalTime = arrivalEntry?.expected_arrival ?? "";
+  const pickupTime = pickupEntry?.pickupTime ?? "";
+  return {
+    arrivalTime,
+    // No time in the plan means the child is not expected that weekday, which
+    // is exactly what "Kommt nicht" says — so the form opens on that option.
+    arrivalOff: arrivalTime === "",
+    arrivalNote: arrivalEntry?.notes ?? "",
+    pickupTime,
+    pickupOff: pickupTime === "",
+    pickupNote: pickupEntry?.notes ?? "",
+  };
+}
+
+function validateWeekdayDraft(draft: WeekdayDraft): string | null {
+  if (!draft.arrivalOff && !TIME_PATTERN.test(draft.arrivalTime)) {
+    return "Bitte eine gültige Ankunftszeit eingeben oder 'Kommt nicht' wählen.";
+  }
+  if (!draft.pickupOff && !TIME_PATTERN.test(draft.pickupTime)) {
+    return "Bitte eine gültige Abholzeit eingeben oder 'Keine Abholung' wählen.";
+  }
+  return null;
+}
+
+/** Fold one weekday's draft into the full set of rows the bulk write expects. */
+function applyWeekdayDraft(
+  rows: readonly WeeklyRow[],
+  weekday: number,
+  draft: WeekdayDraft,
+): WeeklyRow[] {
+  return rows.map((row) =>
+    row.weekday === weekday
+      ? {
+          weekday,
+          arrivalTime: draft.arrivalOff ? "" : draft.arrivalTime,
+          arrivalNotes: draft.arrivalNote,
+          pickupTime: draft.pickupOff ? "" : draft.pickupTime,
+          pickupNotes: draft.pickupNote,
+        }
+      : row,
+  );
 }
 
 function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {

@@ -74,23 +74,21 @@ vi.mock("~/components/ui/modal", () => ({
 // these tests about the editor's scope logic rather than calendar interaction.
 vi.mock("~/components/ui/date-picker", () => ({
   ISODatePicker: ({
-    label,
+    id,
     value,
     onChange,
   }: {
-    label?: string;
+    id?: string;
     value: string;
     onChange: (value: string) => void;
   }) => (
-    <label>
-      {label}
-      <input
-        type="date"
-        aria-label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
+    <input
+      id={id}
+      type="date"
+      aria-label="Enddatum"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
   ),
 }));
 
@@ -226,7 +224,7 @@ describe("CarePlanEditorModal", () => {
       screen.getByRole("radio", { name: /Nur an diesem Tag/ }),
     ).toHaveAttribute("aria-checked", "true");
     expect(
-      screen.getByRole("radio", { name: /An mehreren Tagen/ }),
+      screen.getByRole("radio", { name: /Mehrere Tage/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("radio", { name: /Jeden Montag/ }),
@@ -283,8 +281,8 @@ describe("CarePlanEditorModal", () => {
   it("expands a range to its school days and skips the weekend", async () => {
     const { onSubmitExceptions } = renderEditor();
 
-    fireEvent.click(screen.getByRole("radio", { name: /An mehreren Tagen/ }));
-    fireEvent.change(screen.getByLabelText("Bis"), {
+    fireEvent.click(screen.getByRole("radio", { name: /Mehrere Tage/ }));
+    fireEvent.change(screen.getByLabelText("Enddatum"), {
       target: { value: "2026-06-01" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Keine Abholung" }));
@@ -312,8 +310,8 @@ describe("CarePlanEditorModal", () => {
     // arrival overrides (parent-set ones included) across the whole range.
     const { onSubmitExceptions } = renderEditor();
 
-    fireEvent.click(screen.getByRole("radio", { name: /An mehreren Tagen/ }));
-    fireEvent.change(screen.getByLabelText("Bis"), {
+    fireEvent.click(screen.getByRole("radio", { name: /Mehrere Tage/ }));
+    fireEvent.change(screen.getByLabelText("Enddatum"), {
       target: { value: "2026-05-27" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Keine Abholung" }));
@@ -340,7 +338,7 @@ describe("CarePlanEditorModal", () => {
   it("refuses a range without an end date", async () => {
     const { onSubmitExceptions } = renderEditor();
 
-    fireEvent.click(screen.getByRole("radio", { name: /An mehreren Tagen/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Mehrere Tage/ }));
     save();
 
     expect(
@@ -349,16 +347,17 @@ describe("CarePlanEditorModal", () => {
     expect(onSubmitExceptions).not.toHaveBeenCalled();
   });
 
-  it("writes the weekly plan when the recurring scope is chosen", async () => {
+  it("changes only the opened weekday when the recurring scope is chosen", async () => {
+    // The scope is called "Jeden Montag", so it must edit Monday and nothing
+    // else. Showing the full five-day table here was what made the label lie.
     const { onSubmitWeekly } = renderEditor();
 
     fireEvent.click(screen.getByRole("radio", { name: /Jeden Montag/ }));
-    fireEvent.change(
-      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
-      {
-        target: { value: "08:45" },
-      },
-    );
+    expect(screen.queryByText("Dienstag")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Uhrzeit", {
+      selector: "#weekday-arrival-time",
+    }), { target: { value: "08:45" } });
     save();
 
     await waitFor(() => {
@@ -375,10 +374,54 @@ describe("CarePlanEditorModal", () => {
     });
   });
 
-  it("confirms before an emptied weekly field deletes a scheduled time", async () => {
+  it("removes the weekday from the plan via 'Keine Abholung'", async () => {
     const { onSubmitWeekly } = renderEditor();
 
     fireEvent.click(screen.getByRole("radio", { name: /Jeden Montag/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Keine Abholung" }));
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: [{ weekday: 2, pickupTime: "16:00", notes: undefined }],
+        }),
+      );
+    });
+  });
+
+  it("edits the recurring note of the opened weekday", async () => {
+    const { onSubmitWeekly } = renderEditor();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Jeden Montag/ }));
+    fireEvent.change(
+      screen.getByLabelText("Notiz (jede Woche)", {
+        selector: "#weekday-pickup-note",
+      }),
+      { target: { value: "Fährt mit dem Bus" } },
+    );
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: [
+            { weekday: 1, pickupTime: "15:00", notes: "Fährt mit dem Bus" },
+            { weekday: 2, pickupTime: "16:00", notes: undefined },
+          ],
+        }),
+      );
+    });
+  });
+
+  it("confirms before an emptied field of the full weekly plan deletes a time", async () => {
+    // The five-day table (and this confirmation) belongs to the header entry.
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+    });
+
     fireEvent.change(
       screen.getByLabelText("Abholung", { selector: "#weekly-pickup-2" }),
       { target: { value: "" } },
