@@ -537,7 +537,9 @@ export function CareScheduleManager({
               ...(arrival.kind === "none"
                 ? { clear_expected_arrival: true }
                 : {}),
-              reason: arrival.reason,
+              // An empty string deliberately clears an existing reason. A null
+              // JSON value means "leave unchanged" to the patch endpoint.
+              reason: existing && arrival.reason === null ? "" : arrival.reason,
             };
             if (existing) {
               await updateArrivalException(studentId, existing.id, input);
@@ -562,7 +564,12 @@ export function CareScheduleManager({
               exceptionDate: dayISO,
               pickupTime: pickup.kind === "time" ? pickup.time : undefined,
               ...(pickup.kind === "none" ? { clearPickupTime: true } : {}),
-              reason: pickup.reason ?? undefined,
+              // See the arrival leg above: only an existing row needs the
+              // distinguishable empty value to clear its persisted reason.
+              reason:
+                existing && pickup.reason === null
+                  ? ""
+                  : (pickup.reason ?? undefined),
             };
             if (existing) {
               await updateStudentPickupException(studentId, existing.id, input);

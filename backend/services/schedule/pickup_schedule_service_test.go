@@ -553,22 +553,25 @@ func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
 		PickupTime:    &pickupTime,
+		Reason:        testpkg.StrPtr("Original reason"),
 		CreatedBy:     staffID,
 	}
 	require.NoError(t, service.CreateStudentPickupException(ctx, exception))
+	clearReason := ""
 
 	updated, err := service.UpdateException(
 		ctx,
 		exception.ID,
 		student.ID,
 		exceptionDate,
-		nil,
+		&clearReason,
 		nil,
 		true,
 		func() (int64, error) { return staffID, nil },
 	)
 	require.NoError(t, err)
 	assert.Nil(t, updated.PickupTime)
+	assert.Nil(t, updated.Reason)
 }
 
 func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {

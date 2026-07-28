@@ -140,6 +140,7 @@ export function CarePlanEditorModal({
   const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
   const [showParentConfirm, setShowParentConfirm] = useState(false);
   const initializedExceptionKey = useRef<string | null>(null);
+  const initializedWeeklyEditor = useRef(false);
   // The form steps aside while the confirmation is up so the two dialogs never
   // stack. Kept out of `isOpen` on purpose: the reset effect keys on `isOpen`,
   // so toggling this preserves what the user typed.
@@ -172,7 +173,12 @@ export function CarePlanEditorModal({
   }, [isOpen, isException, arrivalDay, pickupDay]);
 
   useEffect(() => {
-    if (!isOpen || isException) return;
+    if (!isOpen || isException) {
+      initializedWeeklyEditor.current = false;
+      return;
+    }
+    if (initializedWeeklyEditor.current) return;
+    initializedWeeklyEditor.current = true;
 
     setError(null);
     setShowRemovalConfirm(false);

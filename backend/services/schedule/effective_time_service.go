@@ -501,7 +501,13 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 			fields.Time = &normalized
 		}
 		if reason != nil {
-			fields.Reason = reason
+			// A supplied empty string explicitly clears the reason. Keep nil as
+			// the patch sentinel for clients that did not intend to touch it.
+			if *reason == "" {
+				fields.Reason = nil
+			} else {
+				fields.Reason = reason
+			}
 		}
 		if value != nil {
 			fields.Time = value

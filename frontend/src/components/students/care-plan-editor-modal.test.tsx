@@ -413,6 +413,33 @@ describe("CarePlanEditorModal", () => {
     ).toHaveValue("Oma holt ab");
   });
 
+  it("keeps a weekly draft when schedule inputs receive new references", () => {
+    const { rerender, renderModal } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+    });
+
+    fireEvent.change(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+      { target: { value: "08:45" } },
+    );
+
+    rerender(
+      renderModal({
+        date: null,
+        arrivalDay: null,
+        pickupDay: null,
+        weeklyArrival: [...weeklyArrival],
+        weeklyPickup: [...weeklyPickup],
+      }),
+    );
+
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+    ).toHaveValue("08:45");
+  });
+
   it("shows a note mutation error and keeps the draft", async () => {
     const onCreateArrivalNote = vi
       .fn()

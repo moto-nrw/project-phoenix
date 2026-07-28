@@ -667,7 +667,7 @@ describe("CareScheduleManager", () => {
         exception_date: "2026-05-25",
         expected_arrival: null,
         clear_expected_arrival: true,
-        reason: null,
+        reason: "",
       });
     });
   });
@@ -687,7 +687,7 @@ describe("CareScheduleManager", () => {
           exceptionDate: "2026-05-25",
           pickupTime: undefined,
           clearPickupTime: true,
-          reason: undefined,
+          reason: "",
         },
       );
     });
