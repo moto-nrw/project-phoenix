@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
@@ -53,6 +54,23 @@ type StaffImportDeps struct {
 	AccountTenantRepo authModels.AccountTenantRepository
 	RoleRepo          authModels.RoleRepository
 	SchoolRepo        platformModels.SchoolRepository
+}
+
+// importerPermissionsKey keeps the authenticated importer's permissions
+// available while the generic import service processes individual rows.
+type importerPermissionsKey struct{}
+
+// ContextWithImporterPermissions stores the authenticated importer's
+// permissions for staff invitation authorization.
+func ContextWithImporterPermissions(ctx context.Context, permissions []string) context.Context {
+	return context.WithValue(ctx, importerPermissionsKey{}, permissions)
+}
+
+// ImporterPermissionsFromContext returns the authenticated importer's
+// permissions, or nil when no authenticated importer was supplied.
+func ImporterPermissionsFromContext(ctx context.Context) []string {
+	permissions, _ := ctx.Value(importerPermissionsKey{}).([]string)
+	return permissions
 }
 
 // StaffImportConfig implements ImportConfig for staff (Mitarbeiter) imports.
@@ -191,6 +209,14 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 	role, err := c.RoleRepo.FindByName(ctx, lookup)
 	if err == nil && role != nil {
 		row.RoleID = role.ID
+		if !authorize.CanGrantRole(role, ImporterPermissionsFromContext(ctx)) {
+			return []importModels.ValidationError{{
+				Field:    "role",
+				Message:  "Du darfst diese Rolle nicht vergeben",
+				Code:     "role_grant_not_permitted",
+				Severity: importModels.ErrorSeverityError,
+			}}
+		}
 		return nil
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -262,14 +288,15 @@ func (c *StaffImportConfig) Create(ctx context.Context, row importModels.StaffIm
 		return 0, err
 	}
 	req := authsvc.InvitationRequest{
-		Email:      email,
-		RoleID:     row.RoleID,
-		TenantID:   tenant.FromContext(ctx),
-		FirstName:  strutil.TrimToNil(row.FirstName),
-		LastName:   strutil.TrimToNil(row.LastName),
-		Position:   strutil.TrimToNil(row.Position),
-		CreatedBy:  ImporterIDFromContext(ctx),
-		SchoolName: c.schoolName,
+		Email:            email,
+		RoleID:           row.RoleID,
+		TenantID:         tenant.FromContext(ctx),
+		FirstName:        strutil.TrimToNil(row.FirstName),
+		LastName:         strutil.TrimToNil(row.LastName),
+		Position:         strutil.TrimToNil(row.Position),
+		CreatedBy:        ImporterIDFromContext(ctx),
+		SchoolName:       c.schoolName,
+		ActorPermissions: ImporterPermissionsFromContext(ctx),
 	}
 
 	invitation, err := c.InvitationService.CreateInvitation(ctx, req)

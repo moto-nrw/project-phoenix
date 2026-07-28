@@ -219,7 +219,7 @@ func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
 		RoleRepo: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
 				assert.Equal(t, "user", name)
-				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name}, nil
+				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name, IsSystem: true}, nil
 			},
 		},
 	})
@@ -246,7 +246,7 @@ func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
-				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name}, nil
+				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name, IsSystem: true}, nil
 			},
 		},
 	})
@@ -261,6 +261,36 @@ func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
 
 	require.Empty(t, errs)
 	assert.Equal(t, "max.mustermann@example.com", row.Email)
+}
+
+func TestStaffImportConfig_Validate_RequiresManagePermissionForTenantRole(t *testing.T) {
+	baseRole := authModels.BaseRoleUser
+	config := NewStaffImportConfig(StaffImportDeps{
+		RoleRepo: stubStaffRoleRepo{
+			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: staffImportTestRoleID},
+					Name:     name,
+					BaseRole: &baseRole,
+				}, nil
+			},
+		},
+	})
+
+	row := &importModels.StaffImportRow{
+		FirstName: "Max",
+		LastName:  "Mustermann",
+		Email:     "max@example.com",
+		RoleName:  "Sekretariat",
+	}
+
+	errs := config.Validate(context.Background(), row)
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, "role_grant_not_permitted", errs[0].Code)
+
+	ctx := ContextWithImporterPermissions(context.Background(), []string{"users:manage"})
+	assert.Empty(t, config.Validate(ctx, row))
 }
 
 func TestStaffImportConfig_ValidateBatch_DetectsDuplicateEmailsAfterNormalization(t *testing.T) {
@@ -390,6 +420,7 @@ func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
 	config.schoolName = "OGS Phoenix"
 	ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
 	ctx = ContextWithImporterID(ctx, staffImportTestActorID)
+	ctx = ContextWithImporterPermissions(ctx, []string{"users:manage"})
 
 	id, err := config.Create(ctx, importModels.StaffImportRow{
 		FirstName: "Anna",
@@ -405,6 +436,7 @@ func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
 	assert.Equal(t, staffImportTestRoleID, req.RoleID)
 	assert.Equal(t, staffImportTestTenantID, req.TenantID)
 	assert.Equal(t, staffImportTestActorID, req.CreatedBy)
+	assert.Equal(t, []string{"users:manage"}, req.ActorPermissions)
 	assert.Equal(t, "OGS Phoenix", req.SchoolName)
 	require.NotNil(t, req.FirstName)
 	require.NotNil(t, req.LastName)

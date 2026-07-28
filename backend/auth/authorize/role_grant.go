@@ -52,10 +52,12 @@ func EffectiveBaseRole(role *auth.Role) string {
 // given role to another account.
 //
 // Granting an admin-tier role requires users:manage, which only administrators
-// hold. Roles of unknown tier are treated as admin-tier: a legacy custom role
-// without base_role may carry any permission set, so failing closed is the only
-// safe reading. The user and guardian tiers may be granted by any caller the
-// route already let through — they cannot exceed the caller's own privileges.
+// hold. Tenant roles also require users:manage regardless of their base role:
+// base_role is a classification for UI and portal behavior, not a permission
+// boundary, and a tenant role with base_role=user may still carry privileged
+// permissions. Roles of unknown tier are likewise treated as admin-tier. The
+// platform user and guardian roles are the only roles a users:create caller may
+// hand out; their permissions are centrally managed system presets.
 // Whether a guardian role may be handed out through a staff flow at all is a
 // separate question, answered by ValidateAssignableSchoolRole.
 func CanGrantRole(role *auth.Role, callerPermissions []string) bool {
@@ -63,11 +65,14 @@ func CanGrantRole(role *auth.Role, callerPermissions []string) bool {
 		return false
 	}
 
-	switch EffectiveBaseRole(role) {
-	case auth.BaseRoleUser, auth.BaseRoleGuardian:
-		return true
-	default:
-		// admin tier, and unknown tier by fail-closed default
-		return HasPermission(permissions.UsersManage, callerPermissions)
+	if role.IsSystem {
+		switch EffectiveBaseRole(role) {
+		case auth.BaseRoleUser, auth.BaseRoleGuardian:
+			return true
+		}
 	}
+
+	// Tenant roles and roles with an unknown tier can carry arbitrary
+	// permissions, so only an account allowed to manage users may grant them.
+	return HasPermission(permissions.UsersManage, callerPermissions)
 }

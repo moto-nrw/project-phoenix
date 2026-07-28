@@ -74,7 +74,8 @@ func TestCanGrantRole(t *testing.T) {
 		{"users:create may grant the user role", systemRole("user"), betreuer, true},
 		{"no permissions may still grant the user role", systemRole("user"), nil, true},
 		{"custom admin-tier role needs users:manage", tenantRole("Leitung", &admin), betreuer, false},
-		{"custom user-tier role does not", tenantRole("Sekretariat", &user), betreuer, true},
+		{"custom user-tier role needs users:manage", tenantRole("Sekretariat", &user), betreuer, false},
+		{"users:manage may grant a custom user-tier role", tenantRole("Sekretariat", &user), adminPerms, true},
 		{"unknown tier fails closed", tenantRole("Legacy", nil), betreuer, false},
 		{"unknown tier is grantable by an admin", tenantRole("Legacy", nil), adminPerms, true},
 	}
