@@ -402,6 +402,36 @@ func TestRegister(t *testing.T) {
 	})
 }
 
+// TestRegisterRejectsGuardianRole pins the second half of the role-assignment
+// rule on the account-creation path. Checking that a role exists is not enough:
+// guardian access is granted exclusively through the guardian invitation flow,
+// and /auth/register shares authorizeRoleAssignment with /auth/link-to-tenant,
+// so a gap here is a gap in both.
+func TestRegisterRejectsGuardianRole(t *testing.T) {
+	db, router := setupPublicRouterWithDB(t)
+
+	guardianRole := testpkg.CreateTestSystemRole(t, db, authModel.BaseRoleGuardian)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", guardianRole.ID).Exec(context.Background())
+	})
+
+	adminToken, _ := loginAsAdmin(t, db, router)
+
+	body := map[string]interface{}{
+		"email":            fmt.Sprintf("guardianrole_%d@example.com", time.Now().UnixNano()),
+		"username":         fmt.Sprintf("guardianrole_%d", time.Now().UnixNano()),
+		"password":         "SecurePass123!",
+		"confirm_password": "SecurePass123!",
+		"role_id":          guardianRole.ID,
+	}
+
+	req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
 // TestRegisterRequiresAdminAuth tests that the register endpoint enforces admin authentication
 func TestRegisterRequiresAdminAuth(t *testing.T) {
 	db, router := setupPublicRouterWithDB(t)

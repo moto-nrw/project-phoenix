@@ -204,24 +204,18 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 		return nil, 0, true
 	}
 
-	// Verify the role exists — TenantTxMiddleware ensures RLS sees tenant-scoped roles
-	role, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID))
+	// Exists, belongs to this school, and is not reserved for another flow —
+	// the same policy the staff invitation uses, so guardian and retired roles
+	// cannot be handed out through the back door of account creation.
+	// TenantTxMiddleware ensures RLS sees tenant-scoped roles.
+	role, err := rs.AuthService.ResolveAssignableSchoolRole(r.Context(), *requestedRoleID, claims.TenantID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(
-				errors.New("specified role does not exist")))
-		} else {
-			slog.Default().Error("role lookup failed",
-				"role_id", *requestedRoleID,
-				"error", err,
-			)
-			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to verify role", err))
-		}
+		renderRoleAssignmentError(w, r, *requestedRoleID, err)
 		return nil, 0, true
 	}
 
-	// Existing plus assignable: creating an account hands out a role, and no
-	// caller may hand out more than they hold. Same rule as the invitation flow.
+	// Assignable is not the same as assignable *by this caller*: creating an
+	// account hands out a role, and no caller may hand out more than they hold.
 	if !authorize.CanGrantRole(role, claims.Permissions) {
 		slog.Default().Warn("role grant denied",
 			"role_id", *requestedRoleID,
@@ -233,6 +227,27 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	}
 
 	return requestedRoleID, claims.TenantID, false
+}
+
+// renderRoleAssignmentError maps a role resolution failure to a response. The
+// policy sentinels are all caller mistakes (400); anything else means the lookup
+// itself failed and must not be reported as a bad role.
+func renderRoleAssignmentError(w http.ResponseWriter, r *http.Request, roleID int64, err error) {
+	switch {
+	case errors.Is(err, authService.ErrRoleNotAssignable),
+		errors.Is(err, sql.ErrNoRows):
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrRoleNotAssignable))
+	case errors.Is(err, authService.ErrRoleForeignTenant),
+		errors.Is(err, authService.ErrRoleGuardianNotAssignable),
+		errors.Is(err, authService.ErrRoleLegacyTeacherNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	default:
+		slog.Default().Error("role lookup failed",
+			"role_id", roleID,
+			"error", err,
+		)
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to verify role", err))
+	}
 }
 
 // handleRegistrationError handles authentication errors during registration

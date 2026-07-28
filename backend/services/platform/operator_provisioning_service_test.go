@@ -276,6 +276,9 @@ func (m *mockAuthService) GetRoleByID(context.Context, int) (*authModels.Role, e
 func (m *mockAuthService) GetRoleByName(context.Context, string) (*authModels.Role, error) {
 	return nil, nil
 }
+func (m *mockAuthService) ResolveAssignableSchoolRole(context.Context, int64, int64) (*authModels.Role, error) {
+	return nil, nil
+}
 func (m *mockAuthService) UpdateRole(context.Context, *authModels.Role) error { return nil }
 func (m *mockAuthService) DeleteRole(context.Context, int) error              { return nil }
 func (m *mockAuthService) ListRoles(context.Context, map[string]interface{}) ([]*authModels.Role, error) {

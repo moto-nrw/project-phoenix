@@ -42,6 +42,15 @@ func (s *Service) GetRoleByID(ctx context.Context, id int) (*auth.Role, error) {
 	return role, nil
 }
 
+// ResolveAssignableSchoolRole returns the role only if it may be handed out for
+// the given school. It is the layer boundary for the policy in
+// role_assignment_policy.go: handlers must not reach a repository themselves
+// (backend-conventions Rule 1), so the account-creating flows reach the same
+// rules the invitation flow uses through here.
+func (s *Service) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*auth.Role, error) {
+	return ValidateAssignableSchoolRole(ctx, s.repos.Role, roleID, tenantID)
+}
+
 // UpdateRole updates an existing role. System roles cannot be modified.
 func (s *Service) UpdateRole(ctx context.Context, role *auth.Role) error {
 	// Always verify against the DB record — never trust the caller's IsSystem value
