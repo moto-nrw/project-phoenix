@@ -415,9 +415,13 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 
 	var invalid *platformSvc.InvalidDataError
 	require.ErrorAs(t, err, &invalid)
+
+	entries, listErr := service.ListAccountTenantAccess(ctx, account.ID)
+	require.NoError(t, listErr)
+	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID))
 }
 
-func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateDeactivatedAccount(t *testing.T) {
+func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLastRevokedSchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -439,7 +443,7 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateDeactivatedAccoun
 	require.NoError(t, err)
 	assertAccountActive(t, db, account.ID, false)
 
-	// A new mapping must not silently override an explicit account deactivation.
+	// Restoring that school also restores the account's login capability.
 	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
 		platformSvc.GrantAccountTenantAccessRequest{
 			RoleID:    systemRoleID(t, db, "user"),
@@ -452,7 +456,7 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateDeactivatedAccoun
 	granted := entryFor(entries, accessTargetTenantID)
 	require.NotNil(t, granted)
 	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
-	assertAccountActive(t, db, account.ID, false)
+	assertAccountActive(t, db, account.ID, true)
 
 	// The caregiver role also creates the teacher record, carrying the position.
 	var position string
@@ -465,6 +469,30 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateDeactivatedAccoun
 		Scan(ctx, &position)
 	require.NoError(t, err)
 	assert.Equal(t, "Gruppenleitung", position)
+}
+
+func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateManuallyDeactivatedAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+
+	_, err := db.NewUpdate().
+		Table("auth.accounts").
+		Set("active = ?", false).
+		Where("id = ?", account.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")},
+		operator.ID, testClientIP)
+	require.NoError(t, err)
+	assertAccountActive(t, db, account.ID, false)
 }
 
 func TestIntegration_RevokeAccountTenantAccess_UnknownSchool(t *testing.T) {
@@ -497,10 +525,7 @@ func TestIntegration_RevokeAccountTenantAccess_WithoutExistingAccess(t *testing.
 	require.ErrorAs(t, err, &notFound)
 }
 
-// An account can be mapped to a school without being staff there (a guardian
-// mapping, or one created by the older link-to-tenant flow). Changing its role
-// must not turn it into staff as a side effect.
-func TestIntegration_UpdateAccountTenantRole_WithoutPersonCreatesNoStaff(t *testing.T) {
+func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -510,6 +535,8 @@ func TestIntegration_UpdateAccountTenantRole_WithoutPersonCreatesNoStaff(t *test
 	account := testpkg.CreateTestAccount(t, db, "access-no-person")
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	source := testpkg.CreateTestPerson(t, db, "Bestehend", "Betreuung")
+	linkPersonToAccount(t, db, source.ID, account.ID)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -518,14 +545,46 @@ func TestIntegration_UpdateAccountTenantRole_WithoutPersonCreatesNoStaff(t *test
 	operator := testpkg.CreateTestOperator(t, db)
 
 	entries, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
-		systemRoleID(t, db, "admin"), operator.ID, testClientIP)
+		systemRoleID(t, db, "user"), operator.ID, testClientIP)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID))
+	assert.Equal(t, []string{"user"}, roleNamesAt(entries, accessTargetTenantID))
 
 	updated := entryFor(entries, accessTargetTenantID)
 	require.NotNil(t, updated)
-	assert.False(t, updated.HasPerson, "a role change must not create a person record")
-	assert.False(t, updated.HasStaff, "a role change must not create a staff record")
+	assert.True(t, updated.HasPerson, "the caregiver role requires a local person record")
+	assert.True(t, updated.HasStaff, "the caregiver role requires a local staff record")
+
+	teacherCount, err := db.NewSelect().
+		TableExpr(`users.teachers AS "t"`).
+		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
+		Join(`JOIN users.persons AS "p" ON "p".id = "s".person_id`).
+		Where(`"p".account_id = ?`, account.ID).
+		Where(`"p".tenant_id = ?`, accessTargetTenantID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, teacherCount)
+}
+
+func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account := testpkg.CreateTestAccount(t, db, "access-no-caregiver-identity")
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	defer func() {
+		cleanupAccessFixtures(t, db, account.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	operator := testpkg.CreateTestOperator(t, db)
+	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+		systemRoleID(t, db, "user"), operator.ID, testClientIP)
+
+	var invalid *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalid)
 }
 
 func assertAccountActive(t *testing.T, db *bun.DB, accountID int64, want bool) {

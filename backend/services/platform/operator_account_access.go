@@ -119,6 +119,10 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if hasAccess {
 			return &ConflictError{Err: fmt.Errorf("account already has access to this school")}
 		}
+		wasRevoked, err := s.hasInactiveTenantAccess(adminCtx, accountID, schoolID)
+		if err != nil {
+			return err
+		}
 
 		// Names for the person record that carries the account at this school.
 		// Fall back to a person the account already has at another school so
@@ -155,6 +159,15 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 
 		if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, req.Position, true); err != nil {
 			return err
+		}
+		// Revoking the final school access deactivates the account. Re-granting
+		// that same, previously revoked mapping restores its login capability,
+		// while a globally deactivated account receiving a new school mapping
+		// stays deactivated until it is explicitly reactivated elsewhere.
+		if wasRevoked && !account.Active {
+			if err := s.AuthService.ActivateAccount(adminCtx, int(accountID)); err != nil {
+				return fmt.Errorf("reactivate account after restoring school access: %w", err)
+			}
 		}
 
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceAccountTenant, &accountID, clientIP, map[string]any{
@@ -227,6 +240,24 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		}
 
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
+		// A caregiver requires a local person, staff and teacher record. The
+		// role-change endpoint has no identity fields, so copy the deterministically
+		// selected active identity from another school (or the local one). Without
+		// one, reject the change before assigning the role.
+		firstName, lastName := "", ""
+		if shouldCreateTeacher(roleBaseName(role)) {
+			existing, findErr := s.activePersonForAccount(adminCtx, accountID)
+			if findErr != nil {
+				return findErr
+			}
+			if existing == nil {
+				return &InvalidDataError{Err: fmt.Errorf("a person record is required before assigning the caregiver role")}
+			}
+			firstName, lastName = existing.FirstName, existing.LastName
+			if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, "", true); err != nil {
+				return err
+			}
+		}
 		if err := s.AuthService.AssignRoleToAccount(tenantCtx, int(accountID), int(role.ID)); err != nil {
 			return err
 		}
@@ -243,12 +274,6 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		}
 		if err := s.AuthService.RevokeAllTokens(adminCtx, int(accountID)); err != nil {
 			return fmt.Errorf("revoke tokens after role change: %w", err)
-		}
-
-		// A role change can turn a non-caregiver into one; make sure the
-		// school-side records exist either way.
-		if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, "", "", "", false); err != nil {
-			return err
 		}
 
 		s.logAction(adminCtx, operatorID, platform.ActionUpdate, platform.ResourceAccountTenant, &accountID, clientIP, map[string]any{
@@ -431,6 +456,19 @@ func (s *operatorProvisioningService) rolesForTenant(ctx context.Context, accoun
 	return grouped[schoolID], nil
 }
 
+func (s *operatorProvisioningService) hasInactiveTenantAccess(ctx context.Context, accountID, schoolID int64) (bool, error) {
+	entries, err := s.AccountTenantRepo.ListTenantAccessByAccountID(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.TenantID == schoolID && entry.Status == authModels.AccountTenantStatusInactive {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // loadAccount resolves the account or returns AccountNotFoundError.
 func (s *operatorProvisioningService) loadAccount(ctx context.Context, accountID int64) (*authModels.Account, error) {
 	if accountID <= 0 {
@@ -522,10 +560,7 @@ func (s *operatorProvisioningService) activePersonForAccount(ctx context.Context
 // idempotent so a re-grant after a revoke reuses the existing records.
 //
 // firstName/lastName are only consulted when no person exists yet; the caller
-// resolves them beforehand. createPerson is false on the role-change path: an
-// account without a person at that school (a guardian-only mapping, or one
-// created by the older link-to-tenant flow) must not be turned into staff as a
-// side effect of switching its role.
+// resolves them beforehand.
 func (s *operatorProvisioningService) ensureSchoolIdentity(
 	ctx context.Context,
 	accountID, schoolID int64,
@@ -533,12 +568,9 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 	firstName, lastName, position string,
 	createPerson bool,
 ) error {
-	baseRole := role.Name
-	if !role.IsSystem {
-		if role.BaseRole == nil || strings.EqualFold(*role.BaseRole, authModels.BaseRoleGuardian) {
-			return nil
-		}
-		baseRole = *role.BaseRole
+	baseRole := roleBaseName(role)
+	if baseRole == "" {
+		return nil
 	}
 	if strings.EqualFold(baseRole, authModels.BaseRoleGuardian) {
 		return nil
@@ -601,6 +633,19 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 		return fmt.Errorf("create teacher: %w", err)
 	}
 	return nil
+}
+
+func roleBaseName(role *authModels.Role) string {
+	if role == nil {
+		return ""
+	}
+	if !role.IsSystem {
+		if role.BaseRole == nil || strings.EqualFold(*role.BaseRole, authModels.BaseRoleGuardian) {
+			return ""
+		}
+		return *role.BaseRole
+	}
+	return role.Name
 }
 
 // recordAccessAuthEvent writes the tenant-visible audit trail. The operator
