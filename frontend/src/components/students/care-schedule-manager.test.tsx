@@ -19,11 +19,13 @@ const mockCreateArrivalException = vi.fn();
 const mockUpdateArrivalException = vi.fn();
 const mockDeleteArrivalException = vi.fn();
 const mockCreateArrivalNote = vi.fn();
+const mockUpdateArrivalNote = vi.fn();
 const mockDeleteArrivalNote = vi.fn();
 const mockCreateStudentPickupException = vi.fn();
 const mockUpdateStudentPickupException = vi.fn();
 const mockDeleteStudentPickupException = vi.fn();
 const mockCreateStudentPickupNote = vi.fn();
+const mockUpdateStudentPickupNote = vi.fn();
 const mockDeleteStudentPickupNote = vi.fn();
 const FROZEN_NOW = new Date("2026-05-27T12:00:00");
 
@@ -38,6 +40,7 @@ vi.mock("~/lib/student-arrival-api", () => ({
   deleteArrivalException: (...args: unknown[]) =>
     mockDeleteArrivalException(...args),
   createArrivalNote: (...args: unknown[]) => mockCreateArrivalNote(...args),
+  updateArrivalNote: (...args: unknown[]) => mockUpdateArrivalNote(...args),
   deleteArrivalNote: (...args: unknown[]) => mockDeleteArrivalNote(...args),
 }));
 
@@ -54,6 +57,8 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
     mockDeleteStudentPickupException(...args),
   createStudentPickupNote: (...args: unknown[]) =>
     mockCreateStudentPickupNote(...args),
+  updateStudentPickupNote: (...args: unknown[]) =>
+    mockUpdateStudentPickupNote(...args),
   deleteStudentPickupNote: (...args: unknown[]) =>
     mockDeleteStudentPickupNote(...args),
 }));
@@ -332,11 +337,13 @@ describe("CareScheduleManager", () => {
     mockUpdateArrivalException.mockResolvedValue({});
     mockDeleteArrivalException.mockResolvedValue(undefined);
     mockCreateArrivalNote.mockResolvedValue({});
+    mockUpdateArrivalNote.mockResolvedValue({});
     mockDeleteArrivalNote.mockResolvedValue(undefined);
     mockCreateStudentPickupException.mockResolvedValue({});
     mockUpdateStudentPickupException.mockResolvedValue({});
     mockDeleteStudentPickupException.mockResolvedValue(undefined);
     mockCreateStudentPickupNote.mockResolvedValue({});
+    mockUpdateStudentPickupNote.mockResolvedValue({});
     mockDeleteStudentPickupNote.mockResolvedValue(undefined);
   });
 
