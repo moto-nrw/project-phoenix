@@ -2744,7 +2744,7 @@ func TestRegister_WithTenantID_CreatesAccountTenantAndRole(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	// Create a role to assign
-	role := testpkg.CreateTestRole(t, db, fmt.Sprintf("test-role-%d", time.Now().UnixNano()))
+	role := testpkg.CreateTestRoleForTenant(t, db, fmt.Sprintf("test-role-%d", time.Now().UnixNano()), tenantID)
 	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
 
 	ctx := testpkg.TenantContext(tenantID)
