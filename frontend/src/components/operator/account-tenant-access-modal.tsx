@@ -291,7 +291,14 @@ export function AccountTenantAccessModal({
     const assignableRoleIDs = new Set(
       rolesForSchool(entry.tenantId).map((role) => role.id),
     );
-    return entry.roles.find((role) => assignableRoleIDs.has(role.id))?.id ?? "";
+    const assignableRoles = entry.roles.filter((role) =>
+      assignableRoleIDs.has(role.id),
+    );
+    return (
+      assignableRoles.find((role) => role.name.toLowerCase() !== "user")?.id ??
+      assignableRoles[0]?.id ??
+      ""
+    );
   }
 
   const activeEntries = access.filter((entry) => entry.status === "active");

@@ -107,7 +107,7 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if hasAccess {
 			return &ConflictError{Err: fmt.Errorf("account already has access to this school")}
 		}
-		wasRevoked, err := s.hasInactiveTenantAccess(adminCtx, accountID, schoolID)
+		activeMappings, err := s.AccountTenantRepo.FindActiveByAccountID(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -147,7 +147,7 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, req.Position, true); err != nil {
 			return err
 		}
-		if wasRevoked && !account.Active {
+		if len(activeMappings) == 0 && !account.Active {
 			if err := s.AuthService.ActivateAccount(adminCtx, int(accountID)); err != nil {
 				return fmt.Errorf("reactivate account after restoring school access: %w", err)
 			}
