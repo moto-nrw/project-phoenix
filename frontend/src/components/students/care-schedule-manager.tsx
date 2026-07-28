@@ -977,7 +977,23 @@ function CareDayCard({
             )}
           </div>
         </div>
-        {hasStatus ? <StatusPill status={day.status} /> : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {hasStatus ? <StatusPill status={day.status} /> : null}
+          {/* ONE labelled entry per day, top right where the eye lands. Two
+              pencils per card that both opened the same dialog, plus a third
+              nameless one for the week, is the confusion #893 reports. */}
+          {!readOnly && !hasStatus ? (
+            <button
+              type="button"
+              onClick={() => onEditDay(day.date)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              title={hasException ? "Ausnahme ändern" : "Ausnahme eintragen"}
+            >
+              <SquarePen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              Ausnahme
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-3 flex flex-1 flex-col space-y-3">
@@ -1000,19 +1016,6 @@ function CareDayCard({
         ) : null}
         {notes.length > 0 ? <CareNotesSection notes={notes} /> : null}
 
-        {/* ONE labelled entry per day, and it names what it does. Two pencils
-            per card that both opened the same dialog, plus a third namesless
-            pencil for the week, is the confusion #893 reports. */}
-        {!readOnly && !hasStatus ? (
-          <button
-            type="button"
-            onClick={() => onEditDay(day.date)}
-            className="mt-auto inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
-            {hasException ? "Ausnahme ändern" : "Ausnahme eintragen"}
-          </button>
-        ) : null}
       </div>
     </article>
   );
