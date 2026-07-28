@@ -61,7 +61,7 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 		guardianBase := authModels.BaseRoleGuardian
 		derivedRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-policy-guardian-base", homeTenantID)
 		derivedRole.BaseRole = &guardianBase
-		_, updateErr := db.NewUpdate().Model(derivedRole).ModelTableExpr(`auth.roles`).WherePK().Exec(ctx)
+		_, updateErr := db.NewRaw(`UPDATE auth.roles SET base_role = ? WHERE id = ?`, guardianBase, derivedRole.ID).Exec(ctx)
 		require.NoError(t, updateErr)
 		defer testpkg.CleanupRoleRecords(t, db, derivedRole.ID)
 
