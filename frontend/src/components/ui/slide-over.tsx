@@ -36,15 +36,38 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 import { X } from "lucide-react";
 
-import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { cn } from "~/lib/utils";
 
 /**
  * Unter sm fährt das Panel von unten ein, darüber von rechts. Vor dem ersten
- * Effect gilt "right", damit Server- und Client-Render übereinstimmen.
+ * Effect gilt "right", damit Server- und Client-Render übereinstimmen. Die
+ * Auflösung wird separat mitgegeben, damit ein beim Laden bereits offenes
+ * Panel einmalig die korrekte Richtung übernehmen kann.
  */
-function useSlideOverDirection(): "right" | "bottom" {
-  return useMediaQuery(BELOW_SM) ? "bottom" : "right";
+function useSlideOverDirection(): {
+  direction: "right" | "bottom";
+  isResolved: boolean;
+} {
+  const [state, setState] = React.useState<{
+    direction: "right" | "bottom";
+    isResolved: boolean;
+  }>({ direction: "right", isResolved: false });
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia(BELOW_SM);
+    const update = () => {
+      setState({
+        direction: mediaQuery.matches ? "bottom" : "right",
+        isResolved: true,
+      });
+    };
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  return state;
 }
 
 const SlideOverDirectionContext = React.createContext<"right" | "bottom">(
@@ -58,19 +81,31 @@ const SlideOver = ({
   onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
-  const preferredDirection = useSlideOverDirection();
+  const { direction: preferredDirection, isResolved } = useSlideOverDirection();
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
   const open = openProp ?? uncontrolledOpen;
   const [direction, setDirection] = React.useState(preferredDirection);
+  const appliedInitialDirection = React.useRef(false);
 
   // Vaul übernimmt `direction` nur beim Mount. Ein Richtungswechsel mit
   // `key={direction}` darf deshalb nicht passieren, solange ein Formular im
   // Panel offen ist: Das würde dessen lokalen, noch nicht gespeicherten State
-  // verwerfen. Nach dem Schließen darf der nächste Öffnungsvorgang die für den
-  // dann aktuellen Breakpoint passende Vaul-Instanz verwenden.
+  // verwerfen. Die erste Client-Auflösung ist davon ausgenommen: Zu diesem
+  // Zeitpunkt konnte noch kein Nutzer im Panel arbeiten, und ein per Deep-Link
+  // sofort offenes Panel muss auf einem Telefon von unten erscheinen. Nach dem
+  // Schließen darf der nächste Öffnungsvorgang die dann passende Vaul-Instanz
+  // verwenden.
   React.useEffect(() => {
+    if (!isResolved) return;
+
+    if (!appliedInitialDirection.current) {
+      appliedInitialDirection.current = true;
+      setDirection(preferredDirection);
+      return;
+    }
+
     if (!open) setDirection(preferredDirection);
-  }, [open, preferredDirection]);
+  }, [isResolved, open, preferredDirection]);
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {

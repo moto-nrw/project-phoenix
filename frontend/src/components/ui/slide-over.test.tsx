@@ -83,6 +83,22 @@ describe("SlideOver", () => {
     );
   });
 
+  it("uses the mobile direction for a panel already open at initial render", async () => {
+    matches = true;
+
+    render(
+      <SlideOver defaultOpen>
+        <SlideOverContent>Inhalt</SlideOverContent>
+      </SlideOver>,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Inhalt").closest("[data-direction]"),
+      ).toHaveAttribute("data-direction", "bottom");
+    });
+  });
+
   it("keeps unsaved child state when the viewport changes while open", () => {
     const { rerender } = render(
       <SlideOver open>
