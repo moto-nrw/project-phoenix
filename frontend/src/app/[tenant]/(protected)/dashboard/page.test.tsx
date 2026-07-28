@@ -285,7 +285,7 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("hides activity dashboard surfaces in binary presence mode", async () => {
+  it("hides room and activity dashboard surfaces in binary presence mode", async () => {
     vi.mocked(useNFCEnabled).mockReturnValue(true);
     vi.mocked(usePresenceMode).mockReturnValue("binary");
 
@@ -299,9 +299,28 @@ describe("DashboardPage", () => {
       expect(
         screen.queryByRole("link", { name: /Laufende Aktivitäten/i }),
       ).not.toBeInTheDocument();
+      expect(screen.queryByText("In Räumen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Unterwegs")).not.toBeInTheDocument();
+      expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
+      expect(screen.queryByText("Auslastung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Letzte Bewegungen")).not.toBeInTheDocument();
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
-      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
+    });
+  });
+
+  it("expands the staff summary when it is the only dashboard info card", async () => {
+    vi.mocked(usePresenceMode).mockReturnValue("binary");
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const staffSummary = screen.getByRole("link", {
+        name: /Personal heute/i,
+      });
+      expect(staffSummary.parentElement).toHaveClass("lg:col-span-2");
+      expect(staffSummary).toHaveClass("h-full");
     });
   });
 

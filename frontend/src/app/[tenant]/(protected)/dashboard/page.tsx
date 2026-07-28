@@ -245,7 +245,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
     return (
       <Link
         href={href}
-        className="group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="group block h-full rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       >
         {cardContent}
       </Link>
@@ -262,6 +262,8 @@ function DashboardContent() {
   const openCareGroupMode = useOpenCareGroupMode();
   const presenceMode = usePresenceMode();
   const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
+  const showRoomSurfaces = presenceMode !== "binary";
+  const showOnlyStaffSummary = presenceMode === "binary" && openCareGroupMode;
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -333,22 +335,26 @@ function DashboardContent() {
           loading={isLoading}
           href="/students/search"
         />
-        <StatCard
-          title="In Räumen"
-          value={dashboardData?.studentsInRooms ?? 0}
-          icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-          color="from-indigo-500 to-indigo-600"
-          loading={isLoading}
-          href="/students/search"
-        />
-        <StatCard
-          title="Unterwegs"
-          value={dashboardData?.studentsInTransit ?? 0}
-          icon="M13 10V3L4 14h7v7l9-11h-7z"
-          color="from-orange-500 to-orange-600"
-          loading={isLoading}
-          href="/students/search?status=unterwegs"
-        />
+        {showRoomSurfaces ? (
+          <>
+            <StatCard
+              title="In Räumen"
+              value={dashboardData?.studentsInRooms ?? 0}
+              icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              color="from-indigo-500 to-indigo-600"
+              loading={isLoading}
+              href="/students/search"
+            />
+            <StatCard
+              title="Unterwegs"
+              value={dashboardData?.studentsInTransit ?? 0}
+              icon="M13 10V3L4 14h7v7l9-11h-7z"
+              color="from-orange-500 to-orange-600"
+              loading={isLoading}
+              href="/students/search?status=unterwegs"
+            />
+          </>
+        ) : null}
         <StatCard
           title="Schulhof"
           value={dashboardData?.studentsOnPlayground ?? 0}
@@ -393,99 +399,109 @@ function DashboardContent() {
             href="/activities"
           />
         ) : null}
-        <StatCard
-          title="Freie Räume"
-          value={dashboardData?.freeRooms ?? 0}
-          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-          color="from-emerald-500 to-green-600"
-          loading={isLoading}
-          href="/rooms"
-        />
-        <StatCard
-          title="Auslastung"
-          value={
-            dashboardData
-              ? `${Math.round(dashboardData.capacityUtilization * 100)}%`
-              : "0%"
-          }
-          icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-          color="from-purple-500 to-purple-600"
-          loading={isLoading}
-        />
+        {showRoomSurfaces ? (
+          <StatCard
+            title="Freie Räume"
+            value={dashboardData?.freeRooms ?? 0}
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+            color="from-emerald-500 to-green-600"
+            loading={isLoading}
+            href="/rooms"
+          />
+        ) : null}
+        {showRoomSurfaces ? (
+          <StatCard
+            title="Auslastung"
+            value={
+              dashboardData
+                ? `${Math.round(dashboardData.capacityUtilization * 100)}%`
+                : "0%"
+            }
+            icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            color="from-purple-500 to-purple-600"
+            loading={isLoading}
+          />
+        ) : null}
       </div>
 
       {/* Activity Lists Grid */}
       <div className="grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2">
         {/* Recent Activity */}
-        <InfoCard
-          title="Letzte Bewegungen"
-          icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-        >
-          {(() => {
-            if (isLoading) {
+        {showRoomSurfaces ? (
+          <InfoCard
+            title="Letzte Bewegungen"
+            icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          >
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-12 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const activities = dashboardData?.recentActivity;
+              if (!activities || activities.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine aktuellen Bewegungen
+                  </p>
+                );
+              }
               return (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-12 animate-pulse rounded-lg bg-gray-100"
-                    ></div>
-                  ))}
+                <div className="space-y-2">
+                  {activities.slice(0, 5).map((activity, idx) => {
+                    const ts = new Date(activity.timestamp).getTime();
+                    const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
+                    return (
+                      <div
+                        key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
+                        className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                            <span className="truncate">
+                              {activity.groupName}
+                            </span>
+                            <svg
+                              className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
+                            <span className="truncate">
+                              {activity.roomName}
+                            </span>
+                          </p>
+                          {activity.count > 1 && (
+                            <p className="text-xs text-gray-500">
+                              {activity.count} Kinder
+                            </p>
+                          )}
+                        </div>
+                        <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
+                          {formatRecentActivityTime(activity.timestamp)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               );
-            }
-            const activities = dashboardData?.recentActivity;
-            if (!activities || activities.length === 0) {
-              return (
-                <p className="py-8 text-center text-sm text-gray-500">
-                  Keine aktuellen Bewegungen
-                </p>
-              );
-            }
-            return (
-              <div className="space-y-2">
-                {activities.slice(0, 5).map((activity, idx) => {
-                  const ts = new Date(activity.timestamp).getTime();
-                  const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
-                  return (
-                    <div
-                      key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
-                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                          <span className="truncate">{activity.groupName}</span>
-                          <svg
-                            className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
-                          <span className="truncate">{activity.roomName}</span>
-                        </p>
-                        {activity.count > 1 && (
-                          <p className="text-xs text-gray-500">
-                            {activity.count} Kinder
-                          </p>
-                        )}
-                      </div>
-                      <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
-                        {formatRecentActivityTime(activity.timestamp)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </InfoCard>
+            })()}
+          </InfoCard>
+        ) : null}
 
         {showActivitySurfaces ? (
           <InfoCard
@@ -596,54 +612,56 @@ function DashboardContent() {
         ) : null}
 
         {/* Betreuer Summary */}
-        <InfoCard
-          title="Personal heute"
-          icon="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-          href="/staff"
-        >
-          {isLoading ? (
-            <div className="h-32 animate-pulse rounded-lg bg-gray-100"></div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4 transition-colors hover:bg-gray-100/50">
-                <p className="mb-1 text-xs font-medium text-gray-600">
-                  Betreuer im Dienst
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {dashboardData?.supervisorsToday ?? 0}
-                </p>
-              </div>
-              {dashboardData &&
-              dashboardData.studentsPresent > 0 &&
-              dashboardData.supervisorsToday > 0 ? (
+        <div className={showOnlyStaffSummary ? "lg:col-span-2" : undefined}>
+          <InfoCard
+            title="Personal heute"
+            icon="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
+            href="/staff"
+          >
+            {isLoading ? (
+              <div className="h-32 animate-pulse rounded-lg bg-gray-100"></div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4 transition-colors hover:bg-gray-100/50">
                   <p className="mb-1 text-xs font-medium text-gray-600">
-                    Kinder je Betreuer
+                    Betreuer im Dienst
                   </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {dashboardData.supervisorsToday > 0
-                      ? Math.round(
-                          dashboardData.studentsPresent /
-                            dashboardData.supervisorsToday,
-                        )
-                      : "-"}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Betreuungsschlüssel
+                    {dashboardData?.supervisorsToday ?? 0}
                   </p>
                 </div>
-              ) : (
-                <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4">
-                  <p className="mb-1 text-xs font-medium text-gray-600">
-                    Kinder je Betreuer
-                  </p>
-                  <p className="text-2xl font-bold text-gray-400">-</p>
-                  <p className="mt-1 text-xs text-gray-500">Keine Daten</p>
-                </div>
-              )}
-            </div>
-          )}
-        </InfoCard>
+                {dashboardData &&
+                dashboardData.studentsPresent > 0 &&
+                dashboardData.supervisorsToday > 0 ? (
+                  <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4 transition-colors hover:bg-gray-100/50">
+                    <p className="mb-1 text-xs font-medium text-gray-600">
+                      Kinder je Betreuer
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {dashboardData.supervisorsToday > 0
+                        ? Math.round(
+                            dashboardData.studentsPresent /
+                              dashboardData.supervisorsToday,
+                          )
+                        : "-"}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Betreuungsschlüssel
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4">
+                    <p className="mb-1 text-xs font-medium text-gray-600">
+                      Kinder je Betreuer
+                    </p>
+                    <p className="text-2xl font-bold text-gray-400">-</p>
+                    <p className="mt-1 text-xs text-gray-500">Keine Daten</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </InfoCard>
+        </div>
       </div>
     </div>
   );
