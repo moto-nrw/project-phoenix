@@ -73,6 +73,12 @@ const errorTranslations: Record<string, string> = {
 function translateApiError(errorMessage: string): string {
   const lowerError = errorMessage.toLowerCase();
 
+  // The care-plan modal turns this backend code into the specific explanation
+  // for accounts that cannot replace a guardian-authored exception.
+  if (lowerError.includes("staff_profile_required")) {
+    return "staff_profile_required";
+  }
+
   for (const [pattern, translation] of Object.entries(errorTranslations)) {
     if (lowerError.includes(pattern)) {
       return translation;

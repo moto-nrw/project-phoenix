@@ -352,6 +352,48 @@ describe("CarePlanEditorModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("explains when a pickup exception needs a staff profile", async () => {
+    const onSubmitException = vi
+      .fn()
+      .mockRejectedValue(new Error("staff_profile_required"));
+    renderEditor({
+      onSubmitException,
+      pickupDay: {
+        ...basePickupDay,
+        exception: {
+          id: "99",
+          studentId: "42",
+          exceptionDate: "2026-05-25",
+          pickupTime: "15:00",
+          reason: "Arzttermin",
+          source: "guardian",
+          createdBy: "0",
+          createdAt: "2026-05-20T00:00:00Z",
+          updatedAt: "2026-05-20T00:00:00Z",
+        },
+        isException: true,
+      },
+    });
+
+    fireEvent.change(
+      screen.getByLabelText("Uhrzeit", {
+        selector: "#exception-abholung-time",
+      }),
+      { target: { value: "16:30" } },
+    );
+    save();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Trotzdem überschreiben" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden.",
+      ),
+    ).toBeInTheDocument();
+    expect(onSubmitException).toHaveBeenCalled();
+  });
+
   it("keeps an exception draft when weekly inputs receive new references", () => {
     const { rerender, renderModal } = renderEditor();
 
