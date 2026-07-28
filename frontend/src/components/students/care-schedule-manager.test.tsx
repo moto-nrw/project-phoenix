@@ -607,7 +607,7 @@ describe("CareScheduleManager", () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungsplan");
 
-    fireEvent.click(screen.getAllByText("Ausnahme ändern")[0]!);
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
     expect(screen.getByTestId("care-plan-editor-day")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Ausnahme im Test speichern"));
 
@@ -633,7 +633,7 @@ describe("CareScheduleManager", () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungsplan");
 
-    fireEvent.click(screen.getAllByText("Ausnahme ändern")[0]!);
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
     fireEvent.click(screen.getByText("Auf Regulär zurücksetzen"));
 
     await waitFor(() => {

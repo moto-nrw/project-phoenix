@@ -3,14 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mutate } from "swr";
 import {
-  CalendarDays,
-  CalendarX,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Loader2,
   SquarePen,
-  StickyNote,
   Users,
   X,
 } from "lucide-react";
@@ -20,6 +16,14 @@ import {
   CarePlanEditorModal,
 } from "./care-plan-editor-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
+import {
+  DataTable,
+  type DataTableColumn,
+} from "~/components/ui/data-table";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   type ArrivalData,
   createArrivalException,
@@ -53,7 +57,6 @@ import {
   mergeSchedulesWithTemplate as mergePickupSchedulesWithTemplate,
 } from "~/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import type {
   StudentStatusDay,
   StudentStatusKind,
@@ -93,31 +96,8 @@ interface CareDayData {
   readonly pickup: PickupDayData;
 }
 
-type CareEventTone = "neutral" | "warning" | "purple";
 
-interface CareBoundaryItem {
-  readonly key: string;
-  readonly label: string;
-  readonly value: string;
-  readonly description?: string;
-  readonly marker: string | null;
-  readonly color: string;
-  readonly icon: React.ReactNode;
-  readonly onEdit?: () => void;
-}
 
-interface CareAppointmentItem {
-  readonly key: string;
-  readonly title: string;
-  readonly timeRange: string;
-  readonly tone: CareEventTone;
-}
-
-interface CareNoteItem {
-  readonly key: string;
-  readonly label: string;
-  readonly value: string;
-}
 
 function invalidatePickupCaches() {
   try {
@@ -129,6 +109,19 @@ function invalidatePickupCaches() {
   } catch {
     return;
   }
+}
+
+/** Wording of a whole-day status, unchanged from the card layout it replaces. */
+function getAbsenceLabel(status: StudentStatusKind): string {
+  if (status === "class_trip") return "Ganztägig Klassenfahrt";
+  if (status === "sick") return "Ganztägig krank gemeldet";
+  return "Ganztägig entschuldigt";
+}
+
+function getAbsenceColor(status: StudentStatusKind): string {
+  if (status === "class_trip") return LOCATION_COLORS.CLASS_TRIP;
+  if (status === "sick") return LOCATION_COLORS.SICK;
+  return LOCATION_COLORS.EXCUSED;
 }
 
 function getStatusLabel(status: StudentStatusKind): string {
@@ -574,6 +567,11 @@ export function CareScheduleManager({
     [onDeleteStatusDay],
   );
 
+  const onRequestDeleteStatusDayRef = useCallback(
+    (statusDay: StudentStatusDay) => setStatusDayToDelete(statusDay),
+    [],
+  );
+
   const handleConfirmDeleteStatusDay = useCallback(async () => {
     if (!statusDayToDelete) return;
     try {
@@ -590,6 +588,83 @@ export function CareScheduleManager({
       });
     }
   }, [handleDeleteStatusDay, statusDayToDelete]);
+
+  // The week is a table, not five stacked cards: every day carries the same
+  // slots (two times plus an open number of hints), and a column layout keeps
+  // them aligned no matter how much text a single day has. Cards drifted apart
+  // as soon as one day had a reason or a note (#893 review).
+  const weekColumns = useMemo<DataTableColumn<CareDayData>[]>(
+    () => [
+      {
+        key: "day",
+        header: "Tag",
+        render: (day) => <DayCell day={day} />,
+        className: "whitespace-nowrap",
+      },
+      {
+        key: "arrival",
+        header: "Ankunft",
+        render: (day) => (
+          <TimeCell
+            value={getArrivalValue(day.arrival)}
+            planned={formatPlannedArrival(day.arrival)}
+            isException={day.arrival.isException}
+            fromParent={day.arrival.exception?.source === "guardian"}
+            muted={day.status !== null}
+          />
+        ),
+      },
+      {
+        key: "pickup",
+        header: "Abholung",
+        render: (day) => (
+          <TimeCell
+            value={getPickupValue(day.pickup)}
+            planned={formatPlannedPickup(day.pickup)}
+            isException={day.pickup.isException}
+            fromParent={day.pickup.exception?.source === "guardian"}
+            muted={day.status !== null}
+          />
+        ),
+      },
+      {
+        key: "hint",
+        header: "Hinweis",
+        render: (day) => (
+          <HintCell
+            day={day}
+            readOnly={readOnly}
+            isDeleting={deletingStatusDayId === day.statusDay?.id}
+            onRequestDeleteStatusDay={onRequestDeleteStatusDayRef}
+          />
+        ),
+        className: "w-full",
+      },
+      {
+        key: "action",
+        header: "",
+        align: "right",
+        render: (day) =>
+          readOnly || day.status !== null ? null : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              className="gap-1.5 whitespace-nowrap"
+              onClick={() => setEditorTarget({ date: day.date })}
+            >
+              {/* Same word on every row: the row already shows whether a day
+                  deviates, and an alternating label made the column width
+                  jump from row to row. */}
+              <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
+              Ausnahme
+            </Button>
+          ),
+        className: "whitespace-nowrap",
+      },
+    ],
+    [readOnly, deletingStatusDayId, onRequestDeleteStatusDayRef],
+  );
 
   if (isLoading && arrivalData.schedules.length === 0) {
     return (
@@ -608,8 +683,8 @@ export function CareScheduleManager({
   }
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
-      <div className="border-b border-gray-100 p-4 sm:p-5">
+    <section className="space-y-4">
+      <div>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -687,35 +762,27 @@ export function CareScheduleManager({
         </div>
       </div>
 
-      <div className="p-3 sm:p-4">
-        <div className="xl:hidden">
-          <MobileCareWeek
-            days={days}
-            weekMonth={weekMonth}
-            selectedDay={selectedMobileDay}
-            readOnly={readOnly}
-            deletingStatusDayId={deletingStatusDayId}
-            onPreviousWeek={() => showWeek(weekOffset - 1)}
-            onNextWeek={() => showWeek(weekOffset + 1)}
-            onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
-            onEditDay={(day) => setEditorTarget({ date: day })}
-            onRequestDeleteStatusDay={setStatusDayToDelete}
-          />
-        </div>
-        <div className="hidden xl:block">
-          <div className="grid gap-3 xl:grid-cols-5">
-            {days.map((day) => (
-              <CareDayCard
-                key={formatDateISO(day.date)}
-                day={day}
-                readOnly={readOnly}
-                onEditDay={(day) => setEditorTarget({ date: day })}
-                deletingStatusDayId={deletingStatusDayId}
-                onRequestDeleteStatusDay={setStatusDayToDelete}
-              />
-            ))}
-          </div>
-        </div>
+      <div className="xl:hidden">
+        <MobileCareWeek
+          days={days}
+          weekMonth={weekMonth}
+          selectedDay={selectedMobileDay}
+          readOnly={readOnly}
+          deletingStatusDayId={deletingStatusDayId}
+          onPreviousWeek={() => showWeek(weekOffset - 1)}
+          onNextWeek={() => showWeek(weekOffset + 1)}
+          onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
+          onEditDay={(day) => setEditorTarget({ date: day })}
+          onRequestDeleteStatusDay={setStatusDayToDelete}
+        />
+      </div>
+      <div className="hidden xl:block">
+        <DataTable
+          columns={weekColumns}
+          rows={days}
+          getRowKey={(day) => formatDateISO(day.date)}
+          rowClassName={(day) => (day.isToday ? "bg-gray-50/60" : "")}
+        />
       </div>
 
       <CarePlanEditorModal
@@ -824,13 +891,12 @@ function MobileCareWeek({
       </div>
 
       {selectedDay ? (
-        <CareDayCard
+        <MobileDayDetail
           day={selectedDay}
           readOnly={readOnly}
+          isDeleting={deletingStatusDayId === selectedDay.statusDay?.id}
           onEditDay={onEditDay}
-          deletingStatusDayId={deletingStatusDayId}
           onRequestDeleteStatusDay={onRequestDeleteStatusDay}
-          isMobileDetail
         />
       ) : null}
     </div>
@@ -908,318 +974,193 @@ function MobileDayButton({
   );
 }
 
-function CareDayCard({
+/**
+ * The selected day on a phone. Same three slots as a table row, stacked, so
+ * both layouts state a day the same way.
+ */
+function MobileDayDetail({
   day,
   readOnly,
+  isDeleting,
   onEditDay,
-  deletingStatusDayId,
   onRequestDeleteStatusDay,
-  isMobileDetail = false,
 }: {
   readonly day: CareDayData;
   readonly readOnly: boolean;
+  readonly isDeleting: boolean;
   readonly onEditDay: (date: Date) => void;
-  readonly deletingStatusDayId: string | null;
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
-  readonly isMobileDetail?: boolean;
 }) {
-  const weekdayInfo = WEEKDAYS[day.weekday - 1];
-  const hasStatus = day.status !== null;
-  const hasException = day.arrival.isException || day.pickup.isException;
-  // A guardian-sourced exception means a parent changed this day's pickup or
-  // arrival time from the parents portal — flag it so staff don't mistake it
-  // for their own edit at the door.
-  const parentChanged =
-    day.pickup.exception?.source === "guardian" ||
-    day.arrival.exception?.source === "guardian";
-  const boundaries = getCareBoundaries(day, {
-    onEditArrival: () => onEditDay(day.date),
-    onEditPickup: () => onEditDay(day.date),
-  });
-  const appointments = getCareAppointments();
-  const notes = getCareNotes(day);
-
   return (
-    <article
-      className={`flex flex-col rounded-xl border border-gray-200 bg-white p-3 shadow-sm ${
-        isMobileDetail ? "min-h-[236px]" : "min-h-[260px]"
-      }`}
-    >
-      <div className="flex min-h-[52px] items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900">
-              {weekdayInfo?.shortLabel ?? "Tag"}
-            </span>
-            {day.isToday ? (
-              <span className="text-xs font-semibold text-gray-500">Heute</span>
-            ) : null}
-            {parentChanged ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-semibold text-[#3a63b0]">
-                <Users className="h-3 w-3" aria-hidden="true" />
-                Von Eltern
-              </span>
-            ) : null}
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
-            {day.isToday ? (
-              <>
-                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-[#FF3130] px-1.5 text-sm font-semibold text-white">
-                  {day.date.getDate()}
-                </span>
-                <span>.</span>
-                <span>
-                  {(day.date.getMonth() + 1).toString().padStart(2, "0")}.
-                </span>
-              </>
-            ) : (
-              formatShortDate(day.date)
-            )}
-          </div>
+    <div className="moto-content-surface space-y-4 rounded-2xl border border-gray-200 p-4 shadow-sm">
+      <DayCell day={day} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="mb-1 text-xs font-medium text-gray-500">Ankunft</div>
+          <TimeCell
+            value={getArrivalValue(day.arrival)}
+            planned={formatPlannedArrival(day.arrival)}
+            isException={day.arrival.isException}
+            fromParent={day.arrival.exception?.source === "guardian"}
+            muted={day.status !== null}
+          />
         </div>
-        {hasStatus ? <StatusPill status={day.status} /> : null}
+        <div>
+          <div className="mb-1 text-xs font-medium text-gray-500">Abholung</div>
+          <TimeCell
+            value={getPickupValue(day.pickup)}
+            planned={formatPlannedPickup(day.pickup)}
+            isException={day.pickup.isException}
+            fromParent={day.pickup.exception?.source === "guardian"}
+            muted={day.status !== null}
+          />
+        </div>
       </div>
 
-      <div className="mt-3 flex flex-1 flex-col space-y-3">
-        {hasStatus ? (
-          <AbsencePlaceholder
-            status={day.status}
-            statusDay={day.statusDay}
-            readOnly={readOnly}
-            isDeleting={deletingStatusDayId === day.statusDay?.id}
-            onRequestDeleteStatusDay={onRequestDeleteStatusDay}
-          />
-        ) : (
-          <CareBoundarySection
-            boundaries={boundaries}
-            onEdit={readOnly ? undefined : () => onEditDay(day.date)}
-          />
-        )}
-        {appointments.length > 0 ? (
-          <CareAppointmentSection appointments={appointments} />
-        ) : null}
-        {notes.length > 0 ? <CareNotesSection notes={notes} /> : null}
-
-        {/* ONE labelled entry per day, and it names what it does. Two pencils
-            per card that both opened the same dialog, plus a third namesless
-            pencil for the week, is the confusion #893 reports. */}
-        {!readOnly && !hasStatus ? (
-          <button
-            type="button"
-            onClick={() => onEditDay(day.date)}
-            className="mt-auto inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
-            {hasException ? "Ausnahme ändern" : "Ausnahme eintragen"}
-          </button>
-        ) : null}
+      <div>
+        <div className="mb-1 text-xs font-medium text-gray-500">Hinweis</div>
+        <HintCell
+          day={day}
+          readOnly={readOnly}
+          isDeleting={isDeleting}
+          onRequestDeleteStatusDay={onRequestDeleteStatusDay}
+        />
       </div>
-    </article>
+
+      {!readOnly && day.status === null ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          className="w-full gap-1.5"
+          onClick={() => onEditDay(day.date)}
+        >
+          <SquarePen className="h-4 w-4" aria-hidden="true" />
+          {day.arrival.isException || day.pickup.isException
+            ? "Ausnahme ändern"
+            : "Ausnahme eintragen"}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
-function AbsencePlaceholder({
-  status,
-  statusDay,
+function DayCell({ day }: { readonly day: CareDayData }) {
+  const weekdayInfo = WEEKDAYS[day.weekday - 1];
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-semibold text-gray-900">
+        {weekdayInfo?.shortLabel ?? "Tag"}
+      </span>
+      <span className="text-gray-500">{formatShortDate(day.date)}</span>
+      {day.isToday ? <StatusBadge label="Heute" tone="gray" /> : null}
+    </div>
+  );
+}
+
+/**
+ * One time of a day. A deviation is not marked with a badge but by naming the
+ * value that was planned instead — the badge duplicated what the "statt" line
+ * and the hint column already say, and it was the widest thing in the cell.
+ */
+function TimeCell({
+  value,
+  planned,
+  isException,
+  fromParent,
+  muted,
+}: {
+  readonly value: string;
+  readonly planned: string | null;
+  readonly isException: boolean;
+  readonly fromParent: boolean;
+  readonly muted: boolean;
+}) {
+  if (muted) {
+    return <span className="text-gray-300">—</span>;
+  }
+  return (
+    <div className="min-w-0">
+      <div className="font-semibold whitespace-nowrap text-gray-900">
+        {value}
+      </div>
+      {isException && planned ? (
+        <div className="text-xs whitespace-nowrap text-gray-500">
+          statt {planned}
+        </div>
+      ) : null}
+      {fromParent ? (
+        <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-[#3a63b0]">
+          <Users className="h-3 w-3" aria-hidden="true" />
+          Von Eltern
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Everything a day says in words. Three sources, and each line names which one
+ * it is, because "gilt nur heute" and "gilt jede Woche" used to look identical
+ * (#893): the reason of an exception, a note for this date, and a note that is
+ * part of the weekly plan.
+ */
+function HintCell({
+  day,
   readOnly,
   isDeleting,
   onRequestDeleteStatusDay,
 }: {
-  readonly status: StudentStatusKind | null;
-  readonly statusDay: StudentStatusDay | null;
+  readonly day: CareDayData;
   readonly readOnly: boolean;
   readonly isDeleting: boolean;
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
 }) {
-  if (!status) return null;
-  const isSick = status === "sick";
-  const label =
-    status === "class_trip"
-      ? "Ganztägig Klassenfahrt"
-      : isSick
-        ? "Ganztägig krank gemeldet"
-        : "Ganztägig entschuldigt";
-  const isInteractive = !readOnly && statusDay !== null;
-  const content = (
-    <div className="flex min-w-0 items-center gap-3 pr-8 text-left">
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm ${
-          isSick
-            ? "bg-[#EAB308]/10 text-[#A16207]"
-            : "bg-[#7C3AED]/10 text-[#6D28D9]"
-        }`}
-      >
-        <CalendarX className="h-4.5 w-4.5" aria-hidden="true" />
-      </span>
-      <div className="min-w-0">
-        <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-          Status
-        </div>
-        <div className="text-sm leading-5 font-semibold text-gray-900">
-          {isDeleting ? "Wird entfernt..." : label}
-        </div>
-      </div>
-    </div>
-  );
-
-  if (isInteractive) {
+  if (day.status) {
     return (
-      <button
-        type="button"
-        onClick={() => onRequestDeleteStatusDay(statusDay)}
-        disabled={isDeleting}
-        className="moto-content-surface group relative flex min-h-[134px] w-full items-center rounded-lg border border-gray-200 p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
-        aria-label={`${label} entfernen`}
-      >
-        <span className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700">
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-        {content}
-      </button>
+      <div className="flex items-center gap-2">
+        <StatusDotBadge
+          label={isDeleting ? "Wird entfernt…" : getAbsenceLabel(day.status)}
+          color={getAbsenceColor(day.status)}
+        />
+        {!readOnly && day.statusDay ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`${getAbsenceLabel(day.status)} entfernen`}
+            disabled={isDeleting}
+            onClick={() => onRequestDeleteStatusDay(day.statusDay!)}
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        ) : null}
+      </div>
     );
   }
 
-  return (
-    <div className="moto-content-surface flex min-h-[134px] items-center rounded-lg border border-gray-200 p-3 shadow-sm">
-      {content}
-    </div>
-  );
-}
-
-function CareBoundarySection({
-  boundaries,
-  onEdit,
-}: {
-  readonly boundaries: CareBoundaryItem[];
-  /** undefined = read-only; the whole block opens the day editor otherwise. */
-  readonly onEdit?: () => void;
-}) {
-  const rows = (
-    <div className="flex flex-1 flex-col divide-y divide-gray-100">
-      {boundaries.map((boundary) => (
-        <CareBoundaryRow key={boundary.key} boundary={boundary} />
-      ))}
-    </div>
-  );
-
-  // The block is ONE target rather than one per line: tapping a time still
-  // opens the editor, but the card shows a single pencil (in its header)
-  // instead of one per row.
-  if (onEdit) {
-    return (
-      <button
-        type="button"
-        onClick={onEdit}
-        className="flex min-h-[134px] w-full flex-col rounded-lg border border-gray-100 bg-gray-50 text-left transition-colors hover:bg-gray-100/70 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        {rows}
-      </button>
-    );
+  const hints = getCareHints(day);
+  if (hints.length === 0) {
+    return <span className="text-gray-300">—</span>;
   }
-
   return (
-    <div className="flex min-h-[134px] flex-col rounded-lg border border-gray-100 bg-gray-50">
-      {rows}
-    </div>
-  );
-}
-
-function CareBoundaryRow({
-  boundary,
-}: {
-  readonly boundary: CareBoundaryItem;
-}) {
-  return (
-    <div className="flex flex-1 px-3 py-2.5">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <span
-          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm"
-          style={{
-            backgroundColor: `${boundary.color}14`,
-            color: boundary.color,
-          }}
-        >
-          {boundary.icon}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-            {boundary.label}
-          </div>
-          {/* Flex-wrapped rather than inline: the badge is taller than the 20px
-              line box, so as an inline element it painted over the next line
-              whenever the value wrapped ("Keine Abholung" in a day column). */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
-            <span className="min-w-0 break-words">{boundary.value}</span>
-            {boundary.marker ? (
-              <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
-                {boundary.marker}
-              </span>
-            ) : null}
-          </div>
-          {boundary.description ? (
-            <div className="mt-0.5 text-xs leading-5 text-gray-500">
-              {boundary.description}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CareAppointmentSection({
-  appointments,
-}: {
-  readonly appointments: CareAppointmentItem[];
-}) {
-  return (
-    <div className="space-y-1.5">
-      {appointments.map((appointment) => (
+    <div className="space-y-1">
+      {hints.map((hint) => (
         <div
-          key={appointment.key}
-          className="rounded-lg border border-gray-100 bg-white px-3 py-2.5 shadow-sm"
+          key={hint.key}
+          className="flex min-w-0 items-baseline gap-1.5 text-sm text-gray-700"
         >
-          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-            {appointment.timeRange}
-          </div>
-          <div className="text-sm font-semibold text-gray-900">
-            {appointment.title}
-          </div>
+          <span className="shrink-0 text-xs whitespace-nowrap text-gray-400">
+            {hint.scope === "week" ? "jede Woche" : "nur heute"}
+          </span>
+          <span className="shrink-0 font-medium text-gray-500">
+            {hint.leg}:
+          </span>
+          <span className="min-w-0 break-words">{hint.text}</span>
         </div>
       ))}
     </div>
-  );
-}
-
-function CareNotesSection({ notes }: { readonly notes: CareNoteItem[] }) {
-  return (
-    <div className="space-y-1.5 border-t border-gray-100 pt-3">
-      {notes.map((note) => (
-        <div
-          key={note.key}
-          className="flex min-w-0 items-start gap-2 text-xs leading-5 text-gray-500"
-        >
-          <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
-          <span className="font-semibold text-gray-600">{note.label}:</span>
-          <span className="min-w-0 break-words">{note.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StatusPill({ status }: { readonly status: StudentStatusKind }) {
-  const isSick = status === "sick";
-  return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-        isSick
-          ? "border-[#EAB308]/30 bg-[#EAB308]/10 text-[#854D0E]"
-          : "border-[#7C3AED]/25 bg-[#7C3AED]/10 text-[#5B21B6]"
-      }`}
-    >
-      {getStatusLabel(status)}
-    </span>
   );
 }
 
@@ -1235,94 +1176,84 @@ function getPickupValue(day: PickupDayData): string {
     : "Nicht geplant";
 }
 
-function getArrivalMarker(day: ArrivalDayData): string | null {
-  if (day.isException) return "Ausnahme";
-  return null;
+/** The weekly time a day deviates from, or null when nothing is planned. */
+function formatPlannedArrival(day: ArrivalDayData): string | null {
+  return day.baseSchedule?.expected_arrival
+    ? day.baseSchedule.expected_arrival.slice(0, 5)
+    : null;
 }
 
-function getPickupMarker(day: PickupDayData): string | null {
-  if (day.isException) return "Ausnahme";
-  return null;
+function formatPlannedPickup(day: PickupDayData): string | null {
+  return day.baseSchedule?.pickupTime
+    ? formatPickupTime(day.baseSchedule.pickupTime)
+    : null;
 }
 
-function getArrivalDescription(day: ArrivalDayData): string | undefined {
-  if (!day.isException) return undefined;
-  return day.effectiveReason
-    ? `Grund: ${day.effectiveReason}`
-    : "Tagesänderung";
+interface CareHint {
+  readonly key: string;
+  readonly scope: "day" | "week";
+  readonly leg: string;
+  readonly text: string;
 }
 
-function getPickupDescription(day: PickupDayData): string | undefined {
-  if (!day.isException) return undefined;
-  return day.effectiveNotes ? `Grund: ${day.effectiveNotes}` : "Tagesänderung";
-}
+/**
+ * Every word a day carries, each tagged with where it comes from: the reason of
+ * today's deviation, a note for this date, or a note that is part of the weekly
+ * plan. Keeping the three apart in the UI is the point of #893.
+ */
+function getCareHints(day: CareDayData): CareHint[] {
+  const hints: CareHint[] = [];
 
-function getCareBoundaries(
-  day: CareDayData,
-  actions: {
-    readonly onEditArrival: () => void;
-    readonly onEditPickup: () => void;
-  },
-): CareBoundaryItem[] {
-  return [
-    {
-      key: "arrival",
-      label: "Ankunft",
-      value: getArrivalValue(day.arrival),
-      description: getArrivalDescription(day.arrival),
-      marker: getArrivalMarker(day.arrival),
-      color: LOCATION_COLORS.GROUP_ROOM,
-      icon: <Clock className="h-4 w-4" aria-hidden="true" />,
-      onEdit: actions.onEditArrival,
-    },
-    {
-      key: "pickup",
-      label: "Abholung",
-      value: getPickupValue(day.pickup),
-      description: getPickupDescription(day.pickup),
-      marker: getPickupMarker(day.pickup),
-      color: LOCATION_COLORS.SCHOOLYARD,
-      icon: <CalendarDays className="h-4 w-4" aria-hidden="true" />,
-      onEdit: actions.onEditPickup,
-    },
-  ];
-}
-
-function getCareAppointments(): CareAppointmentItem[] {
-  return [];
-}
-
-function getCareNotes(day: CareDayData): CareNoteItem[] {
-  const notes: CareNoteItem[] = [];
-  const arrivalNotes = getArrivalDisplayNotes(day.arrival);
-  const pickupNotes = getPickupDisplayNotes(day.pickup);
-  if (arrivalNotes.length > 0) {
-    notes.push({
-      key: "arrival-notes",
-      label: "Ankunft",
-      value: arrivalNotes.join(", "),
+  if (day.arrival.isException && day.arrival.effectiveReason) {
+    hints.push({
+      key: "arrival-reason",
+      scope: "day",
+      leg: "Ankunft",
+      text: day.arrival.effectiveReason,
     });
   }
-  if (pickupNotes.length > 0) {
-    notes.push({
-      key: "pickup-notes",
-      label: "Abholung",
-      value: pickupNotes.join(", "),
+  if (day.pickup.isException && day.pickup.effectiveNotes) {
+    hints.push({
+      key: "pickup-reason",
+      scope: "day",
+      leg: "Abholung",
+      text: day.pickup.effectiveNotes,
     });
   }
-  return notes;
-}
 
-function getArrivalDisplayNotes(day: ArrivalDayData): string[] {
-  return [
-    day.baseSchedule?.notes ?? null,
-    ...day.notes.map((note) => note.content),
-  ].filter((note): note is string => !!note);
-}
+  day.arrival.notes.forEach((note) => {
+    hints.push({
+      key: `arrival-note-${note.id}`,
+      scope: "day",
+      leg: "Ankunft",
+      text: note.content,
+    });
+  });
+  day.pickup.notes.forEach((note) => {
+    hints.push({
+      key: `pickup-note-${note.id}`,
+      scope: "day",
+      leg: "Abholung",
+      text: note.content,
+    });
+  });
 
-function getPickupDisplayNotes(day: PickupDayData): string[] {
-  return [
-    day.baseSchedule?.notes ?? null,
-    ...day.notes.map((note) => note.content),
-  ].filter((note): note is string => !!note);
+  if (day.arrival.baseSchedule?.notes) {
+    hints.push({
+      key: "arrival-weekly-note",
+      scope: "week",
+      leg: "Ankunft",
+      text: day.arrival.baseSchedule.notes,
+    });
+  }
+  if (day.pickup.baseSchedule?.notes) {
+    hints.push({
+      key: "pickup-weekly-note",
+      scope: "week",
+      leg: "Abholung",
+      text: day.pickup.baseSchedule.notes,
+    });
+  }
+
+  return hints;
 }
