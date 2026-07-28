@@ -501,14 +501,14 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Startseite für Admins zeigt in Kacheln, wie der Tag gerade steht. Fast jede Zahl führt direkt in den passenden Bereich.",
         steps: [
           "In der Seitenleiste ganz oben `Home` öffnen. Admin-Konten ohne Betreuungsrolle landen nach dem Login automatisch hier; Admins mit Betreuungsrolle starten in ihrem Betreuungsbereich.",
-          "Die sichtbaren Kacheln der oberen Reihe ablesen: `Kinder anwesend`, `Schulhof`, `Krank`, `Entschuldigt`, `Aktive Gruppen`, `Aktive Aktivitäten` und `Auslastung`. Bei detaillierter Anwesenheit kommen `In Räumen`, `Unterwegs` und `Freie Räume` hinzu.",
+          "Die sichtbaren Kacheln der oberen Reihe ablesen: `Kinder anwesend`, `Schulhof`, `Krank`, `Entschuldigt`, `Aktive Gruppen` und `Aktive Aktivitäten`. Bei detaillierter Anwesenheit kommen `In Räumen`, `Unterwegs`, `Freie Räume` und `Auslastung` hinzu.",
           "Ein Klick auf fast jede Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in die bereits gefilterte `Kindersuche`. Bei detaillierter Anwesenheit öffnet `Freie Räume` die `Räume`-Übersicht. `Auslastung` zeigt nur den aktuellen Wert.",
           "Darunter zeigt `Letzte Bewegungen` bis zu fünf laufende Gruppen, die in den vergangenen 30 Minuten gestartet wurden, mit Raum und Kinderzahl. Einzelne Check-ins, Check-outs oder Raumwechsel von Kindern sind dort nicht sichtbar.",
           "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen. Gibt es keine, steht dort `Keine laufenden Aktivitäten`.",
         ],
         callout: {
           title: "Kacheln passen sich der Einrichtung an",
-          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs` und `Freie Räume` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet – auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
+          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Freie Räume` und `Auslastung` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet – auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
           tone: "blue",
         },
         screenshot:

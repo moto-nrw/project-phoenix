@@ -302,6 +302,7 @@ describe("DashboardPage", () => {
       expect(screen.queryByText("In Räumen")).not.toBeInTheDocument();
       expect(screen.queryByText("Unterwegs")).not.toBeInTheDocument();
       expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
+      expect(screen.queryByText("Auslastung")).not.toBeInTheDocument();
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
     });
