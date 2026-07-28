@@ -104,8 +104,10 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 			return &AuthError{Op: "assign role", Err: ErrAccountNotFound}
 		}
 
-		// Verify role exists
-		if _, err := s.repos.Role.FindByID(txCtx, int64(roleID)); err != nil {
+		// System roles have tenant_id NULL and must remain resolvable while the
+		// assignment itself is written for the caller's tenant.
+		roleLookupCtx := tenant.WithTenantID(txCtx, 0)
+		if _, err := s.repos.Role.FindByID(roleLookupCtx, int64(roleID)); err != nil {
 			return &AuthError{Op: "assign role", Err: errors.New("role not found")}
 		}
 

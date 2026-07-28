@@ -107,6 +107,10 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if hasAccess {
 			return &ConflictError{Err: fmt.Errorf("account already has access to this school")}
 		}
+		wasRevoked, err := s.hasInactiveTenantAccess(adminCtx, accountID, schoolID)
+		if err != nil {
+			return err
+		}
 		// Names for the person record that carries the account at this school.
 		// Fall back to a person the account already has at another school so
 		// the operator does not have to retype them.
@@ -142,6 +146,11 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 
 		if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, req.Position, true); err != nil {
 			return err
+		}
+		if wasRevoked && !account.Active {
+			if err := s.AuthService.ActivateAccount(adminCtx, int(accountID)); err != nil {
+				return fmt.Errorf("reactivate account after restoring school access: %w", err)
+			}
 		}
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceAccountTenant, &accountID, clientIP, map[string]any{
 			"schoolID": school.ID,
@@ -316,7 +325,7 @@ func (s *operatorProvisioningService) RevokeAccountTenantAccess(
 			return err
 		}
 		for _, existing := range current {
-			if roleOwnedByOtherFeature(existing) {
+			if roleBlocksAccessRevocation(existing) {
 				return &InvalidDataError{Err: fmt.Errorf("school access with role %q must be removed through its dedicated flow", existing.Name)}
 			}
 			if err := s.AccountRoleRepo.DeleteByAccountRoleAndTenant(adminCtx, accountID, existing.ID, schoolID); err != nil {
@@ -431,6 +440,19 @@ func (s *operatorProvisioningService) rolesForTenant(ctx context.Context, accoun
 		return nil, err
 	}
 	return grouped[schoolID], nil
+}
+
+func (s *operatorProvisioningService) hasInactiveTenantAccess(ctx context.Context, accountID, schoolID int64) (bool, error) {
+	entries, err := s.AccountTenantRepo.ListTenantAccessByAccountID(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.TenantID == schoolID && entry.Status == authModels.AccountTenantStatusInactive {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // loadAccount resolves the account or returns AccountNotFoundError.
@@ -629,6 +651,13 @@ func roleOwnedByOtherFeature(role AccountTenantRole) bool {
 	default:
 		return false
 	}
+}
+
+func roleBlocksAccessRevocation(role AccountTenantRole) bool {
+	if role.BaseRole != nil && strings.EqualFold(strings.TrimSpace(*role.BaseRole), authModels.BaseRoleGuardian) {
+		return true
+	}
+	return role.IsSystem && (strings.EqualFold(role.Name, authModels.BaseRoleGuardian) || strings.EqualFold(role.Name, "teacher"))
 }
 
 // recordAccessAuthEvent writes the tenant-visible audit trail. The operator

@@ -288,10 +288,10 @@ export function AccountTenantAccessModal({
   // The role select shows the administrative role; Betreuung is managed by
   // "Betreuung verwalten" and therefore never removed implicitly.
   function primaryRoleId(entry: AccountTenantAccess): string {
-    const administrative = entry.roles.find(
-      (role) => role.name.toLowerCase() !== "user",
+    const assignableRoleIDs = new Set(
+      rolesForSchool(entry.tenantId).map((role) => role.id),
     );
-    return administrative?.id ?? entry.roles[0]?.id ?? "";
+    return entry.roles.find((role) => assignableRoleIDs.has(role.id))?.id ?? "";
   }
 
   const activeEntries = access.filter((entry) => entry.status === "active");

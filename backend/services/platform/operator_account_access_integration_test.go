@@ -334,7 +334,7 @@ func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *test
 }
 
 func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
-	for _, roleName := range []string{authModels.BaseRoleGuardian, authModels.BaseRoleUser, "teacher"} {
+	for _, roleName := range []string{authModels.BaseRoleGuardian, "teacher"} {
 		t.Run(roleName, func(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 			defer func() { _ = db.Close() }()
@@ -486,7 +486,7 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID))
 }
 
-func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateAccountAfterRestoringLastRevokedSchool(t *testing.T) {
+func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLastRevokedSchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -508,8 +508,7 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateAccountAfterResto
 	require.NoError(t, err)
 	assertAccountActive(t, db, account.ID, false)
 
-	// Restoring school access must not override a deliberate global account
-	// deactivation; reactivation is the separate /auth/accounts/{id}/activate action.
+	// Restoring the final revoked school access also restores login capability.
 	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
 		platformSvc.GrantAccountTenantAccessRequest{
 			RoleID:    systemRoleID(t, db, "user"),
@@ -522,7 +521,7 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateAccountAfterResto
 	granted := entryFor(entries, accessTargetTenantID)
 	require.NotNil(t, granted)
 	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
-	assertAccountActive(t, db, account.ID, false)
+	assertAccountActive(t, db, account.ID, true)
 
 	// The caregiver role also creates the teacher record, carrying the position.
 	var position string
