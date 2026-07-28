@@ -442,19 +442,6 @@ func (s *operatorProvisioningService) rolesForTenant(ctx context.Context, accoun
 	return grouped[schoolID], nil
 }
 
-func (s *operatorProvisioningService) hasInactiveTenantAccess(ctx context.Context, accountID, schoolID int64) (bool, error) {
-	entries, err := s.AccountTenantRepo.ListTenantAccessByAccountID(ctx, accountID)
-	if err != nil {
-		return false, err
-	}
-	for _, entry := range entries {
-		if entry.TenantID == schoolID && entry.Status == authModels.AccountTenantStatusInactive {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 // loadAccount resolves the account or returns AccountNotFoundError.
 func (s *operatorProvisioningService) loadAccount(ctx context.Context, accountID int64) (*authModels.Account, error) {
 	if accountID <= 0 {
