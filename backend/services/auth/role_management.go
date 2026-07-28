@@ -48,7 +48,15 @@ func (s *Service) GetRoleByID(ctx context.Context, id int) (*auth.Role, error) {
 // (backend-conventions Rule 1), so the account-creating flows reach the same
 // rules the invitation flow uses through here.
 func (s *Service) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*auth.Role, error) {
-	return ValidateAssignableSchoolRole(ctx, s.repos.Role, roleID, tenantID)
+	role, err := ValidateAssignableSchoolRole(ctx, s.repos.Role, roleID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	role.Permissions, err = s.repos.Permission.FindByRoleID(ctx, role.ID)
+	if err != nil {
+		return nil, err
+	}
+	return role, nil
 }
 
 // UpdateRole updates an existing role. System roles cannot be modified.

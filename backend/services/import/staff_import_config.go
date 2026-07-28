@@ -53,6 +53,7 @@ type StaffImportDeps struct {
 	AccountRepo       authModels.AccountRepository
 	AccountTenantRepo authModels.AccountTenantRepository
 	RoleRepo          authModels.RoleRepository
+	PermissionRepo    authModels.PermissionRepository
 	SchoolRepo        platformModels.SchoolRepository
 }
 
@@ -209,6 +210,17 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 	role, err := c.RoleRepo.FindByName(ctx, lookup)
 	if err == nil && role != nil {
 		row.RoleID = role.ID
+		if c.PermissionRepo != nil {
+			role.Permissions, err = c.PermissionRepo.FindByRoleID(ctx, role.ID)
+			if err != nil {
+				return []importModels.ValidationError{{
+					Field:    "role",
+					Message:  fmt.Sprintf("Rolle konnte nicht geprüft werden: %s", err.Error()),
+					Code:     "role_lookup_failed",
+					Severity: importModels.ErrorSeverityError,
+				}}
+			}
+		}
 		if !authorize.CanGrantRole(role, ImporterPermissionsFromContext(ctx)) {
 			return []importModels.ValidationError{{
 				Field:    "role",

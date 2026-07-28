@@ -272,6 +272,9 @@ func TestStaffImportConfig_Validate_RequiresManagePermissionForTenantRole(t *tes
 					Model:    base.Model{ID: staffImportTestRoleID},
 					Name:     name,
 					BaseRole: &baseRole,
+					Permissions: []*authModels.Permission{
+						{Name: "users:manage"},
+					},
 				}, nil
 			},
 		},

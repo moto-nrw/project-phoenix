@@ -55,6 +55,7 @@ type InvitationServiceConfig struct {
 	AccountRepo       authModels.AccountRepository
 	AccountTenantRepo authModels.AccountTenantRepository
 	RoleRepo          authModels.RoleRepository
+	PermissionRepo    authModels.PermissionRepository
 	AccountRoleRepo   authModels.AccountRoleRepository
 	PersonRepo        userModels.PersonRepository
 	StaffRepo         userModels.StaffRepository
@@ -74,6 +75,7 @@ type invitationService struct {
 	accountRepo       authModels.AccountRepository
 	accountTenantRepo authModels.AccountTenantRepository
 	roleRepo          authModels.RoleRepository
+	permissionRepo    authModels.PermissionRepository
 	accountRoleRepo   authModels.AccountRoleRepository
 	personRepo        userModels.PersonRepository
 	staffRepo         userModels.StaffRepository
@@ -109,6 +111,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		accountRepo:       config.AccountRepo,
 		accountTenantRepo: config.AccountTenantRepo,
 		roleRepo:          config.RoleRepo,
+		permissionRepo:    config.PermissionRepo,
 		accountRoleRepo:   config.AccountRoleRepo,
 		personRepo:        config.PersonRepo,
 		staffRepo:         config.StaffRepo,
@@ -181,6 +184,12 @@ func (s *invitationService) ensureRoleAssignable(ctx context.Context, req Invita
 
 	if req.OperatorGrant {
 		return nil
+	}
+	if s.permissionRepo != nil {
+		role.Permissions, err = s.permissionRepo.FindByRoleID(ctx, role.ID)
+		if err != nil {
+			return &AuthError{Op: opCreateInvitation, Err: err}
+		}
 	}
 
 	if !authorize.CanGrantRole(role, req.ActorPermissions) {

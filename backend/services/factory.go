@@ -1060,6 +1060,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRepo:       repos.Account,
 		AccountTenantRepo: repos.AccountTenant,
 		RoleRepo:          repos.Role,
+		PermissionRepo:    repos.Permission,
 		AccountRoleRepo:   repos.AccountRole,
 		PersonRepo:        repos.Person,
 		StaffRepo:         repos.Staff,
@@ -1258,6 +1259,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			AccountRepo:       repos.Account,
 			AccountTenantRepo: repos.AccountTenant,
 			RoleRepo:          repos.Role,
+			PermissionRepo:    repos.Permission,
 			SchoolRepo:        repos.School,
 		},
 	)
