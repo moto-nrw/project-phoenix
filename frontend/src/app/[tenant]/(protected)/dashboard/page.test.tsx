@@ -285,7 +285,7 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("hides activity dashboard surfaces in binary presence mode", async () => {
+  it("hides room and activity dashboard surfaces in binary presence mode", async () => {
     vi.mocked(useNFCEnabled).mockReturnValue(true);
     vi.mocked(usePresenceMode).mockReturnValue("binary");
 
@@ -299,8 +299,10 @@ describe("DashboardPage", () => {
       expect(
         screen.queryByRole("link", { name: /Laufende Aktivitäten/i }),
       ).not.toBeInTheDocument();
+      expect(screen.queryByText("In Räumen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Unterwegs")).not.toBeInTheDocument();
+      expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
-      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
     });
   });

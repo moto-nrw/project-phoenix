@@ -262,6 +262,7 @@ function DashboardContent() {
   const openCareGroupMode = useOpenCareGroupMode();
   const presenceMode = usePresenceMode();
   const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
+  const showRoomSurfaces = presenceMode !== "binary";
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -333,22 +334,26 @@ function DashboardContent() {
           loading={isLoading}
           href="/students/search"
         />
-        <StatCard
-          title="In Räumen"
-          value={dashboardData?.studentsInRooms ?? 0}
-          icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-          color="from-indigo-500 to-indigo-600"
-          loading={isLoading}
-          href="/students/search"
-        />
-        <StatCard
-          title="Unterwegs"
-          value={dashboardData?.studentsInTransit ?? 0}
-          icon="M13 10V3L4 14h7v7l9-11h-7z"
-          color="from-orange-500 to-orange-600"
-          loading={isLoading}
-          href="/students/search?status=unterwegs"
-        />
+        {showRoomSurfaces ? (
+          <>
+            <StatCard
+              title="In Räumen"
+              value={dashboardData?.studentsInRooms ?? 0}
+              icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              color="from-indigo-500 to-indigo-600"
+              loading={isLoading}
+              href="/students/search"
+            />
+            <StatCard
+              title="Unterwegs"
+              value={dashboardData?.studentsInTransit ?? 0}
+              icon="M13 10V3L4 14h7v7l9-11h-7z"
+              color="from-orange-500 to-orange-600"
+              loading={isLoading}
+              href="/students/search?status=unterwegs"
+            />
+          </>
+        ) : null}
         <StatCard
           title="Schulhof"
           value={dashboardData?.studentsOnPlayground ?? 0}
@@ -393,14 +398,16 @@ function DashboardContent() {
             href="/activities"
           />
         ) : null}
-        <StatCard
-          title="Freie Räume"
-          value={dashboardData?.freeRooms ?? 0}
-          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-          color="from-emerald-500 to-green-600"
-          loading={isLoading}
-          href="/rooms"
-        />
+        {showRoomSurfaces ? (
+          <StatCard
+            title="Freie Räume"
+            value={dashboardData?.freeRooms ?? 0}
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+            color="from-emerald-500 to-green-600"
+            loading={isLoading}
+            href="/rooms"
+          />
+        ) : null}
         <StatCard
           title="Auslastung"
           value={
