@@ -2921,7 +2921,9 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
 			Exec(context.Background())
 
-		role := testpkg.GetOrCreateTestRole(t, db, fmt.Sprintf("link-role-%d", time.Now().UnixNano()))
+		// The role has to belong to the school the account is linked into:
+		// a tenant-scoped role of ANOTHER school is rejected since #1021.
+		role := testpkg.CreateTestRoleForTenant(t, db, fmt.Sprintf("link-role-%d", time.Now().UnixNano()), tenantID)
 		roleID := role.ID
 
 		// ACT

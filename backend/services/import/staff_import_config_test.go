@@ -171,6 +171,9 @@ func (r stubStaffAccountTenantRepo) ListAccountsByOrganizationID(context.Context
 func (r stubStaffAccountTenantRepo) ListAllAccounts(context.Context) ([]authModels.OrgAccountInfo, error) {
 	panic("not implemented")
 }
+func (r stubStaffAccountTenantRepo) ListTenantAccessByAccountID(context.Context, int64) ([]authModels.AccountTenantAccessInfo, error) {
+	panic("not implemented")
+}
 
 // newStaffInvitationServiceMock wires an authtest.InvitationServiceMock to
 // reproduce stubStaffInvitationService's exact behavior: CreateInvitation

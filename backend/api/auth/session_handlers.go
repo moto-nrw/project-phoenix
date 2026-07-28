@@ -168,6 +168,11 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorNotFound(authErr.Err))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				common.RenderError(w, r, common.ErrorConflict(authErr.Err))
+			case errors.Is(authErr.Err, authService.ErrRoleNotAssignable),
+				errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
+				errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
+				errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable):
+				common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

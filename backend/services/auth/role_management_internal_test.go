@@ -120,6 +120,10 @@ func (r roleManagementAccountRoleRepo) FindByAccountAndRole(ctx context.Context,
 	return nil, sql.ErrNoRows
 }
 
+func (r roleManagementAccountRoleRepo) DeleteByAccountRoleAndTenant(context.Context, int64, int64, int64) error {
+	return nil
+}
+
 func (r roleManagementAccountRoleRepo) DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error {
 	if r.deleteByAccountAndRoleFn != nil {
 		return r.deleteByAccountAndRoleFn(ctx, accountID, roleID)

@@ -226,6 +226,7 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 		rs.mountPersonRoutes(r)
 		rs.mountTagScanRoutes(r)
 		rs.mountAccountMFARoutes(r)
+		rs.mountAccountTenantAccessRoutes(r)
 		rs.mountSuggestionRoutes(r)
 		rs.mountProfileRoutes(r)
 		rs.mountTrustedDeviceRoutes(r)
@@ -348,6 +349,18 @@ func (rs *Resource) mountAccountMFARoutes(r chi.Router) {
 	r.Route("/accounts/{accountId}/mfa", func(r chi.Router) {
 		r.Get("/global-override", rs.provisioningResource.GetAccountMFAGlobalOverride)
 		r.Put("/global-override", rs.provisioningResource.SetAccountMFAGlobalOverride)
+	})
+}
+
+// mountAccountTenantAccessRoutes registers cross-school access management for a
+// single account (issue #1021). Keyed by account, not by school, because the
+// whole point is to see and change every school one account can reach.
+func (rs *Resource) mountAccountTenantAccessRoutes(r chi.Router) {
+	r.Route("/accounts/{accountId}/tenants", func(r chi.Router) {
+		r.Get("/", rs.provisioningResource.ListAccountTenantAccess)
+		r.Post("/", rs.provisioningResource.GrantAccountTenantAccess)
+		r.Put("/{tenantId}", rs.provisioningResource.UpdateAccountTenantRole)
+		r.Delete("/{tenantId}", rs.provisioningResource.RevokeAccountTenantAccess)
 	})
 }
 

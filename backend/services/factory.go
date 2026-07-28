@@ -1711,6 +1711,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DeviceRepo:          repos.Device,
 		RoleRepo:            repos.Role,
 		AccountTenantRepo:   repos.AccountTenant,
+		AccountRoleRepo:     repos.AccountRole,
+		AuthEventRepo:       repos.AuthEvent,
 		PersonRepo:          repos.Person,
 		StaffRepo:           repos.Staff,
 		AccountRepo:         repos.Account,

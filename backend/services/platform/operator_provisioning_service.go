@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
@@ -90,6 +91,10 @@ type OperatorProvisioningService interface {
 	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
 	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
 	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
+	ListAccountTenantAccess(ctx context.Context, accountID int64) ([]AccountTenantAccessEntry, error)
+	GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, req GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
+	UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
+	RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
 }
 
 // OperatorPersonInfo aliases the model type so existing service callers keep
@@ -138,6 +143,8 @@ type OperatorProvisioningServiceConfig struct {
 	DeviceRepo          iotModels.DeviceRepository
 	RoleRepo            authModels.RoleRepository
 	AccountTenantRepo   authModels.AccountTenantRepository
+	AccountRoleRepo     authModels.AccountRoleRepository
+	AuthEventRepo       auditModels.AuthEventRepository
 	PersonRepo          userModels.PersonRepository
 	StaffRepo           userModels.StaffRepository
 	AccountRepo         authModels.AccountRepository

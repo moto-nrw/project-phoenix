@@ -980,6 +980,15 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 		return nil, &AuthError{Op: op, Err: ErrTenantRequiredForRoleAssignment}
 	}
 
+	// Same role policy as operator-led school access: no guardian (that is the
+	// guardian invitation flow), no retired teacher role, and no role belonging
+	// to a different school (issue #1021).
+	if roleID != nil && *roleID > 0 {
+		if _, err := ValidateAssignableSchoolRole(ctx, s.repos.Role, *roleID, tenantID); err != nil {
+			return nil, &AuthError{Op: op, Err: err}
+		}
+	}
+
 	// Find existing account
 	account, err := s.repos.Account.FindByEmail(ctx, email)
 	if err != nil {

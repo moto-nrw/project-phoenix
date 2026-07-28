@@ -193,6 +193,27 @@ func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, acco
 	return nil
 }
 
+// DeleteByAccountRoleAndTenant deletes one role assignment for a single school.
+// The tenant is passed explicitly (not taken from context) because operator-led
+// access management runs outside any tenant transaction.
+func (r *AccountRoleRepository) DeleteByAccountRoleAndTenant(ctx context.Context, accountID, roleID, tenantID int64) error {
+	_, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*auth.AccountRole)(nil)).
+		ModelTableExpr(accountRoleTableAlias).
+		Where(`"account_role".account_id = ?`, accountID).
+		Where(`"account_role".role_id = ?`, roleID).
+		Where(`"account_role".tenant_id = ?`, tenantID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete by account, role and tenant",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // DeleteByAccountID deletes all account-role mappings for an account
 func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID int64) error {
 	query := base.GetDB(ctx, r.db).NewDelete().
