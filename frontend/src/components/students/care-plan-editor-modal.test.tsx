@@ -404,6 +404,30 @@ describe("CarePlanEditorModal", () => {
     });
   });
 
+  it("rejects a weekly note without its matching time", async () => {
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Notizen" })[2]!);
+    fireEvent.change(
+      screen.getByLabelText("Ankunftsnotiz (jede Woche)", {
+        selector: "#weekly-arrival-notes-3",
+      }),
+      { target: { value: "Haupteingang" } },
+    );
+    save();
+
+    expect(
+      await screen.findByText(
+        "Eine Ankunftsnotiz für Mittwoch benötigt eine Ankunftszeit.",
+      ),
+    ).toBeInTheDocument();
+    expect(onSubmitWeekly).not.toHaveBeenCalled();
+  });
+
   it("confirms before an emptied weekly field deletes a time", async () => {
     const { onSubmitWeekly } = renderEditor({
       date: null,

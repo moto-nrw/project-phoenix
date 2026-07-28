@@ -832,8 +832,14 @@ function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
     if (row.arrivalTime && !TIME_PATTERN.test(row.arrivalTime)) {
       return `Ungültige Ankunftszeit für ${day?.label ?? "diesen Tag"}.`;
     }
+    if (row.arrivalNotes.trim() && !row.arrivalTime.trim()) {
+      return `Eine Ankunftsnotiz für ${day?.label ?? "diesen Tag"} benötigt eine Ankunftszeit.`;
+    }
     if (row.pickupTime && !TIME_PATTERN.test(row.pickupTime)) {
       return `Ungültige Abholzeit für ${day?.label ?? "diesen Tag"}.`;
+    }
+    if (row.pickupNotes.trim() && !row.pickupTime.trim()) {
+      return `Eine Abholnotiz für ${day?.label ?? "diesen Tag"} benötigt eine Abholzeit.`;
     }
   }
   return null;
