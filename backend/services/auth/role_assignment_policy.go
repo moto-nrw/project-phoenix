@@ -54,6 +54,9 @@ func ValidateAssignableSchoolRole(
 	if role.TenantID == nil && !role.IsSystem {
 		return nil, ErrRoleNotAssignable
 	}
+	if role.BaseRole != nil && strings.EqualFold(strings.TrimSpace(*role.BaseRole), authModels.BaseRoleGuardian) {
+		return nil, ErrRoleGuardianNotAssignable
+	}
 	switch strings.ToLower(strings.TrimSpace(role.Name)) {
 	case authModels.BaseRoleGuardian:
 		return nil, ErrRoleGuardianNotAssignable

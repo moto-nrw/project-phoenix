@@ -11,6 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -53,6 +54,18 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 
 	t.Run("rejects the guardian role", func(t *testing.T) {
 		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, guardianRole.ID, homeTenantID)
+		assert.ErrorIs(t, err, authSvc.ErrRoleGuardianNotAssignable)
+	})
+
+	t.Run("rejects a custom role derived from guardian", func(t *testing.T) {
+		guardianBase := authModels.BaseRoleGuardian
+		derivedRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-policy-guardian-base", homeTenantID)
+		derivedRole.BaseRole = &guardianBase
+		_, updateErr := db.NewUpdate().Model(derivedRole).ModelTableExpr(`auth.roles`).WherePK().Exec(ctx)
+		require.NoError(t, updateErr)
+		defer testpkg.CleanupRoleRecords(t, db, derivedRole.ID)
+
+		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, derivedRole.ID, homeTenantID)
 		assert.ErrorIs(t, err, authSvc.ErrRoleGuardianNotAssignable)
 	})
 
