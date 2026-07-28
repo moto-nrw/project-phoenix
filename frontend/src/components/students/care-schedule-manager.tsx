@@ -23,9 +23,12 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import {
   type ArrivalData,
   createArrivalException,
+  createArrivalNote,
   deleteArrivalException,
+  deleteArrivalNote,
   fetchArrivalData,
   updateArrivalException,
+  updateArrivalNote,
   updateArrivalSchedules,
 } from "~/lib/student-arrival-api";
 import {
@@ -39,9 +42,12 @@ import {
 } from "~/lib/arrival-schedule-helpers";
 import {
   createStudentPickupException,
+  createStudentPickupNote,
   deleteStudentPickupException,
+  deleteStudentPickupNote,
   fetchStudentPickupData,
   updateStudentPickupException,
+  updateStudentPickupNote,
   updateStudentPickupSchedules,
 } from "~/lib/pickup-schedule-api";
 import {
@@ -593,6 +599,55 @@ export function CareScheduleManager({
     [arrivalData.exceptions, pickupData.exceptions, studentId, refreshCareData],
   );
 
+  const handleCreateArrivalNote = useCallback(
+    async (date: string, content: string) => {
+      await createArrivalNote(studentId, { note_date: date, content });
+      await refreshCareData();
+    },
+    [studentId, refreshCareData],
+  );
+  const handleUpdateArrivalNote = useCallback(
+    async (date: string, noteId: number, content: string) => {
+      await updateArrivalNote(studentId, noteId, { note_date: date, content });
+      await refreshCareData();
+    },
+    [studentId, refreshCareData],
+  );
+  const handleDeleteArrivalNote = useCallback(
+    async (noteId: number) => {
+      await deleteArrivalNote(studentId, noteId);
+      await refreshCareData();
+    },
+    [studentId, refreshCareData],
+  );
+  const handleCreatePickupNote = useCallback(
+    async (date: string, content: string) => {
+      await createStudentPickupNote(studentId, { noteDate: date, content });
+      await refreshCareData();
+      invalidatePickupCaches();
+    },
+    [studentId, refreshCareData],
+  );
+  const handleUpdatePickupNote = useCallback(
+    async (date: string, noteId: string, content: string) => {
+      await updateStudentPickupNote(studentId, noteId, {
+        noteDate: date,
+        content,
+      });
+      await refreshCareData();
+      invalidatePickupCaches();
+    },
+    [studentId, refreshCareData],
+  );
+  const handleDeletePickupNote = useCallback(
+    async (noteId: string) => {
+      await deleteStudentPickupNote(studentId, noteId);
+      await refreshCareData();
+      invalidatePickupCaches();
+    },
+    [studentId, refreshCareData],
+  );
+
   const handleDeleteStatusDay = useCallback(
     async (statusDayId: string) => {
       if (!onDeleteStatusDay) return;
@@ -760,6 +815,12 @@ export function CareScheduleManager({
         weeklyPickup={mergePickupSchedulesWithTemplate(pickupData.schedules)}
         onSubmitException={handleSubmitException}
         onSubmitWeekly={handleUpdateWeeklyPlan}
+        onCreateArrivalNote={handleCreateArrivalNote}
+        onUpdateArrivalNote={handleUpdateArrivalNote}
+        onDeleteArrivalNote={handleDeleteArrivalNote}
+        onCreatePickupNote={handleCreatePickupNote}
+        onUpdatePickupNote={handleUpdatePickupNote}
+        onDeletePickupNote={handleDeletePickupNote}
       />
       <ConfirmationModal
         isOpen={statusDayToDelete !== null}

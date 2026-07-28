@@ -71,9 +71,30 @@ interface CarePlanEditorModalProps {
   readonly weeklyPickup: PickupScheduleFormData[];
   readonly onSubmitException: (payload: CareExceptionSubmit) => Promise<void>;
   readonly onSubmitWeekly: (payload: CarePlanWeeklySubmit) => Promise<void>;
+  readonly onCreateArrivalNote?: (
+    date: string,
+    content: string,
+  ) => Promise<void>;
+  readonly onUpdateArrivalNote?: (
+    date: string,
+    noteId: number,
+    content: string,
+  ) => Promise<void>;
+  readonly onDeleteArrivalNote?: (noteId: number) => Promise<void>;
+  readonly onCreatePickupNote?: (
+    date: string,
+    content: string,
+  ) => Promise<void>;
+  readonly onUpdatePickupNote?: (
+    date: string,
+    noteId: string,
+    content: string,
+  ) => Promise<void>;
+  readonly onDeletePickupNote?: (noteId: string) => Promise<void>;
 }
 
 const TIME_PATTERN = /^([01]?\d|2[0-3]):[0-5]\d$/;
+const noopNoteAction = async () => undefined;
 
 interface WeeklyRow {
   readonly weekday: number;
@@ -93,6 +114,12 @@ export function CarePlanEditorModal({
   weeklyPickup,
   onSubmitException,
   onSubmitWeekly,
+  onCreateArrivalNote = noopNoteAction,
+  onUpdateArrivalNote = noopNoteAction,
+  onDeleteArrivalNote = noopNoteAction,
+  onCreatePickupNote = noopNoteAction,
+  onUpdatePickupNote = noopNoteAction,
+  onDeletePickupNote = noopNoteAction,
 }: CarePlanEditorModalProps) {
   const toast = useToast();
   const isException =
@@ -388,6 +415,17 @@ export function CarePlanEditorModal({
                   showReason={pickupMode !== "regular"}
                 />
               </div>
+              <DayNotesEditor
+                date={toDayISO(arrivalDay.date)}
+                arrivalNotes={arrivalDay.notes}
+                pickupNotes={pickupDay.notes}
+                onCreateArrival={onCreateArrivalNote}
+                onUpdateArrival={onUpdateArrivalNote}
+                onDeleteArrival={onDeleteArrivalNote}
+                onCreatePickup={onCreatePickupNote}
+                onUpdatePickup={onUpdatePickupNote}
+                onDeletePickup={onDeletePickupNote}
+              />
             </>
           ) : (
             <WeeklySection
@@ -556,6 +594,129 @@ function LegSection({
         </label>
       ) : null}
     </section>
+  );
+}
+
+function DayNotesEditor({
+  date,
+  arrivalNotes,
+  pickupNotes,
+  onCreateArrival,
+  onUpdateArrival,
+  onDeleteArrival,
+  onCreatePickup,
+  onUpdatePickup,
+  onDeletePickup,
+}: {
+  readonly date: string;
+  readonly arrivalNotes: readonly { id: number; content: string }[];
+  readonly pickupNotes: readonly { id: string; content: string }[];
+  readonly onCreateArrival: (date: string, content: string) => Promise<void>;
+  readonly onUpdateArrival: (
+    date: string,
+    id: number,
+    content: string,
+  ) => Promise<void>;
+  readonly onDeleteArrival: (id: number) => Promise<void>;
+  readonly onCreatePickup: (date: string, content: string) => Promise<void>;
+  readonly onUpdatePickup: (
+    date: string,
+    id: string,
+    content: string,
+  ) => Promise<void>;
+  readonly onDeletePickup: (id: string) => Promise<void>;
+}) {
+  const [arrivalDraft, setArrivalDraft] = useState("");
+  const [pickupDraft, setPickupDraft] = useState("");
+  return (
+    <div className="space-y-3 rounded-xl border border-gray-200 p-4">
+      <p className="text-sm font-semibold text-gray-900">
+        Hinweise nur für diesen Tag
+      </p>
+      <NoteList
+        label="Ankunft"
+        notes={arrivalNotes}
+        draft={arrivalDraft}
+        setDraft={setArrivalDraft}
+        onCreate={() => onCreateArrival(date, arrivalDraft)}
+        onUpdate={(id, content) => onUpdateArrival(date, Number(id), content)}
+        onDelete={(id) => onDeleteArrival(Number(id))}
+      />
+      <NoteList
+        label="Abholung"
+        notes={pickupNotes}
+        draft={pickupDraft}
+        setDraft={setPickupDraft}
+        onCreate={() => onCreatePickup(date, pickupDraft)}
+        onUpdate={(id, content) => onUpdatePickup(date, id, content)}
+        onDelete={onDeletePickup}
+      />
+    </div>
+  );
+}
+
+function NoteList({
+  label,
+  notes,
+  draft,
+  setDraft,
+  onCreate,
+  onUpdate,
+  onDelete,
+}: {
+  readonly label: string;
+  readonly notes: readonly { id: string | number; content: string }[];
+  readonly draft: string;
+  readonly setDraft: (value: string) => void;
+  readonly onCreate: () => Promise<void>;
+  readonly onUpdate: (id: string, content: string) => Promise<void>;
+  readonly onDelete: (id: string) => Promise<void>;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-gray-500">{label}</p>
+      {notes.map((note) => (
+        <div key={note.id} className="flex gap-2">
+          <input
+            aria-label={`${label} Hinweis`}
+            defaultValue={note.content}
+            className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
+            onBlur={(event) => {
+              if (
+                event.target.value.trim() &&
+                event.target.value !== note.content
+              )
+                void onUpdate(String(note.id), event.target.value.trim());
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void onDelete(String(note.id))}
+          >
+            Löschen
+          </Button>
+        </div>
+      ))}
+      <div className="flex gap-2">
+        <input
+          aria-label={`${label} Hinweis hinzufügen`}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!draft.trim()}
+          onClick={() => void onCreate().then(() => setDraft(""))}
+        >
+          Hinzufügen
+        </Button>
+      </div>
+    </div>
   );
 }
 
