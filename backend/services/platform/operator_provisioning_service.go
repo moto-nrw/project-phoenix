@@ -1175,6 +1175,10 @@ func normalizeAdminInviteRequest(req authSvc.InvitationRequest, roleID, tenantID
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.RoleID = roleID
 	req.TenantID = tenantID
+	// Handing out the school admin role is the whole point of this flow, and the
+	// caller is operator-authenticated (platform scope, no tenant permission
+	// set), so the tenant-side role-grant check does not apply here.
+	req.OperatorGrant = true
 	return req
 }
 

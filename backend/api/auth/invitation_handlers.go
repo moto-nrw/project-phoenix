@@ -103,9 +103,10 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 // copying the optional name/position fields.
 func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims jwt.AppClaims) authService.InvitationRequest {
 	invitationReq := authService.InvitationRequest{
-		Email:     req.Email,
-		RoleID:    req.RoleID,
-		CreatedBy: int64(claims.ID),
+		Email:            req.Email,
+		RoleID:           req.RoleID,
+		CreatedBy:        int64(claims.ID),
+		ActorPermissions: claims.Permissions,
 	}
 	if rs.SchoolService != nil {
 		tenantID := tenant.FromContext(r.Context())
@@ -152,6 +153,17 @@ func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err err
 	}
 	if errors.Is(err, authService.ErrAccountAlreadyHasTenantAccess) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(authService.ErrAccountAlreadyHasTenantAccess, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"))
+		return true
+	}
+	switch {
+	case errors.Is(err, authService.ErrRoleGrantNotPermitted):
+		common.RenderError(w, r, common.ErrorForbidden(authService.ErrRoleGrantNotPermitted))
+		return true
+	case errors.Is(err, authService.ErrRoleNotAssignable),
+		errors.Is(err, authService.ErrRoleForeignTenant),
+		errors.Is(err, authService.ErrRoleGuardianNotAssignable),
+		errors.Is(err, authService.ErrRoleLegacyTeacherNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return true
 	}
 	return renderInvitationError(w, r, err)

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -162,16 +163,35 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	return invitation, nil
 }
 
-// ensureRoleExists verifies the role ID is valid.
-func (s *invitationService) ensureRoleExists(ctx context.Context, roleID int64) error {
-	_, err := s.roleRepo.FindByID(ctx, roleID)
-	if err == nil {
+// ensureRoleAssignable verifies that the requested role may be handed out for
+// this school at all, and that the inviting account is allowed to grant it.
+// Both halves matter: the first keeps guardian and retired roles out of the
+// staff flow, the second stops an account from inviting someone into a role
+// more powerful than its own.
+func (s *invitationService) ensureRoleAssignable(ctx context.Context, req InvitationRequest) error {
+	tenantID := req.TenantID
+	if tenantID <= 0 {
+		tenantID = tenant.FromContext(ctx)
+	}
+
+	role, err := ValidateAssignableSchoolRole(ctx, s.roleRepo, req.RoleID, tenantID)
+	if err != nil {
+		return &AuthError{Op: opCreateInvitation, Err: err}
+	}
+
+	if req.OperatorGrant {
 		return nil
 	}
-	if isNotFoundError(err) {
-		return &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("role not found")}
+
+	if !authorize.CanGrantRole(role, req.ActorPermissions) {
+		s.getLogger().Warn("invitation role grant denied",
+			slog.Any("created_by", nullableCreatedBy(req.CreatedBy)),
+			slog.Int64("role_id", req.RoleID),
+			slog.Int64("tenant_id", tenantID))
+		return &AuthError{Op: opCreateInvitation, Err: ErrRoleGrantNotPermitted}
 	}
-	return &AuthError{Op: opCreateInvitation, Err: err}
+
+	return nil
 }
 
 // invalidatePreviousInvitations marks any pending invitations for this email as used.
@@ -470,7 +490,7 @@ func (s *invitationService) validateInvitationRequest(ctx context.Context, req I
 		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("tenant id is invalid")}
 	}
 
-	if err := s.ensureRoleExists(ctx, req.RoleID); err != nil {
+	if err := s.ensureRoleAssignable(ctx, req); err != nil {
 		return "", err
 	}
 

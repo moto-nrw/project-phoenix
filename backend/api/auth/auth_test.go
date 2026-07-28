@@ -1595,7 +1595,7 @@ func TestInvitationManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1982,7 +1982,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		require.Equal(t, http.StatusCreated, rr.Code,
 			"Expected 201 Created, got %d. Body: %s", rr.Code, rr.Body.String())
@@ -2021,7 +2021,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		}
 
 		createReq := testutil.NewJSONRequest(t, "POST", "/auth/invitations", createBody)
-		createRR := testutil.ExecuteWithAuthPermissions(t, router, createReq, adminClaims, []string{"users:create"})
+		createRR := testutil.ExecuteWithAuthPermissions(t, router, createReq, adminClaims, []string{"users:manage"})
 		require.Equal(t, http.StatusCreated, createRR.Code)
 
 		// Extract token from created invitation
@@ -2192,4 +2192,35 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err, "Failed to parse error response: %s", rr.Body.String())
 	assert.Equal(t, "error", response.Status)
+}
+
+// TestCreateInvitationRequiresRoleGrantAuthority guards the invitation endpoint
+// against privilege escalation: the "user" (Betreuer) role carries users:create
+// globally, so users:create alone must not open an endpoint that hands out roles.
+func TestCreateInvitationRequiresRoleGrantAuthority(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inviter-%d@example.com", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
+
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "invite-target", 1)
+
+	claims := jwt.AppClaims{
+		ID:       int(account.ID),
+		TenantID: 1,
+		Sub:      account.Email,
+		Username: "betreuer",
+		Roles:    []string{"user"},
+	}
+
+	body := map[string]any{
+		"email":   fmt.Sprintf("invitee-%d@example.com", time.Now().UnixNano()),
+		"role_id": role.ID,
+	}
+
+	req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
+	rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:create", "users:update"})
+
+	assert.Equal(t, http.StatusForbidden, rr.Code,
+		"users:create must not be enough to create an invitation")
 }
