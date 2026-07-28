@@ -1045,7 +1045,7 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/ogs-groups");
     });
 
-    it("hides the planning entries when timetable.enabled is false", () => {
+    it("keeps calendar periods reachable when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -1068,6 +1068,7 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
       // Gruppenzugriff bleibt sichtbar (fixed_groups default).
       expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
     });

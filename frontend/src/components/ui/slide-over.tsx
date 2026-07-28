@@ -41,8 +41,7 @@ import { cn } from "~/lib/utils";
 
 /**
  * Unter sm fährt das Panel von unten ein, darüber von rechts. Vor dem ersten
- * Effect gilt "right"; die Korrektur greift, bevor ein Panel geöffnet werden
- * kann.
+ * Effect gilt "right", damit Server- und Client-Render übereinstimmen.
  */
 function useSlideOverDirection(): "right" | "bottom" {
   return useMediaQuery(BELOW_SM) ? "bottom" : "right";
@@ -54,19 +53,44 @@ const SlideOverDirectionContext = React.createContext<"right" | "bottom">(
 
 const SlideOver = ({
   shouldScaleBackground = false,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
-  const direction = useSlideOverDirection();
+  const preferredDirection = useSlideOverDirection();
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const open = openProp ?? uncontrolledOpen;
+  const [direction, setDirection] = React.useState(preferredDirection);
+
+  // Vaul übernimmt `direction` nur beim Mount. Ein Richtungswechsel mit
+  // `key={direction}` darf deshalb nicht passieren, solange ein Formular im
+  // Panel offen ist: Das würde dessen lokalen, noch nicht gespeicherten State
+  // verwerfen. Nach dem Schließen darf der nächste Öffnungsvorgang die für den
+  // dann aktuellen Breakpoint passende Vaul-Instanz verwenden.
+  React.useEffect(() => {
+    if (!open) setDirection(preferredDirection);
+  }, [open, preferredDirection]);
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      setUncontrolledOpen(nextOpen);
+      onOpenChange?.(nextOpen);
+    },
+    [onOpenChange],
+  );
+
   return (
     <SlideOverDirectionContext.Provider value={direction}>
       <DrawerPrimitive.Root
         // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
-        // Der Key erzwingt den Neuaufbau, wenn der Breakpoint tatsächlich
-        // wechselt (Drehung, Fenstergröße) — ohne ihn zöge ein von rechts
-        // aufgebautes Panel weiter nach rechts, obwohl es unten sitzt.
+        // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
+        // geänderten Breakpoint neu auf.
         key={direction}
         direction={direction}
         shouldScaleBackground={shouldScaleBackground}
+        open={open}
+        onOpenChange={handleOpenChange}
         {...props}
       />
     </SlideOverDirectionContext.Provider>

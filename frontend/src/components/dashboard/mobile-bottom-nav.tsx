@@ -626,7 +626,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
-    if (isPlanningPageHref(item.href) && !timetableEnabled) return false;
+    if (
+      isPlanningPageHref(item.href) &&
+      item.href !== "/calendar-periods" &&
+      !timetableEnabled
+    ) {
+      return false;
+    }
     if (item.href === "/substitutions" && openCareGroupMode) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
