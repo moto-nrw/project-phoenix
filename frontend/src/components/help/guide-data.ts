@@ -242,7 +242,7 @@ export const setupChapters: readonly GuideChapter[] = [
         steps: [
           "`Profil` öffnen.",
           "In der Sektion `Passkeys` auf `Hinzufügen` klicken.",
-          "Den Hinweis prüfen und `Sicherheitscode per E-Mail senden` wählen.",
+          "Im Hinweis auf `E-Mail senden` klicken.",
           "Das E-Mail-Postfach öffnen, den Code eingeben und einen Namen für das Gerät vergeben.",
           "Den Passkey mit der Gerätefreigabe speichern.",
           "Bei der nächsten Anmeldung `Mit Passkey anmelden` wählen.",
@@ -498,17 +498,17 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Home",
         icon: LayoutDashboard,
         summary:
-          "Die Startseite nach dem Login (nur für Admins). Sie zeigt in Kacheln, wie der Tag gerade steht, und führt von jeder Zahl direkt in den passenden Bereich.",
+          "Die Startseite für Admins zeigt in Kacheln, wie der Tag gerade steht. Fast jede Zahl führt direkt in den passenden Bereich.",
         steps: [
-          "In der Seitenleiste ganz oben `Home` öffnen. Nach dem Login landen Admins automatisch hier.",
+          "In der Seitenleiste ganz oben `Home` öffnen. Admin-Konten ohne Betreuungsrolle landen nach dem Login automatisch hier; Admins mit Betreuungsrolle starten in ihrem Betreuungsbereich.",
           "Die Kacheln der oberen Reihe ablesen: `Kinder anwesend`, `In Räumen`, `Unterwegs`, `Schulhof`, `Krank`, `Entschuldigt`, `Aktive Gruppen`, `Aktive Aktivitäten`, `Freie Räume` und `Auslastung`.",
-          "Ein Klick auf eine Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in die bereits gefilterte `Kindersuche` oder von `Freie Räume` in die `Räume`-Übersicht.",
+          "Ein Klick auf fast jede Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in die bereits gefilterte `Kindersuche` oder von `Freie Räume` in die `Räume`-Übersicht. `Auslastung` zeigt nur den aktuellen Wert.",
           "Darunter zeigt `Letzte Bewegungen`, welche Kinder zuletzt ein- oder ausgecheckt oder den Raum gewechselt haben.",
-          "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen; die Karte erscheint nur bei Einrichtungen, die mit Aktivitäten arbeiten.",
+          "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen. Gibt es keine, steht dort `Keine laufenden Aktivitäten`.",
         ],
         callout: {
           title: "Kacheln passen sich der Einrichtung an",
-          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen, `Aktive Aktivitäten` und `Laufende Aktivitäten` nur bei Einrichtungen mit Aktivitäten. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
+          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet – auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
           tone: "blue",
         },
         screenshot:
@@ -659,7 +659,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
           "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Wird im Dialog für eine spontane Aktivität der Raum `Schulhof` gewählt, öffnet `Zur Schulhof-Aufsicht` direkt diesen separaten Tab.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
-          "Erfasst Ihre Einrichtung nur, ob ein Kind da ist oder nicht (Anwesenheit ohne Raumzuordnung), erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Diesen Modus stellt das moto-Team ein.",
+          "Erfasst Ihre Einrichtung Anwesenheit ohne Raum- oder Aktivitätszuordnung, erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Ist die Schulhof-Funktion aktiviert, kann der Schulhof trotzdem zusätzlich erfasst werden. Diesen Modus stellt das moto-Team ein.",
         ],
         callout: {
           title: "Warum steht ein Kind auf `Nicht eingeplant`?",
@@ -700,7 +700,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste unten `Notfall` öffnen.",
           "`Notfallliste drucken` erzeugt die Liste und öffnet direkt den Druckdialog.",
           "`PDF herunterladen` speichert dieselbe Liste als Datei, zum Beispiel für das Handy der Einsatzleitung.",
-          "Die Liste wird im Moment des Erstellens aus der aktuellen Anwesenheit erzeugt; sie ist also immer taggenau und kann nicht veralten.",
+          "Die Liste ist eine Momentaufnahme der Anwesenheit beim Erstellen. Im Ernstfall unmittelbar vorher neu erzeugen: Nach Einchecken, Auschecken oder einem Ortswechsel kann ein vorhandener Ausdruck veraltet sein.",
         ],
         callout: {
           title: "Vor dem Ernstfall einmal üben",
