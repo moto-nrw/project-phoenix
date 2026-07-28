@@ -334,7 +334,7 @@ func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *test
 }
 
 func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
-	for _, roleName := range []string{authModels.BaseRoleGuardian, "teacher"} {
+	for _, roleName := range []string{authModels.BaseRoleGuardian, authModels.BaseRoleUser, "teacher"} {
 		t.Run(roleName, func(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 			defer func() { _ = db.Close() }()

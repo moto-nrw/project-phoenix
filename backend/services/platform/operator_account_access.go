@@ -644,7 +644,7 @@ func roleBlocksAccessRevocation(role AccountTenantRole) bool {
 	if role.BaseRole != nil && strings.EqualFold(strings.TrimSpace(*role.BaseRole), authModels.BaseRoleGuardian) {
 		return true
 	}
-	return role.IsSystem && (strings.EqualFold(role.Name, authModels.BaseRoleGuardian) || strings.EqualFold(role.Name, "teacher"))
+	return role.IsSystem && (strings.EqualFold(role.Name, authModels.BaseRoleGuardian) || strings.EqualFold(role.Name, authModels.BaseRoleUser) || strings.EqualFold(role.Name, "teacher"))
 }
 
 // recordAccessAuthEvent writes the tenant-visible audit trail. The operator
