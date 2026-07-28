@@ -434,7 +434,9 @@ export function AccountTenantAccessModal({
                       label: roleLabel(role.name),
                     }))}
                     onChange={setAddRoleId}
-                    disabled={saving}
+                    disabled={
+                      saving || !addSchoolId || !rolesBySchool[addSchoolId]
+                    }
                     placeholder="Rolle wählen"
                   />
                 </div>

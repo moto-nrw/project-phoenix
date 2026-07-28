@@ -12,7 +12,6 @@ const {
   mockRevoke,
   mockListAssignableRoles,
   mockListSchoolSummaries,
-  mockListSystemRoles,
   MockApiError,
 } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
@@ -23,7 +22,6 @@ const {
   mockRevoke: vi.fn(),
   mockListAssignableRoles: vi.fn(),
   mockListSchoolSummaries: vi.fn(),
-  mockListSystemRoles: vi.fn(),
   MockApiError: class MockAccountTenantAccessApiError extends Error {
     status: number;
     constructor(message: string, status: number) {
@@ -102,6 +100,7 @@ vi.mock("~/components/ui/custom-select", async () => {
       ariaLabel,
       id,
       placeholder,
+      disabled,
     }: {
       value: string;
       options: readonly { value: string; label: string }[];
@@ -109,6 +108,7 @@ vi.mock("~/components/ui/custom-select", async () => {
       ariaLabel?: string;
       id?: string;
       placeholder?: string;
+      disabled?: boolean;
     }) =>
       createElement(
         "select",
@@ -118,6 +118,7 @@ vi.mock("~/components/ui/custom-select", async () => {
           id,
           onChange: (event: { target: { value: string } }) =>
             onChange(event.target.value),
+          disabled,
         },
         [
           createElement("option", { key: "__empty", value: "" }, "—"),
@@ -165,7 +166,6 @@ vi.mock("~/lib/operator/account-tenant-access-api", () => ({
 vi.mock("~/lib/operator/provisioning-api", () => ({
   operatorProvisioningService: {
     listSchoolSummaries: mockListSchoolSummaries,
-    listSystemRoles: mockListSystemRoles,
   },
 }));
 
@@ -220,11 +220,6 @@ describe("AccountTenantAccessModal", () => {
         deletedAt: null,
       },
     ]);
-    mockListSystemRoles.mockResolvedValue([
-      { id: "1", name: "admin", isSystem: true },
-      { id: "2", name: "user", isSystem: true },
-      { id: "6", name: "guardian", isSystem: true },
-    ]);
     mockListAssignableRoles.mockResolvedValue([
       { id: "1", name: "admin" },
       { id: "2", name: "user" },
@@ -255,7 +250,15 @@ describe("AccountTenantAccessModal", () => {
   it("never offers the guardian role", async () => {
     renderModal();
 
-    const roleSelect = await screen.findByLabelText("account-access-role");
+    const schoolSelect = await screen.findByLabelText("account-access-school");
+    fireEvent.change(schoolSelect, { target: { value: "3" } });
+    const roleSelect = screen.getByLabelText("account-access-role");
+    await waitFor(() =>
+      expect(mockListAssignableRoles).toHaveBeenCalledWith("42", "3"),
+    );
+    await waitFor(() =>
+      expect(roleSelect.querySelector('option[value="1"]')).toBeInTheDocument(),
+    );
     const options = Array.from(roleSelect.querySelectorAll("option")).map(
       (option) => option.textContent,
     );
@@ -272,7 +275,11 @@ describe("AccountTenantAccessModal", () => {
 
     const schoolSelect = await screen.findByLabelText("account-access-school");
     fireEvent.change(schoolSelect, { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("account-access-role"), {
+    const roleSelect = screen.getByLabelText("account-access-role");
+    await waitFor(() =>
+      expect(roleSelect.querySelector('option[value="1"]')).toBeInTheDocument(),
+    );
+    fireEvent.change(roleSelect, {
       target: { value: "1" },
     });
     fireEvent.click(screen.getByText("Zugang erteilen"));
@@ -297,7 +304,11 @@ describe("AccountTenantAccessModal", () => {
 
     const schoolSelect = await screen.findByLabelText("account-access-school");
     fireEvent.change(schoolSelect, { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("account-access-role"), {
+    const roleSelect = screen.getByLabelText("account-access-role");
+    await waitFor(() =>
+      expect(roleSelect.querySelector('option[value="1"]')).toBeInTheDocument(),
+    );
+    fireEvent.change(roleSelect, {
       target: { value: "1" },
     });
     fireEvent.click(screen.getByText("Zugang erteilen"));
@@ -349,5 +360,27 @@ describe("AccountTenantAccessModal", () => {
 
     expect(await screen.findByLabelText(/Vorname/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Nachname/)).toBeInTheDocument();
+  });
+
+  it("disables the role selector when school roles cannot be loaded", async () => {
+    mockListAssignableRoles.mockImplementation((_accountId, schoolId) =>
+      schoolId === "3"
+        ? Promise.reject(new Error("network down"))
+        : Promise.resolve([
+            { id: "1", name: "admin" },
+            { id: "2", name: "user" },
+          ]),
+    );
+    renderModal();
+
+    fireEvent.change(await screen.findByLabelText("account-access-school"), {
+      target: { value: "3" },
+    });
+
+    const roleSelect = screen.getByLabelText("account-access-role");
+    await waitFor(() => expect(roleSelect).toBeDisabled());
+    expect(screen.getByTestId("alert")).toHaveTextContent(
+      "Die Rollen der Schule konnten nicht geladen werden.",
+    );
   });
 });
