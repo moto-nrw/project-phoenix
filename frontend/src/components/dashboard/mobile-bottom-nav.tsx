@@ -283,7 +283,6 @@ const PLANNING_ICON_KEYS: Record<
   "/betreuungsplan": "betreuungsplan",
   "/dienstplan": "dienstplan",
   "/vertretung": "vertretung",
-  // Desktop-only (showInMobileNav: false), Eintrag nur für die Typ-Vollständigkeit.
   "/lists": "calendar",
   "/calendar-periods": "calendar",
 };

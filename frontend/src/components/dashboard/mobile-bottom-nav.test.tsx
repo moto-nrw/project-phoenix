@@ -442,8 +442,11 @@ describe("MobileBottomNav", () => {
       );
     });
 
-    it("highlights Betreuungsplan on /calendar-periods in the overflow menu", () => {
-      // /calendar-periods gehört zu den activePaths des Betreuungsplans.
+    it("highlights Kalenderzeiträume as its own overflow entry", () => {
+      // Kalenderzeiträume und Tageslisten waren mobil ausgeblendet und liehen
+      // sich die Hervorhebung vom Betreuungsplan. Erreichbar waren sie dadurch
+      // nicht: es gibt keinen Verweis vom Betreuungsplan dorthin. Beide sind
+      // jetzt eigene Einträge und markieren sich selbst.
       mockUsePathname.mockReturnValue("/calendar-periods");
 
       render(<MobileBottomNav />);
@@ -455,10 +458,13 @@ describe("MobileBottomNav", () => {
       expect(moreButton).toBeDefined();
       fireEvent.click(moreButton!);
 
-      const betreuungsplanLink = screen
-        .getByText("Betreuungsplan")
-        .closest("a");
-      expect(betreuungsplanLink).toHaveClass("bg-gray-900");
+      expect(screen.getByText("Kalenderzeiträume").closest("a")).toHaveClass(
+        "bg-gray-900",
+      );
+      expect(screen.getByText("Tageslisten").closest("a")).toBeInTheDocument();
+      expect(screen.getByText("Betreuungsplan").closest("a")).not.toHaveClass(
+        "bg-gray-900",
+      );
     });
   });
 
