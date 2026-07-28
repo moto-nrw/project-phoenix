@@ -309,6 +309,20 @@ describe("DashboardPage", () => {
     });
   });
 
+  it("expands the staff summary when it is the only dashboard info card", async () => {
+    vi.mocked(usePresenceMode).mockReturnValue("binary");
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const staffSummary = screen.getByRole("link", {
+        name: /Personal heute/i,
+      });
+      expect(staffSummary.parentElement).toHaveClass("lg:col-span-2");
+    });
+  });
+
   it("displays supervisor count", async () => {
     render(<DashboardPage />);
 
