@@ -54,7 +54,7 @@ type InvitationResponse struct {
 	Email           string     `json:"email"`
 	RoleID          int64      `json:"role_id"`
 	RoleName        string     `json:"role_name,omitempty"`
-	Token           string     `json:"token"`
+	Token           string     `json:"token,omitempty"`
 	ExpiresAt       time.Time  `json:"expires_at"`
 	FirstName       *string    `json:"first_name,omitempty"`
 	LastName        *string    `json:"last_name,omitempty"`
@@ -359,7 +359,13 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 
 	responses := make([]InvitationResponse, 0, len(invitations))
 	for _, invitation := range invitations {
-		responses = append(responses, toInvitationResponse(invitation))
+		resp := toInvitationResponse(invitation)
+		// The token is a bearer credential: whoever holds it can redeem the
+		// invitation. The create response returns it because the UI builds a
+		// copyable invite link from it; nothing consumes it from the list, so
+		// it is not handed out again here.
+		resp.Token = ""
+		responses = append(responses, resp)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")
