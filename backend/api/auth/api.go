@@ -187,7 +187,10 @@ func (rs *Resource) Router() chi.Router {
 			// the "user" role is granted users:create in migrations; manage
 			// restricts this to actual administrators.
 			r.With(authorize.RequiresPermission(permUsersManage)).Post("/register", rs.register)
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post("/link-to-tenant", rs.linkToTenant)
+			// link-to-tenant carries the same weight as /register: it grants
+			// an existing account a role inside the caller's tenant, so
+			// users:create would let every "user" account grant itself admin.
+			r.With(authorize.RequiresPermission(permUsersManage)).Post("/link-to-tenant", rs.linkToTenant)
 
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {

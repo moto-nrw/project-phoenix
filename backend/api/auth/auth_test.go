@@ -2224,3 +2224,72 @@ func TestCreateInvitationRequiresRoleGrantAuthority(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code,
 		"users:create must not be enough to create an invitation")
 }
+
+// TestRoleAssignmentEndpointsRejectEscalation guards the two remaining paths
+// that hand out a role when they attach an account to a school. Neither may be
+// driven by users:create, which every Betreuer holds.
+func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("granter-%d@example.com", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
+
+	adminRole := testpkg.CreateTestSystemRole(t, tc.db, "admin")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, tc.db, "auth.roles", adminRole.ID) })
+
+	claims := jwt.AppClaims{
+		ID:       int(account.ID),
+		TenantID: 1,
+		Sub:      account.Email,
+		Username: "betreuer",
+		Roles:    []string{"user"},
+	}
+	betreuer := []string{"users:create", "users:update"}
+
+	t.Run("register rejects users:create", func(t *testing.T) {
+		body := map[string]any{
+			"email":    fmt.Sprintf("newadmin-%d@example.com", time.Now().UnixNano()),
+			"username": fmt.Sprintf("newadmin%d", time.Now().UnixNano()),
+			"password": "Test1234%",
+			"role_id":  adminRole.ID,
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, betreuer)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+	})
+
+	t.Run("link-to-tenant rejects users:create", func(t *testing.T) {
+		body := map[string]any{
+			"email":   account.Email,
+			"role_id": adminRole.ID,
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/link-to-tenant", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, betreuer)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+	})
+
+	t.Run("an admin may still assign the admin role", func(t *testing.T) {
+		adminClaims := claims
+		adminClaims.Roles = []string{"admin"}
+		body := map[string]any{
+			"email":            fmt.Sprintf("realadmin-%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("realadmin%d", time.Now().UnixNano()),
+			"password":         "Test1234%",
+			"confirm_password": "Test1234%",
+			"role_id":          adminRole.ID,
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
+
+		require.Equal(t, http.StatusCreated, rr.Code, "body: %s", rr.Body.String())
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		require.True(t, ok)
+		if id, ok := data["id"].(float64); ok {
+			t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, tc.db, int64(id)) })
+		}
+	})
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/internal/clientip"
@@ -204,7 +205,8 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Verify the role exists — TenantTxMiddleware ensures RLS sees tenant-scoped roles
-	if _, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID)); err != nil {
+	role, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(
 				errors.New("specified role does not exist")))
@@ -215,6 +217,18 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 			)
 			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to verify role", err))
 		}
+		return nil, 0, true
+	}
+
+	// Existing plus assignable: creating an account hands out a role, and no
+	// caller may hand out more than they hold. Same rule as the invitation flow.
+	if !authorize.CanGrantRole(role, claims.Permissions) {
+		slog.Default().Warn("role grant denied",
+			"role_id", *requestedRoleID,
+			"account_id", claims.ID,
+			"tenant_id", claims.TenantID,
+		)
+		common.RenderError(w, r, common.ErrorForbidden(authService.ErrRoleGrantNotPermitted))
 		return nil, 0, true
 	}
 
