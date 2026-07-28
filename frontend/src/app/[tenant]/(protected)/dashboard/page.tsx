@@ -426,75 +426,81 @@ function DashboardContent() {
       {/* Activity Lists Grid */}
       <div className="grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2">
         {/* Recent Activity */}
-        <InfoCard
-          title="Letzte Bewegungen"
-          icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-        >
-          {(() => {
-            if (isLoading) {
+        {showRoomSurfaces ? (
+          <InfoCard
+            title="Letzte Bewegungen"
+            icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          >
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-12 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const activities = dashboardData?.recentActivity;
+              if (!activities || activities.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine aktuellen Bewegungen
+                  </p>
+                );
+              }
               return (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-12 animate-pulse rounded-lg bg-gray-100"
-                    ></div>
-                  ))}
+                <div className="space-y-2">
+                  {activities.slice(0, 5).map((activity, idx) => {
+                    const ts = new Date(activity.timestamp).getTime();
+                    const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
+                    return (
+                      <div
+                        key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
+                        className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                            <span className="truncate">
+                              {activity.groupName}
+                            </span>
+                            <svg
+                              className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
+                            <span className="truncate">
+                              {activity.roomName}
+                            </span>
+                          </p>
+                          {activity.count > 1 && (
+                            <p className="text-xs text-gray-500">
+                              {activity.count} Kinder
+                            </p>
+                          )}
+                        </div>
+                        <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
+                          {formatRecentActivityTime(activity.timestamp)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               );
-            }
-            const activities = dashboardData?.recentActivity;
-            if (!activities || activities.length === 0) {
-              return (
-                <p className="py-8 text-center text-sm text-gray-500">
-                  Keine aktuellen Bewegungen
-                </p>
-              );
-            }
-            return (
-              <div className="space-y-2">
-                {activities.slice(0, 5).map((activity, idx) => {
-                  const ts = new Date(activity.timestamp).getTime();
-                  const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
-                  return (
-                    <div
-                      key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
-                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                          <span className="truncate">{activity.groupName}</span>
-                          <svg
-                            className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
-                          <span className="truncate">{activity.roomName}</span>
-                        </p>
-                        {activity.count > 1 && (
-                          <p className="text-xs text-gray-500">
-                            {activity.count} Kinder
-                          </p>
-                        )}
-                      </div>
-                      <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
-                        {formatRecentActivityTime(activity.timestamp)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </InfoCard>
+            })()}
+          </InfoCard>
+        ) : null}
 
         {showActivitySurfaces ? (
           <InfoCard
