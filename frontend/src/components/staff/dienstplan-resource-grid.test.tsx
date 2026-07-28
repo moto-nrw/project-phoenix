@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   StaffScheduleAssignment,
@@ -11,10 +17,18 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 
 import { DienstplanResourceGrid } from "./dienstplan-resource-grid";
 
-const mocks = vi.hoisted(() => ({ push: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  push: vi.fn(),
+  useMediaQuery: vi.fn(() => false),
+}));
 
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mocks.push }),
+}));
+
+vi.mock("~/lib/hooks/use-media-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/hooks/use-media-query")>()),
+  useMediaQuery: mocks.useMediaQuery,
 }));
 
 // Der Verschieben-Dialog fragt die Schließtage des Zieltags ab (#2032); der
@@ -121,18 +135,20 @@ interface RenderOverrides {
   reducedPath?: boolean;
   currentStaffId?: string | null;
   onSickReport?: (staff: StaffScheduleStaff) => void;
+  weekDays?: readonly string[];
+  todayIso?: string;
 }
 
 function renderGrid(overrides: RenderOverrides = {}) {
   const onCellClick = vi.fn();
-  const { unmount } = render(
+  const renderResult = render(
     <DienstplanResourceGrid
       staff={overrides.staff ?? [member]}
       shiftsByStaff={overrides.shiftsByStaff ?? new Map()}
       assignmentsByStaff={overrides.assignmentsByStaff ?? new Map()}
       summaryByStaff={overrides.summaryByStaff ?? new Map()}
-      weekDays={WEEK_DAYS}
-      todayIso={TODAY}
+      weekDays={overrides.weekDays ?? WEEK_DAYS}
+      todayIso={overrides.todayIso ?? TODAY}
       typesById={overrides.typesById ?? new Map()}
       shiftTypes={overrides.shiftTypes ?? []}
       reducedPath={overrides.reducedPath}
@@ -141,7 +157,7 @@ function renderGrid(overrides: RenderOverrides = {}) {
       onSickReport={overrides.onSickReport}
     />,
   );
-  return { onCellClick, unmount };
+  return { onCellClick, ...renderResult };
 }
 
 function shiftMap(
@@ -153,7 +169,10 @@ function shiftMap(
 }
 
 describe("DienstplanResourceGrid stacking", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.useMediaQuery.mockReturnValue(false);
+  });
 
   it("stacks a day's shifts chronologically as separate blocks", () => {
     const late = baseShift({ id: "1", startTime: "10:30", endTime: "15:00" });
@@ -174,6 +193,57 @@ describe("DienstplanResourceGrid stacking", () => {
       name: "Schicht anlegen, Ada Lovelace, Mo 06.07.",
     });
     expect(addShiftButton.parentElement).toHaveClass("group", "flex-1");
+  });
+});
+
+describe("DienstplanResourceGrid mobile day selector", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.useMediaQuery.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    mocks.useMediaQuery.mockReturnValue(false);
+  });
+
+  it("resets to Monday when the displayed week changes", async () => {
+    const { rerender } = renderGrid();
+    const friday = screen.getByRole("button", {
+      name: /Fr.*10\.07\./,
+      pressed: false,
+    });
+
+    fireEvent.click(friday);
+    expect(friday).toHaveAttribute("aria-pressed", "true");
+
+    rerender(
+      <DienstplanResourceGrid
+        staff={[member]}
+        shiftsByStaff={new Map()}
+        assignmentsByStaff={new Map()}
+        summaryByStaff={new Map()}
+        weekDays={[
+          "2026-07-13",
+          "2026-07-14",
+          "2026-07-15",
+          "2026-07-16",
+          "2026-07-17",
+        ]}
+        todayIso={TODAY}
+        typesById={new Map()}
+        shiftTypes={[]}
+        onCellClick={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: /Mo.*13\.07\./,
+          pressed: true,
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+    });
   });
 });
 

@@ -9,7 +9,14 @@ import {
   Thermometer,
   TriangleAlert,
 } from "lucide-react";
-import { useId, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
   ClosingDayChip,
@@ -646,9 +653,16 @@ export function DienstplanResourceGrid({
   // es in der gezeigten Woche liegt, sonst der Wochenanfang — dieselbe Regel
   // wie im Tagesstreifen des Betreuungsplan-Rasters.
   const todayColumnIndex = weekDays.indexOf(todayIso);
+  const weekStart = weekDays[0];
   const [mobileDayIndex, setMobileDayIndex] = useState(
     todayColumnIndex >= 0 ? todayColumnIndex : 0,
   );
+  const mobileWeekStart = useRef(weekStart);
+  useEffect(() => {
+    if (mobileWeekStart.current === weekStart) return;
+    mobileWeekStart.current = weekStart;
+    setMobileDayIndex(todayColumnIndex >= 0 ? todayColumnIndex : 0);
+  }, [todayColumnIndex, weekStart]);
   const safeMobileDayIndex = Math.min(
     Math.max(mobileDayIndex, 0),
     Math.max(columns.length - 1, 0),
