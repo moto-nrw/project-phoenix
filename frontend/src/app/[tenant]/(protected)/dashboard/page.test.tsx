@@ -320,6 +320,7 @@ describe("DashboardPage", () => {
         name: /Personal heute/i,
       });
       expect(staffSummary.parentElement).toHaveClass("lg:col-span-2");
+      expect(staffSummary).toHaveClass("h-full");
     });
   });
 

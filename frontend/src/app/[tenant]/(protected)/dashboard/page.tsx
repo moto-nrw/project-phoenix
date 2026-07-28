@@ -245,7 +245,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
     return (
       <Link
         href={href}
-        className="group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="group block h-full rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       >
         {cardContent}
       </Link>
