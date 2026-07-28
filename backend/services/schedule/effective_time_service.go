@@ -455,6 +455,117 @@ func (c *effectiveTimeCore[S, E, N, D]) CreateOrReclaimException(
 	return result, nil
 }
 
+// UpsertExceptions writes the same override onto every date in dates as ONE
+// unit of work: either all days carry the new value or none do.
+//
+// It deliberately differs from CreateOrReclaimException in two ways, both
+// required by the staff range editor ("gilt für 12.03. bis 16.03."):
+//
+//   - An existing STAFF-authored day is overwritten instead of returning
+//     ErrCareExceptionDayConflict. That conflict exists to protect a
+//     single-day edit against a concurrent writer; in a range the caller is
+//     explicitly asking to set every covered day, and failing the whole batch
+//     because one day already had an override would make ranges unusable.
+//   - value == nil CLEARS the time (= "kommt nicht" / "keine Abholung"), which
+//     UpdateException cannot express — it only overwrites a non-nil value.
+//
+// Guardian-authored days keep their protection: reclaiming one still requires
+// a caller with a staff profile, and the whole batch fails without it rather
+// than silently skipping the parent's day.
+func (c *effectiveTimeCore[S, E, N, D]) UpsertExceptions(
+	ctx context.Context,
+	studentID int64,
+	dates []timezone.Date,
+	value *time.Time,
+	reason *string,
+	staffID int64,
+	resolveStaffID func() (int64, error),
+) ([]E, error) {
+	results := make([]E, 0, len(dates))
+	tenantID := tenant.FromContext(ctx)
+	err := tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// Reset on entry: WithTenantTx may run the closure again on a retry, and
+		// appending to a half-filled slice would report duplicate rows.
+		results = results[:0]
+		for _, date := range dates {
+			row, err := c.upsertExceptionInTx(txCtx, studentID, date, value, reason, staffID, resolveStaffID)
+			if err != nil {
+				return err
+			}
+			results = append(results, row)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// upsertExceptionInTx applies one day of an UpsertExceptions batch. It MUST run
+// inside the batch transaction so a failure on a later day rolls back the
+// earlier ones.
+func (c *effectiveTimeCore[S, E, N, D]) upsertExceptionInTx(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+	value *time.Time,
+	reason *string,
+	staffID int64,
+	resolveStaffID func() (int64, error),
+) (E, error) {
+	var zero E
+	if err := LockCareExceptionDay(ctx, c.db, studentID, date); err != nil {
+		return zero, err
+	}
+
+	existing, err := c.ExceptionForDate(ctx, studentID, date)
+	if err != nil {
+		return zero, err
+	}
+
+	if isZeroEntity(existing) {
+		row := c.domain.NewException(effectiveExceptionFields{
+			StudentID: studentID,
+			Date:      date,
+			Time:      value,
+			Reason:    reason,
+			Source:    scheduleModel.ExceptionSourceStaff,
+			CreatedBy: staffID,
+		})
+		if err := c.CreateException(ctx, row); err != nil {
+			return zero, err
+		}
+		return row, nil
+	}
+
+	fields := c.domain.ExceptionFields(existing)
+	author := fields.CreatedBy
+	if fields.Source == scheduleModel.ExceptionSourceGuardian {
+		resolvedStaffID, staffErr := resolveStaffID()
+		if staffErr != nil || resolvedStaffID == 0 {
+			return zero, ErrCareExceptionStaffProfileRequired
+		}
+		author = resolvedStaffID
+	}
+
+	row := c.domain.NewException(effectiveExceptionFields{
+		ID:        fields.ID,
+		StudentID: studentID,
+		Date:      date,
+		Time:      value,
+		Reason:    reason,
+		Source:    scheduleModel.ExceptionSourceStaff,
+		CreatedBy: author,
+		CreatedAt: fields.CreatedAt,
+		TenantID:  fields.TenantID,
+	})
+	if err := c.UpdateExceptionRow(ctx, row); err != nil {
+		return zero, err
+	}
+	return row, nil
+}
+
 func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 	ctx context.Context,
 	exceptionID int64,

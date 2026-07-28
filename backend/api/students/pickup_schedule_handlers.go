@@ -82,6 +82,16 @@ type PickupExceptionRequest struct {
 	Reason        *string `json:"reason,omitempty"`
 }
 
+// BulkPickupExceptionRequest represents a request to apply the same pickup
+// override to several dates at once (the "gilt für mehrere Tage" scope of the
+// care plan editor). An omitted or empty pickup_time means "keine Abholung" on
+// every listed date.
+type BulkPickupExceptionRequest struct {
+	Dates      []string `json:"dates"` // YYYY-MM-DD entries
+	PickupTime *string  `json:"pickup_time,omitempty"`
+	Reason     *string  `json:"reason,omitempty"`
+}
+
 // PickupNoteRequest represents a request to create/update a pickup note
 type PickupNoteRequest struct {
 	NoteDate string `json:"note_date"` // YYYY-MM-DD format
@@ -146,6 +156,11 @@ func toPickupScheduleModels(items []PickupScheduleRequest, studentID, staffID in
 // Bind implements render.Binder
 func (r *PickupExceptionRequest) Bind(_ *http.Request) error {
 	return validateCareExceptionRequest(r.ExceptionDate, r.PickupTime, r.Reason, "pickup_time")
+}
+
+// Bind implements render.Binder
+func (r *BulkPickupExceptionRequest) Bind(_ *http.Request) error {
+	return validateCareExceptionBatch(r.Dates, r.PickupTime, r.Reason, "pickup_time")
 }
 
 // mapScheduleToResponse converts a schedule model to API response
@@ -480,6 +495,55 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 	})
 
 	common.Respond(w, r, http.StatusCreated, mapExceptionToResponse(exception), "Pickup exception created successfully")
+}
+
+// bulkUpsertStudentPickupExceptions handles POST /students/{id}/pickup-exceptions/bulk.
+// Every listed date receives the same override in ONE transaction, so a range
+// edit never leaves half the days changed.
+func (rs *Resource) bulkUpsertStudentPickupExceptions(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupWriteAccess(w, r, "create pickup exceptions")
+	if student == nil {
+		return
+	}
+
+	req := &BulkPickupExceptionRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		renderError(w, r, common.ErrorForbidden(err))
+		return
+	}
+
+	dates, pickupTime := parseCareExceptionBatch(req.Dates, req.PickupTime)
+
+	tenantID := tenant.FromContext(r.Context())
+	exceptions, err := rs.PickupScheduleService.UpsertExceptions(
+		r.Context(), student.ID, dates, pickupTime, req.Reason, staffID,
+		func() (int64, error) { return rs.getStaffIDFromJWT(r) },
+	)
+	if err != nil {
+		renderExceptionWriteError(w, r, err)
+		return
+	}
+
+	// Same after-commit deferral as the single-date path: the service write runs
+	// in a nested tx that has not committed on return, so waking clients now
+	// would show them the pre-commit snapshot.
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+	})
+
+	responses := make([]PickupExceptionResponse, 0, len(exceptions))
+	for _, exception := range exceptions {
+		responses = append(responses, mapExceptionToResponse(exception))
+	}
+
+	common.Respond(w, r, http.StatusCreated, responses, "Pickup exceptions saved successfully")
 }
 
 // updateStudentPickupException handles PUT /students/{id}/pickup-exceptions/{exceptionId}

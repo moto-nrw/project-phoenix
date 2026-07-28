@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { fn } from "storybook/test";
-import { CareDayOverrideModal } from "./care-day-override-modal";
+import { CarePlanEditorModal } from "./care-plan-editor-modal";
 import type { ArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import type { DayData as PickupDayData } from "~/lib/pickup-schedule-helpers";
 
@@ -46,13 +46,13 @@ const regularPickupDay: PickupDayData = {
     weekday: 3,
     weekdayName: "Mittwoch",
     pickupTime: "16:00",
-    notes: undefined,
+    notes: "Bus",
     createdBy: "1",
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   },
   effectiveTime: "16:00",
-  effectiveNotes: undefined,
+  effectiveNotes: "Bus",
   isException: false,
   notes: [],
 };
@@ -115,34 +115,58 @@ const guardianPickupDay: PickupDayData = {
   ],
 };
 
-const meta: Meta<typeof CareDayOverrideModal> = {
-  title: "students/CareDayOverrideModal",
-  component: CareDayOverrideModal,
+const weeklyArrival = [
+  { weekday: 1, expected_arrival: "08:00", notes: null },
+  { weekday: 2, expected_arrival: "08:00", notes: null },
+  { weekday: 3, expected_arrival: "08:00", notes: null },
+  { weekday: 4, expected_arrival: "", notes: null },
+  { weekday: 5, expected_arrival: "", notes: null },
+];
+
+const weeklyPickup = [
+  { weekday: 1, pickupTime: "16:00", notes: "Bus" },
+  { weekday: 2, pickupTime: "16:00" },
+  { weekday: 3, pickupTime: "16:00", notes: "Bus" },
+  { weekday: 4, pickupTime: "" },
+  { weekday: 5, pickupTime: "" },
+];
+
+const meta: Meta<typeof CarePlanEditorModal> = {
+  title: "students/CarePlanEditorModal",
+  component: CarePlanEditorModal,
   parameters: {
     layout: "fullscreen",
   },
   args: {
     isOpen: true,
     onClose: fn(),
-    onSaveArrivalException: fn().mockResolvedValue(undefined),
-    onDeleteArrivalException: fn().mockResolvedValue(undefined),
-    onSavePickupException: fn().mockResolvedValue(undefined),
-    onDeletePickupException: fn().mockResolvedValue(undefined),
-    onCreateArrivalNote: fn().mockResolvedValue(undefined),
+    date: baseDate,
+    arrivalDay: regularArrivalDay,
+    pickupDay: regularPickupDay,
+    weeklyArrival,
+    weeklyPickup,
+    guardianArrivalDates: [],
+    guardianPickupDates: [],
+    onSubmitExceptions: fn().mockResolvedValue(undefined),
+    onSubmitWeekly: fn().mockResolvedValue(undefined),
     onDeleteArrivalNote: fn().mockResolvedValue(undefined),
-    onCreatePickupNote: fn().mockResolvedValue(undefined),
     onDeletePickupNote: fn().mockResolvedValue(undefined),
   },
 };
 
 export default meta;
 
-type Story = StoryObj<typeof CareDayOverrideModal>;
+type Story = StoryObj<typeof CarePlanEditorModal>;
 
-export const Regular: Story = {
+/** Opened from a day card: all three scopes are available. */
+export const FromDay: Story = {};
+
+/** Opened from the week header: no day context, so only the weekly plan. */
+export const FromWeekHeader: Story = {
   args: {
-    arrivalDay: regularArrivalDay,
-    pickupDay: regularPickupDay,
+    date: null,
+    arrivalDay: null,
+    pickupDay: null,
   },
 };
 
@@ -150,13 +174,13 @@ export const GuardianAuthored: Story = {
   args: {
     arrivalDay: guardianArrivalDay,
     pickupDay: guardianPickupDay,
+    guardianArrivalDates: ["2026-07-01"],
+    guardianPickupDates: ["2026-07-01"],
   },
 };
 
 export const Closed: Story = {
   args: {
     isOpen: false,
-    arrivalDay: regularArrivalDay,
-    pickupDay: regularPickupDay,
   },
 };

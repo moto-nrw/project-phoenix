@@ -101,6 +101,69 @@ func validateCareExceptionRequest(
 	return nil
 }
 
+// maxCareExceptionBatchDates caps one bulk exception write. A range editor
+// covering a school year would otherwise lock and rewrite hundreds of days in a
+// single request transaction; the staff UI offers ranges of a few weeks.
+const maxCareExceptionBatchDates = 60
+
+// validateCareExceptionBatch validates the shared shape of a bulk exception
+// request: a non-empty, duplicate-free list of ISO dates plus the same time and
+// reason constraints a single-day exception has.
+func validateCareExceptionBatch(
+	dates []string,
+	value *string,
+	reason *string,
+	timeField string,
+) error {
+	if len(dates) == 0 {
+		return errors.New("dates array cannot be empty")
+	}
+	if len(dates) > maxCareExceptionBatchDates {
+		return fmt.Errorf("dates cannot exceed %d entries", maxCareExceptionBatchDates)
+	}
+	seen := make(map[string]bool, len(dates))
+	for i, date := range dates {
+		if date == "" {
+			return fmt.Errorf("dates[%d]: date is required", i)
+		}
+		if _, err := time.Parse(dateFormatISO, date); err != nil {
+			return fmt.Errorf("dates[%d]: invalid date format, expected YYYY-MM-DD", i)
+		}
+		if seen[date] {
+			return fmt.Errorf("dates[%d]: duplicate date %s", i, date)
+		}
+		seen[date] = true
+	}
+	if value != nil && *value != "" {
+		if _, err := time.Parse("15:04", *value); err != nil {
+			return fmt.Errorf("invalid %s format, expected HH:MM", timeField)
+		}
+	}
+	if reason != nil && len(*reason) > 255 {
+		return errors.New("reason cannot exceed 255 characters")
+	}
+	return nil
+}
+
+// parseCareExceptionBatch converts a validated bulk request into the calendar
+// dates and optional wall-clock time the service expects. A nil time means
+// "kommt nicht" / "keine Abholung" for every date in the batch.
+func parseCareExceptionBatch(dates []string, value *string) ([]timezone.Date, *time.Time) {
+	parsed := make([]timezone.Date, 0, len(dates))
+	for _, date := range dates {
+		// Validated in Bind — an unparsable date never reaches here.
+		day, _ := timezone.ParseDate(date)
+		parsed = append(parsed, day)
+	}
+
+	var timeValue *time.Time
+	if value != nil && *value != "" {
+		clock, _ := parseTimeOnly(*value)
+		timeValue = &clock
+	}
+	return parsed, timeValue
+}
+
 func validateCareNoteRequest(noteDate string, content string) error {
 	if noteDate == "" {
 		return errors.New("note_date is required")

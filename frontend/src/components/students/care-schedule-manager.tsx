@@ -14,22 +14,23 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { CareDayOverrideModal } from "./care-day-override-modal";
-import { CareWeeklyPlanModal } from "./care-weekly-plan-modal";
+import {
+  type CarePlanExceptionSubmit,
+  type CarePlanWeeklySubmit,
+  CarePlanEditorModal,
+} from "./care-plan-editor-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   type ArrivalData,
-  createArrivalException,
+  bulkUpsertArrivalExceptions,
   createArrivalNote,
   deleteArrivalException,
   deleteArrivalNote,
   fetchArrivalData,
-  updateArrivalException,
   updateArrivalSchedules,
 } from "~/lib/student-arrival-api";
 import {
   type ArrivalDayData,
-  type ArrivalScheduleFormEntry,
   WEEKDAYS,
   formatDateISO,
   formatShortDate,
@@ -38,16 +39,14 @@ import {
   mergeSchedulesWithTemplate as mergeArrivalSchedulesWithTemplate,
 } from "~/lib/arrival-schedule-helpers";
 import {
-  createStudentPickupException,
+  bulkUpsertStudentPickupExceptions,
   createStudentPickupNote,
   deleteStudentPickupException,
   deleteStudentPickupNote,
   fetchStudentPickupData,
-  updateStudentPickupException,
   updateStudentPickupSchedules,
 } from "~/lib/pickup-schedule-api";
 import {
-  type BulkPickupScheduleFormData,
   type DayData as PickupDayData,
   type PickupData,
   formatPickupTime,
@@ -193,8 +192,12 @@ export function CareScheduleManager({
   const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-  const [isWeeklyPlanModalOpen, setIsWeeklyPlanModalOpen] = useState(false);
-  const [editingDayDate, setEditingDayDate] = useState<Date | null>(null);
+  // The single care-plan editor. null = closed; { date: Date } = opened from a
+  // day card (all three scopes offered); { date: null } = opened from the week
+  // header, where there is no day context and only the weekly plan applies.
+  const [editorTarget, setEditorTarget] = useState<{
+    date: Date | null;
+  } | null>(null);
   const [statusDayToDelete, setStatusDayToDelete] =
     useState<StudentStatusDay | null>(null);
   const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
@@ -400,7 +403,7 @@ export function CareScheduleManager({
   // pickupData: CareWeeklyPlanModal re-runs its row-building effect whenever
   // those props change identity, so writing them mid-edit silently discards
   // whatever the user has typed.
-  const isEditorOpen = isWeeklyPlanModalOpen || editingDayDate !== null;
+  const isEditorOpen = editorTarget !== null;
   // Read through a ref inside the listener so opening/closing a modal does not
   // resubscribe it, and so the check uses the state at event time.
   const isEditorOpenRef = useRef(isEditorOpen);
@@ -451,24 +454,28 @@ export function CareScheduleManager({
     refreshFromRemote();
   }, [isEditorOpen, refreshFromRemote]);
 
-  const handleUpdateWeeklyPlan = async (data: {
-    arrivalSchedules: ArrivalScheduleFormEntry[];
-    pickupData: BulkPickupScheduleFormData;
-  }) => {
-    await Promise.all([
-      updateArrivalSchedules(
-        studentId,
-        data.arrivalSchedules.map((schedule) => ({
-          weekday: schedule.weekday,
-          expected_arrival: schedule.expected_arrival,
-          notes: schedule.notes ?? null,
-        })),
-      ),
-      updateStudentPickupSchedules(studentId, data.pickupData),
-    ]);
-    await refreshCareData();
-    invalidatePickupCaches();
-  };
+  const handleUpdateWeeklyPlan = useCallback(
+    async (data: CarePlanWeeklySubmit) => {
+      await Promise.all([
+        updateArrivalSchedules(
+          studentId,
+          data.arrivalSchedules.map((schedule) => ({
+            weekday: schedule.weekday,
+            expected_arrival: schedule.expected_arrival,
+            notes: schedule.notes ?? null,
+          })),
+        ),
+        updateStudentPickupSchedules(studentId, {
+          schedules: data.pickupSchedules,
+        }),
+      ]);
+      await refreshCareData();
+      invalidatePickupCaches();
+    },
+    [studentId, refreshCareData],
+  );
+
+  const editingDayDate = editorTarget?.date ?? null;
 
   const currentEditingArrivalDay = useMemo(() => {
     if (!editingDayDate) return null;
@@ -498,51 +505,94 @@ export function CareScheduleManager({
     );
   }, [editingDayDate, pickupData, isSick, isExcused, statusByDate]);
 
-  const handleSaveArrivalException = useCallback(
-    async (params: {
-      expectedArrival: string | null;
-      reason?: string | null;
-    }) => {
-      if (!currentEditingArrivalDay) return;
-      const dateStr = formatDateISO(currentEditingArrivalDay.date);
-      const input = {
-        exception_date: dateStr,
-        expected_arrival: params.expectedArrival,
-        reason: params.reason ?? null,
-      };
-      if (currentEditingArrivalDay.exception) {
-        await updateArrivalException(
-          studentId,
-          currentEditingArrivalDay.exception.id,
-          input,
-        );
-      } else {
-        await createArrivalException(studentId, input);
-      }
-      await refreshCareData();
-    },
-    [currentEditingArrivalDay, studentId, refreshCareData],
+  // Days a guardian currently owns, across ALL loaded exceptions rather than
+  // the visible week: a range edit can reach beyond the week on screen, and the
+  // editor must warn before reclaiming any of those days from the parent.
+  const guardianArrivalDates = useMemo(
+    () =>
+      arrivalData.exceptions
+        .filter((exception) => exception.source === "guardian")
+        .map((exception) => exception.exception_date.slice(0, 10)),
+    [arrivalData.exceptions],
   );
 
-  const handleDeleteArrivalException = useCallback(async () => {
-    if (!currentEditingArrivalDay?.exception) return;
-    await deleteArrivalException(
-      studentId,
-      currentEditingArrivalDay.exception.id,
-    );
-    await refreshCareData();
-  }, [currentEditingArrivalDay, studentId, refreshCareData]);
+  const guardianPickupDates = useMemo(
+    () =>
+      pickupData.exceptions
+        .filter((exception) => exception.source === "guardian")
+        .map((exception) => exception.exceptionDate.slice(0, 10)),
+    [pickupData.exceptions],
+  );
 
-  const handleCreateArrivalNote = useCallback(
-    async (content: string) => {
-      if (!currentEditingArrivalDay) return;
-      await createArrivalNote(studentId, {
-        note_date: formatDateISO(currentEditingArrivalDay.date),
-        content,
-      });
+  /**
+   * Apply one date-scoped edit to every day it covers.
+   *
+   * "Regulär" removes the override, so it maps to deletes of the exceptions
+   * that exist on the covered days; every other mode is a single bulk write the
+   * backend commits in one transaction. A leg the editor reports as untouched
+   * (`null`) is skipped entirely — writing it would reclaim a guardian-authored
+   * day from the parent for no reason.
+   */
+  const handleSubmitExceptions = useCallback(
+    async (payload: CarePlanExceptionSubmit) => {
+      const { dates, arrival, pickup, note } = payload;
+      const dateSet = new Set(dates);
+
+      if (arrival) {
+        if (arrival.kind === "regular") {
+          const doomed = arrivalData.exceptions.filter((exception) =>
+            dateSet.has(exception.exception_date.slice(0, 10)),
+          );
+          for (const exception of doomed) {
+            await deleteArrivalException(studentId, exception.id);
+          }
+        } else {
+          await bulkUpsertArrivalExceptions(studentId, {
+            dates,
+            expected_arrival: arrival.kind === "time" ? arrival.time : null,
+            reason: arrival.reason,
+          });
+        }
+      }
+
+      if (pickup) {
+        if (pickup.kind === "regular") {
+          const doomed = pickupData.exceptions.filter((exception) =>
+            dateSet.has(exception.exceptionDate.slice(0, 10)),
+          );
+          for (const exception of doomed) {
+            await deleteStudentPickupException(studentId, exception.id);
+          }
+        } else {
+          await bulkUpsertStudentPickupExceptions(studentId, {
+            dates,
+            pickupTime: pickup.kind === "time" ? pickup.time : undefined,
+            reason: pickup.reason ?? undefined,
+          });
+        }
+      }
+
+      // Notes are date-scoped and the editor only offers them for a single day,
+      // so there is exactly one date to attach them to.
+      const noteDate = dates[0];
+      if (note && noteDate) {
+        if (note.target === "arrival") {
+          await createArrivalNote(studentId, {
+            note_date: noteDate,
+            content: note.content,
+          });
+        } else {
+          await createStudentPickupNote(studentId, {
+            noteDate,
+            content: note.content,
+          });
+        }
+      }
+
       await refreshCareData();
+      invalidatePickupCaches();
     },
-    [currentEditingArrivalDay, studentId, refreshCareData],
+    [arrivalData.exceptions, pickupData.exceptions, studentId, refreshCareData],
   );
 
   const handleDeleteArrivalNote = useCallback(
@@ -551,56 +601,6 @@ export function CareScheduleManager({
       await refreshCareData();
     },
     [studentId, refreshCareData],
-  );
-
-  const handleSavePickupException = useCallback(
-    async (params: { pickupTime?: string; reason?: string }) => {
-      if (!currentEditingPickupDay) return;
-      const dateStr = formatDateISO(currentEditingPickupDay.date);
-      if (currentEditingPickupDay.exception) {
-        await updateStudentPickupException(
-          studentId,
-          currentEditingPickupDay.exception.id,
-          {
-            exceptionDate: dateStr,
-            pickupTime: params.pickupTime,
-            reason: params.reason,
-          },
-        );
-      } else {
-        await createStudentPickupException(studentId, {
-          exceptionDate: dateStr,
-          pickupTime: params.pickupTime,
-          reason: params.reason,
-        });
-      }
-      await refreshCareData();
-      invalidatePickupCaches();
-    },
-    [currentEditingPickupDay, studentId, refreshCareData],
-  );
-
-  const handleDeletePickupException = useCallback(async () => {
-    if (!currentEditingPickupDay?.exception) return;
-    await deleteStudentPickupException(
-      studentId,
-      currentEditingPickupDay.exception.id,
-    );
-    await refreshCareData();
-    invalidatePickupCaches();
-  }, [currentEditingPickupDay, studentId, refreshCareData]);
-
-  const handleCreatePickupNote = useCallback(
-    async (content: string) => {
-      if (!currentEditingPickupDay) return;
-      await createStudentPickupNote(studentId, {
-        noteDate: formatDateISO(currentEditingPickupDay.date),
-        content,
-      });
-      await refreshCareData();
-      invalidatePickupCaches();
-    },
-    [currentEditingPickupDay, studentId, refreshCareData],
   );
 
   const handleDeletePickupNote = useCallback(
@@ -684,15 +684,18 @@ export function CareScheduleManager({
             >
               Heute
             </button>
+            {/* Labelled on purpose: an unlabelled pencil here was
+                indistinguishable from the per-day pencils below, which is the
+                confusion issue #893 reports. */}
             {!readOnly ? (
               <button
                 type="button"
-                onClick={() => setIsWeeklyPlanModalOpen(true)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                aria-label="Wochenplan bearbeiten"
+                onClick={() => setEditorTarget({ date: null })}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 title="Wochenplan bearbeiten"
               >
                 <SquarePen className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Wochenplan</span>
               </button>
             ) : null}
           </div>
@@ -743,7 +746,7 @@ export function CareScheduleManager({
             onPreviousWeek={() => showWeek(weekOffset - 1)}
             onNextWeek={() => showWeek(weekOffset + 1)}
             onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
-            onEditDay={setEditingDayDate}
+            onEditDay={(day) => setEditorTarget({ date: day })}
             onRequestDeleteStatusDay={setStatusDayToDelete}
           />
         </div>
@@ -754,7 +757,7 @@ export function CareScheduleManager({
                 key={formatDateISO(day.date)}
                 day={day}
                 readOnly={readOnly}
-                onEditDay={setEditingDayDate}
+                onEditDay={(day) => setEditorTarget({ date: day })}
                 deletingStatusDayId={deletingStatusDayId}
                 onRequestDeleteStatusDay={setStatusDayToDelete}
               />
@@ -763,29 +766,19 @@ export function CareScheduleManager({
         </div>
       </div>
 
-      <CareWeeklyPlanModal
-        isOpen={isWeeklyPlanModalOpen}
-        onClose={() => setIsWeeklyPlanModalOpen(false)}
-        onSubmit={handleUpdateWeeklyPlan}
-        initialArrivalSchedules={mergeArrivalSchedulesWithTemplate(
-          arrivalData.schedules,
-        )}
-        initialPickupSchedules={mergePickupSchedulesWithTemplate(
-          pickupData.schedules,
-        )}
-      />
-      <CareDayOverrideModal
-        isOpen={editingDayDate !== null}
-        onClose={() => setEditingDayDate(null)}
+      <CarePlanEditorModal
+        isOpen={editorTarget !== null}
+        onClose={() => setEditorTarget(null)}
+        date={editingDayDate}
         arrivalDay={currentEditingArrivalDay}
         pickupDay={currentEditingPickupDay}
-        onSaveArrivalException={handleSaveArrivalException}
-        onDeleteArrivalException={handleDeleteArrivalException}
-        onCreateArrivalNote={handleCreateArrivalNote}
+        weeklyArrival={mergeArrivalSchedulesWithTemplate(arrivalData.schedules)}
+        weeklyPickup={mergePickupSchedulesWithTemplate(pickupData.schedules)}
+        guardianArrivalDates={guardianArrivalDates}
+        guardianPickupDates={guardianPickupDates}
+        onSubmitExceptions={handleSubmitExceptions}
+        onSubmitWeekly={handleUpdateWeeklyPlan}
         onDeleteArrivalNote={handleDeleteArrivalNote}
-        onSavePickupException={handleSavePickupException}
-        onDeletePickupException={handleDeletePickupException}
-        onCreatePickupNote={handleCreatePickupNote}
         onDeletePickupNote={handleDeletePickupNote}
       />
       <ConfirmationModal

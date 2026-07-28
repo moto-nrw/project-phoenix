@@ -171,6 +171,31 @@ export async function createArrivalException(
   return parseResponse<ArrivalException>(response);
 }
 
+/**
+ * Apply the same arrival override to several dates in one request. The backend
+ * writes all dates in a single transaction, so a range never lands half-saved.
+ * An omitted `expected_arrival` means "kommt nicht" on every listed date.
+ */
+export async function bulkUpsertArrivalExceptions(
+  studentId: string,
+  input: {
+    dates: string[];
+    expected_arrival?: string | null;
+    reason?: string | null;
+  },
+): Promise<ArrivalException[]> {
+  const response = await fetch(
+    `/api/students/${studentId}/arrival-exceptions/bulk`,
+    {
+      method: "POST",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify(input),
+    },
+  );
+  return parseResponse<ArrivalException[]>(response);
+}
+
 export async function updateArrivalException(
   studentId: string,
   exceptionId: number,
