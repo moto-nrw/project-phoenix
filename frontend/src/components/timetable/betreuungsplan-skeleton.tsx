@@ -173,9 +173,9 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
 }
 
 /**
- * Skeleton der PlanningContextBar-Kopfzeile: Titel, Zeitraum-Navigation,
- * Ansichts-Umschalter und Primäraktion als Platzhalter — passend zur neuen
- * Kopfzeile (statt der abgebauten Werkzeugleiste + Setup-Karten).
+ * Skeleton der zweizeiligen PlanningContextBar-Kopfzeile: Navigation,
+ * Ansichts-Umschalter, Primäraktion und Kontextzeile als Platzhalter — passend
+ * zur neuen Kopfzeile (statt der abgebauten Werkzeugleiste + Setup-Karten).
  */
 function PlanningContextBarSkeleton() {
   return (
@@ -185,17 +185,19 @@ function PlanningContextBarSkeleton() {
       aria-busy="true"
       aria-label="Betreuungsplan-Kopfzeile wird geladen"
       data-testid="timetable-header-skeleton"
-      className="moto-content-surface rounded-2xl border p-3 sm:p-4"
+      className="moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3"
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <Skeleton className="h-7 w-40 md:hidden" />
+      <div className="flex min-h-9 flex-wrap items-center gap-3">
+        <Skeleton className="h-8 w-28 rounded-lg" />
         <Skeleton className="h-6 w-40" />
-        <div className="flex items-center gap-1">
-          <Skeleton className="h-9 w-9 rounded-full" />
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-9 w-9 rounded-full" />
-        </div>
-        <Skeleton className="ml-2 h-9 w-48 rounded-lg" />
+        <Skeleton className="h-8 w-48 rounded-lg" />
         <Skeleton className="ml-auto h-9 w-24 rounded-lg bg-gray-300" />
+      </div>
+      <div className="border-t border-gray-100 pt-2">
+        <div className="min-h-8">
+          <Skeleton className="h-5 w-32" />
+        </div>
       </div>
     </div>
   );

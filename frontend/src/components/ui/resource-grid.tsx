@@ -2,8 +2,9 @@
 
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions -- the labeled horizontal scroll region must be keyboard-focusable and arrow keys scroll it */
 
-import { Plus } from "lucide-react";
 import type { ReactNode } from "react";
+
+import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 
 /**
  * ResourceGrid is the generic rows-by-columns planning grid of the planning
@@ -178,7 +179,10 @@ export function ResourceGrid<TRow>({
     // zu erzeugen, damit die sticky Zeilenköpfe am inneren Scroll-Container
     // ausgerichtet bleiben.
     <div
-      className={`max-w-full overflow-clip rounded-2xl border border-gray-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-gray-900 ${className ?? ""}`}
+      // Das Raster IST die Karte (#2031): vorher lag es in einer zusätzlichen
+      // weißen Karte des Aufrufers, also Rahmen im Rahmen mit 24px Luft
+      // dazwischen — keine andere Planungsfläche macht das.
+      className={`moto-content-surface max-w-full overflow-clip rounded-2xl border shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-gray-900 ${className ?? ""}`}
     >
       <div
         role={ariaLabel ? "region" : undefined}
@@ -278,9 +282,12 @@ export function ResourceGrid<TRow>({
                               type="button"
                               onClick={() => onEmptyCellClick(row, column)}
                               aria-label={emptyCellLabel(row, column)}
-                              className="flex w-full flex-1 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+                              // Ohne items-center: die Anlege-Fläche dehnt sich
+                              // über die ganze Zelle (#2031), die Zeilenhöhe
+                              // bleibt die des Wrappers (#2026).
+                              className="group flex w-full flex-1 rounded-md focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
                             >
-                              <Plus className="h-4 w-4" aria-hidden="true" />
+                              <PlanAddAffordance />
                             </button>
                           ) : null}
                         </div>

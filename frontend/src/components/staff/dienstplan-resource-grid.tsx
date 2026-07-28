@@ -5,7 +5,6 @@ import {
   CalendarOff,
   Clock,
   MapPin,
-  Plus,
   Repeat,
   Thermometer,
   TriangleAlert,
@@ -23,6 +22,7 @@ import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
+import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 import { PlanBlock } from "~/components/ui/plan-block";
 import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
 import {
@@ -602,18 +602,20 @@ export function DienstplanResourceGrid({
             assignment={assignment}
           />
         ))}
-        {/* Add-shift affordance in a FILLED cell: hidden until the cell is
-            hovered on hover-capable pointers (matches the retired week grid),
-            but always visible on touch and reachable by keyboard
-            (focus / focus-visible force it back to full opacity). */}
+        {/* Anlege-Geste in einer GEFÜLLTEN Zelle: dieselbe Fläche wie in einer
+            leeren Zelle und im Stundenraster des Betreuungsplans (#2031), nur
+            schmaler, weil darüber schon Inhalt steht. Ein- und Ausblendung
+            steckt in PlanAddAffordance; `group` hier am Button, damit auch
+            Tastaturfokus die Fläche zeigt (die Zelle selbst ist nicht
+            fokussierbar). */}
         <button
           type="button"
           disabled={closingDaysLoading}
           onClick={() => openCell(member, date, null)}
           aria-label={createShiftAriaLabel(member, column)}
-          className="flex h-7 w-full items-center justify-center rounded-md border border-dashed border-gray-200 text-gray-400 opacity-100 transition hover:bg-gray-50 hover:text-gray-600 focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none disabled:cursor-wait disabled:opacity-40 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
+          className="group flex w-full rounded-md focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none disabled:cursor-wait disabled:opacity-40"
         >
-          <Plus className="h-4 w-4" aria-hidden />
+          <PlanAddAffordance size="inline" />
         </button>
       </div>
     );
