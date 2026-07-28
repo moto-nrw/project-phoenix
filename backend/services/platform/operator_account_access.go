@@ -35,7 +35,7 @@ type AccountTenantRole struct {
 	ID       int64   `json:"id"`
 	Name     string  `json:"name"`
 	IsSystem bool    `json:"-"`
-	BaseRole *string `json:"-"`
+	BaseRole *string `json:"base_role,omitempty"`
 }
 
 // AccountTenantAccessEntry is one school an account has (or had) access to,

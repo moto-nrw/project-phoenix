@@ -243,6 +243,11 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 	case errors.Is(authErr.Err, authService.ErrTenantRequiredForRoleAssignment):
 		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
+	case errors.Is(authErr.Err, authService.ErrRoleNotAssignable),
+		errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
+		errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
+		errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}

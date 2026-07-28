@@ -859,6 +859,16 @@ func (s *Service) Register(ctx context.Context, email, username, password string
 	if roleID != nil && *roleID > 0 && tenantID <= 0 {
 		return nil, &AuthError{Op: "register", Err: ErrTenantRequiredForRoleAssignment}
 	}
+	if roleID != nil && *roleID > 0 {
+		var roleErr error
+		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
+			_, roleErr = ValidateAssignableSchoolRole(adminCtx, s.repos.Role, *roleID, tenantID)
+			return roleErr
+		})
+		if err != nil {
+			return nil, &AuthError{Op: "register", Err: err}
+		}
+	}
 
 	// Create account object with hashed password
 	account, err := s.createAccountObject(email, username, password)

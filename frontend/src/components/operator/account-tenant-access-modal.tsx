@@ -43,6 +43,14 @@ function statusLabel(status: AccountTenantAccess["status"]): string {
   return "Kein Zugang";
 }
 
+function accessRevocationBlocked(entry: AccountTenantAccess): boolean {
+  return entry.roles.some(
+    (role) =>
+      role.baseRole?.toLowerCase() === "guardian" ||
+      ["guardian", "user", "teacher"].includes(role.name.toLowerCase()),
+  );
+}
+
 interface AccountTenantAccessModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -375,8 +383,13 @@ export function AccountTenantAccessModal({
                           type="button"
                           variant="outline_danger"
                           size="md"
-                          disabled={saving}
+                          disabled={saving || accessRevocationBlocked(entry)}
                           onClick={() => setRevokeTarget(entry)}
+                          title={
+                            accessRevocationBlocked(entry)
+                              ? "Diese Rolle wird über ihren eigenen Verwaltungsablauf entfernt."
+                              : undefined
+                          }
                         >
                           Entziehen
                         </Button>

@@ -83,6 +83,10 @@ func (r roleManagementAccountRepo) FindByID(ctx context.Context, id interface{})
 	return nil, sql.ErrNoRows
 }
 
+func (r roleManagementAccountRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModel.Account, error) {
+	return r.FindByID(ctx, id)
+}
+
 func (r roleManagementAccountRepo) FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	if r.findEmailsFn != nil {
 		return r.findEmailsFn(ctx, accountIDs)

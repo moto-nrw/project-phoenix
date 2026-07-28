@@ -6,6 +6,7 @@ const logger = createLogger({ component: "AccountTenantAccessAPI" });
 interface AccountTenantRole {
   id: string;
   name: string;
+  baseRole: string | null;
 }
 
 /** One school an account has (or had) access to. */
@@ -36,7 +37,7 @@ interface BackendAccountTenantAccess {
   deactivated_at?: string | null;
   has_person: boolean;
   has_staff: boolean;
-  roles?: { id: number; name: string }[] | null;
+  roles?: { id: number; name: string; base_role?: string | null }[] | null;
 }
 
 interface GrantAccountTenantAccessRequest {
@@ -77,6 +78,7 @@ function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
     roles: (entry.roles ?? []).map((role) => ({
       id: role.id.toString(),
       name: role.name,
+      baseRole: role.base_role ?? null,
     })),
   };
 }

@@ -35,7 +35,7 @@ describe("accountTenantAccessService", () => {
             deactivated_at: null,
             has_person: true,
             has_staff: false,
-            roles: [{ id: 1, name: "admin" }],
+            roles: [{ id: 1, name: "admin", base_role: null }],
           },
         ],
       }),
@@ -60,7 +60,7 @@ describe("accountTenantAccessService", () => {
         deactivatedAt: null,
         hasPerson: true,
         hasStaff: false,
-        roles: [{ id: "1", name: "admin" }],
+        roles: [{ id: "1", name: "admin", baseRole: null }],
       },
     ]);
   });

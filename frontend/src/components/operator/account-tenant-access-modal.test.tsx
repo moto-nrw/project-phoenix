@@ -344,6 +344,20 @@ describe("AccountTenantAccessModal", () => {
     );
   });
 
+  it("disables revocation for roles managed by their dedicated flow", async () => {
+    mockList.mockResolvedValue([
+      access({ roles: [{ id: "2", name: "user" }] }),
+    ]);
+    renderModal();
+
+    const revokeButton = await screen.findByText("Entziehen");
+    expect(revokeButton).toBeDisabled();
+    expect(revokeButton).toHaveAttribute(
+      "title",
+      "Diese Rolle wird über ihren eigenen Verwaltungsablauf entfernt.",
+    );
+  });
+
   it("revokes access after confirmation", async () => {
     mockRevoke.mockResolvedValue([access({ status: "inactive", roles: [] })]);
     renderModal();
