@@ -30,24 +30,12 @@ import (
 // tenant-side request IP is not the meaningful actor address.
 const accessAuditIP = "0.0.0.0"
 
-// rolesOwnedByOtherFeatures are never removed implicitly when the role at a
-// school is changed:
-//
-//   - guardian is granted and revoked by the guardian invitation flow; dropping
-//     it here would silently cut a parent off from the parents portal.
-//   - user carries the caregiver capability, whose removal has to run through
-//     CaregiverCapabilityService so active supervisions and group assignments
-//     are checked first.
-var rolesOwnedByOtherFeatures = map[string]bool{
-	authModels.BaseRoleGuardian: true,
-	authModels.BaseRoleUser:     true,
-	"teacher":                   true,
-}
-
 // AccountTenantRole is one role an account holds at one school.
 type AccountTenantRole struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID       int64   `json:"id"`
+	Name     string  `json:"name"`
+	IsSystem bool    `json:"-"`
+	BaseRole *string `json:"-"`
 }
 
 // AccountTenantAccessEntry is one school an account has (or had) access to,
@@ -119,11 +107,6 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if hasAccess {
 			return &ConflictError{Err: fmt.Errorf("account already has access to this school")}
 		}
-		wasRevoked, err := s.hasInactiveTenantAccess(adminCtx, accountID, schoolID)
-		if err != nil {
-			return err
-		}
-
 		// Names for the person record that carries the account at this school.
 		// Fall back to a person the account already has at another school so
 		// the operator does not have to retype them.
@@ -160,16 +143,6 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, req.Position, true); err != nil {
 			return err
 		}
-		// Revoking the final school access deactivates the account. Re-granting
-		// that same, previously revoked mapping restores its login capability,
-		// while a globally deactivated account receiving a new school mapping
-		// stays deactivated until it is explicitly reactivated elsewhere.
-		if wasRevoked && !account.Active {
-			if err := s.AuthService.ActivateAccount(adminCtx, int(accountID)); err != nil {
-				return fmt.Errorf("reactivate account after restoring school access: %w", err)
-			}
-		}
-
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceAccountTenant, &accountID, clientIP, map[string]any{
 			"schoolID": school.ID,
 			"email":    account.Email,
@@ -245,7 +218,7 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		// selected active identity from another school (or the local one). Without
 		// one, reject the change before assigning the role.
 		firstName, lastName := "", ""
-		if shouldCreateTeacher(roleBaseName(role)) {
+		if isSystemCaregiverRole(role) {
 			existing, findErr := s.activePersonForAccount(adminCtx, accountID)
 			if findErr != nil {
 				return findErr
@@ -264,7 +237,7 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 
 		removed := make([]string, 0, len(current))
 		for _, existing := range current {
-			if existing.ID == role.ID || rolesOwnedByOtherFeatures[strings.ToLower(existing.Name)] {
+			if existing.ID == role.ID || roleOwnedByOtherFeature(existing) {
 				continue
 			}
 			if err := s.AccountRoleRepo.DeleteByAccountRoleAndTenant(adminCtx, accountID, existing.ID, schoolID); err != nil {
@@ -343,7 +316,7 @@ func (s *operatorProvisioningService) RevokeAccountTenantAccess(
 			return err
 		}
 		for _, existing := range current {
-			if rolesOwnedByOtherFeatures[strings.ToLower(existing.Name)] {
+			if roleOwnedByOtherFeature(existing) {
 				return &InvalidDataError{Err: fmt.Errorf("school access with role %q must be removed through its dedicated flow", existing.Name)}
 			}
 			if err := s.AccountRoleRepo.DeleteByAccountRoleAndTenant(adminCtx, accountID, existing.ID, schoolID); err != nil {
@@ -439,11 +412,15 @@ func (s *operatorProvisioningService) rolesByTenant(ctx context.Context, account
 			continue
 		}
 		name := ""
+		isSystem := false
+		var baseRole *string
 		if assignment.Role != nil {
 			name = assignment.Role.Name
+			isSystem = assignment.Role.IsSystem
+			baseRole = assignment.Role.BaseRole
 		}
 		tenantID := assignment.GetTenantID()
-		grouped[tenantID] = append(grouped[tenantID], AccountTenantRole{ID: assignment.RoleID, Name: name})
+		grouped[tenantID] = append(grouped[tenantID], AccountTenantRole{ID: assignment.RoleID, Name: name, IsSystem: isSystem, BaseRole: baseRole})
 	}
 	return grouped, nil
 }
@@ -454,19 +431,6 @@ func (s *operatorProvisioningService) rolesForTenant(ctx context.Context, accoun
 		return nil, err
 	}
 	return grouped[schoolID], nil
-}
-
-func (s *operatorProvisioningService) hasInactiveTenantAccess(ctx context.Context, accountID, schoolID int64) (bool, error) {
-	entries, err := s.AccountTenantRepo.ListTenantAccessByAccountID(ctx, accountID)
-	if err != nil {
-		return false, err
-	}
-	for _, entry := range entries {
-		if entry.TenantID == schoolID && entry.Status == authModels.AccountTenantStatusInactive {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // loadAccount resolves the account or returns AccountNotFoundError.
@@ -613,7 +577,7 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 		}
 	}
 
-	if !shouldCreateTeacher(baseRole) {
+	if !isSystemCaregiverRole(role) {
 		return nil
 	}
 
@@ -646,6 +610,25 @@ func roleBaseName(role *authModels.Role) string {
 		return *role.BaseRole
 	}
 	return role.Name
+}
+
+func isSystemCaregiverRole(role *authModels.Role) bool {
+	return role != nil && role.IsSystem && shouldCreateTeacher(role.Name)
+}
+
+func roleOwnedByOtherFeature(role AccountTenantRole) bool {
+	if role.BaseRole != nil && strings.EqualFold(strings.TrimSpace(*role.BaseRole), authModels.BaseRoleGuardian) {
+		return true
+	}
+	if !role.IsSystem {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(role.Name)) {
+	case authModels.BaseRoleGuardian, authModels.BaseRoleUser, "teacher":
+		return true
+	default:
+		return false
+	}
 }
 
 // recordAccessAuthEvent writes the tenant-visible audit trail. The operator

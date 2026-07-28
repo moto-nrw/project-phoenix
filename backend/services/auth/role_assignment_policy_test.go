@@ -69,6 +69,15 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 		assert.ErrorIs(t, err, authSvc.ErrRoleGuardianNotAssignable)
 	})
 
+	t.Run("accepts a custom role named guardian without guardian base role", func(t *testing.T) {
+		roleID := createTenantRole(t, db, "guardian", homeTenantID, nil)
+		defer testpkg.CleanupRoleRecords(t, db, roleID)
+
+		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, roleID, homeTenantID)
+		require.NoError(t, err)
+		assert.Equal(t, roleID, role.ID)
+	})
+
 	t.Run("rejects the retired teacher role", func(t *testing.T) {
 		// The fixtures suffix role names to keep them unique, so the legacy
 		// role has to be inserted under its exact historical name.
@@ -77,6 +86,15 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 
 		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, teacherRoleID, homeTenantID)
 		assert.ErrorIs(t, err, authSvc.ErrRoleLegacyTeacherNotAssignable)
+	})
+
+	t.Run("accepts a custom role named teacher", func(t *testing.T) {
+		roleID := createTenantRole(t, db, "teacher", homeTenantID, nil)
+		defer testpkg.CleanupRoleRecords(t, db, roleID)
+
+		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, roleID, homeTenantID)
+		require.NoError(t, err)
+		assert.Equal(t, roleID, role.ID)
 	})
 
 	t.Run("rejects a platform-wide role that is not a system role", func(t *testing.T) {
@@ -109,6 +127,18 @@ func createPlatformRole(t *testing.T, db *bun.DB, name string, isSystem bool) in
 		`INSERT INTO auth.roles (name, description, is_system, tenant_id, created_at, updated_at)
 		 VALUES (?, 'policy test role', ?, NULL, NOW(), NOW()) RETURNING id`,
 		name, isSystem,
+	).Scan(context.Background(), &id)
+	require.NoError(t, err)
+	return id
+}
+
+func createTenantRole(t *testing.T, db *bun.DB, name string, tenantID int64, baseRole *string) int64 {
+	t.Helper()
+	var id int64
+	err := db.NewRaw(
+		`INSERT INTO auth.roles (name, description, is_system, tenant_id, base_role, created_at, updated_at)
+		 VALUES (?, 'policy test role', FALSE, ?, ?, NOW(), NOW()) RETURNING id`,
+		name, tenantID, baseRole,
 	).Scan(context.Background(), &id)
 	require.NoError(t, err)
 	return id

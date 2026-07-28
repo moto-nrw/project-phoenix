@@ -40,7 +40,7 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 		ModelTableExpr(accountRoleTableAlias).
 		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		ColumnExpr(`"account_role".*`).
-		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description"`).
+		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description", "role".is_system AS "role__is_system", "role".base_role AS "role__base_role"`).
 		Where(`"account_role".account_id = ?`, accountID)
 
 	query = base.WithTenantFilter(ctx, query, "account_role")
@@ -67,7 +67,7 @@ func (r *AccountRoleRepository) FindByAccountIDForTenant(ctx context.Context, ac
 		ModelTableExpr(accountRoleTableAlias).
 		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		ColumnExpr(`"account_role".*`).
-		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description"`).
+		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description", "role".is_system AS "role__is_system", "role".base_role AS "role__base_role"`).
 		Where(`"account_role".account_id = ?`, accountID)
 
 	if tenantID > 0 {

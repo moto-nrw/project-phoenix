@@ -33,6 +33,21 @@ func systemRoleID(t *testing.T, db *bun.DB, name string) int64 {
 	return id
 }
 
+func createTenantRole(t *testing.T, db *bun.DB, name string, tenantID int64, baseRole *string) *authModels.Role {
+	t.Helper()
+	role := &authModels.Role{Name: name, IsSystem: false, BaseRole: baseRole}
+	role.SetTenantID(tenantID)
+	require.NoError(t, db.NewInsert().Model(role).ModelTableExpr(`auth.roles`).Scan(context.Background()))
+	return role
+}
+
+func cleanupTenantRole(t *testing.T, db *bun.DB, roleID int64) {
+	t.Helper()
+	_, err := db.NewDelete().TableExpr(`auth.account_roles`).Where("role_id = ?", roleID).Exec(context.Background())
+	require.NoError(t, err)
+	testpkg.CleanupRoleRecords(t, db, roleID)
+}
+
 func roleNamesAt(entries []platformSvc.AccountTenantAccessEntry, tenantID int64) []string {
 	for _, entry := range entries {
 		if entry.TenantID != tenantID {
@@ -133,6 +148,35 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 
 	// The original school is untouched.
 	assert.NotNil(t, entryFor(entries, testSchoolID), "existing access must survive")
+}
+
+func TestIntegration_GrantAccountTenantAccess_CustomUserBaseDoesNotCreateCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+	baseRole := authModels.BaseRoleUser
+	role := createTenantRole(t, db, "zugriff-custom-user", accessTargetTenantID, &baseRole)
+	defer cleanupTenantRole(t, db, role.ID)
+
+	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: role.ID}, operator.ID, testClientIP)
+	require.NoError(t, err)
+	assert.Equal(t, []string{role.Name}, roleNamesAt(entries, accessTargetTenantID))
+
+	teacherCount, err := db.NewSelect().
+		TableExpr(`users.teachers AS "t"`).
+		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
+		Join(`JOIN users.persons AS "p" ON "p".id = "s".person_id`).
+		Where(`"p".account_id = ?`, account.ID).
+		Where(`"p".tenant_id = ?`, accessTargetTenantID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, teacherCount, "custom user-base roles must not create a caregiver profile")
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsDuplicate(t *testing.T) {
@@ -266,6 +310,27 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 	// The account keeps its original school and therefore stays active.
 	assert.NotNil(t, entryFor(entries, testSchoolID))
 	assertAccountActive(t, db, account.ID, true)
+}
+
+func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+	role := createTenantRole(t, db, authModels.BaseRoleUser, accessTargetTenantID, nil)
+	defer cleanupTenantRole(t, db, role.ID)
+
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: role.ID}, operator.ID, testClientIP)
+	require.NoError(t, err)
+
+	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.AccountTenantStatusInactive, entryFor(entries, accessTargetTenantID).Status)
 }
 
 func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
@@ -421,7 +486,7 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID))
 }
 
-func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLastRevokedSchool(t *testing.T) {
+func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateAccountAfterRestoringLastRevokedSchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -443,7 +508,8 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 	require.NoError(t, err)
 	assertAccountActive(t, db, account.ID, false)
 
-	// Restoring that school also restores the account's login capability.
+	// Restoring school access must not override a deliberate global account
+	// deactivation; reactivation is the separate /auth/accounts/{id}/activate action.
 	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
 		platformSvc.GrantAccountTenantAccessRequest{
 			RoleID:    systemRoleID(t, db, "user"),
@@ -456,7 +522,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 	granted := entryFor(entries, accessTargetTenantID)
 	require.NotNil(t, granted)
 	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
-	assertAccountActive(t, db, account.ID, true)
+	assertAccountActive(t, db, account.ID, false)
 
 	// The caregiver role also creates the teacher record, carrying the position.
 	var position string
