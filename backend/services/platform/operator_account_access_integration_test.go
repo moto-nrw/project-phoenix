@@ -268,6 +268,38 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 	assertAccountActive(t, db, account.ID, true)
 }
 
+func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
+	for _, roleName := range []string{authModels.BaseRoleGuardian, authModels.BaseRoleUser} {
+		t.Run(roleName, func(t *testing.T) {
+			db := testpkg.SetupTestDB(t)
+			defer func() { _ = db.Close() }()
+
+			service := buildProvisioningService(t, db)
+			ctx := context.Background()
+			account, cleanupAccount := setupAccessTestAccount(t, db)
+			defer cleanupAccount()
+			operator := testpkg.CreateTestOperator(t, db)
+
+			_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+				platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")}, operator.ID, testClientIP)
+			require.NoError(t, err)
+
+			assignment := &authModels.AccountRole{AccountID: account.ID, RoleID: systemRoleID(t, db, roleName)}
+			assignment.SetTenantID(accessTargetTenantID)
+			_, err = db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+			require.NoError(t, err)
+
+			_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+			var invalid *platformSvc.InvalidDataError
+			require.ErrorAs(t, err, &invalid)
+
+			entries, err := service.ListAccountTenantAccess(ctx, account.ID)
+			require.NoError(t, err)
+			assert.Equal(t, authModels.AccountTenantStatusActive, entryFor(entries, accessTargetTenantID).Status)
+		})
+	}
+}
+
 func TestIntegration_RevokeAccountTenantAccess_DeactivatesAccountWithoutRemainingSchools(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

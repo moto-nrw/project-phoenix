@@ -398,7 +398,10 @@ export function AccountTenantAccessModal({
                       value: school.id,
                       label: school.label,
                     }))}
-                    onChange={setAddSchoolId}
+                    onChange={(schoolId) => {
+                      setAddSchoolId(schoolId);
+                      setAddRoleId("");
+                    }}
                     disabled={saving || availableSchools.length === 0}
                     placeholder={
                       availableSchools.length === 0

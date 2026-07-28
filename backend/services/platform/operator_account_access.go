@@ -325,6 +325,9 @@ func (s *operatorProvisioningService) RevokeAccountTenantAccess(
 			return err
 		}
 		for _, existing := range current {
+			if rolesOwnedByOtherFeatures[strings.ToLower(existing.Name)] {
+				return &InvalidDataError{Err: fmt.Errorf("school access with role %q must be removed through its dedicated flow", existing.Name)}
+			}
 			if err := s.AccountRoleRepo.DeleteByAccountRoleAndTenant(adminCtx, accountID, existing.ID, schoolID); err != nil {
 				return err
 			}
@@ -466,7 +469,10 @@ func (s *operatorProvisioningService) ListAssignableSchoolRoles(ctx context.Cont
 		if _, err := s.loadActiveSchool(adminCtx, schoolID); err != nil {
 			return err
 		}
-		roles, err := s.RoleRepo.List(tenant.WithTenantID(adminCtx, schoolID), nil)
+		// Query via the admin context: the tenant-role RLS policy can hide
+		// platform roles (tenant_id NULL), but the explicit policy below still
+		// admits only system roles and custom roles of this school.
+		roles, err := s.RoleRepo.List(adminCtx, nil)
 		if err != nil {
 			return err
 		}
