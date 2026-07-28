@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronDown,
@@ -139,13 +139,21 @@ export function CarePlanEditorModal({
   const [error, setError] = useState<string | null>(null);
   const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
   const [showParentConfirm, setShowParentConfirm] = useState(false);
+  const initializedExceptionKey = useRef<string | null>(null);
   // The form steps aside while the confirmation is up so the two dialogs never
   // stack. Kept out of `isOpen` on purpose: the reset effect keys on `isOpen`,
   // so toggling this preserves what the user typed.
   const [formVisible, setFormVisible] = useState(true);
 
   useEffect(() => {
-    if (!isOpen || !isException) return;
+    if (!isOpen || !isException) {
+      initializedExceptionKey.current = null;
+      return;
+    }
+
+    const exceptionKey = toDayISO(arrivalDay.date);
+    if (initializedExceptionKey.current === exceptionKey) return;
+    initializedExceptionKey.current = exceptionKey;
 
     setError(null);
     setShowRemovalConfirm(false);
@@ -260,6 +268,15 @@ export function CarePlanEditorModal({
     setShowRemovalConfirm(false);
     setShowParentConfirm(false);
     setFormVisible(true);
+  };
+
+  const handleNoteError = (err: unknown) => {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Hinweis konnte nicht gespeichert werden";
+    setError(message);
+    toast.error(message);
   };
 
   const performSave = async () => {
@@ -425,6 +442,7 @@ export function CarePlanEditorModal({
                 onCreatePickup={onCreatePickupNote}
                 onUpdatePickup={onUpdatePickupNote}
                 onDeletePickup={onDeletePickupNote}
+                onError={handleNoteError}
               />
             </>
           ) : (
@@ -607,6 +625,7 @@ function DayNotesEditor({
   onCreatePickup,
   onUpdatePickup,
   onDeletePickup,
+  onError,
 }: {
   readonly date: string;
   readonly arrivalNotes: readonly { id: number; content: string }[];
@@ -625,6 +644,7 @@ function DayNotesEditor({
     content: string,
   ) => Promise<void>;
   readonly onDeletePickup: (id: string) => Promise<void>;
+  readonly onError: (err: unknown) => void;
 }) {
   const [arrivalDraft, setArrivalDraft] = useState("");
   const [pickupDraft, setPickupDraft] = useState("");
@@ -641,6 +661,7 @@ function DayNotesEditor({
         onCreate={() => onCreateArrival(date, arrivalDraft)}
         onUpdate={(id, content) => onUpdateArrival(date, Number(id), content)}
         onDelete={(id) => onDeleteArrival(Number(id))}
+        onError={onError}
       />
       <NoteList
         label="Abholung"
@@ -650,6 +671,7 @@ function DayNotesEditor({
         onCreate={() => onCreatePickup(date, pickupDraft)}
         onUpdate={(id, content) => onUpdatePickup(date, id, content)}
         onDelete={onDeletePickup}
+        onError={onError}
       />
     </div>
   );
@@ -663,6 +685,7 @@ function NoteList({
   onCreate,
   onUpdate,
   onDelete,
+  onError,
 }: {
   readonly label: string;
   readonly notes: readonly { id: string | number; content: string }[];
@@ -671,7 +694,20 @@ function NoteList({
   readonly onCreate: () => Promise<void>;
   readonly onUpdate: (id: string, content: string) => Promise<void>;
   readonly onDelete: (id: string) => Promise<void>;
+  readonly onError: (err: unknown) => void;
 }) {
+  const runMutation = async (
+    mutation: () => Promise<void>,
+    onSuccess?: () => void,
+  ) => {
+    try {
+      await mutation();
+      onSuccess?.();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium text-gray-500">{label}</p>
@@ -686,14 +722,16 @@ function NoteList({
                 event.target.value.trim() &&
                 event.target.value !== note.content
               )
-                void onUpdate(String(note.id), event.target.value.trim());
+                void runMutation(() =>
+                  onUpdate(String(note.id), event.target.value.trim()),
+                );
             }}
           />
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => void onDelete(String(note.id))}
+            onClick={() => void runMutation(() => onDelete(String(note.id)))}
           >
             Löschen
           </Button>
@@ -711,7 +749,7 @@ function NoteList({
           variant="outline"
           size="sm"
           disabled={!draft.trim()}
-          onClick={() => void onCreate().then(() => setDraft(""))}
+          onClick={() => void runMutation(onCreate, () => setDraft(""))}
         >
           Hinzufügen
         </Button>

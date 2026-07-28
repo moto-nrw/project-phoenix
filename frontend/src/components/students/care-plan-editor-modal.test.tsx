@@ -377,6 +377,61 @@ describe("CarePlanEditorModal", () => {
     ).toHaveValue("16:30");
   });
 
+  it("keeps an exception draft when day notes are refreshed", () => {
+    const { rerender, renderModal } = renderEditor();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Andere Zeit" })[1]!);
+    fireEvent.change(
+      screen.getByLabelText("Uhrzeit", {
+        selector: "#exception-abholung-time",
+      }),
+      { target: { value: "16:30" } },
+    );
+    fireEvent.change(
+      screen.getByLabelText("Grund", {
+        selector: "#exception-abholung-reason",
+      }),
+      { target: { value: "Oma holt ab" } },
+    );
+
+    rerender(
+      renderModal({
+        arrivalDay: { ...baseArrivalDay, notes: [...baseArrivalDay.notes] },
+        pickupDay: { ...basePickupDay, notes: [...basePickupDay.notes] },
+      }),
+    );
+
+    expect(
+      screen.getByLabelText("Uhrzeit", {
+        selector: "#exception-abholung-time",
+      }),
+    ).toHaveValue("16:30");
+    expect(
+      screen.getByLabelText("Grund", {
+        selector: "#exception-abholung-reason",
+      }),
+    ).toHaveValue("Oma holt ab");
+  });
+
+  it("shows a note mutation error and keeps the draft", async () => {
+    const onCreateArrivalNote = vi
+      .fn()
+      .mockRejectedValue(new Error("Hinweis konnte nicht gespeichert werden"));
+    renderEditor({ onCreateArrivalNote });
+
+    const draft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
+    fireEvent.change(draft, { target: { value: "Bitte klingeln" } });
+    fireEvent.click(draft.parentElement!.querySelector("button")!);
+
+    expect(
+      await screen.findByText("Hinweis konnte nicht gespeichert werden"),
+    ).toBeInTheDocument();
+    expect(toastError).toHaveBeenCalledWith(
+      "Hinweis konnte nicht gespeichert werden",
+    );
+    expect(draft).toHaveValue("Bitte klingeln");
+  });
+
   it("writes the weekly plan from the plan view", async () => {
     const { onSubmitWeekly } = renderEditor({
       date: null,
