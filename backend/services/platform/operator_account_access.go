@@ -41,6 +41,7 @@ const accessAuditIP = "0.0.0.0"
 var rolesOwnedByOtherFeatures = map[string]bool{
 	authModels.BaseRoleGuardian: true,
 	authModels.BaseRoleUser:     true,
+	"teacher":                   true,
 }
 
 // AccountTenantRole is one role an account holds at one school.

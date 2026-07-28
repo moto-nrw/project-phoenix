@@ -269,7 +269,7 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 }
 
 func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
-	for _, roleName := range []string{authModels.BaseRoleGuardian, authModels.BaseRoleUser} {
+	for _, roleName := range []string{authModels.BaseRoleGuardian, authModels.BaseRoleUser, "teacher"} {
 		t.Run(roleName, func(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 			defer func() { _ = db.Close() }()
@@ -284,7 +284,23 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 				platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")}, operator.ID, testClientIP)
 			require.NoError(t, err)
 
-			assignment := &authModels.AccountRole{AccountID: account.ID, RoleID: systemRoleID(t, db, roleName)}
+			var roleID int64
+			if roleName == "teacher" {
+				// The migration removes this retired role. Recreate the exact legacy
+				// shape to prove an old database row cannot bypass caregiver checks.
+				legacyRole := &authModels.Role{Name: "teacher", IsSystem: true}
+				require.NoError(t, db.NewInsert().Model(legacyRole).ModelTableExpr(`auth.roles`).Scan(ctx))
+				roleID = legacyRole.ID
+				defer func() {
+					_, deleteErr := db.NewDelete().TableExpr(`auth.account_roles`).Where("role_id = ?", legacyRole.ID).Exec(ctx)
+					require.NoError(t, deleteErr)
+					testpkg.CleanupRoleRecords(t, db, legacyRole.ID)
+				}()
+			} else {
+				roleID = systemRoleID(t, db, roleName)
+			}
+
+			assignment := &authModels.AccountRole{AccountID: account.ID, RoleID: roleID}
 			assignment.SetTenantID(accessTargetTenantID)
 			_, err = db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
 			require.NoError(t, err)
