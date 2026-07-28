@@ -21,11 +21,6 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 
 const logger = createLogger({ component: "AccountTenantAccessModal" });
 
-// Roles that are never handed out here: guardian belongs to the guardian
-// invitation flow, the legacy teacher role is retired. The backend rejects both
-// as well; filtering them out keeps the select honest.
-const NON_ASSIGNABLE_ROLES = new Set(["guardian", "teacher"]);
-
 const ROLE_LABELS: Record<string, string> = {
   admin: "Verwaltung",
   user: "Betreuung",
@@ -73,9 +68,6 @@ export function AccountTenantAccessModal({
 
   const [access, setAccess] = useState<AccountTenantAccess[]>([]);
   const [schools, setSchools] = useState<{ id: string; label: string }[]>([]);
-  const [systemRoles, setSystemRoles] = useState<
-    { id: string; name: string }[]
-  >([]);
   const [rolesBySchool, setRolesBySchool] = useState<
     Record<string, { id: string; name: string }[]>
   >({});
@@ -96,10 +88,9 @@ export function AccountTenantAccessModal({
     try {
       setLoading(true);
       setErrorMessage("");
-      const [entries, schoolList, roleList] = await Promise.all([
+      const [entries, schoolList] = await Promise.all([
         accountTenantAccessService.list(accountId),
         operatorProvisioningService.listSchoolSummaries(),
-        operatorProvisioningService.listSystemRoles(),
       ]);
       setAccess(entries);
       setSchools(
@@ -109,13 +100,6 @@ export function AccountTenantAccessModal({
             id: school.id,
             label: `${school.name} (${school.organizationName})`,
           })),
-      );
-      setSystemRoles(
-        roleList
-          .filter(
-            (role) => role.isSystem && !NON_ASSIGNABLE_ROLES.has(role.name),
-          )
-          .map((role) => ({ id: role.id, name: role.name })),
       );
       const rolesForActiveSchools = await Promise.allSettled(
         entries
@@ -208,7 +192,7 @@ export function AccountTenantAccessModal({
   const needsName = !knowsName;
 
   function rolesForSchool(schoolId: string) {
-    return rolesBySchool[schoolId] ?? systemRoles;
+    return rolesBySchool[schoolId] ?? [];
   }
 
   async function runMutation(
@@ -378,7 +362,11 @@ export function AccountTenantAccessModal({
                             onChange={(value) =>
                               void handleRoleChange(entry, value)
                             }
-                            disabled={saving || !entry.schoolActive}
+                            disabled={
+                              saving ||
+                              !entry.schoolActive ||
+                              !rolesBySchool[entry.tenantId]
+                            }
                             ariaLabel={`Rolle an ${entry.schoolName}`}
                             placeholder="Rolle wählen"
                           />

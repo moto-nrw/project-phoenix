@@ -107,10 +107,6 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if hasAccess {
 			return &ConflictError{Err: fmt.Errorf("account already has access to this school")}
 		}
-		activeMappings, err := s.AccountTenantRepo.FindActiveByAccountID(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
 		// Names for the person record that carries the account at this school.
 		// Fall back to a person the account already has at another school so
 		// the operator does not have to retype them.
@@ -147,7 +143,7 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, req.Position, true); err != nil {
 			return err
 		}
-		if len(activeMappings) == 0 && !account.Active {
+		if !account.Active {
 			if err := s.AuthService.ActivateAccount(adminCtx, int(accountID)); err != nil {
 				return fmt.Errorf("reactivate account after restoring school access: %w", err)
 			}
@@ -553,6 +549,9 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 	if err != nil {
 		return err
 	}
+	if person != nil && person.DeletedAt != nil {
+		person = nil
+	}
 	if person == nil {
 		if !createPerson {
 			return nil
@@ -578,6 +577,9 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 		}
 		staff = nil
 	}
+	if staff != nil && staff.DeletedAt != nil {
+		staff = nil
+	}
 	if staff == nil {
 		staff = &userModels.Staff{PersonID: person.ID}
 		staff.SetTenantID(schoolID)
@@ -595,7 +597,11 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 		return err
 	}
 	if teacher != nil {
-		return nil
+		if teacher.DeletedAt != nil {
+			teacher = nil
+		} else {
+			return nil
+		}
 	}
 	teacher = &userModels.Teacher{StaffID: staff.ID}
 	teacher.SetTenantID(schoolID)
