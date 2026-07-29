@@ -316,12 +316,16 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 	if !enabled {
 		return ErrDisabled
 	}
-	within, err := r.withinActiveWindow(ctx, tenantID)
-	if err != nil {
-		return err
-	}
-	if !within {
-		return ErrOutsideActiveWindow
+	// As in Notify, test notifications deliberately bypass quiet hours. A
+	// batch containing real deliveries still observes the window as one unit.
+	if slices.ContainsFunc(prepared, func(event Event) bool { return event.Type != TypeTest }) {
+		within, werr := r.withinActiveWindow(ctx, tenantID)
+		if werr != nil {
+			return werr
+		}
+		if !within {
+			return ErrOutsideActiveWindow
+		}
 	}
 
 	dispatchCtx := modelBase.ContextWithoutTx(ctx)

@@ -198,6 +198,18 @@ func TestNotifyBatch(t *testing.T) {
 		assert.Equal(t, []int64{22}, calls[1].AccountIDs)
 	})
 
+	t.Run("test notifications ignore the delivery window", func(t *testing.T) {
+		bc := testpkg.NewRecordingBroadcaster()
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:01"), nil,
+			notifications.NewSSEChannel(bc))
+
+		err := dispatch(t, func(ctx context.Context) error {
+			return svc.NotifyBatch(ctx, []notifications.Event{tenantEvent(7)})
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, bc.Calls())
+	})
+
 	t.Run("a mixed-tenant batch is rejected", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
 		svc := notifications.NewService(settingsWithWindow("", ""), nil,

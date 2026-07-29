@@ -345,7 +345,7 @@ func (s *preferenceService) forEachGuardianTenant(
 // must not silently widen or narrow who gets notified.
 func (s *preferenceService) resolveBool(ctx context.Context, key string) (bool, error) {
 	if s.settings == nil {
-		return false, nil
+		return false, errors.New("notification preferences service has no settings service configured")
 	}
 	v, err := s.settings.ResolveBool(ctx, key)
 	if err != nil {

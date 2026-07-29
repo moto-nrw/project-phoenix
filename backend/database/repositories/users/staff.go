@@ -231,9 +231,10 @@ func (r *StaffRepository) GetStaffContactInfo(ctx context.Context, staffID int64
 // addressing people by account needs. Deliberately not FindWithPersonByIDs:
 // that hydrates whole staff and person rows for a lookup that is two integers.
 //
-// Staff without a login account are absent from the result rather than mapped
-// to zero, so a caller ranging over the map cannot accidentally address account
-// 0. Soft-deleted staff and persons are excluded.
+// Staff without an active login account and active tenant mapping are absent
+// from the result rather than mapped to zero, so a caller ranging over the map
+// cannot accidentally address account 0. Soft-deleted staff and persons are
+// excluded.
 func (r *StaffRepository) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error) {
 	if len(staffIDs) == 0 {
 		return map[int64]int64{}, nil
@@ -247,10 +248,13 @@ func (r *StaffRepository) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs
 	query := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id AS staff_id`).
-		ColumnExpr(`"person".account_id`).
+		ColumnExpr(`"account".id AS account_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id AND "account".active = TRUE`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id
+			AND "account_tenant".tenant_id = "staff".tenant_id
+			AND "account_tenant".status = ?`, authModels.AccountTenantStatusActive).
 		Where(`"staff".deleted_at IS NULL`).
-		Where(`"person".account_id IS NOT NULL`).
 		Where(`"staff".id IN (?)`, bun.List(staffIDs))
 
 	query = base.WithTenantFilter(ctx, query, "staff")

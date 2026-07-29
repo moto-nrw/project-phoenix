@@ -147,11 +147,10 @@ func TestGetForAccountFailures(t *testing.T) {
 		require.Error(t, err, "a broken read must not silently widen or narrow who gets notified")
 	})
 
-	t.Run("without a settings service nothing is enabled", func(t *testing.T) {
+	t.Run("a missing settings service surfaces", func(t *testing.T) {
 		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, nil, nil, nil)
-		overview, err := svc.GetForAccount(context.Background(), prefAccountA, notifications.PortalStaff)
-		require.NoError(t, err)
-		assert.False(t, overview.TenantEnabled)
+		_, err := svc.GetForAccount(context.Background(), prefAccountA, notifications.PortalStaff)
+		require.ErrorContains(t, err, "no settings service configured")
 	})
 }
 

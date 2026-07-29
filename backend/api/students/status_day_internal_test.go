@@ -324,6 +324,8 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	defer func() { _ = db.Close() }()
 
 	resource := newStatusDayTestResource(db)
+	notifier := &recordingAbsenceNotifier{}
+	resource.AbsenceNotifier = notifier
 	student := testpkg.CreateTestStudent(t, db, "StatusToday", "Student", "ST1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	router := statusDayTestRouter(resource)
@@ -335,6 +337,15 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	})
 	sickRR := executeStatusDayHandler(router, sickReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, sickRR.Code)
+	require.Len(t, notifier.reports, 1)
+
+	repeatedSickReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
+		"status": active.StudentStatusDaySick,
+		"dates":  []string{today},
+	})
+	repeatedSickRR := executeStatusDayHandler(router, repeatedSickReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	require.Equal(t, http.StatusCreated, repeatedSickRR.Code)
+	assert.Len(t, notifier.reports, 1, "re-saving the same absence must not notify twice")
 
 	fresh, err := resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
 	require.NoError(t, err)
@@ -348,6 +359,8 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	})
 	excusedRR := executeStatusDayHandler(router, excusedReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, excusedRR.Code)
+	require.Len(t, notifier.reports, 2, "changing the absence type must notify")
+	assert.Equal(t, active.StudentStatusDayExcused, notifier.reports[1].Status)
 
 	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.TenantContext(1), student.ID, timezone.TodayDate(), timezone.TodayDate())
 	require.NoError(t, err)

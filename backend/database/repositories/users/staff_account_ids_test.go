@@ -20,6 +20,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 
 	t.Run("maps staff with an account and omits staff without one", func(t *testing.T) {
 		withAccount, account := testpkg.CreateTestStaffWithAccount(t, db, "Mapped", "Staff")
+		testpkg.MapAccountToTenant(t, db, account.ID, 1)
 		withoutAccount := testpkg.CreateTestStaff(t, db, "Accountless", "Staff")
 
 		defer testpkg.CleanupStaffFixtures(t, db, withAccount.ID, withoutAccount.ID)
@@ -38,6 +39,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 
 	t.Run("excludes a soft-deleted staff member", func(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Offboarded", "Staff")
+		testpkg.MapAccountToTenant(t, db, account.ID, 1)
 
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -54,6 +56,34 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 
 		_, present := result[staff.ID]
 		assert.False(t, present, "an offboarded staff member is not addressable")
+	})
+
+	t.Run("excludes inactive accounts and tenant mappings", func(t *testing.T) {
+		inactiveAccountStaff, inactiveAccount := testpkg.CreateTestStaffWithAccount(t, db, "Inactive", "Account")
+		testpkg.MapAccountToTenant(t, db, inactiveAccount.ID, 1)
+		inactiveMappingStaff, inactiveMappingAccount := testpkg.CreateTestStaffWithAccount(t, db, "Inactive", "Mapping")
+		testpkg.MapAccountToTenant(t, db, inactiveMappingAccount.ID, 1)
+
+		defer testpkg.CleanupStaffFixtures(t, db, inactiveAccountStaff.ID, inactiveMappingStaff.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, inactiveAccount.ID, inactiveMappingAccount.ID)
+
+		_, err := db.NewUpdate().
+			TableExpr("auth.accounts").
+			Set("active = FALSE").
+			Where("id = ?", inactiveAccount.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewUpdate().
+			TableExpr("auth.account_tenants").
+			Set("status = 'inactive'").
+			Where("account_id = ?", inactiveMappingAccount.ID).
+			Where("tenant_id = ?", 1).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		result, err := repo.ListAccountIDsByStaffIDs(ctx, []int64{inactiveAccountStaff.ID, inactiveMappingStaff.ID})
+		require.NoError(t, err)
+		assert.Empty(t, result)
 	})
 
 	t.Run("empty input short-circuits", func(t *testing.T) {

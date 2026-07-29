@@ -32,9 +32,10 @@ type StatusDayWriteContext struct {
 	StudentService users.StudentService
 	Authorize      func(ctx context.Context, student *userModels.Student) bool
 	AfterCommit    func(studentID int64)
-	// AfterCreateCommit receives the whole submission once after commit. It is
-	// separate from AfterCommit so bulk writes can emit one aggregate absence
-	// notification while retaining the per-student SSE fan-out.
+	// AfterCreateCommit receives the students whose current-day status newly
+	// became a reportable absence, once after commit. It is separate from
+	// AfterCommit so bulk writes can emit one aggregate absence notification
+	// while retaining the per-student SSE fan-out.
 	AfterCreateCommit func(studentIDs []int64)
 }
 
@@ -47,11 +48,12 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 	today := timezone.TodayDate()
 	notePtr := strutil.TrimPtrToNil(&reason)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := s.writeStatusForStudent(ctx, wc, studentID, status, dates, notePtr, now, today); err != nil {
+		notifyAbsence, err := s.writeStatusForStudent(ctx, wc, studentID, status, dates, notePtr, now, today)
+		if err != nil {
 			return err
 		}
 		tenant.RegisterAfterCommit(ctx, func() { wc.AfterCommit(studentID) })
-		if wc.AfterCreateCommit != nil {
+		if notifyAbsence && wc.AfterCreateCommit != nil {
 			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit([]int64{studentID}) })
 		}
 		return nil
@@ -66,15 +68,20 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 	today := timezone.TodayDate()
 	notePtr := strutil.TrimPtrToNil(&reason)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
+		absenceStudentIDs := make([]int64, 0, len(studentIDs))
 		for _, studentID := range studentIDs {
-			if err := s.writeStatusForStudent(ctx, wc, studentID, status, dates, notePtr, now, today); err != nil {
+			notifyAbsence, err := s.writeStatusForStudent(ctx, wc, studentID, status, dates, notePtr, now, today)
+			if err != nil {
 				return err
+			}
+			if notifyAbsence {
+				absenceStudentIDs = append(absenceStudentIDs, studentID)
 			}
 			studentID := studentID
 			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCommit(studentID) })
 		}
-		if wc.AfterCreateCommit != nil {
-			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit(studentIDs) })
+		if len(absenceStudentIDs) > 0 && wc.AfterCreateCommit != nil {
+			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit(absenceStudentIDs) })
 		}
 		return nil
 	})
@@ -130,17 +137,18 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 	})
 }
 
-func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc StatusDayWriteContext, studentID int64, status string, dates []timezone.Date, notePtr *string, now time.Time, today timezone.Date) error {
+func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc StatusDayWriteContext, studentID int64, status string, dates []timezone.Date, notePtr *string, now time.Time, today timezone.Date) (bool, error) {
 	fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !wc.Authorize(ctx, fresh) {
-		return ErrStudentStatusDayReassigned
+		return false, ErrStudentStatusDayReassigned
 	}
 
+	notifyAbsence := isNewReportableAbsence(fresh, status, dates, today)
 	if err := s.clearOtherStatusDaysForDates(ctx, fresh.ID, status, dates, now); err != nil {
-		return err
+		return false, err
 	}
 	for _, date := range dates {
 		if err := s.repo.UpsertReported(ctx, &activeModels.StudentStatusDay{
@@ -151,16 +159,30 @@ func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc 
 			Source:     activeModels.StudentStatusSourcePlanned,
 			Note:       notePtr,
 		}); err != nil {
-			return err
+			return false, err
 		}
 	}
 	if slices.Contains(dates, today) {
 		ApplyLiveStatusForToday(fresh, status, now)
 		if err := wc.StudentService.Update(ctx, fresh); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return notifyAbsence, nil
+}
+
+func isNewReportableAbsence(student *userModels.Student, status string, dates []timezone.Date, today timezone.Date) bool {
+	if !slices.Contains(dates, today) {
+		return false
+	}
+	switch status {
+	case activeModels.StudentStatusDaySick:
+		return student.Sick == nil || !*student.Sick
+	case activeModels.StudentStatusDayExcused:
+		return student.Excused == nil || !*student.Excused
+	default:
+		return false
+	}
 }
 
 func (s *StudentStatusDayService) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, now time.Time) error {
