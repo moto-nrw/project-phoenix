@@ -235,10 +235,11 @@ do not know each other.
 a `student_absence_reported` notification for the supervising staff of the
 child's group plus the office (effective admins), minus the person who entered
 it. Gated additionally by `notifications.absence_reported_enabled`. Wired into
-the parent write path; the three staff-side entry points
+the parent write path and all three staff-side entry points
 (`student_status_day_write.go`, `api/students/status_history.go`,
-`excused_request_service.go`) still need the same injection — the producer is
-finished and tested, only the call sites are missing.
+`excused_request_service.go`). Every call runs after the absence transaction
+commits; the producer opens a fresh tenant transaction for its RLS-scoped
+recipient and consent reads.
 
 ### Parent announcements (`services/announcement/service.go`)
 

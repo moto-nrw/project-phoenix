@@ -153,7 +153,8 @@ func (s *preferenceService) SetForAccount(ctx context.Context, accountID int64, 
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
-	if _, known := GetType(notificationType); !known {
+	def, known := GetType(notificationType)
+	if !known || def.Portal != PortalStaff {
 		return fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
 	}
 

@@ -91,6 +91,23 @@ func TestPublishNotifiesNobodyWithoutConsent(t *testing.T) {
 	}
 }
 
+// Quiet hours suppress delivery, not the announcement itself. Staff must be
+// able to publish at any time even when the notification window is closed.
+func TestPublishSucceedsOutsideNotificationWindow(t *testing.T) {
+	repo := consentTestRepo()
+	notifier := &fakeNotifier{err: notifications.ErrOutsideActiveWindow}
+	prefs := &fakePreferences{optedIn: []int64{202}}
+
+	published, err := consentTestService(repo, notifier, prefs).
+		Publish(context.Background(), repo.announcement.ID)
+	if err != nil {
+		t.Fatalf("quiet hours must not roll back publication: %v", err)
+	}
+	if published == nil {
+		t.Fatal("the announcement must still be published")
+	}
+}
+
 // TestPublishFailsOnConsentLookupError keeps a broken consent read from being
 // read as "nobody agreed" — that would look identical to a working feature.
 func TestPublishFailsOnConsentLookupError(t *testing.T) {

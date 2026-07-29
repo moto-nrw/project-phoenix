@@ -1780,11 +1780,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Group,
 		repos.Staff,
 		repos.Account,
+		db,
 		logger.With("producer", "absence_notifications"),
 	)
 	// Injected after the fact: the parent service is wired before the
 	// notification stack exists.
 	if setter, ok := parentService.(parent.AbsenceNotifierSetter); ok {
+		setter.SetAbsenceNotifier(absenceNotifier)
+	}
+	if setter, ok := excusedRequestService.(absence.AbsenceNotifierSetter); ok {
 		setter.SetAbsenceNotifier(absenceNotifier)
 	}
 

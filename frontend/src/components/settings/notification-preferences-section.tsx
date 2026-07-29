@@ -69,6 +69,7 @@ export function NotificationPreferencesSection({
 
   const toggle = async (type: NotificationPreferenceType, enabled: boolean) => {
     // Optimistic: the switch answers immediately and rolls back on failure.
+    setBusy(true);
     setTypes((current) =>
       current.map((t) => (t.key === type.key ? { ...t, enabled } : t)),
     );
@@ -86,6 +87,8 @@ export function NotificationPreferencesSection({
         ),
       );
       setError("Die Einstellung konnte nicht gespeichert werden.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -192,7 +195,7 @@ export function NotificationPreferencesSection({
                     <BooleanField
                       value={type.enabled}
                       onChange={(next) => void toggle(type, next)}
-                      disabled={!tenantEnabled}
+                      disabled={busy}
                       ariaLabel={type.label}
                     />
                   </div>

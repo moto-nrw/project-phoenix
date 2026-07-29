@@ -156,7 +156,7 @@ func newAbsenceWorld() (notifications.AbsenceNotifier, *absenceWorld) {
 		admins: &fakeAdminReader{ids: []int64{absenceAdmin}},
 	}
 	producer := notifications.NewAbsenceNotifier(
-		w.notifier, w.consent, w.students, w.groups, w.staff, w.admins, nil)
+		w.notifier, w.consent, w.students, w.groups, w.staff, w.admins, nil, nil)
 	return producer, w
 }
 
@@ -372,7 +372,7 @@ func TestAbsenceNotifierSwallowsFailures(t *testing.T) {
 // fallback audience.
 func TestAbsenceNotifierWithoutDependencies(t *testing.T) {
 	notifier := &captureNotifier{}
-	producer := notifications.NewAbsenceNotifier(nil, nil, nil, nil, nil, nil, nil)
+	producer := notifications.NewAbsenceNotifier(nil, nil, nil, nil, nil, nil, nil, nil)
 	assert.NotPanics(t, func() {
 		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
 	})

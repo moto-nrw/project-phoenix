@@ -23,6 +23,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,6 +31,70 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+type recordingAbsenceNotifier struct {
+	reports []notificationsService.AbsenceReport
+}
+
+func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsService.AbsenceReport) {
+	n.reports = append(n.reports, report)
+}
+
+func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
+	const tenantID int64 = 17
+	const actorID = 23
+	today := timezone.TodayDate()
+
+	t.Run("planned status write keeps the whole submission together", func(t *testing.T) {
+		notifier := &recordingAbsenceNotifier{}
+		resource := &Resource{ResourceConfig: ResourceConfig{AbsenceNotifier: notifier}}
+		ctx := tenant.WithTenantID(context.Background(), tenantID)
+		ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: actorID})
+		req := httptest.NewRequest(http.MethodPost, "/status-days", nil).WithContext(ctx)
+
+		writeContext := resource.newStatusDayCreateWriteContext(
+			req,
+			[]string{"users:update"},
+			active.StudentStatusDaySick,
+			[]timezone.Date{today},
+		)
+		writeContext.AfterCreateCommit([]int64{41, 42})
+
+		require.Len(t, notifier.reports, 1)
+		report := notifier.reports[0]
+		assert.Equal(t, tenantID, report.TenantID)
+		assert.Equal(t, []int64{41, 42}, report.StudentIDs)
+		assert.Equal(t, active.StudentStatusDaySick, report.Status)
+		assert.Equal(t, []timezone.Date{today}, report.Dates)
+		assert.False(t, report.FromParent)
+		assert.Equal(t, int64(actorID), report.ActorAccountID)
+	})
+
+	t.Run("manual status change notifies only after commit", func(t *testing.T) {
+		notifier := &recordingAbsenceNotifier{}
+		resource := &Resource{ResourceConfig: ResourceConfig{AbsenceNotifier: notifier}}
+		baseCtx := tenant.WithTenantID(context.Background(), tenantID)
+		baseCtx = context.WithValue(baseCtx, jwt.CtxClaims, jwt.AppClaims{ID: actorID})
+		ctx, commit := tenant.WithAfterCommitHooksForTest(baseCtx)
+		excused := true
+
+		resource.scheduleStudentUpdateWakes(
+			ctx,
+			tenantID,
+			41,
+			&UpdateStudentRequest{Excused: &excused},
+			false,
+			active.StudentStatusDayExcused,
+			today,
+		)
+		assert.Empty(t, notifier.reports)
+		commit()
+
+		require.Len(t, notifier.reports, 1)
+		assert.Equal(t, active.StudentStatusDayExcused, notifier.reports[0].Status)
+		assert.Equal(t, int64(actorID), notifier.reports[0].ActorAccountID)
+	})
+}
 
 func TestStatusDayRangeParsing(t *testing.T) {
 	req := httptest.NewRequest("GET", "/status-days?from=2026-05-25&to=2026-05-29", nil)

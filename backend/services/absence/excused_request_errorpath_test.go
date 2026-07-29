@@ -13,6 +13,8 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // errBoom is the injected repository failure used across the error-path tests.
@@ -106,10 +108,17 @@ func (r *fakeStudentRepo) Update(ctx context.Context, s *usersModels.Student) er
 type fakePersonRepo struct {
 	usersModels.PersonRepository
 	findByIDs func(context.Context, []int64) (map[int64]*usersModels.Person, error)
+	findByID  func(context.Context, any) (*usersModels.Person, error)
 }
 
 func (r *fakePersonRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Person, error) {
 	return r.findByIDs(ctx, ids)
+}
+func (r *fakePersonRepo) FindByID(ctx context.Context, id any) (*usersModels.Person, error) {
+	if r.findByID == nil {
+		return nil, nil
+	}
+	return r.findByID(ctx, id)
 }
 
 type fakeStatusRepo struct {
@@ -375,4 +384,63 @@ func TestErrorPath_Decide_ReloadError(t *testing.T) {
 	_, err := svc.Decide(adminCtx(), absenceSvc.ExcusedRequestDecideInput{RequestID: 5, Approve: false, Reason: "abgelehnt"})
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "boom")
+}
+
+type recordingAbsenceNotifier struct {
+	reports []notificationsSvc.AbsenceReport
+}
+
+func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsSvc.AbsenceReport) {
+	n.reports = append(n.reports, report)
+}
+
+func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
+	const (
+		tenantID  int64 = 31
+		studentID int64 = 9
+		reviewer  int64 = 77
+	)
+	today := timezone.TodayDate()
+	row := pendingRow(5, studentID, today)
+	row.TenantID = tenantID
+	student := &usersModels.Student{}
+	student.ID = studentID
+
+	svc := newFakeService(&fakeReqRepo{
+		findPending: func(context.Context, int64) (*activeModels.ExcusedAbsenceRequest, error) {
+			return row, nil
+		},
+		decide: func(context.Context, int64, string, *string, *int64, bool) error {
+			return nil
+		},
+		findByID: func(context.Context, any) (*activeModels.ExcusedAbsenceRequest, error) {
+			return row, nil
+		},
+	}, okStatusRepo(), &fakeStudentRepo{
+		findByID:          func(context.Context, any) (*usersModels.Student, error) { return student, nil },
+		findByIDForUpdate: func(context.Context, int64) (*usersModels.Student, error) { return student, nil },
+		update:            func(context.Context, *usersModels.Student) error { return nil },
+	}, &fakePersonRepo{})
+	notifier := &recordingAbsenceNotifier{}
+	svc.(absenceSvc.AbsenceNotifierSetter).SetAbsenceNotifier(notifier)
+
+	baseCtx := tenant.WithTenantID(adminCtx(), tenantID)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(baseCtx)
+	_, err := svc.Decide(ctx, absenceSvc.ExcusedRequestDecideInput{
+		RequestID:  5,
+		Approve:    true,
+		ReviewedBy: reviewer,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, notifier.reports, "the notification must not run before the decision commits")
+
+	commit()
+	require.Len(t, notifier.reports, 1)
+	report := notifier.reports[0]
+	assert.Equal(t, tenantID, report.TenantID)
+	assert.Equal(t, []int64{studentID}, report.StudentIDs)
+	assert.Equal(t, activeModels.StudentStatusDayExcused, report.Status)
+	assert.Equal(t, []timezone.Date{today}, report.Dates)
+	assert.True(t, report.FromParent)
+	assert.Equal(t, reviewer, report.ActorAccountID)
 }

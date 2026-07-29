@@ -10,6 +10,8 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Copy for the sick/excused notification.
@@ -65,6 +67,7 @@ type absenceNotifier struct {
 	groups      educationModel.GroupRepository
 	staff       userModel.StaffRepository
 	accounts    authAccountReader
+	db          *bun.DB
 	logger      *slog.Logger
 }
 
@@ -81,6 +84,7 @@ func NewAbsenceNotifier(
 	groups educationModel.GroupRepository,
 	staff userModel.StaffRepository,
 	accounts authAccountReader,
+	db *bun.DB,
 	logger *slog.Logger,
 ) AbsenceNotifier {
 	return &absenceNotifier{
@@ -90,6 +94,7 @@ func NewAbsenceNotifier(
 		groups:      groups,
 		staff:       staff,
 		accounts:    accounts,
+		db:          db,
 		logger:      logger,
 	}
 }
@@ -102,7 +107,22 @@ func (n *absenceNotifier) getLogger() *slog.Logger {
 }
 
 func (n *absenceNotifier) NotifyAbsenceReported(ctx context.Context, report AbsenceReport) {
-	if err := n.notify(ctx, report); err != nil {
+	if report.TenantID <= 0 {
+		return
+	}
+
+	var err error
+	if n.db == nil {
+		err = n.notify(ctx, report)
+	} else {
+		// Every caller invokes the producer after the write transaction has
+		// committed. Open a new tenant transaction so all recipient, consent and
+		// delivery reads carry the PostgreSQL RLS context they require.
+		err = tenant.WithTenantTx(ctx, n.db, report.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			return n.notify(txCtx, report)
+		})
+	}
+	if err != nil {
 		if errors.Is(err, ErrDisabled) || errors.Is(err, ErrOutsideActiveWindow) {
 			return
 		}

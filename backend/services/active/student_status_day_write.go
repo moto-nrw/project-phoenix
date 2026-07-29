@@ -32,6 +32,10 @@ type StatusDayWriteContext struct {
 	StudentService users.StudentService
 	Authorize      func(ctx context.Context, student *userModels.Student) bool
 	AfterCommit    func(studentID int64)
+	// AfterCreateCommit receives the whole submission once after commit. It is
+	// separate from AfterCommit so bulk writes can emit one aggregate absence
+	// notification while retaining the per-student SSE fan-out.
+	AfterCreateCommit func(studentIDs []int64)
 }
 
 // CreateForDates records the reported status for one student across the given
@@ -47,6 +51,9 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 			return err
 		}
 		tenant.RegisterAfterCommit(ctx, func() { wc.AfterCommit(studentID) })
+		if wc.AfterCreateCommit != nil {
+			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit([]int64{studentID}) })
+		}
 		return nil
 	})
 }
@@ -64,6 +71,9 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 			}
 			studentID := studentID
 			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCommit(studentID) })
+		}
+		if wc.AfterCreateCommit != nil {
+			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit(studentIDs) })
 		}
 		return nil
 	})

@@ -25,6 +25,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -123,6 +124,12 @@ type ExcusedAbsenceRequestService interface {
 	Decide(ctx context.Context, input ExcusedRequestDecideInput) (*ExcusedRequestReviewItem, error)
 }
 
+// AbsenceNotifierSetter injects the notification producer after construction.
+// The notification stack is built after this service in the factory.
+type AbsenceNotifierSetter interface {
+	SetAbsenceNotifier(notifier notificationsService.AbsenceNotifier)
+}
+
 type excusedAbsenceRequestService struct {
 	requestRepo   activeModels.ExcusedAbsenceRequestRepository
 	statusDayRepo activeModels.StudentStatusDayRepository
@@ -131,6 +138,7 @@ type excusedAbsenceRequestService struct {
 	userContext   userContextService.UserContextService
 	emitter       *parentmessaging.Emitter
 	broadcaster   realtime.Broadcaster
+	absenceNotify notificationsService.AbsenceNotifier
 	logger        *slog.Logger
 }
 
@@ -158,6 +166,11 @@ func NewExcusedAbsenceRequestService(
 		broadcaster:   broadcaster,
 		logger:        logger,
 	}
+}
+
+// SetAbsenceNotifier implements AbsenceNotifierSetter.
+func (s *excusedAbsenceRequestService) SetAbsenceNotifier(notifier notificationsService.AbsenceNotifier) {
+	s.absenceNotify = notifier
 }
 
 func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studentID, guardianAccountID int64, dates []timezone.Date, note string) (*activeModels.ExcusedAbsenceRequest, error) {
@@ -497,6 +510,23 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 
 	if input.Approve {
+		if s.absenceNotify != nil {
+			tenantID := req.TenantID
+			if tenantID <= 0 {
+				tenantID = tenant.FromContext(ctx)
+			}
+			report := notificationsService.AbsenceReport{
+				TenantID:       tenantID,
+				StudentIDs:     []int64{req.StudentID},
+				Status:         activeModels.StudentStatusDayExcused,
+				Dates:          req.Dates,
+				FromParent:     true,
+				ActorAccountID: input.ReviewedBy,
+			}
+			tenant.RegisterAfterCommit(ctx, func() {
+				s.absenceNotify.NotifyAbsenceReported(context.Background(), report)
+			})
+		}
 		tenant.RegisterAfterCommit(ctx, func() {
 			s.logger.Info("excused request approved",
 				slog.Int64("request_id", req.ID),

@@ -77,7 +77,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), student.ID, req.Status, req.Reason, dates); err != nil {
+	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), student.ID, req.Status, req.Reason, dates); err != nil {
 		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
@@ -127,7 +127,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 	dates := datesBetweenInclusive(from, to)
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if err := rs.StudentStatusDayService.BulkCreateForDates(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), req.StudentIDs, req.Status, req.Reason, dates); err != nil {
+	if err := rs.StudentStatusDayService.BulkCreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), req.StudentIDs, req.Status, req.Reason, dates); err != nil {
 		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
@@ -202,6 +202,16 @@ func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []
 			rs.wakeChildGuardians(tenantID, studentID)
 		},
 	}
+}
+
+func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissions []string, status string, dates []timezone.Date) activeService.StatusDayWriteContext {
+	writeContext := rs.newStatusDayWriteContext(r, userPermissions)
+	tenantID := tenant.FromContext(r.Context())
+	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	writeContext.AfterCreateCommit = func(studentIDs []int64) {
+		rs.notifyAbsenceReported(tenantID, studentIDs, status, dates, false, actorAccountID)
+	}
+	return writeContext
 }
 
 func parseStatusDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {

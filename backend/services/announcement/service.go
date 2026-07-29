@@ -403,7 +403,7 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 			GuardianAccountIDs: accountIDs,
 		},
 	})
-	if errors.Is(err, notifications.ErrDisabled) {
+	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
 		return nil
 	}
 	if err != nil {

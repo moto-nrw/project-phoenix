@@ -806,6 +806,7 @@ func TestBatchReportsPersonalAssignments(t *testing.T) {
 	w.supervises(7, 10) // watches room 10 only
 	w.supervises(8, 10) // same room, no assignment
 	w.assignsInstance(7, 202, false)
+	w.assignsInstance(1, 201, false)
 
 	batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(7), caregiver(8), admin(1)})
 	require.NoError(t, err)
@@ -814,8 +815,8 @@ func TestBatchReportsPersonalAssignments(t *testing.T) {
 		"only the slot this person is planned on, not the room they supervise")
 	assert.Nil(t, batch[8].AssignedActivityInstanceIDs,
 		"no assignment means nil, which reads as 'nothing of mine' rather than an empty restriction")
-	assert.Nil(t, batch[1].AssignedActivityInstanceIDs,
-		"an admin sees every activity anyway; none of them is personally theirs")
+	assert.Equal(t, map[string]struct{}{"201": {}}, batch[1].AssignedActivityInstanceIDs,
+		"an admin's personal assignment must remain distinguishable from room-wide activities")
 
 	// The field describes the list, so it has to be usable as a key into it.
 	var matched bool

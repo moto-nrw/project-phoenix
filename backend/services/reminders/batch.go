@@ -216,9 +216,8 @@ func disabledResults(recipients []BatchScope) map[int64]*Result {
 	return results
 }
 
-// hasCaregiver reports whether any recipient needs the per-person reads at all.
-// A batch of admins only — which is what the notification tick sends today —
-// skips all three bulk staff reads.
+// hasCaregiver reports whether any recipient needs the supervision and group
+// reads. Planned assignments are loaded for every recipient, including admins.
 func hasCaregiver(recipients []BatchScope) bool {
 	for _, sc := range recipients {
 		if !sc.IsAdmin {
@@ -307,6 +306,10 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 	}
 
 	caregivers := hasCaregiver(recipients)
+	recipientStaffIDs := make(map[int64]struct{}, len(recipients))
+	for _, sc := range recipients {
+		recipientStaffIDs[sc.StaffID] = struct{}{}
+	}
 
 	// Seed an empty entry for every caregiver BEFORE the bulk reads. The readers
 	// only return rows for people who have something, and a missing key that is
@@ -424,7 +427,7 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 		// skipped: someone who called in sick must not be pinged about the
 		// slot they were relieved of. Substitutes are kept — they are the ones
 		// who have to show up.
-		if caregivers && s.BulkInstanceStaff != nil {
+		if s.BulkInstanceStaff != nil {
 			instanceIDs := make([]int64, 0, len(instances))
 			for _, inst := range instances {
 				if inst != nil && inst.Status == scheduleModel.InstanceStatusPlanned {
@@ -439,7 +442,7 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 				if row == nil || row.IsAbsent {
 					continue
 				}
-				if _, wanted := in.roomsByStaff[row.StaffID]; !wanted {
+				if _, wanted := recipientStaffIDs[row.StaffID]; !wanted {
 					continue
 				}
 				if in.assignedInstances[row.StaffID] == nil {

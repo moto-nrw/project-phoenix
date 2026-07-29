@@ -175,6 +175,15 @@ func TestSetForAccount(t *testing.T) {
 		assert.Empty(t, repo.upserted)
 	})
 
+	t.Run("a parent type is rejected on the staff portal", func(t *testing.T) {
+		repo := &fakePreferenceRepo{}
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+
+		err := svc.SetForAccount(context.Background(), prefAccountA, notifications.TypeParentAnnouncement, true)
+		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
+		assert.Empty(t, repo.upserted)
+	})
+
 	t.Run("account id is required", func(t *testing.T) {
 		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
 		require.Error(t, svc.SetForAccount(context.Background(), 0, notifications.TypePickupUpcoming, true))

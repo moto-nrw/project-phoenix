@@ -83,6 +83,26 @@ describe("NotificationPreferencesSection", () => {
     ).toHaveAttribute("aria-checked", "false");
   });
 
+  it("disables switches only while a preference save is in flight", async () => {
+    let finishSave: (() => void) | undefined;
+    api.setNotificationPreference.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+    render(<NotificationPreferencesSection />);
+
+    const preferenceSwitch = await screen.findByRole("switch", {
+      name: "Anstehende Abholung",
+    });
+    fireEvent.click(preferenceSwitch);
+
+    await waitFor(() => expect(preferenceSwitch).toBeDisabled());
+    finishSave?.();
+    await waitFor(() => expect(preferenceSwitch).not.toBeDisabled());
+  });
+
   it("explains a type the school currently blocks but keeps it choosable", async () => {
     api.fetchNotificationPreferences.mockResolvedValue(
       preferences({ available: false }),
@@ -99,7 +119,7 @@ describe("NotificationPreferencesSection", () => {
     ).not.toBeDisabled();
   });
 
-  it("disables every switch when the school switched the feature off", async () => {
+  it("keeps preferences editable when the school switched delivery off", async () => {
     api.fetchNotificationPreferences.mockResolvedValue({
       ...preferences(),
       tenant_enabled: false,
@@ -109,9 +129,19 @@ describe("NotificationPreferencesSection", () => {
     expect(
       await screen.findByText(/Ihre Schule hat Benachrichtigungen derzeit/),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Anstehende Abholung" }),
-    ).toBeDisabled();
+    const preferenceSwitch = screen.getByRole("switch", {
+      name: "Anstehende Abholung",
+    });
+    expect(preferenceSwitch).not.toBeDisabled();
+
+    fireEvent.click(preferenceSwitch);
+    await waitFor(() =>
+      expect(api.setNotificationPreference).toHaveBeenCalledWith(
+        "pickup_upcoming",
+        true,
+        "tenant",
+      ),
+    );
   });
 
   it("offers to switch everything off only when something is on", async () => {
