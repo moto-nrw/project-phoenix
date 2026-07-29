@@ -439,6 +439,7 @@ export function CarePlanEditorModal({
                 />
               </div>
               <DayNotesEditor
+                key={toDayISO(arrivalDay.date)}
                 date={toDayISO(arrivalDay.date)}
                 arrivalNotes={arrivalDay.notes}
                 pickupNotes={pickupDay.notes}
@@ -718,30 +719,14 @@ function NoteList({
     <div className="space-y-2">
       <p className="text-xs font-medium text-gray-500">{label}</p>
       {notes.map((note) => (
-        <div key={note.id} className="flex gap-2">
-          <input
-            aria-label={`${label} Hinweis`}
-            defaultValue={note.content}
-            className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
-            onBlur={(event) => {
-              if (
-                event.target.value.trim() &&
-                event.target.value !== note.content
-              )
-                void runMutation(() =>
-                  onUpdate(String(note.id), event.target.value.trim()),
-                );
-            }}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => void runMutation(() => onDelete(String(note.id)))}
-          >
-            Löschen
-          </Button>
-        </div>
+        <NoteEditor
+          key={note.id}
+          label={label}
+          note={note}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          runMutation={runMutation}
+        />
       ))}
       <div className="flex gap-2">
         <input
@@ -760,6 +745,60 @@ function NoteList({
           Hinzufügen
         </Button>
       </div>
+    </div>
+  );
+}
+
+function NoteEditor({
+  label,
+  note,
+  onUpdate,
+  onDelete,
+  runMutation,
+}: {
+  readonly label: string;
+  readonly note: { id: string | number; content: string };
+  readonly onUpdate: (id: string, content: string) => Promise<void>;
+  readonly onDelete: (id: string) => Promise<void>;
+  readonly runMutation: (
+    mutation: () => Promise<void>,
+    onSuccess?: () => void,
+  ) => Promise<void>;
+}) {
+  const [content, setContent] = useState(note.content);
+  const trimmedContent = content.trim();
+  const hasChanges = trimmedContent !== note.content;
+
+  return (
+    <div className="flex gap-2">
+      <input
+        aria-label={`${label} Hinweis`}
+        value={content}
+        onChange={(event) => setContent(event.target.value)}
+        className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={!trimmedContent || !hasChanges}
+        onClick={() =>
+          void runMutation(
+            () => onUpdate(String(note.id), trimmedContent),
+            () => setContent(trimmedContent),
+          )
+        }
+      >
+        Änderung speichern
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => void runMutation(() => onDelete(String(note.id)))}
+      >
+        Löschen
+      </Button>
     </div>
   );
 }

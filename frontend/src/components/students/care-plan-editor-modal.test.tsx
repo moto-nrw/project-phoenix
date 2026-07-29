@@ -501,6 +501,55 @@ describe("CarePlanEditorModal", () => {
     expect(draft).toHaveValue("Bitte klingeln");
   });
 
+  it("does not save an edited day note when the exception editor is cancelled", () => {
+    const onUpdateArrivalNote = vi.fn().mockResolvedValue(undefined);
+    const { onClose } = renderEditor({ onUpdateArrivalNote });
+
+    fireEvent.change(screen.getByLabelText("Ankunft Hinweis"), {
+      target: { value: "Kommt mit dem Bus" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(onUpdateArrivalNote).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("clears day note drafts when the editor switches to another date", async () => {
+    const onCreateArrivalNote = vi.fn().mockResolvedValue(undefined);
+    const { rerender, renderModal } = renderEditor({ onCreateArrivalNote });
+    const draft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
+
+    fireEvent.change(draft, { target: { value: "Nur Montag" } });
+    rerender(
+      renderModal({
+        date: new Date("2026-05-26T00:00:00"),
+        arrivalDay: {
+          ...baseArrivalDay,
+          date: new Date("2026-05-26T00:00:00"),
+          notes: [],
+        },
+        pickupDay: {
+          ...basePickupDay,
+          date: new Date("2026-05-26T00:00:00"),
+          notes: [],
+        },
+      }),
+    );
+
+    const nextDraft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
+    expect(nextDraft).toHaveValue("");
+
+    fireEvent.change(nextDraft, { target: { value: "Nur Dienstag" } });
+    fireEvent.click(nextDraft.parentElement!.querySelector("button")!);
+
+    await waitFor(() => {
+      expect(onCreateArrivalNote).toHaveBeenCalledWith(
+        "2026-05-26",
+        "Nur Dienstag",
+      );
+    });
+  });
+
   it("writes the weekly plan from the plan view", async () => {
     const { onSubmitWeekly } = renderEditor({
       date: null,
