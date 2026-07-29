@@ -24,6 +24,7 @@ import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-moda
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { RoleGuard } from "~/components/auth/role-guard";
+import { hasPermission } from "~/lib/auth-utils";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
@@ -111,6 +112,7 @@ function TeachersPageContent() {
     },
   });
   const accessToken = sessionData?.user?.token ?? "";
+  const canManageUsers = hasPermission(sessionData, "users:manage");
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
@@ -344,11 +346,13 @@ function TeachersPageContent() {
                   </Link>
                 </>
               ) : null}
-              <DatabaseCreateAction
-                label="Personal"
-                ariaLabel="Personal hinzufügen"
-                onClick={() => setShowInviteModal(true)}
-              />
+              {canManageUsers ? (
+                <DatabaseCreateAction
+                  label="Personal"
+                  ariaLabel="Personal hinzufügen"
+                  onClick={() => setShowInviteModal(true)}
+                />
+              ) : null}
             </div>
           }
         />
@@ -417,19 +421,21 @@ function TeachersPageContent() {
         />
       ) : null}
 
-      <Modal
-        isOpen={showInviteModal}
-        onClose={handleCloseInviteModal}
-        title="Personal einladen"
-      >
-        <InvitationForm
-          existingPositions={existingPositions}
-          onCreated={() => {
-            setInvitationRefreshKey(Date.now());
-            setShowInviteModal(false);
-          }}
-        />
-      </Modal>
+      {canManageUsers ? (
+        <Modal
+          isOpen={showInviteModal}
+          onClose={handleCloseInviteModal}
+          title="Personal einladen"
+        >
+          <InvitationForm
+            existingPositions={existingPositions}
+            onCreated={() => {
+              setInvitationRefreshKey(Date.now());
+              setShowInviteModal(false);
+            }}
+          />
+        </Modal>
+      ) : null}
 
       {selectedTeacher && (
         <ConfirmationModal

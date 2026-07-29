@@ -18,6 +18,19 @@ type InvitationRequest struct {
 	CaregiverEnabled bool
 	CreatedBy        int64
 	SchoolName       string // Display name of the tenant (shown in invitation email)
+
+	// ActorPermissions are the permissions of the account creating the
+	// invitation, used to decide whether it may hand out the requested role
+	// (authorize.CanGrantRole). An empty set grants nothing beyond the user
+	// tier — the zero value is the safe one, so a caller that forgets this
+	// field fails closed instead of silently allowing an admin grant.
+	ActorPermissions []string
+
+	// OperatorGrant marks an invitation issued by the platform operator, whose
+	// authority comes from the operator portal rather than from tenant
+	// permissions (operators carry no tenant permission set at all). Set it
+	// only on operator-authenticated paths; it skips the role-grant check.
+	OperatorGrant bool
 }
 
 // UserRegistrationData captures the information supplied when accepting an invitation.

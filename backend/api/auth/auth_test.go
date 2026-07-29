@@ -402,6 +402,36 @@ func TestRegister(t *testing.T) {
 	})
 }
 
+// TestRegisterRejectsGuardianRole pins the second half of the role-assignment
+// rule on the account-creation path. Checking that a role exists is not enough:
+// guardian access is granted exclusively through the guardian invitation flow,
+// and /auth/register shares authorizeRoleAssignment with /auth/link-to-tenant,
+// so a gap here is a gap in both.
+func TestRegisterRejectsGuardianRole(t *testing.T) {
+	db, router := setupPublicRouterWithDB(t)
+
+	guardianRole := testpkg.CreateTestSystemRole(t, db, authModel.BaseRoleGuardian)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", guardianRole.ID).Exec(context.Background())
+	})
+
+	adminToken, _ := loginAsAdmin(t, db, router)
+
+	body := map[string]interface{}{
+		"email":            fmt.Sprintf("guardianrole_%d@example.com", time.Now().UnixNano()),
+		"username":         fmt.Sprintf("guardianrole_%d", time.Now().UnixNano()),
+		"password":         "SecurePass123!",
+		"confirm_password": "SecurePass123!",
+		"role_id":          guardianRole.ID,
+	}
+
+	req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
 // TestRegisterRequiresAdminAuth tests that the register endpoint enforces admin authentication
 func TestRegisterRequiresAdminAuth(t *testing.T) {
 	db, router := setupPublicRouterWithDB(t)
@@ -1353,6 +1383,24 @@ func TestAccountRoleAssignment(t *testing.T) {
 		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
+
+	t.Run("rejects direct assignment of guardian roles", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("guardian-assignment%d", time.Now().UnixNano()))
+		guardianRole := testpkg.CreateTestRole(t, tc.db, "guardian-assignment")
+		guardianBaseRole := authModel.BaseRoleGuardian
+		guardianRole.BaseRole = &guardianBaseRole
+		_, err := tc.db.NewUpdate().Model(guardianRole).Column("base_role").WherePK().Exec(context.Background())
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
+			testpkg.CleanupRoleRecords(t, tc.db, guardianRole.ID)
+		})
+
+		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, guardianRole.ID), nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
 }
 
 // ============================================================================
@@ -1595,7 +1643,7 @@ func TestInvitationManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1982,7 +2030,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		require.Equal(t, http.StatusCreated, rr.Code,
 			"Expected 201 Created, got %d. Body: %s", rr.Code, rr.Body.String())
@@ -2021,7 +2069,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		}
 
 		createReq := testutil.NewJSONRequest(t, "POST", "/auth/invitations", createBody)
-		createRR := testutil.ExecuteWithAuthPermissions(t, router, createReq, adminClaims, []string{"users:create"})
+		createRR := testutil.ExecuteWithAuthPermissions(t, router, createReq, adminClaims, []string{"users:manage"})
 		require.Equal(t, http.StatusCreated, createRR.Code)
 
 		// Extract token from created invitation
@@ -2192,4 +2240,104 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err, "Failed to parse error response: %s", rr.Body.String())
 	assert.Equal(t, "error", response.Status)
+}
+
+// TestCreateInvitationRequiresRoleGrantAuthority guards the invitation endpoint
+// against privilege escalation: the "user" (Betreuer) role carries users:create
+// globally, so users:create alone must not open an endpoint that hands out roles.
+func TestCreateInvitationRequiresRoleGrantAuthority(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inviter-%d@example.com", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
+
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "invite-target", 1)
+
+	claims := jwt.AppClaims{
+		ID:       int(account.ID),
+		TenantID: 1,
+		Sub:      account.Email,
+		Username: "betreuer",
+		Roles:    []string{"user"},
+	}
+
+	body := map[string]any{
+		"email":   fmt.Sprintf("invitee-%d@example.com", time.Now().UnixNano()),
+		"role_id": role.ID,
+	}
+
+	req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
+	rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:create", "users:update"})
+
+	assert.Equal(t, http.StatusForbidden, rr.Code,
+		"users:create must not be enough to create an invitation")
+}
+
+// TestRoleAssignmentEndpointsRejectEscalation guards the two remaining paths
+// that hand out a role when they attach an account to a school. Neither may be
+// driven by users:create, which every Betreuer holds.
+func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("granter-%d@example.com", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
+
+	adminRole := testpkg.CreateTestSystemRole(t, tc.db, "admin")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, tc.db, "auth.roles", adminRole.ID) })
+
+	claims := jwt.AppClaims{
+		ID:       int(account.ID),
+		TenantID: 1,
+		Sub:      account.Email,
+		Username: "betreuer",
+		Roles:    []string{"user"},
+	}
+	betreuer := []string{"users:create", "users:update"}
+
+	t.Run("register rejects users:create", func(t *testing.T) {
+		body := map[string]any{
+			"email":    fmt.Sprintf("newadmin-%d@example.com", time.Now().UnixNano()),
+			"username": fmt.Sprintf("newadmin%d", time.Now().UnixNano()),
+			"password": "Test1234%",
+			"role_id":  adminRole.ID,
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, betreuer)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+	})
+
+	t.Run("link-to-tenant rejects users:create", func(t *testing.T) {
+		body := map[string]any{
+			"email":   account.Email,
+			"role_id": adminRole.ID,
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/link-to-tenant", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, betreuer)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+	})
+
+	t.Run("an admin may still assign the admin role", func(t *testing.T) {
+		adminClaims := claims
+		adminClaims.Roles = []string{"admin"}
+		body := map[string]any{
+			"email":            fmt.Sprintf("realadmin-%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("realadmin%d", time.Now().UnixNano()),
+			"password":         "Test1234%",
+			"confirm_password": "Test1234%",
+			"role_id":          adminRole.ID,
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
+
+		require.Equal(t, http.StatusCreated, rr.Code, "body: %s", rr.Body.String())
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		require.True(t, ok)
+		if id, ok := data["id"].(float64); ok {
+			t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, tc.db, int64(id)) })
+		}
+	})
 }

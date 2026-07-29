@@ -167,6 +167,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"operator_invitation_dispatch_test.go",                   // Uses mocks for email dispatch tests
 		"invitations_test.go",                                    // Uses mocks for handler tests
 		"error_helpers_test.go",                                  // Internal unit tests for helper functions (no DB)
+		"auth/authorize/role_grant_test.go",                      // Pure policy unit tests on stack-allocated roles (no DB); int64 literals are throwaway IDs
 		"api/iot/api_test.go",                                    // Uses mock SchoolRepo for unit testing handler
 		"api/iot/checkin/capacity_errors_test.go",                // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
 		"api/iot/checkin/wire_format_test.go",                    // Pure render-to-recorder wire goldens (issue #575 B0, ex api/iot/common); int64 literals are throwaway IDs, not DB rows

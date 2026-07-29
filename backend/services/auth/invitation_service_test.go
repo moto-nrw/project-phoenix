@@ -16,6 +16,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
@@ -40,9 +41,12 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 
 	invitationRepo := newStubInvitationTokenRepository()
 	accountRepo := newStubAccountRepository()
+	// Shaped like the real seeded roles: system roles carry is_system and a NULL
+	// tenant_id. A role with neither is the orphan shape migration 1.15.17
+	// removed, and role-grant checks reject it.
 	roleRepo := newStubRoleRepository(
-		&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "Admin"},
-		&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "Teacher"},
+		&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "admin", IsSystem: true},
+		&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "user", IsSystem: true},
 	)
 	accountRoleRepo := newStubAccountRoleRepository()
 	personRepo := newStubPersonRepository()
@@ -117,7 +121,7 @@ func TestCreateInvitationSuccess(t *testing.T) {
 	require.NotNil(t, invitation.CreatedBy)
 	require.Equal(t, int64(42), *invitation.CreatedBy)
 	require.NotNil(t, invitation.Role)
-	require.Equal(t, "Teacher", invitation.Role.Name)
+	require.Equal(t, "user", invitation.Role.Name)
 
 	ttl := time.Until(invitation.ExpiresAt)
 	require.GreaterOrEqual(t, ttl, 47*time.Hour)
@@ -156,6 +160,8 @@ func TestInvitationEmailFailureRecordsError(t *testing.T) {
 		Email:     "failure@example.com",
 		RoleID:    1,
 		CreatedBy: 99,
+		// Role 1 is the admin role; handing it out requires users:manage.
+		ActorPermissions: []string{permissions.UsersManage},
 	}
 
 	expectAdminTx(mock)
@@ -269,7 +275,7 @@ func TestValidateInvitationReturnsDetails(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "user@example.com", result.Email)
-	require.Equal(t, "Teacher", result.RoleName)
+	require.Equal(t, "user", result.RoleName)
 	require.Equal(t, token.FirstName, result.FirstName)
 }
 
@@ -670,9 +676,10 @@ func TestCreateInvitationAllowsExistingAccountForNewTenant(t *testing.T) {
 	accounts.storeAccount(&authModel.Account{Model: baseModel.Model{ID: 7}, Email: "principal@example.com", Active: true})
 
 	invitation, err := service.CreateInvitation(ctx, InvitationRequest{
-		Email:    "principal@example.com",
-		RoleID:   1,
-		TenantID: 2,
+		Email:            "principal@example.com",
+		RoleID:           1,
+		TenantID:         2,
+		ActorPermissions: []string{permissions.UsersManage},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
@@ -693,7 +700,7 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 		AccountRepo:       newStubAccountRepository(),
 		AccountTenantRepo: newStubAccountTenantRepository(),
 		RoleRepo: newStubRoleRepository(
-			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "Teacher"},
+			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "user", IsSystem: true},
 		),
 		AccountRoleRepo:  newStubAccountRoleRepository(),
 		PersonRepo:       newStubPersonRepository(),
@@ -760,7 +767,7 @@ func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
 		AccountRepo:       newStubAccountRepository(),
 		AccountTenantRepo: newStubAccountTenantRepository(),
 		RoleRepo: newStubRoleRepository(
-			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "Teacher"},
+			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "user", IsSystem: true},
 		),
 		AccountRoleRepo:  newStubAccountRoleRepository(),
 		PersonRepo:       newStubPersonRepository(),
@@ -909,9 +916,11 @@ func TestCreateInvitationRejectsInvalidRequests(t *testing.T) {
 			wantErr: fmt.Errorf("tenant id is invalid"),
 		},
 		{
-			name:    "unknown role",
-			req:     InvitationRequest{Email: "person@example.com", RoleID: 404},
-			wantErr: fmt.Errorf("role not found"),
+			name: "unknown role",
+			req:  InvitationRequest{Email: "person@example.com", RoleID: 404},
+			// The role-assignment policy answers "exists and may be handed out
+			// here" in one step, so an unknown ID surfaces as not assignable.
+			wantErr: ErrRoleNotAssignable,
 		},
 	}
 
@@ -963,7 +972,7 @@ func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
 		InvitationRepo:    invitations,
 		AccountRepo:       accounts,
 		AccountTenantRepo: accountTenants,
-		RoleRepo:          newStubRoleRepository(&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "Admin"}),
+		RoleRepo:          newStubRoleRepository(&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "admin", IsSystem: true}),
 		AccountRoleRepo:   newStubAccountRoleRepository(),
 		PersonRepo:        newStubPersonRepository(),
 		StaffRepo:         staffRepoOnly(),
@@ -1414,9 +1423,14 @@ func TestCreateAccountWithRoleStopsOnPartialFailures(t *testing.T) {
 		},
 		{
 			name: "caregiver role error",
-			mutate: func(_ *invitationService, invitation *authModel.InvitationToken) {
+			mutate: func(svc *invitationService, invitation *authModel.InvitationToken) {
 				invitation.RoleID = 1
 				invitation.CaregiverEnabled = true
+				// Caregiver enablement resolves the system "user" role; drop it
+				// so the lookup fails, which is what this case asserts.
+				svc.roleRepo = newStubRoleRepository(
+					&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "admin", IsSystem: true},
+				)
 			},
 			wantErr: "user role not found",
 		},
@@ -1596,4 +1610,93 @@ func (r *failingRoleRepository) List(ctx context.Context, filters map[string]int
 		return nil, r.listErr
 	}
 	return r.stubRoleRepository.List(ctx, filters)
+}
+
+// TestCreateInvitationRejectsRoleEscalation covers the escalation path that made
+// the invitation endpoint dangerous: the "user" (Betreuer) role carries
+// users:create globally, so without a role-grant check an ordinary staff account
+// could invite a fresh address into the admin role and log in as that account.
+func TestCreateInvitationRejectsRoleEscalation(t *testing.T) {
+	// Permissions of a Betreuer: enough to create person records, not to hand
+	// out roles.
+	betreuer := []string{permissions.UsersCreate, permissions.UsersUpdate}
+
+	t.Run("betreuer may not invite into the admin role", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+
+		_, err := service.CreateInvitation(context.Background(), InvitationRequest{
+			Email:            "attacker@example.com",
+			RoleID:           1, // admin
+			CreatedBy:        42,
+			ActorPermissions: betreuer,
+		})
+
+		require.Error(t, err)
+		require.True(t, errors.Is(err, ErrRoleGrantNotPermitted),
+			"expected ErrRoleGrantNotPermitted, got %v", err)
+		require.Empty(t, invitations.byToken, "no invitation may be persisted")
+	})
+
+	t.Run("an account with no permissions may not either", func(t *testing.T) {
+		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+
+		_, err := service.CreateInvitation(context.Background(), InvitationRequest{
+			Email:     "attacker@example.com",
+			RoleID:    1,
+			CreatedBy: 42,
+		})
+
+		require.Error(t, err)
+		require.True(t, errors.Is(err, ErrRoleGrantNotPermitted),
+			"expected ErrRoleGrantNotPermitted, got %v", err)
+	})
+
+	t.Run("betreuer may still invite into the user role", func(t *testing.T) {
+		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+
+		invitation, err := service.CreateInvitation(context.Background(), InvitationRequest{
+			Email:            "colleague@example.com",
+			RoleID:           2, // user
+			CreatedBy:        42,
+			ActorPermissions: betreuer,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, invitation)
+		require.Equal(t, int64(2), invitation.RoleID)
+	})
+
+	t.Run("an admin may invite into the admin role", func(t *testing.T) {
+		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+
+		invitation, err := service.CreateInvitation(context.Background(), InvitationRequest{
+			Email:            "leitung@example.com",
+			RoleID:           1,
+			CreatedBy:        42,
+			ActorPermissions: []string{permissions.UsersManage},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, invitation)
+		require.Equal(t, int64(1), invitation.RoleID)
+	})
+
+	t.Run("the operator flow is not subject to the tenant check", func(t *testing.T) {
+		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+
+		invitation, err := service.CreateInvitation(context.Background(), InvitationRequest{
+			Email:         "schulleitung@example.com",
+			RoleID:        1,
+			CreatedBy:     42,
+			OperatorGrant: true,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, invitation)
+	})
 }

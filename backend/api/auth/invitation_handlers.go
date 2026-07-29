@@ -54,7 +54,7 @@ type InvitationResponse struct {
 	Email           string     `json:"email"`
 	RoleID          int64      `json:"role_id"`
 	RoleName        string     `json:"role_name,omitempty"`
-	Token           string     `json:"token"`
+	Token           string     `json:"token,omitempty"`
 	ExpiresAt       time.Time  `json:"expires_at"`
 	FirstName       *string    `json:"first_name,omitempty"`
 	LastName        *string    `json:"last_name,omitempty"`
@@ -103,9 +103,10 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 // copying the optional name/position fields.
 func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims jwt.AppClaims) authService.InvitationRequest {
 	invitationReq := authService.InvitationRequest{
-		Email:     req.Email,
-		RoleID:    req.RoleID,
-		CreatedBy: int64(claims.ID),
+		Email:            req.Email,
+		RoleID:           req.RoleID,
+		CreatedBy:        int64(claims.ID),
+		ActorPermissions: claims.Permissions,
 	}
 	if rs.SchoolService != nil {
 		tenantID := tenant.FromContext(r.Context())
@@ -152,6 +153,17 @@ func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err err
 	}
 	if errors.Is(err, authService.ErrAccountAlreadyHasTenantAccess) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(authService.ErrAccountAlreadyHasTenantAccess, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"))
+		return true
+	}
+	switch {
+	case errors.Is(err, authService.ErrRoleGrantNotPermitted):
+		common.RenderError(w, r, common.ErrorForbidden(authService.ErrRoleGrantNotPermitted))
+		return true
+	case errors.Is(err, authService.ErrRoleNotAssignable),
+		errors.Is(err, authService.ErrRoleForeignTenant),
+		errors.Is(err, authService.ErrRoleGuardianNotAssignable),
+		errors.Is(err, authService.ErrRoleLegacyTeacherNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return true
 	}
 	return renderInvitationError(w, r, err)
@@ -347,7 +359,13 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 
 	responses := make([]InvitationResponse, 0, len(invitations))
 	for _, invitation := range invitations {
-		responses = append(responses, toInvitationResponse(invitation))
+		resp := toInvitationResponse(invitation)
+		// The token is a bearer credential: whoever holds it can redeem the
+		// invitation. The create response returns it because the UI builds a
+		// copyable invite link from it; nothing consumes it from the list, so
+		// it is not handed out again here.
+		resp.Token = ""
+		responses = append(responses, resp)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")

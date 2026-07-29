@@ -222,7 +222,7 @@ func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
 		RoleRepo: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
 				assert.Equal(t, "user", name)
-				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name}, nil
+				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name, IsSystem: true}, nil
 			},
 		},
 	})
@@ -249,7 +249,7 @@ func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
-				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name}, nil
+				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name, IsSystem: true}, nil
 			},
 		},
 	})
@@ -264,6 +264,71 @@ func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
 
 	require.Empty(t, errs)
 	assert.Equal(t, "max.mustermann@example.com", row.Email)
+}
+
+func TestStaffImportConfig_Validate_RequiresManagePermissionForTenantRole(t *testing.T) {
+	baseRole := authModels.BaseRoleUser
+	tenantID := staffImportTestTenantID
+	config := NewStaffImportConfig(StaffImportDeps{
+		RoleRepo: stubStaffRoleRepo{
+			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: staffImportTestRoleID},
+					TenantID: &tenantID,
+					Name:     name,
+					BaseRole: &baseRole,
+					Permissions: []*authModels.Permission{
+						{Name: "users:manage"},
+					},
+				}, nil
+			},
+		},
+	})
+
+	row := &importModels.StaffImportRow{
+		FirstName: "Max",
+		LastName:  "Mustermann",
+		Email:     "max@example.com",
+		RoleName:  "Sekretariat",
+	}
+
+	ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
+	errs := config.Validate(ctx, row)
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, "role_grant_not_permitted", errs[0].Code)
+
+	ctx = ContextWithImporterPermissions(ctx, []string{"users:manage"})
+	assert.Empty(t, config.Validate(ctx, row))
+}
+
+func TestStaffImportConfig_Validate_RejectsRolesReservedForOtherFlows(t *testing.T) {
+	guardian := authModels.BaseRoleGuardian
+	tenantID := staffImportTestTenantID
+	role := &authModels.Role{
+		Model:    base.Model{ID: staffImportTestRoleID},
+		TenantID: &tenantID,
+		Name:     "guardian-custom",
+		BaseRole: &guardian,
+	}
+	config := NewStaffImportConfig(StaffImportDeps{
+		RoleRepo: stubStaffRoleRepo{
+			findByName: func(context.Context, string) (*authModels.Role, error) {
+				return role, nil
+			},
+		},
+	})
+	row := &importModels.StaffImportRow{
+		FirstName: "Max",
+		LastName:  "Mustermann",
+		Email:     "max@example.com",
+		RoleName:  "guardian-custom",
+	}
+
+	errs := config.Validate(tenant.WithTenantID(context.Background(), staffImportTestTenantID), row)
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, "role_not_assignable", errs[0].Code)
 }
 
 func TestStaffImportConfig_ValidateBatch_DetectsDuplicateEmailsAfterNormalization(t *testing.T) {
@@ -393,6 +458,7 @@ func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
 	config.schoolName = "OGS Phoenix"
 	ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
 	ctx = ContextWithImporterID(ctx, staffImportTestActorID)
+	ctx = ContextWithImporterPermissions(ctx, []string{"users:manage"})
 
 	id, err := config.Create(ctx, importModels.StaffImportRow{
 		FirstName: "Anna",
@@ -408,6 +474,7 @@ func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
 	assert.Equal(t, staffImportTestRoleID, req.RoleID)
 	assert.Equal(t, staffImportTestTenantID, req.TenantID)
 	assert.Equal(t, staffImportTestActorID, req.CreatedBy)
+	assert.Equal(t, []string{"users:manage"}, req.ActorPermissions)
 	assert.Equal(t, "OGS Phoenix", req.SchoolName)
 	require.NotNil(t, req.FirstName)
 	require.NotNil(t, req.LastName)

@@ -53,6 +53,7 @@ type AuthService interface {
 	// Role Management
 	CreateRole(ctx context.Context, name, description string, baseRole *string) (*auth.Role, error)
 	GetRoleByID(ctx context.Context, id int) (*auth.Role, error)
+	ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*auth.Role, error)
 	UpdateRole(ctx context.Context, role *auth.Role) error
 	DeleteRole(ctx context.Context, id int) error
 	ListRoles(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error)
