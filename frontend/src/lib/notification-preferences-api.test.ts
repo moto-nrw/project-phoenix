@@ -71,12 +71,23 @@ describe("notification preferences API client", () => {
     expect(result.types).toHaveLength(1);
   });
 
-  it("falls back to an empty, disabled state on a bodyless answer", async () => {
+  it("rejects a successful response without a preference payload", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({}));
 
-    const result = await fetchNotificationPreferences();
+    await expect(fetchNotificationPreferences()).rejects.toThrow();
+  });
 
-    expect(result).toEqual({ tenant_enabled: false, types: [] });
+  it("rejects malformed preference rows", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          tenant_enabled: true,
+          types: [{ key: "pickup_upcoming", enabled: "yes" }],
+        },
+      }),
+    );
+
+    await expect(fetchNotificationPreferences()).rejects.toThrow();
   });
 
   it("sends one decision as a PUT on the encoded type", async () => {

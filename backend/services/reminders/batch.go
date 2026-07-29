@@ -101,12 +101,13 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 		dues       []duePickup
 		nextChange int
 	}
-	pickupsByStaff := make(map[int64]staffPickups, len(recipients))
+	pickupsByRecipient := make(map[int64]staffPickups, len(recipients))
 	dueIDSet := make(map[int64]struct{})
 
 	for _, sc := range recipients {
+		resultKey := sc.resultKey()
 		if !cfg.anyPickup() {
-			pickupsByStaff[sc.StaffID] = staffPickups{nextChange: -1}
+			pickupsByRecipient[resultKey] = staffPickups{nextChange: -1}
 			continue
 		}
 		readable, rerr := s.batchReadableStudents(sc, cfg, in)
@@ -119,7 +120,7 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 			upcoming: cfg.pickupUpcoming,
 			overdue:  cfg.pickupOverdue,
 		})
-		pickupsByStaff[sc.StaffID] = staffPickups{dues: dues, nextChange: next}
+		pickupsByRecipient[resultKey] = staffPickups{dues: dues, nextChange: next}
 		for _, d := range dues {
 			dueIDSet[d.id] = struct{}{}
 		}
@@ -137,7 +138,7 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 
 	// Per-staff pass two: render.
 	for _, sc := range recipients {
-		sp := pickupsByStaff[sc.StaffID]
+		sp := pickupsByRecipient[sc.resultKey()]
 
 		pickupPart, dropped := buildPickupReminders(sp.dues, names)
 		s.logDroppedPickups(dropped)
@@ -181,7 +182,7 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 
 		result := assembleResult(pickupPart, activityPart, nextChange)
 		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
-		results[sc.StaffID] = result
+		results[sc.resultKey()] = result
 	}
 
 	return results, nil
@@ -204,21 +205,22 @@ func assignedIDStrings(instanceIDs map[int64]struct{}) map[string]struct{} {
 
 // dedupeBatchScopes drops unusable scopes and collapses repeats.
 //
-// A non-positive StaffID is dropped rather than computed: it addresses nobody,
-// and combined with a bulk lookup that returns no row for it, an empty result
-// would be indistinguishable from "no restriction".
+// A staff-less admin is valid when the caller supplies an explicit result key:
+// admin visibility does not depend on a staff row. Non-admins still require a
+// positive StaffID so an absent bulk row can never widen their read scope.
 func dedupeBatchScopes(scopes []BatchScope) []BatchScope {
 	positions := make(map[int64]int, len(scopes))
 	out := make([]BatchScope, 0, len(scopes))
 	for _, sc := range scopes {
-		if sc.StaffID <= 0 {
+		key := sc.resultKey()
+		if key == 0 || sc.StaffID < 0 || (sc.StaffID == 0 && !sc.IsAdmin) {
 			continue
 		}
-		if pos, dup := positions[sc.StaffID]; dup {
+		if pos, dup := positions[key]; dup {
 			out[pos].IncludeAssignedActivityStart = out[pos].IncludeAssignedActivityStart || sc.IncludeAssignedActivityStart
 			continue
 		}
-		positions[sc.StaffID] = len(out)
+		positions[key] = len(out)
 		out = append(out, sc)
 	}
 	return out
@@ -230,7 +232,7 @@ func dedupeBatchScopes(scopes []BatchScope) []BatchScope {
 func disabledResults(recipients []BatchScope) map[int64]*Result {
 	results := make(map[int64]*Result, len(recipients))
 	for _, sc := range recipients {
-		results[sc.StaffID] = &Result{Reminders: []Reminder{}}
+		results[sc.resultKey()] = &Result{Reminders: []Reminder{}}
 	}
 	return results
 }
@@ -337,7 +339,9 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 	caregivers := hasCaregiver(recipients)
 	recipientStaffIDs := make(map[int64]struct{}, len(recipients))
 	for _, sc := range recipients {
-		recipientStaffIDs[sc.StaffID] = struct{}{}
+		if sc.StaffID > 0 {
+			recipientStaffIDs[sc.StaffID] = struct{}{}
+		}
 	}
 
 	// Seed an empty entry for every caregiver BEFORE the bulk reads. The readers

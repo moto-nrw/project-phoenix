@@ -50,7 +50,7 @@ type NotificationPreferenceRepository interface {
 	// returns an empty result and never the full list.
 	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 
-	// DisableAllForAccount switches every stored decision of one account off.
-	// Types with no row stay absent — they are already off.
-	DisableAllForAccount(ctx context.Context, accountID int64) error
+	// DisableAllForAccount switches the named stored decisions of one account
+	// off. Types with no row stay absent — they are already off.
+	DisableAllForAccount(ctx context.Context, accountID int64, notificationTypes []string) error
 }

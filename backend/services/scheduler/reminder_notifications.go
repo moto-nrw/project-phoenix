@@ -161,6 +161,15 @@ type reminderRecipient struct {
 	consent   map[string]struct{}
 }
 
+func (r reminderRecipient) resultKey() int64 {
+	if r.staffID > 0 {
+		return r.staffID
+	}
+	// Account and staff IDs come from different sequences. Keeping staff-less
+	// admins in the negative half makes their opaque batch keys collision-free.
+	return -r.accountID
+}
+
 // runReminderNotificationsForTenant resolves the audience, computes everybody's
 // personal list in one batch and dispatches what is new. `now` is injected for
 // deterministic tests.
@@ -184,6 +193,7 @@ func (s *Scheduler) runReminderNotificationsForTenant(ctx context.Context, tenan
 		_, includeAssignedStart := r.consent[notifications.TypeMyActivityStarting]
 		scopes = append(scopes, reminders.BatchScope{
 			Scope:                        reminders.Scope{IsAdmin: r.isAdmin, StaffID: r.staffID},
+			ResultKey:                    r.resultKey(),
 			IncludeAssignedActivityStart: includeAssignedStart,
 		})
 	}
@@ -236,8 +246,8 @@ func (s *Scheduler) runReminderNotificationsForTenant(ctx context.Context, tenan
 }
 
 // resolveReminderRecipients builds the audience: every staff member with a
-// login, narrowed by their own consent and, when the school asks for it, by
-// whether they are currently on duty.
+// login plus every effective admin account, narrowed by their own consent and,
+// when the school asks for it, by whether staff-backed recipients are on duty.
 //
 // The order is the one the consent service prescribes — a relation first, then
 // consent narrowing it. Consent is never the source of the audience, it is the
@@ -250,12 +260,40 @@ func (s *Scheduler) resolveReminderRecipients(ctx context.Context) ([]reminderRe
 	if err != nil {
 		return nil, fmt.Errorf("list staff accounts: %w", err)
 	}
-	if len(accountsByStaff) == 0 {
+
+	adminIDs, err := deps.Accounts.ListEffectiveAdminAccountIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list admin accounts: %w", err)
+	}
+
+	staffByAccount := make(map[int64]int64, len(accountsByStaff))
+	accountSet := make(map[int64]struct{}, len(accountsByStaff)+len(adminIDs))
+	for staffID, accountID := range accountsByStaff {
+		if accountID <= 0 {
+			continue
+		}
+		// An account should map to one staff row. Choosing the smaller ID keeps
+		// resolution deterministic if inconsistent legacy data says otherwise.
+		current, exists := staffByAccount[accountID]
+		if !exists || staffID < current {
+			staffByAccount[accountID] = staffID
+		}
+		accountSet[accountID] = struct{}{}
+	}
+	admins := make(map[int64]struct{}, len(adminIDs))
+	for _, accountID := range adminIDs {
+		if accountID <= 0 {
+			continue
+		}
+		admins[accountID] = struct{}{}
+		accountSet[accountID] = struct{}{}
+	}
+	if len(accountSet) == 0 {
 		return nil, nil
 	}
 
-	accountIDs := make([]int64, 0, len(accountsByStaff))
-	for _, accountID := range accountsByStaff {
+	accountIDs := make([]int64, 0, len(accountSet))
+	for accountID := range accountSet {
 		accountIDs = append(accountIDs, accountID)
 	}
 	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
@@ -285,27 +323,22 @@ func (s *Scheduler) resolveReminderRecipients(ctx context.Context) ([]reminderRe
 		return nil, err
 	}
 
-	adminIDs, err := deps.Accounts.ListEffectiveAdminAccountIDs(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list admin accounts: %w", err)
-	}
-	admins := make(map[int64]struct{}, len(adminIDs))
-	for _, accountID := range adminIDs {
-		admins[accountID] = struct{}{}
-	}
-
 	recipients := make([]reminderRecipient, 0, len(consentByAccount))
-	for staffID, accountID := range accountsByStaff {
+	for _, accountID := range accountIDs {
 		consent := consentByAccount[accountID]
 		if len(consent) == 0 {
 			continue
 		}
-		if onDuty != nil {
+		staffID := staffByAccount[accountID]
+		_, isAdmin := admins[accountID]
+		if staffID <= 0 && !isAdmin {
+			continue
+		}
+		if onDuty != nil && staffID > 0 {
 			if _, working := onDuty[staffID]; !working {
 				continue
 			}
 		}
-		_, isAdmin := admins[accountID]
 		recipients = append(recipients, reminderRecipient{
 			staffID:   staffID,
 			accountID: accountID,
@@ -315,7 +348,7 @@ func (s *Scheduler) resolveReminderRecipients(ctx context.Context) ([]reminderRe
 	}
 	// Map iteration is random; a stable order keeps the dispatched batch (and
 	// therefore the logs and the tests) reproducible.
-	sort.Slice(recipients, func(i, j int) bool { return recipients[i].staffID < recipients[j].staffID })
+	sort.Slice(recipients, func(i, j int) bool { return recipients[i].accountID < recipients[j].accountID })
 
 	return recipients, nil
 }
@@ -370,7 +403,7 @@ func buildPersonalReminderEvents(
 	)
 
 	for _, r := range recipients {
-		result := results[r.staffID]
+		result := results[r.resultKey()]
 		if result == nil || !result.Enabled || len(result.Reminders) == 0 {
 			continue
 		}

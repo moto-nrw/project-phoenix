@@ -97,10 +97,10 @@ type Service interface {
 // It is deliberately separate from Service: Service is implemented by several
 // test doubles that have no business growing a batch method.
 type BatchComputer interface {
-	// ComputeBatch returns one result per requested scope, keyed by StaffID
-	// (admins are keyed by their own StaffID too). Every requested scope gets an
-	// entry, so callers may index the map without checking. Any read failure
-	// fails the whole batch, matching Compute's all-or-nothing contract.
+	// ComputeBatch returns one result per requested scope, keyed by ResultKey
+	// when set and otherwise by StaffID. Every requested scope gets an entry, so
+	// callers may index the map without checking. Any read failure fails the
+	// whole batch, matching Compute's all-or-nothing contract.
 	ComputeBatch(ctx context.Context, scopes []BatchScope) (map[int64]*Result, error)
 }
 
@@ -115,10 +115,21 @@ type Computer interface {
 // assertion, exactly as with Scope — the service does not verify it.
 type BatchScope struct {
 	Scope
+	// ResultKey lets callers address an effective admin who has no staff row.
+	// It is an opaque, non-zero map key; ordinary staff scopes leave it unset
+	// and remain keyed by StaffID.
+	ResultKey int64
 	// IncludeAssignedActivityStart enables upcoming reminders for activity
 	// instances this person is planned on. Unlike room-scoped activity
 	// reminders, this personal type has no tenant-level reminder gate.
 	IncludeAssignedActivityStart bool
+}
+
+func (s BatchScope) resultKey() int64 {
+	if s.ResultKey != 0 {
+		return s.ResultKey
+	}
+	return s.StaffID
 }
 
 type settingsResolver interface {

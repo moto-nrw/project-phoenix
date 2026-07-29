@@ -61,6 +61,7 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 // BulkCreateForDates applies CreateForDates' orchestration to several students
 // within a single tenant transaction.
 func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc StatusDayWriteContext, studentIDs []int64, status, reason string, dates []timezone.Date) error {
+	studentIDs = dedupeStudentIDs(studentIDs)
 	now := time.Now()
 	today := timezone.TodayDate()
 	notePtr := strutil.TrimPtrToNil(&reason)
@@ -77,6 +78,19 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 		}
 		return nil
 	})
+}
+
+func dedupeStudentIDs(studentIDs []int64) []int64 {
+	seen := make(map[int64]struct{}, len(studentIDs))
+	unique := make([]int64, 0, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if _, exists := seen[studentID]; exists {
+			continue
+		}
+		seen[studentID] = struct{}{}
+		unique = append(unique, studentID)
+	}
+	return unique
 }
 
 // DeleteByID clears a single status-day row after ownership and locked-row

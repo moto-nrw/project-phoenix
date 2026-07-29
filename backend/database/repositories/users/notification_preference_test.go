@@ -85,18 +85,25 @@ func TestNotificationPreferenceRepository(t *testing.T) {
 		assert.Empty(t, optedIn)
 	})
 
-	t.Run("disable all switches every decision off", func(t *testing.T) {
+	t.Run("disable all switches only the named decisions off", func(t *testing.T) {
 		upsert(t, account.ID, "pickup_overdue", true)
 		upsert(t, account.ID, "activity_overdue", true)
+		upsert(t, account.ID, "parent_announcement", true)
 
-		require.NoError(t, repo.DisableAllForAccount(ctx, account.ID))
+		require.NoError(t, repo.DisableAllForAccount(ctx, account.ID,
+			[]string{"pickup_overdue", "activity_overdue"}))
 
 		prefs, err := repo.ListByAccount(ctx, account.ID)
 		require.NoError(t, err)
 		require.NotEmpty(t, prefs)
+		enabledByType := make(map[string]bool, len(prefs))
 		for _, pref := range prefs {
-			assert.False(t, pref.Enabled, "type %s", pref.NotificationType)
+			enabledByType[pref.NotificationType] = pref.Enabled
 		}
+		assert.False(t, enabledByType["pickup_overdue"])
+		assert.False(t, enabledByType["activity_overdue"])
+		assert.True(t, enabledByType["parent_announcement"],
+			"a bulk action in one portal must preserve the other portal")
 	})
 
 	t.Run("does not leak another tenant's decisions", func(t *testing.T) {

@@ -22,15 +22,16 @@ import (
 type fakePreferenceRepo struct {
 	userModel.NotificationPreferenceRepository
 
-	stored     []*userModel.NotificationPreference
-	optedIn    map[string][]int64
-	upserted   []*userModel.NotificationPreference
-	disabled   []int64
-	listErr    error
-	upsertErr  error
-	filterErr  error
-	disableErr error
-	filterArgs []int64
+	stored        []*userModel.NotificationPreference
+	optedIn       map[string][]int64
+	upserted      []*userModel.NotificationPreference
+	disabled      []int64
+	disabledTypes [][]string
+	listErr       error
+	upsertErr     error
+	filterErr     error
+	disableErr    error
+	filterArgs    []int64
 }
 
 func (f *fakePreferenceRepo) ListByAccount(_ context.Context, _ int64) ([]*userModel.NotificationPreference, error) {
@@ -53,11 +54,12 @@ func (f *fakePreferenceRepo) FilterOptedIn(_ context.Context, notificationType s
 	return f.optedIn[notificationType], nil
 }
 
-func (f *fakePreferenceRepo) DisableAllForAccount(_ context.Context, accountID int64) error {
+func (f *fakePreferenceRepo) DisableAllForAccount(_ context.Context, accountID int64, notificationTypes []string) error {
 	if f.disableErr != nil {
 		return f.disableErr
 	}
 	f.disabled = append(f.disabled, accountID)
+	f.disabledTypes = append(f.disabledTypes, notificationTypes)
 	return nil
 }
 
@@ -202,6 +204,10 @@ func TestDisableAllForAccount(t *testing.T) {
 
 	require.NoError(t, svc.DisableAllForAccount(context.Background(), prefAccountA))
 	assert.Equal(t, []int64{prefAccountA}, repo.disabled)
+	require.Len(t, repo.disabledTypes, 1)
+	assert.Contains(t, repo.disabledTypes[0], notifications.TypePickupUpcoming)
+	assert.NotContains(t, repo.disabledTypes[0], notifications.TypeParentAnnouncement,
+		"the staff action must not disable parent-portal consent")
 
 	require.Error(t, svc.DisableAllForAccount(context.Background(), 0))
 

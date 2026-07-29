@@ -713,6 +713,15 @@ func TestComputeBatchScopeHandling(t *testing.T) {
 		assert.Empty(t, out, "a scope that addresses nobody must not be computed")
 	})
 
+	t.Run("staff-less admins use an explicit result key", func(t *testing.T) {
+		out, err := svc.ComputeBatch(ctx, []BatchScope{
+			{Scope: Scope{IsAdmin: true}, ResultKey: -41},
+		})
+		require.NoError(t, err)
+		require.Contains(t, out, int64(-41))
+		assert.NotNil(t, out[-41])
+	})
+
 	t.Run("repeated staff IDs collapse", func(t *testing.T) {
 		out, err := svc.ComputeBatch(ctx, []BatchScope{caregiver(7), caregiver(7)})
 		require.NoError(t, err)

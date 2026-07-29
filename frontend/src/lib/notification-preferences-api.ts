@@ -6,6 +6,8 @@
  * The two cards sit next to each other, so they behave the same way.
  */
 
+import { z } from "zod";
+
 export type PreferencePortal = "tenant" | "parent";
 
 export interface NotificationPreferenceType {
@@ -23,6 +25,23 @@ export interface NotificationPreferences {
   tenant_enabled: boolean;
   types: NotificationPreferenceType[];
 }
+
+const notificationPreferencesSchema = z.object({
+  tenant_enabled: z.boolean(),
+  types: z.array(
+    z.object({
+      key: z.string(),
+      label: z.string(),
+      description: z.string(),
+      group: z.string(),
+      enabled: z.boolean(),
+      available: z.boolean(),
+    }),
+  ),
+});
+const notificationPreferencesEnvelopeSchema = z.object({
+  data: notificationPreferencesSchema,
+});
 
 class PreferencesApiError extends Error {
   constructor(
@@ -72,17 +91,13 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
 export async function fetchNotificationPreferences(
   portal: PreferencePortal = "tenant",
 ): Promise<NotificationPreferences> {
-  const response = await requestJson<
-    { data?: NotificationPreferences } & Partial<NotificationPreferences>
-  >(basePath(portal));
+  const response = await requestJson<unknown>(basePath(portal));
 
   // The tenant proxy unwraps the envelope, the parent proxy may not — accept
   // either shape rather than depending on which layer stripped it.
-  const payload = response.data ?? (response as NotificationPreferences);
-  return {
-    tenant_enabled: payload.tenant_enabled ?? false,
-    types: payload.types ?? [],
-  };
+  const direct = notificationPreferencesSchema.safeParse(response);
+  if (direct.success) return direct.data;
+  return notificationPreferencesEnvelopeSchema.parse(response).data;
 }
 
 export async function setNotificationPreference(

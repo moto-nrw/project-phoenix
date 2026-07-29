@@ -25,6 +25,7 @@ const (
 	caregiverAccountID int64 = 10
 	adminStaffID       int64 = 2
 	adminAccountID     int64 = 20
+	stafflessAdminID   int64 = 30
 	testTenant         int64 = 7
 )
 
@@ -225,6 +226,25 @@ func TestPersonalRemindersMarkAdminScope(t *testing.T) {
 	assert.Equal(t, adminStaffID, setup.computer.scopes[0].StaffID)
 	assert.True(t, setup.computer.scopes[0].IsAdmin,
 		"effective admin scope decides what the batch may see")
+}
+
+func TestPersonalRemindersIncludeStafflessEffectiveAdmins(t *testing.T) {
+	setup := buildReminderSched(
+		map[int64]*reminders.Result{-stafflessAdminID: resultOf(pickupFixture("11", "14:00"))},
+		map[string][]int64{notifications.TypePickupUpcoming: {stafflessAdminID}},
+	)
+	setup.staff.accounts = map[int64]int64{caregiverStaffID: caregiverAccountID}
+	setup.admins.ids = []int64{stafflessAdminID}
+	setup.duty.presence = map[int64]string{caregiverStaffID: "checked_out"}
+
+	setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
+
+	require.Len(t, setup.computer.scopes, 1)
+	assert.Zero(t, setup.computer.scopes[0].StaffID)
+	assert.True(t, setup.computer.scopes[0].IsAdmin)
+	assert.Equal(t, -stafflessAdminID, setup.computer.scopes[0].ResultKey)
+	require.Len(t, setup.notifier.events, 1)
+	assert.Equal(t, []int64{stafflessAdminID}, setup.notifier.events[0].Audience.StaffAccountIDs)
 }
 
 func TestPersonalRemindersSkipComputationWithoutConsent(t *testing.T) {

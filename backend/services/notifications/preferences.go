@@ -47,7 +47,7 @@ type PreferenceService interface {
 	// SetForAccount records one decision.
 	SetForAccount(ctx context.Context, accountID int64, notificationType string, enabled bool) error
 
-	// DisableAllForAccount switches every stored decision off.
+	// DisableAllForAccount switches every stored staff-portal decision off.
 	DisableAllForAccount(ctx context.Context, accountID int64) error
 
 	// FilterOptedIn narrows a producer's candidate recipients to those who
@@ -176,7 +176,7 @@ func (s *preferenceService) DisableAllForAccount(ctx context.Context, accountID 
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
-	if err := s.repo.DisableAllForAccount(ctx, accountID); err != nil {
+	if err := s.repo.DisableAllForAccount(ctx, accountID, typeKeysForPortal(PortalStaff)); err != nil {
 		return fmt.Errorf("disable notification preferences: %w", err)
 	}
 	return nil
@@ -291,17 +291,27 @@ func (s *preferenceService) SetForParent(ctx context.Context, accountID int64, n
 	})
 }
 
-// DisableAllForParent switches every stored decision off at every school.
+// DisableAllForParent switches every stored parent-portal decision off at
+// every school.
 func (s *preferenceService) DisableAllForParent(ctx context.Context, accountID int64) error {
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
 	return s.forEachGuardianTenant(ctx, accountID, func(tenantCtx context.Context, tenantID int64) error {
-		if err := s.repo.DisableAllForAccount(tenantCtx, accountID); err != nil {
+		if err := s.repo.DisableAllForAccount(tenantCtx, accountID, typeKeysForPortal(PortalParent)); err != nil {
 			return fmt.Errorf("disable notification preferences for tenant %d: %w", tenantID, err)
 		}
 		return nil
 	})
+}
+
+func typeKeysForPortal(portal string) []string {
+	defs := TypesForPortal(portal)
+	keys := make([]string, 0, len(defs))
+	for _, def := range defs {
+		keys = append(keys, def.Key)
+	}
+	return keys
 }
 
 // forEachGuardianTenant runs fn once per active school mapping of the account,

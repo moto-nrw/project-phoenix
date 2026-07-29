@@ -91,14 +91,18 @@ func (r *NotificationPreferenceRepository) FilterOptedIn(ctx context.Context, no
 	return optedIn, nil
 }
 
-// DisableAllForAccount switches every stored decision of one account off.
-func (r *NotificationPreferenceRepository) DisableAllForAccount(ctx context.Context, accountID int64) error {
+// DisableAllForAccount switches the named stored decisions of one account off.
+func (r *NotificationPreferenceRepository) DisableAllForAccount(ctx context.Context, accountID int64, notificationTypes []string) error {
+	if len(notificationTypes) == 0 {
+		return nil
+	}
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.NotificationPreference)(nil)).
 		ModelTableExpr(tableNotificationPreferences).
 		Set("enabled = FALSE").
 		Set("updated_at = NOW()").
 		Where("account_id = ?", accountID).
+		Where("notification_type IN (?)", bun.List(notificationTypes)).
 		Where("enabled")
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
