@@ -98,21 +98,25 @@ type Service interface {
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
 // optional: nil delivery dependencies leave the in-app feed working.
 type ServiceConfig struct {
-	Repo       usersModels.ParentAnnouncementRepository
-	Settings   configService.SettingsService
-	Outbox     OutboxEnqueuer
-	Notifier   notifications.Service
-	ParentsURL string
-	Logger     *slog.Logger
+	Repo     usersModels.ParentAnnouncementRepository
+	Settings configService.SettingsService
+	Outbox   OutboxEnqueuer
+	Notifier notifications.Service
+	// Preferences gates the push by the guardian's own consent. Optional; when
+	// absent no guardian is notified at all, which is the safe direction.
+	Preferences notifications.PreferenceService
+	ParentsURL  string
+	Logger      *slog.Logger
 }
 
 type service struct {
-	repo       usersModels.ParentAnnouncementRepository
-	settings   configService.SettingsService
-	outbox     OutboxEnqueuer
-	notifier   notifications.Service
-	parentsURL string
-	logger     *slog.Logger
+	repo        usersModels.ParentAnnouncementRepository
+	settings    configService.SettingsService
+	outbox      OutboxEnqueuer
+	notifier    notifications.Service
+	preferences notifications.PreferenceService
+	parentsURL  string
+	logger      *slog.Logger
 }
 
 // NewService wires the staff announcement service.
@@ -122,12 +126,13 @@ func NewService(cfg ServiceConfig) Service {
 		logger = slog.Default()
 	}
 	return &service{
-		repo:       cfg.Repo,
-		settings:   cfg.Settings,
-		outbox:     cfg.Outbox,
-		notifier:   cfg.Notifier,
-		parentsURL: cfg.ParentsURL,
-		logger:     logger,
+		repo:        cfg.Repo,
+		settings:    cfg.Settings,
+		outbox:      cfg.Outbox,
+		notifier:    cfg.Notifier,
+		preferences: cfg.Preferences,
+		parentsURL:  cfg.ParentsURL,
+		logger:      logger,
 	}
 }
 
@@ -370,6 +375,22 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	if len(accountIDs) == 0 {
 		return nil
 	}
+
+	// Consent narrows the audience the announcement itself defined. A nil
+	// preference service means the dependency was never wired, which the
+	// factory always does — the pre-consent behaviour is kept for that case so
+	// a partially constructed service does not silently stop notifying. When a
+	// service IS present, its answer is final: no consent, no push.
+	if s.preferences != nil {
+		accountIDs, err = s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		if err != nil {
+			return fmt.Errorf("filter opted-in guardians: %w", err)
+		}
+		if len(accountIDs) == 0 {
+			return nil
+		}
+	}
+
 	err = s.notifier.Notify(ctx, notifications.Event{
 		Type:     parentAnnouncementNotificationType,
 		Title:    parentAnnouncementNotificationTitle,

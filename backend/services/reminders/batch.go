@@ -58,6 +58,9 @@ type batchInputs struct {
 	students        map[int64]*userModel.Student
 	pickupTimes     map[int64]*scheduleService.EffectivePickupTime
 	presenceByStaff map[int64][]int64
+	// assignedInstances holds, per staff member, the activity instances they
+	// are planned on and not absent from.
+	assignedInstances map[int64]map[int64]struct{}
 }
 
 func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[int64]*Result, error) {
@@ -137,8 +140,16 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 
 		var activityPart []Reminder
 		if cfg.anyActivity() {
+			// The batch additionally counts the slots this person is planned
+			// on: at ten minutes before the start they supervise nothing yet,
+			// so the room filter alone would reach everyone except the one
+			// person who has to show up.
+			scope := activityScopeFilter(
+				activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID]),
+				in.assignedInstances[sc.StaffID],
+			)
 			part, next := buildActivityReminders(in.instances, in.schulhofRoomIDs,
-				activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID]), activityWindow{
+				scope, activityWindow{
 					nowMin:           in.nowMin,
 					lead:             cfg.activityLead,
 					overdueThreshold: cfg.overdueThreshold,
@@ -265,15 +276,16 @@ func (s *service) resolveToggle(ctx context.Context, key string) (bool, error) {
 // per-person presence sets in memory.
 func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipients []BatchScope) (*batchInputs, error) {
 	in := &batchInputs{
-		today:           timezone.TodayDate(),
-		nowMin:          minutesOfDay(timezone.Now()),
-		visitsByRoom:    map[int64][]int64{},
-		roomsByStaff:    map[int64][]int64{},
-		groupsByStaff:   map[int64]map[int64]struct{}{},
-		schulhofRoomIDs: map[int64]struct{}{},
-		students:        map[int64]*userModel.Student{},
-		pickupTimes:     map[int64]*scheduleService.EffectivePickupTime{},
-		presenceByStaff: map[int64][]int64{},
+		today:             timezone.TodayDate(),
+		nowMin:            minutesOfDay(timezone.Now()),
+		visitsByRoom:      map[int64][]int64{},
+		roomsByStaff:      map[int64][]int64{},
+		groupsByStaff:     map[int64]map[int64]struct{}{},
+		schulhofRoomIDs:   map[int64]struct{}{},
+		students:          map[int64]*userModel.Student{},
+		pickupTimes:       map[int64]*scheduleService.EffectivePickupTime{},
+		presenceByStaff:   map[int64][]int64{},
+		assignedInstances: map[int64]map[int64]struct{}{},
 	}
 
 	caregivers := hasCaregiver(recipients)
@@ -388,6 +400,35 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 				return nil, resolveErr
 			}
 			in.schulhofRoomIDs = schulhof
+		}
+
+		// Planned assignments, one query for the whole day. Absent rows are
+		// skipped: someone who called in sick must not be pinged about the
+		// slot they were relieved of. Substitutes are kept — they are the ones
+		// who have to show up.
+		if caregivers && s.BulkInstanceStaff != nil {
+			instanceIDs := make([]int64, 0, len(instances))
+			for _, inst := range instances {
+				if inst != nil && inst.Status == scheduleModel.InstanceStatusPlanned {
+					instanceIDs = append(instanceIDs, inst.ID)
+				}
+			}
+			rows, staffErr := s.BulkInstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
+			if staffErr != nil {
+				return nil, fmt.Errorf("load planned activity staff: %w", staffErr)
+			}
+			for _, row := range rows {
+				if row == nil || row.IsAbsent {
+					continue
+				}
+				if _, wanted := in.roomsByStaff[row.StaffID]; !wanted {
+					continue
+				}
+				if in.assignedInstances[row.StaffID] == nil {
+					in.assignedInstances[row.StaffID] = map[int64]struct{}{}
+				}
+				in.assignedInstances[row.StaffID][row.InstanceID] = struct{}{}
+			}
 		}
 	}
 

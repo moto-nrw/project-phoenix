@@ -178,6 +178,15 @@ type Dependencies struct {
 	BulkSupervision bulkSupervisionReader
 	BulkVisits      bulkVisitReader
 	BulkGroups      bulkGroupReader
+	// BulkInstanceStaff resolves the planned staff of today's activity
+	// instances. Without it the batch falls back to room supervision alone,
+	// which never reaches the person who is supposed to START a slot.
+	BulkInstanceStaff bulkInstanceStaffReader
+}
+
+// bulkInstanceStaffReader answers who is planned on which activity instance.
+type bulkInstanceStaffReader interface {
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error)
 }
 
 // bulkSupervisionReader answers "who supervises which room right now" for the
@@ -675,7 +684,9 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 		}
 	}
 
-	out, nextChange := buildActivityReminders(instances, schulhofRoomIDs, roomFilter, activityWindow{
+	// The single path knows nothing about planned assignments: Compute answers
+	// for the caller in front of it, and its scope is unchanged.
+	out, nextChange := buildActivityReminders(instances, schulhofRoomIDs, activityScopeFilter(roomFilter, nil), activityWindow{
 		nowMin:           nowMin,
 		lead:             lead,
 		overdueThreshold: overdueThreshold,
@@ -692,6 +703,25 @@ type activityWindow struct {
 	overdueThreshold int
 	upcoming         bool
 	overdue          bool
+}
+
+// activityScopeFilter extends a room restriction with the instances a person is
+// planned on.
+//
+// The room filter alone answers "what is happening where I am watching", which
+// systematically misses the slot someone is about to start: at that moment they
+// supervise nothing yet. A nil room filter (admin) still means "everything".
+func activityScopeFilter(roomFilter map[int64]struct{}, assignedInstanceIDs map[int64]struct{}) func(*scheduleModel.ActivityInstance) bool {
+	if roomFilter == nil {
+		return nil
+	}
+	return func(inst *scheduleModel.ActivityInstance) bool {
+		if _, ok := roomFilter[inst.RoomID]; ok {
+			return true
+		}
+		_, assigned := assignedInstanceIDs[inst.ID]
+		return assigned
+	}
 }
 
 // activityRoomFilter builds the room restriction for one caller.
@@ -766,7 +796,8 @@ func resolveActivityRooms(rooms []*facilitiesModel.Room, wanted map[int64]struct
 // A nil roomFilter means every room; see activityRoomFilter.
 func buildActivityReminders(
 	instances []*scheduleModel.ActivityInstance,
-	schulhofRoomIDs, roomFilter map[int64]struct{},
+	schulhofRoomIDs map[int64]struct{},
+	inScope func(*scheduleModel.ActivityInstance) bool,
 	w activityWindow,
 ) ([]Reminder, int) {
 	nextChange := -1
@@ -778,10 +809,8 @@ func buildActivityReminders(
 		if inst == nil || inst.Status != scheduleModel.InstanceStatusPlanned {
 			continue
 		}
-		if roomFilter != nil {
-			if _, ok := roomFilter[inst.RoomID]; !ok {
-				continue
-			}
+		if inScope != nil && !inScope(inst) {
+			continue
 		}
 		startMin := minutesOfDay(inst.StartTime)
 		endMin := minutesOfDay(inst.EndTime)

@@ -126,6 +126,7 @@ type Factory struct {
 	Notifications            notifications.Service
 	PushSubscriptions        notifications.PushSubscriptionService
 	NotificationPreferences  notifications.PreferenceService
+	AbsenceNotifier          notifications.AbsenceNotifier
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
 	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
 	Mailer                   email.Mailer
@@ -1695,13 +1696,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
 	)
 
+	// Built here rather than next to the other notification services because
+	// the announcement producer below needs it to gate its guardian push.
+	notificationPreferencesService := notifications.NewPreferenceService(
+		repos.NotificationPreference,
+		settingsService,
+		db,
+		repos.AccountTenant,
+	)
+
 	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
-		Repo:       repos.ParentAnnouncement,
-		Settings:   settingsService,
-		Outbox:     emailOutboxService,
-		Notifier:   notificationsService,
-		ParentsURL: parentsURL,
-		Logger:     logger.With("service", "announcement"),
+		Repo:        repos.ParentAnnouncement,
+		Settings:    settingsService,
+		Outbox:      emailOutboxService,
+		Notifier:    notificationsService,
+		Preferences: notificationPreferencesService,
+		ParentsURL:  parentsURL,
+		Logger:      logger.With("service", "announcement"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
@@ -1762,12 +1773,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "push_subscriptions"),
 	)
 
-	notificationPreferencesService := notifications.NewPreferenceService(
-		repos.NotificationPreference,
-		settingsService,
-		db,
-		repos.AccountTenant,
+	absenceNotifier := notifications.NewAbsenceNotifier(
+		notificationsService,
+		notificationPreferencesService,
+		repos.Student,
+		repos.Group,
+		repos.Staff,
+		repos.Account,
+		logger.With("producer", "absence_notifications"),
 	)
+	// Injected after the fact: the parent service is wired before the
+	// notification stack exists.
+	if setter, ok := parentService.(parent.AbsenceNotifierSetter); ok {
+		setter.SetAbsenceNotifier(absenceNotifier)
+	}
 
 	remindersService := reminders.NewService(reminders.Dependencies{
 		Settings:    settingsService,
@@ -1784,9 +1803,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// Bulk readers for ComputeBatch. They answer the three genuinely
 		// per-person facts for the whole tenant in one query each, which is what
 		// keeps the per-minute cost flat in the number of staff.
-		BulkSupervision: repos.GroupSupervisor,
-		BulkVisits:      repos.ActiveVisit,
-		BulkGroups:      repos.Group,
+		BulkSupervision:   repos.GroupSupervisor,
+		BulkVisits:        repos.ActiveVisit,
+		BulkGroups:        repos.Group,
+		BulkInstanceStaff: repos.InstanceStaff,
 	})
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
@@ -1859,6 +1879,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Notifications:            notificationsService,
 		PushSubscriptions:        pushSubscriptionsService,
 		NotificationPreferences:  notificationPreferencesService,
+		AbsenceNotifier:          absenceNotifier,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Tracker:                  tracker,     // Product analytics (PostHog)
 		Invitation:               invitationService,

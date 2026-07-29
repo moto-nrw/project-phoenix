@@ -364,6 +364,9 @@ func (m *mockGroupRepo) FindWithRoom(_ context.Context, _ int64) (*education.Gro
 func (m *mockGroupRepo) ListSupervisedGroupIDsByStaff(_ context.Context, _ []int64, _ timezone.Date) ([]education.StaffGroupID, error) {
 	return nil, nil
 }
+func (m *mockGroupRepo) ListStaffIDsByEducationGroupIDs(_ context.Context, _ []int64, _ timezone.Date) ([]education.StaffGroupID, error) {
+	return nil, nil
+}
 func (m *mockGroupRepo) CountWithOptions(_ context.Context, _ *base.QueryOptions) (int, error) {
 	return len(m.groups), nil
 }

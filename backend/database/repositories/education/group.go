@@ -192,6 +192,73 @@ func (r *GroupRepository) ListSupervisedGroupIDsByStaff(ctx context.Context, sta
 	return pairs, nil
 }
 
+// ListStaffIDsByEducationGroupIDs returns the (staff, group) pairs supervising
+// the given groups on the given day.
+//
+// The mirror image of ListSupervisedGroupIDsByStaff, deliberately built from
+// the same two sources with the same predicates: teacher assignments plus
+// substitutions active on the day, inner joins throughout, soft-deleted staff
+// and teachers excluded. If the two ever disagree, one of them is granting
+// access the other denies.
+func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]education.StaffGroupID, error) {
+	if len(groupIDs) == 0 {
+		return []education.StaffGroupID{}, nil
+	}
+
+	pairs := make([]education.StaffGroupID, 0, len(groupIDs))
+	seen := make(map[education.StaffGroupID]struct{}, len(groupIDs))
+
+	appendRows := func(rows []education.StaffGroupID) {
+		for _, row := range rows {
+			if _, dup := seen[row]; dup {
+				continue
+			}
+			seen[row] = struct{}{}
+			pairs = append(pairs, row)
+		}
+	}
+
+	var assigned []education.StaffGroupID
+	assignedQuery := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`education.groups AS "group"`).
+		ColumnExpr(`"staff".id AS staff_id, "group".id AS group_id`).
+		Join(`JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
+		Join(`JOIN users.teachers AS "teacher" ON "teacher".id = "gt".teacher_id AND "teacher".deleted_at IS NULL`).
+		Join(`JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id AND "staff".deleted_at IS NULL`).
+		Where(`"group".id IN (?)`, bun.List(groupIDs))
+
+	assignedQuery = base.WithTenantFilter(ctx, assignedQuery, "group")
+
+	if err := assignedQuery.Scan(ctx, &assigned); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list staff IDs by education group IDs (assigned)",
+			Err: err,
+		}
+	}
+	appendRows(assigned)
+
+	var substituted []education.StaffGroupID
+	substitutedQuery := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`education.group_substitution AS "sub"`).
+		ColumnExpr(`"staff".id AS staff_id, "sub".group_id AS group_id`).
+		Join(`JOIN users.staff AS "staff" ON "staff".id = "sub".substitute_staff_id AND "staff".deleted_at IS NULL`).
+		Where(`"sub".group_id IN (?)`, bun.List(groupIDs)).
+		Where(`"sub".start_date <= ?`, on).
+		Where(`"sub".end_date >= ?`, on)
+
+	substitutedQuery = base.WithTenantFilter(ctx, substitutedQuery, "sub")
+
+	if err := substitutedQuery.Scan(ctx, &substituted); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list staff IDs by education group IDs (substitutions)",
+			Err: err,
+		}
+	}
+	appendRows(substituted)
+
+	return pairs, nil
+}
+
 // FindWithRoom retrieves a group with its associated room
 func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*education.Group, error) {
 	group := new(education.Group)

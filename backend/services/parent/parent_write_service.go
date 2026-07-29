@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	mealplanService "github.com/moto-nrw/project-phoenix/services/mealplan"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -307,6 +308,21 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			// just the acting guardian's thread; fan out to EVERY guardian so a
 			// co-guardian's open tab drops the stale presence too (#1725 review).
 			s.wakeChildGuardians(capturedTenant, studentID)
+			// The child's group and the office learn that the family reported
+			// an absence. Hooked here rather than in the repository: the
+			// check-in path also writes a status row before immediately
+			// clearing it, and a repository hook would announce a sick note
+			// exactly when the child walks in.
+			if s.AbsenceNotifier != nil {
+				s.AbsenceNotifier.NotifyAbsenceReported(context.Background(), notificationsSvc.AbsenceReport{
+					TenantID:       capturedTenant,
+					StudentIDs:     []int64{studentID},
+					Status:         status,
+					Dates:          dates,
+					FromParent:     true,
+					ActorAccountID: accountID,
+				})
+			}
 		})
 		return nil
 	})

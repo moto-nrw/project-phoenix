@@ -52,8 +52,9 @@ type world struct {
 	roomsByStaff  map[int64][]int64
 	groupsByStaff map[int64][]int64
 
-	instances []*scheduleModel.ActivityInstance
-	roomNames map[int64]string
+	instances     []*scheduleModel.ActivityInstance
+	instanceStaff []*scheduleModel.InstanceStaff
+	roomNames     map[int64]string
 
 	// failGetMyGroups makes the JWT-bound path loud instead of silently empty,
 	// so a batch regression that falls back to it cannot pass unnoticed.
@@ -167,20 +168,47 @@ func (w *world) addInstance(id int64, title string, roomID int64, startMin, endM
 	return w
 }
 
+// assignsInstance plans a staff member onto an activity instance, the relation
+// the Betreuungsplan records.
+func (w *world) assignsInstance(staffID, instanceID int64, absent bool) *world {
+	w.instanceStaff = append(w.instanceStaff, &scheduleModel.InstanceStaff{
+		InstanceID: instanceID,
+		StaffID:    staffID,
+		IsAbsent:   absent,
+	})
+	return w
+}
+
+func (w *world) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error) {
+	w.hit("FindByInstanceIDs")
+	wanted := make(map[int64]struct{}, len(instanceIDs))
+	for _, id := range instanceIDs {
+		wanted[id] = struct{}{}
+	}
+	out := make([]*scheduleModel.InstanceStaff, 0, len(w.instanceStaff))
+	for _, row := range w.instanceStaff {
+		if _, ok := wanted[row.InstanceID]; ok {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
 func (w *world) service() *service {
 	return &service{Dependencies: Dependencies{
-		Settings:        w,
-		Attendance:      w,
-		Pickup:          w,
-		Instance:        w,
-		Room:            worldRooms{w},
-		Student:         w,
-		Person:          worldPersons{w},
-		Supervision:     w,
-		Groups:          w,
-		BulkSupervision: w,
-		BulkVisits:      w,
-		BulkGroups:      w,
+		Settings:          w,
+		Attendance:        w,
+		Pickup:            w,
+		Instance:          w,
+		Room:              worldRooms{w},
+		Student:           w,
+		Person:            worldPersons{w},
+		Supervision:       w,
+		Groups:            w,
+		BulkSupervision:   w,
+		BulkVisits:        w,
+		BulkGroups:        w,
+		BulkInstanceStaff: w,
 	}}
 }
 
@@ -540,6 +568,58 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		w := baseWorld()
 		w.pickupAtMinute(1, far)
 		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
+	})
+
+	t.Run("planned assignment widens the batch and never narrows it", func(t *testing.T) {
+		// The batch deliberately diverges from Compute here: it also counts the
+		// slots a person is planned on, because ten minutes before the start
+		// they supervise nothing yet and the room filter alone would reach
+		// everyone except the one person who has to show up.
+		w := baseWorld()
+		// Staff 7 supervises room 10; instance 102 runs in room 20, which they
+		// do not supervise, but they are planned on it.
+		w.assignsInstance(7, 102, false)
+
+		single, err := w.service().Compute(ctxForStaff(7), Scope{StaffID: 7})
+		require.NoError(t, err)
+		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(7)})
+		require.NoError(t, err)
+
+		hasInstance := func(rs []Reminder, id string) bool {
+			for _, r := range rs {
+				if r.ActivityInstanceID != nil && *r.ActivityInstanceID == id {
+					return true
+				}
+			}
+			return false
+		}
+
+		assert.False(t, hasInstance(single.Reminders, "102"),
+			"Compute stays room-scoped and must not change")
+		assert.True(t, hasInstance(batch[7].Reminders, "102"),
+			"the batch must reach the person planned on the slot")
+		assert.GreaterOrEqual(t, len(batch[7].Reminders), len(single.Reminders),
+			"the batch may show more, never fewer")
+	})
+
+	t.Run("an absent assignment is ignored", func(t *testing.T) {
+		// Someone who called in sick must not be pinged about the slot they
+		// were relieved of.
+		w := baseWorld()
+		w.assignsInstance(7, 102, true)
+
+		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(7)})
+		require.NoError(t, err)
+
+		for _, r := range batch[7].Reminders {
+			if r.ActivityInstanceID != nil {
+				assert.NotEqual(t, "102", *r.ActivityInstanceID)
+			}
+		}
+	})
+
+	t.Run("without assignments both paths stay identical", func(t *testing.T) {
+		assertBatchMatchesCompute(t, baseWorld(), []BatchScope{caregiver(7), caregiver(8), admin(1)})
 	})
 
 	t.Run("toggle combinations", func(t *testing.T) {

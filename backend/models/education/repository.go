@@ -37,6 +37,14 @@ type GroupRepository interface {
 	// who may see a student. Any change here must keep the equivalence test
 	// against GetMyGroups green.
 	ListSupervisedGroupIDsByStaff(ctx context.Context, staffIDs []int64, on timezone.Date) ([]StaffGroupID, error)
+
+	// ListStaffIDsByEducationGroupIDs is the same relation read in the other
+	// direction: who supervises these groups on the given day. Producers use it
+	// to find the people responsible for one child.
+	//
+	// Both directions must agree, so they share the join shape. Widening either
+	// one widens who may learn something about a child.
+	ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]StaffGroupID, error)
 }
 
 // StaffGroupID pairs a staff member with one education group they supervise.
