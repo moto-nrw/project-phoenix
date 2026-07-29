@@ -20,10 +20,12 @@ type fakePreferences struct {
 	// gotType records which notification type was asked about, so a test can
 	// prove the producer filters on its own type rather than someone else's.
 	gotType string
+	asked   []int64
 }
 
-func (f *fakePreferences) FilterOptedIn(_ context.Context, notificationType string, _ []int64) ([]int64, error) {
+func (f *fakePreferences) FilterOptedIn(_ context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
 	f.gotType = notificationType
+	f.asked = append([]int64(nil), accountIDs...)
 	return f.optedIn, f.err
 }
 
@@ -88,6 +90,41 @@ func TestPublishNotifiesNobodyWithoutConsent(t *testing.T) {
 	}
 	if len(notifier.events) != 0 {
 		t.Fatalf("nobody agreed, so nothing may be pushed, got %d events", len(notifier.events))
+	}
+}
+
+func TestPublishEmailsOnlyGuardiansWhoAgreed(t *testing.T) {
+	repo := consentTestRepo()
+	repo.announcement = draftAnnouncement(true)
+	repo.recipients = []*usersModels.AnnouncementRecipient{
+		{AccountID: 101, Email: "one@example.test"},
+		{AccountID: 202, Email: "two@example.test"},
+	}
+	notifier := &fakeNotifier{}
+	outbox := &fakeOutbox{}
+	prefs := &fakePreferences{optedIn: []int64{202}}
+	svc := NewService(ServiceConfig{
+		Repo:        repo,
+		Settings:    &fakeSettings{enabled: true},
+		Notifier:    notifier,
+		Preferences: prefs,
+		Outbox:      outbox,
+		ParentsURL:  "https://parents.example.test",
+		Logger:      slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	if len(outbox.requests) != 1 {
+		t.Fatalf("expected one opted-in e-mail, got %d", len(outbox.requests))
+	}
+	if got := outbox.requests[0].Payload[emailPayloadRecipient]; got != "two@example.test" {
+		t.Fatalf("expected the opted-in guardian's address, got %v", got)
+	}
+	if !slices.Equal(prefs.asked, []int64{101, 202}) {
+		t.Fatalf("expected the full e-mail audience to be filtered, got %v", prefs.asked)
 	}
 }
 

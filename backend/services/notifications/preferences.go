@@ -214,10 +214,10 @@ func (s *preferenceService) FilterOptedIn(ctx context.Context, notificationType 
 
 // GetForParent merges the guardian's decisions across every active school.
 //
-// A type reads as enabled when it is enabled at any of them: the parents app
-// shows one set of switches, and a family that agreed at their school should
-// see that reflected rather than a mysterious "off" caused by a second,
-// dormant mapping.
+// A type reads as enabled only when it is enabled at every active guardian
+// mapping. The parents app shows one set of switches and SetForParent applies a
+// change to all schools, so a mixed state must read as off rather than claiming
+// that a newly added school may deliver when it has no consent row.
 func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (*PreferenceOverview, error) {
 	if accountID <= 0 {
 		return nil, errors.New("account id is required")
@@ -225,16 +225,18 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 
 	defs := TypesForPortal(PortalParent)
 	overview := &PreferenceOverview{Types: make([]PreferenceState, 0, len(defs))}
-	enabledByType := make(map[string]bool, len(defs))
+	enabledTenantCount := make(map[string]int, len(defs))
+	tenantCount := 0
 
 	err := s.forEachGuardianTenant(ctx, accountID, func(tenantCtx context.Context, _ int64) error {
+		tenantCount++
 		stored, err := s.repo.ListByAccount(tenantCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("load notification preferences: %w", err)
 		}
 		for _, pref := range stored {
 			if pref.Enabled {
-				enabledByType[pref.NotificationType] = true
+				enabledTenantCount[pref.NotificationType]++
 			}
 		}
 		// Any school allowing dispatch is enough for the card to stop saying
@@ -258,7 +260,7 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 			Label:       def.Label,
 			Description: def.Description,
 			Group:       def.Group,
-			Enabled:     enabledByType[def.Key],
+			Enabled:     tenantCount > 0 && enabledTenantCount[def.Key] == tenantCount,
 			Available:   true, // parent types carry no school-wide gate
 		})
 	}

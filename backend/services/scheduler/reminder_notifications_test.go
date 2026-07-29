@@ -231,7 +231,7 @@ func TestPersonalRemindersMarkAdminScope(t *testing.T) {
 		"effective admin scope decides what the batch may see")
 }
 
-func TestPersonalRemindersIncludeStafflessEffectiveAdmins(t *testing.T) {
+func TestPersonalRemindersIncludeStafflessEffectiveAdminsWhenDutyGateDisabled(t *testing.T) {
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{-stafflessAdminID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {stafflessAdminID}},
@@ -239,6 +239,7 @@ func TestPersonalRemindersIncludeStafflessEffectiveAdmins(t *testing.T) {
 	setup.staff.accounts = map[int64]int64{caregiverStaffID: caregiverAccountID}
 	setup.admins.ids = []int64{stafflessAdminID}
 	setup.duty.presence = map[int64]string{caregiverStaffID: "checked_out"}
+	setup.sched.settings = &stubSettingsResolver{hasOverride: true, boolVal: false}
 
 	setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
 
@@ -248,6 +249,21 @@ func TestPersonalRemindersIncludeStafflessEffectiveAdmins(t *testing.T) {
 	assert.Equal(t, -stafflessAdminID, setup.computer.scopes[0].ResultKey)
 	require.Len(t, setup.notifier.events, 1)
 	assert.Equal(t, []int64{stafflessAdminID}, setup.notifier.events[0].Audience.StaffAccountIDs)
+}
+
+func TestPersonalRemindersExcludeStafflessEffectiveAdminsWhenDutyGateEnabled(t *testing.T) {
+	setup := buildReminderSched(
+		map[int64]*reminders.Result{-stafflessAdminID: resultOf(pickupFixture("11", "14:00"))},
+		map[string][]int64{notifications.TypePickupUpcoming: {stafflessAdminID}},
+	)
+	setup.staff.accounts = map[int64]int64{caregiverStaffID: caregiverAccountID}
+	setup.admins.ids = []int64{stafflessAdminID}
+
+	setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
+
+	assert.Zero(t, setup.computer.calls,
+		"an account without a staff identity cannot satisfy the duty gate")
+	assert.Empty(t, setup.notifier.events)
 }
 
 func TestPersonalRemindersSkipComputationWithoutConsent(t *testing.T) {

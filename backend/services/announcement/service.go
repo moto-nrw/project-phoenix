@@ -437,6 +437,38 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 	if len(recipients) == 0 {
 		return nil
 	}
+	if s.preferences != nil {
+		accountIDs := make([]int64, 0, len(recipients))
+		seen := make(map[int64]struct{}, len(recipients))
+		for _, recipient := range recipients {
+			if recipient.AccountID <= 0 {
+				continue
+			}
+			if _, exists := seen[recipient.AccountID]; exists {
+				continue
+			}
+			seen[recipient.AccountID] = struct{}{}
+			accountIDs = append(accountIDs, recipient.AccountID)
+		}
+		optedIn, err := s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		if err != nil {
+			return fmt.Errorf("announcement: filter opted-in e-mail recipients: %w", err)
+		}
+		allowed := make(map[int64]struct{}, len(optedIn))
+		for _, accountID := range optedIn {
+			allowed[accountID] = struct{}{}
+		}
+		filtered := make([]*usersModels.AnnouncementRecipient, 0, len(recipients))
+		for _, recipient := range recipients {
+			if _, ok := allowed[recipient.AccountID]; ok {
+				filtered = append(filtered, recipient)
+			}
+		}
+		recipients = filtered
+		if len(recipients) == 0 {
+			return nil
+		}
+	}
 	schoolName, err := s.repo.SchoolName(ctx, tenantID)
 	if err != nil {
 		return fmt.Errorf("announcement: resolve school name: %w", err)

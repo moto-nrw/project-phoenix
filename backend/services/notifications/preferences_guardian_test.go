@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
@@ -78,6 +79,34 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 			"what the parents app stored has to be what the announcement producer reads")
 	})
 
+	t.Run("a new school mapping keeps the shared switch off until consent covers it", func(t *testing.T) {
+		const secondTenantID int64 = 2
+		testpkg.EnsureTestTenant(t, db, secondTenantID)
+		testpkg.MapAccountToTenant(t, db, chain.AccountID, secondTenantID)
+
+		var guardianRoleID int64
+		require.NoError(t, db.NewSelect().
+			TableExpr("auth.roles").
+			ColumnExpr("id").
+			Where("name = ?", authModel.BaseRoleGuardian).
+			Scan(ctx, &guardianRoleID))
+		role := &authModel.AccountRole{AccountID: chain.AccountID, RoleID: guardianRoleID}
+		role.SetTenantID(secondTenantID)
+		_, err := db.NewInsert().Model(role).ModelTableExpr("auth.account_roles").Exec(ctx)
+		require.NoError(t, err)
+
+		overview, err := svc.GetForParent(ctx, chain.AccountID)
+		require.NoError(t, err)
+		assert.False(t, overview.Types[0].Enabled,
+			"a missing consent row at the new school must not read as enabled")
+
+		require.NoError(t, svc.SetForParent(ctx, chain.AccountID, notifications.TypeParentAnnouncement, true))
+		overview, err = svc.GetForParent(ctx, chain.AccountID)
+		require.NoError(t, err)
+		assert.True(t, overview.Types[0].Enabled,
+			"one shared change must record consent at every active school")
+	})
+
 	t.Run("switching everything off keeps the row as a deliberate no", func(t *testing.T) {
 		require.NoError(t, svc.DisableAllForParent(ctx, chain.AccountID))
 
@@ -91,7 +120,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 			ColumnExpr("count(*)").
 			Where("account_id = ?", chain.AccountID).
 			Scan(ctx, &count))
-		assert.Equal(t, 1, count, "the opt-out is recorded, not deleted")
+		assert.Equal(t, 2, count, "the opt-out is recorded once per active school, not deleted")
 
 		tenantCtx := testpkg.TenantContext(chain.TenantID)
 		optedIn, err := svc.FilterOptedIn(tenantCtx, notifications.TypeParentAnnouncement, []int64{chain.AccountID})

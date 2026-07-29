@@ -334,7 +334,10 @@ func (s *Scheduler) resolveReminderRecipients(ctx context.Context) ([]reminderRe
 		if staffID <= 0 && !isAdmin {
 			continue
 		}
-		if onDuty != nil && staffID > 0 {
+		if onDuty != nil {
+			if staffID <= 0 {
+				continue
+			}
 			if _, working := onDuty[staffID]; !working {
 				continue
 			}
