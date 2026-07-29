@@ -24,8 +24,6 @@ export interface NotificationPreferences {
   types: NotificationPreferenceType[];
 }
 
-export const NOTIFICATION_PREFERENCES_SWR_KEY = "notification-preferences";
-
 class PreferencesApiError extends Error {
   constructor(
     public status: number,
