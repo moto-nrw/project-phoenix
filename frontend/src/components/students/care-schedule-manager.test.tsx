@@ -120,7 +120,7 @@ vi.mock("./care-plan-editor-modal", () => ({
               pickupSchedules: [
                 { weekday: 1, pickupTime: "15:30", notes: "Bus" },
               ],
-            })
+            }).catch(() => undefined)
           }
         >
           Wochenplan im Test speichern
@@ -714,6 +714,25 @@ describe("CareScheduleManager", () => {
     await waitFor(() => {
       expect(mockUpdateArrivalException).toHaveBeenCalled();
       expect(mockUpdateStudentPickupException).toHaveBeenCalled();
+      expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
+      expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("refreshes after a partially saved weekly plan", async () => {
+    mockUpdateStudentPickupSchedules.mockRejectedValueOnce(
+      new Error("Abholplan konnte nicht gespeichert werden"),
+    );
+
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateArrivalSchedules).toHaveBeenCalled();
+      expect(mockUpdateStudentPickupSchedules).toHaveBeenCalled();
       expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
       expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
     });

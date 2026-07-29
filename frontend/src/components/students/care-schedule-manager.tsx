@@ -460,7 +460,11 @@ export function CareScheduleManager({
 
   const handleUpdateWeeklyPlan = useCallback(
     async (data: CarePlanWeeklySubmit) => {
-      await Promise.all([
+      // Arrival and pickup are separate endpoints, so one leg can persist while
+      // the other fails. Wait for both, refresh whenever anything landed, and
+      // only then report the failure. Retrying on stale rows would otherwise
+      // resubmit values the server already replaced.
+      const results = await Promise.allSettled([
         updateArrivalSchedules(
           studentId,
           data.arrivalSchedules.map((schedule) => ({
@@ -473,8 +477,29 @@ export function CareScheduleManager({
           schedules: data.pickupSchedules,
         }),
       ]);
-      await refreshCareData();
-      invalidatePickupCaches();
+
+      const failure = results.find(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+
+      if (results.some((result) => result.status === "fulfilled")) {
+        try {
+          await refreshCareData();
+          invalidatePickupCaches();
+        } catch (refreshErr) {
+          if (!failure) throw refreshErr;
+          logger.error("care_schedule_partial_weekly_refresh_failed", {
+            error:
+              refreshErr instanceof Error
+                ? refreshErr.message
+                : String(refreshErr),
+            student_id: studentId,
+          });
+        }
+      }
+
+      if (failure) throw failure.reason;
     },
     [studentId, refreshCareData],
   );
