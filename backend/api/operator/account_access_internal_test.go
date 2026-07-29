@@ -38,7 +38,7 @@ func TestProvisioningResource_ListAccountTenantAccess(t *testing.T) {
 		listTenantAccessFn: func(_ context.Context, accountID int64) ([]platformSvc.AccountTenantAccessEntry, error) {
 			assert.Equal(t, int64(7), accountID)
 			return []platformSvc.AccountTenantAccessEntry{{
-				Roles: []platformSvc.AccountTenantRole{{ID: 1, Name: "admin"}},
+				Roles: []platformSvc.AccountTenantRole{{ID: 1, Name: "admin", IsSystem: true}},
 			}}, nil
 		},
 	})
@@ -50,6 +50,9 @@ func TestProvisioningResource_ListAccountTenantAccess(t *testing.T) {
 	body := decodeBody(t, rr)
 	entries := body["data"].([]any)
 	require.Len(t, entries, 1)
+	roles := entries[0].(map[string]any)["roles"].([]any)
+	require.Len(t, roles, 1)
+	assert.Equal(t, true, roles[0].(map[string]any)["is_system"])
 }
 
 func TestProvisioningResource_ListAccountTenantAccess_InvalidID(t *testing.T) {

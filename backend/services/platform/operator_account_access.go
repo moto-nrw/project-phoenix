@@ -34,7 +34,7 @@ const accessAuditIP = "0.0.0.0"
 type AccountTenantRole struct {
 	ID       int64   `json:"id"`
 	Name     string  `json:"name"`
-	IsSystem bool    `json:"-"`
+	IsSystem bool    `json:"is_system"`
 	BaseRole *string `json:"base_role,omitempty"`
 }
 

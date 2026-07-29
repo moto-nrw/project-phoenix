@@ -46,8 +46,9 @@ function statusLabel(status: AccountTenantAccess["status"]): string {
 function accessRevocationBlocked(entry: AccountTenantAccess): boolean {
   return entry.roles.some(
     (role) =>
-      role.baseRole?.toLowerCase() === "guardian" ||
-      ["guardian", "user", "teacher"].includes(role.name.toLowerCase()),
+      role.baseRole?.trim().toLowerCase() === "guardian" ||
+      (role.isSystem &&
+        ["guardian", "user", "teacher"].includes(role.name.toLowerCase())),
   );
 }
 

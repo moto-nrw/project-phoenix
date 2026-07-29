@@ -182,7 +182,7 @@ function access(overrides: Record<string, unknown> = {}) {
     deactivatedAt: null,
     hasPerson: true,
     hasStaff: true,
-    roles: [{ id: "1", name: "admin" }],
+    roles: [{ id: "1", name: "admin", isSystem: true, baseRole: null }],
     ...overrides,
   };
 }
@@ -322,7 +322,9 @@ describe("AccountTenantAccessModal", () => {
 
   it("changes the role of an existing school access", async () => {
     mockUpdateRole.mockResolvedValue([
-      access({ roles: [{ id: "2", name: "user" }] }),
+      access({
+        roles: [{ id: "2", name: "user", isSystem: false, baseRole: null }],
+      }),
     ]);
     renderModal();
 
@@ -344,9 +346,11 @@ describe("AccountTenantAccessModal", () => {
     );
   });
 
-  it("disables revocation for roles managed by their dedicated flow", async () => {
+  it("disables revocation for system roles managed by their dedicated flow", async () => {
     mockList.mockResolvedValue([
-      access({ roles: [{ id: "2", name: "user" }] }),
+      access({
+        roles: [{ id: "2", name: "user", isSystem: true, baseRole: null }],
+      }),
     ]);
     renderModal();
 
@@ -356,6 +360,17 @@ describe("AccountTenantAccessModal", () => {
       "title",
       "Diese Rolle wird über ihren eigenen Verwaltungsablauf entfernt.",
     );
+  });
+
+  it("allows revoking a custom role named like a system role", async () => {
+    mockList.mockResolvedValue([
+      access({
+        roles: [{ id: "2", name: "user", isSystem: false, baseRole: null }],
+      }),
+    ]);
+    renderModal();
+
+    expect(await screen.findByText("Entziehen")).toBeEnabled();
   });
 
   it("revokes access after confirmation", async () => {

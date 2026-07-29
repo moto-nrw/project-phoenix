@@ -6,6 +6,7 @@ const logger = createLogger({ component: "AccountTenantAccessAPI" });
 interface AccountTenantRole {
   id: string;
   name: string;
+  isSystem: boolean;
   baseRole: string | null;
 }
 
@@ -37,7 +38,14 @@ interface BackendAccountTenantAccess {
   deactivated_at?: string | null;
   has_person: boolean;
   has_staff: boolean;
-  roles?: { id: number; name: string; base_role?: string | null }[] | null;
+  roles?:
+    | {
+        id: number;
+        name: string;
+        is_system: boolean;
+        base_role?: string | null;
+      }[]
+    | null;
 }
 
 interface GrantAccountTenantAccessRequest {
@@ -78,6 +86,7 @@ function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
     roles: (entry.roles ?? []).map((role) => ({
       id: role.id.toString(),
       name: role.name,
+      isSystem: role.is_system,
       baseRole: role.base_role ?? null,
     })),
   };
