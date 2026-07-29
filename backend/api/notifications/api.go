@@ -22,12 +22,23 @@ import (
 type Resource struct {
 	NotificationsService notificationsService.Service
 	PushService          notificationsService.PushSubscriptionService
+	PreferenceService    notificationsService.PreferenceService
 	db                   *bun.DB
 }
 
 // NewResource builds the notifications HTTP resource.
-func NewResource(service notificationsService.Service, pushService notificationsService.PushSubscriptionService, db *bun.DB) *Resource {
-	return &Resource{NotificationsService: service, PushService: pushService, db: db}
+func NewResource(
+	service notificationsService.Service,
+	pushService notificationsService.PushSubscriptionService,
+	preferenceService notificationsService.PreferenceService,
+	db *bun.DB,
+) *Resource {
+	return &Resource{
+		NotificationsService: service,
+		PushService:          pushService,
+		PreferenceService:    preferenceService,
+		db:                   db,
+	}
 }
 
 // Router mounts the notification routes behind tenant JWT auth.
@@ -46,6 +57,15 @@ func (rs *Resource) Router() chi.Router {
 			r.Get("/public-key", rs.getPushPublicKey)
 			r.Post("/subscriptions", rs.subscribePush)
 			r.Delete("/subscriptions", rs.unsubscribePush)
+		})
+
+		// Which notifications the logged-in user agreed to receive. Own data,
+		// so no permission beyond a valid tenant session — the same reasoning
+		// as the push routes above.
+		r.With(withTx).Route("/preferences", func(r chi.Router) {
+			r.Get("/", rs.listPreferences)
+			r.Delete("/", rs.deleteAllPreferences)
+			r.Put("/{type}", rs.setPreference)
 		})
 	})
 
