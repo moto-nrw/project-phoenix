@@ -501,6 +501,46 @@ describe("CarePlanEditorModal", () => {
     expect(draft).toHaveValue("Bitte klingeln");
   });
 
+  it("limits day notes to the API-supported length", () => {
+    renderEditor();
+
+    expect(screen.getByLabelText("Ankunft Hinweis hinzufügen")).toHaveAttribute(
+      "maxlength",
+      "500",
+    );
+    expect(screen.getByLabelText("Ankunft Hinweis")).toHaveAttribute(
+      "maxlength",
+      "500",
+    );
+  });
+
+  it("prevents duplicate day-note creations while a request is pending", async () => {
+    let resolveCreate: (() => void) | undefined;
+    const onCreateArrivalNote = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+    renderEditor({ onCreateArrivalNote });
+
+    const draft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
+    fireEvent.change(draft, { target: { value: "Bitte klingeln" } });
+    const addButton = draft.parentElement!.querySelector("button")!;
+    fireEvent.click(addButton);
+    fireEvent.click(addButton);
+
+    expect(onCreateArrivalNote).toHaveBeenCalledOnce();
+    expect(addButton).toBeDisabled();
+    resolveCreate?.();
+
+    await waitFor(() => {
+      expect(draft).toHaveValue("");
+    });
+    fireEvent.change(draft, { target: { value: "Neue Notiz" } });
+    expect(addButton).not.toBeDisabled();
+  });
+
   it("does not save an edited day note when the exception editor is cancelled", () => {
     const onUpdateArrivalNote = vi.fn().mockResolvedValue(undefined);
     const { onClose } = renderEditor({ onUpdateArrivalNote });

@@ -703,15 +703,25 @@ function NoteList({
   readonly onDelete: (id: string) => Promise<void>;
   readonly onError: (err: unknown) => void;
 }) {
+  const mutationInFlight = useRef(false);
+  const [isMutationPending, setIsMutationPending] = useState(false);
+
   const runMutation = async (
     mutation: () => Promise<void>,
     onSuccess?: () => void,
   ) => {
+    if (mutationInFlight.current) return;
+
+    mutationInFlight.current = true;
+    setIsMutationPending(true);
     try {
       await mutation();
       onSuccess?.();
     } catch (err) {
       onError(err);
+    } finally {
+      mutationInFlight.current = false;
+      setIsMutationPending(false);
     }
   };
 
@@ -726,6 +736,7 @@ function NoteList({
           onUpdate={onUpdate}
           onDelete={onDelete}
           runMutation={runMutation}
+          isMutationPending={isMutationPending}
         />
       ))}
       <div className="flex gap-2">
@@ -733,13 +744,14 @@ function NoteList({
           aria-label={`${label} Hinweis hinzufügen`}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
+          maxLength={500}
           className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
         />
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || isMutationPending}
           onClick={() => void runMutation(onCreate, () => setDraft(""))}
         >
           Hinzufügen
@@ -755,6 +767,7 @@ function NoteEditor({
   onUpdate,
   onDelete,
   runMutation,
+  isMutationPending,
 }: {
   readonly label: string;
   readonly note: { id: string | number; content: string };
@@ -764,6 +777,7 @@ function NoteEditor({
     mutation: () => Promise<void>,
     onSuccess?: () => void,
   ) => Promise<void>;
+  readonly isMutationPending: boolean;
 }) {
   const [content, setContent] = useState(note.content);
   const trimmedContent = content.trim();
@@ -775,13 +789,14 @@ function NoteEditor({
         aria-label={`${label} Hinweis`}
         value={content}
         onChange={(event) => setContent(event.target.value)}
+        maxLength={500}
         className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
       />
       <Button
         type="button"
         variant="outline"
         size="sm"
-        disabled={!trimmedContent || !hasChanges}
+        disabled={!trimmedContent || !hasChanges || isMutationPending}
         onClick={() =>
           void runMutation(
             () => onUpdate(String(note.id), trimmedContent),
@@ -795,6 +810,7 @@ function NoteEditor({
         type="button"
         variant="ghost"
         size="sm"
+        disabled={isMutationPending}
         onClick={() => void runMutation(() => onDelete(String(note.id)))}
       >
         Löschen
