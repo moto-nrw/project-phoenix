@@ -335,15 +335,15 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 				return nil, fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
 			}
 			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
-			deliveryAllowed, err := s.notifyAnnouncementGuardians(ctx, fresh)
-			if err != nil {
+			if err := s.notifyAnnouncementGuardians(ctx, fresh); err != nil {
 				return nil, fmt.Errorf("announcement: publish push notifications: %w", err)
 			}
-			// The notification router is the single enforcement point for the
-			// tenant dispatch switch and active window. E-mail is another
-			// delivery channel for the same event, so it must follow the same
-			// decision instead of bypassing those gates.
-			if fresh.SendEmail && deliveryAllowed {
+			// E-mail is deliberately independent of the push decision. The
+			// dispatch switch and the active window exist so a phone does not
+			// ring at night; an e-mail does not ring, and a school that opted
+			// into e-mail for an announcement expects it to leave. The e-mail
+			// path applies its own consent rule (see enqueueAnnouncementEmails).
+			if fresh.SendEmail {
 				if err := s.enqueueAnnouncementEmails(ctx, fresh); err != nil {
 					return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
 				}
@@ -353,13 +353,13 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 	return s.Get(ctx, id)
 }
 
-func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {
+func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModels.ParentAnnouncement) error {
 	if s.notifier == nil {
-		return false, nil
+		return nil
 	}
 	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
 	if err != nil {
-		return false, fmt.Errorf("resolve guardian recipients: %w", err)
+		return fmt.Errorf("resolve guardian recipients: %w", err)
 	}
 	priority := notifications.PriorityNormal
 	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
@@ -378,8 +378,9 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		accountIDs = append(accountIDs, recipient.AccountID)
 	}
 	if len(accountIDs) == 0 {
-		return false, nil
+		return nil
 	}
+	candidateCount := len(accountIDs)
 
 	// Consent narrows the audience the announcement itself defined. A nil
 	// preference service means the dependency was never wired, which the
@@ -389,10 +390,17 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	if s.preferences != nil {
 		accountIDs, err = s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
 		if err != nil {
-			return false, fmt.Errorf("filter opted-in guardians: %w", err)
+			return fmt.Errorf("filter opted-in guardians: %w", err)
+		}
+		if len(accountIDs) < candidateCount {
+			s.logger.Info("parent announcement push narrowed by consent",
+				slog.Int64("announcement_id", a.ID),
+				slog.Int("candidate_count", candidateCount),
+				slog.Int("recipient_count", len(accountIDs)),
+			)
 		}
 		if len(accountIDs) == 0 {
-			return false, nil
+			return nil
 		}
 	}
 
@@ -409,12 +417,17 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		},
 	})
 	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
-		return false, nil
+		s.logger.Info("parent announcement push suppressed by tenant notification gate",
+			slog.Int64("announcement_id", a.ID),
+			slog.Int("recipient_count", len(accountIDs)),
+			slog.String("reason", err.Error()),
+		)
+		return nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("notify guardian audience: %w", err)
+		return fmt.Errorf("notify guardian audience: %w", err)
 	}
-	return true, nil
+	return nil
 }
 
 // enqueueAnnouncementEmails queues one outbox e-mail per targeted guardian with
@@ -455,12 +468,16 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 			seen[recipient.AccountID] = struct{}{}
 			accountIDs = append(accountIDs, recipient.AccountID)
 		}
-		optedIn, err := s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		// E-mail honours an explicit "no" but not a missing decision: guardians
+		// received announcement e-mails before the consent switches existed, and
+		// most families have no row at all. Requiring an opt-in here would stop
+		// the e-mails for practically everybody.
+		remaining, err := s.preferences.FilterNotOptedOut(ctx, notifications.TypeParentAnnouncement, accountIDs)
 		if err != nil {
-			return fmt.Errorf("announcement: filter opted-in e-mail recipients: %w", err)
+			return fmt.Errorf("announcement: filter opted-out e-mail recipients: %w", err)
 		}
-		allowed := make(map[int64]struct{}, len(optedIn))
-		for _, accountID := range optedIn {
+		allowed := make(map[int64]struct{}, len(remaining))
+		for _, accountID := range remaining {
 			allowed[accountID] = struct{}{}
 		}
 		filtered := make([]*usersModels.AnnouncementRecipient, 0, len(recipients))
@@ -468,6 +485,13 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 			if _, ok := allowed[recipient.AccountID]; ok {
 				filtered = append(filtered, recipient)
 			}
+		}
+		if len(filtered) < len(recipients) {
+			s.logger.Info("parent announcement e-mails narrowed by opt-outs",
+				slog.Int64("announcement_id", a.ID),
+				slog.Int("candidate_count", len(recipients)),
+				slog.Int("recipient_count", len(filtered)),
+			)
 		}
 		recipients = filtered
 		if len(recipients) == 0 {

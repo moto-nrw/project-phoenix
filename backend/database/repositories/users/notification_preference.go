@@ -91,6 +91,46 @@ func (r *NotificationPreferenceRepository) FilterOptedIn(ctx context.Context, no
 	return optedIn, nil
 }
 
+// FilterNotOptedOut removes only the candidates who explicitly declined the type.
+//
+// It reads the opt-out rows and subtracts them instead of selecting survivors in
+// SQL: candidates without any row have nothing to join against, and the input
+// order is preserved so callers keep a stable recipient list.
+func (r *NotificationPreferenceRepository) FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+	if notificationType == "" || len(accountIDs) == 0 {
+		return nil, nil
+	}
+
+	var optedOut []int64
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprNotificationPreferences).
+		ColumnExpr(`"notification_preference".account_id`).
+		Where(`"notification_preference".notification_type = ?`, notificationType).
+		Where(`NOT "notification_preference".enabled`).
+		Where(`"notification_preference".account_id IN (?)`, bun.List(accountIDs))
+
+	query = base.WithTenantFilter(ctx, query, aliasNotificationPreference)
+
+	if err := query.Scan(ctx, &optedOut); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "filter opted-out accounts", Err: err}
+	}
+
+	declined := make(map[int64]struct{}, len(optedOut))
+	for _, accountID := range optedOut {
+		declined[accountID] = struct{}{}
+	}
+
+	remaining := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if _, ok := declined[accountID]; ok {
+			continue
+		}
+		remaining = append(remaining, accountID)
+	}
+	return remaining, nil
+}
+
 // DisableAllForAccount switches the named stored decisions of one account off.
 func (r *NotificationPreferenceRepository) DisableAllForAccount(ctx context.Context, accountID int64, notificationTypes []string) error {
 	if len(notificationTypes) == 0 {

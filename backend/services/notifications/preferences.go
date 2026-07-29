@@ -57,6 +57,13 @@ type PreferenceService interface {
 	// round.
 	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 
+	// FilterNotOptedOut is the mirror of FilterOptedIn for channels that already
+	// reached people before consent existed: it drops only the accounts that
+	// explicitly declined the type, and keeps the ones who never decided. Use it
+	// for e-mail, which is addressed to a person the school already writes to;
+	// push and in-app hints stay consent-first via FilterOptedIn.
+	FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+
 	// GetForParent and SetForParent are the guardian-portal counterparts. The
 	// parents app has no tenant context of its own, so both resolve the
 	// account's active school mappings and act across all of them: one set of
@@ -210,6 +217,39 @@ func (s *preferenceService) FilterOptedIn(ctx context.Context, notificationType 
 		return nil, fmt.Errorf("filter opted-in accounts: %w", err)
 	}
 	return optedIn, nil
+}
+
+func (s *preferenceService) FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+
+	def, known := GetType(notificationType)
+	if !known {
+		// Same reasoning as FilterOptedIn: a producer naming a type outside the
+		// catalogue is a bug, and this is not the place to guess an audience.
+		return nil, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+	}
+
+	// The school-wide gate is applied like in FilterOptedIn. It says "this
+	// school does not want this notification at all", which is about the type
+	// and not about one delivery channel. TypeParentAnnouncement declares no
+	// gate, so today this branch never fires for the e-mail path.
+	if def.TenantGate != "" {
+		allowed, err := s.resolveBool(ctx, def.TenantGate)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, nil
+		}
+	}
+
+	remaining, err := s.repo.FilterNotOptedOut(ctx, notificationType, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("filter opted-out accounts: %w", err)
+	}
+	return remaining, nil
 }
 
 // GetForParent merges the guardian's decisions across every active school.

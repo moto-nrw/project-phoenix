@@ -24,6 +24,7 @@ type fakePreferenceRepo struct {
 
 	stored        []*userModel.NotificationPreference
 	optedIn       map[string][]int64
+	optedOut      map[string][]int64
 	upserted      []*userModel.NotificationPreference
 	disabled      []int64
 	disabledTypes [][]string
@@ -52,6 +53,25 @@ func (f *fakePreferenceRepo) FilterOptedIn(_ context.Context, notificationType s
 	}
 	f.filterArgs = accountIDs
 	return f.optedIn[notificationType], nil
+}
+
+func (f *fakePreferenceRepo) FilterNotOptedOut(_ context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+	if f.filterErr != nil {
+		return nil, f.filterErr
+	}
+	f.filterArgs = accountIDs
+	declined := make(map[int64]struct{}, len(f.optedOut[notificationType]))
+	for _, accountID := range f.optedOut[notificationType] {
+		declined[accountID] = struct{}{}
+	}
+	remaining := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if _, ok := declined[accountID]; ok {
+			continue
+		}
+		remaining = append(remaining, accountID)
+	}
+	return remaining, nil
 }
 
 func (f *fakePreferenceRepo) DisableAllForAccount(_ context.Context, accountID int64, notificationTypes []string) error {
@@ -277,6 +297,58 @@ func TestFilterOptedIn(t *testing.T) {
 		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
 		_, err := svc.FilterOptedIn(context.Background(), notifications.TypePickupUpcoming, candidates)
 		require.Error(t, err)
+	})
+}
+
+// FilterNotOptedOut is the mirror rule for channels that predate consent: only
+// an explicit no filters, a missing decision does not.
+func TestFilterNotOptedOut(t *testing.T) {
+	candidates := []int64{prefAccountA, prefAccountB}
+
+	t.Run("keeps everyone who did not decline", func(t *testing.T) {
+		repo := &fakePreferenceRepo{optedOut: map[string][]int64{
+			notifications.TypeParentAnnouncement: {prefAccountA},
+		}}
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+
+		got, err := svc.FilterNotOptedOut(context.Background(), notifications.TypeParentAnnouncement, candidates)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{prefAccountB}, got,
+			"the account with no stored decision stays in, the one that declined does not")
+	})
+
+	t.Run("no candidates means nobody", func(t *testing.T) {
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
+		got, err := svc.FilterNotOptedOut(context.Background(), notifications.TypeParentAnnouncement, nil)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("an unknown type fails closed", func(t *testing.T) {
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
+		got, err := svc.FilterNotOptedOut(context.Background(), "not_a_type", candidates)
+		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
+		assert.Empty(t, got)
+	})
+
+	t.Run("a type the school switched off reaches nobody", func(t *testing.T) {
+		settings := &configtest.Mock{
+			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
+				return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
+			},
+		}
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil)
+
+		got, err := svc.FilterNotOptedOut(context.Background(), notifications.TypePickupUpcoming, candidates)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("a failing repository surfaces", func(t *testing.T) {
+		repo := &fakePreferenceRepo{filterErr: errors.New("boom")}
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		_, err := svc.FilterNotOptedOut(context.Background(), notifications.TypeParentAnnouncement, candidates)
+		require.Error(t, err, "a broken read must not read as consent")
 	})
 }
 

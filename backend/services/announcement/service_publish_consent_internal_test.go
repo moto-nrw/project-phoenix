@@ -21,12 +21,39 @@ type fakePreferences struct {
 	// prove the producer filters on its own type rather than someone else's.
 	gotType string
 	asked   []int64
+
+	// optedOut lists the accounts that explicitly declined. Everyone else stays
+	// in, which is the whole point of the not-opted-out rule.
+	optedOut      []int64
+	optOutErr     error
+	optOutGotType string
+	askedOptOut   []int64
 }
 
 func (f *fakePreferences) FilterOptedIn(_ context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
 	f.gotType = notificationType
 	f.asked = append([]int64(nil), accountIDs...)
 	return f.optedIn, f.err
+}
+
+func (f *fakePreferences) FilterNotOptedOut(_ context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+	f.optOutGotType = notificationType
+	f.askedOptOut = append([]int64(nil), accountIDs...)
+	if f.optOutErr != nil {
+		return nil, f.optOutErr
+	}
+	declined := make(map[int64]struct{}, len(f.optedOut))
+	for _, accountID := range f.optedOut {
+		declined[accountID] = struct{}{}
+	}
+	remaining := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if _, ok := declined[accountID]; ok {
+			continue
+		}
+		remaining = append(remaining, accountID)
+	}
+	return remaining, nil
 }
 
 func consentTestService(repo *fakeAnnouncementRepo, notifier *fakeNotifier, prefs *fakePreferences) Service {
@@ -93,7 +120,11 @@ func TestPublishNotifiesNobodyWithoutConsent(t *testing.T) {
 	}
 }
 
-func TestPublishEmailsOnlyGuardiansWhoAgreed(t *testing.T) {
+// E-mail honours an explicit "no" and nothing else: the guardian who declined
+// the type is dropped, the one who never decided still receives the mail. Push
+// consent (FilterOptedIn) must not decide this, since most families have no row at
+// all, so an opt-in rule here would silence the e-mail for nearly everybody.
+func TestPublishEmailsEveryGuardianWhoDidNotOptOut(t *testing.T) {
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
 	repo.recipients = []*usersModels.AnnouncementRecipient{
@@ -102,7 +133,8 @@ func TestPublishEmailsOnlyGuardiansWhoAgreed(t *testing.T) {
 	}
 	notifier := &fakeNotifier{}
 	outbox := &fakeOutbox{}
-	prefs := &fakePreferences{optedIn: []int64{202}}
+	// 101 said no; 202 never touched the switch and is not opted in for push.
+	prefs := &fakePreferences{optedOut: []int64{101}}
 	svc := NewService(ServiceConfig{
 		Repo:        repo,
 		Settings:    &fakeSettings{enabled: true},
@@ -118,13 +150,80 @@ func TestPublishEmailsOnlyGuardiansWhoAgreed(t *testing.T) {
 	}
 
 	if len(outbox.requests) != 1 {
-		t.Fatalf("expected one opted-in e-mail, got %d", len(outbox.requests))
+		t.Fatalf("expected one e-mail for the guardian who did not decline, got %d", len(outbox.requests))
 	}
 	if got := outbox.requests[0].Payload[emailPayloadRecipient]; got != "two@example.test" {
-		t.Fatalf("expected the opted-in guardian's address, got %v", got)
+		t.Fatalf("expected the address of the guardian who did not decline, got %v", got)
 	}
-	if !slices.Equal(prefs.asked, []int64{101, 202}) {
-		t.Fatalf("expected the full e-mail audience to be filtered, got %v", prefs.asked)
+	if !slices.Equal(prefs.askedOptOut, []int64{101, 202}) {
+		t.Fatalf("expected the full e-mail audience to be checked for opt-outs, got %v", prefs.askedOptOut)
+	}
+	if prefs.optOutGotType != notifications.TypeParentAnnouncement {
+		t.Fatalf("the e-mail path must filter on its own type, asked for %q", prefs.optOutGotType)
+	}
+}
+
+// The regression this rule exists for: parent push is brand new, so a normal
+// school has no preference rows and no push subscriptions at all. That must not
+// stop the announcement e-mail, which schools have relied on all along.
+func TestPublishEmailsFamiliesWithoutAnyPreferenceRow(t *testing.T) {
+	repo := consentTestRepo()
+	repo.announcement = draftAnnouncement(true)
+	repo.recipients = []*usersModels.AnnouncementRecipient{
+		{AccountID: 101, Email: "one@example.test"},
+		{AccountID: 202, Email: "two@example.test"},
+	}
+	notifier := &fakeNotifier{}
+	outbox := &fakeOutbox{}
+	// Nobody opted in (no push) and nobody opted out (no stored decision).
+	prefs := &fakePreferences{}
+	svc := NewService(ServiceConfig{
+		Repo:        repo,
+		Settings:    &fakeSettings{enabled: true},
+		Notifier:    notifier,
+		Preferences: prefs,
+		Outbox:      outbox,
+		ParentsURL:  "https://parents.example.test",
+		Logger:      slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	if len(notifier.events) != 0 {
+		t.Fatalf("nobody agreed to push, so nothing may be pushed, got %d events", len(notifier.events))
+	}
+	if len(outbox.requests) != 2 {
+		t.Fatalf("a missing decision must not silence the e-mail, got %d queued messages", len(outbox.requests))
+	}
+}
+
+// A broken opt-out read must not be interpreted as "everyone agreed" either:
+// the publish fails so staff can retry instead of guessing the audience.
+func TestPublishFailsOnEmailOptOutLookupError(t *testing.T) {
+	repo := consentTestRepo()
+	repo.announcement = draftAnnouncement(true)
+	repo.recipients = []*usersModels.AnnouncementRecipient{
+		{AccountID: 202, Email: "two@example.test"},
+	}
+	outbox := &fakeOutbox{}
+	prefs := &fakePreferences{optedIn: []int64{202}, optOutErr: errors.New("boom")}
+	svc := NewService(ServiceConfig{
+		Repo:        repo,
+		Settings:    &fakeSettings{enabled: true},
+		Notifier:    &fakeNotifier{},
+		Preferences: prefs,
+		Outbox:      outbox,
+		ParentsURL:  "https://parents.example.test",
+		Logger:      slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err == nil {
+		t.Fatal("a failed opt-out lookup must surface, not silently e-mail everyone")
+	}
+	if len(outbox.requests) != 0 {
+		t.Fatalf("no e-mail may be queued on a failed lookup, got %d", len(outbox.requests))
 	}
 }
 
@@ -163,10 +262,11 @@ func TestPublishDeduplicatesOptedInGuardiansByNormalizedEmail(t *testing.T) {
 	}
 }
 
-// Tenant notification gates suppress every delivery channel, not the
-// announcement itself. Staff must still be able to publish while dispatch is
-// disabled or the notification window is closed.
-func TestPublishSuppressesEmailWhenNotificationsAreGated(t *testing.T) {
+// The tenant dispatch switch and the active window govern push and in-app
+// hints, not e-mail: they exist so a phone does not ring at night, and an
+// e-mail does not ring. A gated push must therefore leave both the publication
+// and the e-mail untouched.
+func TestPublishStillEmailsWhenPushIsGated(t *testing.T) {
 	tests := []struct {
 		name        string
 		notifierErr error
@@ -202,8 +302,11 @@ func TestPublishSuppressesEmailWhenNotificationsAreGated(t *testing.T) {
 			if published == nil {
 				t.Fatal("the announcement must still be published")
 			}
-			if len(outbox.requests) != 0 {
-				t.Fatalf("notification gate must suppress e-mail too, got %d queued messages", len(outbox.requests))
+			if len(outbox.requests) != 1 {
+				t.Fatalf("the push gate must not suppress e-mail, got %d queued messages", len(outbox.requests))
+			}
+			if got := outbox.requests[0].Payload[emailPayloadRecipient]; got != "two@example.test" {
+				t.Fatalf("expected the audience address, got %v", got)
 			}
 		})
 	}

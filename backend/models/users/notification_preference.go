@@ -50,6 +50,13 @@ type NotificationPreferenceRepository interface {
 	// returns an empty result and never the full list.
 	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 
+	// FilterNotOptedOut is the mirror of FilterOptedIn: it returns the candidates
+	// MINUS those who explicitly declined the type (a row with Enabled=false).
+	// A missing row does not filter anybody out. This is for channels that were
+	// delivered before consent existed and must not be silenced by the absence
+	// of a decision; consent-first channels use FilterOptedIn.
+	FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+
 	// DisableAllForAccount switches the named stored decisions of one account
 	// off. Types with no row stay absent — they are already off.
 	DisableAllForAccount(ctx context.Context, accountID int64, notificationTypes []string) error

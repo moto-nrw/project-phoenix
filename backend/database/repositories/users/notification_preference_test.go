@@ -73,6 +73,25 @@ func TestNotificationPreferenceRepository(t *testing.T) {
 		assert.Empty(t, optedIn, "no row means no consent")
 	})
 
+	// The mirror rule, for channels that already reached people before consent
+	// existed: only a stored "no" filters, a missing row does not.
+	t.Run("not-opted-out drops an explicit no and keeps a missing decision", func(t *testing.T) {
+		// From the subtest above: account agreed to student_absence_reported,
+		// other declined it. Neither has a row for activity_start.
+		remaining, err := repo.FilterNotOptedOut(ctx, "student_absence_reported",
+			[]int64{account.ID, other.ID})
+		require.NoError(t, err)
+		assert.Equal(t, []int64{account.ID}, remaining)
+
+		remaining, err = repo.FilterNotOptedOut(ctx, "activity_start", []int64{account.ID, other.ID})
+		require.NoError(t, err)
+		assert.Equal(t, []int64{account.ID, other.ID}, remaining, "no row means no objection")
+
+		remaining, err = repo.FilterNotOptedOut(ctx, "activity_start", nil)
+		require.NoError(t, err)
+		assert.Empty(t, remaining)
+	})
+
 	t.Run("empty input yields nothing rather than everything", func(t *testing.T) {
 		// The dangerous default: a producer that resolved no candidates must end
 		// up with no recipients, never with the whole school.
