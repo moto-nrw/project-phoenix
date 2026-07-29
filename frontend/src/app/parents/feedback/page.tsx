@@ -175,17 +175,23 @@ export default function ParentFeedbackPage() {
 
   const noSchools = schools !== null && schools.length === 0;
 
+  // Same shell as the other parents-portal pages (see /parents/news): full
+  // width up to max-w-7xl, header in its own card.
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
-      <header className="mb-4">
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      <header className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {t("kicker")}
         </p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900">
+        <h1 className="mt-1 text-2xl font-semibold text-balance text-gray-900">
           {t("title")}
         </h1>
-        <p className="mt-2 text-sm text-gray-600">{t("productTeamNotice")}</p>
-        <p className="mt-1 text-sm text-gray-500">{t("pseudonymNotice")}</p>
+        <p className="mt-1 text-sm leading-6 text-gray-600">
+          {t("productTeamNotice")}
+        </p>
+        <p className="mt-1 text-sm leading-6 text-gray-500">
+          {t("pseudonymNotice")}
+        </p>
       </header>
 
       {loadError && <Alert type="error" message={t("loadError")} />}
@@ -200,7 +206,7 @@ export default function ParentFeedbackPage() {
 
       {!noSchools && (
         <>
-          <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             {schools && schools.length > 1 && (
               <div className="min-w-48">
                 <label
