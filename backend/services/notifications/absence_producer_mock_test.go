@@ -23,8 +23,11 @@ const (
 	absenceStudentA  int64 = 71
 	absenceStudentB  int64 = 72
 	absenceGroupA    int64 = 81
+	absenceGroupB    int64 = 82
 	absenceStaffA    int64 = 91
+	absenceStaffB    int64 = 92
 	absenceAccountA  int64 = 101
+	absenceAccountB  int64 = 104
 	absenceAdmin     int64 = 102
 	absenceActorAcct int64 = 103
 )
@@ -188,6 +191,34 @@ func TestAbsenceNotifierReachesGroupAndOffice(t *testing.T) {
 	assert.NotContains(t, event.Body, "Felix", "no child name leaves the app")
 }
 
+func TestAbsenceNotifierPartitionsCountsByRecipientScope(t *testing.T) {
+	producer, w := newAbsenceWorld()
+	groupB := absenceGroupB
+	w.students.byID[absenceStudentB] = &userModel.Student{GroupID: &groupB}
+	w.groups.staffByGroup[absenceGroupB] = []int64{absenceStaffB}
+	w.staff.accounts[absenceStaffB] = absenceAccountB
+	w.consent.allowed[absenceAccountB] = struct{}{}
+
+	producer.NotifyAbsenceReported(
+		context.Background(),
+		sickToday(absenceStudentA, absenceStudentB),
+	)
+
+	require.Len(t, w.notifier.events, 3)
+	byRecipient := make(map[int64]notifications.Event)
+	for _, event := range w.notifier.events {
+		require.Len(t, event.Audience.StaffAccountIDs, 1)
+		byRecipient[event.Audience.StaffAccountIDs[0]] = event
+	}
+
+	assert.Equal(t, "Eine Familie hat ein Kind aus Ihrer Gruppe für heute krankgemeldet.", byRecipient[absenceAccountA].Body)
+	assert.Equal(t, "/students/71", byRecipient[absenceAccountA].DeepLink)
+	assert.Equal(t, "Eine Familie hat ein Kind aus Ihrer Gruppe für heute krankgemeldet.", byRecipient[absenceAccountB].Body)
+	assert.Equal(t, "/students/72", byRecipient[absenceAccountB].DeepLink)
+	assert.Equal(t, "2 Kinder wurden für heute krankgemeldet.", byRecipient[absenceAdmin].Body)
+	assert.Equal(t, "/students", byRecipient[absenceAdmin].DeepLink)
+}
+
 func TestAbsenceNotifierWording(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -248,11 +279,23 @@ func TestAbsenceNotifierWording(t *testing.T) {
 			producer, w := newAbsenceWorld()
 			producer.NotifyAbsenceReported(context.Background(), tc.report())
 
-			require.Len(t, w.notifier.events, 1)
-			assert.Equal(t, tc.wantBody, w.notifier.events[0].Body)
-			assert.Equal(t, tc.wantLink, w.notifier.events[0].DeepLink)
+			event := eventForAbsenceRecipient(w.notifier.events, absenceAdmin)
+			require.NotNil(t, event)
+			assert.Equal(t, tc.wantBody, event.Body)
+			assert.Equal(t, tc.wantLink, event.DeepLink)
 		})
 	}
+}
+
+func eventForAbsenceRecipient(events []notifications.Event, accountID int64) *notifications.Event {
+	for i := range events {
+		for _, recipientID := range events[i].Audience.StaffAccountIDs {
+			if recipientID == accountID {
+				return &events[i]
+			}
+		}
+	}
+	return nil
 }
 
 func TestAbsenceNotifierSilentCases(t *testing.T) {

@@ -146,27 +146,24 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 
 		var activityPart []Reminder
 		if cfg.anyActivity() {
-			// The batch additionally counts the slots this person is planned
-			// on: at ten minutes before the start they supervise nothing yet,
-			// so the room filter alone would reach everyone except the one
-			// person who has to show up.
-			scope := activityScopeFilter(
-				activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID]),
-				in.assignedInstances[sc.StaffID],
-			)
+			roomFilter := activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID])
 			part, next := buildActivityReminders(in.instances, in.schulhofRoomIDs,
-				scope, activityWindow{
+				activityScopeFilter(roomFilter, nil), activityWindow{
 					nowMin:           in.nowMin,
 					lead:             cfg.activityLead,
 					overdueThreshold: cfg.overdueThreshold,
 					upcoming:         cfg.activityStart,
 					overdue:          cfg.activityOverdue,
 				})
-			if !cfg.activityStart && sc.IncludeAssignedActivityStart {
+			if sc.IncludeAssignedActivityStart {
 				assignedPart, assignedNext := buildActivityReminders(
 					in.instances,
 					in.schulhofRoomIDs,
-					assignedActivityFilter(in.assignedInstances[sc.StaffID]),
+					assignedUpcomingFilter(
+						in.assignedInstances[sc.StaffID],
+						roomFilter,
+						cfg.activityStart,
+					),
 					activityWindow{
 						nowMin:   in.nowMin,
 						lead:     cfg.activityLead,
@@ -493,6 +490,29 @@ func assignedActivityFilter(instanceIDs map[int64]struct{}) func(*scheduleModel.
 	return func(inst *scheduleModel.ActivityInstance) bool {
 		_, assigned := instanceIDs[inst.ID]
 		return assigned
+	}
+}
+
+// assignedUpcomingFilter adds only personal starts the room-scoped pass did
+// not already include. Assignments never widen overdue reminders.
+func assignedUpcomingFilter(
+	instanceIDs map[int64]struct{},
+	roomFilter map[int64]struct{},
+	roomUpcomingEnabled bool,
+) func(*scheduleModel.ActivityInstance) bool {
+	assigned := assignedActivityFilter(instanceIDs)
+	return func(inst *scheduleModel.ActivityInstance) bool {
+		if !assigned(inst) {
+			return false
+		}
+		if !roomUpcomingEnabled {
+			return true
+		}
+		if roomFilter == nil {
+			return false
+		}
+		_, alreadyIncluded := roomFilter[inst.RoomID]
+		return !alreadyIncluded
 	}
 }
 

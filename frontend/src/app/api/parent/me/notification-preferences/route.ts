@@ -21,7 +21,7 @@ interface NotificationPreferencesResponse {
  * guardian agreed to, merged across every school the family belongs to.
  */
 export const GET = proxyGet<NotificationPreferencesResponse>(
-  "/parent/me/notification-preferences",
+  "/parent/me/notification-preferences/",
 );
 
 /**
@@ -29,7 +29,7 @@ export const GET = proxyGet<NotificationPreferencesResponse>(
  */
 export const DELETE = createParentDeleteHandler<null>(
   async (_request, token) => {
-    await parentApiDelete<null>("/parent/me/notification-preferences", token);
+    await parentApiDelete<null>("/parent/me/notification-preferences/", token);
     return null;
   },
 );

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -152,39 +153,57 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 		return nil
 	}
 
-	recipients, err := n.resolveRecipients(ctx, report)
+	deliveries, err := n.resolveDeliveries(ctx, report)
 	if err != nil {
 		return err
 	}
-	if len(recipients) == 0 {
+	if len(deliveries) == 0 {
 		return nil
 	}
 
-	event := Event{
-		Type:     TypeStudentAbsenceReported,
-		Priority: PriorityNormal,
-		Title:    absenceReportedTitle,
-		Body:     absenceBody(report),
-		DeepLink: absenceDeepLink(report),
-		Audience: Audience{
-			TenantID:        report.TenantID,
-			Scope:           ScopeStaff,
-			StaffAccountIDs: recipients,
-		},
+	events := make([]Event, 0, len(deliveries))
+	for _, delivery := range deliveries {
+		scopedReport := report
+		scopedReport.StudentIDs = delivery.studentIDs
+		events = append(events, Event{
+			Type:     TypeStudentAbsenceReported,
+			Priority: PriorityNormal,
+			Title:    absenceReportedTitle,
+			Body:     absenceBody(scopedReport),
+			DeepLink: absenceDeepLink(scopedReport),
+			Audience: Audience{
+				TenantID:        report.TenantID,
+				Scope:           ScopeStaff,
+				StaffAccountIDs: delivery.accountIDs,
+			},
+		})
 	}
-	return n.notifier.Notify(ctx, event)
+	if batch, ok := n.notifier.(BatchNotifier); ok {
+		return batch.NotifyBatch(ctx, events)
+	}
+	for _, event := range events {
+		if err := n.notifier.Notify(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// resolveRecipients builds the candidate set from the relation and then applies
-// consent. The order matters: consent narrows a relation-derived set, it never
-// stands in for one.
-func (n *absenceNotifier) resolveRecipients(ctx context.Context, report AbsenceReport) ([]int64, error) {
-	candidates := make(map[int64]struct{})
+type absenceDelivery struct {
+	studentIDs []int64
+	accountIDs []int64
+}
 
-	groupIDs, err := n.groupIDsOfStudents(ctx, report.StudentIDs)
+// resolveDeliveries builds each account's visible student subset from the
+// supervision relation, adds the full submission for effective admins, then
+// applies consent. Accounts with identical visibility share one event.
+func (n *absenceNotifier) resolveDeliveries(ctx context.Context, report AbsenceReport) ([]absenceDelivery, error) {
+	allStudentIDs := uniqueInt64s(report.StudentIDs)
+	studentsByGroup, groupIDs, err := n.studentIDsByGroup(ctx, allStudentIDs)
 	if err != nil {
 		return nil, err
 	}
+	visibleByAccount := make(map[int64]map[int64]struct{})
 	if len(groupIDs) > 0 {
 		pairs, perr := n.groups.ListStaffIDsByEducationGroupIDs(ctx, groupIDs, timezone.TodayDate())
 		if perr != nil {
@@ -198,8 +217,12 @@ func (n *absenceNotifier) resolveRecipients(ctx context.Context, report AbsenceR
 		if aerr != nil {
 			return nil, fmt.Errorf("resolve staff accounts: %w", aerr)
 		}
-		for _, accountID := range accountsByStaff {
-			candidates[accountID] = struct{}{}
+		for _, pair := range pairs {
+			accountID, ok := accountsByStaff[pair.StaffID]
+			if !ok {
+				continue
+			}
+			addVisibleStudents(visibleByAccount, accountID, studentsByGroup[pair.GroupID])
 		}
 	}
 
@@ -211,48 +234,115 @@ func (n *absenceNotifier) resolveRecipients(ctx context.Context, report AbsenceR
 		return nil, fmt.Errorf("resolve admin accounts: %w", err)
 	}
 	for _, accountID := range adminIDs {
-		candidates[accountID] = struct{}{}
+		addVisibleStudents(visibleByAccount, accountID, allStudentIDs)
 	}
 
-	delete(candidates, report.ActorAccountID)
-	if len(candidates) == 0 {
+	delete(visibleByAccount, report.ActorAccountID)
+	if len(visibleByAccount) == 0 {
 		return nil, nil
 	}
 
-	candidateIDs := make([]int64, 0, len(candidates))
-	for accountID := range candidates {
+	candidateIDs := make([]int64, 0, len(visibleByAccount))
+	for accountID := range visibleByAccount {
 		candidateIDs = append(candidateIDs, accountID)
 	}
+	sort.Slice(candidateIDs, func(i, j int) bool { return candidateIDs[i] < candidateIDs[j] })
 
 	optedIn, err := n.preferences.FilterOptedIn(ctx, TypeStudentAbsenceReported, candidateIDs)
 	if err != nil {
 		return nil, err
 	}
-	return optedIn, nil
+
+	byScope := make(map[string]*absenceDelivery, len(optedIn))
+	keys := make([]string, 0, len(optedIn))
+	for _, accountID := range optedIn {
+		studentIDs := sortedInt64Set(visibleByAccount[accountID])
+		if len(studentIDs) == 0 {
+			continue
+		}
+		key := fmt.Sprint(studentIDs)
+		delivery := byScope[key]
+		if delivery == nil {
+			delivery = &absenceDelivery{studentIDs: studentIDs}
+			byScope[key] = delivery
+			keys = append(keys, key)
+		}
+		delivery.accountIDs = append(delivery.accountIDs, accountID)
+	}
+	sort.Strings(keys)
+
+	deliveries := make([]absenceDelivery, 0, len(keys))
+	for _, key := range keys {
+		delivery := byScope[key]
+		sort.Slice(delivery.accountIDs, func(i, j int) bool {
+			return delivery.accountIDs[i] < delivery.accountIDs[j]
+		})
+		deliveries = append(deliveries, *delivery)
+	}
+	return deliveries, nil
 }
 
-// groupIDsOfStudents collects the education groups of the reported children.
-func (n *absenceNotifier) groupIDsOfStudents(ctx context.Context, studentIDs []int64) ([]int64, error) {
+func addVisibleStudents(visibleByAccount map[int64]map[int64]struct{}, accountID int64, studentIDs []int64) {
+	if accountID <= 0 || len(studentIDs) == 0 {
+		return
+	}
+	if visibleByAccount[accountID] == nil {
+		visibleByAccount[accountID] = make(map[int64]struct{}, len(studentIDs))
+	}
+	for _, studentID := range studentIDs {
+		visibleByAccount[accountID][studentID] = struct{}{}
+	}
+}
+
+func uniqueInt64s(ids []int64) []int64 {
+	seen := make(map[int64]struct{}, len(ids))
+	unique := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	return unique
+}
+
+func sortedInt64Set(ids map[int64]struct{}) []int64 {
+	sorted := make([]int64, 0, len(ids))
+	for id := range ids {
+		sorted = append(sorted, id)
+	}
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	return sorted
+}
+
+// studentIDsByGroup retains which reported children belong to each education
+// group; flattening this relation would leak the total submission size across
+// group boundaries.
+func (n *absenceNotifier) studentIDsByGroup(ctx context.Context, studentIDs []int64) (map[int64][]int64, []int64, error) {
 	if n.students == nil {
-		return nil, nil
+		return map[int64][]int64{}, nil, nil
 	}
 	students, err := n.students.FindReadScopeByIDs(ctx, studentIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load reported students: %w", err)
+		return nil, nil, fmt.Errorf("load reported students: %w", err)
 	}
+	studentsByGroup := make(map[int64][]int64)
 	seen := make(map[int64]struct{}, len(students))
 	groupIDs := make([]int64, 0, len(students))
-	for _, student := range students {
+	for _, studentID := range studentIDs {
+		student := students[studentID]
 		if student == nil || student.GroupID == nil {
 			continue
 		}
+		studentsByGroup[*student.GroupID] = append(studentsByGroup[*student.GroupID], studentID)
 		if _, dup := seen[*student.GroupID]; dup {
 			continue
 		}
 		seen[*student.GroupID] = struct{}{}
 		groupIDs = append(groupIDs, *student.GroupID)
 	}
-	return groupIDs, nil
+	return studentsByGroup, groupIDs, nil
 }
 
 func absenceBody(report AbsenceReport) string {

@@ -19,7 +19,7 @@ interface NotificationPreferencesResponse {
  * agreed to, plus the school-wide state of each type.
  */
 export const GET = proxyGet<NotificationPreferencesResponse>(
-  "/api/notifications/preferences",
+  "/api/notifications/preferences/",
 );
 
 /**
@@ -27,6 +27,6 @@ export const GET = proxyGet<NotificationPreferencesResponse>(
  * ("Alle deaktivieren").
  */
 export const DELETE = createDeleteHandler<null>(async (_request, token) => {
-  await apiDelete("/api/notifications/preferences", token);
+  await apiDelete("/api/notifications/preferences/", token);
   return null;
 });

@@ -577,19 +577,20 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
 	})
 
-	t.Run("planned assignment widens the batch and never narrows it", func(t *testing.T) {
+	t.Run("planned upcoming assignment widens the batch and never narrows it", func(t *testing.T) {
 		// The batch deliberately diverges from Compute here: it also counts the
 		// slots a person is planned on, because ten minutes before the start
 		// they supervise nothing yet and the room filter alone would reach
 		// everyone except the one person who has to show up.
 		w := baseWorld()
-		// Staff 7 supervises room 10; instance 102 runs in room 20, which they
+		// Staff 7 supervises room 10; instance 103 runs in room 20, which they
 		// do not supervise, but they are planned on it.
-		w.assignsInstance(7, 102, false)
+		w.addInstance(103, "Theater", 20, start, start+60)
+		w.assignsInstance(7, 103, false)
 
 		single, err := w.service().Compute(ctxForStaff(7), Scope{StaffID: 7})
 		require.NoError(t, err)
-		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(7)})
+		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7)})
 		require.NoError(t, err)
 
 		hasInstance := func(rs []Reminder, id string) bool {
@@ -601,9 +602,9 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 			return false
 		}
 
-		assert.False(t, hasInstance(single.Reminders, "102"),
+		assert.False(t, hasInstance(single.Reminders, "103"),
 			"Compute stays room-scoped and must not change")
-		assert.True(t, hasInstance(batch[7].Reminders, "102"),
+		assert.True(t, hasInstance(batch[7].Reminders, "103"),
 			"the batch must reach the person planned on the slot")
 		assert.GreaterOrEqual(t, len(batch[7].Reminders), len(single.Reminders),
 			"the batch may show more, never fewer")
@@ -847,7 +848,7 @@ func TestBatchReportsPersonalAssignments(t *testing.T) {
 	w.assignsInstance(7, 202, false)
 	w.assignsInstance(1, 201, false)
 
-	batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(7), caregiver(8), admin(1)})
+	batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7), caregiver(8), admin(1)})
 	require.NoError(t, err)
 
 	assert.Equal(t, map[string]struct{}{"202": {}}, batch[7].AssignedActivityInstanceIDs,
@@ -868,4 +869,31 @@ func TestBatchReportsPersonalAssignments(t *testing.T) {
 		}
 	}
 	assert.True(t, matched, "the assigned instance must appear in the reminder list too")
+}
+
+func TestAssignedActivitiesExpandOnlyUpcomingScope(t *testing.T) {
+	nowMin := minutesOfDay(timezone.Now())
+	if nowMin < 60 || nowMin > 1380 {
+		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
+	}
+
+	w := newWorld()
+	w.supervises(7, 10)
+	w.addInstance(201, "Überfällig außerhalb der Aufsicht", 20, nowMin-20, nowMin+40)
+	w.addInstance(202, "Nächster Einsatz außerhalb der Aufsicht", 20, nowMin+5, nowMin+65)
+	w.assignsInstance(7, 201, false)
+	w.assignsInstance(7, 202, false)
+
+	batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7)})
+	require.NoError(t, err)
+	require.Contains(t, batch, int64(7))
+
+	var reminderIDs []string
+	for _, reminder := range batch[7].Reminders {
+		if reminder.ActivityInstanceID != nil {
+			reminderIDs = append(reminderIDs, *reminder.ActivityInstanceID)
+		}
+	}
+	assert.Contains(t, reminderIDs, "202", "an upcoming personal assignment must be included")
+	assert.NotContains(t, reminderIDs, "201", "an assignment outside supervised rooms must not widen overdue scope")
 }
