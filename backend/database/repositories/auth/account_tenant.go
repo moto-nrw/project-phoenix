@@ -141,6 +141,42 @@ func (r *AccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, 
 	return exists, err
 }
 
+// ListTenantAccessByAccountID returns every school mapping of one account,
+// active and inactive alike, with school/organization context and whether the
+// account already carries a person and staff record at that school.
+//
+// This is the inverse direction of the account listings below (account -> many
+// schools instead of school -> many accounts) and is therefore cross-tenant by
+// construction: callers must be operator-scoped.
+func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenantAccessInfo, error) {
+	var rows []auth.AccountTenantAccessInfo
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr(`"at".tenant_id`).
+		ColumnExpr(`"sch".name AS school_name`).
+		ColumnExpr(`"sch".slug AS school_slug`).
+		ColumnExpr(`"sch".active AS school_active`).
+		ColumnExpr(`"sch".organization_id`).
+		ColumnExpr(`"org".name AS organization_name`).
+		ColumnExpr(`"at".status`).
+		ColumnExpr(`"at".activated_at`).
+		ColumnExpr(`"at".deactivated_at`).
+		ColumnExpr(`("p".id IS NOT NULL) AS has_person`).
+		ColumnExpr(`("s".id IS NOT NULL) AS has_staff`).
+		TableExpr(`auth.account_tenants AS "at"`).
+		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "at".tenant_id`).
+		Join(`INNER JOIN platform.organizations AS "org" ON "org".id = "sch".organization_id`).
+		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id AND "p".deleted_at IS NULL`).
+		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id AND "s".deleted_at IS NULL`).
+		Where(`"at".account_id = ?`, accountID).
+		Where(`"sch".deleted_at IS NULL`).
+		OrderExpr(`"org".name ASC, "sch".name ASC`).
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // ListAccountsByTenantID returns all accounts for a given tenant with their roles and pedagogic info,
 // plus pending invitations that haven't been accepted yet.
 func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error) {

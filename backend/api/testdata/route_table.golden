@@ -74,6 +74,7 @@ DELETE /auth/roles/{id}/
 DELETE /auth/roles/{roleId}/permissions/{permissionId}
 DELETE /auth/tokens/expired
 DELETE /internal/metrics
+DELETE /operator/accounts/{accountId}/tenants/{tenantId}
 DELETE /operator/announcements/{id}
 DELETE /operator/auth/mfa/trusted-devices/{deviceId}
 DELETE /operator/auth/passkeys/{passkeyId}
@@ -399,6 +400,9 @@ GET /health
 GET /internal/metrics
 GET /operator/accounts
 GET /operator/accounts/{accountId}/mfa/global-override
+GET /operator/accounts/{accountId}/tenants
+GET /operator/accounts/{accountId}/tenants/
+GET /operator/accounts/{accountId}/tenants/{tenantId}/roles
 GET /operator/announcements/
 GET /operator/announcements/{id}
 GET /operator/announcements/{id}/stats
@@ -686,6 +690,8 @@ POST /auth/roles/
 POST /auth/roles/{roleId}/permissions/{permissionId}
 POST /auth/switch-tenant
 POST /internal/metrics
+POST /operator/accounts/{accountId}/tenants
+POST /operator/accounts/{accountId}/tenants/
 POST /operator/announcements/
 POST /operator/announcements/{id}/publish
 POST /operator/auth/email-confirm
@@ -805,6 +811,7 @@ PUT /auth/permissions/{id}/
 PUT /auth/roles/{id}/
 PUT /internal/metrics
 PUT /operator/accounts/{accountId}/mfa/global-override
+PUT /operator/accounts/{accountId}/tenants/{tenantId}
 PUT /operator/announcements/{id}
 PUT /operator/organizations/{id}
 PUT /operator/profile/

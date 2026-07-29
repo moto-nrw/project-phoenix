@@ -42,6 +42,13 @@ const (
 	EventTypeMFADisabled           = "mfa_disabled"
 	EventTypeMFATrustedDeviceAdded = "mfa_trusted_device_added"
 	EventTypeMFAAdminOverride      = "mfa_admin_override"
+
+	// Cross-tenant access management (issue #1021). Written against the
+	// affected school so a tenant admin sees who was granted or revoked
+	// access to their own school, even when an operator triggered it.
+	EventTypeTenantAccessGranted = "tenant_access_granted"
+	EventTypeTenantAccessRevoked = "tenant_access_revoked"
+	EventTypeTenantRoleChanged   = "tenant_role_changed"
 )
 
 // Validate ensures auth event is valid
@@ -68,7 +75,9 @@ func (ae *AuthEvent) Validate() error {
 		// hit the INSERT and the validation gate has to accept them.
 		EventTypeMFAEmailSent, EventTypeMFAVerified, EventTypeMFAFailed,
 		EventTypeMFALocked, EventTypeMFARecoveryUsed, EventTypeMFADisabled,
-		EventTypeMFATrustedDeviceAdded, EventTypeMFAAdminOverride:
+		EventTypeMFATrustedDeviceAdded, EventTypeMFAAdminOverride,
+		EventTypeTenantAccessGranted, EventTypeTenantAccessRevoked,
+		EventTypeTenantRoleChanged:
 		// Valid types
 	default:
 		return errors.New("invalid event type")

@@ -20,6 +20,7 @@ import { useSession } from "next-auth/react";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { AccountsTable } from "~/components/operator/accounts-table";
+import { AccountTenantAccessModal } from "~/components/operator/account-tenant-access-modal";
 
 const ACCOUNT_SWR_PREFIXES = [
   "operator-all-accounts",
@@ -55,6 +56,9 @@ function OperatorAccountsPageContent() {
     id: string;
     name: string;
   } | null>(null);
+  const [tenantAccessAccount, setTenantAccessAccount] = useState<
+    SchoolAccount | OrgAccount | null
+  >(null);
   const { data: session } = useSession();
   const operatorBearerToken = session?.user?.token ?? "";
 
@@ -132,6 +136,11 @@ function OperatorAccountsPageContent() {
     [],
   );
 
+  const openTenantAccessModal = useCallback(
+    (account: SchoolAccount | OrgAccount) => setTenantAccessAccount(account),
+    [],
+  );
+
   const tabs = useMemo(
     () => ({
       items: [
@@ -187,6 +196,7 @@ function OperatorAccountsPageContent() {
               showSchool
               onManageCaregiver={openCaregiverModal}
               onManageMFA={openMFAModal}
+              onManageTenantAccess={openTenantAccessModal}
             />
           )}
         </>
@@ -206,6 +216,7 @@ function OperatorAccountsPageContent() {
               showSchool
               onManageCaregiver={openCaregiverModal}
               onManageMFA={openMFAModal}
+              onManageTenantAccess={openTenantAccessModal}
             />
           )}
         </>
@@ -241,6 +252,7 @@ function OperatorAccountsPageContent() {
               selectedSchool={selectedSchool}
               onManageCaregiver={openCaregiverModal}
               onManageMFA={openMFAModal}
+              onManageTenantAccess={openTenantAccessModal}
             />
           )}
         </>
@@ -258,6 +270,22 @@ function OperatorAccountsPageContent() {
           bearerToken={operatorBearerToken}
           accountId={mfaAccount.accountId}
           accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
+        />
+      ) : null}
+
+      {tenantAccessAccount ? (
+        <AccountTenantAccessModal
+          isOpen={true}
+          onClose={() => setTenantAccessAccount(null)}
+          accountId={tenantAccessAccount.accountId}
+          accountLabel={
+            `${tenantAccessAccount.firstName} ${tenantAccessAccount.lastName}`.trim() ||
+            tenantAccessAccount.email
+          }
+          accountEmail={tenantAccessAccount.email}
+          onUpdated={async () => {
+            await refreshAccounts();
+          }}
         />
       ) : null}
 

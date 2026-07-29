@@ -186,10 +186,12 @@ func (rs *Resource) Router() chi.Router {
 			// Account creation — uses users:manage (not users:create) because
 			// the "user" role is granted users:create in migrations; manage
 			// restricts this to actual administrators.
+			//
+			// link-to-tenant carries the same weight: it assigns a role to an
+			// existing account inside the caller's tenant, so guarding it with
+			// users:create would let every "user" account grant itself the
+			// admin role (issue #1021 review).
 			r.With(authorize.RequiresPermission(permUsersManage)).Post("/register", rs.register)
-			// link-to-tenant carries the same weight as /register: it grants
-			// an existing account a role inside the caller's tenant, so
-			// users:create would let every "user" account grant itself admin.
 			r.With(authorize.RequiresPermission(permUsersManage)).Post("/link-to-tenant", rs.linkToTenant)
 
 			// Role management routes

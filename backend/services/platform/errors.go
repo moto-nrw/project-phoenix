@@ -113,6 +113,26 @@ func (e *SchoolNotFoundError) Error() string {
 	return fmt.Sprintf("school with ID %d not found", e.SchoolID)
 }
 
+// AccountNotFoundError is returned when an account does not exist.
+type AccountNotFoundError struct {
+	AccountID int64
+}
+
+func (e *AccountNotFoundError) Error() string {
+	return fmt.Sprintf("account with ID %d not found", e.AccountID)
+}
+
+// AccountTenantAccessNotFoundError is returned when an account has no active
+// mapping to the school an operation targets.
+type AccountTenantAccessNotFoundError struct {
+	AccountID int64
+	SchoolID  int64
+}
+
+func (e *AccountTenantAccessNotFoundError) Error() string {
+	return fmt.Sprintf("account %d has no active access to school %d", e.AccountID, e.SchoolID)
+}
+
 // SchoolInactiveError is returned when an operation targets an inactive school.
 type SchoolInactiveError struct {
 	SchoolID int64
