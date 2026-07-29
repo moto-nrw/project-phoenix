@@ -19,11 +19,13 @@ const mockCreateArrivalException = vi.fn();
 const mockUpdateArrivalException = vi.fn();
 const mockDeleteArrivalException = vi.fn();
 const mockCreateArrivalNote = vi.fn();
+const mockUpdateArrivalNote = vi.fn();
 const mockDeleteArrivalNote = vi.fn();
 const mockCreateStudentPickupException = vi.fn();
 const mockUpdateStudentPickupException = vi.fn();
 const mockDeleteStudentPickupException = vi.fn();
 const mockCreateStudentPickupNote = vi.fn();
+const mockUpdateStudentPickupNote = vi.fn();
 const mockDeleteStudentPickupNote = vi.fn();
 const FROZEN_NOW = new Date("2026-05-27T12:00:00");
 
@@ -38,6 +40,7 @@ vi.mock("~/lib/student-arrival-api", () => ({
   deleteArrivalException: (...args: unknown[]) =>
     mockDeleteArrivalException(...args),
   createArrivalNote: (...args: unknown[]) => mockCreateArrivalNote(...args),
+  updateArrivalNote: (...args: unknown[]) => mockUpdateArrivalNote(...args),
   deleteArrivalNote: (...args: unknown[]) => mockDeleteArrivalNote(...args),
 }));
 
@@ -54,108 +57,121 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
     mockDeleteStudentPickupException(...args),
   createStudentPickupNote: (...args: unknown[]) =>
     mockCreateStudentPickupNote(...args),
+  updateStudentPickupNote: (...args: unknown[]) =>
+    mockUpdateStudentPickupNote(...args),
   deleteStudentPickupNote: (...args: unknown[]) =>
     mockDeleteStudentPickupNote(...args),
 }));
 
-vi.mock("./care-weekly-plan-modal", () => ({
-  CareWeeklyPlanModal: ({
+// The editor is exercised in its own test file; here it is reduced to the two
+// callbacks the manager wires up, so these tests stay about the manager's
+// persistence and refresh behaviour.
+// The editor is exercised in its own test file; here it is reduced to the two
+// callbacks the manager wires up, so these tests stay about the manager's
+// persistence and refresh behaviour.
+vi.mock("./care-plan-editor-modal", () => ({
+  CarePlanEditorModal: ({
     isOpen,
+    date,
     onClose,
-    onSubmit,
+    onSubmitWeekly,
+    onSubmitException,
   }: {
     isOpen: boolean;
+    date: Date | null;
     onClose: () => void;
-    onSubmit: (data: {
+    onSubmitWeekly: (data: {
       arrivalSchedules: Array<{
         weekday: number;
         expected_arrival: string;
         notes?: string | null;
       }>;
-      pickupData: {
-        schedules: Array<{
-          weekday: number;
-          pickupTime: string;
-          notes?: string;
-        }>;
-      };
+      pickupSchedules: Array<{
+        weekday: number;
+        pickupTime: string;
+        notes?: string;
+      }>;
+    }) => Promise<void>;
+    onSubmitException: (payload: {
+      date: string;
+      arrival:
+        | { kind: "regular" }
+        | { kind: "time"; time: string; reason: string | null }
+        | { kind: "none"; reason: string | null }
+        | null;
+      pickup:
+        | { kind: "regular" }
+        | { kind: "time"; time: string; reason: string | null }
+        | { kind: "none"; reason: string | null }
+        | null;
     }) => Promise<void>;
   }) =>
     isOpen ? (
-      <div data-testid="weekly-plan-modal">
+      <div
+        data-testid={date ? "care-plan-editor-day" : "care-plan-editor-week"}
+      >
         <button
           type="button"
           onClick={() =>
-            void onSubmit({
+            void onSubmitWeekly({
               arrivalSchedules: [
                 { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
               ],
-              pickupData: {
-                schedules: [{ weekday: 1, pickupTime: "15:30", notes: "Bus" }],
-              },
-            })
+              pickupSchedules: [
+                { weekday: 1, pickupTime: "15:30", notes: "Bus" },
+              ],
+            }).catch(() => undefined)
           }
         >
           Wochenplan im Test speichern
         </button>
-        <button type="button" onClick={onClose}>
-          Schließen
-        </button>
-      </div>
-    ) : null,
-}));
-
-vi.mock("./care-day-override-modal", () => ({
-  CareDayOverrideModal: ({
-    isOpen,
-    onClose,
-    onSaveArrivalException,
-    onSavePickupException,
-    onCreateArrivalNote,
-    onCreatePickupNote,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSaveArrivalException: (params: {
-      expectedArrival: string | null;
-      reason?: string | null;
-    }) => Promise<void>;
-    onSavePickupException: (params: {
-      pickupTime?: string;
-      reason?: string;
-    }) => Promise<void>;
-    onCreateArrivalNote: (content: string) => Promise<void>;
-    onCreatePickupNote: (content: string) => Promise<void>;
-  }) =>
-    isOpen ? (
-      <div data-testid="day-override-modal">
         <button
           type="button"
           onClick={() =>
-            void onSaveArrivalException({
-              expectedArrival: "10:10",
-              reason: "Arzt",
-            })
+            void onSubmitException({
+              date: "2026-05-25",
+              arrival: { kind: "time", time: "10:10", reason: "Arzt" },
+              pickup: { kind: "time", time: "15:15", reason: "Training" },
+            }).catch(() => undefined)
           }
         >
-          Ankunft speichern
+          Ausnahme im Test speichern
         </button>
         <button
           type="button"
           onClick={() =>
-            void onSavePickupException({
-              pickupTime: "15:15",
-              reason: "Training",
+            void onSubmitException({
+              date: "2026-05-25",
+              arrival: { kind: "none", reason: null },
+              pickup: null,
+            }).catch(() => undefined)
+          }
+        >
+          Kommt nicht im Test speichern
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void onSubmitException({
+              date: "2026-05-25",
+              arrival: null,
+              pickup: { kind: "none", reason: null },
+            }).catch(() => undefined)
+          }
+        >
+          Keine Abholung im Test speichern
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void onSubmitException({
+              date: "2026-05-25",
+              arrival: { kind: "regular" },
+              pickup: { kind: "regular" },
             })
           }
         >
-          Abholung speichern
-        </button>
-        <button type="button" onClick={() => void onCreateArrivalNote("A")}>
-          Ankunftsnotiz
-        </button>
-        <button type="button" onClick={() => void onCreatePickupNote("P")}>
-          Abholnotiz
+          Auf Regulär zurücksetzen
         </button>
         <button type="button" onClick={onClose}>
           Schließen
@@ -321,11 +337,13 @@ describe("CareScheduleManager", () => {
     mockUpdateArrivalException.mockResolvedValue({});
     mockDeleteArrivalException.mockResolvedValue(undefined);
     mockCreateArrivalNote.mockResolvedValue({});
+    mockUpdateArrivalNote.mockResolvedValue({});
     mockDeleteArrivalNote.mockResolvedValue(undefined);
     mockCreateStudentPickupException.mockResolvedValue({});
     mockUpdateStudentPickupException.mockResolvedValue({});
     mockDeleteStudentPickupException.mockResolvedValue(undefined);
     mockCreateStudentPickupNote.mockResolvedValue({});
+    mockUpdateStudentPickupNote.mockResolvedValue({});
     mockDeleteStudentPickupNote.mockResolvedValue(undefined);
   });
 
@@ -392,8 +410,8 @@ describe("CareScheduleManager", () => {
     await screen.findByText("Betreuungsplan");
     expect(mockFetchArrivalData).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByLabelText("Wochenplan bearbeiten"));
-    expect(screen.getByTestId("weekly-plan-modal")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    expect(screen.getByTestId("care-plan-editor-week")).toBeInTheDocument();
 
     await act(async () => {
       window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
@@ -604,7 +622,7 @@ describe("CareScheduleManager", () => {
     );
     await screen.findByText("Betreuungsplan");
 
-    fireEvent.click(screen.getByLabelText("Wochenplan bearbeiten"));
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
 
     await waitFor(() => {
@@ -618,15 +636,13 @@ describe("CareScheduleManager", () => {
     });
   });
 
-  it("opens day editing and persists day changes", async () => {
+  it("opens the exception editor and persists the day change", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungsplan");
 
-    fireEvent.click(screen.getAllByText("10:10")[0]!);
-    fireEvent.click(screen.getByText("Ankunft speichern"));
-    fireEvent.click(screen.getByText("Abholung speichern"));
-    fireEvent.click(screen.getByText("Ankunftsnotiz"));
-    fireEvent.click(screen.getByText("Abholnotiz"));
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    expect(screen.getByTestId("care-plan-editor-day")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Ausnahme im Test speichern"));
 
     await waitFor(() => {
       expect(mockUpdateArrivalException).toHaveBeenCalledWith("42", 10, {
@@ -643,15 +659,98 @@ describe("CareScheduleManager", () => {
           reason: "Training",
         },
       );
-      expect(mockCreateArrivalNote).toHaveBeenCalledWith("42", {
-        note_date: "2026-05-25",
-        content: "A",
-      });
-      expect(mockCreateStudentPickupNote).toHaveBeenCalledWith("42", {
-        noteDate: "2026-05-25",
-        content: "P",
+    });
+  });
+
+  it("clears an existing arrival time when the student does not come", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    fireEvent.click(screen.getByText("Kommt nicht im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateArrivalException).toHaveBeenCalledWith("42", 10, {
+        exception_date: "2026-05-25",
+        expected_arrival: null,
+        clear_expected_arrival: true,
+        reason: "",
       });
     });
+  });
+
+  it("clears an existing pickup time when there is no pickup", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    fireEvent.click(screen.getByText("Keine Abholung im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateStudentPickupException).toHaveBeenCalledWith(
+        "42",
+        "20",
+        {
+          exceptionDate: "2026-05-25",
+          pickupTime: undefined,
+          clearPickupTime: true,
+          reason: "",
+        },
+      );
+    });
+  });
+
+  it("refreshes after a partially saved day exception", async () => {
+    mockUpdateStudentPickupException.mockRejectedValueOnce(
+      new Error("Abholung konnte nicht gespeichert werden"),
+    );
+
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    fireEvent.click(screen.getByText("Ausnahme im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateArrivalException).toHaveBeenCalled();
+      expect(mockUpdateStudentPickupException).toHaveBeenCalled();
+      expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
+      expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("refreshes after a partially saved weekly plan", async () => {
+    mockUpdateStudentPickupSchedules.mockRejectedValueOnce(
+      new Error("Abholplan konnte nicht gespeichert werden"),
+    );
+
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateArrivalSchedules).toHaveBeenCalled();
+      expect(mockUpdateStudentPickupSchedules).toHaveBeenCalled();
+      expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
+      expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("removes the existing exceptions when the day is set back to regular", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    fireEvent.click(screen.getByText("Auf Regulär zurücksetzen"));
+
+    await waitFor(() => {
+      expect(mockDeleteArrivalException).toHaveBeenCalledWith("42", 10);
+      expect(mockDeleteStudentPickupException).toHaveBeenCalledWith("42", "20");
+    });
+    expect(mockCreateArrivalException).not.toHaveBeenCalled();
+    expect(mockCreateStudentPickupException).not.toHaveBeenCalled();
   });
 
   it("opens confirmation before deleting a planned status day", async () => {

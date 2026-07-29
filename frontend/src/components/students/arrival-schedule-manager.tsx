@@ -158,6 +158,9 @@ export function ArrivalScheduleManager({
       const input = {
         exception_date: dateStr,
         expected_arrival: params.expectedArrival,
+        ...(editingDay.exception && params.expectedArrival === null
+          ? { clear_expected_arrival: true }
+          : {}),
         reason: params.reason ?? null,
       };
       if (editingDay.exception) {

@@ -14,8 +14,11 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { CareDayOverrideModal } from "./care-day-override-modal";
-import { CareWeeklyPlanModal } from "./care-weekly-plan-modal";
+import {
+  type CareExceptionSubmit,
+  type CarePlanWeeklySubmit,
+  CarePlanEditorModal,
+} from "./care-plan-editor-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   type ArrivalData,
@@ -25,11 +28,11 @@ import {
   deleteArrivalNote,
   fetchArrivalData,
   updateArrivalException,
+  updateArrivalNote,
   updateArrivalSchedules,
 } from "~/lib/student-arrival-api";
 import {
   type ArrivalDayData,
-  type ArrivalScheduleFormEntry,
   WEEKDAYS,
   formatDateISO,
   formatShortDate,
@@ -44,10 +47,10 @@ import {
   deleteStudentPickupNote,
   fetchStudentPickupData,
   updateStudentPickupException,
+  updateStudentPickupNote,
   updateStudentPickupSchedules,
 } from "~/lib/pickup-schedule-api";
 import {
-  type BulkPickupScheduleFormData,
   type DayData as PickupDayData,
   type PickupData,
   formatPickupTime,
@@ -193,8 +196,12 @@ export function CareScheduleManager({
   const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-  const [isWeeklyPlanModalOpen, setIsWeeklyPlanModalOpen] = useState(false);
-  const [editingDayDate, setEditingDayDate] = useState<Date | null>(null);
+  // The single care-plan editor. null = closed; { date: Date } = opened from a
+  // day card (all three scopes offered); { date: null } = opened from the week
+  // header, where there is no day context and only the weekly plan applies.
+  const [editorTarget, setEditorTarget] = useState<{
+    date: Date | null;
+  } | null>(null);
   const [statusDayToDelete, setStatusDayToDelete] =
     useState<StudentStatusDay | null>(null);
   const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
@@ -400,7 +407,7 @@ export function CareScheduleManager({
   // pickupData: CareWeeklyPlanModal re-runs its row-building effect whenever
   // those props change identity, so writing them mid-edit silently discards
   // whatever the user has typed.
-  const isEditorOpen = isWeeklyPlanModalOpen || editingDayDate !== null;
+  const isEditorOpen = editorTarget !== null;
   // Read through a ref inside the listener so opening/closing a modal does not
   // resubscribe it, and so the check uses the state at event time.
   const isEditorOpenRef = useRef(isEditorOpen);
@@ -451,24 +458,53 @@ export function CareScheduleManager({
     refreshFromRemote();
   }, [isEditorOpen, refreshFromRemote]);
 
-  const handleUpdateWeeklyPlan = async (data: {
-    arrivalSchedules: ArrivalScheduleFormEntry[];
-    pickupData: BulkPickupScheduleFormData;
-  }) => {
-    await Promise.all([
-      updateArrivalSchedules(
-        studentId,
-        data.arrivalSchedules.map((schedule) => ({
-          weekday: schedule.weekday,
-          expected_arrival: schedule.expected_arrival,
-          notes: schedule.notes ?? null,
-        })),
-      ),
-      updateStudentPickupSchedules(studentId, data.pickupData),
-    ]);
-    await refreshCareData();
-    invalidatePickupCaches();
-  };
+  const handleUpdateWeeklyPlan = useCallback(
+    async (data: CarePlanWeeklySubmit) => {
+      // Arrival and pickup are separate endpoints, so one leg can persist while
+      // the other fails. Wait for both, refresh whenever anything landed, and
+      // only then report the failure. Retrying on stale rows would otherwise
+      // resubmit values the server already replaced.
+      const results = await Promise.allSettled([
+        updateArrivalSchedules(
+          studentId,
+          data.arrivalSchedules.map((schedule) => ({
+            weekday: schedule.weekday,
+            expected_arrival: schedule.expected_arrival,
+            notes: schedule.notes ?? null,
+          })),
+        ),
+        updateStudentPickupSchedules(studentId, {
+          schedules: data.pickupSchedules,
+        }),
+      ]);
+
+      const failure = results.find(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+
+      if (results.some((result) => result.status === "fulfilled")) {
+        try {
+          await refreshCareData();
+          invalidatePickupCaches();
+        } catch (refreshErr) {
+          if (!failure) throw refreshErr;
+          logger.error("care_schedule_partial_weekly_refresh_failed", {
+            error:
+              refreshErr instanceof Error
+                ? refreshErr.message
+                : String(refreshErr),
+            student_id: studentId,
+          });
+        }
+      }
+
+      if (failure) throw failure.reason;
+    },
+    [studentId, refreshCareData],
+  );
+
+  const editingDayDate = editorTarget?.date ?? null;
 
   const currentEditingArrivalDay = useMemo(() => {
     if (!editingDayDate) return null;
@@ -498,53 +534,117 @@ export function CareScheduleManager({
     );
   }, [editingDayDate, pickupData, isSick, isExcused, statusByDate]);
 
-  const handleSaveArrivalException = useCallback(
-    async (params: {
-      expectedArrival: string | null;
-      reason?: string | null;
-    }) => {
-      if (!currentEditingArrivalDay) return;
-      const dateStr = formatDateISO(currentEditingArrivalDay.date);
-      const input = {
-        exception_date: dateStr,
-        expected_arrival: params.expectedArrival,
-        reason: params.reason ?? null,
-      };
-      if (currentEditingArrivalDay.exception) {
-        await updateArrivalException(
-          studentId,
-          currentEditingArrivalDay.exception.id,
-          input,
-        );
-      } else {
-        await createArrivalException(studentId, input);
-      }
-      await refreshCareData();
-    },
-    [currentEditingArrivalDay, studentId, refreshCareData],
-  );
+  /**
+   * Write the exception for one day. "Regulär" means the day has no override,
+   * so it maps to a delete; every other mode creates or updates the row. A leg
+   * the editor reports as untouched (`null`) is skipped entirely — writing it
+   * would reclaim a guardian-authored day from the parent for no reason.
+   */
+  const handleSubmitException = useCallback(
+    async (payload: CareExceptionSubmit) => {
+      const { date: dayISO, arrival, pickup } = payload;
+      let persistedChange = false;
 
-  const handleDeleteArrivalException = useCallback(async () => {
-    if (!currentEditingArrivalDay?.exception) return;
-    await deleteArrivalException(
-      studentId,
-      currentEditingArrivalDay.exception.id,
-    );
-    await refreshCareData();
-  }, [currentEditingArrivalDay, studentId, refreshCareData]);
+      try {
+        if (arrival) {
+          const existing = arrivalData.exceptions.find(
+            (exception) => exception.exception_date.slice(0, 10) === dayISO,
+          );
+          if (arrival.kind === "regular") {
+            if (existing) {
+              await deleteArrivalException(studentId, existing.id);
+              persistedChange = true;
+            }
+          } else {
+            const input = {
+              exception_date: dayISO,
+              expected_arrival: arrival.kind === "time" ? arrival.time : null,
+              ...(arrival.kind === "none"
+                ? { clear_expected_arrival: true }
+                : {}),
+              // An empty string deliberately clears an existing reason. A null
+              // JSON value means "leave unchanged" to the patch endpoint.
+              reason: existing && arrival.reason === null ? "" : arrival.reason,
+            };
+            if (existing) {
+              await updateArrivalException(studentId, existing.id, input);
+            } else {
+              await createArrivalException(studentId, input);
+            }
+            persistedChange = true;
+          }
+        }
+
+        if (pickup) {
+          const existing = pickupData.exceptions.find(
+            (exception) => exception.exceptionDate.slice(0, 10) === dayISO,
+          );
+          if (pickup.kind === "regular") {
+            if (existing) {
+              await deleteStudentPickupException(studentId, existing.id);
+              persistedChange = true;
+            }
+          } else {
+            const input = {
+              exceptionDate: dayISO,
+              pickupTime: pickup.kind === "time" ? pickup.time : undefined,
+              ...(pickup.kind === "none" ? { clearPickupTime: true } : {}),
+              // See the arrival leg above: only an existing row needs the
+              // distinguishable empty value to clear its persisted reason.
+              reason:
+                existing && pickup.reason === null
+                  ? ""
+                  : (pickup.reason ?? undefined),
+            };
+            if (existing) {
+              await updateStudentPickupException(studentId, existing.id, input);
+            } else {
+              await createStudentPickupException(studentId, input);
+            }
+            persistedChange = true;
+          }
+        }
+      } catch (err) {
+        // Arrival and pickup are separate endpoints, so a failed second request
+        // can leave the first change persisted. Refresh before reporting the
+        // error so the open editor reflects that server state.
+        if (persistedChange) {
+          try {
+            await refreshCareData();
+            invalidatePickupCaches();
+          } catch (refreshErr) {
+            logger.error("care_schedule_partial_exception_refresh_failed", {
+              error:
+                refreshErr instanceof Error
+                  ? refreshErr.message
+                  : String(refreshErr),
+              student_id: studentId,
+            });
+          }
+        }
+        throw err;
+      }
+
+      await refreshCareData();
+      invalidatePickupCaches();
+    },
+    [arrivalData.exceptions, pickupData.exceptions, studentId, refreshCareData],
+  );
 
   const handleCreateArrivalNote = useCallback(
-    async (content: string) => {
-      if (!currentEditingArrivalDay) return;
-      await createArrivalNote(studentId, {
-        note_date: formatDateISO(currentEditingArrivalDay.date),
-        content,
-      });
+    async (date: string, content: string) => {
+      await createArrivalNote(studentId, { note_date: date, content });
       await refreshCareData();
     },
-    [currentEditingArrivalDay, studentId, refreshCareData],
+    [studentId, refreshCareData],
   );
-
+  const handleUpdateArrivalNote = useCallback(
+    async (date: string, noteId: number, content: string) => {
+      await updateArrivalNote(studentId, noteId, { note_date: date, content });
+      await refreshCareData();
+    },
+    [studentId, refreshCareData],
+  );
   const handleDeleteArrivalNote = useCallback(
     async (noteId: number) => {
       await deleteArrivalNote(studentId, noteId);
@@ -552,57 +652,25 @@ export function CareScheduleManager({
     },
     [studentId, refreshCareData],
   );
-
-  const handleSavePickupException = useCallback(
-    async (params: { pickupTime?: string; reason?: string }) => {
-      if (!currentEditingPickupDay) return;
-      const dateStr = formatDateISO(currentEditingPickupDay.date);
-      if (currentEditingPickupDay.exception) {
-        await updateStudentPickupException(
-          studentId,
-          currentEditingPickupDay.exception.id,
-          {
-            exceptionDate: dateStr,
-            pickupTime: params.pickupTime,
-            reason: params.reason,
-          },
-        );
-      } else {
-        await createStudentPickupException(studentId, {
-          exceptionDate: dateStr,
-          pickupTime: params.pickupTime,
-          reason: params.reason,
-        });
-      }
+  const handleCreatePickupNote = useCallback(
+    async (date: string, content: string) => {
+      await createStudentPickupNote(studentId, { noteDate: date, content });
       await refreshCareData();
       invalidatePickupCaches();
     },
-    [currentEditingPickupDay, studentId, refreshCareData],
+    [studentId, refreshCareData],
   );
-
-  const handleDeletePickupException = useCallback(async () => {
-    if (!currentEditingPickupDay?.exception) return;
-    await deleteStudentPickupException(
-      studentId,
-      currentEditingPickupDay.exception.id,
-    );
-    await refreshCareData();
-    invalidatePickupCaches();
-  }, [currentEditingPickupDay, studentId, refreshCareData]);
-
-  const handleCreatePickupNote = useCallback(
-    async (content: string) => {
-      if (!currentEditingPickupDay) return;
-      await createStudentPickupNote(studentId, {
-        noteDate: formatDateISO(currentEditingPickupDay.date),
+  const handleUpdatePickupNote = useCallback(
+    async (date: string, noteId: string, content: string) => {
+      await updateStudentPickupNote(studentId, noteId, {
+        noteDate: date,
         content,
       });
       await refreshCareData();
       invalidatePickupCaches();
     },
-    [currentEditingPickupDay, studentId, refreshCareData],
+    [studentId, refreshCareData],
   );
-
   const handleDeletePickupNote = useCallback(
     async (noteId: string) => {
       await deleteStudentPickupNote(studentId, noteId);
@@ -684,15 +752,21 @@ export function CareScheduleManager({
             >
               Heute
             </button>
+            {/* Labelled on purpose: an unlabelled pencil here was
+                indistinguishable from the per-day pencils below, which is the
+                confusion issue #893 reports. */}
             {!readOnly ? (
               <button
                 type="button"
-                onClick={() => setIsWeeklyPlanModalOpen(true)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                aria-label="Wochenplan bearbeiten"
+                onClick={() => setEditorTarget({ date: null })}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 title="Wochenplan bearbeiten"
               >
-                <SquarePen className="h-4 w-4" aria-hidden="true" />
+                <SquarePen className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {/* Label kept on mobile too: an icon-only pencil here is the
+                    exact ambiguity with the per-day pencils that #893 reports,
+                    and the header has room for the word on both layouts. */}
+                <span>Wochenplan</span>
               </button>
             ) : null}
           </div>
@@ -743,7 +817,7 @@ export function CareScheduleManager({
             onPreviousWeek={() => showWeek(weekOffset - 1)}
             onNextWeek={() => showWeek(weekOffset + 1)}
             onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
-            onEditDay={setEditingDayDate}
+            onEditDay={(day) => setEditorTarget({ date: day })}
             onRequestDeleteStatusDay={setStatusDayToDelete}
           />
         </div>
@@ -754,7 +828,7 @@ export function CareScheduleManager({
                 key={formatDateISO(day.date)}
                 day={day}
                 readOnly={readOnly}
-                onEditDay={setEditingDayDate}
+                onEditDay={(day) => setEditorTarget({ date: day })}
                 deletingStatusDayId={deletingStatusDayId}
                 onRequestDeleteStatusDay={setStatusDayToDelete}
               />
@@ -763,29 +837,21 @@ export function CareScheduleManager({
         </div>
       </div>
 
-      <CareWeeklyPlanModal
-        isOpen={isWeeklyPlanModalOpen}
-        onClose={() => setIsWeeklyPlanModalOpen(false)}
-        onSubmit={handleUpdateWeeklyPlan}
-        initialArrivalSchedules={mergeArrivalSchedulesWithTemplate(
-          arrivalData.schedules,
-        )}
-        initialPickupSchedules={mergePickupSchedulesWithTemplate(
-          pickupData.schedules,
-        )}
-      />
-      <CareDayOverrideModal
-        isOpen={editingDayDate !== null}
-        onClose={() => setEditingDayDate(null)}
+      <CarePlanEditorModal
+        isOpen={editorTarget !== null}
+        onClose={() => setEditorTarget(null)}
+        date={editingDayDate}
         arrivalDay={currentEditingArrivalDay}
         pickupDay={currentEditingPickupDay}
-        onSaveArrivalException={handleSaveArrivalException}
-        onDeleteArrivalException={handleDeleteArrivalException}
+        weeklyArrival={mergeArrivalSchedulesWithTemplate(arrivalData.schedules)}
+        weeklyPickup={mergePickupSchedulesWithTemplate(pickupData.schedules)}
+        onSubmitException={handleSubmitException}
+        onSubmitWeekly={handleUpdateWeeklyPlan}
         onCreateArrivalNote={handleCreateArrivalNote}
+        onUpdateArrivalNote={handleUpdateArrivalNote}
         onDeleteArrivalNote={handleDeleteArrivalNote}
-        onSavePickupException={handleSavePickupException}
-        onDeletePickupException={handleDeletePickupException}
         onCreatePickupNote={handleCreatePickupNote}
+        onUpdatePickupNote={handleUpdatePickupNote}
         onDeletePickupNote={handleDeletePickupNote}
       />
       <ConfirmationModal
@@ -984,6 +1050,7 @@ function CareDayCard({
 }) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const hasStatus = day.status !== null;
+  const hasException = day.arrival.isException || day.pickup.isException;
   // A guardian-sourced exception means a parent changed this day's pickup or
   // arrival time from the parents portal — flag it so staff don't mistake it
   // for their own edit at the door.
@@ -1035,7 +1102,23 @@ function CareDayCard({
             )}
           </div>
         </div>
-        {hasStatus ? <StatusPill status={day.status} /> : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {hasStatus ? <StatusPill status={day.status} /> : null}
+          {/* ONE labelled entry per day, top right where the eye lands. Two
+              pencils per card that both opened the same dialog, plus a third
+              nameless one for the week, is the confusion #893 reports. */}
+          {!readOnly && !hasStatus ? (
+            <button
+              type="button"
+              onClick={() => onEditDay(day.date)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              title={hasException ? "Ausnahme ändern" : "Ausnahme eintragen"}
+            >
+              <SquarePen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              Ausnahme
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-3 flex flex-1 flex-col space-y-3">
@@ -1048,7 +1131,10 @@ function CareDayCard({
             onRequestDeleteStatusDay={onRequestDeleteStatusDay}
           />
         ) : (
-          <CareBoundarySection boundaries={boundaries} readOnly={readOnly} />
+          <CareBoundarySection
+            boundaries={boundaries}
+            onEdit={readOnly ? undefined : () => onEditDay(day.date)}
+          />
         )}
         {appointments.length > 0 ? (
           <CareAppointmentSection appointments={appointments} />
@@ -1129,85 +1215,81 @@ function AbsencePlaceholder({
 
 function CareBoundarySection({
   boundaries,
-  readOnly,
+  onEdit,
 }: {
   readonly boundaries: CareBoundaryItem[];
-  readonly readOnly: boolean;
+  /** undefined = read-only; the whole block opens the day editor otherwise. */
+  readonly onEdit?: () => void;
 }) {
+  const rows = (
+    <div className="flex flex-1 flex-col divide-y divide-gray-100">
+      {boundaries.map((boundary) => (
+        <CareBoundaryRow key={boundary.key} boundary={boundary} />
+      ))}
+    </div>
+  );
+
+  // The block is ONE target rather than one per line: tapping a time still
+  // opens the editor, but the card shows a single pencil (in its header)
+  // instead of one per row.
+  if (onEdit) {
+    return (
+      <button
+        type="button"
+        onClick={onEdit}
+        className="flex min-h-[134px] w-full flex-col rounded-lg border border-gray-100 bg-gray-50 text-left transition-colors hover:bg-gray-100/70 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        {rows}
+      </button>
+    );
+  }
+
   return (
     <div className="flex min-h-[134px] flex-col rounded-lg border border-gray-100 bg-gray-50">
-      <div className="flex flex-1 flex-col divide-y divide-gray-100">
-        {boundaries.map((boundary) => (
-          <CareBoundaryRow
-            key={boundary.key}
-            boundary={boundary}
-            readOnly={readOnly}
-          />
-        ))}
-      </div>
+      {rows}
     </div>
   );
 }
 
 function CareBoundaryRow({
   boundary,
-  readOnly,
 }: {
   readonly boundary: CareBoundaryItem;
-  readonly readOnly: boolean;
 }) {
-  const content = (
-    <>
-      <span
-        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm"
-        style={{
-          backgroundColor: `${boundary.color}14`,
-          color: boundary.color,
-        }}
-      >
-        {boundary.icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-          {boundary.label}
-        </div>
-        <div className="text-sm leading-5 font-semibold text-gray-900">
-          {boundary.value}
-          {boundary.marker ? (
-            <span className="ml-2 rounded-full bg-white px-1.5 py-0.5 align-middle text-[11px] font-semibold text-gray-500 shadow-sm">
-              {boundary.marker}
-            </span>
-          ) : null}
-        </div>
-        {boundary.description ? (
-          <div className="mt-0.5 text-xs leading-5 text-gray-500">
-            {boundary.description}
-          </div>
-        ) : null}
-      </div>
-      {!readOnly && boundary.onEdit ? (
-        <span className="rounded-md p-1.5 text-gray-400 transition-colors group-hover:bg-gray-200/70 group-hover:text-gray-700">
-          <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-      ) : null}
-    </>
-  );
-
-  if (!readOnly && boundary.onEdit) {
-    return (
-      <button
-        type="button"
-        onClick={boundary.onEdit}
-        className="group flex w-full min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-gray-100/70 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        {content}
-      </button>
-    );
-  }
-
   return (
     <div className="flex flex-1 px-3 py-2.5">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">{content}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <span
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm"
+          style={{
+            backgroundColor: `${boundary.color}14`,
+            color: boundary.color,
+          }}
+        >
+          {boundary.icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+            {boundary.label}
+          </div>
+          {/* Flex-wrapped rather than inline: the badge is taller than the 20px
+              line box, so as an inline element it painted over the next line
+              whenever the value wrapped ("Keine Abholung" in a day column). */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
+            <span className="min-w-0 break-words">{boundary.value}</span>
+            {boundary.marker ? (
+              <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
+                {boundary.marker}
+              </span>
+            ) : null}
+          </div>
+          {boundary.description ? (
+            <div className="mt-0.5 text-xs leading-5 text-gray-500">
+              {boundary.description}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

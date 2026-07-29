@@ -152,6 +152,7 @@ export async function bulkUpsertArrivalByClass(
 interface ArrivalExceptionInput {
   exception_date: string;
   expected_arrival: string | null;
+  clear_expected_arrival?: boolean;
   reason?: string | null;
 }
 

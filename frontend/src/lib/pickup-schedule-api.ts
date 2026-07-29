@@ -31,7 +31,8 @@ interface ApiResponse<T> {
 
 // Error response from failed JSON parsing
 interface ErrorResponse {
-  error: string;
+  error?: string;
+  code?: string;
 }
 
 // Type guard for error responses
@@ -39,8 +40,8 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   return (
     typeof value === "object" &&
     value !== null &&
-    "error" in value &&
-    typeof (value as ErrorResponse).error === "string"
+    (typeof (value as ErrorResponse).error === "string" ||
+      typeof (value as ErrorResponse).code === "string")
   );
 }
 
@@ -73,6 +74,12 @@ const errorTranslations: Record<string, string> = {
 function translateApiError(errorMessage: string): string {
   const lowerError = errorMessage.toLowerCase();
 
+  // The care-plan modal turns this backend code into the specific explanation
+  // for accounts that cannot replace a guardian-authored exception.
+  if (lowerError.includes("staff_profile_required")) {
+    return "staff_profile_required";
+  }
+
   for (const [pattern, translation] of Object.entries(errorTranslations)) {
     if (lowerError.includes(pattern)) {
       return translation;
@@ -93,7 +100,7 @@ async function throwResponseError(
     .json()
     .catch(() => ({ error: fallback }));
   const errorMessage = isErrorResponse(error)
-    ? translateApiError(error.error)
+    ? translateApiError(error.code ?? error.error ?? fallback)
     : translateApiError(`${fallback}: ${response.statusText}`);
   throw new Error(errorMessage);
 }

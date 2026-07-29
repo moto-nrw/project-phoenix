@@ -183,6 +183,7 @@ export default function PickupScheduleManager({
         await updateStudentPickupException(studentId, editingDay.exception.id, {
           exceptionDate: dateStr,
           pickupTime: params.pickupTime,
+          ...(params.pickupTime === undefined ? { clearPickupTime: true } : {}),
           reason: params.reason,
         });
       } else {

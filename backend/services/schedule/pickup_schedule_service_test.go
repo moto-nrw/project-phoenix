@@ -524,6 +524,7 @@ func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *test
 		exceptionDate,
 		&updatedReason,
 		nil,
+		false,
 		func() (int64, error) { return staffID, nil },
 	)
 	require.NoError(t, err)
@@ -534,6 +535,43 @@ func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *test
 	require.NoError(t, err)
 	require.NotNil(t, fresh.PickupTime)
 	assert.Equal(t, pickupTime.Format("15:04"), fresh.PickupTime.Format("15:04"))
+}
+
+func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupPickupScheduleService(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Test", "PickupClear", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	ctx := testpkg.TenantContext(student.TenantID)
+	staffID := createPickupServiceTestStaffID(t, db)
+	exceptionDate := timezone.NewDate(2024, 4, 2)
+	pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
+	exception := &scheduleModels.StudentPickupException{
+		StudentID:     student.ID,
+		ExceptionDate: exceptionDate,
+		PickupTime:    &pickupTime,
+		Reason:        testpkg.StrPtr("Original reason"),
+		CreatedBy:     staffID,
+	}
+	require.NoError(t, service.CreateStudentPickupException(ctx, exception))
+	clearReason := ""
+
+	updated, err := service.UpdateException(
+		ctx,
+		exception.ID,
+		student.ID,
+		exceptionDate,
+		&clearReason,
+		nil,
+		true,
+		func() (int64, error) { return staffID, nil },
+	)
+	require.NoError(t, err)
+	assert.Nil(t, updated.PickupTime)
+	assert.Nil(t, updated.Reason)
 }
 
 func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
