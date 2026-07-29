@@ -142,6 +142,20 @@ Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`,
 - **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. The page-level sizes (`sm` `base` `lg` `xl`) are `rounded-lg px-5 py-3 shadow-md` and oversized for both dense chrome and modal footers; for toolbars, dropdown triggers, and icon actions use `size="compact"` / `size="icon"` (flat `h-8`, `rounded-md`) with `variant="ghost"`, and for **modal / slide-over footers and in-form actions** use `size="md"` (`px-4 py-2 text-sm`) instead of reaching for `size="sm"` (which is the same height as `base`).
 - **`NavigationTabs` collapses to a dropdown on mobile** — use it for page-level navigation, not a compact segmented switcher. For a segmented switcher use `ui/Tabs` `variant="default"`.
 
+## UI skills: this rule outranks all of them
+
+The UI skills live in `frontend/.claude/skills/` and load only when an agent works in `frontend/`. Several of them overlap, so precedence is fixed: **this rule and the kit win; a skill's generic advice is the fallback where this rule is silent.** Run one review, not four. `better-interface` coordinates the six `better-*` skills and is the entry point for a full pass.
+
+The three places where following the vendored skill literally produces wrong output here (two of them fail `pnpm run check`):
+
+| Skill says | Here instead |
+|---|---|
+| `better-ui/surfaces.md`: prefer a `box-shadow` ring over a border for depth | Keep the canonical card surface: `.moto-content-surface` / `rounded-2xl border border-gray-200 bg-white shadow-sm`. Do not strip borders off kit surfaces. |
+| `better-colors`: express colors as OKLCH tokens | Brand semantics come from `LOCATION_COLORS` hex only. New chromatic Tailwind utilities trip the `ui-kit/no-generic-brand-colors` ratchet. Convert notation only in an explicit, approved color-system migration. |
+| `better-writing`: title case vs sentence case, English phrasing | All user-facing copy is German, with Umlauten. Take the structural advice (name the action in the label, errors next to the field, one clear action per empty state); match the wording of neighbouring screens. |
+
+On motion, `ui-skills` is stricter than `better-ui/animations.md` and wins: no animation unless it was asked for, compositor properties only.
+
 ## Detection
 
 **CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on three drift patterns beyond its shrink-only, per-match baselines — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), and `ui-kit/no-rounded-3xl` (off-scale card radius). Each legacy utility is tracked by value and count, so existing files cannot add violations. When you migrate a file, reduce its baseline; never increase one. Test/stories files are exempt (several assert on the legacy classes — the brand-hex fix for the kit primitives themselves is a deliberate rule change requiring test updates in the same PR).

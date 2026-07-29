@@ -13,13 +13,32 @@ Shared [Claude Code](https://claude.ai/code) configuration for this repo. Everyt
 │   ├── format-typescript.sh    #   prettier after TS edits
 │   ├── check-commit-message.sh #   conventional-commit validation
 │   ├── check-env-files.sh      #   env file security check on session start
-│   ├── skill-reminder.sh       #   nudges active skill usage
+│   ├── skill-reminder.sh       #   nudges active skill usage, area-aware
 │   └── subagent-reminder.sh
 ├── scripts/                    # Helper scripts (context-monitor.py)
 ├── skills/                     # Project skills: settings, help-guide-sync,
 │   │                           #   env-docker-sync, creating-team-skills, find-skills
 └── rules/                      # Always-on + path-scoped guidance (see below)
 ```
+
+## Skills are area-scoped
+
+| Directory | Holds | Listed by the reminder |
+|---|---|---|
+| `.claude/skills/` | cross-cutting project skills | always |
+| `frontend/.claude/skills/` | frontend-only (UI kit, interface reviews, React) | when frontend/ looks active |
+| `backend/.claude/skills/` | backend-only (Postgres, logging) | when backend/ looks active |
+
+Claude Code loads an area's skills natively as soon as an agent touches a file
+under that directory, and prefixes any name that collides with a global skill
+(`frontend:agent-browser`). `skill-reminder.sh` mirrors that in its nudge: root
+skills always, an area's skills when the cwd is inside it, the working tree has
+changes under it, or the prompt mentions it. Keep area skills out of
+`.claude/skills/`, anything there costs context in every session, including
+pure backend work.
+
+A skill is a directory with a `SKILL.md`. A loose `.md` file dropped into a
+skills directory is invisible to both the reminder and the agent.
 
 ## Rules
 

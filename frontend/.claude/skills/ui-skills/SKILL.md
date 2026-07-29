@@ -7,6 +7,8 @@ description: Opinionated constraints for building better interfaces with agents.
 
 When invoked, apply these opinionated constraints for building better interfaces.
 
+`.claude/rules/frontend-ui-kit.md` and the kit in `src/components/ui/` outrank every constraint below. These are the fallback for anything the rule does not cover.
+
 ## How to use
 
 - `/ui-skills`  
@@ -82,4 +84,4 @@ When invoked, apply these opinionated constraints for building better interfaces
 - SHOULD use Tailwind CSS default shadow scale unless explicitly requested
 - MUST give empty states one clear next action
 - SHOULD limit accent color usage to one per view
-- SHOULD use existing theme or Tailwind CSS color tokens before introducing new ones
+- MUST take brand colors from `LOCATION_COLORS` (`src/lib/location-helper.ts`), never from generic Tailwind hues. `bg-green-500` is a different green and trips the `ui-kit/no-generic-brand-colors` ratchet
