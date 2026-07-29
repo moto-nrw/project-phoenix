@@ -399,10 +399,12 @@ func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
 		tenantID  int64 = 31
 		studentID int64 = 9
 		reviewer  int64 = 77
+		submitter int64 = 88
 	)
 	today := timezone.TodayDate()
 	row := pendingRow(5, studentID, today)
 	row.TenantID = tenantID
+	row.SubmittedBy = submitter
 	student := &usersModels.Student{}
 	student.ID = studentID
 
@@ -443,4 +445,5 @@ func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
 	assert.Equal(t, []timezone.Date{today}, report.Dates)
 	assert.True(t, report.FromParent)
 	assert.Equal(t, reviewer, report.ActorAccountID)
+	assert.Equal(t, []int64{submitter}, report.ExcludedAccountIDs)
 }

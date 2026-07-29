@@ -516,12 +516,13 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 				tenantID = tenant.FromContext(ctx)
 			}
 			report := notificationsService.AbsenceReport{
-				TenantID:       tenantID,
-				StudentIDs:     []int64{req.StudentID},
-				Status:         activeModels.StudentStatusDayExcused,
-				Dates:          req.Dates,
-				FromParent:     true,
-				ActorAccountID: input.ReviewedBy,
+				TenantID:           tenantID,
+				StudentIDs:         []int64{req.StudentID},
+				Status:             activeModels.StudentStatusDayExcused,
+				Dates:              req.Dates,
+				FromParent:         true,
+				ActorAccountID:     input.ReviewedBy,
+				ExcludedAccountIDs: []int64{req.SubmittedBy},
 			}
 			tenant.RegisterAfterCommit(ctx, func() {
 				s.absenceNotify.NotifyAbsenceReported(context.Background(), report)

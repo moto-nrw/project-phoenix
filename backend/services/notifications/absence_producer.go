@@ -51,6 +51,9 @@ type AbsenceReport struct {
 	// ActorAccountID is excluded from the recipients: nobody needs a push about
 	// their own keystroke.
 	ActorAccountID int64
+	// ExcludedAccountIDs covers other people who originated the same report,
+	// such as a guardian whose request was later approved by staff.
+	ExcludedAccountIDs []int64
 }
 
 // AbsenceNotifier turns a recorded absence into a notification for the people
@@ -238,6 +241,9 @@ func (n *absenceNotifier) resolveDeliveries(ctx context.Context, report AbsenceR
 	}
 
 	delete(visibleByAccount, report.ActorAccountID)
+	for _, accountID := range report.ExcludedAccountIDs {
+		delete(visibleByAccount, accountID)
+	}
 	if len(visibleByAccount) == 0 {
 		return nil, nil
 	}

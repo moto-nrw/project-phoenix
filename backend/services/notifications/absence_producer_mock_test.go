@@ -361,6 +361,18 @@ func TestAbsenceNotifierExcludesTheActor(t *testing.T) {
 		"nobody needs a push about their own keystroke")
 }
 
+func TestAbsenceNotifierExcludesAdditionalOriginators(t *testing.T) {
+	producer, w := newAbsenceWorld()
+
+	report := sickToday(absenceStudentA)
+	report.ExcludedAccountIDs = []int64{absenceAccountA}
+	producer.NotifyAbsenceReported(context.Background(), report)
+
+	require.Len(t, w.notifier.events, 1)
+	assert.Equal(t, []int64{absenceAdmin}, w.notifier.events[0].Audience.StaffAccountIDs,
+		"a guardian with a staff role must not receive their own approved report")
+}
+
 func TestAbsenceNotifierRespectsConsent(t *testing.T) {
 	t.Run("only those who agreed are addressed", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
