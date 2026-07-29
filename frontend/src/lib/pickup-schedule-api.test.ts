@@ -463,12 +463,13 @@ describe("pickup-schedule-api", () => {
       ).rejects.toThrow("Kind nicht gefunden");
     });
 
-    it("keeps the staff-profile error code for the care-plan editor", async () => {
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(
-          createMockResponse(false, 403, { error: "staff_profile_required" }),
-        );
+    it("keeps the staff-profile response code for the care-plan editor", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(false, 403, {
+          error: "a staff profile is required to change a parent-set time",
+          code: "staff_profile_required",
+        }),
+      );
 
       await expect(
         updateStudentPickupException("123", "456", exceptionData),
