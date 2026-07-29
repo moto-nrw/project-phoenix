@@ -1205,26 +1205,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 <UnreadBadge count={parentNewsUnread} className="ml-auto" />
               </Link>
             )}
-            <Link
-              href="/parents/feedback"
-              className={getLinkClasses("/parents/feedback")}
-            >
-              <svg
-                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d={navigationIcons.feedback}
-                />
-              </svg>
-              <span>{tParentNav("feedback")}</span>
-              <UnreadBadge count={parentFeedbackUnread} className="ml-auto" />
-            </Link>
             {parentMealPlanEnabled && (
               <Link
                 href="/parents/meal-plan"
@@ -1281,6 +1261,32 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 ))}
               </div>
             </div>
+          </nav>
+
+          {/* Bottom-pinned, like the staff sidebar's Feedback item: this is a
+              channel to the moto product team, not a daily-use area, so it must
+              not compete with the child's own pages above. */}
+          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
+            <Link
+              href="/parents/feedback"
+              className={getLinkClasses("/parents/feedback")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.feedback}
+                />
+              </svg>
+              <span>{tParentNav("feedback")}</span>
+              <UnreadBadge count={parentFeedbackUnread} className="ml-auto" />
+            </Link>
           </nav>
         </div>
       </aside>
