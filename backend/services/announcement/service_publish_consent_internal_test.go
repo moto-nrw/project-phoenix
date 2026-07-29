@@ -128,6 +128,41 @@ func TestPublishEmailsOnlyGuardiansWhoAgreed(t *testing.T) {
 	}
 }
 
+func TestPublishDeduplicatesOptedInGuardiansByNormalizedEmail(t *testing.T) {
+	repo := consentTestRepo()
+	repo.announcement = draftAnnouncement(true)
+	repo.recipients = []*usersModels.AnnouncementRecipient{
+		{AccountID: 101, Email: " Family@Example.Test "},
+		{AccountID: 202, Email: "family@example.test"},
+	}
+	notifier := &fakeNotifier{}
+	outbox := &fakeOutbox{}
+	prefs := &fakePreferences{optedIn: []int64{101, 202}}
+	svc := NewService(ServiceConfig{
+		Repo:        repo,
+		Settings:    &fakeSettings{enabled: true},
+		Notifier:    notifier,
+		Preferences: prefs,
+		Outbox:      outbox,
+		ParentsURL:  "https://parents.example.test",
+		Logger:      slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	if len(outbox.requests) != 1 {
+		t.Fatalf("expected one e-mail per normalized address, got %d", len(outbox.requests))
+	}
+	if got := outbox.requests[0].Payload[emailPayloadRecipient]; got != "family@example.test" {
+		t.Fatalf("expected the normalized address, got %v", got)
+	}
+	if !slices.Equal(prefs.asked, []int64{101, 202}) {
+		t.Fatalf("expected consent to be evaluated per account before address deduplication, got %v", prefs.asked)
+	}
+}
+
 // Tenant notification gates suppress every delivery channel, not the
 // announcement itself. Staff must still be able to publish while dispatch is
 // disabled or the notification window is closed.

@@ -474,6 +474,25 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 			return nil
 		}
 	}
+	uniqueRecipients := make([]*usersModels.AnnouncementRecipient, 0, len(recipients))
+	seenEmails := make(map[string]struct{}, len(recipients))
+	for _, recipient := range recipients {
+		normalizedEmail := strings.ToLower(strings.TrimSpace(recipient.Email))
+		if normalizedEmail == "" {
+			continue
+		}
+		if _, exists := seenEmails[normalizedEmail]; exists {
+			continue
+		}
+		seenEmails[normalizedEmail] = struct{}{}
+		normalizedRecipient := *recipient
+		normalizedRecipient.Email = normalizedEmail
+		uniqueRecipients = append(uniqueRecipients, &normalizedRecipient)
+	}
+	recipients = uniqueRecipients
+	if len(recipients) == 0 {
+		return nil
+	}
 	schoolName, err := s.repo.SchoolName(ctx, tenantID)
 	if err != nil {
 		return fmt.Errorf("announcement: resolve school name: %w", err)
