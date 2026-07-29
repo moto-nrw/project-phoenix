@@ -335,10 +335,15 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 				return nil, fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
 			}
 			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
-			if err := s.notifyAnnouncementGuardians(ctx, fresh); err != nil {
+			deliveryAllowed, err := s.notifyAnnouncementGuardians(ctx, fresh)
+			if err != nil {
 				return nil, fmt.Errorf("announcement: publish push notifications: %w", err)
 			}
-			if fresh.SendEmail {
+			// The notification router is the single enforcement point for the
+			// tenant dispatch switch and active window. E-mail is another
+			// delivery channel for the same event, so it must follow the same
+			// decision instead of bypassing those gates.
+			if fresh.SendEmail && deliveryAllowed {
 				if err := s.enqueueAnnouncementEmails(ctx, fresh); err != nil {
 					return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
 				}
@@ -348,13 +353,13 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 	return s.Get(ctx, id)
 }
 
-func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {
 	if s.notifier == nil {
-		return nil
+		return false, nil
 	}
 	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
 	if err != nil {
-		return fmt.Errorf("resolve guardian recipients: %w", err)
+		return false, fmt.Errorf("resolve guardian recipients: %w", err)
 	}
 	priority := notifications.PriorityNormal
 	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
@@ -373,7 +378,7 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		accountIDs = append(accountIDs, recipient.AccountID)
 	}
 	if len(accountIDs) == 0 {
-		return nil
+		return false, nil
 	}
 
 	// Consent narrows the audience the announcement itself defined. A nil
@@ -384,10 +389,10 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	if s.preferences != nil {
 		accountIDs, err = s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
 		if err != nil {
-			return fmt.Errorf("filter opted-in guardians: %w", err)
+			return false, fmt.Errorf("filter opted-in guardians: %w", err)
 		}
 		if len(accountIDs) == 0 {
-			return nil
+			return false, nil
 		}
 	}
 
@@ -404,12 +409,12 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		},
 	})
 	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return fmt.Errorf("notify guardian audience: %w", err)
+		return false, fmt.Errorf("notify guardian audience: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 // enqueueAnnouncementEmails queues one outbox e-mail per targeted guardian with

@@ -128,20 +128,49 @@ func TestPublishEmailsOnlyGuardiansWhoAgreed(t *testing.T) {
 	}
 }
 
-// Quiet hours suppress delivery, not the announcement itself. Staff must be
-// able to publish at any time even when the notification window is closed.
-func TestPublishSucceedsOutsideNotificationWindow(t *testing.T) {
-	repo := consentTestRepo()
-	notifier := &fakeNotifier{err: notifications.ErrOutsideActiveWindow}
-	prefs := &fakePreferences{optedIn: []int64{202}}
-
-	published, err := consentTestService(repo, notifier, prefs).
-		Publish(context.Background(), repo.announcement.ID)
-	if err != nil {
-		t.Fatalf("quiet hours must not roll back publication: %v", err)
+// Tenant notification gates suppress every delivery channel, not the
+// announcement itself. Staff must still be able to publish while dispatch is
+// disabled or the notification window is closed.
+func TestPublishSuppressesEmailWhenNotificationsAreGated(t *testing.T) {
+	tests := []struct {
+		name        string
+		notifierErr error
+	}{
+		{name: "dispatch disabled", notifierErr: notifications.ErrDisabled},
+		{name: "outside notification window", notifierErr: notifications.ErrOutsideActiveWindow},
 	}
-	if published == nil {
-		t.Fatal("the announcement must still be published")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := consentTestRepo()
+			repo.announcement = draftAnnouncement(true)
+			repo.recipients = []*usersModels.AnnouncementRecipient{
+				{AccountID: 202, Email: "two@example.test"},
+			}
+			notifier := &fakeNotifier{err: tt.notifierErr}
+			prefs := &fakePreferences{optedIn: []int64{202}}
+			outbox := &fakeOutbox{}
+			svc := NewService(ServiceConfig{
+				Repo:        repo,
+				Settings:    &fakeSettings{enabled: true},
+				Notifier:    notifier,
+				Preferences: prefs,
+				Outbox:      outbox,
+				ParentsURL:  "https://parents.example.test",
+				Logger:      slog.Default(),
+			})
+
+			published, err := svc.Publish(context.Background(), repo.announcement.ID)
+			if err != nil {
+				t.Fatalf("notification gate must not roll back publication: %v", err)
+			}
+			if published == nil {
+				t.Fatal("the announcement must still be published")
+			}
+			if len(outbox.requests) != 0 {
+				t.Fatalf("notification gate must suppress e-mail too, got %d queued messages", len(outbox.requests))
+			}
+		})
 	}
 }
 

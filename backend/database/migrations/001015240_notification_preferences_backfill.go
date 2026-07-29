@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	authRepository "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -39,11 +40,13 @@ func init() {
 // together would silence every phone that is registered today, in the same
 // minute, with nothing on screen to explain it.
 //
-// Guardians get the single parent type; staff get the four reminder types their
-// device could already receive. The personal types added by this epic
-// (my_activity_starting, student_absence_reported) are deliberately NOT
-// backfilled: no existing registration says anything about them, and inventing
-// consent is worse than an empty switch the person can turn on.
+// Guardians get the single parent type. Only active effective admins get the
+// four reminder types, because the old reminders_due event used ScopeAdmin;
+// another staff member's registered device never received it. The personal
+// types added by this epic (my_activity_starting, student_absence_reported) are
+// deliberately NOT backfilled: no existing registration says anything about
+// them, and inventing consent is worse than an empty switch the person can turn
+// on.
 //
 // ON CONFLICT DO NOTHING because an explicit opt-out is a decision: a row with
 // enabled = false means somebody said no, and a backfill must never overwrite
@@ -66,10 +69,15 @@ func notificationPreferencesBackfillUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error backfilling guardian notification consent: %w", err)
 	}
 
-	if _, err := db.ExecContext(ctx, `
+	staffBackfillQuery := fmt.Sprintf(`
 		INSERT INTO users.notification_preferences (tenant_id, account_id, notification_type, enabled)
 		SELECT DISTINCT "sub".tenant_id, "sub".account_id, "type", TRUE
 		FROM iot.push_subscriptions AS "sub"
+		INNER JOIN auth.accounts AS "account"
+			ON "account".id = "sub".account_id
+		INNER JOIN auth.account_tenants AS "account_tenant"
+			ON "account_tenant".account_id = "sub".account_id
+			AND "account_tenant".tenant_id = "sub".tenant_id
 		CROSS JOIN unnest(ARRAY[
 			'pickup_upcoming',
 			'pickup_overdue',
@@ -77,8 +85,21 @@ func notificationPreferencesBackfillUp(ctx context.Context, db *bun.DB) error {
 			'activity_overdue'
 		]) AS "type"
 		WHERE "sub".portal = 'staff'
+		  AND "account".active = TRUE
+		  AND "account_tenant".status = 'active'
+		  AND EXISTS (
+			SELECT 1
+			FROM auth.account_roles AS "staff_account_role"
+			INNER JOIN auth.roles AS "staff_role"
+				ON "staff_role".id = "staff_account_role".role_id
+			WHERE "staff_account_role".account_id = "sub".account_id
+			  AND "staff_account_role".tenant_id = "sub".tenant_id
+			  AND LOWER("staff_role".name) <> 'guardian'
+		  )
+		  AND (%s)
 		ON CONFLICT (tenant_id, account_id, notification_type) DO NOTHING;
-	`); err != nil {
+	`, authRepository.EffectiveAdminExistsSQL(`"sub".account_id`, `"sub".tenant_id`))
+	if _, err := db.ExecContext(ctx, staffBackfillQuery); err != nil {
 		return fmt.Errorf("error backfilling staff notification consent: %w", err)
 	}
 
