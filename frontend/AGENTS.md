@@ -10,8 +10,8 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 
 Interface skills live in `frontend/.claude/skills/` (mirrored as symlinks in
 `frontend/.agents/skills/`); `frontend/.claude/skills/README.md` lists them.
-The root `.codex/hooks/skill-reminder.sh` does not scan this directory, so read
-the relevant `SKILL.md` yourself when doing UI work. `better-interface`
-coordinates the six `better-*` skills for a full review pass.
+They load once you touch a file under `frontend/`; if your agent cannot invoke
+one by name, read its `SKILL.md` directly. `better-interface` coordinates the
+six `better-*` skills for a full review pass.
 
 `.claude/rules/frontend-ui-kit.md` outranks all of them.
