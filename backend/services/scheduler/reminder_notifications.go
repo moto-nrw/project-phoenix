@@ -143,13 +143,41 @@ func (s *Scheduler) checkAndRunReminderNotifications(task *ScheduledTask) {
 	s.forEachTenantSettings(ctx, "reminder-notifications", func(tenantCtx context.Context, tenantID int64) error {
 		// Cheap gate first: skip the whole resolution while the notification
 		// feature flag is off for this tenant. NotifyBatch would also refuse
-		// (ErrDisabled), but there is no point resolving anybody.
-		if !s.resolveBoolSetting(tenantCtx, configModel.KeyNotificationsDispatchEnabled, "", false) {
+		// (ErrDisabled), but there is no point resolving anybody. That mirroring
+		// only holds while both sides read the flag the same way, hence
+		// notificationDispatchEnabled instead of the scheduler's
+		// literal-default helpers.
+		if !s.notificationDispatchEnabled(tenantCtx, tenantID) {
 			return nil
 		}
 		s.runReminderNotificationsForTenant(tenantCtx, tenantID, time.Now())
 		return nil
 	})
+}
+
+// notificationDispatchEnabled answers the notification feature flag exactly the
+// way the notification router does (services/notifications/service.go): the
+// tenant override when one exists, otherwise the value registered in the
+// settings registry. ResolveBool already returns the registry default, so this
+// gate carries no default of its own. A literal here would be a second source of
+// truth beside the registry: a registry default of "on" against a literal "off"
+// silenced the whole tick for every school without an explicit override.
+//
+// Fails closed when the flag cannot be read and when no settings service is
+// wired: without one the router cannot dispatch either.
+func (s *Scheduler) notificationDispatchEnabled(ctx context.Context, tenantID int64) bool {
+	if s.settings == nil {
+		return false
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyNotificationsDispatchEnabled)
+	if err != nil {
+		s.getLogger().Warn("reminder notification tick: notification feature flag unreadable, skipping tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return enabled
 }
 
 // reminderRecipient is one person the tick may address, with the kinds of

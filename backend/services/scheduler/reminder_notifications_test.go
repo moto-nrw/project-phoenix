@@ -6,12 +6,18 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
 
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
+
+	// Populates the settings registry, so the tick test can assert against the
+	// registered default instead of a literal copy of it.
+	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -563,6 +569,107 @@ func TestPersonalRemindersTenantIsolationAndDayRotation(t *testing.T) {
 	setup.sched.rotateReminderNotificationCacheIfNewDay(now.Add(24 * time.Hour))
 	setup.sched.runReminderNotificationsForTenant(context.Background(), 7, now)
 	assert.Len(t, setup.notifier.events, 3)
+}
+
+// registrySettingsResolver behaves like the real settings service for a school
+// that never touched a setting: no tenant override, and Resolve* answers with
+// the value registered in the settings registry. The other doubles in this
+// package invent their own "no value" behaviour, which is exactly what would let
+// a registry-default regression pass unnoticed.
+type registrySettingsResolver struct{}
+
+func (registrySettingsResolver) HasTenantOverride(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (registrySettingsResolver) ResolveBool(_ context.Context, key string) (bool, error) {
+	def := configModel.GetDefinition(key)
+	if def == nil {
+		return false, fmt.Errorf("no definition registered for %s", key)
+	}
+	value, ok := def.Default.(bool)
+	if !ok {
+		return false, fmt.Errorf("%s is not a boolean setting", key)
+	}
+	return value, nil
+}
+
+func (registrySettingsResolver) ResolveInt(_ context.Context, key string) (int, error) {
+	def := configModel.GetDefinition(key)
+	if def == nil {
+		return 0, fmt.Errorf("no definition registered for %s", key)
+	}
+	value, ok := def.Default.(int)
+	if !ok {
+		return 0, fmt.Errorf("%s is not an integer setting", key)
+	}
+	return value, nil
+}
+
+func (registrySettingsResolver) ResolveString(_ context.Context, key string) (string, error) {
+	def := configModel.GetDefinition(key)
+	if def == nil {
+		return "", fmt.Errorf("no definition registered for %s", key)
+	}
+	value, ok := def.Default.(string)
+	if !ok {
+		return "", fmt.Errorf("%s is not a string setting", key)
+	}
+	return value, nil
+}
+
+// The tick's feature gate has to answer what the notification router answers.
+// While the gate carried its own literal default, every school without an
+// explicit override was silently skipped even though the setting reads "on" in
+// the UI and the router would have delivered.
+func TestReminderNotificationTickHonoursRegistryDefault(t *testing.T) {
+	definition := configModel.GetDefinition(configModel.KeyNotificationsDispatchEnabled)
+	require.NotNil(t, definition, "the dispatch flag must be registered")
+	require.Equal(t, true, definition.Default,
+		"premise of this test: the registry default of the dispatch flag is on")
+
+	t.Run("no tenant override runs the tick", func(t *testing.T) {
+		setup := buildReminderSched(
+			map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
+			map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
+		)
+		setup.sched.settings = registrySettingsResolver{}
+
+		// No db/schoolRepo wired, so forEachTenantSettings runs the body once
+		// without tenant context, which is enough to exercise the gate.
+		setup.sched.checkAndRunReminderNotifications(&ScheduledTask{Name: "reminder-notifications"})
+
+		require.Len(t, setup.notifier.events, 1,
+			"a school that never touched the setting must be served the registry default")
+		assert.Equal(t, []int64{caregiverAccountID}, setup.notifier.events[0].Audience.StaffAccountIDs)
+	})
+
+	t.Run("an explicit off override still stops the tick", func(t *testing.T) {
+		setup := buildReminderSched(
+			map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
+			map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
+		)
+		setup.sched.settings = &stubSettingsResolver{hasOverride: true, boolVal: false}
+
+		setup.sched.checkAndRunReminderNotifications(&ScheduledTask{Name: "reminder-notifications"})
+
+		assert.Empty(t, setup.notifier.events)
+		assert.Zero(t, setup.computer.calls,
+			"a school that switched notifications off must not even resolve an audience")
+	})
+
+	t.Run("no settings service fails closed", func(t *testing.T) {
+		setup := buildReminderSched(
+			map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
+			map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
+		)
+
+		setup.sched.checkAndRunReminderNotifications(&ScheduledTask{Name: "reminder-notifications"})
+
+		assert.Empty(t, setup.notifier.events,
+			"without a settings service the router could not dispatch either")
+		assert.Zero(t, setup.computer.calls)
+	})
 }
 
 func TestScheduleReminderNotificationTaskRequiresEveryDep(t *testing.T) {
