@@ -24,12 +24,31 @@ they are checked in this order:
 | 5 | `notifications.on_duty_only`, for personal staff notifications | the reminder tick / absence producer |
 
 Gate 1 defaults to **on** since the personal-notification epic. That is only
-safe because gates 3–5 exist: every producer routes through consent, consent
-starts empty, and an enabled school therefore still delivers nothing until
-somebody asks for something in their profile. Off now only means that a
-person's own choice is silently ignored. While off, `Notify` returns
-`notifications.ErrDisabled`; outside the window, `ErrOutsideActiveWindow`.
-Producers treat both as a silent no-op.
+safe because gates 3–5 exist: every producer routes through consent, and an
+enabled school therefore still delivers nothing until somebody asks for
+something in their profile. Off now only means that a person's own choice is
+silently ignored. While off, `Notify` returns `notifications.ErrDisabled`;
+outside the window, `ErrOutsideActiveWindow`. Producers treat both as a silent
+no-op.
+
+Consent starts empty for everybody except the accounts migration 1.15.240
+backfills. That backfill is deliberately narrow: it only writes rows for
+schools that had already switched `dispatch_enabled` on themselves, and only
+for accounts still active in that school. At those schools the registered
+device really was receiving these notifications, so the row records a consent
+that already existed in practice rather than inventing one. Everywhere else the
+switch starts off.
+
+### E-mail is not routed through these gates
+
+Gates 1 and 2 govern push and in-app hints: they exist so a phone does not ring
+at night, and an e-mail does not ring. Announcement e-mails therefore leave
+regardless of the dispatch switch and the delivery window, and they apply the
+opposite consent rule, `FilterNotOptedOut` instead of `FilterOptedIn`. Only an
+explicit "no" removes a recipient; a family that never touched the switch keeps
+receiving the mail it received before consent existed. Tying e-mail to
+`FilterOptedIn` would have made the reach of a backfill decide whether a
+long-standing channel works at all.
 
 ## Triggering a notification (backend)
 
@@ -126,12 +145,18 @@ mechanical: **no row means off**.
   staff profile page and in the parents dashboard above the per-device push
   card — this one answers "what do I want to hear about", the other "on which
   device".
-- **Backfill** — migration 1.15.240 gives every account with an existing push
+- **Backfill** — migration 1.15.240 gives an account with an existing push
   registration the consent that device already acted on: `parent_announcement`
   for guardian devices, the four reminder types for staff devices. Without it,
-  flipping `dispatch_enabled` on by default would have silenced every
-  registered phone in the same minute. It is `ON CONFLICT DO NOTHING` (never
-  overwrite a decision) and its `down` is a deliberate no-op.
+  flipping `dispatch_enabled` on by default would have silenced every phone
+  that is receiving notifications today, in the same minute. Two conditions
+  keep it from inventing consent instead of recording it: the school must have
+  switched `dispatch_enabled` on itself (an explicit override row), because a
+  school that never did delivered nothing and therefore has no prior consent to
+  record; and the account must still be active in that school. It is
+  `ON CONFLICT DO NOTHING` (never overwrite a decision) and its `down` is a
+  deliberate no-op, which is exactly why both conditions matter: a wrong row
+  written here stays forever.
 
 ## Channels
 
