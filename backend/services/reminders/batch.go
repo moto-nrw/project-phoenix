@@ -27,14 +27,16 @@ import (
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
-// batchConfig is the tenant-wide configuration of one batch run, resolved once.
-// Compute re-reads these per request; here they are shared, which is most of the
-// reason the query count stays flat.
+// batchConfig combines the tenant-wide settings resolved once per batch with
+// whether any recipient requested the ungated personal-assignment type.
+// Compute re-reads tenant settings per request; sharing them here is most of
+// the reason the query count stays flat.
 type batchConfig struct {
 	pickupUpcoming   bool
 	pickupOverdue    bool
 	activityStart    bool
 	activityOverdue  bool
+	assignedStart    bool
 	pickupLead       int
 	activityLead     int
 	overdueThreshold int
@@ -42,9 +44,11 @@ type batchConfig struct {
 	allStaffScope    bool
 }
 
-func (c batchConfig) anyPickup() bool   { return c.pickupUpcoming || c.pickupOverdue }
-func (c batchConfig) anyActivity() bool { return c.activityStart || c.activityOverdue }
-func (c batchConfig) anyEnabled() bool  { return c.anyPickup() || c.anyActivity() }
+func (c batchConfig) anyPickup() bool { return c.pickupUpcoming || c.pickupOverdue }
+func (c batchConfig) anyActivity() bool {
+	return c.activityStart || c.activityOverdue || c.assignedStart
+}
+func (c batchConfig) anyEnabled() bool { return c.anyPickup() || c.anyActivity() }
 
 // batchInputs is everything read once for the whole tenant.
 type batchInputs struct {
@@ -157,6 +161,20 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 					upcoming:         cfg.activityStart,
 					overdue:          cfg.activityOverdue,
 				})
+			if !cfg.activityStart && sc.IncludeAssignedActivityStart {
+				assignedPart, assignedNext := buildActivityReminders(
+					in.instances,
+					in.schulhofRoomIDs,
+					assignedActivityFilter(in.assignedInstances[sc.StaffID]),
+					activityWindow{
+						nowMin:   in.nowMin,
+						lead:     cfg.activityLead,
+						upcoming: true,
+					},
+				)
+				part = append(part, assignedPart...)
+				next = minFuture(next, assignedNext)
+			}
 			activityPart = part
 			nextChange = minFuture(nextChange, next)
 		}
@@ -190,16 +208,17 @@ func assignedIDStrings(instanceIDs map[int64]struct{}) map[string]struct{} {
 // and combined with a bulk lookup that returns no row for it, an empty result
 // would be indistinguishable from "no restriction".
 func dedupeBatchScopes(scopes []BatchScope) []BatchScope {
-	seen := make(map[int64]struct{}, len(scopes))
+	positions := make(map[int64]int, len(scopes))
 	out := make([]BatchScope, 0, len(scopes))
 	for _, sc := range scopes {
 		if sc.StaffID <= 0 {
 			continue
 		}
-		if _, dup := seen[sc.StaffID]; dup {
+		if pos, dup := positions[sc.StaffID]; dup {
+			out[pos].IncludeAssignedActivityStart = out[pos].IncludeAssignedActivityStart || sc.IncludeAssignedActivityStart
 			continue
 		}
-		seen[sc.StaffID] = struct{}{}
+		positions[sc.StaffID] = len(out)
 		out = append(out, sc)
 	}
 	return out
@@ -227,12 +246,20 @@ func hasCaregiver(recipients []BatchScope) bool {
 	return false
 }
 
+func hasAssignedActivityStart(recipients []BatchScope) bool {
+	for _, sc := range recipients {
+		if sc.IncludeAssignedActivityStart {
+			return true
+		}
+	}
+	return false
+}
+
 // loadBatchConfig resolves the tenant settings in the same order and with the
-// same error contract as Compute, and only the ones Compute would have read:
-// resolving a lead time for a disabled branch would surface an error where
-// Compute reports success.
+// same error contract as Compute. The personal assignment type additionally
+// needs the activity lead time even when the room-scoped start gate is off.
 func (s *service) loadBatchConfig(ctx context.Context, recipients []BatchScope) (batchConfig, error) {
-	var cfg batchConfig
+	cfg := batchConfig{assignedStart: hasAssignedActivityStart(recipients)}
 	var err error
 
 	if cfg.pickupUpcoming, err = s.resolveToggle(ctx, configModel.KeyRemindersPickupUpcomingEnabled); err != nil {
@@ -269,10 +296,12 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []BatchScope) 
 		}
 	}
 
-	if cfg.anyActivity() {
+	if cfg.activityStart || cfg.assignedStart {
 		if cfg.activityLead, err = s.leadMinutes(ctx, configModel.KeyRemindersActivityStartLeadMinutes); err != nil {
 			return cfg, err
 		}
+	}
+	if cfg.activityOverdue {
 		if cfg.overdueThreshold, err = s.overdueThresholdMinutes(ctx); err != nil {
 			return cfg, err
 		}
@@ -454,6 +483,13 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 	}
 
 	return in, nil
+}
+
+func assignedActivityFilter(instanceIDs map[int64]struct{}) func(*scheduleModel.ActivityInstance) bool {
+	return func(inst *scheduleModel.ActivityInstance) bool {
+		_, assigned := instanceIDs[inst.ID]
+		return assigned
+	}
 }
 
 // batchPresence reproduces pickupScopeStudentIDs for one recipient, from

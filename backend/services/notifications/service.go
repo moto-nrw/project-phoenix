@@ -360,13 +360,25 @@ func (r *router) withinActiveWindow(ctx context.Context, tenantID int64) (bool, 
 	if err != nil {
 		return false, err
 	}
-	if start < 0 || end < 0 || start >= end {
+	// Empty/malformed bounds and equal bounds retain the historic unrestricted
+	// behaviour. The dispatch flag is the explicit way to silence all delivery.
+	if start < 0 || end < 0 || start == end {
 		return true, nil
 	}
 
 	now := timezone.Now()
 	nowMin := now.Hour()*60 + now.Minute()
-	return nowMin >= start && nowMin < end, nil
+	return withinWindow(nowMin, start, end), nil
+}
+
+func withinWindow(nowMin, start, end int) bool {
+	if start == end {
+		return true
+	}
+	if start > end {
+		return nowMin >= start || nowMin < end
+	}
+	return nowMin >= start && nowMin < end
 }
 
 // resolveWindowBound reads one "HH:MM" setting as a minute of day, or -1 when

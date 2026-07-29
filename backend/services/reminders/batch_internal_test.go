@@ -438,6 +438,13 @@ func caregiver(staffID int64) BatchScope {
 	return BatchScope{Scope: Scope{IsAdmin: false, StaffID: staffID}}
 }
 
+func personalCaregiver(staffID int64) BatchScope {
+	return BatchScope{
+		Scope:                        Scope{IsAdmin: false, StaffID: staffID},
+		IncludeAssignedActivityStart: true,
+	}
+}
+
 func admin(staffID int64) BatchScope {
 	return BatchScope{Scope: Scope{IsAdmin: true, StaffID: staffID}}
 }
@@ -602,6 +609,23 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 			"the batch may show more, never fewer")
 	})
 
+	t.Run("personal assignment is independent of the room activity gate", func(t *testing.T) {
+		w := baseWorld()
+		w.settingBools[configModel.KeyRemindersPickupUpcomingEnabled] = false
+		w.settingBools[configModel.KeyRemindersPickupOverdueEnabled] = false
+		w.settingBools[configModel.KeyRemindersActivityStartEnabled] = false
+		w.settingBools[configModel.KeyRemindersActivityOverdueEnabled] = false
+		w.addInstance(103, "Unassigned", 10, start, start+60)
+		w.assignsInstance(7, 101, false)
+
+		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7)})
+		require.NoError(t, err)
+		require.Len(t, batch[7].Reminders, 1)
+		require.NotNil(t, batch[7].Reminders[0].ActivityInstanceID)
+		assert.Equal(t, "101", *batch[7].Reminders[0].ActivityInstanceID)
+		assert.Equal(t, TypeActivityStart, batch[7].Reminders[0].Type)
+	})
+
 	t.Run("an absent assignment is ignored", func(t *testing.T) {
 		// Someone who called in sick must not be pinged about the slot they
 		// were relieved of.
@@ -693,6 +717,12 @@ func TestComputeBatchScopeHandling(t *testing.T) {
 		out, err := svc.ComputeBatch(ctx, []BatchScope{caregiver(7), caregiver(7)})
 		require.NoError(t, err)
 		assert.Len(t, out, 1)
+	})
+
+	t.Run("repeated scopes preserve personal assignment requests", func(t *testing.T) {
+		scopes := dedupeBatchScopes([]BatchScope{caregiver(7), personalCaregiver(7)})
+		require.Len(t, scopes, 1)
+		assert.True(t, scopes[0].IncludeAssignedActivityStart)
 	})
 
 	t.Run("every recipient gets its own result", func(t *testing.T) {

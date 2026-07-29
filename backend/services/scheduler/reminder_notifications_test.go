@@ -210,6 +210,7 @@ func TestPersonalRemindersReachOnlyTheConsenting(t *testing.T) {
 	require.Len(t, setup.computer.scopes, 1, "only people with consent are computed")
 	assert.Equal(t, caregiverStaffID, setup.computer.scopes[0].StaffID)
 	assert.False(t, setup.computer.scopes[0].IsAdmin)
+	assert.False(t, setup.computer.scopes[0].IncludeAssignedActivityStart)
 }
 
 func TestPersonalRemindersMarkAdminScope(t *testing.T) {
@@ -295,6 +296,8 @@ func TestPersonalRemindersClassifyAssignedActivities(t *testing.T) {
 		setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
 
 		require.Len(t, setup.notifier.events, 1)
+		require.Len(t, setup.computer.scopes, 1)
+		assert.True(t, setup.computer.scopes[0].IncludeAssignedActivityStart)
 		assert.Equal(t, notifications.TypeMyActivityStarting, setup.notifier.events[0].Type)
 		assert.Equal(t, "Ihr Einsatz beginnt", setup.notifier.events[0].Title)
 	})
@@ -309,6 +312,8 @@ func TestPersonalRemindersClassifyAssignedActivities(t *testing.T) {
 
 		assert.Empty(t, setup.notifier.events,
 			"somebody who switched their own slots off must not receive them under another name")
+		require.Len(t, setup.computer.scopes, 1)
+		assert.False(t, setup.computer.scopes[0].IncludeAssignedActivityStart)
 	})
 
 	t.Run("an unassigned activity stays a room activity", func(t *testing.T) {

@@ -181,8 +181,10 @@ func (s *Scheduler) runReminderNotificationsForTenant(ctx context.Context, tenan
 
 	scopes := make([]reminders.BatchScope, 0, len(recipients))
 	for _, r := range recipients {
+		_, includeAssignedStart := r.consent[notifications.TypeMyActivityStarting]
 		scopes = append(scopes, reminders.BatchScope{
-			Scope: reminders.Scope{IsAdmin: r.isAdmin, StaffID: r.staffID},
+			Scope:                        reminders.Scope{IsAdmin: r.isAdmin, StaffID: r.staffID},
+			IncludeAssignedActivityStart: includeAssignedStart,
 		})
 	}
 

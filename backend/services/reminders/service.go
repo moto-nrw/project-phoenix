@@ -115,6 +115,10 @@ type Computer interface {
 // assertion, exactly as with Scope — the service does not verify it.
 type BatchScope struct {
 	Scope
+	// IncludeAssignedActivityStart enables upcoming reminders for activity
+	// instances this person is planned on. Unlike room-scoped activity
+	// reminders, this personal type has no tenant-level reminder gate.
+	IncludeAssignedActivityStart bool
 }
 
 type settingsResolver interface {
