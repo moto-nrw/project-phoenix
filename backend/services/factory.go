@@ -1780,6 +1780,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Group,
 		repos.Staff,
 		repos.Account,
+		settingsService,
+		repos.WorkSession,
 		db,
 		logger.With("producer", "absence_notifications"),
 	)

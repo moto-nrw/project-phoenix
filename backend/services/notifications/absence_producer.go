@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -66,19 +67,29 @@ type AbsenceNotifier interface {
 }
 
 type absenceNotifier struct {
-	notifier    Service
-	preferences PreferenceService
-	students    userModel.StudentRepository
-	groups      educationModel.GroupRepository
-	staff       userModel.StaffRepository
-	accounts    authAccountReader
-	db          *bun.DB
-	logger      *slog.Logger
+	notifier     Service
+	preferences  PreferenceService
+	students     userModel.StudentRepository
+	groups       educationModel.GroupRepository
+	staff        userModel.StaffRepository
+	accounts     authAccountReader
+	settings     settingsBoolReader
+	workSessions dutyReader
+	db           *bun.DB
+	logger       *slog.Logger
 }
 
 // authAccountReader is the slice of the account repository this producer needs.
 type authAccountReader interface {
 	ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error)
+}
+
+type settingsBoolReader interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+type dutyReader interface {
+	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 }
 
 // NewAbsenceNotifier builds the sick/excused producer.
@@ -89,18 +100,22 @@ func NewAbsenceNotifier(
 	groups educationModel.GroupRepository,
 	staff userModel.StaffRepository,
 	accounts authAccountReader,
+	settings settingsBoolReader,
+	workSessions dutyReader,
 	db *bun.DB,
 	logger *slog.Logger,
 ) AbsenceNotifier {
 	return &absenceNotifier{
-		notifier:    notifier,
-		preferences: preferences,
-		students:    students,
-		groups:      groups,
-		staff:       staff,
-		accounts:    accounts,
-		db:          db,
-		logger:      logger,
+		notifier:     notifier,
+		preferences:  preferences,
+		students:     students,
+		groups:       groups,
+		staff:        staff,
+		accounts:     accounts,
+		settings:     settings,
+		workSessions: workSessions,
+		db:           db,
+		logger:       logger,
 	}
 }
 
@@ -140,7 +155,7 @@ func (n *absenceNotifier) NotifyAbsenceReported(ctx context.Context, report Abse
 }
 
 func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) error {
-	if n.notifier == nil || n.preferences == nil {
+	if n.notifier == nil || n.preferences == nil || n.settings == nil || n.workSessions == nil {
 		return nil
 	}
 	if report.TenantID <= 0 || len(report.StudentIDs) == 0 {
@@ -258,6 +273,10 @@ func (n *absenceNotifier) resolveDeliveries(ctx context.Context, report AbsenceR
 	if err != nil {
 		return nil, err
 	}
+	optedIn, err = n.filterOnDutyAccounts(ctx, optedIn)
+	if err != nil {
+		return nil, err
+	}
 
 	byScope := make(map[string]*absenceDelivery, len(optedIn))
 	keys := make([]string, 0, len(optedIn))
@@ -286,6 +305,51 @@ func (n *absenceNotifier) resolveDeliveries(ctx context.Context, report AbsenceR
 		deliveries = append(deliveries, *delivery)
 	}
 	return deliveries, nil
+}
+
+func (n *absenceNotifier) filterOnDutyAccounts(ctx context.Context, accountIDs []int64) ([]int64, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	onDutyOnly, err := n.settings.ResolveBool(ctx, configModel.KeyNotificationsOnDutyOnly)
+	if err != nil {
+		return nil, fmt.Errorf("resolve on-duty notification setting: %w", err)
+	}
+	if !onDutyOnly {
+		return accountIDs, nil
+	}
+
+	presence, err := n.workSessions.GetTodayPresenceMap(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load staff presence: %w", err)
+	}
+	onDutyStaffIDs := make([]int64, 0, len(presence))
+	for staffID, status := range presence {
+		if status == activeModel.WorkSessionStatusPresent || status == activeModel.WorkSessionStatusHomeOffice {
+			onDutyStaffIDs = append(onDutyStaffIDs, staffID)
+		}
+	}
+	if len(onDutyStaffIDs) == 0 {
+		return nil, nil
+	}
+	accountsByStaff, err := n.staff.ListAccountIDsByStaffIDs(ctx, onDutyStaffIDs)
+	if err != nil {
+		return nil, fmt.Errorf("resolve staff accounts for duty filter: %w", err)
+	}
+	onDutyAccounts := make(map[int64]struct{}, len(accountsByStaff))
+	for _, staffID := range onDutyStaffIDs {
+		if accountID := accountsByStaff[staffID]; accountID > 0 {
+			onDutyAccounts[accountID] = struct{}{}
+		}
+	}
+
+	filtered := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if _, ok := onDutyAccounts[accountID]; ok {
+			filtered = append(filtered, accountID)
+		}
+	}
+	return filtered, nil
 }
 
 func addVisibleStudents(visibleByAccount map[int64]map[int64]struct{}, accountID int64, studentIDs []int64) {

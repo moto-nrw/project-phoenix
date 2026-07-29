@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
@@ -19,17 +20,18 @@ import (
 
 // In-memory identities. None of these are database rows.
 const (
-	absenceTenant    int64 = 5
-	absenceStudentA  int64 = 71
-	absenceStudentB  int64 = 72
-	absenceGroupA    int64 = 81
-	absenceGroupB    int64 = 82
-	absenceStaffA    int64 = 91
-	absenceStaffB    int64 = 92
-	absenceAccountA  int64 = 101
-	absenceAccountB  int64 = 104
-	absenceAdmin     int64 = 102
-	absenceActorAcct int64 = 103
+	absenceTenant     int64 = 5
+	absenceStudentA   int64 = 71
+	absenceStudentB   int64 = 72
+	absenceGroupA     int64 = 81
+	absenceGroupB     int64 = 82
+	absenceStaffA     int64 = 91
+	absenceStaffB     int64 = 92
+	absenceAdminStaff int64 = 93
+	absenceAccountA   int64 = 101
+	absenceAccountB   int64 = 104
+	absenceAdmin      int64 = 102
+	absenceActorAcct  int64 = 103
 )
 
 type fakeStudentReader struct {
@@ -74,11 +76,17 @@ type fakeStaffAccountReader struct {
 	userModel.StaffRepository
 	accounts map[int64]int64
 	err      error
+	dutyErr  error
+	calls    int
 }
 
 func (f *fakeStaffAccountReader) ListAccountIDsByStaffIDs(_ context.Context, staffIDs []int64) (map[int64]int64, error) {
+	f.calls++
 	if f.err != nil {
 		return nil, f.err
+	}
+	if f.dutyErr != nil && f.calls > 1 {
+		return nil, f.dutyErr
 	}
 	out := make(map[int64]int64, len(staffIDs))
 	for _, staffID := range staffIDs {
@@ -96,6 +104,28 @@ type fakeAdminReader struct {
 
 func (f *fakeAdminReader) ListEffectiveAdminAccountIDs(context.Context) ([]int64, error) {
 	return f.ids, f.err
+}
+
+type fakeOnDutySetting struct {
+	enabled bool
+	err     error
+	asked   string
+}
+
+func (f *fakeOnDutySetting) ResolveBool(_ context.Context, key string) (bool, error) {
+	f.asked = key
+	return f.enabled, f.err
+}
+
+type fakeDutyReader struct {
+	presence map[int64]string
+	err      error
+	called   bool
+}
+
+func (f *fakeDutyReader) GetTodayPresenceMap(context.Context) (map[int64]string, error) {
+	f.called = true
+	return f.presence, f.err
 }
 
 // captureNotifier records what the producer decided to send.
@@ -141,6 +171,8 @@ type absenceWorld struct {
 	groups   *fakeGroupReader
 	staff    *fakeStaffAccountReader
 	admins   *fakeAdminReader
+	settings *fakeOnDutySetting
+	duty     *fakeDutyReader
 }
 
 // newAbsenceWorld wires one child in one group, supervised by one person, plus
@@ -155,11 +187,19 @@ func newAbsenceWorld() (notifications.AbsenceNotifier, *absenceWorld) {
 			absenceStudentB: {GroupID: &groupID},
 		}},
 		groups: &fakeGroupReader{staffByGroup: map[int64][]int64{absenceGroupA: {absenceStaffA}}},
-		staff:  &fakeStaffAccountReader{accounts: map[int64]int64{absenceStaffA: absenceAccountA}},
-		admins: &fakeAdminReader{ids: []int64{absenceAdmin}},
+		staff: &fakeStaffAccountReader{accounts: map[int64]int64{
+			absenceStaffA:     absenceAccountA,
+			absenceAdminStaff: absenceAdmin,
+		}},
+		admins:   &fakeAdminReader{ids: []int64{absenceAdmin}},
+		settings: &fakeOnDutySetting{enabled: true},
+		duty: &fakeDutyReader{presence: map[int64]string{
+			absenceStaffA:     activeModel.WorkSessionStatusPresent,
+			absenceAdminStaff: activeModel.WorkSessionStatusPresent,
+		}},
 	}
 	producer := notifications.NewAbsenceNotifier(
-		w.notifier, w.consent, w.students, w.groups, w.staff, w.admins, nil, nil)
+		w.notifier, w.consent, w.students, w.groups, w.staff, w.admins, w.settings, w.duty, nil, nil)
 	return producer, w
 }
 
@@ -198,6 +238,7 @@ func TestAbsenceNotifierPartitionsCountsByRecipientScope(t *testing.T) {
 	w.groups.staffByGroup[absenceGroupB] = []int64{absenceStaffB}
 	w.staff.accounts[absenceStaffB] = absenceAccountB
 	w.consent.allowed[absenceAccountB] = struct{}{}
+	w.duty.presence[absenceStaffB] = activeModel.WorkSessionStatusPresent
 
 	producer.NotifyAbsenceReported(
 		context.Background(),
@@ -405,19 +446,77 @@ func TestAbsenceNotifierRespectsConsent(t *testing.T) {
 	})
 }
 
+func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
+	t.Run("only checked-in staff are addressed", func(t *testing.T) {
+		producer, w := newAbsenceWorld()
+		w.duty.presence[absenceStaffA] = "checked_out"
+
+		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
+
+		require.Len(t, w.notifier.events, 1)
+		assert.Equal(t, []int64{absenceAdmin}, w.notifier.events[0].Audience.StaffAccountIDs)
+		assert.Equal(t, configModel.KeyNotificationsOnDutyOnly, w.settings.asked)
+	})
+
+	t.Run("home office counts as on duty", func(t *testing.T) {
+		producer, w := newAbsenceWorld()
+		w.duty.presence[absenceStaffA] = activeModel.WorkSessionStatusHomeOffice
+		w.duty.presence[absenceAdminStaff] = "checked_out"
+
+		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
+
+		require.Len(t, w.notifier.events, 1)
+		assert.Equal(t, []int64{absenceAccountA}, w.notifier.events[0].Audience.StaffAccountIDs)
+	})
+
+	t.Run("nobody checked in fails closed", func(t *testing.T) {
+		producer, w := newAbsenceWorld()
+		w.duty.presence = nil
+
+		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
+
+		assert.Empty(t, w.notifier.events)
+	})
+
+	t.Run("staffless admins are excluded", func(t *testing.T) {
+		producer, w := newAbsenceWorld()
+		delete(w.staff.accounts, absenceAdminStaff)
+
+		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
+
+		require.Len(t, w.notifier.events, 1)
+		assert.Equal(t, []int64{absenceAccountA}, w.notifier.events[0].Audience.StaffAccountIDs)
+	})
+
+	t.Run("disabled setting leaves consent as the final filter", func(t *testing.T) {
+		producer, w := newAbsenceWorld()
+		w.settings.enabled = false
+		w.duty.err = errors.New("must not be read")
+
+		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
+
+		require.Len(t, w.notifier.events, 1)
+		assert.ElementsMatch(t, []int64{absenceAccountA, absenceAdmin}, w.notifier.events[0].Audience.StaffAccountIDs)
+		assert.False(t, w.duty.called)
+	})
+}
+
 // Every failure is swallowed by contract: the producer runs from after-commit
 // hooks, and a notification that cannot be built must never undo an absence
 // that was already recorded.
 func TestAbsenceNotifierSwallowsFailures(t *testing.T) {
 	cases := map[string]func(*absenceWorld){
-		"student read fails": func(w *absenceWorld) { w.students.err = errors.New("boom") },
-		"group read fails":   func(w *absenceWorld) { w.groups.err = errors.New("boom") },
-		"staff read fails":   func(w *absenceWorld) { w.staff.err = errors.New("boom") },
-		"admin read fails":   func(w *absenceWorld) { w.admins.err = errors.New("boom") },
-		"consent fails":      func(w *absenceWorld) { w.consent.err = errors.New("boom") },
-		"dispatch fails":     func(w *absenceWorld) { w.notifier.err = errors.New("boom") },
-		"notifications off":  func(w *absenceWorld) { w.notifier.err = notifications.ErrDisabled },
-		"outside the window": func(w *absenceWorld) { w.notifier.err = notifications.ErrOutsideActiveWindow },
+		"student read fails":  func(w *absenceWorld) { w.students.err = errors.New("boom") },
+		"group read fails":    func(w *absenceWorld) { w.groups.err = errors.New("boom") },
+		"staff read fails":    func(w *absenceWorld) { w.staff.err = errors.New("boom") },
+		"admin read fails":    func(w *absenceWorld) { w.admins.err = errors.New("boom") },
+		"consent fails":       func(w *absenceWorld) { w.consent.err = errors.New("boom") },
+		"setting read fails":  func(w *absenceWorld) { w.settings.err = errors.New("boom") },
+		"presence read fails": func(w *absenceWorld) { w.duty.err = errors.New("boom") },
+		"duty mapping fails":  func(w *absenceWorld) { w.staff.dutyErr = errors.New("boom") },
+		"dispatch fails":      func(w *absenceWorld) { w.notifier.err = errors.New("boom") },
+		"notifications off":   func(w *absenceWorld) { w.notifier.err = notifications.ErrDisabled },
+		"outside the window":  func(w *absenceWorld) { w.notifier.err = notifications.ErrOutsideActiveWindow },
 	}
 
 	for name, break_ := range cases {
@@ -437,7 +536,7 @@ func TestAbsenceNotifierSwallowsFailures(t *testing.T) {
 // fallback audience.
 func TestAbsenceNotifierWithoutDependencies(t *testing.T) {
 	notifier := &captureNotifier{}
-	producer := notifications.NewAbsenceNotifier(nil, nil, nil, nil, nil, nil, nil, nil)
+	producer := notifications.NewAbsenceNotifier(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	assert.NotPanics(t, func() {
 		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
 	})

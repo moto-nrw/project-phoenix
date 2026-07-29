@@ -21,7 +21,7 @@ they are checked in this order:
 | 2 | Delivery window `notifications.active_window_start`/`_end` (`test` events exempt) | `router.withinActiveWindow` |
 | 3 | The type's school-wide gate, if it has one (`TypeDefinition.TenantGate`) | `PreferenceService.FilterOptedIn` |
 | 4 | The recipient's own consent for that type | `PreferenceService.FilterOptedIn` |
-| 5 | `notifications.on_duty_only`, for personal staff reminders | the reminder tick |
+| 5 | `notifications.on_duty_only`, for personal staff notifications | the reminder tick / absence producer |
 
 Gate 1 defaults to **on** since the personal-notification epic. That is only
 safe because gates 3–5 exist: every producer routes through consent, consent
@@ -233,8 +233,10 @@ do not know each other.
 `NotifyAbsenceReported` turns a recorded sick note or excuse for **today** into
 a `student_absence_reported` notification for the supervising staff of the
 child's group plus the office (effective admins), minus the person who entered
-it. Gated additionally by `notifications.absence_reported_enabled`. Wired into
-the parent write path and all three staff-side entry points
+it. Gated additionally by `notifications.absence_reported_enabled` and
+`notifications.on_duty_only`; with the latter enabled, only accounts mapped to
+staff who are currently checked in remain. Wired into the parent write path and
+all three staff-side entry points
 (`student_status_day_write.go`, `api/students/status_history.go`,
 `excused_request_service.go`). Every call runs after the absence transaction
 commits; the producer opens a fresh tenant transaction for its RLS-scoped
