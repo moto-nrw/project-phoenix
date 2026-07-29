@@ -58,6 +58,10 @@ const (
 	ResourceAccount      = "account"
 	ResourcePerson       = "person"
 	ResourceOperatorMFA  = "operator_mfa"
+	// ResourceAccountTenant covers changes to which schools an account may
+	// access (issue #1021). The resource ID is the account ID; the affected
+	// school is in the changes payload.
+	ResourceAccountTenant = "account_tenant"
 )
 
 // OperatorAuditLog tracks operator actions for auditing

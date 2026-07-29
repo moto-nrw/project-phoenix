@@ -121,6 +121,11 @@ type AccountRoleRepository interface {
 	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
+	// DeleteByAccountRoleAndTenant removes a single role assignment scoped to
+	// one school. Unlike DeleteByAccountAndRole it never touches the account's
+	// assignments at other schools, which is what cross-tenant access
+	// management requires.
+	DeleteByAccountRoleAndTenant(ctx context.Context, accountID, roleID, tenantID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
 }
@@ -326,6 +331,28 @@ type OrgAccountInfo struct {
 	SchoolName string `bun:"school_name" json:"school_name"`
 }
 
+// AccountTenantAccessInfo describes one school an account has (or had) access
+// to. Unlike the account listings above it is keyed by account, not by tenant,
+// and therefore spans every school in the platform — it backs the operator-only
+// "Schulzugänge" surface and must never be exposed to a tenant-scoped caller.
+//
+// Roles are NOT part of this row: they live in auth.account_roles and are
+// merged in by the service from AccountRoleRepository.FindByAccountID so the
+// query stays a plain per-mapping lookup.
+type AccountTenantAccessInfo struct {
+	TenantID         int64      `bun:"tenant_id" json:"tenant_id"`
+	SchoolName       string     `bun:"school_name" json:"school_name"`
+	SchoolSlug       string     `bun:"school_slug" json:"school_slug"`
+	SchoolActive     bool       `bun:"school_active" json:"school_active"`
+	OrganizationID   int64      `bun:"organization_id" json:"organization_id"`
+	OrganizationName string     `bun:"organization_name" json:"organization_name"`
+	Status           string     `bun:"status" json:"status"`
+	ActivatedAt      *time.Time `bun:"activated_at" json:"activated_at,omitempty"`
+	DeactivatedAt    *time.Time `bun:"deactivated_at" json:"deactivated_at,omitempty"`
+	HasPerson        bool       `bun:"has_person" json:"has_person"`
+	HasStaff         bool       `bun:"has_staff" json:"has_staff"`
+}
+
 // AccountTenantRepository defines operations for querying account-tenant mappings.
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
@@ -337,6 +364,7 @@ type AccountTenantRepository interface {
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
+	ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]AccountTenantAccessInfo, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.

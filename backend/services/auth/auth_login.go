@@ -859,6 +859,20 @@ func (s *Service) Register(ctx context.Context, email, username, password string
 	if roleID != nil && *roleID > 0 && tenantID <= 0 {
 		return nil, &AuthError{Op: "register", Err: ErrTenantRequiredForRoleAssignment}
 	}
+	if roleID != nil && *roleID > 0 {
+		var roleErr error
+		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
+			// System roles have tenant_id NULL. Clear only the Go context tenant
+			// for this lookup; the surrounding transaction and its RLS context stay
+			// intact for the subsequent account creation.
+			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
+			_, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
+			return roleErr
+		})
+		if err != nil {
+			return nil, &AuthError{Op: "register", Err: err}
+		}
+	}
 
 	// Create account object with hashed password
 	account, err := s.createAccountObject(email, username, password)
@@ -978,6 +992,24 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 
 	if tenantID <= 0 {
 		return nil, &AuthError{Op: op, Err: ErrTenantRequiredForRoleAssignment}
+	}
+
+	// Same role policy as operator-led school access: no guardian (that is the
+	// guardian invitation flow), no retired teacher role, and no role belonging
+	// to a different school (issue #1021).
+	if roleID != nil && *roleID > 0 {
+		var roleErr error
+		// System roles have tenant_id NULL. Clear only the Go context tenant for
+		// this lookup; the admin transaction and the target-school policy remain
+		// in force.
+		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
+			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
+			_, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
+			return roleErr
+		})
+		if err != nil {
+			return nil, &AuthError{Op: op, Err: err}
+		}
 	}
 
 	// Find existing account

@@ -235,6 +235,51 @@ func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
 	})
 }
 
+// DeleteByAccountRoleAndTenant backs operator-led school access management
+// (#1021): revoking access at one school must never touch the same account's
+// role assignments at another school.
+func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).AccountRole
+	const otherTenantID int64 = 1021003
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+
+	t.Run("deletes only the assignment of the given school", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "delete_ar_tenant")
+		role := testpkg.CreateTestRole(t, db, "DeleteTenantRole")
+		defer cleanupAccountRecords(t, db, account.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
+
+		homeAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
+		require.NoError(t, repo.Create(testpkg.TenantContext(1), homeAssignment))
+		otherAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
+		require.NoError(t, repo.Create(testpkg.TenantContext(otherTenantID), otherAssignment))
+
+		err := repo.DeleteByAccountRoleAndTenant(testpkg.TenantContext(1), account.ID, role.ID, otherTenantID)
+		require.NoError(t, err)
+
+		// The other school's assignment is gone...
+		remainingOther, err := repo.FindByAccountIDForTenant(testpkg.TenantContext(1), account.ID, otherTenantID)
+		require.NoError(t, err)
+		assert.Empty(t, remainingOther)
+
+		// ...while the home school keeps its own.
+		remainingHome, err := repo.FindByAccountIDForTenant(testpkg.TenantContext(1), account.ID, 1)
+		require.NoError(t, err)
+		assert.Len(t, remainingHome, 1)
+	})
+
+	t.Run("does not error when nothing matches", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "delete_ar_tenant_none")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		err := repo.DeleteByAccountRoleAndTenant(testpkg.TenantContext(1), account.ID, 999999, otherTenantID)
+		require.NoError(t, err)
+	})
+}
+
 func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
