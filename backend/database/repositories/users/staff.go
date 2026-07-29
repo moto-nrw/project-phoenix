@@ -224,6 +224,49 @@ func (r *StaffRepository) GetStaffContactInfo(ctx context.Context, staffID int64
 	return &result, nil
 }
 
+// ListAccountIDsByStaffIDs maps staff members to their login accounts.
+//
+// The bulk counterpart of the staff -> person -> account walk
+// GetStaffContactInfo does for one person, reduced to the two columns a caller
+// addressing people by account needs. Deliberately not FindWithPersonByIDs:
+// that hydrates whole staff and person rows for a lookup that is two integers.
+//
+// Staff without a login account are absent from the result rather than mapped
+// to zero, so a caller ranging over the map cannot accidentally address account
+// 0. Soft-deleted staff and persons are excluded.
+func (r *StaffRepository) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error) {
+	if len(staffIDs) == 0 {
+		return map[int64]int64{}, nil
+	}
+
+	var rows []struct {
+		StaffID   int64 `bun:"staff_id"`
+		AccountID int64 `bun:"account_id"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id AS staff_id`).
+		ColumnExpr(`"person".account_id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Where(`"staff".deleted_at IS NULL`).
+		Where(`"person".account_id IS NOT NULL`).
+		Where(`"staff".id IN (?)`, bun.List(staffIDs))
+
+	query = base.WithTenantFilter(ctx, query, "staff")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list account IDs by staff IDs", Err: err}
+	}
+
+	accountsByStaff := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		accountsByStaff[row.StaffID] = row.AccountID
+	}
+
+	return accountsByStaff, nil
+}
+
 // ListStaffWithPermission returns all active staff whose effective permissions
 // (role-granted UNION directly-granted, tenant-scoped) match permissionName —
 // wildcard-aware via the same matcher route authorization uses. Used for the

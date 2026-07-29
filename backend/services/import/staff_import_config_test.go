@@ -114,6 +114,9 @@ func (r stubStaffAccountRepo) SetActive(context.Context, int64, bool) error { pa
 func (r stubStaffAccountRepo) FindByRole(context.Context, string) ([]*authModels.Account, error) {
 	panic("not implemented")
 }
+func (r stubStaffAccountRepo) ListEffectiveAdminAccountIDs(context.Context) ([]int64, error) {
+	panic("not implemented")
+}
 func (r stubStaffAccountRepo) FindAccountsWithRolesAndPermissions(context.Context, map[string]interface{}) ([]*authModels.Account, error) {
 	panic("not implemented")
 }

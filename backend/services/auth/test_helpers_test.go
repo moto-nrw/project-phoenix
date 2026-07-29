@@ -199,6 +199,10 @@ func (noopAccountRepository) FindByRole(context.Context, string) ([]*authModel.A
 	panic("FindByRole not implemented")
 }
 
+func (noopAccountRepository) ListEffectiveAdminAccountIDs(context.Context) ([]int64, error) {
+	panic("ListEffectiveAdminAccountIDs not implemented")
+}
+
 func (noopAccountRepository) FindAccountsWithRolesAndPermissions(context.Context, map[string]interface{}) ([]*authModel.Account, error) {
 	panic("FindAccountsWithRolesAndPermissions not implemented")
 }

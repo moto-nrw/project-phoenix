@@ -110,6 +110,12 @@ type PushSubscriptionRepository interface {
 	DeleteStaffByAccountID(ctx context.Context, accountID int64) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
+
+	// FindForStaffAccounts returns the staff-portal subscriptions of the given
+	// accounts in the current tenant. Same eligibility rules as
+	// FindForTenantStaff, narrowed to named recipients — the addressing
+	// primitive for personal notifications.
+	FindForStaffAccounts(ctx context.Context, accountIDs []int64) ([]*PushSubscription, error)
 	// FindForTenantAdmins returns staff-portal subscriptions of accounts with
 	// effective admin scope in the current tenant.
 	FindForTenantAdmins(ctx context.Context) ([]*PushSubscription, error)

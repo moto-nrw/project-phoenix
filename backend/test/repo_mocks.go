@@ -163,6 +163,7 @@ type StaffRepoMock struct {
 	ListStaffWithPermissionFn       func(ctx context.Context, permissionName string) ([]*users.StaffWithRoleInfo, error)
 	GetStaffContactInfoFn           func(ctx context.Context, staffID int64) (*users.StaffWithRoleInfo, error)
 	FindReachableCalendarStaffIDsFn func(ctx context.Context, ids []int64) (map[int64]bool, error)
+	ListAccountIDsByStaffIDsFn      func(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
 }
 
 var _ users.StaffRepository = (*StaffRepoMock)(nil)
@@ -256,6 +257,13 @@ func (m *StaffRepoMock) GetStaffContactInfo(ctx context.Context, staffID int64) 
 		return m.GetStaffContactInfoFn(ctx, staffID)
 	}
 	return nil, nil
+}
+
+func (m *StaffRepoMock) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error) {
+	if m.ListAccountIDsByStaffIDsFn != nil {
+		return m.ListAccountIDsByStaffIDsFn(ctx, staffIDs)
+	}
+	return map[int64]int64{}, nil
 }
 
 func (m *StaffRepoMock) ListStaffWithPermission(ctx context.Context, permissionName string) ([]*users.StaffWithRoleInfo, error) {

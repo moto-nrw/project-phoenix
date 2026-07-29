@@ -144,6 +144,10 @@ func (m *shiftMockStaffRepo) FindByID(ctx context.Context, id interface{}) (*use
 	return &usersModels.Staff{}, nil
 }
 
+func (m *shiftMockStaffRepo) ListAccountIDsByStaffIDs(_ context.Context, _ []int64) (map[int64]int64, error) {
+	return map[int64]int64{}, nil
+}
+
 // The remaining StaffRepository methods are unused by the shift service.
 func (m *shiftMockStaffRepo) Create(context.Context, *usersModels.Staff) error { return nil }
 func (m *shiftMockStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Staff, error) {

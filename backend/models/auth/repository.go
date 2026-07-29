@@ -28,6 +28,10 @@ type AccountRepository interface {
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 	SetActive(ctx context.Context, id int64, active bool) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
+	// ListEffectiveAdminAccountIDs returns the IDs of active accounts with
+	// effective admin scope in the current tenant: the literal admin role, or
+	// an admin:* / *:* permission from a role or granted directly.
+	ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error)
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
