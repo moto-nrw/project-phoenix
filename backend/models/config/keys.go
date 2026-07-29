@@ -180,9 +180,8 @@ const (
 	// exists on top of the per-person opt-in.
 	KeyNotificationsAbsenceReportedEnabled = "notifications.absence_reported_enabled"
 	// KeyNotificationsOnDutyOnly restricts personal notifications to staff who
-	// are currently checked in. Schools without time tracking see an empty
-	// presence map, in which case the filter is skipped rather than silencing
-	// everyone.
+	// are currently checked in. An empty presence map fails closed; schools
+	// without time tracking must disable this setting.
 	KeyNotificationsOnDutyOnly = "notifications.on_duty_only"
 )
 

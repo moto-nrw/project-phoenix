@@ -1,15 +1,18 @@
 package active_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // TestGroupSupervisorRepository_ListActiveSupervisedRooms pins the whole-tenant
@@ -97,6 +100,65 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 			assert.False(t, row.StaffID == staff.ID && row.RoomID == room.ID,
 				"an expired supervision must not surface")
 		}
+	})
+
+	t.Run("uses the Berlin date independently of the database timezone", func(t *testing.T) {
+		today := timezone.TodayDate()
+		err := tenant.WithTenantTx(context.Background(), db, 1, func(txCtx context.Context, tx bun.Tx) error {
+			var databaseDate string
+			for _, zone := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {
+				var configuredZone string
+				if err := tx.NewSelect().
+					ColumnExpr(`set_config('TimeZone', ?, true)`, zone).
+					Scan(txCtx, &configuredZone); err != nil {
+					return err
+				}
+				if err := tx.NewSelect().ColumnExpr("CURRENT_DATE::text").Scan(txCtx, &databaseDate); err != nil {
+					return err
+				}
+				if databaseDate != today.String() {
+					break
+				}
+			}
+			require.NotEqual(t, today.String(), databaseDate)
+
+			endDate := today
+			wantFound := false
+			if databaseDate > today.String() {
+				endDate = today.AddDays(1)
+				wantFound = true
+			}
+			if _, err := tx.NewUpdate().
+				TableExpr("active.group_supervisors").
+				Set("end_date = ?", endDate).
+				Where("id = ?", openSupervision.ID).
+				Exec(txCtx); err != nil {
+				return err
+			}
+
+			rows, err := repo.ListActiveSupervisedRooms(txCtx)
+			if err != nil {
+				return err
+			}
+			found := false
+			for _, row := range rows {
+				if row.StaffID == staff.ID && row.RoomID == room.ID {
+					found = true
+					break
+				}
+			}
+			assert.Equal(t, wantFound, found,
+				"database session date must not change Berlin supervision expiry")
+			return nil
+		})
+		require.NoError(t, err)
+
+		_, err = db.NewUpdate().
+			TableExpr("active.group_supervisors").
+			Set("end_date = NULL").
+			Where("id = ?", openSupervision.ID).
+			Exec(ctx)
+		require.NoError(t, err)
 	})
 
 	t.Run("does not leak another tenant's supervisions", func(t *testing.T) {

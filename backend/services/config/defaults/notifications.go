@@ -73,7 +73,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyNotificationsOnDutyOnly,
 		Label:           "Nur im Dienst benachrichtigen",
-		Description:     "Persönliche Hinweise erreichen nur Personen, die gerade eingestempelt sind. Ohne Zeiterfassung greift diese Einschränkung nicht.",
+		Description:     "Persönliche Hinweise erreichen nur Personen, die gerade eingestempelt sind. Schulen ohne Zeiterfassung müssen diese Einstellung ausschalten.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

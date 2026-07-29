@@ -21,11 +21,12 @@ import (
 // group tablet. The deep link leads into the authenticated app, where the
 // permission-filtered view shows who it is.
 const (
-	absenceReportedTitle       = "Krankmeldung"
-	absenceReportedBodyParent  = "Eine Familie hat ein Kind aus Ihrer Gruppe für heute krankgemeldet."
-	absenceReportedBodyStaff   = "Für ein Kind aus Ihrer Gruppe wurde heute eine Krankmeldung eingetragen."
-	absenceReportedBodyMany    = "%d Kinder wurden für heute krankgemeldet."
-	absenceReportedBodyExcused = "Für ein Kind aus Ihrer Gruppe wurde heute eine Entschuldigung eingetragen."
+	absenceReportedTitle           = "Krankmeldung"
+	absenceReportedBodyParent      = "Eine Familie hat ein Kind aus Ihrer Gruppe für heute krankgemeldet."
+	absenceReportedBodyStaff       = "Für ein Kind aus Ihrer Gruppe wurde heute eine Krankmeldung eingetragen."
+	absenceReportedBodySickMany    = "%d Kinder wurden für heute krankgemeldet."
+	absenceReportedBodyExcused     = "Für ein Kind aus Ihrer Gruppe wurde heute eine Entschuldigung eingetragen."
+	absenceReportedBodyExcusedMany = "%d Kinder wurden für heute entschuldigt."
 )
 
 // absenceAggregateThreshold is the point at which one entry covering many
@@ -255,8 +256,11 @@ func (n *absenceNotifier) groupIDsOfStudents(ctx context.Context, studentIDs []i
 }
 
 func absenceBody(report AbsenceReport) string {
-	if len(report.StudentIDs) > absenceAggregateThreshold {
-		return fmt.Sprintf(absenceReportedBodyMany, len(report.StudentIDs))
+	if len(report.StudentIDs) > 1 {
+		if report.Status == activeModel.StudentStatusDayExcused {
+			return fmt.Sprintf(absenceReportedBodyExcusedMany, len(report.StudentIDs))
+		}
+		return fmt.Sprintf(absenceReportedBodySickMany, len(report.StudentIDs))
 	}
 	if report.Status == activeModel.StudentStatusDayExcused {
 		return absenceReportedBodyExcused

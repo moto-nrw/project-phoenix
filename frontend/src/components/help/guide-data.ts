@@ -1685,7 +1685,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Einstellungen` -> `Betrieb` öffnen und zur Sektion `Benachrichtigungen` scrollen.",
           "`Benachrichtigungen aktivieren` ist im Auslieferungszustand an. Ausgeschaltet bleibt die ganze Schule still, unabhängig davon, was einzelne Personen in ihrem Profil ausgewählt haben.",
           "`Benachrichtigungen ab` und `bis` begrenzen den Versand auf die Betreuungszeiten (Standard 06:00 bis 18:00). Außerhalb bleibt es still bis zum nächsten Morgen.",
-          "`Nur im Dienst benachrichtigen` beschränkt persönliche Hinweise auf Personen, die gerade eingestempelt sind. Ohne Zeiterfassung greift die Einschränkung nicht.",
+          "`Nur im Dienst benachrichtigen` beschränkt persönliche Hinweise auf Personen, die gerade eingestempelt sind. Solange noch niemand eingestempelt ist, bleibt es still. Schulen ohne Zeiterfassung schalten diese Einstellung aus.",
           "`Krankmeldungen melden` erlaubt Hinweise an die Gruppe und die Leitung, wenn für ein Kind eine Krankmeldung oder Entschuldigung eingetragen wird. Diese Einstellung ist Admins vorbehalten.",
         ],
         callout: {

@@ -207,9 +207,8 @@ closed/locked devices.
    Nobody opted in → the tick ends **before** any reminder is computed, which
    is the normal case and keeps the per-minute cost at six cheap queries.
 3. **On duty** — with `notifications.on_duty_only` (default on) only people
-   with an open work session today remain. An empty presence map means the
-   school does not clock in at all and lifts the restriction, matching the
-   setting's own description.
+   with an open work session today remain. An empty presence map reaches
+   nobody; schools without time tracking must switch this setting off.
 4. **Compute** — one `reminders.ComputeBatch` for all recipients: the
    tenant-wide reads happen once, only the per-person slice is derived in
    memory (see the package comment in `services/reminders/batch.go`).

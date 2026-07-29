@@ -220,7 +220,17 @@ func TestAbsenceNotifierWording(t *testing.T) {
 			report: func() notifications.AbsenceReport {
 				return sickToday(absenceStudentA, absenceStudentB)
 			},
-			wantBody: "Eine Familie hat ein Kind aus Ihrer Gruppe für heute krankgemeldet.",
+			wantBody: "2 Kinder wurden für heute krankgemeldet.",
+			wantLink: "/students",
+		},
+		{
+			name: "three excused children use plural wording",
+			report: func() notifications.AbsenceReport {
+				r := sickToday(71, 72, 73)
+				r.Status = activeModel.StudentStatusDayExcused
+				return r
+			},
+			wantBody: "3 Kinder wurden für heute entschuldigt.",
 			wantLink: "/students",
 		},
 		{

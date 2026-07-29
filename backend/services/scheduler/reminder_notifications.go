@@ -354,12 +354,8 @@ func (s *Scheduler) resolveReminderRecipients(ctx context.Context) ([]reminderRe
 }
 
 // resolveOnDutyStaff answers who may be addressed under
-// notifications.on_duty_only. A nil map means "no restriction".
-//
-// An empty presence map is read as "this school does not clock in" rather than
-// as "nobody is working", which is what the setting's own description promises.
-// A school that does use time tracking and has everybody stamped out gets a
-// non-empty map with nobody in it, and stays quiet — which is the point.
+// notifications.on_duty_only. A nil map means "no restriction"; an empty,
+// non-nil map means nobody is currently on duty.
 func (s *Scheduler) resolveOnDutyStaff(ctx context.Context) (map[int64]struct{}, error) {
 	if !s.resolveBoolSetting(ctx, configModel.KeyNotificationsOnDutyOnly, "", true) {
 		return nil, nil
@@ -369,10 +365,6 @@ func (s *Scheduler) resolveOnDutyStaff(ctx context.Context) (map[int64]struct{},
 	if err != nil {
 		return nil, fmt.Errorf("load staff presence: %w", err)
 	}
-	if len(presence) == 0 {
-		return nil, nil
-	}
-
 	onDuty := make(map[int64]struct{}, len(presence))
 	for staffID, status := range presence {
 		// Matched positively against the two real statuses: the map also carries

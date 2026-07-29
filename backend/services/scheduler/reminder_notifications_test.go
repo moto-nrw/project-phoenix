@@ -151,8 +151,8 @@ type reminderTestSetup struct {
 }
 
 // buildReminderSched wires a scheduler with the given batch results and consent
-// map. The duty gate is off by default (empty presence map = the school does
-// not clock in), so tests that do not care about it are unaffected.
+// map. Both staff are on duty by default so tests that do not care about the
+// duty gate are unaffected.
 func buildReminderSched(results map[int64]*reminders.Result, consent map[string][]int64) *reminderTestSetup {
 	setup := &reminderTestSetup{
 		computer: &fakeBatchComputer{results: results},
@@ -161,8 +161,11 @@ func buildReminderSched(results map[int64]*reminders.Result, consent map[string]
 			caregiverStaffID: caregiverAccountID,
 			adminStaffID:     adminAccountID,
 		}},
-		admins:   &fakeAdminAccounts{ids: []int64{adminAccountID}},
-		duty:     &fakeDuty{},
+		admins: &fakeAdminAccounts{ids: []int64{adminAccountID}},
+		duty: &fakeDuty{presence: map[int64]string{
+			caregiverStaffID: activeModel.WorkSessionStatusPresent,
+			adminStaffID:     activeModel.WorkSessionStatusPresent,
+		}},
 		notifier: &captureBatchNotifier{},
 	}
 	setup.sched = &Scheduler{
@@ -383,14 +386,15 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 		assert.Equal(t, []int64{caregiverAccountID}, setup.notifier.events[0].Audience.StaffAccountIDs)
 	})
 
-	t.Run("a school without time tracking is not restricted", func(t *testing.T) {
+	t.Run("nobody clocked in fails closed", func(t *testing.T) {
 		setup := buildReminderSched(results, consent)
 		setup.duty.presence = nil
 
 		setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
 
-		assert.Len(t, setup.notifier.events, 2,
-			"no work sessions at all means the school does not clock in, not that nobody works")
+		assert.Empty(t, setup.notifier.events)
+		assert.Zero(t, setup.computer.calls,
+			"an empty work-session day must not widen the recipient set")
 	})
 
 	t.Run("everybody stamped out stays quiet", func(t *testing.T) {

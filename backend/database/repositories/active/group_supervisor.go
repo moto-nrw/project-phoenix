@@ -75,7 +75,7 @@ func (r *GroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Contex
 		TableExpr(`active.group_supervisors AS "group_supervisor"`).
 		ColumnExpr(`"group_supervisor".staff_id, "group".room_id`).
 		Join(`JOIN active.groups AS "group" ON "group".id = "group_supervisor".group_id`).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > CURRENT_DATE`).
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate()).
 		Where(`"group".end_time IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
