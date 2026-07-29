@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -1215,12 +1214,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// leave a partial write behind either — checking first keeps the refusal
 	// cheap, the rollback makes it safe.
 	applyStudentFieldUpdates(req, fresh)
-	reportedStatus := ""
-	if !wasSick && boolPtrValue(fresh.Sick) {
-		reportedStatus = activeModel.StudentStatusDaySick
-	} else if !wasExcused && boolPtrValue(fresh.Excused) {
-		reportedStatus = activeModel.StudentStatusDayExcused
-	}
+	reportedStatus := newlyReportedAbsenceStatus(fresh, wasSick, wasExcused)
 	authorizedExtensions, err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions)
 	if err != nil {
 		return false, err

@@ -22,6 +22,16 @@ func statusReportedAt(now time.Time, existing *time.Time) time.Time {
 	return now
 }
 
+func newlyReportedAbsenceStatus(student *users.Student, wasSick, wasExcused bool) string {
+	if !wasSick && boolPtrValue(student.Sick) {
+		return active.StudentStatusDaySick
+	}
+	if !wasExcused && boolPtrValue(student.Excused) {
+		return active.StudentStatusDayExcused
+	}
+	return ""
+}
+
 func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *users.Student, wasSick, wasExcused bool, now time.Time, sickNote *string) error {
 	if rs.StudentStatusDayService == nil {
 		return nil
