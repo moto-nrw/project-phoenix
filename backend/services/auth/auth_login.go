@@ -862,7 +862,11 @@ func (s *Service) Register(ctx context.Context, email, username, password string
 	if roleID != nil && *roleID > 0 {
 		var roleErr error
 		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
-			_, roleErr = ValidateAssignableSchoolRole(adminCtx, s.repos.Role, *roleID, tenantID)
+			// System roles have tenant_id NULL. Clear only the Go context tenant
+			// for this lookup; the surrounding transaction and its RLS context stay
+			// intact for the subsequent account creation.
+			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
+			_, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
 			return roleErr
 		})
 		if err != nil {
@@ -995,11 +999,12 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 	// to a different school (issue #1021).
 	if roleID != nil && *roleID > 0 {
 		var roleErr error
-		// A tenant context only exposes its own roles and therefore hides
-		// platform roles (tenant_id IS NULL). Resolve through the admin view;
-		// ValidateAssignableSchoolRole still enforces the target-school policy.
+		// System roles have tenant_id NULL. Clear only the Go context tenant for
+		// this lookup; the admin transaction and the target-school policy remain
+		// in force.
 		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
-			_, roleErr = ValidateAssignableSchoolRole(adminCtx, s.repos.Role, *roleID, tenantID)
+			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
+			_, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
 			return roleErr
 		})
 		if err != nil {

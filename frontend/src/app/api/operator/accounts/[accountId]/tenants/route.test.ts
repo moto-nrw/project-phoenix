@@ -112,6 +112,24 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
     );
   });
 
+  it("rejects malformed grant JSON without contacting the backend", async () => {
+    const response = await POST(
+      new NextRequest(
+        "http://localhost:3000/api/operator/accounts/42/tenants",
+        {
+          method: "POST",
+          body: "{",
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+      context(),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid JSON body" });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("retries once with a refreshed token on 401", async () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse({ error: "expired" }, 401))

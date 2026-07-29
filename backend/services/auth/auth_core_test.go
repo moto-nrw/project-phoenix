@@ -2780,6 +2780,31 @@ func TestRegister_WithTenantID_CreatesAccountTenantAndRole(t *testing.T) {
 	assert.Equal(t, 1, roleCount, "account_role should be scoped to the correct tenant")
 }
 
+func TestRegister_WithTenantID_AssignsSystemRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	role := testpkg.CreateTestSystemRole(t, db, "registration-system-role")
+	defer testpkg.CleanupRoleRecords(t, db, role.ID)
+
+	email, username := uniqueTestCredentials("tenant-register-system-role")
+	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, &role.ID, tenantID)
+	require.NoError(t, err)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, role.ID, tenantID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, roleCount, "system role should be assigned in the target tenant")
+}
+
 func TestRegister_WithTenantID_NoRole(t *testing.T) {
 	// Register with tenantID > 0 but no roleID should still create the
 	// account_tenant mapping (without role assignment).
@@ -2959,6 +2984,29 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			TableExpr("auth.account_roles").
 			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
 			Exec(context.Background())
+	})
+
+	t.Run("links an existing account with a system role", func(t *testing.T) {
+		email, _ := uniqueTestCredentials("link-system-role")
+		account, err := service.Register(context.Background(), email, email, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		role := testpkg.CreateTestSystemRole(t, db, "link-system-role")
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
+
+		linked, err := service.LinkAccountToTenant(testpkg.TenantContext(tenantID), email, &role.ID, tenantID)
+		require.NoError(t, err)
+		assert.Equal(t, account.ID, linked.ID)
+
+		var roleCount int
+		err = db.NewSelect().
+			TableExpr("auth.account_roles").
+			ColumnExpr("COUNT(*)").
+			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, role.ID, tenantID).
+			Scan(context.Background(), &roleCount)
+		require.NoError(t, err)
+		assert.Equal(t, 1, roleCount, "system role should be assigned in the target tenant")
 	})
 
 	t.Run("returns error for non-existent email", func(t *testing.T) {

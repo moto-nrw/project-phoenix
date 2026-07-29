@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Building2, Plus, ShieldCheck } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -91,16 +91,29 @@ export function AccountTenantAccessModal({
   const [revokeTarget, setRevokeTarget] = useState<AccountTenantAccess | null>(
     null,
   );
+  const loadRequestRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!accountId) return;
+
+    const requestId = ++loadRequestRef.current;
+    const isCurrentRequest = () => requestId === loadRequestRef.current;
     try {
       setLoading(true);
       setErrorMessage("");
+      setAccess([]);
+      setSchools([]);
+      setRolesBySchool({});
+      setAddSchoolId("");
+      setAddRoleId("");
+      setFirstName("");
+      setLastName("");
+      setRevokeTarget(null);
       const [entries, schoolList] = await Promise.all([
         accountTenantAccessService.list(accountId),
         operatorProvisioningService.listSchoolSummaries(),
       ]);
+      if (!isCurrentRequest()) return;
       setAccess(entries);
       setSchools(
         schoolList
@@ -124,6 +137,7 @@ export function AccountTenantAccessModal({
               ] as const,
           ),
       );
+      if (!isCurrentRequest()) return;
       setRolesBySchool(
         Object.fromEntries(
           rolesForActiveSchools.flatMap((result) => {
@@ -140,6 +154,7 @@ export function AccountTenantAccessModal({
         ),
       );
     } catch (error) {
+      if (!isCurrentRequest()) return;
       logger.error("failed to load school access", {
         error: error instanceof Error ? error.message : String(error),
         accountId,
@@ -150,7 +165,7 @@ export function AccountTenantAccessModal({
           : "Die Schulzugänge konnten nicht geladen werden.",
       );
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, [accountId]);
 
@@ -158,6 +173,7 @@ export function AccountTenantAccessModal({
     if (isOpen) {
       void load();
     } else {
+      loadRequestRef.current += 1;
       setAddSchoolId("");
       setAddRoleId("");
       setFirstName("");

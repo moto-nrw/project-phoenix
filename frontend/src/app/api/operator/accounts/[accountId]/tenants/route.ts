@@ -29,8 +29,14 @@ async function forward(
     );
   }
 
-  const body =
-    method === "POST" ? JSON.stringify(await request.json()) : undefined;
+  let body: string | undefined;
+  if (method === "POST") {
+    try {
+      body = JSON.stringify(await request.json());
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+  }
 
   const makeRequest = async (token: string) =>
     fetch(

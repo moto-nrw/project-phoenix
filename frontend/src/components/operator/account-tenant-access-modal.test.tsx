@@ -235,6 +235,43 @@ describe("AccountTenantAccessModal", () => {
     expect(screen.getByText(/Träger Köln • Verwaltung/)).toBeInTheDocument();
   });
 
+  it("ignores an earlier account's load result after the account changes", async () => {
+    let resolveFirstLoad!: (value: ReturnType<typeof access>[]) => void;
+    const firstLoad = new Promise<ReturnType<typeof access>[]>((resolve) => {
+      resolveFirstLoad = resolve;
+    });
+    mockList
+      .mockImplementationOnce(() => firstLoad)
+      .mockResolvedValueOnce([
+        access({
+          tenantId: "3",
+          schoolName: "OGS Süd",
+          schoolSlug: "ogs-sued",
+        }),
+      ]);
+
+    const { rerender } = renderModal({ accountId: "1" });
+    await waitFor(() => expect(mockList).toHaveBeenCalledWith("1"));
+
+    rerender(
+      <AccountTenantAccessModal
+        isOpen={true}
+        onClose={vi.fn()}
+        accountId="2"
+        accountLabel="Grace Hopper"
+        accountEmail="grace@example.com"
+      />,
+    );
+
+    expect(await screen.findByText("OGS Süd")).toBeInTheDocument();
+    resolveFirstLoad([access({ schoolName: "OGS Nord" })]);
+
+    await waitFor(() => {
+      expect(screen.getByText("OGS Süd")).toBeInTheDocument();
+      expect(screen.queryByText("OGS Nord")).not.toBeInTheDocument();
+    });
+  });
+
   it("offers only schools the account is not active at", async () => {
     renderModal();
 
