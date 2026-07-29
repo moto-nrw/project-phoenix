@@ -65,7 +65,7 @@ func staffEvent(tenantID int64, accountIDs ...int64) notifications.Event {
 // recipients. An event that addresses nobody must be rejected rather than
 // delivered to a fallback audience.
 func TestStaffScopeValidation(t *testing.T) {
-	svc := notifications.NewService(settingsWithWindow("", ""), nil,
+	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 		notifications.NewSSEChannel(testpkg.NewRecordingBroadcaster()))
 
 	t.Run("no recipients is rejected", func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestStaffScopeValidation(t *testing.T) {
 // exactly the named accounts and no other audience.
 func TestStaffScopeRoutesToNamedAccounts(t *testing.T) {
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := notifications.NewService(settingsWithWindow("", ""), nil,
+	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 		notifications.NewSSEChannel(bc))
 
 	err := dispatch(t, func(ctx context.Context) error {
@@ -112,7 +112,7 @@ func TestStaffScopeRoutesToNamedAccounts(t *testing.T) {
 // caller reusing its slice would otherwise redirect a notification.
 func TestStaffAccountIDsAreSnapshotted(t *testing.T) {
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := notifications.NewService(settingsWithWindow("", ""), nil,
+	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 		notifications.NewSSEChannel(bc))
 
 	recipients := []int64{11, 22}
@@ -164,7 +164,7 @@ func TestDeliveryWindow(t *testing.T) {
 		assert.NotEmpty(t, bc.Calls())
 	})
 
-	t.Run("a malformed window does not silence the school", func(t *testing.T) {
+	t.Run("a malformed window fails closed", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
 		svc := notifications.NewService(settingsWithWindow("nonsense", "18:00"), nil,
 			notifications.NewSSEChannel(bc))
@@ -172,8 +172,20 @@ func TestDeliveryWindow(t *testing.T) {
 		err := dispatch(t, func(ctx context.Context) error {
 			return svc.Notify(ctx, staffEvent(7, 11))
 		})
-		require.NoError(t, err)
-		assert.NotEmpty(t, bc.Calls())
+		require.ErrorIs(t, err, notifications.ErrOutsideActiveWindow)
+		assert.Empty(t, bc.Calls())
+	})
+
+	t.Run("a blank window fails closed", func(t *testing.T) {
+		bc := testpkg.NewRecordingBroadcaster()
+		svc := notifications.NewService(settingsWithWindow("", "18:00"), nil,
+			notifications.NewSSEChannel(bc))
+
+		err := dispatch(t, func(ctx context.Context) error {
+			return svc.Notify(ctx, staffEvent(7, 11))
+		})
+		require.ErrorIs(t, err, notifications.ErrOutsideActiveWindow)
+		assert.Empty(t, bc.Calls())
 	})
 }
 
@@ -181,7 +193,7 @@ func TestDeliveryWindow(t *testing.T) {
 func TestNotifyBatch(t *testing.T) {
 	t.Run("delivers one event per recipient", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
-		svc := notifications.NewService(settingsWithWindow("", ""), nil,
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 			notifications.NewSSEChannel(bc))
 
 		err := dispatch(t, func(ctx context.Context) error {
@@ -210,9 +222,24 @@ func TestNotifyBatch(t *testing.T) {
 		assert.NotEmpty(t, bc.Calls())
 	})
 
+	t.Run("a malformed window rejects the whole batch", func(t *testing.T) {
+		bc := testpkg.NewRecordingBroadcaster()
+		svc := notifications.NewService(settingsWithWindow("06:00", "invalid"), nil,
+			notifications.NewSSEChannel(bc))
+
+		err := dispatch(t, func(ctx context.Context) error {
+			return svc.NotifyBatch(ctx, []notifications.Event{
+				staffEvent(7, 11),
+				staffEvent(7, 22),
+			})
+		})
+		require.ErrorIs(t, err, notifications.ErrOutsideActiveWindow)
+		assert.Empty(t, bc.Calls())
+	})
+
 	t.Run("a mixed-tenant batch is rejected", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
-		svc := notifications.NewService(settingsWithWindow("", ""), nil,
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 			notifications.NewSSEChannel(bc))
 
 		err := svc.NotifyBatch(context.Background(), []notifications.Event{
@@ -226,7 +253,7 @@ func TestNotifyBatch(t *testing.T) {
 
 	t.Run("one malformed event fails the whole batch", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
-		svc := notifications.NewService(settingsWithWindow("", ""), nil,
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 			notifications.NewSSEChannel(bc))
 
 		// Dropping the bad event silently would lose a recipient without a
@@ -241,7 +268,7 @@ func TestNotifyBatch(t *testing.T) {
 
 	t.Run("an empty batch is a no-op", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
-		svc := notifications.NewService(settingsWithWindow("", ""), nil,
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 			notifications.NewSSEChannel(bc))
 
 		require.NoError(t, svc.NotifyBatch(context.Background(), nil))

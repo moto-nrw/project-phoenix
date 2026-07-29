@@ -353,8 +353,8 @@ func staffAccountIDs(audience Audience) []int64 {
 // withinActiveWindow reports whether the tenant currently accepts delivery.
 //
 // The check lives here rather than in each producer so quiet hours hold for
-// everything by construction. An unparseable or empty setting means "no
-// restriction": a broken time value must not silence a school outright.
+// everything by construction. An unparseable or empty setting closes the
+// window: corrupt configuration must never widen delivery into quiet hours.
 func (r *router) withinActiveWindow(ctx context.Context, tenantID int64) (bool, error) {
 	start, err := r.resolveWindowBound(ctx, tenantID, configModel.KeyNotificationsActiveWindowStart)
 	if err != nil {
@@ -364,9 +364,11 @@ func (r *router) withinActiveWindow(ctx context.Context, tenantID int64) (bool, 
 	if err != nil {
 		return false, err
 	}
-	// Empty/malformed bounds and equal bounds retain the historic unrestricted
-	// behaviour. The dispatch flag is the explicit way to silence all delivery.
-	if start < 0 || end < 0 || start == end {
+	if start < 0 || end < 0 {
+		return false, nil
+	}
+	// Equal valid bounds explicitly represent an unrestricted 24-hour window.
+	if start == end {
 		return true, nil
 	}
 
@@ -385,8 +387,8 @@ func withinWindow(nowMin, start, end int) bool {
 	return nowMin >= start && nowMin < end
 }
 
-// resolveWindowBound reads one "HH:MM" setting as a minute of day, or -1 when
-// it is unset or malformed.
+// resolveWindowBound reads one "HH:MM" setting as a minute of day. Invalid
+// values return -1 so the shared window check fails closed.
 func (r *router) resolveWindowBound(ctx context.Context, tenantID int64, key string) (int, error) {
 	raw, err := r.settings.ResolveStringForTenant(ctx, tenantID, key)
 	if err != nil {
@@ -394,11 +396,15 @@ func (r *router) resolveWindowBound(ctx context.Context, tenantID int64, key str
 	}
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
+		r.getLogger().Warn("blank notification window bound; treating window as closed",
+			"key", key,
+			"tenant_id", tenantID,
+		)
 		return -1, nil
 	}
 	parsed, err := time.Parse("15:04", raw)
 	if err != nil {
-		r.getLogger().Warn("ignoring malformed notification window bound",
+		r.getLogger().Warn("malformed notification window bound; treating window as closed",
 			"key", key,
 			"tenant_id", tenantID,
 			"value", raw,
