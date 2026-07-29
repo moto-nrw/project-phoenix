@@ -1083,6 +1083,8 @@
     "statusInProgress": "Në proces",
     "statusDone": "Realizuar",
     "statusRejected": "Refuzuar",
-    "statusNeedInfo": "Pyetje"
+    "statusNeedInfo": "Pyetje",
+    "titlePlaceholder": "p.sh. „Kujtesë para orës së marrjes“",
+    "descriptionPlaceholder": "Përshkruaj reagimin tënd..."
   }
 }

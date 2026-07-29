@@ -31,6 +31,9 @@ interface SuggestionFormProps {
   readonly api?: SuggestionFormApi;
   /** Optional note above the fields, e.g. who will read this. */
   readonly hint?: ReactNode;
+  /** Example wording. The staff default names a staff feature. */
+  readonly titlePlaceholder?: string;
+  readonly descriptionPlaceholder?: string;
 }
 
 export function SuggestionForm({
@@ -40,6 +43,8 @@ export function SuggestionForm({
   editSuggestion,
   api = staffFormApi,
   hint,
+  titlePlaceholder = "z.B. 'PDF-Export für Vertretungsplan'",
+  descriptionPlaceholder = "Beschreibe dein Feedback...",
 }: SuggestionFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -157,7 +162,7 @@ export function SuggestionForm({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={200}
-              placeholder="z.B. 'PDF-Export für Vertretungsplan'"
+              placeholder={titlePlaceholder}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
             />
           </div>
@@ -174,7 +179,7 @@ export function SuggestionForm({
               onChange={(e) => setDescription(e.target.value)}
               maxLength={5000}
               rows={5}
-              placeholder="Beschreibe dein Feedback..."
+              placeholder={descriptionPlaceholder}
               className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
             />
             <div className="mt-1 text-right text-xs text-gray-400">

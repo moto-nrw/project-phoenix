@@ -1083,6 +1083,8 @@
     "statusInProgress": "В работе",
     "statusDone": "Реализовано",
     "statusRejected": "Отклонено",
-    "statusNeedInfo": "Уточнение"
+    "statusNeedInfo": "Уточнение",
+    "titlePlaceholder": "например, «Напоминание перед временем ухода»",
+    "descriptionPlaceholder": "Опишите ваш отзыв..."
   }
 }

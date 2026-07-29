@@ -1083,6 +1083,8 @@
     "statusInProgress": "In Bearbeitung",
     "statusDone": "Umgesetzt",
     "statusRejected": "Abgelehnt",
-    "statusNeedInfo": "Rückfrage"
+    "statusNeedInfo": "Rückfrage",
+    "titlePlaceholder": "z.B. „Erinnerung vor der Abholzeit“",
+    "descriptionPlaceholder": "Beschreibe deine Rückmeldung..."
   }
 }

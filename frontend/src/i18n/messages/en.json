@@ -1083,6 +1083,8 @@
     "statusInProgress": "In progress",
     "statusDone": "Done",
     "statusRejected": "Declined",
-    "statusNeedInfo": "Question"
+    "statusNeedInfo": "Question",
+    "titlePlaceholder": "e.g. “Reminder before pickup time”",
+    "descriptionPlaceholder": "Describe your feedback..."
   }
 }

@@ -5,6 +5,23 @@ import { ArrowUp, ChevronDown, Trash2 } from "lucide-react";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { getRelativeTime, getInitial } from "~/lib/format-utils";
 
+/**
+ * Role tag next to a comment author. "OGS Team" is only correct on the school's
+ * board — on the parent feedback board the counterpart is the product team and
+ * the other voices are parents, so labelling them as OGS would say the exact
+ * opposite of what that board is.
+ */
+function roleLabel(authorType: BaseComment["authorType"]): string {
+  switch (authorType) {
+    case "operator":
+      return "moto Team";
+    case "parent":
+      return "Eltern";
+    default:
+      return "OGS Team";
+  }
+}
+
 export interface BaseComment {
   id: string;
   content: string;
@@ -199,7 +216,7 @@ export function BaseCommentAccordion({
                               <span
                                 className={`text-xs ${isOperator ? "text-blue-600" : "text-gray-400"}`}
                               >
-                                {isOperator ? "moto Team" : "OGS Team"}
+                                {roleLabel(comment.authorType)}
                               </span>
                               <time
                                 dateTime={comment.createdAt}

@@ -310,6 +310,8 @@ export default function ParentFeedbackPage() {
         onSuccess={handleFormSuccess}
         editSuggestion={editPost}
         api={formApi}
+        titlePlaceholder={t("titlePlaceholder")}
+        descriptionPlaceholder={t("descriptionPlaceholder")}
         hint={
           <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
             {t("formHint")}

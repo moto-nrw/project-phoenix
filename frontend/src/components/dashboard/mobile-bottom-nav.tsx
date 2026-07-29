@@ -258,6 +258,15 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     tKey: "news",
     iconKey: "newspaper",
   },
+  // Feedback ans Produktteam (#1678) — always available; it is a channel to
+  // moto rather than to the school, so no per-school gate applies.
+  {
+    href: "/parents/feedback",
+    label: "Feedback",
+    tKey: "feedback",
+    iconKey: "feedback",
+    alwaysShow: true,
+  },
   // Essensplan — only shown once a linked school runs a meal plan (gated via
   // useParentMealPlanEnabled in the parent display filter below).
   {

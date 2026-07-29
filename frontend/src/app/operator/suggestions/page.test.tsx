@@ -573,6 +573,64 @@ describe("OperatorSuggestionsPage", () => {
     expect(screen.getByText("Jane Smith")).toBeInTheDocument();
   });
 
+  describe("source filter (#1678)", () => {
+    const staffEntry = {
+      ...mockSuggestion,
+      id: "1",
+      title: "Staff Suggestion",
+      authorType: "staff" as const,
+    };
+    const parentEntry = {
+      ...mockSuggestion,
+      id: "2",
+      title: "Parent Feedback",
+      authorName: "Elternteil",
+      authorType: "parent" as const,
+    };
+
+    beforeEach(() => {
+      mockUseSWR.mockReturnValue({
+        data: [staffEntry, parentEntry],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+    });
+
+    it("shows both boards by default and marks the parent one", () => {
+      render(<OperatorSuggestionsPage />);
+
+      expect(screen.getByText("Staff Suggestion")).toBeInTheDocument();
+      expect(screen.getByText("Parent Feedback")).toBeInTheDocument();
+      // The badge is what tells the operator they are reading a guardian, who
+      // is pseudonymous, rather than a named staff member. "Eltern" is also the
+      // filter option label, so match the badge by its element.
+      const elternLabels = screen.getAllByText("Eltern");
+      expect(elternLabels.some((el) => el.tagName === "SPAN")).toBe(true);
+    });
+
+    it("filters down to parent feedback", () => {
+      render(<OperatorSuggestionsPage />);
+
+      fireEvent.change(screen.getByTestId("filter-source"), {
+        target: { value: "parent" },
+      });
+
+      expect(screen.getByText("Parent Feedback")).toBeInTheDocument();
+      expect(screen.queryByText("Staff Suggestion")).not.toBeInTheDocument();
+    });
+
+    it("filters down to staff suggestions", () => {
+      render(<OperatorSuggestionsPage />);
+
+      fireEvent.change(screen.getByTestId("filter-source"), {
+        target: { value: "staff" },
+      });
+
+      expect(screen.getByText("Staff Suggestion")).toBeInTheDocument();
+      expect(screen.queryByText("Parent Feedback")).not.toBeInTheDocument();
+    });
+  });
+
   describe("school filter", () => {
     const schoolASuggestion = {
       ...mockSuggestion,
