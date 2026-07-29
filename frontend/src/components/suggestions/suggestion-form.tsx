@@ -11,7 +11,7 @@ import { trackEvent } from "~/lib/analytics";
 const logger = createLogger({ component: "SuggestionForm" });
 
 /** Write half of a board — the parent feedback board supplies its own. */
-export interface SuggestionFormApi {
+interface SuggestionFormApi {
   create: (title: string, description: string) => Promise<unknown>;
   update: (id: string, title: string, description: string) => Promise<unknown>;
 }

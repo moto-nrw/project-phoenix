@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	parentSuggestionsVersion     = "1.15.239"
+	parentSuggestionsVersion     = "1.15.241"
 	parentSuggestionsDescription = "Separate parent feedback from staff suggestions via author_type + actor-scoped RLS"
 )
 

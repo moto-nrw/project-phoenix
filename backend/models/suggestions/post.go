@@ -20,7 +20,7 @@ const (
 // Post author types. They separate the two boards: staff posts belong to the
 // school's suggestion board, parent posts to the parent portal's feedback
 // board. Which one a transaction can see is enforced by RLS via
-// app.current_actor_type (migration 1.15.239), not by the WHERE clauses here.
+// app.current_actor_type (migration 1.15.241), not by the WHERE clauses here.
 const (
 	PostAuthorStaff  = "staff"
 	PostAuthorParent = "parent"

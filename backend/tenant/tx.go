@@ -29,7 +29,7 @@ func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx c
 // WithParentTx is WithTenantTx for parent-portal requests. On top of the tenant
 // role and tenant ID it sets app.current_actor_type = 'parent', which the
 // suggestions RLS policies read to keep the parent feedback board and the
-// school's staff board apart at the database level (migration 1.15.239).
+// school's staff board apart at the database level (migration 1.15.241).
 //
 // Use this for every parent-portal code path that touches actor-scoped data.
 // Everything else keeps using WithTenantTx and stays on the staff side.
@@ -68,22 +68,19 @@ func withActorTx(ctx context.Context, db *bun.DB, tenantID int64, actor string, 
 			return fmt.Errorf("tenant: SET LOCAL ROLE phoenix_tenant: %w", err)
 		}
 
-		// Set the tenant ID so RLS policies can read it via current_setting('app.current_tenant_id')
-		// Use fmt.Sprintf instead of $1 parameter because bun.Tx.ExecContext doesn't
-		// forward positional parameters to the driver correctly. Safe: tenantID is int64.
-		if _, err := tx.ExecContext(ctx,
-			fmt.Sprintf("SELECT set_config('app.current_tenant_id', '%d', true)", tenantID),
-		); err != nil {
-			return fmt.Errorf("tenant: set_config app.current_tenant_id: %w", err)
-		}
-
-		// Set the actor so RLS policies can read it via
-		// current_setting('app.current_actor_type'). Safe to interpolate: actor
-		// is one of the two package constants, never user input.
-		if _, err := tx.ExecContext(ctx,
-			fmt.Sprintf("SELECT set_config('app.current_actor_type', '%s', true)", actor),
-		); err != nil {
-			return fmt.Errorf("tenant: set_config app.current_actor_type: %w", err)
+		// Set the tenant ID and the actor so RLS policies can read them via
+		// current_setting(). Both go in ONE statement: it is a single round trip,
+		// and the two values are only ever meaningful together — a transaction
+		// with a tenant but no actor would silently fall back to the staff board.
+		// Use fmt.Sprintf instead of $1 parameters because bun.Tx.ExecContext
+		// doesn't forward positional parameters to the driver correctly. Safe:
+		// tenantID is int64 and actor is one of the package constants, never
+		// user input.
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf(
+			"SELECT set_config('app.current_tenant_id', '%d', true), set_config('app.current_actor_type', '%s', true)",
+			tenantID, actor,
+		)); err != nil {
+			return fmt.Errorf("tenant: set_config tenant/actor: %w", err)
 		}
 
 		// Store tenant ID in Go context so tenant.FromContext(ctx) works
