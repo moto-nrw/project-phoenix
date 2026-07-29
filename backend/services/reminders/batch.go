@@ -18,6 +18,7 @@ package reminders
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -160,10 +161,27 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 			nextChange = minFuture(nextChange, next)
 		}
 
-		results[sc.StaffID] = assembleResult(pickupPart, activityPart, nextChange)
+		result := assembleResult(pickupPart, activityPart, nextChange)
+		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
+		results[sc.StaffID] = result
 	}
 
 	return results, nil
+}
+
+// assignedIDStrings renders an instance-ID set in the same string form the
+// reminders themselves carry, so a consumer can match the two without knowing
+// how IDs are formatted. Nil for a person with no assignment, which reads as
+// "nothing of mine" rather than as an empty restriction.
+func assignedIDStrings(instanceIDs map[int64]struct{}) map[string]struct{} {
+	if len(instanceIDs) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(instanceIDs))
+	for id := range instanceIDs {
+		out[strconv.FormatInt(id, 10)] = struct{}{}
+	}
+	return out
 }
 
 // dedupeBatchScopes drops unusable scopes and collapses repeats.

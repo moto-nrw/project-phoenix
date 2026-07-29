@@ -267,6 +267,49 @@ func (r *StaffRepository) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs
 	return accountsByStaff, nil
 }
 
+// ListAllStaffAccountIDs maps every staff member of the current tenant who can
+// actually log in to their account.
+//
+// The candidate set for anything addressed at "the team": a caller narrows it
+// afterwards by whatever the feature requires. It is deliberately not
+// ListAccountIDsByStaffIDs with a wildcard — that one answers a question about
+// named people and returns nothing for an empty list, which is the correct
+// contract there and the wrong one here.
+//
+// Inactive accounts and inactive tenant mappings are excluded, so a departed
+// colleague is not addressed by a background job that has no request context to
+// notice it. Staff without an account are absent rather than mapped to zero.
+func (r *StaffRepository) ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error) {
+	var rows []struct {
+		StaffID   int64 `bun:"staff_id"`
+		AccountID int64 `bun:"account_id"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id AS staff_id`).
+		ColumnExpr(`"account".id AS account_id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id AND "account".active = TRUE`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id
+			AND "account_tenant".tenant_id = "staff".tenant_id
+			AND "account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"staff".deleted_at IS NULL`)
+
+	query = base.WithTenantFilter(ctx, query, "staff")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list all staff account IDs", Err: err}
+	}
+
+	accountsByStaff := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		accountsByStaff[row.StaffID] = row.AccountID
+	}
+
+	return accountsByStaff, nil
+}
+
 // ListStaffWithPermission returns all active staff whose effective permissions
 // (role-granted UNION directly-granted, tenant-scoped) match permissionName —
 // wildcard-aware via the same matcher route authorization uses. Used for the

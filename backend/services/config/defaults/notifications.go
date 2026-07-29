@@ -21,14 +21,18 @@ func init() {
 		SortOrder:       5,
 	})
 
-	// Feature flag for the notification abstraction (#1624). Default off:
-	// Notify(ctx, event) is a no-op until a school explicitly enables it.
+	// Feature flag for the notification abstraction (#1624). On by default
+	// since the personal-notification epic: every producer behind it now
+	// requires the recipient's own consent, and consent starts empty, so an
+	// enabled school still delivers nothing until someone asks for something.
+	// Off would only mean that a person's own choice in their profile is
+	// silently ignored.
 	config.Register(config.Definition{
 		Key:             config.KeyNotificationsDispatchEnabled,
 		Label:           "Benachrichtigungen aktivieren",
-		Description:     "Aktiviert die zentrale Benachrichtigungs-Funktion (In-App-Hinweise, Grundlage für spätere Erinnerungen und Push-Nachrichten). Standardmäßig deaktiviert.",
+		Description:     "Aktiviert die zentrale Benachrichtigungs-Funktion (In-App-Hinweise und Push-Nachrichten). Standardmäßig aktiv. Was tatsächlich ankommt, wählt jede Person im eigenen Profil.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",

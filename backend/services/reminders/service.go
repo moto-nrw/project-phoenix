@@ -65,6 +65,15 @@ type Result struct {
 	// pending (the poll then remains the only cadence). Data-driven changes
 	// (check-ins, edits) are still delivered via the SSE-stale event, not this.
 	NextChangeAt string `json:"next_change_at,omitempty"`
+	// AssignedActivityInstanceIDs names the activity instances this person is
+	// personally planned on, keyed exactly like Reminder.ActivityInstanceID.
+	//
+	// Set by ComputeBatch only and never serialized: the /reminders page shows
+	// one activity list and does not care where an entry came from. A consumer
+	// that addresses people individually does care — "an activity in the room
+	// you are watching" and "the slot you have to show up for" are two
+	// different messages, and a person may want to hear one and not the other.
+	AssignedActivityInstanceIDs map[string]struct{} `json:"-"`
 }
 
 // Scope describes whose reminders to compute. Admins see all present children

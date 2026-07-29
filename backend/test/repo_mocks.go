@@ -164,6 +164,7 @@ type StaffRepoMock struct {
 	GetStaffContactInfoFn           func(ctx context.Context, staffID int64) (*users.StaffWithRoleInfo, error)
 	FindReachableCalendarStaffIDsFn func(ctx context.Context, ids []int64) (map[int64]bool, error)
 	ListAccountIDsByStaffIDsFn      func(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
+	ListAllStaffAccountIDsFn        func(ctx context.Context) (map[int64]int64, error)
 }
 
 var _ users.StaffRepository = (*StaffRepoMock)(nil)
@@ -262,6 +263,13 @@ func (m *StaffRepoMock) GetStaffContactInfo(ctx context.Context, staffID int64) 
 func (m *StaffRepoMock) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error) {
 	if m.ListAccountIDsByStaffIDsFn != nil {
 		return m.ListAccountIDsByStaffIDsFn(ctx, staffIDs)
+	}
+	return map[int64]int64{}, nil
+}
+
+func (m *StaffRepoMock) ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error) {
+	if m.ListAllStaffAccountIDsFn != nil {
+		return m.ListAllStaffAccountIDsFn(ctx)
 	}
 	return map[int64]int64{}, nil
 }

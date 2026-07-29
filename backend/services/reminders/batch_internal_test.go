@@ -787,3 +787,45 @@ func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 	assert.Zero(t, manyCalls["GetStaffActiveSupervisions"],
 		"no per-staff supervision lookup")
 }
+
+// TestBatchReportsPersonalAssignments pins the one piece of per-person context
+// the batch reports beyond the reminder list itself.
+//
+// A consumer that addresses people individually has to tell "an activity in the
+// room you are watching" from "the slot you are planned on" — the assignment is
+// exactly what the batch already knows and Compute does not. Without it the
+// distinction would have to be re-derived from supervision data, which is how
+// two answers to one question start drifting apart.
+func TestBatchReportsPersonalAssignments(t *testing.T) {
+	nowMin := minutesOfDay(timezone.Now())
+	start := nowMin + 5
+
+	w := newWorld()
+	w.addInstance(201, "Schach", 10, start, start+60)
+	w.addInstance(202, "Fußball", 20, start, start+60)
+	w.supervises(7, 10) // watches room 10 only
+	w.supervises(8, 10) // same room, no assignment
+	w.assignsInstance(7, 202, false)
+
+	batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(7), caregiver(8), admin(1)})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]struct{}{"202": {}}, batch[7].AssignedActivityInstanceIDs,
+		"only the slot this person is planned on, not the room they supervise")
+	assert.Nil(t, batch[8].AssignedActivityInstanceIDs,
+		"no assignment means nil, which reads as 'nothing of mine' rather than an empty restriction")
+	assert.Nil(t, batch[1].AssignedActivityInstanceIDs,
+		"an admin sees every activity anyway; none of them is personally theirs")
+
+	// The field describes the list, so it has to be usable as a key into it.
+	var matched bool
+	for _, r := range batch[7].Reminders {
+		if r.ActivityInstanceID == nil {
+			continue
+		}
+		if _, ok := batch[7].AssignedActivityInstanceIDs[*r.ActivityInstanceID]; ok {
+			matched = true
+		}
+	}
+	assert.True(t, matched, "the assigned instance must appear in the reminder list too")
+}

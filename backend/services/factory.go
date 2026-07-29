@@ -123,7 +123,7 @@ type Factory struct {
 	Emergency                *emergency.Service
 	SlotLists                slotlists.Service
 	Reminders                reminders.Computer
-	Notifications            notifications.Service
+	Notifications            notifications.Notifier
 	PushSubscriptions        notifications.PushSubscriptionService
 	NotificationPreferences  notifications.PreferenceService
 	AbsenceNotifier          notifications.AbsenceNotifier

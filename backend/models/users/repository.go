@@ -273,6 +273,11 @@ type StaffRepository interface {
 	// zero. For callers that address people by account instead of by staff row.
 	ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
 
+	// ListAllStaffAccountIDs maps every staff member of the current tenant who
+	// can log in to their account: active account, active tenant mapping. The
+	// candidate set for anything addressed at the whole team.
+	ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
+
 	// ListStaffByRoles retrieves staff members who have any of the specified roles,
 	// including their person data, account ID, and email, using a single JOIN query.
 	ListStaffByRoles(ctx context.Context, roles []string) ([]*StaffWithRoleInfo, error)

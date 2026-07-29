@@ -76,3 +76,88 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 		assert.False(t, present, "tenant 1 must not resolve another school's staff")
 	})
 }
+
+// TestStaffRepository_ListAllStaffAccountIDs pins the candidate set a
+// background job addresses when it means "the team of this school".
+//
+// The eligibility rules match the push-subscription finder deliberately: both
+// answer "may this person be addressed in this school right now", and two
+// answers to that question would drift.
+func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Staff
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("lists mapped staff and skips the rest", func(t *testing.T) {
+		mapped, mappedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Mapped", "Colleague")
+		testpkg.MapAccountToTenant(t, db, mappedAccount.ID, 1)
+
+		unmapped, unmappedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Unmapped", "Colleague")
+
+		deactivated, deactivatedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Deactivated", "Colleague")
+		testpkg.MapAccountToTenant(t, db, deactivatedAccount.ID, 1)
+
+		accountless := testpkg.CreateTestStaff(t, db, "Accountless", "Colleague")
+
+		defer testpkg.CleanupStaffFixtures(t, db, mapped.ID, unmapped.ID, deactivated.ID, accountless.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, mappedAccount.ID, unmappedAccount.ID, deactivatedAccount.ID)
+
+		_, err := db.NewUpdate().
+			TableExpr("auth.accounts").
+			Set("active = FALSE").
+			Where("id = ?", deactivatedAccount.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		result, err := repo.ListAllStaffAccountIDs(ctx)
+		require.NoError(t, err)
+
+		assert.Equal(t, mappedAccount.ID, result[mapped.ID])
+
+		_, hasUnmapped := result[unmapped.ID]
+		assert.False(t, hasUnmapped, "an account without an active mapping does not belong to this school")
+
+		_, hasDeactivated := result[deactivated.ID]
+		assert.False(t, hasDeactivated, "a deactivated account is not addressable")
+
+		_, hasAccountless := result[accountless.ID]
+		assert.False(t, hasAccountless, "staff without a login cannot receive anything")
+	})
+
+	t.Run("excludes a soft-deleted staff member", func(t *testing.T) {
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Offboarded", "Colleague")
+		testpkg.MapAccountToTenant(t, db, account.ID, 1)
+
+		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		_, err := db.NewUpdate().
+			TableExpr("users.staff").
+			Set("deleted_at = NOW()").
+			Where("id = ?", staff.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		result, err := repo.ListAllStaffAccountIDs(ctx)
+		require.NoError(t, err)
+
+		_, present := result[staff.ID]
+		assert.False(t, present, "an offboarded staff member is not addressable")
+	})
+
+	t.Run("does not list another school's staff", func(t *testing.T) {
+		const otherTenant int64 = 99045
+		testpkg.EnsureTestTenant(t, db, otherTenant)
+
+		foreign := testpkg.CreateTestStaffForTenant(t, db, otherTenant, "Foreign", "Colleague")
+		defer testpkg.CleanupStaffFixtures(t, db, foreign.ID)
+
+		result, err := repo.ListAllStaffAccountIDs(ctx)
+		require.NoError(t, err)
+
+		_, present := result[foreign.ID]
+		assert.False(t, present, "tenant 1 must not list another school's staff")
+	})
+}
