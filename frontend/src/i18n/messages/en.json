@@ -61,7 +61,8 @@
     "comingSoonTooltip": "Coming soon",
     "role": "Parent",
     "childProfile": "Child profile",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "feedback": "Feedback"
   },
   "parentMealPlan": {
     "title": "Meal plan",
@@ -1053,5 +1054,35 @@
     "diffModeBus": "Takes the bus",
     "diffModePickup": "Is picked up",
     "diffModeAccompanied": "With another child"
+  },
+  "parentFeedback": {
+    "kicker": "Feedback",
+    "title": "Feedback",
+    "productTeamNotice": "Your feedback goes straight to the moto product team who build the app. Your child's after-school care never sees these entries.",
+    "pseudonymNotice": "You appear to everyone as “Parent” only, including to the product team.",
+    "schoolLabel": "School",
+    "sortLabel": "Sorting",
+    "sortPopular": "Most popular",
+    "sortNewest": "Newest",
+    "newEntry": "New entry",
+    "edit": "Edit",
+    "delete": "Delete",
+    "actions": "Actions",
+    "emptyTitle": "No entries yet",
+    "emptyDescription": "Share ideas, report problems or suggest improvements to the app.",
+    "noSchoolsTitle": "No school linked yet",
+    "noSchoolsDescription": "Once your child is enrolled at a school, you can leave feedback here.",
+    "loadError": "The feedback could not be loaded.",
+    "formHint": "This entry goes to the moto product team, not to the after-school care. Other parents at your school can read and rate it.",
+    "deleteTitle": "Delete entry?",
+    "deleteBody": "This entry and all its votes will be deleted permanently.",
+    "deleteSuccess": "Entry deleted.",
+    "deleteError": "The entry could not be deleted.",
+    "statusOpen": "Open",
+    "statusPlanned": "Planned",
+    "statusInProgress": "In progress",
+    "statusDone": "Done",
+    "statusRejected": "Declined",
+    "statusNeedInfo": "Question"
   }
 }

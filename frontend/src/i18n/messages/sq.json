@@ -61,7 +61,8 @@
     "comingSoonTooltip": "Së shpejti",
     "role": "Prind",
     "childProfile": "Profili i fëmijës",
-    "loading": "Po ngarkohet..."
+    "loading": "Po ngarkohet...",
+    "feedback": "Reagime"
   },
   "parentMealPlan": {
     "title": "Plani i ushqimit",
@@ -1053,5 +1054,35 @@
     "diffModeBus": "Udhëton me autobus",
     "diffModePickup": "Merret",
     "diffModeAccompanied": "Me një fëmijë tjetër"
+  },
+  "parentFeedback": {
+    "kicker": "Reagim",
+    "title": "Reagime",
+    "productTeamNotice": "Reagimi yt shkon drejtpërdrejt te ekipi i moto-s që zhvillon aplikacionin. Kujdesi passhkollor i fëmijës tënd nuk i sheh këto shënime.",
+    "pseudonymNotice": "Për të gjithë, edhe për ekipin e produktit, ti shfaqesh vetëm si „Prind“.",
+    "schoolLabel": "Shkolla",
+    "sortLabel": "Renditja",
+    "sortPopular": "Më të pëlqyerat",
+    "sortNewest": "Më të rejat",
+    "newEntry": "Shënim i ri",
+    "edit": "Ndrysho",
+    "delete": "Fshi",
+    "actions": "Veprime",
+    "emptyTitle": "Ende asnjë shënim",
+    "emptyDescription": "Ndaj ide, raporto probleme ose propozo përmirësime për aplikacionin.",
+    "noSchoolsTitle": "Ende asnjë shkollë e lidhur",
+    "noSchoolsDescription": "Sapo fëmija yt të regjistrohet në një shkollë, mund të lësh reagime këtu.",
+    "loadError": "Reagimet nuk mund të ngarkoheshin.",
+    "formHint": "Ky shënim shkon te ekipi i moto-s, jo te kujdesi passhkollor. Prindërit e tjerë të shkollës sate mund ta lexojnë dhe ta vlerësojnë.",
+    "deleteTitle": "Të fshihet shënimi?",
+    "deleteBody": "Ky shënim dhe të gjitha votat fshihen përgjithmonë.",
+    "deleteSuccess": "Shënimi u fshi.",
+    "deleteError": "Shënimi nuk mund të fshihej.",
+    "statusOpen": "Hapur",
+    "statusPlanned": "Planifikuar",
+    "statusInProgress": "Në proces",
+    "statusDone": "Realizuar",
+    "statusRejected": "Refuzuar",
+    "statusNeedInfo": "Pyetje"
   }
 }

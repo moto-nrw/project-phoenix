@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createSuggestion, updateSuggestion } from "~/lib/suggestions-api";
@@ -10,11 +10,27 @@ import { trackEvent } from "~/lib/analytics";
 
 const logger = createLogger({ component: "SuggestionForm" });
 
+/** Write half of a board — the parent feedback board supplies its own. */
+export interface SuggestionFormApi {
+  create: (title: string, description: string) => Promise<unknown>;
+  update: (id: string, title: string, description: string) => Promise<unknown>;
+}
+
+const staffFormApi: SuggestionFormApi = {
+  create: (title, description) => createSuggestion({ title, description }),
+  update: (id, title, description) =>
+    updateSuggestion(id, { title, description }),
+};
+
 interface SuggestionFormProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSuccess: () => void;
   readonly editSuggestion?: Suggestion | null;
+  /** Which board to write to. Defaults to the school's staff board. */
+  readonly api?: SuggestionFormApi;
+  /** Optional note above the fields, e.g. who will read this. */
+  readonly hint?: ReactNode;
 }
 
 export function SuggestionForm({
@@ -22,6 +38,8 @@ export function SuggestionForm({
   onClose,
   onSuccess,
   editSuggestion,
+  api = staffFormApi,
+  hint,
 }: SuggestionFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -69,16 +87,10 @@ export function SuggestionForm({
     setIsSubmitting(true);
     try {
       if (isEdit && editSuggestion) {
-        await updateSuggestion(editSuggestion.id, {
-          title: trimmedTitle,
-          description: trimmedDescription,
-        });
+        await api.update(editSuggestion.id, trimmedTitle, trimmedDescription);
         toastSuccess("Beitrag wurde aktualisiert.");
       } else {
-        await createSuggestion({
-          title: trimmedTitle,
-          description: trimmedDescription,
-        });
+        await api.create(trimmedTitle, trimmedDescription);
         trackEvent("suggestion_created");
         toastSuccess("Beitrag wurde eingereicht.");
       }
@@ -131,6 +143,7 @@ export function SuggestionForm({
     >
       <form id="suggestion-form" onSubmit={(e) => void handleSubmit(e)}>
         <div className="space-y-4">
+          {hint}
           <div>
             <label
               htmlFor="suggestion-title"

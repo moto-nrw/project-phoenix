@@ -8,12 +8,7 @@ export interface BackendSuggestion {
   author_id: number;
   author_name: string;
   status:
-    | "open"
-    | "planned"
-    | "in_progress"
-    | "done"
-    | "rejected"
-    | "need_info";
+    "open" | "planned" | "in_progress" | "done" | "rejected" | "need_info";
   score: number;
   upvotes: number;
   downvotes: number;
@@ -31,12 +26,7 @@ export interface Suggestion {
   authorId: string;
   authorName: string;
   status:
-    | "open"
-    | "planned"
-    | "in_progress"
-    | "done"
-    | "rejected"
-    | "need_info";
+    "open" | "planned" | "in_progress" | "done" | "rejected" | "need_info";
   score: number;
   upvotes: number;
   downvotes: number;
@@ -45,6 +35,12 @@ export interface Suggestion {
   userVote: "up" | "down" | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Whether the entry belongs to the current user. The staff board derives
+   * ownership from authorId; the parent feedback board is pseudonymous and
+   * never ships an author id, so the backend answers this question instead.
+   */
+  isOwn?: boolean;
 }
 
 export interface CreateSuggestionRequest {
@@ -104,7 +100,7 @@ export interface BackendComment {
   content: string;
   author_id: number;
   author_name: string;
-  author_type: "operator" | "user";
+  author_type: "operator" | "user" | "parent";
   created_at: string;
 }
 
@@ -113,8 +109,10 @@ export interface SuggestionComment {
   content: string;
   authorId: string;
   authorName: string;
-  authorType: "operator" | "user";
+  authorType: "operator" | "user" | "parent";
   createdAt: string;
+  /** See Suggestion.isOwn — set by the pseudonymous parent board. */
+  isOwn?: boolean;
 }
 
 export function mapCommentResponse(data: BackendComment): SuggestionComment {

@@ -43,6 +43,28 @@ type SuggestionResponse struct {
 	OperatorComments []*CommentResponse `json:"operator_comments,omitempty"`
 	SchoolID         int64              `json:"school_id"`
 	SchoolName       string             `json:"school_name"`
+	// AuthorType is "staff" or "parent" and tells the operator which board an
+	// entry came from. Parent entries are pseudonymous: author_name is already
+	// masked in SQL and no author id is exposed anywhere in this response.
+	AuthorType string `json:"author_type"`
+}
+
+// newCommentResponse maps a comment for the operator UI. A guardian's account
+// id never leaves the API: on the parent board the identity is the pseudonym in
+// author_name and nothing else.
+func newCommentResponse(comment *suggestions.Comment) *CommentResponse {
+	authorID := comment.AuthorID
+	if comment.AuthorType == suggestions.AuthorTypeParent {
+		authorID = 0
+	}
+	return &CommentResponse{
+		ID:         comment.ID,
+		Content:    comment.Content,
+		AuthorID:   authorID,
+		AuthorName: comment.AuthorName,
+		AuthorType: comment.AuthorType,
+		CreatedAt:  comment.CreatedAt.UTC().Format(time.RFC3339),
+	}
 }
 
 // CommentResponse represents a comment in the response (shared between operator and user APIs)
@@ -124,6 +146,7 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 			UpdatedAt:    post.UpdatedAt.UTC().Format(time.RFC3339),
 			SchoolID:     post.TenantID,
 			SchoolName:   post.SchoolName,
+			AuthorType:   post.AuthorType,
 		})
 	}
 
@@ -148,14 +171,7 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 
 	commentResponses := make([]*CommentResponse, 0, len(comments))
 	for _, comment := range comments {
-		commentResponses = append(commentResponses, &CommentResponse{
-			ID:         comment.ID,
-			Content:    comment.Content,
-			AuthorID:   comment.AuthorID,
-			AuthorName: comment.AuthorName,
-			AuthorType: comment.AuthorType,
-			CreatedAt:  comment.CreatedAt.UTC().Format(time.RFC3339),
-		})
+		commentResponses = append(commentResponses, newCommentResponse(comment))
 	}
 
 	response := SuggestionResponse{
@@ -175,6 +191,7 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 		OperatorComments: commentResponses,
 		SchoolID:         post.TenantID,
 		SchoolName:       post.SchoolName,
+		AuthorType:       post.AuthorType,
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Suggestion retrieved successfully")

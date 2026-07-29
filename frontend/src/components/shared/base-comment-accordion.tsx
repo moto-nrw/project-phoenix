@@ -10,8 +10,10 @@ export interface BaseComment {
   content: string;
   authorId: string;
   authorName: string;
-  authorType: "operator" | "user";
+  authorType: "operator" | "user" | "parent";
   createdAt: string;
+  /** Set by pseudonymous boards that ship no author id (parent feedback). */
+  isOwn?: boolean;
 }
 
 interface CommentAccordionConfig {

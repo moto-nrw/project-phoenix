@@ -23,6 +23,21 @@ import (
 // or fn errored), queued hooks are dropped — destructive side effects MUST
 // NOT run when the database state never moved.
 func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx context.Context, tx bun.Tx) error) error {
+	return withActorTx(ctx, db, tenantID, ActorStaff, fn)
+}
+
+// WithParentTx is WithTenantTx for parent-portal requests. On top of the tenant
+// role and tenant ID it sets app.current_actor_type = 'parent', which the
+// suggestions RLS policies read to keep the parent feedback board and the
+// school's staff board apart at the database level (migration 1.15.239).
+//
+// Use this for every parent-portal code path that touches actor-scoped data.
+// Everything else keeps using WithTenantTx and stays on the staff side.
+func WithParentTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx context.Context, tx bun.Tx) error) error {
+	return withActorTx(ctx, db, tenantID, ActorParent, fn)
+}
+
+func withActorTx(ctx context.Context, db *bun.DB, tenantID int64, actor string, fn func(ctx context.Context, tx bun.Tx) error) error {
 	if tenantID == 0 {
 		return fmt.Errorf("tenant: WithTenantTx requires a non-zero tenant_id")
 	}
@@ -33,6 +48,12 @@ func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx c
 		existingTenantID := FromContext(ctx)
 		if existingTenantID != tenantID {
 			return fmt.Errorf("tenant: nested WithTenantTx with mismatched tenant_id (%d vs %d)", existingTenantID, tenantID)
+		}
+		// A nested call cannot switch actors: the surrounding transaction has
+		// already fixed app.current_actor_type, so silently reusing it would
+		// run the inner work against the wrong board.
+		if existingActor := ActorFromContext(ctx); existingActor != actor {
+			return fmt.Errorf("tenant: nested tenant tx with mismatched actor (%q vs %q)", existingActor, actor)
 		}
 		return fn(ctx, *tx)
 	}
@@ -56,9 +77,19 @@ func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx c
 			return fmt.Errorf("tenant: set_config app.current_tenant_id: %w", err)
 		}
 
+		// Set the actor so RLS policies can read it via
+		// current_setting('app.current_actor_type'). Safe to interpolate: actor
+		// is one of the two package constants, never user input.
+		if _, err := tx.ExecContext(ctx,
+			fmt.Sprintf("SELECT set_config('app.current_actor_type', '%s', true)", actor),
+		); err != nil {
+			return fmt.Errorf("tenant: set_config app.current_actor_type: %w", err)
+		}
+
 		// Store tenant ID in Go context so tenant.FromContext(ctx) works
 		// inside services called from scheduler or other non-HTTP contexts
 		ctx = WithTenantID(ctx, tenantID)
+		ctx = WithActor(ctx, actor)
 
 		// Store tx in context so GetDB(ctx, r.db) finds it (CRIT-1 bridge)
 		ctx = modelBase.ContextWithTx(ctx, &tx)

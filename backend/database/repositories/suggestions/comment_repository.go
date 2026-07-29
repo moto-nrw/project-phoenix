@@ -19,6 +19,27 @@ const (
 	tableSuggestionsCommentsAlias = `suggestions.comments AS "comment"`
 )
 
+// commentAuthorNameExpr resolves the display name for a comment author.
+//
+// Parent identities never leave the database: a guardian's comment resolves to
+// the pseudonym "Elternteil", or "Verfasser" when it is the author of the post
+// replying in their own thread. That distinction is what keeps an anonymous
+// thread readable. The masking lives in SQL on purpose — no API layer can leak
+// a name it never receives.
+const commentAuthorNameExpr = `COALESCE(CASE
+			WHEN "comment".author_type = 'operator' THEN "op".display_name
+			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', LEFT("person".last_name, 1), '.')
+			WHEN "comment".author_type = 'parent' AND "post".author_id = "comment".author_id THEN 'Verfasser'
+			WHEN "comment".author_type = 'parent' THEN 'Elternteil'
+		END, 'Unbekannt') AS author_name`
+
+// Joins backing commentAuthorNameExpr.
+const (
+	joinCommentOperator = `LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`
+	joinCommentPerson   = `LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`
+	joinCommentPost     = `LEFT JOIN suggestions.posts AS "post" ON "post".id = "comment".post_id`
+)
+
 // CommentRepository implements suggestions.CommentRepository interface
 type CommentRepository struct {
 	db *bun.DB
@@ -88,12 +109,10 @@ func (r *CommentRepository) FindByIDWithAuthor(ctx context.Context, id int64) (*
 		Model(comment).
 		ModelTableExpr(tableSuggestionsCommentsAlias).
 		ColumnExpr(`"comment".*`).
-		ColumnExpr(`COALESCE(CASE
-			WHEN "comment".author_type = 'operator' THEN "op".display_name
-			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', LEFT("person".last_name, 1), '.')
-		END, 'Unbekannt') AS author_name`).
-		Join(`LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`).
-		Join(`LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`).
+		ColumnExpr(commentAuthorNameExpr).
+		Join(joinCommentOperator).
+		Join(joinCommentPerson).
+		Join(joinCommentPost).
 		Where(`"comment".id = ?`, id).
 		Where(`"comment".deleted_at IS NULL`).
 		Scan(ctx)
@@ -119,12 +138,10 @@ func (r *CommentRepository) FindByPostID(ctx context.Context, postID int64) ([]*
 		Model(&comments).
 		ModelTableExpr(tableSuggestionsCommentsAlias).
 		ColumnExpr(`"comment".*`).
-		ColumnExpr(`COALESCE(CASE
-			WHEN "comment".author_type = 'operator' THEN "op".display_name
-			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', LEFT("person".last_name, 1), '.')
-		END, 'Unbekannt') AS author_name`).
-		Join(`LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`).
-		Join(`LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`).
+		ColumnExpr(commentAuthorNameExpr).
+		Join(joinCommentOperator).
+		Join(joinCommentPerson).
+		Join(joinCommentPost).
 		Where(`"comment".post_id = ?`, postID).
 		Where(`"comment".deleted_at IS NULL`).
 		OrderExpr(`"comment".created_at ASC`).

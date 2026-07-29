@@ -19,6 +19,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
@@ -200,6 +201,61 @@ func (f *fakeParentService) MarkAnnouncementRead(context.Context, int64, int64, 
 
 func (f *fakeParentService) AcknowledgeAnnouncement(context.Context, int64, int64, time.Time) error {
 	return nil
+}
+
+// Feedback board (#1678) — stubs so the fake keeps satisfying parent.Service.
+// The board's own handler tests drive the real service against the database.
+
+func (f *fakeParentService) ListFeedbackSchools(context.Context, int64) ([]*parentService.FeedbackSchool, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListFeedback(context.Context, int64, int64, string) ([]*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) CreateFeedback(context.Context, int64, int64, string, string) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetFeedback(context.Context, int64, int64, int64) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UpdateFeedback(context.Context, int64, int64, int64, string, string) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) DeleteFeedback(context.Context, int64, int64, int64) error {
+	return nil
+}
+
+func (f *fakeParentService) VoteFeedback(context.Context, int64, int64, int64, string) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) RemoveFeedbackVote(context.Context, int64, int64, int64) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListFeedbackComments(context.Context, int64, int64, int64) ([]*suggestionsModels.Comment, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) CreateFeedbackComment(context.Context, int64, int64, int64, string) error {
+	return nil
+}
+
+func (f *fakeParentService) DeleteFeedbackComment(context.Context, int64, int64, int64) error {
+	return nil
+}
+
+func (f *fakeParentService) MarkFeedbackCommentsRead(context.Context, int64, int64, int64) error {
+	return nil
+}
+
+func (f *fakeParentService) FeedbackUnreadCount(context.Context, int64) (int, error) {
+	return 0, nil
 }
 
 // withClaims attaches a parent account id to the request context the way the

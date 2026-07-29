@@ -20,6 +20,14 @@ const (
 	tableVotes      = "suggestions.votes"
 )
 
+// postAuthorNameExpr resolves the display name of a post author. Parent posts
+// resolve to the pseudonym "Elternteil" in SQL, so no caller — not even the
+// operator API — ever receives a guardian's name for a feedback post.
+const postAuthorNameExpr = `CASE
+			WHEN "post".author_type = 'parent' THEN 'Elternteil'
+			ELSE COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt')
+		END AS author_name`
+
 // PostRepository implements suggestions.PostRepository
 type PostRepository struct {
 	db *bun.DB
@@ -64,7 +72,9 @@ func (r *PostRepository) FindByID(ctx context.Context, id int64, readerType stri
 
 	query = base.WithTenantFilter(ctx, query, "post")
 
-	if readerType == suggestions.ReaderTypeUser {
+	// Operators moderate and therefore see hidden posts; every other reader
+	// (staff board, parent board) does not.
+	if readerType != suggestions.ReaderTypeOperator {
 		query = query.Where(`"post".is_hidden = FALSE`)
 	}
 
@@ -175,7 +185,7 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
-		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
+		ColumnExpr(postAuthorNameExpr).
 		ColumnExpr(`COALESCE(vc.upvotes, 0) AS upvotes`).
 		ColumnExpr(`COALESCE(vc.downvotes, 0) AS downvotes`).
 		ColumnExpr(`COALESCE(cc.comment_count, 0) AS comment_count`).
@@ -207,7 +217,9 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 
 	query = base.WithTenantFilter(ctx, query, "post")
 
-	if readerType == suggestions.ReaderTypeUser {
+	// Operators moderate and therefore see hidden posts; every other reader
+	// (staff board, parent board) does not.
+	if readerType != suggestions.ReaderTypeOperator {
 		query = query.Where(`"post".is_hidden = FALSE`)
 	}
 
@@ -246,7 +258,7 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
-		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
+		ColumnExpr(postAuthorNameExpr).
 		ColumnExpr(`COALESCE(vc.upvotes, 0) AS upvotes`).
 		ColumnExpr(`COALESCE(vc.downvotes, 0) AS downvotes`).
 		ColumnExpr(`COALESCE(cc.comment_count, 0) AS comment_count`).
@@ -275,7 +287,9 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 
 	query = base.WithTenantFilter(ctx, query, "post")
 
-	if readerType == suggestions.ReaderTypeUser {
+	// Operators moderate and therefore see hidden posts; every other reader
+	// (staff board, parent board) does not.
+	if readerType != suggestions.ReaderTypeOperator {
 		query = query.Where(`"post".is_hidden = FALSE`)
 	}
 

@@ -29,6 +29,7 @@ import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
 import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
+import { useParentFeedbackUnread } from "~/lib/hooks/use-parent-feedback-unread";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -499,6 +500,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // disabled tenants) and the link dead-ends. Distinct from the staff-side
   // parentNewsEnabled below, which reads the tenant settings schema.
   const parentPortalNewsEnabled = useParentNewsEnabled(mode === "parent");
+  // Unread product-team replies on the guardian's feedback board (#1678).
+  const { unreadCount: parentFeedbackUnread } = useParentFeedbackUnread(
+    mode === "parent",
+  );
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -1200,6 +1205,26 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 <UnreadBadge count={parentNewsUnread} className="ml-auto" />
               </Link>
             )}
+            <Link
+              href="/parents/feedback"
+              className={getLinkClasses("/parents/feedback")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.feedback}
+                />
+              </svg>
+              <span>{tParentNav("feedback")}</span>
+              <UnreadBadge count={parentFeedbackUnread} className="ml-auto" />
+            </Link>
             {parentMealPlanEnabled && (
               <Link
                 href="/parents/meal-plan"
