@@ -73,7 +73,18 @@ func (f *fakeAnnouncementRepo) ResolveAudienceEmails(_ context.Context, _, _ int
 }
 
 func (f *fakeAnnouncementRepo) AudienceRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
-	return f.audience, nil
+	if f.audience != nil {
+		return f.audience, nil
+	}
+	recipients := make([]*usersModels.AnnouncementRecipientStatus, 0, len(f.recipients))
+	for i, recipient := range f.recipients {
+		accountID := recipient.AccountID
+		if accountID <= 0 {
+			accountID = int64(i + 1)
+		}
+		recipients = append(recipients, &usersModels.AnnouncementRecipientStatus{AccountID: accountID})
+	}
+	return recipients, nil
 }
 
 func (f *fakeAnnouncementRepo) SchoolName(_ context.Context, _ int64) (string, error) {
@@ -125,6 +136,7 @@ func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
 	return NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   &fakeSettings{enabled: true},
+		Notifier:   &fakeNotifier{},
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
@@ -319,6 +331,7 @@ func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   &fakeSettings{enabled: true, logoURL: "/uploads/login-images/2_abc.jpg"},
+		Notifier:   &fakeNotifier{},
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
@@ -482,6 +495,7 @@ func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   &fakeSettings{enabled: true},
+		Notifier:   &fakeNotifier{},
 		Outbox:     failingOutbox{},
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),

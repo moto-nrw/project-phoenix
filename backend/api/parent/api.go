@@ -43,8 +43,14 @@ type Resource struct {
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         platformSvc.SchoolService
 	PushService           notificationsService.PushSubscriptionService
+	PreferenceService     notificationsService.PreferenceService
 	db                    *bun.DB
 	authRateLimiter       func(http.Handler) http.Handler
+}
+
+// SetPreferenceService injects the notification consent service.
+func (rs *Resource) SetPreferenceService(service notificationsService.PreferenceService) {
+	rs.PreferenceService = service
 }
 
 // SetPushService injects the Web Push subscription service (#2003).
@@ -118,6 +124,15 @@ func (rs *Resource) Router() chi.Router {
 			r.Get("/public-key", rs.getPushPublicKey)
 			r.Post("/subscriptions", rs.subscribePush)
 			r.Delete("/subscriptions", rs.unsubscribePush)
+		})
+
+		// Which notifications this guardian agreed to. Applied to every
+		// school the family belongs to, the same fan-out the push
+		// registration above uses.
+		r.Route("/me/notification-preferences", func(r chi.Router) {
+			r.Get("/", rs.listNotificationPreferences)
+			r.Delete("/", rs.deleteAllNotificationPreferences)
+			r.Put("/{type}", rs.setNotificationPreference)
 		})
 
 		r.Get("/me/profile", rs.getMyProfile)

@@ -24,6 +24,15 @@ type GroupSupervisor struct {
 	ActiveGroup *Group       `bun:"rel:belongs-to,join:group_id=id" json:"active_group,omitempty"`
 }
 
+// StaffRoomSupervision is the (staff, room) projection of a currently active
+// supervision. It exists so a caller that needs "who supervises which room
+// right now" for every staff member of a tenant can ask once, instead of
+// pairing FindActiveByStaffID with GetActiveGroupsByIDs per staff member.
+type StaffRoomSupervision struct {
+	StaffID int64 `bun:"staff_id"`
+	RoomID  int64 `bun:"room_id"`
+}
+
 // Table name constants for BUN ORM schema qualification
 const ()
 

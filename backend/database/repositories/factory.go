@@ -79,6 +79,8 @@ type Factory struct {
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
 
+	NotificationPreference userModels.NotificationPreferenceRepository
+
 	// Facilities domain
 	Room facilityModels.RoomRepository
 
@@ -275,6 +277,8 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
+
+		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
 		Room: facilities.NewRoomRepository(db),

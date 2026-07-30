@@ -18,6 +18,48 @@ const (
 	accountTableAlias = `auth.accounts AS "account"`
 )
 
+// EffectiveAdminExistsSQL builds the SQL predicate that decides whether an
+// account holds effective admin scope within one tenant: the literal admin
+// role, or an admin:* / *:* permission granted either through a tenant role or
+// directly to the account.
+//
+// It takes the caller's qualified account and tenant columns so the same
+// predicate can be applied to auth.accounts and to any other table carrying an
+// (account_id, tenant_id) pair. The arguments are SQL identifiers written by
+// callers in this repository, never request input.
+//
+// There must stay exactly one definition of "effective admin" in SQL. It
+// decides who receives admin-scoped data, so a second, drifting copy is a
+// disclosure bug waiting to happen. The Go-side counterpart is
+// authorize.HasEffectiveAdminScope.
+func EffectiveAdminExistsSQL(accountColumn, tenantColumn string) string {
+	return fmt.Sprintf(`EXISTS (
+		SELECT 1
+		FROM auth.account_roles AS "ar"
+		INNER JOIN auth.roles AS "r" ON "r".id = "ar".role_id
+		LEFT JOIN auth.role_permissions AS "rp" ON "rp".role_id = "ar".role_id
+		LEFT JOIN auth.permissions AS "p" ON "p".id = "rp".permission_id
+		WHERE "ar".account_id = %[1]s
+		  AND "ar".tenant_id = %[2]s
+		  AND (
+		    LOWER("r".name) = 'admin'
+		    OR ("p".resource = 'admin' AND "p".action = '*')
+		    OR ("p".resource = '*' AND "p".action = '*')
+		  )
+	) OR EXISTS (
+		SELECT 1
+		FROM auth.account_permissions AS "ap"
+		INNER JOIN auth.permissions AS "p" ON "p".id = "ap".permission_id
+		WHERE "ap".account_id = %[1]s
+		  AND "ap".tenant_id = %[2]s
+		  AND "ap".granted = TRUE
+		  AND (
+		    ("p".resource = 'admin' AND "p".action = '*')
+		    OR ("p".resource = '*' AND "p".action = '*')
+		  )
+	)`, accountColumn, tenantColumn)
+}
+
 // AccountRepository implements auth.AccountRepository interface
 type AccountRepository struct {
 	*base.Repository[*auth.Account]
@@ -41,6 +83,37 @@ func (r *AccountRepository) FindByIDForUpdate(ctx context.Context, id int64) (*a
 		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: err}
 	}
 	return account, nil
+}
+
+// ListEffectiveAdminAccountIDs returns the IDs of accounts holding effective
+// admin scope in the current tenant, restricted to accounts that are active and
+// whose tenant mapping is active.
+//
+// Callers that need to decide, for many people at once, whether someone sees
+// tenant-wide data use this instead of asking per account. The predicate is
+// shared with the push-subscription admin finder through
+// EffectiveAdminExistsSQL, so both agree by construction.
+func (r *AccountRepository) ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error) {
+	var ids []int64
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Distinct().
+		TableExpr(accountTableAlias).
+		ColumnExpr(`"account".id`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id`).
+		Where(`"account".active = ?`, true).
+		Where(`"account_tenant".status = ?`, auth.AccountTenantStatusActive).
+		Where(EffectiveAdminExistsSQL(`"account".id`, `"account_tenant".tenant_id`))
+
+	// auth.accounts is cross-tenant, so the tenant predicate belongs on the
+	// mapping table rather than on the account itself.
+	query = base.WithTenantFilter(ctx, query, "account_tenant")
+
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list effective admin account IDs", Err: err}
+	}
+
+	return ids, nil
 }
 
 // NewAccountRepository creates a new AccountRepository

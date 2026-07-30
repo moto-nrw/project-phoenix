@@ -138,6 +138,7 @@ type AnnouncementFeedItem struct {
 // AnnouncementRecipient is one guardian to e-mail when an announcement that
 // opted into e-mail is published: their address and name (for the greeting).
 type AnnouncementRecipient struct {
+	AccountID int64  `bun:"account_id"`
 	Email     string `bun:"email"`
 	FirstName string `bun:"first_name"`
 	LastName  string `bun:"last_name"`

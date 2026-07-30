@@ -106,18 +106,9 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 		return nil
 	}
 
-	payload, err := json.Marshal(webPushPayload{
-		Title:    event.Title,
-		Body:     event.Body,
-		DeepLink: event.DeepLink,
-		Type:     event.Type,
-		Priority: event.Priority,
-	})
+	payload, err := marshalPushPayload(event)
 	if err != nil {
-		return fmt.Errorf("marshaling web push payload: %w", err)
-	}
-	if len(payload) > maxPushPayloadBytes {
-		return fmt.Errorf("web push payload exceeds %d bytes (%d)", maxPushPayloadBytes, len(payload))
+		return err
 	}
 
 	// Read subscriptions under RLS, then commit before any network request.
@@ -143,6 +134,117 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 	return nil
 }
 
+// DeliverBatch resolves the devices of every recipient in ONE transaction and
+// then sends each recipient their own payload.
+//
+// Looping Deliver would open one tenant transaction per event, each with its
+// own SET LOCAL ROLE round trip. With a per-minute tick addressing every staff
+// member of a school that is the difference between a handful of transactions
+// and one per person.
+//
+// Only staff-scoped events are grouped; anything else falls back to Deliver,
+// because the other scopes resolve their devices from the scope alone and gain
+// nothing from batching.
+func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error {
+	if !c.vapid.Configured() || len(events) == 0 {
+		return nil
+	}
+
+	staffEvents := make([]Event, 0, len(events))
+	for _, event := range events {
+		if event.Audience.Scope == ScopeStaff {
+			staffEvents = append(staffEvents, event)
+			continue
+		}
+		if err := c.Deliver(ctx, event); err != nil {
+			c.getLogger().Error("web push delivery failed inside batch",
+				"notification_type", event.Type,
+				"tenant_id", event.Audience.TenantID,
+				"error", err.Error(),
+			)
+		}
+	}
+	if len(staffEvents) == 0 {
+		return nil
+	}
+
+	tenantID := staffEvents[0].Audience.TenantID
+	recipientSet := make(map[int64]struct{})
+	for _, event := range staffEvents {
+		for _, accountID := range event.Audience.StaffAccountIDs {
+			recipientSet[accountID] = struct{}{}
+		}
+	}
+	recipients := make([]int64, 0, len(recipientSet))
+	for accountID := range recipientSet {
+		recipients = append(recipients, accountID)
+	}
+
+	// Read under RLS, then commit before any network request — the same
+	// ordering Deliver keeps, for the same reason.
+	var subs []*iot.PushSubscription
+	err := tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		resolved, err := c.repo.FindForStaffAccounts(txCtx, recipients)
+		if err != nil {
+			return err
+		}
+		subs = resolved
+		return nil
+	})
+	if err != nil || len(subs) == 0 {
+		return err
+	}
+
+	byAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
+	for _, sub := range subs {
+		byAccount[sub.AccountID] = append(byAccount[sub.AccountID], sub)
+	}
+
+	dispatchCtx := context.WithoutCancel(ctx)
+	for _, event := range staffEvents {
+		targets := make([]*iot.PushSubscription, 0, len(event.Audience.StaffAccountIDs))
+		for _, accountID := range event.Audience.StaffAccountIDs {
+			targets = append(targets, byAccount[accountID]...)
+		}
+		if len(targets) == 0 {
+			continue
+		}
+		payload, marshalErr := marshalPushPayload(event)
+		if marshalErr != nil {
+			c.getLogger().Error("skipping web push event with unusable payload",
+				"notification_type", event.Type,
+				"tenant_id", event.Audience.TenantID,
+				"error", marshalErr.Error(),
+			)
+			continue
+		}
+		go func(event Event, payload []byte, targets []*iot.PushSubscription) {
+			c.sendAll(dispatchCtx, event, payload, targets)
+		}(event, payload, targets)
+	}
+	return nil
+}
+
+// marshalPushPayload renders one event into the wire payload and enforces the
+// size bound. Shared by the single and batched paths so the GDPR-safe field
+// set and the cap cannot drift apart.
+func marshalPushPayload(event Event) ([]byte, error) {
+	payload, err := json.Marshal(webPushPayload{
+		Title:    event.Title,
+		Body:     event.Body,
+		DeepLink: event.DeepLink,
+		Type:     event.Type,
+		Priority: event.Priority,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshaling web push payload: %w", err)
+	}
+	if len(payload) > maxPushPayloadBytes {
+		return nil, fmt.Errorf("web push payload exceeds %d bytes (%d)", maxPushPayloadBytes, len(payload))
+	}
+	return payload, nil
+}
+
 // resolveSubscriptions maps the audience scope to registered devices.
 // ScopeGroup is deliberately unsupported: unlike SSE there is no persisted
 // device-to-group membership, and no producer targets groups with
@@ -155,6 +257,11 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 		return c.repo.FindForTenantAdmins(ctx)
 	case ScopeGuardian:
 		return c.repo.FindForGuardians(ctx, guardianAccountIDs(audience))
+	case ScopeStaff:
+		// Eligibility is re-checked here rather than trusted from the recipient
+		// list: that list was assembled in an earlier transaction, and an
+		// account can be deactivated or unmapped from the school in between.
+		return c.repo.FindForStaffAccounts(ctx, staffAccountIDs(audience))
 	case ScopeGroup:
 		c.getLogger().Debug("web push does not support group scope, skipping",
 			"tenant_id", audience.TenantID,

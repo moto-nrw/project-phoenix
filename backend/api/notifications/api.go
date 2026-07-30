@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -22,12 +23,23 @@ import (
 type Resource struct {
 	NotificationsService notificationsService.Service
 	PushService          notificationsService.PushSubscriptionService
+	PreferenceService    notificationsService.PreferenceService
 	db                   *bun.DB
 }
 
 // NewResource builds the notifications HTTP resource.
-func NewResource(service notificationsService.Service, pushService notificationsService.PushSubscriptionService, db *bun.DB) *Resource {
-	return &Resource{NotificationsService: service, PushService: pushService, db: db}
+func NewResource(
+	service notificationsService.Service,
+	pushService notificationsService.PushSubscriptionService,
+	preferenceService notificationsService.PreferenceService,
+	db *bun.DB,
+) *Resource {
+	return &Resource{
+		NotificationsService: service,
+		PushService:          pushService,
+		PreferenceService:    preferenceService,
+		db:                   db,
+	}
 }
 
 // Router mounts the notification routes behind tenant JWT auth.
@@ -47,14 +59,24 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/subscriptions", rs.subscribePush)
 			r.Delete("/subscriptions", rs.unsubscribePush)
 		})
+
+		// Which notifications the logged-in user agreed to receive. Own data,
+		// so no permission beyond a valid tenant session — the same reasoning
+		// as the push routes above.
+		r.With(withTx).Route("/preferences", func(r chi.Router) {
+			r.Get("/", rs.listPreferences)
+			r.Delete("/", rs.deleteAllPreferences)
+			r.Put("/{type}", rs.setPreference)
+		})
 	})
 
 	return r
 }
 
-// sendTestNotification fires a fixed, display-safe test event to the caller's
-// whole tenant so an admin can verify the notification setup (feature flag on,
-// SSE connected, toast rendering) without waiting for a real producer.
+// sendTestNotification fires a fixed, display-safe test event only to the
+// requesting admin. This verifies the notification setup (feature flag on, SSE
+// connected, toast rendering) without broadcasting an unsolicited test to
+// other staff.
 func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -68,10 +90,19 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("missing tenant context")))
 		return
 	}
+	accountID := jwt.ActorAccountIDFromCtx(ctx)
+	if accountID == nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		return
+	}
 
 	err := rs.NotificationsService.Notify(ctx, notificationsService.Event{
-		Type:     "test",
-		Audience: notificationsService.Audience{TenantID: tenantID, Scope: notificationsService.ScopeTenant},
+		Type: "test",
+		Audience: notificationsService.Audience{
+			TenantID:        tenantID,
+			Scope:           notificationsService.ScopeStaff,
+			StaffAccountIDs: []int64{*accountID},
+		},
 		Priority: notificationsService.PriorityNormal,
 		Title:    "Testbenachrichtigung",
 		Body:     "Die Benachrichtigungen sind korrekt eingerichtet.",

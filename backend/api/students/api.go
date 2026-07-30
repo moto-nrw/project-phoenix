@@ -20,6 +20,7 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -80,6 +81,7 @@ type ResourceConfig struct {
 	// nil is a no-op (the guardian helper guards on it), so tests that build a
 	// bare Resource keep working.
 	ParentEventEmitter *parentmessaging.Emitter
+	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
 	ListExportService  *listexport.RendererService
 	Logger             *slog.Logger

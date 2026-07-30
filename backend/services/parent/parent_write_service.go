@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	mealplanService "github.com/moto-nrw/project-phoenix/services/mealplan"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -244,6 +245,17 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 
 	var result []*activeModels.StudentStatusDay
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var fresh *usersModels.Student
+		notifyAbsence := false
+		if slices.Contains(dates, today) {
+			var err error
+			fresh, err = s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+			if err != nil {
+				return err
+			}
+			notifyAbsence = isNewParentReportableAbsence(fresh, status)
+		}
+
 		for _, other := range activeModels.StudentStatusDayStatusesExcept(status) {
 			if err := s.StatusDayRepo.MarkClearedForDates(txCtx, studentID, other, dates, now, activeModels.StudentStatusSourceParent); err != nil {
 				return err
@@ -262,11 +274,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			}
 		}
 
-		if slices.Contains(dates, today) {
-			fresh, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
-			if err != nil {
-				return err
-			}
+		if fresh != nil {
 			applyLiveStatusForParentToday(fresh, status, now)
 			if err := s.StudentRepo.Update(txCtx, fresh); err != nil {
 				return err
@@ -307,6 +315,21 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			// just the acting guardian's thread; fan out to EVERY guardian so a
 			// co-guardian's open tab drops the stale presence too (#1725 review).
 			s.wakeChildGuardians(capturedTenant, studentID)
+			// The child's group and the office learn that the family reported
+			// an absence. Hooked here rather than in the repository: the
+			// check-in path also writes a status row before immediately
+			// clearing it, and a repository hook would announce a sick note
+			// exactly when the child walks in.
+			if notifyAbsence && s.AbsenceNotifier != nil {
+				s.AbsenceNotifier.NotifyAbsenceReported(context.Background(), notificationsSvc.AbsenceReport{
+					TenantID:       capturedTenant,
+					StudentIDs:     []int64{studentID},
+					Status:         status,
+					Dates:          dates,
+					FromParent:     true,
+					ActorAccountID: accountID,
+				})
+			}
 		})
 		return nil
 	})
@@ -323,6 +346,17 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		slog.Bool("has_reason", notePtr != nil),
 	)
 	return &SickNoteResult{StatusDays: result}, nil
+}
+
+func isNewParentReportableAbsence(student *usersModels.Student, status string) bool {
+	switch status {
+	case activeModels.StudentStatusDaySick:
+		return student.Sick == nil || !*student.Sick
+	case activeModels.StudentStatusDayExcused:
+		return student.Excused == nil || !*student.Excused
+	default:
+		return false
+	}
 }
 
 // submitExcusedRequest turns an excused report into a pending office-approval

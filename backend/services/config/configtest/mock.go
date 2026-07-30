@@ -24,6 +24,7 @@ type Mock struct {
 	ResolveStringFn                func(ctx context.Context, key string) (string, error)
 	ResolveStringForTenantFn       func(ctx context.Context, tenantID int64, key string) (string, error)
 	ResolveBoolFn                  func(ctx context.Context, key string) (bool, error)
+	ResolveBoolsFn                 func(ctx context.Context, keys []string) (map[string]bool, error)
 	ResolveBoolForTenantFn         func(ctx context.Context, tenantID int64, key string) (bool, error)
 	ResolveIntFn                   func(ctx context.Context, key string) (int, error)
 	ResolveIntForTenantFn          func(ctx context.Context, tenantID int64, key string) (int, error)
@@ -81,6 +82,21 @@ func (m *Mock) ResolveBool(ctx context.Context, key string) (bool, error) {
 		return m.ResolveBoolFn(ctx, key)
 	}
 	return false, nil
+}
+
+func (m *Mock) ResolveBools(ctx context.Context, keys []string) (map[string]bool, error) {
+	if m.ResolveBoolsFn != nil {
+		return m.ResolveBoolsFn(ctx, keys)
+	}
+	resolved := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		value, err := m.ResolveBool(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		resolved[key] = value
+	}
+	return resolved, nil
 }
 
 func (m *Mock) ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error) {
