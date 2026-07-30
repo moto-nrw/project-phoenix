@@ -1113,6 +1113,8 @@
     "diffModeAlone": "Largohet vetë",
     "diffModeBus": "Udhëton me autobus",
     "diffModePickup": "Merret",
-    "diffModeAccompanied": "Me një fëmijë tjetër"
+    "diffModeAccompanied": "Me një fëmijë tjetër",
+    "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
+    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
   }
 }

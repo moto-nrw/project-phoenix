@@ -1113,6 +1113,8 @@
     "diffModeAlone": "Уходит самостоятельно",
     "diffModeBus": "Едет на автобусе",
     "diffModePickup": "Забирают",
-    "diffModeAccompanied": "С другим ребёнком"
+    "diffModeAccompanied": "С другим ребёнком",
+    "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
+    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
   }
 }

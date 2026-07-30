@@ -129,7 +129,7 @@ export function ChildCareOfferingsSection({
       {periodLabel && <p className="text-xs text-gray-500">{periodLabel}</p>}
 
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        <h3 className="text-xs font-semibold tracking-wide text-gray-500">
           {t("careOfferings.offeringsTitle")}
         </h3>
         {data.offerings.length === 0 ? (
@@ -171,7 +171,7 @@ export function ChildCareOfferingsSection({
       </div>
 
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        <h3 className="text-xs font-semibold tracking-wide text-gray-500">
           {t("careOfferings.groupsTitle")}
         </h3>
         {data.groups.length === 0 ? (

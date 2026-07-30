@@ -1113,6 +1113,8 @@
     "diffModeAlone": "Goes alone",
     "diffModeBus": "Takes the bus",
     "diffModePickup": "Is picked up",
-    "diffModeAccompanied": "With another child"
+    "diffModeAccompanied": "With another child",
+    "eventRequestCreatedCareOffering": "Care offering change requested",
+    "eventRequestConfirmedCareOffering": "Request confirmed, care offerings will be switched"
   }
 }

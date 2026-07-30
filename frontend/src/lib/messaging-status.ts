@@ -188,6 +188,8 @@ export function parentEventI18nDescriptor(message: {
         return { key: "eventRequestCreatedMasterData" };
       case "excused_absence":
         return { key: "eventRequestCreatedExcusedAbsence" };
+      case "care_offering":
+        return { key: "eventRequestCreatedCareOffering" };
       default:
         return null;
     }
@@ -209,6 +211,9 @@ export function parentEventI18nDescriptor(message: {
       }
       if (message.request_type === "excused_absence") {
         return { key: "eventRequestConfirmedExcusedAbsence" };
+      }
+      if (message.request_type === "care_offering") {
+        return { key: "eventRequestConfirmedCareOffering" };
       }
       return { key: "eventRequestConfirmed" };
     case "abgelehnt":

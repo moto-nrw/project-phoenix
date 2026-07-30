@@ -1113,6 +1113,8 @@
     "diffModeAlone": "Geht alleine",
     "diffModeBus": "Fährt Bus",
     "diffModePickup": "Wird abgeholt",
-    "diffModeAccompanied": "Geht mit anderem Kind/Person"
+    "diffModeAccompanied": "Geht mit anderem Kind/Person",
+    "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
+    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
   }
 }
