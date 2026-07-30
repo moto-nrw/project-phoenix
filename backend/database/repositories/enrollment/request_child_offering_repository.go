@@ -228,3 +228,22 @@ func (r *RequestChildOfferingRepository) CountActiveByCareOfferingOnDate(ctx con
 	}
 	return count, nil
 }
+
+// CountMaterializableByCareOffering counts every non-terminal selection,
+// regardless of its validity interval. Future replacements still need a valid
+// offering template when their effective date arrives.
+func (r *RequestChildOfferingRepository) CountMaterializableByCareOffering(ctx context.Context, careOfferingID int64) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(requestChildOfferingTableExpr).
+		Join(`INNER JOIN enrollment.request_children AS "child" ON "child".id = "request_child_offering".request_child_id`).
+		Where(`"request_child_offering".care_offering_id = ?`, careOfferingID).
+		Where(`"child".status NOT IN (?)`, bun.List([]string{
+			enrollment.ChildStatusRejected,
+			enrollment.ChildStatusWithdrawn,
+		})).
+		Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count materializable children for care offering %d: %w", careOfferingID, err)
+	}
+	return count, nil
+}

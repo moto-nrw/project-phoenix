@@ -431,4 +431,8 @@ type RequestChildOfferingRepository interface {
 	// time.
 	CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
 	CountActiveByCareOfferingOnDate(ctx context.Context, careOfferingID int64, onDate timezone.Date) (int, error)
+	// CountMaterializableByCareOffering includes every non-terminal selection,
+	// including a replacement scheduled for a future date. It protects later
+	// materialization from incompatible offering/template edits.
+	CountMaterializableByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
 }
