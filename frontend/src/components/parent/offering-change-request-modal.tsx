@@ -240,7 +240,10 @@ export function OfferingChangeRequestModal({
                       <Checkbox
                         checked={selected}
                         disabled={
-                          full || unavailable || (item.is_required && selected)
+                          full ||
+                          unavailable ||
+                          item.automatic ||
+                          (item.is_required && selected)
                         }
                         onChange={() => toggleOffering(item)}
                       />

@@ -499,7 +499,7 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	}
 	out := make(map[int64][]ChildOfferingRow, len(children))
 	for _, child := range children {
-		links, lerr := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, phase.ServiceStartDate)
+		links, lerr := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, reportOfferingDate(phase))
 		if lerr != nil {
 			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
 		}
@@ -735,7 +735,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		childIDs = append(childIDs, child.ID)
 	}
 
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, timezone.TodayDate())
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load offerings: %w", err)
 	}
@@ -751,7 +751,6 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		}
 	}
 
-	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
 	childrenByRequest := groupChildrenByRequest(filteredChildren, len(reqIDs))
 
 	phases := make(map[int64]*enrollmentModels.Phase, len(phaseIDs))
@@ -762,6 +761,16 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		}
 		phases[phaseID] = phase
 	}
+	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(filteredChildren))
+	for _, child := range filteredChildren {
+		childrenByID[child.ID] = child
+	}
+	requestsByID := make(map[int64]*enrollmentModels.Request, len(requests))
+	for _, request := range requests {
+		requestsByID[request.ID] = request
+	}
+	links = filterOfferingsAtPhaseDate(links, childrenByID, requestsByID, phases)
+	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
 
 	schemas := make(map[int64]*enrollmentModels.FormSchema)
 	for _, req := range requests {
@@ -809,6 +818,38 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 // file when this errors. The DataAccessLog repo populates tenant_id
 // from the context's tenant transaction, so this must be called inside
 // one.
+
+func filterOfferingsAtPhaseDate(
+	links []*enrollmentModels.RequestChildOffering,
+	childrenByID map[int64]*enrollmentModels.RequestChild,
+	requestsByID map[int64]*enrollmentModels.Request,
+	phases map[int64]*enrollmentModels.Phase,
+) []*enrollmentModels.RequestChildOffering {
+	filtered := make([]*enrollmentModels.RequestChildOffering, 0, len(links))
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		child := childrenByID[link.RequestChildID]
+		if child == nil {
+			continue
+		}
+		request := requestsByID[child.RequestID]
+		if request == nil {
+			continue
+		}
+		phase := phases[request.PhaseID]
+		if phase == nil {
+			continue
+		}
+		onDate := reportOfferingDate(phase)
+		if (link.ValidFrom == nil || !link.ValidFrom.After(onDate)) &&
+			(link.ValidUntil == nil || link.ValidUntil.After(onDate)) {
+			filtered = append(filtered, link)
+		}
+	}
+	return filtered
+}
 
 // groupOfferingsByChild resolves each child->offering link against the
 // offering catalog and groups the rows per request child. Shared by the

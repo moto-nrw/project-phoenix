@@ -1101,6 +1101,8 @@ export interface OfferingCatalogItem {
   readonly includes_holiday_care: boolean;
   readonly selected: boolean;
   readonly selected_days: string[];
+  /** True when the current booking is derived from another offering. */
+  readonly automatic?: boolean;
   /** False for a booking retained after the school deactivated the offering. */
   readonly is_active?: boolean;
   readonly capacity?: number;

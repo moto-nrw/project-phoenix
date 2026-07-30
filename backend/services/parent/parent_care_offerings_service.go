@@ -141,7 +141,7 @@ func (s *service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 		if err := s.loadOfferingChangeState(txCtx, accountID, studentID, view); err != nil {
 			return err
 		}
-		canRequest, changesDisabledReason = s.resolveOfferingChangeAvailability(txCtx, child, period, today)
+		canRequest, changesDisabledReason = s.resolveOfferingChangeAvailabilityForStudent(txCtx, child, studentID, period, today)
 		return nil
 	})
 	if txErr != nil {
@@ -606,23 +606,51 @@ func (s *service) resolveOfferingChangeAvailability(
 	period *enrollmentModels.StudentCarePeriod,
 	today timezone.Date,
 ) (bool, string) {
+	return s.resolveOfferingChangeAvailabilityForStudent(ctx, child, 0, period, today)
+}
+
+func (s *service) resolveOfferingChangeAvailabilityForStudent(
+	ctx context.Context,
+	child *parentChild,
+	studentID int64,
+	period *enrollmentModels.StudentCarePeriod,
+	today timezone.Date,
+) (bool, string) {
 	if period == nil {
 		return false, OfferingChangesReasonNoEnrollment
 	}
 	if !child.hasPermission(authorize.GuardianPermissionRequestSubmit) {
 		return false, OfferingChangesReasonNoPermission
 	}
-	if period.ServiceEndDate.Before(today) {
-		return false, OfferingChangesReasonPeriodOver
-	}
 	if s.OfferingChanges != nil {
 		earliest, err := s.OfferingChanges.EarliestEffectiveFrom(ctx)
-		if err != nil || earliest.After(period.ServiceEndDate) {
+		if err != nil || (studentID > 0 && !s.hasCarePeriodOnOrAfter(ctx, studentID, earliest)) ||
+			(studentID == 0 && earliest.After(period.ServiceEndDate)) {
 			return false, OfferingChangesReasonNoTime
 		}
+	} else if period.ServiceEndDate.Before(today) {
+		return false, OfferingChangesReasonPeriodOver
 	}
 	if !s.offeringChangesEnabledForTenant(ctx, child.tenantID) {
 		return false, OfferingChangesReasonSchoolOff
 	}
 	return true, ""
+}
+
+// hasCarePeriodOnOrAfter mirrors the offering-change catalog's period
+// selection: a lead time may land in a pre-approved upcoming period.
+func (s *service) hasCarePeriodOnOrAfter(ctx context.Context, studentID int64, date timezone.Date) bool {
+	if s.RequestChildRepo == nil {
+		return false
+	}
+	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
+	if err != nil {
+		return false
+	}
+	for _, candidate := range periods {
+		if !candidate.ServiceEndDate.Before(date) {
+			return true
+		}
+	}
+	return false
 }

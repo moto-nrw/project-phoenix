@@ -90,6 +90,9 @@ type OfferingChangeCatalogItem struct {
 	// Selected marks the child's current booking, so the modal opens prefilled.
 	Selected     bool
 	SelectedDays []string
+	// Automatic marks a current booking that is derived solely from another
+	// offering. It remains visible, but is not a guardian selection.
+	Automatic bool
 	// IsActive is false only for a held offering that was removed from the
 	// catalog. It remains visible to preserve the existing booking.
 	IsActive bool
@@ -480,6 +483,7 @@ func (s *offeringChangeRequestService) catalogItem(
 	if current != nil {
 		item.Selected = true
 		item.SelectedDays = append([]string(nil), current.SelectedDays...)
+		item.Automatic = len(current.ManualSelectedDays) == 0 && len(current.AutomaticSelectedDays) > 0
 	}
 	if offering.Capacity == nil {
 		return item, nil
@@ -661,15 +665,20 @@ func (s *offeringChangeRequestService) Create(
 	if input.EffectiveFrom.After(phase.ServiceEndDate) {
 		return nil, fmt.Errorf("%w: effective date is after the care period ends", ErrOfferingChangeInvalid)
 	}
-	selections, err := s.validateSelections(ctx, phase, period.RequestChildID, input.EffectiveFrom, input.Selections)
-	if err != nil {
-		return nil, err
-	}
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, period.RequestChildID, input.EffectiveFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
-	if sameOfferingSelections(current, selections) {
+	selections, err := s.validateSelections(ctx, phase, period.RequestChildID, input.EffectiveFrom,
+		withoutUnchangedAutomaticSelections(current, input.Selections))
+	if err != nil {
+		return nil, err
+	}
+	materialized, err := s.materializedSelections(ctx, phase, period.RequestChildID, input.EffectiveFrom, selections)
+	if err != nil {
+		return nil, err
+	}
+	if sameMaterializedOfferingSelections(current, materialized) {
 		return nil, fmt.Errorf("%w: offerings are unchanged", ErrOfferingChangeInvalid)
 	}
 	existing, err := s.ChangeRepo.GetPendingForStudent(ctx, input.StudentID)
@@ -942,7 +951,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	lockedByID := offeringsByID(locked)
 	for _, offeringID := range needed {
 		offering := lockedByID[offeringID]
-		if offering == nil {
+		if offering == nil || !offering.IsActive {
 			return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, offeringID)
 		}
 		if offering.Capacity == nil {
@@ -1008,7 +1017,25 @@ func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]b
 	return held
 }
 
-func sameOfferingSelections(current []*enrollmentModels.RequestChildOffering, selections []OfferingChangeSelection) bool {
+func withoutUnchangedAutomaticSelections(current []*enrollmentModels.RequestChildOffering, selections []OfferingChangeSelection) []OfferingChangeSelection {
+	automatic := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+	for _, link := range current {
+		if link != nil && len(link.ManualSelectedDays) == 0 && len(link.AutomaticSelectedDays) > 0 {
+			automatic[link.CareOfferingID] = link
+		}
+	}
+	manual := make([]OfferingChangeSelection, 0, len(selections))
+	for _, selection := range selections {
+		link := automatic[selection.OfferingID]
+		if link != nil && slices.Equal(canonicalDays(link.SelectedDays), canonicalDays(selection.SelectedDays)) {
+			continue
+		}
+		manual = append(manual, selection)
+	}
+	return manual
+}
+
+func sameMaterializedOfferingSelections(current []*enrollmentModels.RequestChildOffering, selections []materializedOfferingSelection) bool {
 	if len(current) != len(selections) {
 		return false
 	}
@@ -1026,6 +1053,39 @@ func sameOfferingSelections(current []*enrollmentModels.RequestChildOffering, se
 		}
 	}
 	return true
+}
+
+func (s *offeringChangeRequestService) materializedSelections(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	requestChildID int64,
+	effectiveFrom timezone.Date,
+	selections []OfferingChangeSelection,
+) ([]materializedOfferingSelection, error) {
+	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
+	}
+	allowed := offeringsByID(active)
+	if err := s.addHeldOfferingsAtDate(ctx, requestChildID, effectiveFrom, allowed); err != nil {
+		return nil, err
+	}
+	_, submit, err := normalizeOfferingSelections(selections, allowed)
+	if err != nil {
+		return nil, err
+	}
+	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
+	if err != nil || child == nil {
+		return nil, fmt.Errorf("offering change: load request child: %w", err)
+	}
+	submit.TargetGradeLevel = child.TargetGradeLevel
+	materialized, err := materializeAndValidateChildrenOfferingSelections(
+		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
+	}
+	return materialized[0], nil
 }
 
 // validateSelections checks the desired selection against the phase catalog and
