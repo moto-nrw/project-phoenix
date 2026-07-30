@@ -61,7 +61,8 @@
     "comingSoonTooltip": "Bald verfügbar",
     "role": "Eltern",
     "childProfile": "Kinderprofil",
-    "loading": "Lädt..."
+    "loading": "Lädt...",
+    "feedback": "Feedback"
   },
   "parentMealPlan": {
     "title": "Essensplan",
@@ -1124,5 +1125,38 @@
     "diffModeAccompanied": "Geht mit anderem Kind/Person",
     "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
     "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
+  },
+  "parentFeedback": {
+    "kicker": "Rückmeldung",
+    "title": "Feedback",
+    "productTeamNotice": "Dein Feedback geht direkt an das Produktteam von moto, das die App entwickelt. Die OGS deines Kindes sieht diese Beiträge nicht.",
+    "pseudonymNotice": "Du erscheinst für alle nur als „Elternteil“, auch für das Produktteam.",
+    "schoolLabel": "Schule",
+    "sortLabel": "Sortierung",
+    "sortPopular": "Beliebteste",
+    "sortNewest": "Neueste",
+    "newEntry": "Neuer Beitrag",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "actions": "Aktionen",
+    "emptyTitle": "Noch keine Beiträge",
+    "emptyDescription": "Teile Ideen, melde Probleme oder schlage Verbesserungen an der App vor.",
+    "noSchoolsTitle": "Noch keine Schule verknüpft",
+    "noSchoolsDescription": "Sobald dein Kind an einer Schule angemeldet ist, kannst du hier Feedback geben.",
+    "loadError": "Das Feedback konnte nicht geladen werden.",
+    "retry": "Erneut laden",
+    "formHint": "Dieser Beitrag geht an das Produktteam von moto, nicht an die OGS. Andere Eltern deiner Schule können ihn lesen und bewerten.",
+    "deleteTitle": "Beitrag löschen?",
+    "deleteBody": "Dieser Beitrag und alle Stimmen werden unwiderruflich gelöscht.",
+    "deleteSuccess": "Beitrag wurde gelöscht.",
+    "deleteError": "Fehler beim Löschen des Beitrags.",
+    "statusOpen": "Offen",
+    "statusPlanned": "Geplant",
+    "statusInProgress": "In Bearbeitung",
+    "statusDone": "Umgesetzt",
+    "statusRejected": "Abgelehnt",
+    "statusNeedInfo": "Rückfrage",
+    "titlePlaceholder": "z.B. „Erinnerung vor der Abholzeit“",
+    "descriptionPlaceholder": "Beschreibe deine Rückmeldung..."
   }
 }

@@ -375,7 +375,13 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         <button type="button" onClick={() => void onDeleteCancelled(instance)}>
           detail-delete
         </button>
-        <button type="button" onClick={() => void onDeleteFollowing(instance)}>
+        {/* Das echte Modal schluckt eine Rejection (bereits gemeldeter
+            Fehler) und lässt den Auswahldialog offen — der Mock muss das
+            nachbilden, sonst wird daraus eine Unhandled Rejection. */}
+        <button
+          type="button"
+          onClick={() => void onDeleteFollowing(instance).catch(() => null)}
+        >
           detail-delete-following
         </button>
         <button type="button" onClick={() => onEdit(instance)}>
@@ -1029,6 +1035,9 @@ describe("BetreuungsplanView", () => {
   });
 
   it("ends following instances from the slide-over", async () => {
+    // Der Regeltermin lässt sich nur ab heute beenden, also muss der Termin
+    // der Fixture (2026-05-04) hier "heute" sein.
+    vi.setSystemTime(new Date("2026-05-04T08:00:00"));
     setUrl("view=woche&block=42");
     render(<BetreuungsplanView />);
 
@@ -1038,6 +1047,22 @@ describe("BetreuungsplanView", () => {
         effective_date: "2026-05-04",
       }),
     );
+  });
+
+  it("refuses to end a series from a past occurrence", async () => {
+    // Uhr steht auf 2026-05-06, der Termin der Fixture auf 2026-05-04: das
+    // Backend lehnt ein effective_date in der Vergangenheit ab, also fängt
+    // die View den Aufruf mit einer verständlichen Meldung ab.
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete-following"));
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        expect.stringContaining("nur ab heute beendet werden"),
+      ),
+    );
+    expect(mockEndTemplate).not.toHaveBeenCalled();
   });
 
   it("repeats an instance into a series from the slide-over", async () => {

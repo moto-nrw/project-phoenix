@@ -92,6 +92,9 @@ DELETE /operator/suggestions/{id}/comments/{commentId}
 DELETE /parent/me/children/{studentId}/care-exception
 DELETE /parent/me/children/{studentId}/excused-requests/{requestId}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
+DELETE /parent/me/feedback/{postId}
+DELETE /parent/me/feedback/{postId}/comments/{commentId}
+DELETE /parent/me/feedback/{postId}/vote
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
 GET /
@@ -461,6 +464,11 @@ GET /parent/me/children/{studentId}/related-accounts
 GET /parent/me/children/{studentId}/sick-note
 GET /parent/me/enrollable-schools
 GET /parent/me/enrollments
+GET /parent/me/feedback
+GET /parent/me/feedback/schools
+GET /parent/me/feedback/unread-count
+GET /parent/me/feedback/{postId}
+GET /parent/me/feedback/{postId}/comments
 GET /parent/me/messages
 GET /parent/me/messages/children/{studentId}
 GET /parent/me/messages/children/{studentId}/threads
@@ -747,6 +755,10 @@ POST /parent/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw
 POST /parent/me/children/{studentId}/master-data/requests
 POST /parent/me/children/{studentId}/related-accounts
 POST /parent/me/children/{studentId}/sick-note
+POST /parent/me/feedback
+POST /parent/me/feedback/{postId}/comments
+POST /parent/me/feedback/{postId}/comments/read
+POST /parent/me/feedback/{postId}/vote
 POST /parent/me/messages/children/{studentId}
 POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
@@ -833,6 +845,7 @@ PUT /operator/suggestions/{id}/hidden
 PUT /operator/suggestions/{id}/status
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
+PUT /parent/me/feedback/{postId}
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 QUERY /internal/metrics

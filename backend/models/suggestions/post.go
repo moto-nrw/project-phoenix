@@ -17,6 +17,15 @@ const (
 	StatusNeedInfo   = "need_info"
 )
 
+// Post author types. They separate the two boards: staff posts belong to the
+// school's suggestion board, parent posts to the parent portal's feedback
+// board. Which one a transaction can see is enforced by RLS via
+// app.current_actor_type (migration 1.15.241), not by the WHERE clauses here.
+const (
+	PostAuthorStaff  = "staff"
+	PostAuthorParent = "parent"
+)
+
 // Field-length bounds for suggestion posts and comments.
 const (
 	// postTitleMaxLength caps a suggestion post title.
@@ -32,6 +41,7 @@ type Post struct {
 	Title       string `bun:"title,notnull" json:"title"`
 	Description string `bun:"description,notnull" json:"description"`
 	AuthorID    int64  `bun:"author_id,notnull" json:"author_id"`
+	AuthorType  string `bun:"author_type,notnull,default:'staff'" json:"author_type"`
 	Status      string `bun:"status,notnull,default:'open'" json:"status"`
 	Score       int    `bun:"score,notnull,default:0" json:"score"`
 	IsHidden    bool   `bun:"is_hidden,notnull,default:false" json:"is_hidden"`
@@ -70,10 +80,27 @@ func (p *Post) Validate() error {
 	if p.AuthorID <= 0 {
 		return errors.New("author ID is required")
 	}
+	// An unset author type is the staff board, matching the column default.
+	if p.AuthorType == "" {
+		p.AuthorType = PostAuthorStaff
+	}
+	if !IsValidPostAuthorType(p.AuthorType) {
+		return errors.New("author type must be 'staff' or 'parent'")
+	}
 	if !IsValidStatus(p.Status) {
 		return errors.New("invalid status")
 	}
 	return nil
+}
+
+// IsValidPostAuthorType checks if a post author type string is valid.
+func IsValidPostAuthorType(authorType string) bool {
+	return authorType == PostAuthorStaff || authorType == PostAuthorParent
+}
+
+// IsFromParent reports whether the post was written in the parent portal.
+func (p *Post) IsFromParent() bool {
+	return p.AuthorType == PostAuthorParent
 }
 
 // IsValidStatus checks if a status string is valid

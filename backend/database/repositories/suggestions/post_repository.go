@@ -20,6 +20,26 @@ const (
 	tableVotes      = "suggestions.votes"
 )
 
+// postAuthorNameExpr resolves the display name of a post author. Parent posts
+// resolve to the pseudonym "Elternteil" in SQL, so no caller — not even the
+// operator API — ever receives a guardian's name for a feedback post.
+const postAuthorNameExpr = `CASE
+			WHEN "post".author_type = 'parent' THEN 'Elternteil'
+			ELSE COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt')
+		END AS author_name`
+
+// joinPostPerson backs postAuthorNameExpr. It is deliberately narrow: the
+// operator board reads through phoenix_admin, which bypasses RLS, so an
+// unrestricted join would match every person row an account owns across all
+// tenants — plus soft-deleted leftovers — and multiply the post itself. The
+// join is skipped for parent posts entirely, because those resolve to the
+// pseudonym and must never touch a guardian's person row.
+const joinPostPerson = `LEFT JOIN users.persons AS p
+			ON "post".author_type <> 'parent'
+			AND p.account_id = "post".author_id
+			AND p.tenant_id = "post".tenant_id
+			AND p.deleted_at IS NULL`
+
 // PostRepository implements suggestions.PostRepository
 type PostRepository struct {
 	db *bun.DB
@@ -64,7 +84,9 @@ func (r *PostRepository) FindByID(ctx context.Context, id int64, readerType stri
 
 	query = base.WithTenantFilter(ctx, query, "post")
 
-	if readerType == suggestions.ReaderTypeUser {
+	// Operators moderate and therefore see hidden posts; every other reader
+	// (staff board, parent board) does not.
+	if readerType != suggestions.ReaderTypeOperator {
 		query = query.Where(`"post".is_hidden = FALSE`)
 	}
 
@@ -175,7 +197,7 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
-		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
+		ColumnExpr(postAuthorNameExpr).
 		ColumnExpr(`COALESCE(vc.upvotes, 0) AS upvotes`).
 		ColumnExpr(`COALESCE(vc.downvotes, 0) AS downvotes`).
 		ColumnExpr(`COALESCE(cc.comment_count, 0) AS comment_count`).
@@ -186,7 +208,7 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 		) AS is_new`, accountID, readerType).
 		ColumnExpr(`v.direction AS user_vote`).
 		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
-		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
+		Join(joinPostPerson).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
 		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
 		Join(`LEFT JOIN LATERAL (
@@ -198,16 +220,21 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 		Join(`LEFT JOIN LATERAL (
 			SELECT
 				COUNT(*) AS comment_count,
-				COUNT(*) FILTER (WHERE cr.last_read_at IS NULL OR c.created_at > cr.last_read_at) AS unread_count
+				COUNT(*) FILTER (WHERE
+					(cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
+					AND (? <> 'parent' OR c.author_type <> 'parent' OR c.author_id <> ?)
+				) AS unread_count
 			FROM suggestions.comments c
 			LEFT JOIN suggestions.comment_reads cr
 				ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
 			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
-		) cc ON true`, accountID, readerType)
+		) cc ON true`, readerType, accountID, accountID, readerType)
 
 	query = base.WithTenantFilter(ctx, query, "post")
 
-	if readerType == suggestions.ReaderTypeUser {
+	// Operators moderate and therefore see hidden posts; every other reader
+	// (staff board, parent board) does not.
+	if readerType != suggestions.ReaderTypeOperator {
 		query = query.Where(`"post".is_hidden = FALSE`)
 	}
 
@@ -246,14 +273,14 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
-		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
+		ColumnExpr(postAuthorNameExpr).
 		ColumnExpr(`COALESCE(vc.upvotes, 0) AS upvotes`).
 		ColumnExpr(`COALESCE(vc.downvotes, 0) AS downvotes`).
 		ColumnExpr(`COALESCE(cc.comment_count, 0) AS comment_count`).
 		ColumnExpr(`COALESCE(cc.unread_count, 0) AS unread_count`).
 		ColumnExpr(`v.direction AS user_vote`).
 		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
-		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
+		Join(joinPostPerson).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
 		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
 		Join(`LEFT JOIN LATERAL (
@@ -265,17 +292,22 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 		Join(`LEFT JOIN LATERAL (
 			SELECT
 				COUNT(*) AS comment_count,
-				COUNT(*) FILTER (WHERE cr.last_read_at IS NULL OR c.created_at > cr.last_read_at) AS unread_count
+				COUNT(*) FILTER (WHERE
+					(cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
+					AND (? <> 'parent' OR c.author_type <> 'parent' OR c.author_id <> ?)
+				) AS unread_count
 			FROM suggestions.comments c
 			LEFT JOIN suggestions.comment_reads cr
 				ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
 			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
-		) cc ON true`, accountID, readerType).
+		) cc ON true`, readerType, accountID, accountID, readerType).
 		Where(`"post".id = ?`, id)
 
 	query = base.WithTenantFilter(ctx, query, "post")
 
-	if readerType == suggestions.ReaderTypeUser {
+	// Operators moderate and therefore see hidden posts; every other reader
+	// (staff board, parent board) does not.
+	if readerType != suggestions.ReaderTypeOperator {
 		query = query.Where(`"post".is_hidden = FALSE`)
 	}
 

@@ -47,6 +47,7 @@ import {
 } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
+import { VertretungCoverageNotice } from "~/components/timetable/vertretung-coverage-notice";
 import {
   VertretungDayList,
   type VertretungDayListMode,
@@ -55,7 +56,7 @@ import { VertretungWeekList } from "~/components/timetable/vertretung-week-list"
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { useToast } from "~/contexts/ToastContext";
-import { hasPermission } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   berlinTodayISO,
   isValidISODate,
@@ -67,8 +68,10 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import { getSettingValue } from "~/lib/settings-api";
+import { staffShiftService } from "~/lib/shift-api";
 import { staffService } from "~/lib/staff-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { timetableService } from "~/lib/timetable-api";
 import {
   VERTRETUNG_GAPS_KEY_PREFIX,
@@ -118,6 +121,18 @@ function VertretungContent() {
   // `schedules:manage`. Ohne canManage werden alle Editier-Kontrollen
   // ausgeblendet, Liste und Verlauf bleiben lesbar (Abschnitt 1/9).
   const canManageSchedules = hasPermission(session, "schedules:manage");
+  // Der Dienstplan-Hinweis über der Liste liest die Dienstplan-Übersicht. Deren
+  // Endpunkt verlangt mehr Rechte als die Vertretung selbst
+  // (Administrator + time_tracking:manage + schedules:read + users:read,
+  // siehe use-dienstplan-data.ts). Der Dienstplan leitet Nicht-Admins nach
+  // /staff um; ohne alle Voraussetzungen entfällt der Hinweis daher still,
+  // statt einen 403 oder einen toten Link zu erzeugen.
+  const canReadCoverage =
+    isAdmin(session) &&
+    hasPermission(session, "time_tracking:manage") &&
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
+  const tenantPath = useTenantAwarePath();
 
   // URL-Vokabular: d / block / verlauf — sonst nichts (Abschnitt 1).
   // Wochenendtage (Erstaufruf am Sa/So oder ?d=-Deeplink) snappen auf den
@@ -177,6 +192,17 @@ function VertretungContent() {
   const loadGaps = toISO >= today;
   const gapsSwrKey = `${VERTRETUNG_GAPS_KEY_PREFIX}${gapsFromISO}-${toISO}`;
 
+  // Fenster des Dienstplan-Abgleichs: Mo–Fr, identisch zum Wochenraster des
+  // Dienstplans, damit beide Flächen denselben SWR-Cache benutzen (der Key ist
+  // bewusst wörtlich derselbe wie in use-dienstplan-data.ts). Eine vollständig
+  // vergangene Woche braucht keinen Abgleich.
+  const coverageFromISO = toISODate(weekDays[0] ?? range.from);
+  const coverageToISO = toISODate(
+    weekDays[weekDays.length - 1] ?? weekDays[0] ?? range.to,
+  );
+  const loadCoverage = canReadCoverage && coverageToISO >= today;
+  const coverageSwrKey = `dienstplan-overview-${coverageFromISO}-${coverageToISO}`;
+
   const { data, isLoading, error } = useSWRAuth(
     status === "authenticated" ? weekSwrKey : null,
     () => timetableService.getWeek(fromISO, toISO),
@@ -190,6 +216,13 @@ function VertretungContent() {
     // strict: ein Backend-Fehler muss rejecten (nicht zu [] resolven), damit
     // staffError feuert und der Picker den Fehler statt "kein Personal" zeigt.
     () => staffService.getAllStaff(undefined, { strict: true }),
+  );
+  // Dienstplan-Abgleich für den Hinweis über der Liste. Bewusst NICHT strict
+  // und ohne Toast: der Hinweis ist eine Zusatzinformation, sein Ausfall darf
+  // die Vertretungsarbeit nicht kommentieren (er verschwindet dann einfach).
+  const { data: coverageData, error: coverageError } = useSWRAuth(
+    status === "authenticated" && loadCoverage ? coverageSwrKey : null,
+    () => staffShiftService.getOverview(coverageFromISO, coverageToISO),
   );
 
   // Route-Gate wie in der alten View: Settings-Schema -> timetable.enabled.
@@ -247,6 +280,17 @@ function VertretungContent() {
       `Personalliste konnte nicht geladen werden: ${staffErrorMessage}`,
     );
   }, [staffErrorMessage, toast]);
+
+  // Nur protokollieren, kein Toast: siehe Kommentar am Abruf.
+  useEffect(() => {
+    if (!coverageError) return;
+    logger.warn("coverage_notice_load_failed", {
+      error:
+        coverageError instanceof Error
+          ? coverageError.message
+          : String(coverageError),
+    });
+  }, [coverageError]);
 
   const instances = useMemo(() => data?.instances ?? [], [data?.instances]);
   const weekdayInstances = useMemo(
@@ -363,6 +407,27 @@ function VertretungContent() {
       : "in dieser Woche"
     : "an diesem Tag";
 
+  // Einsätze, die der Dienstplan nicht abdeckt (Person ist eingeteilt, hat aber
+  // keine passende Schicht). KEIN Störungsfall: die Störungsdefinition bleibt
+  // vierteilig, deshalb zählt das hier nirgends in openCount/ackCount oder die
+  // Tageschips, sondern ausschließlich in den eigenen Hinweis. Vergangene Tage
+  // bleiben still, genau wie bei den Lücken; eine Woche ohne gepflegten
+  // Dienstplan liefert dienstplanInUse = false und damit gar nichts.
+  const uncoveredCount = useMemo(() => {
+    if (coverageError || !coverageData?.dienstplanInUse) return 0;
+    const inScope = (date: string) =>
+      date >= today && (isWeekView ? weekDayISOSet.has(date) : date === dayISO);
+    return coverageData.assignments.filter(
+      (assignment) =>
+        assignment.coverageStatus === "uncovered" && inScope(assignment.date),
+    ).length;
+  }, [coverageData, coverageError, dayISO, isWeekView, today, weekDayISOSet]);
+  // Der Dienstplan versteht dasselbe `d` wie diese Ansicht; in der
+  // Wochenansicht landet man auf dem Montag der gezeigten Woche.
+  const dienstplanHref = tenantPath(
+    `/dienstplan?d=${isWeekView ? coverageFromISO : dayISO}`,
+  );
+
   // Filterzustand ist LOKAL, kein URL-Parameter (verbindliches
   // Drei-Parameter-Vokabular). Standard "Nur Störungen" (aus K2).
   const [mode, setMode] = useState<VertretungDayListMode>("stoerungen");
@@ -408,7 +473,15 @@ function VertretungContent() {
   // einen eigenen "bitte neu laden"-Toast.
   const revalidate = useCallback(async () => {
     try {
-      await Promise.all([tenantMutate(weekSwrKey), tenantMutate(gapsSwrKey)]);
+      // Der Dienstplan-Abgleich hängt an den konkreten Personalzeilen, ein
+      // Vertretungs-Save kann ihn also verändern (Ersatz kommt hinzu, geplante
+      // Person fällt weg). Er wird deshalb mitrevalidiert, wenn er überhaupt
+      // aktiv ist.
+      await Promise.all([
+        tenantMutate(weekSwrKey),
+        tenantMutate(gapsSwrKey),
+        ...(loadCoverage ? [tenantMutate(coverageSwrKey)] : []),
+      ]);
     } catch (err) {
       logger.error("revalidate_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -417,7 +490,14 @@ function VertretungContent() {
         "Ansicht konnte nicht aktualisiert werden. Bitte die Seite neu laden.",
       );
     }
-  }, [gapsSwrKey, weekSwrKey, tenantMutate, toast]);
+  }, [
+    coverageSwrKey,
+    gapsSwrKey,
+    loadCoverage,
+    weekSwrKey,
+    tenantMutate,
+    toast,
+  ]);
 
   // Retry der Fehlerfläche: ein Backend-Blip lässt typischerweise alle drei
   // Abrufe gleichzeitig scheitern, also alle drei Keys revalidieren — sonst
@@ -429,8 +509,9 @@ function VertretungContent() {
       tenantMutate(weekSwrKey),
       tenantMutate(gapsSwrKey),
       tenantMutate(VERTRETUNG_STAFF_LIST_KEY),
+      ...(loadCoverage ? [tenantMutate(coverageSwrKey)] : []),
     ]);
-  }, [gapsSwrKey, weekSwrKey, tenantMutate]);
+  }, [coverageSwrKey, gapsSwrKey, loadCoverage, weekSwrKey, tenantMutate]);
 
   // Ein atomares Save für das gesamte Editor-Formular. Der Cache-Refresh läuft
   // NACH der committeten Mutation und kann ihren Erfolg nicht zurücknehmen.
@@ -581,6 +662,13 @@ function VertretungContent() {
           message={`Personalliste konnte nicht geladen werden: ${staffErrorMessage}. Ersatz kann nicht ausgewählt werden, bis die Seite neu geladen wurde.`}
         />
       )}
+
+      {/* Planungshinweis, keine Störung: steht bewusst außerhalb der Liste und
+          außerhalb der Zähler (siehe vertretung-coverage-notice.tsx). */}
+      <VertretungCoverageNotice
+        count={uncoveredCount}
+        dienstplanHref={dienstplanHref}
+      />
 
       {weekErrorMessage ? (
         // Fehlerfläche mit Retry — NIE ein leerer Plan (Verhaltensvertrag).

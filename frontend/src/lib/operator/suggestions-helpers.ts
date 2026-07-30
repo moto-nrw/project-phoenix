@@ -1,10 +1,5 @@
 export type OperatorSuggestionStatus =
-  | "open"
-  | "planned"
-  | "in_progress"
-  | "done"
-  | "rejected"
-  | "need_info";
+  "open" | "planned" | "in_progress" | "done" | "rejected" | "need_info";
 
 export interface BackendOperatorSuggestion {
   id: number;
@@ -24,6 +19,8 @@ export interface BackendOperatorSuggestion {
   school_id: number;
   school_name: string;
   is_hidden: boolean;
+  /** Which board the entry came from: the school's staff or a guardian. */
+  author_type?: "staff" | "parent";
 }
 
 export interface BackendOperatorComment {
@@ -31,7 +28,7 @@ export interface BackendOperatorComment {
   content: string;
   author_id: number;
   author_name: string;
-  author_type: "operator" | "user";
+  author_type: "operator" | "user" | "parent";
   created_at: string;
 }
 
@@ -53,6 +50,12 @@ export interface OperatorSuggestion {
   isHidden: boolean;
   schoolId: string;
   schoolName: string;
+  /**
+   * "parent" marks feedback from the parents portal (#1678). Those entries are
+   * pseudonymous: authorName is a placeholder and the backend ships no author
+   * id, so there is nothing here to identify a guardian with.
+   */
+  authorType: "staff" | "parent";
 }
 
 export interface OperatorComment {
@@ -60,7 +63,7 @@ export interface OperatorComment {
   content: string;
   authorId: string;
   authorName: string;
-  authorType: "operator" | "user";
+  authorType: "operator" | "user" | "parent";
   createdAt: string;
 }
 
@@ -98,6 +101,7 @@ export function mapOperatorSuggestion(
     isHidden: data.is_hidden,
     schoolId: data.school_id.toString(),
     schoolName: data.school_name,
+    authorType: data.author_type ?? "staff",
   };
 }
 

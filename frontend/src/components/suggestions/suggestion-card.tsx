@@ -2,11 +2,20 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { Suggestion } from "~/lib/suggestions-helpers";
+import type { SuggestionsBoardApi } from "~/lib/suggestions-board-api";
+import { staffBoardApi } from "~/lib/suggestions-board-api";
 import { STATUS_LABELS, STATUS_STYLES } from "~/lib/suggestions-helpers";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { CommentAccordion } from "./comment-accordion";
 import { VoteButtons } from "./vote-buttons";
 import { getRelativeTime, getInitials } from "~/lib/format-utils";
+
+/** Stable default so the prop does not break referential equality per render. */
+const DEFAULT_MENU_LABELS = {
+  edit: "Bearbeiten",
+  delete: "Löschen",
+  actions: "Aktionen",
+} as const;
 
 interface SuggestionCardProps {
   readonly suggestion: Suggestion;
@@ -14,6 +23,17 @@ interface SuggestionCardProps {
   readonly onEdit: (s: Suggestion) => void;
   readonly onDelete: (s: Suggestion) => void;
   readonly onVoteChange: (updated: Suggestion) => void;
+  /** Which board this card belongs to. Defaults to the staff board. */
+  readonly api?: SuggestionsBoardApi;
+  /** Unread-refresh event name forwarded to the comment accordion. */
+  readonly unreadRefreshEvent?: string;
+  /**
+   * Status wording. Defaults to the German staff labels; the parents portal is
+   * localized and passes translated ones.
+   */
+  readonly statusLabels?: Record<Suggestion["status"], string>;
+  /** Action wording, same reason as statusLabels. */
+  readonly menuLabels?: { edit: string; delete: string; actions: string };
 }
 
 export function SuggestionCard({
@@ -22,11 +42,17 @@ export function SuggestionCard({
   onEdit,
   onDelete,
   onVoteChange,
+  api = staffBoardApi,
+  unreadRefreshEvent,
+  statusLabels = STATUS_LABELS,
+  menuLabels = DEFAULT_MENU_LABELS,
 }: SuggestionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [isClamped, setIsClamped] = useState(false);
   const descRef = useRef<HTMLParagraphElement>(null);
-  const isOwner = suggestion.authorId === currentAccountId;
+  // The parent feedback board ships no author id, so the backend decides
+  // ownership there; the staff board keeps comparing ids.
+  const isOwner = suggestion.isOwn ?? suggestion.authorId === currentAccountId;
 
   useEffect(() => {
     const el = descRef.current;
@@ -40,7 +66,11 @@ export function SuggestionCard({
       <div className="flex flex-col gap-3 p-5 md:flex-row md:gap-4">
         {/* Vote column - hidden on mobile, shown on desktop */}
         <div className="hidden md:flex md:items-start md:pt-1">
-          <VoteButtons suggestion={suggestion} onVoteChange={onVoteChange} />
+          <VoteButtons
+            suggestion={suggestion}
+            onVoteChange={onVoteChange}
+            api={api}
+          />
         </div>
 
         {/* Content */}
@@ -53,18 +83,18 @@ export function SuggestionCard({
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[suggestion.status]}`}
               >
-                {STATUS_LABELS[suggestion.status]}
+                {statusLabels[suggestion.status]}
               </span>
               {isOwner && (
                 <OverflowMenu
-                  ariaLabel="Aktionen"
+                  ariaLabel={menuLabels.actions}
                   items={[
                     {
-                      label: "Bearbeiten",
+                      label: menuLabels.edit,
                       onClick: () => onEdit(suggestion),
                     },
                     {
-                      label: "Löschen",
+                      label: menuLabels.delete,
                       destructive: true,
                       onClick: () => onDelete(suggestion),
                     },
@@ -104,6 +134,7 @@ export function SuggestionCard({
               <VoteButtons
                 suggestion={suggestion}
                 onVoteChange={onVoteChange}
+                api={api}
               />
             </div>
           </div>
@@ -116,6 +147,8 @@ export function SuggestionCard({
         currentAccountId={currentAccountId}
         commentCount={suggestion.commentCount}
         unreadCount={suggestion.unreadCount}
+        api={api}
+        unreadRefreshEvent={unreadRefreshEvent}
       />
     </div>
   );

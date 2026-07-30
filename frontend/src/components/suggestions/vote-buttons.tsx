@@ -3,7 +3,8 @@
 import { useState, useCallback } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import type { Suggestion } from "~/lib/suggestions-helpers";
-import { voteSuggestion, removeVote } from "~/lib/suggestions-api";
+import type { SuggestionsBoardApi } from "~/lib/suggestions-board-api";
+import { staffBoardApi } from "~/lib/suggestions-board-api";
 import { createLogger } from "~/lib/logger";
 import { trackEvent } from "~/lib/analytics";
 
@@ -12,9 +13,15 @@ const logger = createLogger({ component: "VoteButtons" });
 interface VoteButtonsProps {
   readonly suggestion: Suggestion;
   readonly onVoteChange: (updated: Suggestion) => void;
+  /** Which board to vote on. Defaults to the school's staff board. */
+  readonly api?: SuggestionsBoardApi;
 }
 
-export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
+export function VoteButtons({
+  suggestion,
+  onVoteChange,
+  api = staffBoardApi,
+}: VoteButtonsProps) {
   const [optimistic, setOptimistic] = useState<{
     upvotes: number;
     downvotes: number;
@@ -43,7 +50,7 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
         });
 
         try {
-          const updated = await removeVote(suggestion.id);
+          const updated = await api.removeVote(suggestion.id);
           setOptimistic(null);
           onVoteChange(updated);
         } catch (err) {
@@ -79,7 +86,7 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
       });
 
       try {
-        const updated = await voteSuggestion(suggestion.id, direction);
+        const updated = await api.vote(suggestion.id, direction);
         trackEvent("suggestion_voted", { direction });
         setOptimistic(null);
         onVoteChange(updated);
@@ -96,7 +103,7 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
         });
       }
     },
-    [suggestion, upvotes, downvotes, userVote, onVoteChange],
+    [suggestion, upvotes, downvotes, userVote, onVoteChange, api],
   );
 
   const upClasses =

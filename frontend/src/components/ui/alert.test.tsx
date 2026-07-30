@@ -33,6 +33,35 @@ describe("Alert", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it("renders an optional action next to the message", () => {
+    render(
+      <Alert
+        type="warning"
+        message="Warning message"
+        action={
+          <button type="button" onClick={() => undefined}>
+            Weiter
+          </button>
+        }
+      />,
+    );
+
+    const action = screen.getByRole("button", { name: "Weiter" });
+    expect(action).toBeInTheDocument();
+    // Die Meldung bleibt direktes Kind der getönten Fläche, die Aktion ist ihr
+    // Geschwister — sonst brechen die Stil-Assertions unten.
+    const alert = screen.getByText("Warning message").parentElement;
+    expect(alert?.className).toContain("bg-[#F78C10]/10");
+    expect(alert?.className).toContain("flex-wrap");
+  });
+
+  it("stays a single row without an action", () => {
+    render(<Alert type="info" message="Info message" />);
+
+    const alert = screen.getByText("Info message").parentElement;
+    expect(alert?.className).not.toContain("flex-wrap");
+  });
+
   it("applies error styles", () => {
     render(<Alert type="error" message="Error message" />);
 

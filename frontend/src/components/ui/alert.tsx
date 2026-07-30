@@ -1,14 +1,28 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 type AlertType = "error" | "success" | "warning" | "info";
 
 interface AlertProps {
   readonly type: AlertType;
   readonly message: string;
   readonly announce?: "assertive" | "polite" | "off";
+  /**
+   * Optionale Aktion am rechten Rand (Link oder Button), für Hinweise, die
+   * einen konkreten nächsten Schritt anbieten. Bleibt ein Geschwister-Element
+   * der Meldung, damit die Meldung selbst direktes Kind der getönten Fläche
+   * bleibt.
+   */
+  readonly action?: ReactNode;
 }
 
-export function Alert({ type, message, announce }: Readonly<AlertProps>) {
+export function Alert({
+  type,
+  message,
+  announce,
+  action,
+}: Readonly<AlertProps>) {
   if (!message) return null;
   const isAssertive = type === "error" || type === "warning";
   const announcement = announce ?? (isAssertive ? "assertive" : "polite");
@@ -95,10 +109,20 @@ export function Alert({ type, message, announce }: Readonly<AlertProps>) {
             ? "alert"
             : "status"
       }
-      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm transition-[box-shadow,opacity] duration-200 hover:opacity-95 hover:shadow-md ${styles[type]}`}
+      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm transition-[box-shadow,opacity] duration-200 hover:opacity-95 hover:shadow-md ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]}`}
     >
       {icons[type]}
-      <span>{message}</span>
+      {/* Mit Aktion darf die Meldung schrumpfen (min-w-0 flex-1), sonst würde
+          sie beim Umbruch komplett unter das Icon rutschen. */}
+      <span className={action ? "min-w-0 flex-1" : undefined}>{message}</span>
+      {/* basis-full: die Aktion rutscht auf schmalen Bildschirmen unter die
+          Meldung, statt den Text in eine schmale Spalte zu quetschen. Ab sm
+          steht sie wieder rechts in derselben Zeile. */}
+      {action ? (
+        <span className="shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4">
+          {action}
+        </span>
+      ) : null}
     </div>
   );
 }
