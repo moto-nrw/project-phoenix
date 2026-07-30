@@ -130,57 +130,78 @@ func (s *service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 	today := timezone.TodayDate()
 	var period *enrollmentModels.StudentCarePeriod
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		resolved, resolveErr := s.currentCarePeriod(txCtx, studentID, today)
-		if resolveErr != nil {
-			return resolveErr
+		resolved, loadErr := s.loadChildCareOfferings(txCtx, studentID, today, view)
+		if loadErr != nil {
+			return loadErr
 		}
 		period = resolved
-		if period != nil {
-			view.PeriodName = period.PhaseName
-			view.PeriodStart = period.ServiceStartDate
-			view.PeriodEnd = period.ServiceEndDate
-			offerings, offeringsErr := s.carePeriodOfferings(txCtx, period.RequestChildID)
-			if offeringsErr != nil {
-				return offeringsErr
-			}
-			view.Offerings = offerings
-		}
-		groups, groupsErr := s.careGroupMemberships(txCtx, studentID, today)
-		if groupsErr != nil {
-			return groupsErr
-		}
-		view.Groups = groups
-		if s.OfferingChanges != nil {
-			pending, pendingErr := s.OfferingChanges.GetForStudent(txCtx, studentID)
-			if pendingErr != nil {
-				return pendingErr
-			}
-			if pending != nil {
-				view.LastDecision = pending.LastDecision
-			}
-			if pending != nil && pending.Request != nil {
-				view.PendingRequest = &PendingOfferingChange{
-					ID:              pending.Request.ID,
-					CreatedAt:       pending.Request.CreatedAt,
-					EffectiveFrom:   pending.Request.EffectiveFrom,
-					Diff:            pending.Diff,
-					SubmittedBySelf: pending.Request.SubmittedBy == accountID,
-				}
-				if pending.Request.ParentNote != nil {
-					view.PendingRequest.Note = *pending.Request.ParentNote
-				}
-			}
-			if earliest, earliestErr := s.OfferingChanges.EarliestEffectiveFrom(txCtx); earliestErr == nil {
-				view.EarliestEffectiveFrom = earliest
-			}
-		}
-		return nil
+		return s.loadOfferingChangeState(txCtx, accountID, studentID, view)
 	})
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: get child care offerings: %w", txErr)
 	}
 	view.CanRequest, view.ChangesDisabledReason = s.resolveOfferingChangeAvailability(ctx, child, period, today)
 	return view, nil
+}
+
+func (s *service) loadChildCareOfferings(
+	ctx context.Context,
+	studentID int64,
+	today timezone.Date,
+	view *ChildCareOfferings,
+) (*enrollmentModels.StudentCarePeriod, error) {
+	period, err := s.currentCarePeriod(ctx, studentID, today)
+	if err != nil {
+		return nil, err
+	}
+	if period != nil {
+		view.PeriodName = period.PhaseName
+		view.PeriodStart = period.ServiceStartDate
+		view.PeriodEnd = period.ServiceEndDate
+		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	view.Groups, err = s.careGroupMemberships(ctx, studentID, today)
+	return period, err
+}
+
+func (s *service) loadOfferingChangeState(
+	ctx context.Context,
+	accountID, studentID int64,
+	view *ChildCareOfferings,
+) error {
+	if s.OfferingChanges == nil {
+		return nil
+	}
+	pending, err := s.OfferingChanges.GetForStudent(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	if pending != nil {
+		view.LastDecision = pending.LastDecision
+		view.PendingRequest = pendingOfferingChange(pending, accountID)
+	}
+	view.EarliestEffectiveFrom, err = s.OfferingChanges.EarliestEffectiveFrom(ctx)
+	return err
+}
+
+func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int64) *PendingOfferingChange {
+	if view.Request == nil {
+		return nil
+	}
+	pending := &PendingOfferingChange{
+		ID:              view.Request.ID,
+		CreatedAt:       view.Request.CreatedAt,
+		EffectiveFrom:   view.Request.EffectiveFrom,
+		Diff:            view.Diff,
+		SubmittedBySelf: view.Request.SubmittedBy == accountID,
+	}
+	if view.Request.ParentNote != nil {
+		pending.Note = *view.Request.ParentNote
+	}
+	return pending
 }
 
 // GetChildOfferingCatalog returns the offerings the guardian may choose from,
@@ -323,47 +344,77 @@ func (s *service) carePeriodOfferings(
 	if len(links) == 0 {
 		return []CareOfferingSelection{}, nil
 	}
-	offeringIDs := make([]int64, 0, len(links))
-	seen := make(map[int64]bool, len(links))
-	for _, link := range links {
-		if link == nil || link.CareOfferingID <= 0 || seen[link.CareOfferingID] {
-			continue
-		}
-		seen[link.CareOfferingID] = true
-		offeringIDs = append(offeringIDs, link.CareOfferingID)
-	}
+	offeringIDs := uniqueOfferingIDs(links)
 	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list care offerings: %w", err)
 	}
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
 	for _, offering := range offerings {
-		offeringByID[offering.ID] = offering
+		if offering != nil {
+			offeringByID[offering.ID] = offering
+		}
 	}
 	items := make([]CareOfferingSelection, 0, len(links))
 	for _, link := range links {
-		offering := offeringByID[link.CareOfferingID]
-		if offering == nil {
-			// The offering was deleted from the catalog. Skipped rather than
-			// shown as an unnamed row: a guardian cannot act on it either way.
+		if link == nil {
 			continue
 		}
-		item := CareOfferingSelection{
-			OfferingID:      offering.ID,
-			Name:            offering.Name,
-			Weekdays:        weekdaysFromOfferingDays(link.SelectedDays),
-			PriceCents:      offering.PriceCents,
-			IncludesLunch:   offering.IncludesLunch,
-			IncludesHoliday: offering.IncludesHolidayCare,
-		}
-		if offering.Description != nil {
-			item.Description = *offering.Description
+		item, ok := careOfferingSelection(offeringByID[link.CareOfferingID], link)
+		if !ok {
+			continue
 		}
 		items = append(items, item)
 	}
+	sortCareOfferingSelections(items, offerings)
+	return items, nil
+}
+
+func uniqueOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
+	ids := make([]int64, 0, len(links))
+	seen := make(map[int64]bool, len(links))
+	for _, link := range links {
+		if link == nil || link.CareOfferingID <= 0 || seen[link.CareOfferingID] {
+			continue
+		}
+		seen[link.CareOfferingID] = true
+		ids = append(ids, link.CareOfferingID)
+	}
+	return ids
+}
+
+func careOfferingSelection(
+	offering *enrollmentModels.CareOffering,
+	link *enrollmentModels.RequestChildOffering,
+) (CareOfferingSelection, bool) {
+	if offering == nil {
+		// The offering was deleted from the catalog. Skipped rather than shown
+		// as an unnamed row: a guardian cannot act on it either way.
+		return CareOfferingSelection{}, false
+	}
+	item := CareOfferingSelection{
+		OfferingID:      offering.ID,
+		Name:            offering.Name,
+		Weekdays:        weekdaysFromOfferingDays(link.SelectedDays),
+		PriceCents:      offering.PriceCents,
+		IncludesLunch:   offering.IncludesLunch,
+		IncludesHoliday: offering.IncludesHolidayCare,
+	}
+	if offering.Description != nil {
+		item.Description = *offering.Description
+	}
+	return item, true
+}
+
+func sortCareOfferingSelections(
+	items []CareOfferingSelection,
+	offerings []*enrollmentModels.CareOffering,
+) {
 	sortOrderByID := make(map[int64]int, len(offerings))
 	for _, offering := range offerings {
-		sortOrderByID[offering.ID] = offering.SortOrder
+		if offering != nil {
+			sortOrderByID[offering.ID] = offering.SortOrder
+		}
 	}
 	sort.SliceStable(items, func(i, j int) bool {
 		left, right := sortOrderByID[items[i].OfferingID], sortOrderByID[items[j].OfferingID]
@@ -372,7 +423,6 @@ func (s *service) carePeriodOfferings(
 		}
 		return left < right
 	})
-	return items, nil
 }
 
 // careGroupMemberships lists the child's group enrollments that are current or
@@ -390,57 +440,21 @@ func (s *service) careGroupMemberships(
 	if err != nil {
 		return nil, fmt.Errorf("list student enrollments: %w", err)
 	}
-	relevant := make([]*activitiesModels.StudentEnrollment, 0, len(rows))
-	groupIDs := make([]int64, 0, len(rows))
-	seenGroup := make(map[int64]bool, len(rows))
-	for _, row := range rows {
-		if row == nil {
-			continue
-		}
-		// valid_until is exclusive: a row ending today is already over.
-		if row.ValidUntil != nil && !row.ValidUntil.After(today) {
-			continue
-		}
-		relevant = append(relevant, row)
-		if !seenGroup[row.ActivityGroupID] {
-			seenGroup[row.ActivityGroupID] = true
-			groupIDs = append(groupIDs, row.ActivityGroupID)
-		}
-	}
+	relevant, groupIDs := relevantGroupEnrollments(rows, today)
 	if len(relevant) == 0 {
 		return []CareGroupMembership{}, nil
 	}
-	nameByID := map[int64]string{}
-	if s.ActivityGroupRepo != nil {
-		groups, groupsErr := s.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
-		if groupsErr != nil {
-			return nil, fmt.Errorf("list activity groups: %w", groupsErr)
-		}
-		for _, group := range groups {
-			if group != nil {
-				nameByID[group.ID] = group.Name
-			}
-		}
+	nameByID, err := s.careGroupNames(ctx, groupIDs)
+	if err != nil {
+		return nil, err
 	}
 	items := make([]CareGroupMembership, 0, len(relevant))
 	for _, row := range relevant {
-		name, ok := nameByID[row.ActivityGroupID]
+		item, ok := careGroupMembership(row, nameByID, today)
 		if !ok {
-			// A group the guardian cannot be told the name of is not worth a
-			// nameless card.
 			continue
 		}
-		weekdays := append([]int(nil), row.SelectedWeekdays...)
-		sort.Ints(weekdays)
-		items = append(items, CareGroupMembership{
-			GroupID:      row.ActivityGroupID,
-			Name:         name,
-			Weekdays:     weekdays,
-			ValidFrom:    row.ValidFrom,
-			ValidUntil:   row.ValidUntil,
-			FromOffering: row.EnrollmentRequestChildID != nil,
-			StartsLater:  row.ValidFrom.After(today),
-		})
+		items = append(items, item)
 	}
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].ValidFrom == items[j].ValidFrom {
@@ -449,6 +463,68 @@ func (s *service) careGroupMemberships(
 		return items[i].ValidFrom.Before(items[j].ValidFrom)
 	})
 	return items, nil
+}
+
+func relevantGroupEnrollments(
+	rows []*activitiesModels.StudentEnrollment,
+	today timezone.Date,
+) ([]*activitiesModels.StudentEnrollment, []int64) {
+	relevant := make([]*activitiesModels.StudentEnrollment, 0, len(rows))
+	groupIDs := make([]int64, 0, len(rows))
+	seenGroup := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		// valid_until is exclusive: a row ending today is already over.
+		if row == nil || row.ValidUntil != nil && !row.ValidUntil.After(today) {
+			continue
+		}
+		relevant = append(relevant, row)
+		if !seenGroup[row.ActivityGroupID] {
+			seenGroup[row.ActivityGroupID] = true
+			groupIDs = append(groupIDs, row.ActivityGroupID)
+		}
+	}
+	return relevant, groupIDs
+}
+
+func (s *service) careGroupNames(ctx context.Context, groupIDs []int64) (map[int64]string, error) {
+	names := map[int64]string{}
+	if s.ActivityGroupRepo == nil {
+		return names, nil
+	}
+	groups, err := s.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list activity groups: %w", err)
+	}
+	for _, group := range groups {
+		if group != nil {
+			names[group.ID] = group.Name
+		}
+	}
+	return names, nil
+}
+
+func careGroupMembership(
+	row *activitiesModels.StudentEnrollment,
+	nameByID map[int64]string,
+	today timezone.Date,
+) (CareGroupMembership, bool) {
+	name, ok := nameByID[row.ActivityGroupID]
+	if !ok {
+		// A group the guardian cannot be told the name of is not worth a
+		// nameless card.
+		return CareGroupMembership{}, false
+	}
+	weekdays := append([]int(nil), row.SelectedWeekdays...)
+	sort.Ints(weekdays)
+	return CareGroupMembership{
+		GroupID:      row.ActivityGroupID,
+		Name:         name,
+		Weekdays:     weekdays,
+		ValidFrom:    row.ValidFrom,
+		ValidUntil:   row.ValidUntil,
+		FromOffering: row.EnrollmentRequestChildID != nil,
+		StartsLater:  row.ValidFrom.After(today),
+	}, true
 }
 
 // weekdaysFromOfferingDays maps stored day abbreviations ("mon") to ISO

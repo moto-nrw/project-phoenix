@@ -66,8 +66,10 @@ function unchangedFromCatalog(items: OfferingCatalogItem[], draft: DraftMap) {
     if (!row) return true;
     if (row.selected !== item.selected) return false;
     if (!row.selected) return true;
-    const current = [...item.selected_days].sort();
-    const next = [...row.days].sort();
+    const current = [...item.selected_days].sort((left, right) =>
+      left.localeCompare(right),
+    );
+    const next = [...row.days].sort((left, right) => left.localeCompare(right));
     return (
       current.length === next.length &&
       current.every((day, index) => day === next[index])

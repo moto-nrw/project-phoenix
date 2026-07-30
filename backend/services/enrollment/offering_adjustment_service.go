@@ -580,27 +580,40 @@ func (s *decisionService) splitAdjustedEnrollments(
 		return fmt.Errorf("decision: list enrollments for dated adjustment: %w", err)
 	}
 	for _, row := range existing {
-		if row == nil || row.EnrollmentRequestChildID == nil || *row.EnrollmentRequestChildID != requestChildID {
-			continue
-		}
-		if row.ValidUntil != nil && !row.ValidUntil.After(effectiveFrom) {
-			continue
-		}
-		if draft := drafts[row.ActivityGroupID]; draft != nil && careDraftMatchesEnrollment(draft, row) {
-			delete(drafts, row.ActivityGroupID)
-			continue
-		}
-		if !row.ValidFrom.Before(effectiveFrom) {
-			if err := s.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
-				return fmt.Errorf("decision: delete not-yet-effective adjusted enrollment: %w", err)
-			}
-			continue
-		}
-		if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, effectiveFrom); err != nil {
-			return fmt.Errorf("decision: cap adjusted enrollment: %w", err)
+		if err := s.reconcileAdjustedEnrollment(ctx, row, requestChildID, effectiveFrom, drafts); err != nil {
+			return err
 		}
 	}
 	return s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, &effectiveFrom)
+}
+
+func (s *decisionService) reconcileAdjustedEnrollment(
+	ctx context.Context,
+	row *activities.StudentEnrollment,
+	requestChildID int64,
+	effectiveFrom timezone.Date,
+	drafts map[int64]*careEnrollmentDraft,
+) error {
+	if row == nil || row.EnrollmentRequestChildID == nil || *row.EnrollmentRequestChildID != requestChildID {
+		return nil
+	}
+	if row.ValidUntil != nil && !row.ValidUntil.After(effectiveFrom) {
+		return nil
+	}
+	if draft := drafts[row.ActivityGroupID]; draft != nil && careDraftMatchesEnrollment(draft, row) {
+		delete(drafts, row.ActivityGroupID)
+		return nil
+	}
+	if !row.ValidFrom.Before(effectiveFrom) {
+		if err := s.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
+			return fmt.Errorf("decision: delete not-yet-effective adjusted enrollment: %w", err)
+		}
+		return nil
+	}
+	if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, effectiveFrom); err != nil {
+		return fmt.Errorf("decision: cap adjusted enrollment: %w", err)
+	}
+	return nil
 }
 
 // careDraftMatchesEnrollment reports whether an existing row already is what

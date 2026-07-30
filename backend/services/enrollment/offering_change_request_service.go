@@ -379,37 +379,9 @@ func (s *offeringChangeRequestService) Catalog(
 		if offering == nil {
 			continue
 		}
-		item := OfferingChangeCatalogItem{
-			OfferingID:      offering.ID,
-			Name:            offering.Name,
-			DaysOfWeekMode:  offering.DaysOfWeekMode,
-			AvailableDays:   append([]string(nil), offering.AvailableDays...),
-			SelectionGroup:  offering.SelectionGroup,
-			SelectionRule:   offering.SelectionRule,
-			IsRequired:      offering.IsRequired,
-			PriceCents:      offering.PriceCents,
-			IncludesLunch:   offering.IncludesLunch,
-			IncludesHoliday: offering.IncludesHolidayCare,
-		}
-		if offering.Description != nil {
-			item.Description = *offering.Description
-		}
-		if link := currentByID[offering.ID]; link != nil {
-			item.Selected = true
-			item.SelectedDays = append([]string(nil), link.SelectedDays...)
-		}
-		if offering.Capacity != nil {
-			capacity := *offering.Capacity
-			item.Capacity = &capacity
-			taken, countErr := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
-			if countErr != nil {
-				return nil, fmt.Errorf("offering change: count offering occupancy: %w", countErr)
-			}
-			free := capacity - taken
-			if free < 0 {
-				free = 0
-			}
-			item.FreeSlots = &free
+		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID])
+		if itemErr != nil {
+			return nil, itemErr
 		}
 		catalog.Items = append(catalog.Items, item)
 	}
@@ -417,6 +389,44 @@ func (s *offeringChangeRequestService) Catalog(
 		return catalog.Items[i].OfferingID < catalog.Items[j].OfferingID
 	})
 	return catalog, nil
+}
+
+func (s *offeringChangeRequestService) catalogItem(
+	ctx context.Context,
+	offering *enrollmentModels.CareOffering,
+	current *enrollmentModels.RequestChildOffering,
+) (OfferingChangeCatalogItem, error) {
+	item := OfferingChangeCatalogItem{
+		OfferingID:      offering.ID,
+		Name:            offering.Name,
+		DaysOfWeekMode:  offering.DaysOfWeekMode,
+		AvailableDays:   append([]string(nil), offering.AvailableDays...),
+		SelectionGroup:  offering.SelectionGroup,
+		SelectionRule:   offering.SelectionRule,
+		IsRequired:      offering.IsRequired,
+		PriceCents:      offering.PriceCents,
+		IncludesLunch:   offering.IncludesLunch,
+		IncludesHoliday: offering.IncludesHolidayCare,
+	}
+	if offering.Description != nil {
+		item.Description = *offering.Description
+	}
+	if current != nil {
+		item.Selected = true
+		item.SelectedDays = append([]string(nil), current.SelectedDays...)
+	}
+	if offering.Capacity == nil {
+		return item, nil
+	}
+	capacity := *offering.Capacity
+	item.Capacity = &capacity
+	taken, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
+	if err != nil {
+		return OfferingChangeCatalogItem{}, fmt.Errorf("offering change: count offering occupancy: %w", err)
+	}
+	free := max(capacity-taken, 0)
+	item.FreeSlots = &free
+	return item, nil
 }
 
 func (s *offeringChangeRequestService) GetForStudent(
@@ -793,30 +803,42 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	if err != nil {
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
-	held := make(map[int64]bool, len(current))
-	for _, link := range current {
-		if link != nil {
-			held[link.CareOfferingID] = true
-		}
-	}
+	held := heldOfferingIDs(current)
 	for _, selection := range selections {
 		if held[selection.OfferingID] {
 			continue
 		}
-		offering, err := s.CareOfferingRepo.FindByID(ctx, selection.OfferingID)
-		if err != nil || offering == nil {
-			return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, selection.OfferingID)
+		if err := s.assertOfferingCapacity(ctx, selection.OfferingID); err != nil {
+			return err
 		}
-		if offering.Capacity == nil {
-			continue
+	}
+	return nil
+}
+
+func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]bool {
+	held := make(map[int64]bool, len(links))
+	for _, link := range links {
+		if link != nil {
+			held[link.CareOfferingID] = true
 		}
-		taken, countErr := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
-		if countErr != nil {
-			return fmt.Errorf("offering change: count offering occupancy: %w", countErr)
-		}
-		if taken >= *offering.Capacity {
-			return fmt.Errorf("%w: %s", ErrOfferingChangeCapacityFull, offering.Name)
-		}
+	}
+	return held
+}
+
+func (s *offeringChangeRequestService) assertOfferingCapacity(ctx context.Context, offeringID int64) error {
+	offering, err := s.CareOfferingRepo.FindByID(ctx, offeringID)
+	if err != nil || offering == nil {
+		return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, offeringID)
+	}
+	if offering.Capacity == nil {
+		return nil
+	}
+	taken, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
+	if err != nil {
+		return fmt.Errorf("offering change: count offering occupancy: %w", err)
+	}
+	if taken >= *offering.Capacity {
+		return fmt.Errorf("%w: %s", ErrOfferingChangeCapacityFull, offering.Name)
 	}
 	return nil
 }
@@ -835,38 +857,73 @@ func (s *offeringChangeRequestService) validateSelections(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
 	}
-	allowed := make(map[int64]*enrollmentModels.CareOffering, len(active))
-	for _, offering := range active {
-		if offering != nil {
-			allowed[offering.ID] = offering
-		}
-	}
+	allowed := offeringsByID(active)
 	// Offerings the child already holds stay selectable even when the admin
 	// deactivated them in the catalog: keeping the status quo must never be
 	// blocked by a catalog edit.
-	if requestChildID > 0 {
-		current, listErr := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
-		if listErr != nil {
-			return nil, fmt.Errorf("offering change: list current offerings: %w", listErr)
-		}
-		heldIDs := make([]int64, 0, len(current))
-		for _, link := range current {
-			if link != nil && allowed[link.CareOfferingID] == nil {
-				heldIDs = append(heldIDs, link.CareOfferingID)
-			}
-		}
-		if len(heldIDs) > 0 {
-			held, heldErr := s.CareOfferingRepo.ListByIDs(ctx, heldIDs)
-			if heldErr != nil {
-				return nil, fmt.Errorf("offering change: list held offerings: %w", heldErr)
-			}
-			for _, offering := range held {
-				if offering != nil {
-					allowed[offering.ID] = offering
-				}
-			}
+	if err := s.addHeldOfferings(ctx, requestChildID, allowed); err != nil {
+		return nil, err
+	}
+	normalized, submit, err := normalizeOfferingSelections(selections, allowed)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := materializeAndValidateChildrenOfferingSelections(
+		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
+	); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
+	}
+	sort.SliceStable(normalized, func(i, j int) bool {
+		return normalized[i].OfferingID < normalized[j].OfferingID
+	})
+	return normalized, nil
+}
+
+func offeringsByID(offerings []*enrollmentModels.CareOffering) map[int64]*enrollmentModels.CareOffering {
+	byID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			byID[offering.ID] = offering
 		}
 	}
+	return byID
+}
+
+func (s *offeringChangeRequestService) addHeldOfferings(
+	ctx context.Context,
+	requestChildID int64,
+	allowed map[int64]*enrollmentModels.CareOffering,
+) error {
+	if requestChildID <= 0 {
+		return nil
+	}
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	if err != nil {
+		return fmt.Errorf("offering change: list current offerings: %w", err)
+	}
+	heldIDs := make([]int64, 0, len(current))
+	for _, link := range current {
+		if link != nil && allowed[link.CareOfferingID] == nil {
+			heldIDs = append(heldIDs, link.CareOfferingID)
+		}
+	}
+	if len(heldIDs) == 0 {
+		return nil
+	}
+	held, err := s.CareOfferingRepo.ListByIDs(ctx, heldIDs)
+	if err != nil {
+		return fmt.Errorf("offering change: list held offerings: %w", err)
+	}
+	for id, offering := range offeringsByID(held) {
+		allowed[id] = offering
+	}
+	return nil
+}
+
+func normalizeOfferingSelections(
+	selections []OfferingChangeSelection,
+	allowed map[int64]*enrollmentModels.CareOffering,
+) ([]OfferingChangeSelection, SubmitChild, error) {
 	normalized := make([]OfferingChangeSelection, 0, len(selections))
 	submit := SubmitChild{
 		OfferingIDs:  make([]int64, 0, len(selections)),
@@ -875,13 +932,13 @@ func (s *offeringChangeRequestService) validateSelections(
 	seen := make(map[int64]bool, len(selections))
 	for _, selection := range selections {
 		if selection.OfferingID <= 0 {
-			return nil, fmt.Errorf("%w: offering id is required", ErrOfferingChangeInvalid)
+			return nil, SubmitChild{}, fmt.Errorf("%w: offering id is required", ErrOfferingChangeInvalid)
 		}
 		if seen[selection.OfferingID] {
 			continue
 		}
 		if allowed[selection.OfferingID] == nil {
-			return nil, fmt.Errorf("%w: care offering %d cannot be booked for this child", ErrOfferingChangeInvalid, selection.OfferingID)
+			return nil, SubmitChild{}, fmt.Errorf("%w: care offering %d cannot be booked for this child", ErrOfferingChangeInvalid, selection.OfferingID)
 		}
 		seen[selection.OfferingID] = true
 		days := canonicalDays(selection.SelectedDays)
@@ -897,15 +954,7 @@ func (s *offeringChangeRequestService) validateSelections(
 			})
 		}
 	}
-	if _, err := materializeAndValidateChildrenOfferingSelections(
-		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
-	); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
-	}
-	sort.SliceStable(normalized, func(i, j int) bool {
-		return normalized[i].OfferingID < normalized[j].OfferingID
-	})
-	return normalized, nil
+	return normalized, submit, nil
 }
 
 // diffForRequest renders "current → requested" per offering, including the ones
@@ -922,6 +971,32 @@ func (s *offeringChangeRequestService) diffForRequest(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
+	ids, currentByID, requestedByID := offeringChangeSides(current, requested)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: list offerings for diff: %w", err)
+	}
+	nameByID := offeringNamesByID(offerings)
+	entries := make([]OfferingChangeDiffEntry, 0, len(ids))
+	for _, id := range ids {
+		entry, changed := offeringDiffEntry(id, nameByID[id], currentByID[id], requestedByID)
+		if !changed {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
+	return entries, nil
+}
+
+func offeringChangeSides(
+	current []*enrollmentModels.RequestChildOffering,
+	requested []OfferingChangeSelection,
+) (
+	[]int64,
+	map[int64]*enrollmentModels.RequestChildOffering,
+	map[int64]OfferingChangeSelection,
+) {
 	ids := make([]int64, 0, len(current)+len(requested))
 	seen := make(map[int64]bool, len(current)+len(requested))
 	addID := func(id int64) {
@@ -932,55 +1007,47 @@ func (s *offeringChangeRequestService) diffForRequest(
 	}
 	currentByID := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
 	for _, link := range current {
-		if link == nil {
-			continue
+		if link != nil {
+			currentByID[link.CareOfferingID] = link
+			addID(link.CareOfferingID)
 		}
-		currentByID[link.CareOfferingID] = link
-		addID(link.CareOfferingID)
 	}
 	requestedByID := make(map[int64]OfferingChangeSelection, len(requested))
 	for _, selection := range requested {
 		requestedByID[selection.OfferingID] = selection
 		addID(selection.OfferingID)
 	}
-	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("offering change: list offerings for diff: %w", err)
-	}
-	nameByID := make(map[int64]string, len(offerings))
-	sortByID := make(map[int64]int, len(offerings))
+	return ids, currentByID, requestedByID
+}
+
+func offeringNamesByID(offerings []*enrollmentModels.CareOffering) map[int64]string {
+	names := make(map[int64]string, len(offerings))
 	for _, offering := range offerings {
 		if offering != nil {
-			nameByID[offering.ID] = offering.Name
-			sortByID[offering.ID] = offering.SortOrder
+			names[offering.ID] = offering.Name
 		}
 	}
-	entries := make([]OfferingChangeDiffEntry, 0, len(ids))
-	for _, id := range ids {
-		name := nameByID[id]
-		if name == "" {
-			name = fmt.Sprintf("Angebot %d", id)
-		}
-		link, hasCurrent := currentByID[id]
-		selection, wanted := requestedByID[id]
-		var oldLabel, newLabel string
-		if hasCurrent {
-			oldLabel = germanDayLabel(link.SelectedDays)
-		} else {
-			oldLabel = "nicht gebucht"
-		}
-		if wanted {
-			newLabel = germanDayLabel(selection.SelectedDays)
-		} else {
-			newLabel = "abgemeldet"
-		}
-		if oldLabel == newLabel {
-			continue
-		}
-		entries = append(entries, OfferingChangeDiffEntry{Label: name, Old: oldLabel, New: newLabel})
+	return names
+}
+
+func offeringDiffEntry(
+	id int64,
+	name string,
+	current *enrollmentModels.RequestChildOffering,
+	requestedByID map[int64]OfferingChangeSelection,
+) (OfferingChangeDiffEntry, bool) {
+	if name == "" {
+		name = fmt.Sprintf("Angebot %d", id)
 	}
-	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
-	return entries, nil
+	oldLabel := "nicht gebucht"
+	if current != nil {
+		oldLabel = germanDayLabel(current.SelectedDays)
+	}
+	newLabel := "abgemeldet"
+	if requested, wanted := requestedByID[id]; wanted {
+		newLabel = germanDayLabel(requested.SelectedDays)
+	}
+	return OfferingChangeDiffEntry{Label: name, Old: oldLabel, New: newLabel}, oldLabel != newLabel
 }
 
 func (s *offeringChangeRequestService) studentName(ctx context.Context, studentID int64) string {
@@ -1090,33 +1157,51 @@ func selectionsFromPayload(payload map[string]any) ([]OfferingChangeSelection, e
 	}
 	selections := make([]OfferingChangeSelection, 0, len(list))
 	for _, entry := range list {
-		row, ok := entry.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("%w: payload offering entry is not an object", ErrOfferingChangeInvalid)
-		}
-		id, err := payloadInt64(row["offering_id"])
+		selection, err := selectionFromPayloadEntry(entry)
 		if err != nil {
 			return nil, err
-		}
-		selection := OfferingChangeSelection{OfferingID: id}
-		if daysRaw, has := row["selected_days"]; has && daysRaw != nil {
-			days, ok := daysRaw.([]any)
-			if !ok {
-				return nil, fmt.Errorf("%w: payload selected_days must be a list", ErrOfferingChangeInvalid)
-			}
-			values := make([]string, 0, len(days))
-			for _, day := range days {
-				text, ok := day.(string)
-				if !ok {
-					return nil, fmt.Errorf("%w: payload selected_days must contain strings", ErrOfferingChangeInvalid)
-				}
-				values = append(values, text)
-			}
-			selection.SelectedDays = canonicalDays(values)
 		}
 		selections = append(selections, selection)
 	}
 	return selections, nil
+}
+
+func selectionFromPayloadEntry(entry any) (OfferingChangeSelection, error) {
+	row, ok := entry.(map[string]any)
+	if !ok {
+		return OfferingChangeSelection{}, fmt.Errorf("%w: payload offering entry is not an object", ErrOfferingChangeInvalid)
+	}
+	id, err := payloadInt64(row["offering_id"])
+	if err != nil {
+		return OfferingChangeSelection{}, err
+	}
+	selection := OfferingChangeSelection{OfferingID: id}
+	daysRaw, hasDays := row["selected_days"]
+	if !hasDays || daysRaw == nil {
+		return selection, nil
+	}
+	days, ok := daysRaw.([]any)
+	if !ok {
+		return OfferingChangeSelection{}, fmt.Errorf("%w: payload selected_days must be a list", ErrOfferingChangeInvalid)
+	}
+	values, err := payloadStrings(days)
+	if err != nil {
+		return OfferingChangeSelection{}, err
+	}
+	selection.SelectedDays = canonicalDays(values)
+	return selection, nil
+}
+
+func payloadStrings(values []any) ([]string, error) {
+	strings := make([]string, 0, len(values))
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("%w: payload selected_days must contain strings", ErrOfferingChangeInvalid)
+		}
+		strings = append(strings, text)
+	}
+	return strings, nil
 }
 
 // payloadInt64 accepts the shapes jsonb round-trips through Go: float64 from

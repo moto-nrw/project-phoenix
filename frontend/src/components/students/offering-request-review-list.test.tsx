@@ -82,9 +82,9 @@ describe("OfferingRequestReviewList", () => {
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith("77", true, undefined),
     );
-    await waitFor(() =>
-      expect(screen.getByText(/gültig ab 01\.02\.2027/)).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByText(/gültig ab 01\.02\.2027/),
+    ).toBeInTheDocument();
   });
 
   it("requires a reason before rejecting", async () => {
