@@ -61,6 +61,14 @@ func (s childOfferingRepoStub) ListByRequestChildID(
 	return s.links, s.err
 }
 
+func (s childOfferingRepoStub) ListByRequestChildIDAtDate(
+	_ context.Context,
+	_ int64,
+	_ timezone.Date,
+) ([]*enrollmentModels.RequestChildOffering, error) {
+	return s.links, s.err
+}
+
 type careOfferingRepoStub struct {
 	enrollmentModels.CareOfferingRepository
 	offerings []*enrollmentModels.CareOffering

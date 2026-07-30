@@ -285,14 +285,11 @@ func (s *offeringChangeRequestService) resolveLeadDays(ctx context.Context) (int
 	}
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return OfferingChangeLeadDaysDefault, nil
+		return 0, fmt.Errorf("offering change: lead-days setting is empty")
 	}
 	days, convErr := strconv.Atoi(raw)
 	if convErr != nil || days < 0 {
-		s.Logger.Warn("offering change: unusable lead-days setting, using default",
-			slog.String("value", raw),
-		)
-		return OfferingChangeLeadDaysDefault, nil
+		return 0, fmt.Errorf("offering change: lead-days setting must be a non-negative integer")
 	}
 	return days, nil
 }

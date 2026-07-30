@@ -33,6 +33,7 @@ func newOfferingChangeServiceForTest(
 ) enrollmentService.OfferingChangeRequestService {
 	t.Helper()
 	env.settings.boolValues[configModel.KeyEnrollmentOfferingChangesEnabled] = true
+	env.settings.stringValues[configModel.KeyEnrollmentOfferingChangesLeadDays] = "14"
 	return enrollmentService.NewOfferingChangeRequestService(enrollmentService.OfferingChangeRequestServiceConfig{
 		ChangeRepo:               env.repos.OfferingChangeRequest,
 		RequestChildRepo:         env.repos.RequestChild,

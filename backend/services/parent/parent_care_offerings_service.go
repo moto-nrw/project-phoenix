@@ -165,7 +165,11 @@ func (s *service) loadChildCareOfferings(
 		view.PeriodName = period.PhaseName
 		view.PeriodStart = period.ServiceStartDate
 		view.PeriodEnd = period.ServiceEndDate
-		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID)
+		selectionDate := today
+		if period.ServiceStartDate.After(today) {
+			selectionDate = period.ServiceStartDate
+		}
+		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, selectionDate)
 		if err != nil {
 			return nil, err
 		}
@@ -340,11 +344,12 @@ func (s *service) currentCarePeriod(
 func (s *service) carePeriodOfferings(
 	ctx context.Context,
 	requestChildID int64,
+	onDate timezone.Date,
 ) ([]CareOfferingSelection, error) {
 	if s.RequestChildOfferingRepo == nil || s.CareOfferingRepo == nil {
 		return []CareOfferingSelection{}, nil
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, onDate)
 	if err != nil {
 		return nil, fmt.Errorf("list child offerings: %w", err)
 	}

@@ -101,6 +101,17 @@ func (s *decisionService) updateChildOfferings(
 	if err != nil || phase == nil {
 		return nil, fmt.Errorf("decision: load adjustment phase: %w", err)
 	}
+	effectiveFrom, err := validateAdjustmentEffectiveFrom(input.EffectiveFrom, phase)
+	if err != nil {
+		return nil, err
+	}
+	selectionDate := timezone.TodayDate()
+	if effectiveFrom != nil {
+		selectionDate = *effectiveFrom
+		if selectionDate.Before(phase.ServiceStartDate) {
+			selectionDate = phase.ServiceStartDate
+		}
+	}
 
 	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, req.PhaseID)
 	if err != nil {
@@ -120,7 +131,7 @@ func (s *decisionService) updateChildOfferings(
 		offeringByID[offering.ID] = offering
 	}
 
-	beforeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
+	beforeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, selectionDate)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list current child offerings: %w", err)
 	}
@@ -207,16 +218,8 @@ func (s *decisionService) updateChildOfferings(
 		return nil, afterSnapshotErr
 	}
 
-	effectiveFrom, err := validateAdjustmentEffectiveFrom(input.EffectiveFrom, phase)
-	if err != nil {
-		return nil, err
-	}
 	if effectiveFrom != nil {
-		linkEffectiveFrom := *effectiveFrom
-		if linkEffectiveFrom.Before(phase.ServiceStartDate) {
-			linkEffectiveFrom = phase.ServiceStartDate
-		}
-		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, linkEffectiveFrom, replacement); err != nil {
+		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, selectionDate, replacement); err != nil {
 			return nil, fmt.Errorf("decision: schedule child offerings: %w", err)
 		}
 	} else if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
