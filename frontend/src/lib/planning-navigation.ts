@@ -3,7 +3,8 @@ export type PlanningPageHref =
   | "/dienstplan"
   | "/vertretung"
   | "/lists"
-  | "/calendar-periods";
+  | "/calendar-periods"
+  | "/payroll";
 
 export interface PlanningSubPage {
   readonly href: PlanningPageHref;
@@ -54,6 +55,16 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
   {
     href: "/calendar-periods",
     label: "Kalenderzeiträume",
+    legacyPrefixes: [],
+    showInMobileNav: true,
+  },
+  {
+    // Abrechnung war ein eigener flacher Eintrag; sie gehört inhaltlich zur
+    // Planung (Lohnabrechnung aus Dienstplan und Zeiterfassung) und steht
+    // deshalb hier. Mobil hatte sie bisher keinen Eintrag; als Planungsseite
+    // bekommt sie einen, wie jede andere auch (siehe Regel oben).
+    href: "/payroll",
+    label: "Abrechnung",
     legacyPrefixes: [],
     showInMobileNav: true,
   },

@@ -2,12 +2,12 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import {
   ActiveSupervisionsBreadcrumb,
-  DatabaseBreadcrumb,
   EnrollmentBreadcrumb,
   OgsGroupsBreadcrumb,
   PageTitleDisplay,
   ParentChildBreadcrumb,
   RoomBreadcrumb,
+  SectionBreadcrumb,
   StaffDetailBreadcrumb,
   StudentDetailBreadcrumb,
   StudentHistoryBreadcrumb,
@@ -29,24 +29,40 @@ export const PageTitleScrolled: Story = {
   render: () => <PageTitleDisplay title="Meine Gruppe" isScrolled />,
 };
 
-export const Database: Story = {
+export const SectionDatabase: Story = {
   render: () => (
-    <DatabaseBreadcrumb
-      pathname="/database/personal"
-      pageTitle="Personal"
-      subPageLabel="Detail"
-      isDeepPage={false}
+    <SectionBreadcrumb
+      sectionLabel="Datenverwaltung"
+      sectionHref="/database"
+      pageLabel="Personal"
     />
   ),
 };
 
-export const DatabaseDeepPage: Story = {
+export const SectionDatabaseDeepPage: Story = {
   render: () => (
-    <DatabaseBreadcrumb
-      pathname="/database/personal/123"
-      pageTitle="Personal"
-      subPageLabel="Max Mustermann"
-      isDeepPage
+    <SectionBreadcrumb
+      sectionLabel="Datenverwaltung"
+      sectionHref="/database"
+      pageLabel="Personal"
+      pageHref="/database/personal"
+      deepLabel="Max Mustermann"
+    />
+  ),
+};
+
+export const SectionPlanungWithoutHub: Story = {
+  render: () => (
+    <SectionBreadcrumb sectionLabel="Planung" pageLabel="Dienstplan" />
+  ),
+};
+
+export const SectionEltern: Story = {
+  render: () => (
+    <SectionBreadcrumb
+      sectionLabel="Eltern"
+      sectionHref="/eltern"
+      pageLabel="Nachrichten"
     />
   ),
 };

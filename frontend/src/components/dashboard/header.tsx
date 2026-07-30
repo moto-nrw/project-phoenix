@@ -19,7 +19,7 @@ import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
 import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
 import {
-  DatabaseBreadcrumb,
+  SectionBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   EnrollmentBreadcrumb,
@@ -32,10 +32,10 @@ import {
 } from "./header/breadcrumb-components";
 import {
   getPageTitle,
-  getSubPageLabel,
   getBreadcrumbLabel,
   getHistoryType,
   getPageTypeInfo,
+  getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
 
 function isPathSegment(path: string, basePath: string): boolean {
@@ -146,7 +146,11 @@ export function Header() {
   const referrer = referrerPage ?? "/students/search";
   const breadcrumbLabel = getBreadcrumbLabel(referrer);
   const historyType = getHistoryType(pathname);
-  const subPageLabel = getSubPageLabel(pathname);
+  // Nur im Mitarbeiter-Portal: die Kataloge beschreiben dessen Seitenleiste.
+  // Das Elternportal teilt sich Pfade wie /messages und bekäme sonst eine
+  // "Eltern › Nachrichten"-Breadcrumb aus der Mitarbeitersicht.
+  const sectionBreadcrumb =
+    mode === "teacher" ? getSectionBreadcrumb(pathname) : null;
 
   // Use JWT name as single source of truth (avoids flicker from async profile fetch)
   const displayName = userName;
@@ -195,7 +199,7 @@ export function Header() {
               pathname={pathname}
               pageTitle={displayedPageTitle}
               pageTypeInfo={pageTypeInfo}
-              subPageLabel={subPageLabel}
+              sectionBreadcrumb={sectionBreadcrumb}
               isScrolled={isScrolled}
               studentName={studentName}
               staffName={staffName}
@@ -284,7 +288,7 @@ interface HeaderBreadcrumbProps {
   readonly pathname: string;
   readonly pageTitle: string;
   readonly pageTypeInfo: ReturnType<typeof getPageTypeInfo>;
-  readonly subPageLabel: string;
+  readonly sectionBreadcrumb: ReturnType<typeof getSectionBreadcrumb>;
   readonly isScrolled: boolean;
   readonly studentName?: string;
   readonly staffName?: string;
@@ -300,7 +304,7 @@ function HeaderBreadcrumb({
   pathname,
   pageTitle,
   pageTypeInfo,
-  subPageLabel,
+  sectionBreadcrumb,
   isScrolled,
   studentName,
   staffName,
@@ -311,16 +315,9 @@ function HeaderBreadcrumb({
   ogsGroupName,
   activeSupervisionName,
 }: HeaderBreadcrumbProps) {
-  // Database sub-pages
-  if (pageTypeInfo.isDatabaseSubPage) {
-    return (
-      <DatabaseBreadcrumb
-        pathname={pathname}
-        pageTitle={pageTitle}
-        subPageLabel={subPageLabel}
-        isDeepPage={pageTypeInfo.isDatabaseDeepPage}
-      />
-    );
+  // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
+  if (sectionBreadcrumb) {
+    return <SectionBreadcrumb {...sectionBreadcrumb} isScrolled={isScrolled} />;
   }
 
   // OGS Groups page

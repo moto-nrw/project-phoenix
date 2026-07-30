@@ -43,6 +43,11 @@ import {
   getActivePlanningSubPageHref,
   PLANNING_SUB_PAGES,
 } from "~/lib/planning-navigation";
+import {
+  DATABASE_SUB_PAGES,
+  getActiveParentSubPageHref,
+  PARENT_SUB_PAGES,
+} from "~/lib/section-navigation";
 
 // Type für Navigation Items
 interface NavItem {
@@ -103,7 +108,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/calendar",
-    label: "Kalender",
+    label: "Mein Kalender",
     icon: navigationIcons.calendar,
     activeColor: "text-[#5080D8]",
     // Backend gates GET /api/calendar/my on calendar:own; match it so
@@ -135,13 +140,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
     activeColor: "text-sky-500",
     alwaysShow: true,
-  },
-  {
-    href: "/payroll",
-    label: "Abrechnung",
-    icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
-    activeColor: "text-[#83CD2D]",
-    requiresPermission: "config:manage",
   },
   {
     // Tagesauswertung (#1456): rückwirkender Tagesstatus pro Gruppe
@@ -292,20 +290,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   },
 ];
 
-// Static sub-pages for Datenverwaltung accordion
-const DATABASE_SUB_PAGES = [
-  { href: "/database/students", label: "Kinder" },
-  { href: "/database/personal", label: "Personal" },
-  { href: "/database/rooms", label: "Räume" },
-  { href: "/database/activities", label: "Aktivitäten" },
-  { href: "/database/groups", label: "Gruppen" },
-  { href: "/database/roles", label: "Rollen" },
-  { href: "/database/devices", label: "Geräte" },
-  { href: "/database/permissions", label: "Berechtigungen" },
-  { href: "/database/grade-transitions", label: "Jahrgangswechsel" },
-  { href: "/database/exports", label: "Exporte" },
-];
-
 const NFC_ONLY_HREFS = new Set<string>([
   "/activities",
   "/database/activities",
@@ -329,58 +313,6 @@ function getActiveEnrollmentSubPageHref(pathname: string): string | null {
   return (
     ENROLLMENTS_SUB_PAGES.filter((page) =>
       matchesEnrollmentSubPage(pathname, page.href),
-    ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
-  );
-}
-
-// Sub-pages for the "Eltern" accordion. `feature` selects the visibility rule
-// applied in the component — Nachrichten (and the overview hub) show for all
-// staff; the rest are gated per permission / feature flag exactly as the old
-// flat NAV_ITEMS were. Keep the path list in sync with ELTERN_PATH_PREFIXES in
-// use-sidebar-accordion.ts and the cards on /eltern.
-type ParentSubPageFeature =
-  | "overview"
-  | "messages"
-  | "approvals"
-  | "changeRequests"
-  | "announcements"
-  | "mealPlan";
-
-const PARENT_SUB_PAGES: readonly {
-  readonly href: string;
-  readonly label: string;
-  readonly feature: ParentSubPageFeature;
-}[] = [
-  // "Übersicht" (not "Überblick") so it does not collide with the Anmeldungen
-  // accordion's "Überblick" hub — both would otherwise render simultaneously.
-  { href: "/eltern", label: "Übersicht", feature: "overview" },
-  { href: "/messages", label: "Nachrichten", feature: "messages" },
-  {
-    href: "/admin/guardian-approvals",
-    label: "Konto-Anfragen",
-    feature: "approvals",
-  },
-  {
-    href: "/admin/change-requests",
-    label: "Änderungsanfragen",
-    feature: "changeRequests",
-  },
-  {
-    href: "/parent-announcements",
-    label: "Elternmitteilungen",
-    feature: "announcements",
-  },
-  { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
-];
-
-function matchesParentSubPage(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function getActiveParentSubPageHref(pathname: string): string | null {
-  return (
-    PARENT_SUB_PAGES.filter((page) =>
-      matchesParentSubPage(pathname, page.href),
     ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
   );
 }

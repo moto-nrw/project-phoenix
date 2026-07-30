@@ -371,6 +371,37 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
+    it("labels the staff calendar entry 'Mein Kalender' in the overflow menu", () => {
+      // Der Staff-Eintrag auf /calendar heißt wie die H1 der Seite. Der
+      // gleichnamige Eltern-Eintrag (/parents/calendar) bleibt "Kalender" —
+      // siehe "parent mode navigation" unten.
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      // Nur Planungs- und Eltern-Hub-Links tragen das Tenant-Präfix; /calendar
+      // bleibt bar.
+      expect(screen.getByText("Mein Kalender").closest("a")).toHaveAttribute(
+        "href",
+        "/calendar",
+      );
+      expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
+    });
+
+    it("lists Abrechnung in the overflow menu like every other planning page", () => {
+      // Abrechnung ist jetzt Unterpunkt des Planung-Bereichs und steht damit
+      // auch mobil in der flachen Navigation — PLANNING_SUB_PAGES verlangt das
+      // für jede Planungsseite (siehe planning-navigation.test.ts).
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Dienstplan")).toBeInTheDocument();
+      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/test-tenant/payroll");
+    });
+
     it("prefixes all planning links in tenant path-routing mode", () => {
       render(<MobileBottomNav />);
 
@@ -960,6 +991,40 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       expect(screen.getByText("Feedback")).toBeInTheDocument();
+    });
+  });
+
+  describe("parent mode navigation", () => {
+    beforeEach(() => {
+      mockUseShellAuth.mockReturnValue({
+        user: { name: "Parent", email: "parent@example.com", roles: [] },
+        profile: { firstName: "Parent" },
+        status: "authenticated",
+        isSessionExpired: false,
+        logout: vi.fn(),
+        mode: "parent",
+        homeUrl: "/parents",
+
+        profileUrl: "/parents/profile",
+      });
+      mockUsePathname.mockReturnValue("/parents/calendar");
+    });
+
+    it("keeps the parents calendar entry labelled 'Kalender'", () => {
+      // Bewusst NICHT umbenannt: der Eltern-Eintrag kommt aus dem eigenen
+      // Übersetzungsschlüssel parentNav.calendar. Nur der Staff-Eintrag auf
+      // /calendar heißt jetzt "Mein Kalender".
+      render(<MobileBottomNav />);
+
+      // Haupteinträge tragen ihr Label immer als aria-label (sichtbar nur,
+      // wenn aktiv), deshalb per Rolle+Name gesucht.
+      expect(screen.getByRole("link", { name: "Kalender" })).toHaveAttribute(
+        "href",
+        "/parents/calendar",
+      );
+      expect(
+        screen.queryByRole("link", { name: "Mein Kalender" }),
+      ).not.toBeInTheDocument();
     });
   });
 

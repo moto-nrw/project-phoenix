@@ -285,6 +285,7 @@ const PLANNING_ICON_KEYS: Record<
   "/vertretung": "vertretung",
   "/lists": "calendar",
   "/calendar-periods": "calendar",
+  "/payroll": "chart",
 };
 
 const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
@@ -306,7 +307,7 @@ const additionalNavItems: AdditionalNavItem[] = [
   { href: "/staff", label: "Mitarbeiter", iconKey: "staff", alwaysShow: true },
   {
     href: "/calendar",
-    label: "Kalender",
+    label: "Mein Kalender",
     iconKey: "calendar",
     // Match the backend calendar:own gate on GET /api/calendar/my.
     requiresPermission: "calendar:own",

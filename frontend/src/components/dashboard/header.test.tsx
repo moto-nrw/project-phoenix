@@ -90,7 +90,19 @@ vi.mock("./header/profile-dropdown", () => ({
 }));
 
 vi.mock("./header/breadcrumb-components", () => ({
-  DatabaseBreadcrumb: () => <div data-testid="database-breadcrumb">DB</div>,
+  SectionBreadcrumb: ({
+    sectionLabel,
+    pageLabel,
+    deepLabel,
+  }: {
+    sectionLabel: string;
+    pageLabel: string;
+    deepLabel?: string;
+  }) => (
+    <div data-testid="section-breadcrumb">
+      {[sectionLabel, pageLabel, deepLabel].filter(Boolean).join(" / ")}
+    </div>
+  ),
   OgsGroupsBreadcrumb: () => <div data-testid="ogs-groups-breadcrumb">OGS</div>,
   ActiveSupervisionsBreadcrumb: () => (
     <div data-testid="active-supervisions-breadcrumb">Active</div>
@@ -112,12 +124,19 @@ vi.mock("./header/breadcrumb-utils", () => ({
     if (pathname === "/rooms") return "Rooms";
     return "Dashboard";
   },
-  getSubPageLabel: () => "Sub Page",
   getBreadcrumbLabel: () => "Breadcrumb",
   getHistoryType: () => "history",
+  // Gruppierte Navigationssektionen laufen jetzt hierüber statt über
+  // PageTypeInfo; /database/groups ist der Fall, den die Tests abdecken.
+  getSectionBreadcrumb: (pathname: string) =>
+    pathname.startsWith("/database/")
+      ? {
+          sectionLabel: "Datenverwaltung",
+          sectionHref: "/database",
+          pageLabel: "Gruppen",
+        }
+      : null,
   getPageTypeInfo: (pathname: string) => ({
-    isDatabaseSubPage: pathname.includes("/database/"),
-    isDatabaseDeepPage: pathname.includes("/database/groups/"),
     isRoomDetailPage: pathname.includes("/rooms/") && pathname !== "/rooms",
     isStudentHistoryPage:
       pathname.includes("/students/") && pathname.includes("/history"),
@@ -242,7 +261,12 @@ describe("Header", () => {
     mockUsePathname.mockReturnValue("/database/groups");
 
     render(<Header />);
-    expect(screen.getByTestId("database-breadcrumb")).toBeInTheDocument();
+    const breadcrumb = screen.getByTestId("section-breadcrumb");
+    expect(breadcrumb).toBeInTheDocument();
+    // Die Sektionswurzel heißt wie der Seitenleisten-Eintrag
+    // ("Datenverwaltung", nicht mehr "Datenbank").
+    expect(breadcrumb).toHaveTextContent("Datenverwaltung");
+    expect(breadcrumb).toHaveTextContent("Gruppen");
   });
 
   it("renders OGS groups breadcrumb", () => {

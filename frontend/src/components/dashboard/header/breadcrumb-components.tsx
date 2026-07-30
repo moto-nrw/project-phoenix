@@ -103,35 +103,50 @@ export function PageTitleDisplay({
 }
 
 /**
- * Database breadcrumb with optional deep page support
+ * Breadcrumb einer gruppierten Navigationssektion: "Sektion › Seite", optional
+ * mit dritter Stufe. Eine Komponente für Datenverwaltung, Planung und Eltern,
+ * damit die drei Bereiche nicht auseinanderdriften.
+ *
+ * Ohne `sectionHref` steht der Sektionsname als reiner Text — die Planung hat
+ * keine Hub-Seite, auf die man verlinken könnte.
  */
-interface DatabaseBreadcrumbProps {
-  readonly pathname: string;
-  readonly pageTitle: string;
-  readonly subPageLabel: string;
-  readonly isDeepPage: boolean;
+interface SectionBreadcrumbProps {
+  readonly sectionLabel: string;
+  readonly sectionHref?: string;
+  readonly pageLabel: string;
+  readonly pageHref?: string;
+  readonly deepLabel?: string;
+  readonly isScrolled?: boolean;
 }
 
-export function DatabaseBreadcrumb({
-  pathname,
-  pageTitle,
-  subPageLabel,
-  isDeepPage,
-}: DatabaseBreadcrumbProps) {
+export function SectionBreadcrumb({
+  sectionLabel,
+  sectionHref,
+  pageLabel,
+  pageHref,
+  deepLabel,
+  isScrolled = false,
+}: SectionBreadcrumbProps) {
   return (
-    <BreadcrumbNav>
-      <BreadcrumbLink href="/database">Datenbank</BreadcrumbLink>
+    <BreadcrumbNav isScrolled={isScrolled}>
+      {sectionHref ? (
+        <BreadcrumbLink href={sectionHref}>{sectionLabel}</BreadcrumbLink>
+      ) : (
+        <span className="font-medium text-gray-500">{sectionLabel}</span>
+      )}
       <BreadcrumbSeparator />
-      {isDeepPage ? (
+      {deepLabel ? (
         <>
-          <BreadcrumbLink href={pathname.split("/").slice(0, 3).join("/")}>
-            {pageTitle}
-          </BreadcrumbLink>
+          {pageHref ? (
+            <BreadcrumbLink href={pageHref}>{pageLabel}</BreadcrumbLink>
+          ) : (
+            <span className="font-medium text-gray-500">{pageLabel}</span>
+          )}
           <BreadcrumbSeparator />
-          <BreadcrumbCurrent>{subPageLabel}</BreadcrumbCurrent>
+          <BreadcrumbCurrent>{deepLabel}</BreadcrumbCurrent>
         </>
       ) : (
-        <BreadcrumbCurrent>{pageTitle}</BreadcrumbCurrent>
+        <BreadcrumbCurrent>{pageLabel}</BreadcrumbCurrent>
       )}
     </BreadcrumbNav>
   );

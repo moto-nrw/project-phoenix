@@ -6,7 +6,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import {
   PageTitleDisplay,
-  DatabaseBreadcrumb,
+  SectionBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   EnrollmentBreadcrumb,
@@ -62,48 +62,75 @@ describe("PageTitleDisplay", () => {
   });
 });
 
-describe("DatabaseBreadcrumb", () => {
-  it("renders database breadcrumb with page title", () => {
+describe("SectionBreadcrumb", () => {
+  it("renders section breadcrumb with page title", () => {
     render(
-      <DatabaseBreadcrumb
-        pathname="/database/students"
-        pageTitle="Kinder"
-        subPageLabel=""
-        isDeepPage={false}
+      <SectionBreadcrumb
+        sectionLabel="Datenverwaltung"
+        sectionHref="/database"
+        pageLabel="Kinder"
       />,
     );
 
-    expect(screen.getByText("Datenbank")).toBeInTheDocument();
+    expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     expect(screen.getByText("Kinder")).toBeInTheDocument();
   });
 
   it("renders deep page with three levels", () => {
     render(
-      <DatabaseBreadcrumb
-        pathname="/database/students/123"
-        pageTitle="Kinder"
-        subPageLabel="Details"
-        isDeepPage={true}
+      <SectionBreadcrumb
+        sectionLabel="Datenverwaltung"
+        sectionHref="/database"
+        pageLabel="Kinder"
+        pageHref="/database/students"
+        deepLabel="Details"
       />,
     );
 
-    expect(screen.getByText("Datenbank")).toBeInTheDocument();
+    expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     expect(screen.getByText("Kinder")).toBeInTheDocument();
     expect(screen.getByText("Details")).toBeInTheDocument();
   });
 
   it("links correctly", () => {
     render(
-      <DatabaseBreadcrumb
-        pathname="/database/students"
-        pageTitle="Kinder"
-        subPageLabel=""
-        isDeepPage={false}
+      <SectionBreadcrumb
+        sectionLabel="Datenverwaltung"
+        sectionHref="/database"
+        pageLabel="Kinder"
       />,
     );
 
-    const databaseLink = screen.getByRole("link", { name: "Datenbank" });
-    expect(databaseLink).toHaveAttribute("href", "/database");
+    const sectionLink = screen.getByRole("link", { name: "Datenverwaltung" });
+    expect(sectionLink).toHaveAttribute("href", "/database");
+  });
+
+  it("renders the section as plain text when no sectionHref is given", () => {
+    render(<SectionBreadcrumb sectionLabel="Planung" pageLabel="Dienstplan" />);
+
+    expect(screen.getByText("Planung")).toBeInTheDocument();
+    expect(screen.getByText("Dienstplan")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Planung" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("renders an Eltern section breadcrumb", () => {
+    render(
+      <SectionBreadcrumb
+        sectionLabel="Eltern"
+        sectionHref="/eltern"
+        pageLabel="Nachrichten"
+      />,
+    );
+
+    expect(screen.getByText("Eltern")).toBeInTheDocument();
+    expect(screen.getByText("Nachrichten")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Eltern" })).toHaveAttribute(
+      "href",
+      "/eltern",
+    );
   });
 });
 

@@ -1,18 +1,20 @@
 // Breadcrumb utilities for header navigation
 // Extracted to reduce cognitive complexity in header.tsx
 
-const exactPageTitles: Record<string, string> = {
-  "/lists": "Tageslisten",
-  "/staff/dienstplan": "Dienstplan",
-  "/admin/guardian-approvals": "Konto-Anfragen",
-  "/admin/change-requests": "Änderungsanfragen",
-  "/parent-announcements": "Elternmitteilungen",
-  "/meal-plan": "Essensplan",
-  "/students/search": "Kindersuche",
-};
+import {
+  getActivePlanningSubPageHref,
+  PLANNING_SUB_PAGES,
+} from "~/lib/planning-navigation";
+import {
+  DATABASE_SECTION,
+  getActiveDatabaseSubPage,
+  getActiveParentSubPage,
+  PARENT_SECTION,
+  PLANNING_SECTION,
+} from "~/lib/section-navigation";
 
-const segmentPageTitles: Record<string, string> = {
-  "/messages": "Nachrichten",
+const exactPageTitles: Record<string, string> = {
+  "/students/search": "Kindersuche",
 };
 
 const detailRouteTitles: Array<{
@@ -32,25 +34,91 @@ const detailRouteTitles: Array<{
   },
 ];
 
+/**
+ * Zweistufige Breadcrumb einer gruppierten Navigationssektion
+ * (Datenverwaltung, Planung, Eltern) — plus optional eine dritte Stufe für
+ * Unterseiten wie /database/students/import.
+ */
+export interface SectionBreadcrumbInfo {
+  readonly sectionLabel: string;
+  /** Fehlt, wenn die Sektion keine Hub-Seite hat (Planung). */
+  readonly sectionHref?: string;
+  readonly pageLabel: string;
+  /** Nur gesetzt, wenn eine dritte Stufe folgt; macht die Mittelstufe zum Link. */
+  readonly pageHref?: string;
+  readonly deepLabel?: string;
+}
+
+/**
+ * Ordnet einen Pfad seiner Navigationssektion zu. Labels kommen aus denselben
+ * Katalogen, aus denen die Seitenleiste rendert, damit Seitenleisten-Eintrag
+ * und Breadcrumb nicht auseinanderlaufen können.
+ *
+ * Die Hub-Seiten selbst (/database, /eltern) liefern bewusst `null`: sie zeigen
+ * nur ihren Sektionsnamen, keine Breadcrumb auf sich selbst.
+ */
+export function getSectionBreadcrumb(
+  pathname: string,
+): SectionBreadcrumbInfo | null {
+  const databasePage = getActiveDatabaseSubPage(pathname);
+  if (databasePage) {
+    const isDeepPage = pathname !== databasePage.href;
+    return {
+      sectionLabel: DATABASE_SECTION.label,
+      sectionHref: DATABASE_SECTION.href,
+      pageLabel: databasePage.label,
+      pageHref: isDeepPage ? databasePage.href : undefined,
+      deepLabel: isDeepPage ? getSubPageLabel(pathname) : undefined,
+    };
+  }
+
+  const planningHref = getActivePlanningSubPageHref(pathname);
+  if (planningHref) {
+    const page = PLANNING_SUB_PAGES.find(
+      (entry) => entry.href === planningHref,
+    );
+    if (page) {
+      return {
+        sectionLabel: PLANNING_SECTION.label,
+        sectionHref: PLANNING_SECTION.href,
+        pageLabel: page.label,
+      };
+    }
+  }
+
+  const parentPage = getActiveParentSubPage(pathname);
+  if (parentPage && parentPage.href !== PARENT_SECTION.href) {
+    return {
+      sectionLabel: PARENT_SECTION.label,
+      sectionHref: PARENT_SECTION.href,
+      pageLabel: parentPage.label,
+    };
+  }
+
+  return null;
+}
+
 export function getPageTitle(pathname: string): string {
   const exactTitle = exactPageTitles[pathname];
   if (exactTitle) return exactTitle;
-
-  const segmentTitle = getSegmentPageTitle(pathname);
-  if (segmentTitle) return segmentTitle;
 
   // Handle student detail pages
   if (pathname.startsWith("/students/") && pathname !== "/students") {
     return getStudentPageTitle(pathname);
   }
 
+  // Sektionsseiten tragen das Label ihres Navigationseintrags. Muss VOR der
+  // Detailrouten-Prüfung laufen: /staff/dienstplan ist die Planungsseite
+  // "Dienstplan" und nicht die Detailansicht einer Mitarbeiterin.
+  const section = getSectionBreadcrumb(pathname);
+  if (section) return section.deepLabel ?? section.pageLabel;
+
+  // Unbekannte Unterseite der Datenverwaltung: den Bereichsnamen zeigen statt
+  // in den "Home"-Fallback zu rutschen.
+  if (pathname.startsWith("/database/")) return DATABASE_SECTION.label;
+
   const detailTitle = getDetailRouteTitle(pathname);
   if (detailTitle) return detailTitle;
-
-  // Handle database sub-pages
-  if (pathname.startsWith("/database/")) {
-    return getDatabasePageTitle(pathname);
-  }
 
   if (isEnrollmentPath(pathname)) return getEnrollmentPageTitle(pathname);
 
@@ -69,42 +137,12 @@ function getStudentPageTitle(pathname: string): string {
   return "Kinder Details";
 }
 
-function getSegmentPageTitle(pathname: string): string | null {
-  for (const [basePath, title] of Object.entries(segmentPageTitles)) {
-    if (matchesPathSegment(pathname, basePath)) return title;
-  }
-  return null;
-}
-
 function getDetailRouteTitle(pathname: string): string | null {
   const route = detailRouteTitles.find(
     ({ basePath, rootPath }) =>
       pathname.startsWith(basePath) && pathname !== rootPath,
   );
   return route?.title ?? null;
-}
-
-function matchesPathSegment(pathname: string, basePath: string): boolean {
-  return pathname === basePath || pathname.startsWith(`${basePath}/`);
-}
-
-function getDatabasePageTitle(pathname: string): string {
-  const databasePages: Record<string, string> = {
-    activities: "Aktivitäten",
-    groups: "Gruppen",
-    students: "Kinder",
-    personal: "Personal",
-    rooms: "Räume",
-    roles: "Rollen",
-    devices: "Geräte",
-    permissions: "Berechtigungen",
-    exports: "Exporte",
-  };
-
-  for (const [key, title] of Object.entries(databasePages)) {
-    if (pathname.includes(`/${key}`)) return title;
-  }
-  return "Datenbank";
 }
 
 function getMainRouteTitle(pathname: string): string {
@@ -115,21 +153,19 @@ function getMainRouteTitle(pathname: string): string {
     "/ogs-groups": "Meine Gruppe",
     "/active-supervisions": "Aktuelle Aufsicht",
     "/staff": "Mitarbeiter",
-    "/staff/dienstplan": "Dienstplan",
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
     "/reminders": "Erinnerungen",
     "/substitutions": "Gruppenzugriff",
-    "/calendar-periods": "Kalenderzeiträume",
-    // Die drei Planungsbereiche (Planung-Redesign, docs/planung-redesign/
-    // docs/03 Abschnitt 5); die Redirect-Frames behalten Einträge, damit
-    // während des Client-Redirects kein falscher Titel aufblitzt.
-    "/betreuungsplan": "Betreuungsplan",
-    "/dienstplan": "Dienstplan",
-    "/vertretung": "Vertretung",
+    "/calendar": "Mein Kalender",
+    "/day-log": "Tagesauswertung",
+    "/info-displays": "Info-Displays",
+    // Die Planungsseiten selbst kommen aus PLANNING_SUB_PAGES
+    // (getSectionBreadcrumb); /planung ist nur der Redirect-Frame und behält
+    // einen Eintrag, damit während des Client-Redirects kein falscher Titel
+    // aufblitzt.
     "/planung": "Planung",
-    "/timetables": "Betreuungsplan",
-    "/vertretungsplan": "Vertretung",
+    // Die beiden Sektions-Hubs; ihre Unterseiten kommen aus den Katalogen.
     "/database": "Datenverwaltung",
     "/eltern": "Eltern",
     "/emergency": "Notfall",
@@ -214,8 +250,6 @@ export interface PageTypeInfo {
   isStudentHistoryPage: boolean;
   isStaffDetailPage: boolean;
   isRoomDetailPage: boolean;
-  isDatabaseSubPage: boolean;
-  isDatabaseDeepPage: boolean;
   isEnrollmentPage: boolean;
 }
 
@@ -243,10 +277,6 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
   const isRoomDetailPage =
     pathname.startsWith("/rooms/") && pathname !== "/rooms";
 
-  const isDatabaseSubPage =
-    pathname.startsWith("/database/") && pathname !== "/database";
-
-  const isDatabaseDeepPage = pathname.split("/").length > 3;
   const isEnrollmentPage = isEnrollmentPath(pathname);
 
   return {
@@ -254,8 +284,6 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     isStudentHistoryPage,
     isStaffDetailPage,
     isRoomDetailPage,
-    isDatabaseSubPage,
-    isDatabaseDeepPage,
     isEnrollmentPage,
   };
 }

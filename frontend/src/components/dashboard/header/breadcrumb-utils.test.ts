@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getPageTitle,
+  getSectionBreadcrumb,
   getSubPageLabel,
   getBreadcrumbLabel,
   getHistoryType,
@@ -75,8 +76,11 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/database/permissions")).toBe("Berechtigungen");
       });
 
-      it("should return 'Datenbank' for unknown database page", () => {
-        expect(getPageTitle("/database/unknown")).toBe("Datenbank");
+      it("should return 'Datenverwaltung' for unknown database page", () => {
+        // Unveränderte Regel: ein /database/*-Pfad ohne Katalogeintrag fällt
+        // auf den Sektionsnamen zurück, nie auf den Home-Fallback. Nur der
+        // Name selbst heißt jetzt "Datenverwaltung" statt "Datenbank".
+        expect(getPageTitle("/database/unknown")).toBe("Datenverwaltung");
       });
 
       it("should return 'Datenverwaltung' for /database route", () => {
@@ -132,6 +136,22 @@ describe("breadcrumb-utils", () => {
 
       it("should return 'Kalenderzeiträume' for /calendar-periods", () => {
         expect(getPageTitle("/calendar-periods")).toBe("Kalenderzeiträume");
+      });
+
+      it("should return 'Tageslisten' for /lists", () => {
+        expect(getPageTitle("/lists")).toBe("Tageslisten");
+      });
+
+      it("should return 'Abrechnung' for /payroll", () => {
+        // Abrechnung hängt jetzt am Planung-Katalog statt an einem eigenen
+        // flachen Eintrag.
+        expect(getPageTitle("/payroll")).toBe("Abrechnung");
+      });
+
+      it("should title the flat routes that previously fell through to 'Home'", () => {
+        expect(getPageTitle("/calendar")).toBe("Mein Kalender");
+        expect(getPageTitle("/day-log")).toBe("Tagesauswertung");
+        expect(getPageTitle("/info-displays")).toBe("Info-Displays");
       });
 
       it("should return 'Einstellungen' for /settings", () => {
@@ -307,6 +327,163 @@ describe("breadcrumb-utils", () => {
     });
   });
 
+  describe("getSectionBreadcrumb", () => {
+    describe("database pages", () => {
+      // Vorher über getPageTypeInfo().isDatabaseSubPage /
+      // .isDatabaseDeepPage geprüft; dieselbe Unterscheidung liegt jetzt in
+      // getSectionBreadcrumb (zweistufig vs. dreistufig).
+      it("should identify database sub-page", () => {
+        const result = getSectionBreadcrumb("/database/students");
+        expect(result).not.toBeNull();
+        expect(result?.sectionLabel).toBe("Datenverwaltung");
+        expect(result?.sectionHref).toBe("/database");
+        expect(result?.pageLabel).toBe("Kinder");
+        // Zweistufig: keine dritte Ebene, deshalb auch kein Link auf der
+        // Mittelstufe.
+        expect(result?.pageHref).toBeUndefined();
+        expect(result?.deepLabel).toBeUndefined();
+      });
+
+      it("should not identify /database as sub-page", () => {
+        expect(getSectionBreadcrumb("/database")).toBeNull();
+      });
+
+      it("should identify database deep page (4+ segments)", () => {
+        const result = getSectionBreadcrumb("/database/students/123/edit");
+        expect(result?.sectionLabel).toBe("Datenverwaltung");
+        expect(result?.pageLabel).toBe("Kinder");
+        expect(result?.pageHref).toBe("/database/students");
+        expect(result?.deepLabel).toBe("Bearbeiten");
+      });
+
+      it("should correctly identify multiple database segments", () => {
+        const result = getSectionBreadcrumb("/database/students/create");
+        expect(result?.pageLabel).toBe("Kinder");
+        expect(result?.pageHref).toBe("/database/students");
+        expect(result?.deepLabel).toBe("Erstellen");
+      });
+
+      it("should build the three-level breadcrumb for /database/students/import", () => {
+        expect(getSectionBreadcrumb("/database/students/import")).toEqual({
+          sectionLabel: "Datenverwaltung",
+          sectionHref: "/database",
+          pageLabel: "Kinder",
+          pageHref: "/database/students",
+          deepLabel: "Importieren",
+        });
+      });
+    });
+
+    describe("planning pages", () => {
+      it("should resolve a planning page without a section link", () => {
+        const result = getSectionBreadcrumb("/betreuungsplan");
+        expect(result?.sectionLabel).toBe("Planung");
+        expect(result?.pageLabel).toBe("Betreuungsplan");
+        // Planung hat keine Hub-Seite: ohne href rendert die Sektion als
+        // Text statt als Link ins Leere.
+        expect(result?.sectionHref).toBeUndefined();
+        expect(result?.pageHref).toBeUndefined();
+        expect(result?.deepLabel).toBeUndefined();
+      });
+
+      it("should resolve every planning entry", () => {
+        expect(getSectionBreadcrumb("/dienstplan")?.pageLabel).toBe(
+          "Dienstplan",
+        );
+        expect(getSectionBreadcrumb("/vertretung")?.pageLabel).toBe(
+          "Vertretung",
+        );
+        expect(getSectionBreadcrumb("/lists")?.pageLabel).toBe("Tageslisten");
+        expect(getSectionBreadcrumb("/calendar-periods")?.pageLabel).toBe(
+          "Kalenderzeiträume",
+        );
+      });
+
+      it("should resolve /payroll to Planung › Abrechnung", () => {
+        const result = getSectionBreadcrumb("/payroll");
+        expect(result?.sectionLabel).toBe("Planung");
+        expect(result?.pageLabel).toBe("Abrechnung");
+        expect(result?.sectionHref).toBeUndefined();
+      });
+
+      it("should map legacy planning paths to their current entry", () => {
+        expect(getSectionBreadcrumb("/timetables")?.pageLabel).toBe(
+          "Betreuungsplan",
+        );
+        expect(getSectionBreadcrumb("/vertretungsplan")?.pageLabel).toBe(
+          "Vertretung",
+        );
+        expect(getSectionBreadcrumb("/staff/dienstplan")?.pageLabel).toBe(
+          "Dienstplan",
+        );
+        expect(getSectionBreadcrumb("/staff/dienstplan")?.sectionLabel).toBe(
+          "Planung",
+        );
+      });
+
+      it("should keep sub-paths of a planning page on that page", () => {
+        expect(getSectionBreadcrumb("/betreuungsplan/2026-07-30")).toEqual({
+          sectionLabel: "Planung",
+          pageLabel: "Betreuungsplan",
+        });
+      });
+    });
+
+    describe("parent pages", () => {
+      it("should resolve /messages to Eltern › Nachrichten", () => {
+        expect(getSectionBreadcrumb("/messages")).toEqual({
+          sectionLabel: "Eltern",
+          sectionHref: "/eltern",
+          pageLabel: "Nachrichten",
+        });
+      });
+
+      it("should keep a message thread on the Nachrichten entry", () => {
+        const result = getSectionBreadcrumb("/messages/42");
+        expect(result?.sectionLabel).toBe("Eltern");
+        expect(result?.pageLabel).toBe("Nachrichten");
+      });
+
+      it("should resolve the remaining parent entries", () => {
+        expect(getSectionBreadcrumb("/admin/guardian-approvals")).toEqual({
+          sectionLabel: "Eltern",
+          sectionHref: "/eltern",
+          pageLabel: "Konto-Anfragen",
+        });
+        expect(getSectionBreadcrumb("/admin/change-requests")?.pageLabel).toBe(
+          "Änderungsanfragen",
+        );
+        expect(getSectionBreadcrumb("/parent-announcements")?.pageLabel).toBe(
+          "Elternmitteilungen",
+        );
+        expect(getSectionBreadcrumb("/meal-plan")?.pageLabel).toBe(
+          "Essensplan",
+        );
+      });
+
+      it("should return null for the /eltern hub itself", () => {
+        // Der Hub zeigt nur seinen eigenen Sektionsnamen, keine Breadcrumb
+        // auf sich selbst.
+        expect(getSectionBreadcrumb("/eltern")).toBeNull();
+      });
+    });
+
+    describe("pages outside a section", () => {
+      it("should return null for flat routes", () => {
+        expect(getSectionBreadcrumb("/dashboard")).toBeNull();
+        expect(getSectionBreadcrumb("/planung")).toBeNull();
+        expect(getSectionBreadcrumb("/students/123")).toBeNull();
+        expect(getSectionBreadcrumb("/unknown-route")).toBeNull();
+        expect(getSectionBreadcrumb("")).toBeNull();
+      });
+
+      it("should not pull the parents portal into the Eltern section", () => {
+        expect(getSectionBreadcrumb("/parents/messages")).toBeNull();
+        expect(getSectionBreadcrumb("/parents/meal-plan")).toBeNull();
+      });
+    });
+  });
+
   describe("getPageTypeInfo", () => {
     describe("student detail page", () => {
       it("should identify student detail page", () => {
@@ -362,30 +539,6 @@ describe("breadcrumb-utils", () => {
       });
     });
 
-    describe("database pages", () => {
-      it("should identify database sub-page", () => {
-        const result = getPageTypeInfo("/database/students");
-        expect(result.isDatabaseSubPage).toBe(true);
-        expect(result.isDatabaseDeepPage).toBe(false);
-      });
-
-      it("should not identify /database as sub-page", () => {
-        const result = getPageTypeInfo("/database");
-        expect(result.isDatabaseSubPage).toBe(false);
-      });
-
-      it("should identify database deep page (4+ segments)", () => {
-        const result = getPageTypeInfo("/database/students/123/edit");
-        expect(result.isDatabaseDeepPage).toBe(true);
-        expect(result.isDatabaseSubPage).toBe(true);
-      });
-
-      it("should not identify shallow path as deep page", () => {
-        const result = getPageTypeInfo("/database/students");
-        expect(result.isDatabaseDeepPage).toBe(false);
-      });
-    });
-
     describe("combined page types", () => {
       it("should return all false for root path", () => {
         const result = getPageTypeInfo("/");
@@ -394,8 +547,6 @@ describe("breadcrumb-utils", () => {
           isStudentHistoryPage: false,
           isStaffDetailPage: false,
           isRoomDetailPage: false,
-          isDatabaseSubPage: false,
-          isDatabaseDeepPage: false,
           isEnrollmentPage: false,
         };
         expect(result).toEqual(expected);
@@ -406,8 +557,7 @@ describe("breadcrumb-utils", () => {
         expect(result.isStudentDetailPage).toBe(false);
         expect(result.isStudentHistoryPage).toBe(false);
         expect(result.isRoomDetailPage).toBe(false);
-        expect(result.isDatabaseSubPage).toBe(false);
-        expect(result.isDatabaseDeepPage).toBe(false);
+        expect(result.isStaffDetailPage).toBe(false);
         expect(result.isEnrollmentPage).toBe(false);
       });
 
@@ -420,13 +570,6 @@ describe("breadcrumb-utils", () => {
         );
         expect(getPageTypeInfo("/care-offerings").isEnrollmentPage).toBe(true);
         expect(getPageTypeInfo("/enrollment-form").isEnrollmentPage).toBe(true);
-      });
-
-      it("should correctly identify multiple database segments", () => {
-        const result = getPageTypeInfo("/database/students/create");
-        expect(result.isDatabaseSubPage).toBe(true);
-        // Path has 4 segments: ["", "database", "students", "create"]
-        expect(result.isDatabaseDeepPage).toBe(true);
       });
     });
 
