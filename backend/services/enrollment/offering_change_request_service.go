@@ -544,6 +544,7 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 		return nil, fmt.Errorf("offering change: list requests: %w", err)
 	}
 	cutoff := time.Now().AddDate(0, 0, -offeringDecisionRecencyDays)
+	today := timezone.TodayDate()
 	for _, row := range rows {
 		if row == nil || row.ReviewedAt == nil {
 			continue
@@ -552,7 +553,8 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 			row.Status != enrollmentModels.OfferingChangeStatusRejected {
 			continue
 		}
-		if row.ReviewedAt.Before(cutoff) {
+		isFutureApproval := row.Status == enrollmentModels.OfferingChangeStatusApproved && today.Before(row.EffectiveFrom)
+		if row.ReviewedAt.Before(cutoff) && !isFutureApproval {
 			// Rows are newest-first, so everything below is older too.
 			return nil, nil
 		}

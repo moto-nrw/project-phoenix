@@ -325,6 +325,7 @@ export function OfferingChangeRequestModal({
                 min={catalog.earliest_effective_from}
                 max={catalog.latest_effective_from}
                 required
+                disabled
                 onChange={setEffectiveFrom}
               />
               <p className="mt-1 text-xs text-gray-500">

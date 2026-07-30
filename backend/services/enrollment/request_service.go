@@ -653,6 +653,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, err
 	}
+	capacityChildren := childrenWithMaterializedOfferingSelections(req.Children, materializedSelections)
 
 	// childStatusOverrides[i] is set when capacity logic forces a
 	// non-default status (e.g. waitlisted under mode=waitlist). It is resolved
@@ -826,7 +827,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		}
 
 		if capabilities.CareOfferingsEnabled {
-			overrides, capacityErr := s.applyCapacityOverflow(txCtx, phase, req.Children, openByID)
+			overrides, capacityErr := s.applyCapacityOverflow(txCtx, phase, capacityChildren, openByID)
 			if capacityErr != nil {
 				return capacityErr
 			}
@@ -967,6 +968,25 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		StatusURL: statusURL,
 		Warnings:  warnings,
 	}, nil
+}
+
+func childrenWithMaterializedOfferingSelections(
+	children []SubmitChild,
+	materialized [][]materializedOfferingSelection,
+) []SubmitChild {
+	withMaterialized := make([]SubmitChild, len(children))
+	for i, child := range children {
+		withMaterialized[i] = child
+		if i >= len(materialized) {
+			continue
+		}
+		ids := make([]int64, 0, len(materialized[i]))
+		for _, selection := range materialized[i] {
+			ids = append(ids, selection.OfferingID)
+		}
+		withMaterialized[i].OfferingIDs = ids
+	}
+	return withMaterialized
 }
 
 func (s *requestService) CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error) {
