@@ -162,23 +162,56 @@ export function SectionBreadcrumb({
 }
 
 /**
+ * Breadcrumb eines Akkordeon-Bereichs ohne verlinkbare Hub-Seite: der
+ * Bereichsname als Text, dahinter der gewählte Eintrag. Ohne Eintrag bleibt
+ * nur der Bereichsname als Seitentitel.
+ *
+ * Die beiden Bereiche hatten diese Struktur vorher je einmal von Hand
+ * nachgebaut — und dabei `isScrolled` nicht durchgereicht, weshalb ihre
+ * Kopfzeile als einzige beim Scrollen nicht mitschrumpfte.
+ */
+interface AccordionSectionBreadcrumbProps {
+  readonly sectionLabel: string;
+  readonly itemName?: string;
+  readonly isScrolled?: boolean;
+}
+
+function AccordionSectionBreadcrumb({
+  sectionLabel,
+  itemName,
+  isScrolled = false,
+}: AccordionSectionBreadcrumbProps) {
+  if (!itemName) {
+    return <PageTitleDisplay title={sectionLabel} isScrolled={isScrolled} />;
+  }
+  return (
+    <SectionBreadcrumb
+      sectionLabel={sectionLabel}
+      pageLabel={itemName}
+      isScrolled={isScrolled}
+    />
+  );
+}
+
+/**
  * OGS Groups breadcrumb with optional group name
  */
 interface OgsGroupsBreadcrumbProps {
   readonly groupName?: string;
+  readonly isScrolled?: boolean;
 }
 
-export function OgsGroupsBreadcrumb({ groupName }: OgsGroupsBreadcrumbProps) {
-  if (groupName) {
-    return (
-      <BreadcrumbNav>
-        <span className="font-medium text-gray-500">Meine Gruppe</span>
-        <BreadcrumbSeparator />
-        <BreadcrumbCurrent>{groupName}</BreadcrumbCurrent>
-      </BreadcrumbNav>
-    );
-  }
-  return <PageTitleDisplay title="Meine Gruppe" />;
+export function OgsGroupsBreadcrumb({
+  groupName,
+  isScrolled,
+}: OgsGroupsBreadcrumbProps) {
+  return (
+    <AccordionSectionBreadcrumb
+      sectionLabel="Meine Gruppe"
+      itemName={groupName}
+      isScrolled={isScrolled}
+    />
+  );
 }
 
 /**
@@ -186,21 +219,20 @@ export function OgsGroupsBreadcrumb({ groupName }: OgsGroupsBreadcrumbProps) {
  */
 interface ActiveSupervisionsBreadcrumbProps {
   readonly supervisionName?: string;
+  readonly isScrolled?: boolean;
 }
 
 export function ActiveSupervisionsBreadcrumb({
   supervisionName,
+  isScrolled,
 }: ActiveSupervisionsBreadcrumbProps) {
-  if (supervisionName) {
-    return (
-      <BreadcrumbNav>
-        <span className="font-medium text-gray-500">Aktuelle Aufsicht</span>
-        <BreadcrumbSeparator />
-        <BreadcrumbCurrent>{supervisionName}</BreadcrumbCurrent>
-      </BreadcrumbNav>
-    );
-  }
-  return <PageTitleDisplay title="Aktuelle Aufsicht" />;
+  return (
+    <AccordionSectionBreadcrumb
+      sectionLabel="Aktuelle Aufsicht"
+      itemName={supervisionName}
+      isScrolled={isScrolled}
+    />
+  );
 }
 
 interface EnrollmentBreadcrumbProps {

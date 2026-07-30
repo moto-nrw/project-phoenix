@@ -314,13 +314,18 @@ function HeaderBreadcrumb({
 
   // OGS Groups page
   if (pathname === "/ogs-groups") {
-    return <OgsGroupsBreadcrumb groupName={ogsGroupName} />;
+    return (
+      <OgsGroupsBreadcrumb groupName={ogsGroupName} isScrolled={isScrolled} />
+    );
   }
 
   // Active Supervisions page
   if (pathname === "/active-supervisions") {
     return (
-      <ActiveSupervisionsBreadcrumb supervisionName={activeSupervisionName} />
+      <ActiveSupervisionsBreadcrumb
+        supervisionName={activeSupervisionName}
+        isScrolled={isScrolled}
+      />
     );
   }
 

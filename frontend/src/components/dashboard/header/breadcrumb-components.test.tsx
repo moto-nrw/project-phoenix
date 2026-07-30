@@ -146,6 +146,22 @@ describe("OgsGroupsBreadcrumb", () => {
     expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
     expect(screen.getByText("Eulen")).toBeInTheDocument();
   });
+
+  it("shrinks with the header when scrolled", () => {
+    // Diese Breadcrumb reichte isScrolled als einzige nicht durch und blieb
+    // beim Scrollen groß, während der Rest der Kopfzeile schrumpfte.
+    const { container } = render(
+      <OgsGroupsBreadcrumb groupName="Eulen" isScrolled />,
+    );
+
+    expect(container.querySelector("nav")).toHaveClass("text-sm");
+  });
+
+  it("shrinks the plain title when scrolled without a group", () => {
+    render(<OgsGroupsBreadcrumb isScrolled />);
+
+    expect(screen.getByText("Meine Gruppe")).toHaveClass("text-sm");
+  });
 });
 
 describe("ActiveSupervisionsBreadcrumb", () => {
@@ -160,6 +176,14 @@ describe("ActiveSupervisionsBreadcrumb", () => {
 
     expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     expect(screen.getByText("Raum 1.2")).toBeInTheDocument();
+  });
+
+  it("shrinks with the header when scrolled", () => {
+    const { container } = render(
+      <ActiveSupervisionsBreadcrumb supervisionName="Raum 1.2" isScrolled />,
+    );
+
+    expect(container.querySelector("nav")).toHaveClass("text-sm");
   });
 });
 
