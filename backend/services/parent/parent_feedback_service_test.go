@@ -222,7 +222,10 @@ func TestParentFeedbackThreadReadState(t *testing.T) {
 		Content:    "Danke, wir schauen uns das an.",
 	}
 	operatorReply.SetTenantID(chain.TenantID)
-	_, err = db.NewInsert().Model(operatorReply).Exec(ctx)
+	_, err = db.NewInsert().
+		Model(operatorReply).
+		ModelTableExpr("suggestions.comments").
+		Exec(ctx)
 	require.NoError(t, err)
 
 	unreadBefore, err = svc.FeedbackUnreadCount(ctx, chain.AccountID)

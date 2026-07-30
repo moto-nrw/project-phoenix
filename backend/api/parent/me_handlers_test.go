@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -288,12 +289,18 @@ func TestDeleteFeedbackComment_PassesPostIDToService(t *testing.T) {
 	service := &fakeParentService{}
 	rs := &Resource{ParentService: service}
 	w := httptest.NewRecorder()
+	postID := "5"
+	commentID := "42"
+	expectedPostID, err := strconv.ParseInt(postID, 10, 64)
+	require.NoError(t, err)
+	expectedCommentID, err := strconv.ParseInt(commentID, 10, 64)
+	require.NoError(t, err)
 
-	rs.deleteFeedbackComment(w, feedbackCommentDeleteRequest("5", "42"))
+	rs.deleteFeedbackComment(w, feedbackCommentDeleteRequest(postID, commentID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, int64(5), service.gotDeletePostID)
-	assert.Equal(t, int64(42), service.gotDeleteComment)
+	assert.Equal(t, expectedPostID, service.gotDeletePostID)
+	assert.Equal(t, expectedCommentID, service.gotDeleteComment)
 }
 
 // withClaims attaches a parent account id to the request context the way the
