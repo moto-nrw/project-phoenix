@@ -822,7 +822,7 @@ describe("VertretungView", () => {
       });
     }
 
-    it("nennt Person und offenen Zeitraum und verlinkt den Dienstplan", () => {
+    it("zählt die nicht abgedeckten Einsätze und verlinkt den Dienstplan", () => {
       authenticateWithOverviewAccess();
       setupSWR({
         coverageData: {
@@ -833,13 +833,34 @@ describe("VertretungView", () => {
       render(<VertretungView />);
 
       expect(
-        screen.getByText(
-          "1 Einsatz an diesem Tag ist nicht durch den Dienstplan abgedeckt: Ada Staff (12:30–14:00).",
-        ),
+        screen.getByText("1 Einsatz ist nicht durch den Dienstplan abgedeckt."),
       ).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: "Dienstplan öffnen" }),
       ).toHaveAttribute("href", "/acme/dienstplan?d=2026-07-15");
+    });
+
+    it("lässt abgedeckte Einsätze aus der Zählung", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [
+            coverageAssignment(),
+            coverageAssignment({
+              instanceId: "44",
+              staffId: "12",
+              coverageStatus: "covered",
+              uncoveredIntervals: [],
+            }),
+          ],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.getByText("1 Einsatz ist nicht durch den Dienstplan abgedeckt."),
+      ).toBeInTheDocument();
     });
 
     it("zählt nicht in die Störungszähler", () => {
@@ -902,7 +923,7 @@ describe("VertretungView", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("nennt in der Wochenansicht den Wochentag und öffnet die gezeigte Woche", () => {
+    it("meldet in der Wochenansicht denselben Satz und öffnet die gezeigte Woche", () => {
       authenticateWithOverviewAccess();
       mockSearch.value = "view=woche";
       setupSWR({
@@ -916,9 +937,7 @@ describe("VertretungView", () => {
       render(<VertretungView />);
 
       expect(
-        screen.getByText(
-          "1 Einsatz ab heute in dieser Woche ist nicht durch den Dienstplan abgedeckt: Ada Staff (Do, 12:30–14:00).",
-        ),
+        screen.getByText("1 Einsatz ist nicht durch den Dienstplan abgedeckt."),
       ).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: "Dienstplan öffnen" }),

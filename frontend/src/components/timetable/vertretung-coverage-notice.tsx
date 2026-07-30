@@ -12,6 +12,11 @@
  * Tageschips, sondern steht als eigene Zeile darüber und verlinkt in den
  * Dienstplan, wo die Schicht nachgetragen wird.
  *
+ * Absichtlich nur die Anzahl: welche Person in welchem Zeitfenster fehlt, sagt
+ * der Dienstplan pro Einsatz genau ("Nicht abgedeckt: 12:30–14:00"), und dorthin
+ * führt der Link. Der Hinweis muss das nicht doppeln, er muss nur auffallen.
+ * Deshalb ist der Text in Tages- und Wochenansicht derselbe.
+ *
  * Die Daten kommen aus derselben Dienstplan-Übersicht, die auch das
  * Wochenraster des Dienstplans rendert (`coverageStatus === "uncovered"`,
  * berechnet in backend/services/schedule/staff_schedule_overview.go). Wer die
@@ -23,108 +28,51 @@
 import Link from "next/link";
 
 import { Alert } from "~/components/ui/alert";
-import { parseISODate } from "~/lib/date-helpers";
-import type { StaffScheduleAssignment } from "~/lib/shift-helpers";
-import { getGermanWeekdayShort, staffLabel } from "~/lib/timetable-helpers";
-
-/** Wie viele Einsätze die Meldung namentlich nennt, bevor sie zusammenfasst. */
-const NAMED_PREVIEW_LIMIT = 2;
 
 export interface VertretungCoverageNoticeProps {
   /**
-   * Die nicht abgedeckten Einsätze des angezeigten Zeitraums. Der Aufrufer
-   * filtert (uncovered, Zeitraum, keine Vergangenheit); leer heißt: nichts
+   * Anzahl der nicht abgedeckten Einsätze im angezeigten Zeitraum. Der Aufrufer
+   * filtert (uncovered, Zeitraum, keine Vergangenheit); 0 heißt: nichts
    * rendern.
    */
-  readonly assignments: readonly StaffScheduleAssignment[];
-  /** Anzeigenamen fürs Personal, wie in der Störungsliste. */
-  readonly staffNames: Map<string, string>;
-  /** "an diesem Tag" oder "in dieser Woche" — der angezeigte Zeitraum. */
-  readonly scopeLabel: string;
-  /** Wochenansicht: den Wochentag mitnennen, weil mehrere Tage gemischt sind. */
-  readonly withWeekday: boolean;
+  readonly count: number;
   /** Ziel des Links "Dienstplan öffnen" (tenant-aware, vom Aufrufer gebaut). */
   readonly dienstplanHref: string;
 }
 
-/** "Ada Staff (12:30–14:00)" bzw. "Ada Staff (Mi, 12:30–14:00)". */
-function assignmentPreview(
-  assignment: StaffScheduleAssignment,
-  staffNames: Map<string, string>,
-  withWeekday: boolean,
-): string {
-  const name = staffLabel(staffNames, assignment.staffId);
-  // Der offene Zeitraum ist die eigentliche Information; ohne Intervall (das
-  // Backend liefert für "uncovered" immer mindestens eines) fällt die Meldung
-  // auf das Einsatzfenster zurück, statt eine leere Klammer zu zeigen.
-  const interval = assignment.uncoveredIntervals[0];
-  const range = interval
-    ? `${interval.startTime}–${interval.endTime}`
-    : `${assignment.startTime}–${assignment.endTime}`;
-  const weekday = withWeekday
-    ? `${getGermanWeekdayShort(parseISODate(assignment.date))}, `
-    : "";
-  return `${name} (${weekday}${range})`;
-}
-
-/**
- * Baut den Meldungstext. Exportiert, weil die Pluralisierung und die
- * Zusammenfassung der Rest-Einsätze die eigentliche Logik dieser Komponente
- * sind und direkt getestet werden.
- */
-export function buildCoverageNoticeMessage(
-  assignments: readonly StaffScheduleAssignment[],
-  staffNames: Map<string, string>,
-  scopeLabel: string,
-  withWeekday: boolean,
-): string {
-  const count = assignments.length;
-  const lead =
-    count === 1
-      ? `1 Einsatz ${scopeLabel} ist nicht durch den Dienstplan abgedeckt`
-      : `${count} Einsätze ${scopeLabel} sind nicht durch den Dienstplan abgedeckt`;
-  const named = assignments
-    .slice(0, NAMED_PREVIEW_LIMIT)
-    .map((assignment) =>
-      assignmentPreview(assignment, staffNames, withWeekday),
-    );
-  const rest = count - named.length;
-  const restLabel =
-    rest === 1 ? "1 weiterer Einsatz" : `${rest} weitere Einsätze`;
-  const detail =
-    rest > 0 ? `${named.join(", ")} und ${restLabel}` : named.join(", ");
-  return `${lead}: ${detail}.`;
+/** Exportiert, weil die Pluralisierung direkt getestet wird. */
+export function buildCoverageNoticeMessage(count: number): string {
+  return count === 1
+    ? "1 Einsatz ist nicht durch den Dienstplan abgedeckt."
+    : `${count} Einsätze sind nicht durch den Dienstplan abgedeckt.`;
 }
 
 export function VertretungCoverageNotice({
-  assignments,
-  staffNames,
-  scopeLabel,
-  withWeekday,
+  count,
   dienstplanHref,
 }: VertretungCoverageNoticeProps) {
-  if (assignments.length === 0) return null;
+  if (count <= 0) return null;
 
   return (
-    <Alert
-      type="warning"
-      // Kein "assertive": der Hinweis ist keine Störung und darf einen
-      // Screenreader nicht unterbrechen.
-      announce="polite"
-      message={buildCoverageNoticeMessage(
-        assignments,
-        staffNames,
-        scopeLabel,
-        withWeekday,
-      )}
-      action={
-        <Link
-          href={dienstplanHref}
-          className="font-medium whitespace-nowrap underline underline-offset-2 hover:no-underline"
-        >
-          Dienstplan öffnen
-        </Link>
-      }
-    />
+    // Weißer Unterbau: die getönte Alert-Fläche ist absichtlich
+    // halbtransparent, und das Punktraster der Planungsseiten schiene sonst
+    // durch den Hinweis durch.
+    <div className="rounded-lg bg-white">
+      <Alert
+        type="warning"
+        // Kein "assertive": der Hinweis ist keine Störung und darf einen
+        // Screenreader nicht unterbrechen.
+        announce="polite"
+        message={buildCoverageNoticeMessage(count)}
+        action={
+          <Link
+            href={dienstplanHref}
+            className="font-medium whitespace-nowrap underline underline-offset-2 hover:no-underline"
+          >
+            Dienstplan öffnen
+          </Link>
+        }
+      />
+    </div>
   );
 }

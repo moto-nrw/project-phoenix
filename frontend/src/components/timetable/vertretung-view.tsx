@@ -411,25 +411,15 @@ function VertretungContent() {
   // Tageschips, sondern ausschließlich in den eigenen Hinweis. Vergangene Tage
   // bleiben still, genau wie bei den Lücken; eine Woche ohne gepflegten
   // Dienstplan liefert dienstplanInUse = false und damit gar nichts.
-  const uncoveredAssignments = useMemo(() => {
-    if (!coverageData?.dienstplanInUse) return [];
+  const uncoveredCount = useMemo(() => {
+    if (!coverageData?.dienstplanInUse) return 0;
     const inScope = (date: string) =>
       date >= today && (isWeekView ? weekDayISOSet.has(date) : date === dayISO);
-    return coverageData.assignments
-      .filter(
-        (assignment) =>
-          assignment.coverageStatus === "uncovered" && inScope(assignment.date),
-      )
-      .sort((a, b) => {
-        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-        return a.startTime.localeCompare(b.startTime);
-      });
+    return coverageData.assignments.filter(
+      (assignment) =>
+        assignment.coverageStatus === "uncovered" && inScope(assignment.date),
+    ).length;
   }, [coverageData, dayISO, isWeekView, today, weekDayISOSet]);
-  const coverageScopeLabel = isWeekView
-    ? coverageFromISO < today
-      ? "ab heute in dieser Woche"
-      : "in dieser Woche"
-    : "an diesem Tag";
   // Der Dienstplan versteht dasselbe `d` wie diese Ansicht; in der
   // Wochenansicht landet man auf dem Montag der gezeigten Woche.
   const dienstplanHref = tenantPath(
@@ -674,10 +664,7 @@ function VertretungContent() {
       {/* Planungshinweis, keine Störung: steht bewusst außerhalb der Liste und
           außerhalb der Zähler (siehe vertretung-coverage-notice.tsx). */}
       <VertretungCoverageNotice
-        assignments={uncoveredAssignments}
-        staffNames={staffNames}
-        scopeLabel={coverageScopeLabel}
-        withWeekday={isWeekView}
+        count={uncoveredCount}
         dienstplanHref={dienstplanHref}
       />
 
