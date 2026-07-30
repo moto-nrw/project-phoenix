@@ -309,6 +309,14 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	assert.True(t, view.PendingRequest.SubmittedBySelf)
 	assert.Equal(t, createdAt, view.PendingRequest.CreatedAt)
 	assert.Equal(t, changes.view.LastDecision, view.LastDecision)
+
+	// A decided request has no open Request, but its result remains visible for
+	// the recency window.
+	changes.view.Request = nil
+	view, err = svc.GetChildCareOfferings(context.Background(), 11, 22)
+	require.NoError(t, err)
+	assert.Nil(t, view.PendingRequest)
+	assert.Equal(t, changes.view.LastDecision, view.LastDecision)
 }
 
 func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testing.T) {

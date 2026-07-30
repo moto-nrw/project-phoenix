@@ -167,6 +167,41 @@ func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *test
 	require.ErrorIs(t, err, enrollmentModels.ErrOfferingChangeAlreadyPending)
 }
 
+func TestOfferingChangeRequestService_Create_UsesSelectionAtEffectiveDate(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "EffectiveSelection")
+
+	first, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{{
+			OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"},
+		}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", first.ID) })
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: first.ID, Approve: true, ReviewedBy: env.creatorID,
+	}))
+
+	// The first approved switch is already the booking at this later date.
+	// Repeating it must be rejected instead of being compared with today's old
+	// selection and creating a no-op pending request.
+	_, err = svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate.AddDays(10),
+		Selections: []enrollmentService.OfferingChangeSelection{{
+			OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"},
+		}},
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid)
+}
+
 func TestOfferingChangeRequestService_Create_RejectsEffectiveDateInsideNoticePeriod(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

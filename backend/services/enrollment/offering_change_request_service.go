@@ -371,7 +371,7 @@ func (s *offeringChangeRequestService) Catalog(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, period.RequestChildID)
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, period.RequestChildID, earliest)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
@@ -383,7 +383,7 @@ func (s *offeringChangeRequestService) Catalog(
 	}
 	activeByID := offeringsByID(active)
 	allowed := offeringsByID(active)
-	if err := s.addHeldOfferings(ctx, period.RequestChildID, allowed); err != nil {
+	if err := s.addHeldOfferingsAtDate(ctx, period.RequestChildID, earliest, allowed); err != nil {
 		return nil, err
 	}
 	catalog := &OfferingChangeCatalog{
@@ -398,7 +398,7 @@ func (s *offeringChangeRequestService) Catalog(
 		if offering == nil {
 			continue
 		}
-		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID])
+		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], earliest)
 		if itemErr != nil {
 			return nil, itemErr
 		}
@@ -415,6 +415,7 @@ func (s *offeringChangeRequestService) catalogItem(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
 	current *enrollmentModels.RequestChildOffering,
+	onDate timezone.Date,
 ) (OfferingChangeCatalogItem, error) {
 	item := OfferingChangeCatalogItem{
 		OfferingID:      offering.ID,
@@ -440,7 +441,7 @@ func (s *offeringChangeRequestService) catalogItem(
 	}
 	capacity := *offering.Capacity
 	item.Capacity = &capacity
-	taken, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
+	taken, err := s.RequestChildOfferingRepo.CountActiveByCareOfferingOnDate(ctx, offering.ID, onDate)
 	if err != nil {
 		return OfferingChangeCatalogItem{}, fmt.Errorf("offering change: count offering occupancy: %w", err)
 	}
@@ -615,11 +616,11 @@ func (s *offeringChangeRequestService) Create(
 	if input.EffectiveFrom.After(phase.ServiceEndDate) {
 		return nil, fmt.Errorf("%w: effective date is after the care period ends", ErrOfferingChangeInvalid)
 	}
-	selections, err := s.validateSelections(ctx, phase, period.RequestChildID, input.Selections)
+	selections, err := s.validateSelections(ctx, phase, period.RequestChildID, input.EffectiveFrom, input.Selections)
 	if err != nil {
 		return nil, err
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, period.RequestChildID)
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, period.RequestChildID, input.EffectiveFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
@@ -813,9 +814,6 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err != nil {
 		return err
 	}
-	if _, err := s.validateSelections(ctx, phase, row.RequestChildID, selections); err != nil {
-		return err
-	}
 	effectiveFrom := row.EffectiveFrom
 	// A request whose date has passed while it waited applies as soon as
 	// possible instead of being refused: the family asked for a change, the
@@ -826,6 +824,9 @@ func (s *offeringChangeRequestService) applyApproved(
 	}
 	if effectiveFrom.After(phase.ServiceEndDate) {
 		return fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
+	}
+	if _, err := s.validateSelections(ctx, phase, row.RequestChildID, effectiveFrom, selections); err != nil {
+		return err
 	}
 	if err := s.assertCapacityAvailable(ctx, phase, row.RequestChildID, effectiveFrom, selections); err != nil {
 		return err
@@ -867,7 +868,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	held := heldOfferingIDs(current)
-	allOfferingIDs, err := s.materializedOfferingIDs(ctx, phase, requestChildID, selections)
+	allOfferingIDs, err := s.materializedOfferingIDs(ctx, phase, requestChildID, effectiveFrom, selections)
 	if err != nil {
 		return err
 	}
@@ -909,6 +910,7 @@ func (s *offeringChangeRequestService) materializedOfferingIDs(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
 	requestChildID int64,
+	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 ) ([]int64, error) {
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
@@ -916,7 +918,7 @@ func (s *offeringChangeRequestService) materializedOfferingIDs(
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
 	}
 	allowed := offeringsByID(active)
-	if err := s.addHeldOfferings(ctx, requestChildID, allowed); err != nil {
+	if err := s.addHeldOfferingsAtDate(ctx, requestChildID, effectiveFrom, allowed); err != nil {
 		return nil, err
 	}
 	_, submit, err := normalizeOfferingSelections(selections, allowed)
@@ -979,6 +981,7 @@ func (s *offeringChangeRequestService) validateSelections(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
 	requestChildID int64,
+	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 ) ([]OfferingChangeSelection, error) {
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
@@ -989,7 +992,7 @@ func (s *offeringChangeRequestService) validateSelections(
 	// Offerings the child already holds stay selectable even when the admin
 	// deactivated them in the catalog: keeping the status quo must never be
 	// blocked by a catalog edit.
-	if err := s.addHeldOfferings(ctx, requestChildID, allowed); err != nil {
+	if err := s.addHeldOfferingsAtDate(ctx, requestChildID, effectiveFrom, allowed); err != nil {
 		return nil, err
 	}
 	normalized, submit, err := normalizeOfferingSelections(selections, allowed)
@@ -1036,15 +1039,16 @@ func offeringsByID(offerings []*enrollmentModels.CareOffering) map[int64]*enroll
 	return byID
 }
 
-func (s *offeringChangeRequestService) addHeldOfferings(
+func (s *offeringChangeRequestService) addHeldOfferingsAtDate(
 	ctx context.Context,
 	requestChildID int64,
+	onDate timezone.Date,
 	allowed map[int64]*enrollmentModels.CareOffering,
 ) error {
 	if requestChildID <= 0 {
 		return nil
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, onDate)
 	if err != nil {
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
@@ -1123,7 +1127,7 @@ func (s *offeringChangeRequestService) diffForRequest(
 	if err != nil {
 		return nil, err
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, row.RequestChildID)
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, row.RequestChildID, row.EffectiveFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}

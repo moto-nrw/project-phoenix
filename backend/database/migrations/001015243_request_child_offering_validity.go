@@ -58,12 +58,34 @@ func requestChildOfferingValidityUp(ctx context.Context, db *bun.DB) error {
 func requestChildOfferingValidityDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.243: Removing validity intervals from request child offerings...")
 	if _, err := db.NewRaw(`
+		-- A pre-1.15.243 schema has one row per child/offering pair. Keep the
+		-- interval active today; when none is active, keep the latest scheduled
+		-- interval. This makes the historical interval model safely reducible to
+		-- the legacy current-selection model before restoring its UNIQUE key.
+		WITH ranked AS (
+			SELECT id, ROW_NUMBER() OVER (
+				PARTITION BY request_child_id, care_offering_id
+				ORDER BY
+					CASE WHEN (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+						AND (valid_until IS NULL OR valid_until > CURRENT_DATE)
+						THEN 0 ELSE 1 END,
+					valid_from DESC NULLS LAST,
+					id DESC
+			) AS row_number
+			FROM enrollment.request_child_offerings
+		)
+		DELETE FROM enrollment.request_child_offerings AS offering
+		USING ranked
+		WHERE offering.id = ranked.id
+			AND ranked.row_number > 1;
+
+		DROP INDEX IF EXISTS enrollment.idx_request_child_offerings_active_validity;
+
 		ALTER TABLE enrollment.request_child_offerings
 			DROP CONSTRAINT IF EXISTS request_child_offerings_non_overlapping_validity,
 			DROP COLUMN IF EXISTS valid_until,
 			DROP COLUMN IF EXISTS valid_from,
 			ADD CONSTRAINT uq_request_child_offerings_pair UNIQUE (request_child_id, care_offering_id);
-		DROP INDEX IF EXISTS enrollment.idx_request_child_offerings_active_validity;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed removing request child offering validity: %w", err)
 	}
