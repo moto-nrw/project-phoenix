@@ -1,3 +1,5 @@
+import { matchesPathPrefix } from "~/lib/section-navigation";
+
 export type PlanningPageHref =
   | "/betreuungsplan"
   | "/dienstplan"
@@ -70,22 +72,24 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
   },
 ];
 
-function matchesPathPrefix(pathname: string, prefix: string): boolean {
-  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+export function getActivePlanningSubPage(
+  pathname: string,
+): PlanningSubPage | null {
+  for (const page of PLANNING_SUB_PAGES) {
+    if (matchesPathPrefix(pathname, page.href)) return page;
+    if (
+      page.legacyPrefixes.some((prefix) => matchesPathPrefix(pathname, prefix))
+    ) {
+      return page;
+    }
+  }
+  return null;
 }
 
 export function getActivePlanningSubPageHref(
   pathname: string,
 ): PlanningPageHref | null {
-  for (const page of PLANNING_SUB_PAGES) {
-    if (matchesPathPrefix(pathname, page.href)) return page.href;
-    if (
-      page.legacyPrefixes.some((prefix) => matchesPathPrefix(pathname, prefix))
-    ) {
-      return page.href;
-    }
-  }
-  return null;
+  return getActivePlanningSubPage(pathname)?.href ?? null;
 }
 
 export function isPlanningPath(pathname: string): boolean {

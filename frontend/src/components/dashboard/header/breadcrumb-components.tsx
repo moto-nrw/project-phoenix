@@ -6,6 +6,15 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import {
+  ENROLLMENT_SECTION,
+  ENROLLMENT_SUB_PAGES,
+} from "~/lib/section-navigation";
+
+// Die Hub-Seite der Anmeldungen ("Überblick") — erster Katalogeintrag, nicht
+// der Sektionsname. Beide stehen in der Breadcrumb übereinander.
+const ENROLLMENT_HUB_PAGE = ENROLLMENT_SUB_PAGES[0]!;
+
 /**
  * Chevron separator icon for breadcrumbs
  */
@@ -213,11 +222,15 @@ export function EnrollmentBreadcrumb({
 
   return (
     <BreadcrumbNav isScrolled={isScrolled}>
-      <BreadcrumbLink href="/admin/enrollments">Anmeldungen</BreadcrumbLink>
+      <BreadcrumbLink href={ENROLLMENT_SECTION.href}>
+        {ENROLLMENT_SECTION.label}
+      </BreadcrumbLink>
       <BreadcrumbSeparator />
       {nestedCurrent ? (
         <>
-          <BreadcrumbLink href="/admin/enrollments">Überblick</BreadcrumbLink>
+          <BreadcrumbLink href={ENROLLMENT_HUB_PAGE.href}>
+            {ENROLLMENT_HUB_PAGE.label}
+          </BreadcrumbLink>
           <BreadcrumbSeparator />
           <BreadcrumbCurrent>{nestedCurrent}</BreadcrumbCurrent>
         </>

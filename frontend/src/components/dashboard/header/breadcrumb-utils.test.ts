@@ -558,6 +558,13 @@ describe("breadcrumb-utils", () => {
       });
     });
 
+    describe("staff pages", () => {
+      it("does not treat Dienstplan as a staff detail page", () => {
+        const info = getPageTypeInfo("/staff/dienstplan");
+        expect(info.isStaffDetailPage).toBe(false);
+      });
+    });
+
     describe("edge cases", () => {
       it("should handle empty pathname", () => {
         const result = getPageTypeInfo("");
@@ -576,8 +583,4 @@ describe("breadcrumb-utils", () => {
       });
     });
   });
-});
-it("does not treat Dienstplan as a staff detail page", () => {
-  const info = getPageTypeInfo("/staff/dienstplan");
-  expect(info.isStaffDetailPage).toBe(false);
 });

@@ -11,6 +11,7 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { useTenantSafe } from "~/lib/tenant-context";
+import { matchesPathPrefix } from "~/lib/section-navigation";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -36,10 +37,6 @@ import {
   getPageTypeInfo,
   getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
-
-function isPathSegment(path: string, basePath: string): boolean {
-  return path === basePath || path.startsWith(`${basePath}/`);
-}
 
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
@@ -79,9 +76,9 @@ export function Header() {
     if (pathname === "/parents/children") return tParentNav("children");
     if (pathname.startsWith("/parents/children/"))
       return tParentNav("childProfile");
-    if (isPathSegment(pathname, "/parents/messages"))
+    if (matchesPathPrefix(pathname, "/parents/messages"))
       return tParentNav("messages");
-    if (isPathSegment(pathname, "/messages")) return tParentNav("messages");
+    if (matchesPathPrefix(pathname, "/messages")) return tParentNav("messages");
     if (pathname === "/parents/news" || pathname === "/news")
       return tParentNav("news");
     if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
@@ -343,16 +340,16 @@ function HeaderBreadcrumb({
     );
   }
 
-  // Enrich referrer with sub-item param so the sidebar highlights the correct
-  // group/room when navigating back (e.g. /ogs-groups?group=5 instead of /ogs-groups).
-  const enrichedReferrer = enrichReferrerWithParam(referrer);
+  // enrichReferrerWithParam liest localStorage; der Aufruf steht deshalb in
+  // den beiden Zweigen, die das Ergebnis auch verwenden, statt auf jedem
+  // Render-Pfad zu laufen.
 
   // Student history sub-page (3 or 4 levels depending on context)
   if (pageTypeInfo.isStudentHistoryPage) {
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentHistoryBreadcrumb
-        referrer={enrichedReferrer}
+        referrer={enrichReferrerWithParam(referrer)}
         breadcrumbLabel={breadcrumbLabel}
         pathname={pathname}
         studentName={studentName ?? "…"}
@@ -380,7 +377,7 @@ function HeaderBreadcrumb({
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb
-        referrer={enrichedReferrer}
+        referrer={enrichReferrerWithParam(referrer)}
         breadcrumbLabel={breadcrumbLabel}
         studentName={studentName ?? "…"}
         isScrolled={isScrolled}

@@ -1,17 +1,24 @@
 /**
  * Shared catalogs for the grouped navigation sections (Datenverwaltung,
- * Eltern) plus the matching helpers.
+ * Eltern, Anmeldungen) plus the matching helpers.
  *
- * Vorher standen diese Listen in sidebar.tsx, und die Eltern-Pfade zusätzlich
- * nochmal in use-sidebar-accordion.ts — drei Kopien, die von Hand synchron
- * gehalten werden mussten. Die Breadcrumbs brauchen dieselben Labels, würden
- * also eine vierte Kopie anlegen. Deshalb liegt der Katalog hier: die
- * Seitenleiste, das Akkordeon-Auto-Aufklappen und die Breadcrumbs lesen alle
- * aus derselben Quelle, damit Seitenleisten-Eintrag und Breadcrumb nie
- * auseinanderlaufen.
+ * Vorher standen diese Listen in sidebar.tsx, und die Eltern- bzw.
+ * Anmeldungs-Pfade zusätzlich nochmal in use-sidebar-accordion.ts — Kopien,
+ * die von Hand synchron gehalten werden mussten. Die Breadcrumbs brauchen
+ * dieselben Labels und hätten weitere Kopien angelegt. Deshalb liegt der
+ * Katalog hier: die Seitenleiste, das Akkordeon-Auto-Aufklappen und die
+ * Breadcrumbs lesen alle aus derselben Quelle, damit Seitenleisten-Eintrag
+ * und Breadcrumb nie auseinanderlaufen.
  *
  * Die Planungsseiten haben ihren eigenen Katalog in planning-navigation.ts
- * (sie tragen zusätzlich Legacy-Redirect-Präfixe).
+ * (sie tragen zusätzlich Legacy-Redirect-Präfixe), benutzen aber denselben
+ * `matchesPathPrefix` von hier.
+ *
+ * NEUEN BEREICH ANLEGEN: Katalog (`*_SECTION` + `*_SUB_PAGES`) hier
+ * ergänzen, `getActive*SubPage` daraus ableiten, und in
+ * `breadcrumb-utils.getSectionBreadcrumb` eine Zeile hinzufügen. Der Test
+ * `navigation-sync.test.ts` prüft danach automatisch, dass jeder Eintrag
+ * einen Breadcrumb und einen Seitentitel bekommt.
  */
 
 export interface SectionSubPage {
@@ -25,14 +32,24 @@ export interface SectionRoot {
   readonly href?: string;
 }
 
-export const DATABASE_SECTION: SectionRoot = {
+/** Sektion mit Hub-Seite — `href` ist garantiert gesetzt. */
+export interface HubSectionRoot extends SectionRoot {
+  readonly href: string;
+}
+
+export const DATABASE_SECTION: HubSectionRoot = {
   label: "Datenverwaltung",
   href: "/database",
 };
 
-export const PARENT_SECTION: SectionRoot = {
+export const PARENT_SECTION: HubSectionRoot = {
   label: "Eltern",
   href: "/eltern",
+};
+
+export const ENROLLMENT_SECTION: HubSectionRoot = {
+  label: "Anmeldungen",
+  href: "/admin/enrollments",
 };
 
 /**
@@ -63,7 +80,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * Die Regel selbst braucht Session und Settings und bleibt deshalb in
  * sidebar.tsx; hier steht nur, welche Regel gilt.
  */
-export type ParentSubPageFeature =
+type ParentSubPageFeature =
   | "overview"
   | "messages"
   | "approvals"
@@ -99,8 +116,28 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
   { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
 ];
 
-export function matchesSubPagePath(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
+/** Unterseiten des Anmeldungen-Akkordeons, in Anzeigereihenfolge. */
+export const ENROLLMENT_SUB_PAGES: readonly SectionSubPage[] = [
+  { href: "/admin/enrollments", label: "Überblick" },
+  { href: "/admin/enrollments/change-requests", label: "Änderungsanfragen" },
+  { href: "/enrollment-phases", label: "Anmeldephasen" },
+  { href: "/care-offerings", label: "Betreuungsangebote" },
+  { href: "/enrollment-form", label: "Anmeldeformulare" },
+];
+
+/**
+ * Gehört `pathname` zu `prefix` — als exakter Treffer oder als Unterseite?
+ * Die gemeinsame Pfadregel aller Navigationskataloge; ein blankes
+ * `startsWith` würde z. B. /enrollment-phases-alt fälschlich mitzählen.
+ */
+export function matchesPathPrefix(pathname: string, prefix: string): boolean {
+  // Das Zeichen hinter dem Präfix einzeln zu prüfen ist gleichbedeutend mit
+  // startsWith(`${prefix}/`), legt dabei aber keinen String an — diese
+  // Funktion ist die innere Schleife jeder Katalogsuche.
+  return (
+    pathname === prefix ||
+    (pathname.startsWith(prefix) && pathname[prefix.length] === "/")
+  );
 }
 
 /** Längster passender Präfix gewinnt, damit z. B. /admin/change-requests nicht am kürzeren Eintrag hängenbleibt. */
@@ -108,11 +145,12 @@ function findActiveSubPage<T extends SectionSubPage>(
   pages: readonly T[],
   pathname: string,
 ): T | null {
-  return (
-    pages
-      .filter((page) => matchesSubPagePath(pathname, page.href))
-      .sort((a, b) => b.href.length - a.href.length)[0] ?? null
-  );
+  let best: T | null = null;
+  for (const page of pages) {
+    if (!matchesPathPrefix(pathname, page.href)) continue;
+    if (!best || page.href.length > best.href.length) best = page;
+  }
+  return best;
 }
 
 export function getActiveDatabaseSubPage(
@@ -129,7 +167,24 @@ export function getActiveParentSubPageHref(pathname: string): string | null {
   return getActiveParentSubPage(pathname)?.href ?? null;
 }
 
+export function getActiveEnrollmentSubPage(
+  pathname: string,
+): SectionSubPage | null {
+  return findActiveSubPage(ENROLLMENT_SUB_PAGES, pathname);
+}
+
+export function getActiveEnrollmentSubPageHref(
+  pathname: string,
+): string | null {
+  return getActiveEnrollmentSubPage(pathname)?.href ?? null;
+}
+
 /** Gehört der Pfad in den Eltern-Bereich (Hub oder eine Unterseite)? */
 export function isElternPath(pathname: string): boolean {
   return getActiveParentSubPage(pathname) !== null;
+}
+
+/** Gehört der Pfad in den Anmeldungen-Bereich (Hub oder eine Unterseite)? */
+export function isEnrollmentPath(pathname: string): boolean {
+  return getActiveEnrollmentSubPage(pathname) !== null;
 }

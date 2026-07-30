@@ -1,16 +1,17 @@
 // Breadcrumb utilities for header navigation
 // Extracted to reduce cognitive complexity in header.tsx
 
-import {
-  getActivePlanningSubPageHref,
-  PLANNING_SUB_PAGES,
-} from "~/lib/planning-navigation";
+import { getActivePlanningSubPage } from "~/lib/planning-navigation";
 import {
   DATABASE_SECTION,
+  ENROLLMENT_SECTION,
   getActiveDatabaseSubPage,
+  getActiveEnrollmentSubPage,
   getActiveParentSubPage,
   PARENT_SECTION,
   PLANNING_SECTION,
+  type SectionRoot,
+  type SectionSubPage,
 } from "~/lib/section-navigation";
 
 const exactPageTitles: Record<string, string> = {
@@ -30,6 +31,63 @@ const detailRouteTitles: Array<{
 ];
 
 /**
+ * Titel der flachen Hauptrouten — also aller Seiten, die zu KEINEM
+ * Navigationskatalog gehören. Alles, was in einem Katalog steht
+ * (section-navigation.ts, planning-navigation.ts), holt seinen Titel von dort
+ * und darf hier NICHT nochmal auftauchen: eine zweite Kopie läuft irgendwann
+ * auseinander. Fehlt ein Eintrag, zeigt die Breadcrumb stillschweigend
+ * "Home" — `navigation-sync.test.ts` fängt genau das für die Katalogseiten ab.
+ */
+const mainRoutes: Record<string, string> = {
+  "/dashboard": "Home",
+  "/": "Home",
+  "/parents": "Start",
+  "/ogs-groups": "Meine Gruppe",
+  "/active-supervisions": "Aktuelle Aufsicht",
+  "/staff": "Mitarbeiter",
+  "/rooms": "Räume",
+  "/activities": "Aktivitäten",
+  "/reminders": "Erinnerungen",
+  "/substitutions": "Gruppenzugriff",
+  "/calendar": "Mein Kalender",
+  "/day-log": "Tagesauswertung",
+  "/info-displays": "Info-Displays",
+  // Die Planungsseiten selbst kommen aus PLANNING_SUB_PAGES
+  // (getSectionBreadcrumb); /planung ist nur der Redirect-Frame und behält
+  // einen Eintrag, damit während des Client-Redirects kein falscher Titel
+  // aufblitzt.
+  "/planung": PLANNING_SECTION.label,
+  // Die Sektions-Hubs; ihre Unterseiten kommen aus den Katalogen.
+  [DATABASE_SECTION.href]: DATABASE_SECTION.label,
+  [PARENT_SECTION.href]: PARENT_SECTION.label,
+  "/emergency": "Notfall",
+  "/settings": "Einstellungen",
+  "/profile": "Profil",
+  "/time-tracking": "Zeiterfassung",
+  "/suggestions": "Feedback",
+  "/operator/suggestions": "Vorschläge",
+  "/operator/announcements": "Ankündigungen",
+  "/operator/organizations": "Träger",
+  "/operator/schools": "Schulen",
+  "/operator/accounts": "Konten",
+  "/operator/devices": "Geräte",
+  "/operator/persons": "Personen",
+  "/operator/unregistered-tags": "Unbekannte RFID",
+  "/operator/operators": "Operatoren",
+  "/parents/messages": "Nachrichten",
+  "/parents/news": "Neuigkeiten",
+  "/parents/meal-plan": "Essensplan",
+};
+
+const subPageLabels: Record<string, string> = {
+  import: "Importieren",
+  create: "Erstellen",
+  edit: "Bearbeiten",
+  details: "Details",
+  permissions: "Berechtigungen",
+};
+
+/**
  * Zweistufige Breadcrumb einer gruppierten Navigationssektion
  * (Datenverwaltung, Planung, Eltern) — plus optional eine dritte Stufe für
  * Unterseiten wie /database/students/import.
@@ -45,6 +103,26 @@ export interface SectionBreadcrumbInfo {
 }
 
 /**
+ * Alle Bereiche, die eine zweistufige Breadcrumb bekommen, in Prüfreihenfolge.
+ * Eine neue Sektion braucht genau eine Zeile hier plus ihren Katalog in
+ * section-navigation.ts — keine eigene if-Kaskade mehr.
+ */
+const BREADCRUMB_SECTIONS: readonly {
+  readonly root: SectionRoot;
+  readonly getActivePage: (pathname: string) => SectionSubPage | null;
+  /** Dritte Stufe für Unterseiten wie /database/students/import. */
+  readonly hasDeepPages?: boolean;
+}[] = [
+  {
+    root: DATABASE_SECTION,
+    getActivePage: getActiveDatabaseSubPage,
+    hasDeepPages: true,
+  },
+  { root: PLANNING_SECTION, getActivePage: getActivePlanningSubPage },
+  { root: PARENT_SECTION, getActivePage: getActiveParentSubPage },
+];
+
+/**
  * Ordnet einen Pfad seiner Navigationssektion zu. Labels kommen aus denselben
  * Katalogen, aus denen die Seitenleiste rendert, damit Seitenleisten-Eintrag
  * und Breadcrumb nicht auseinanderlaufen können.
@@ -55,38 +133,17 @@ export interface SectionBreadcrumbInfo {
 export function getSectionBreadcrumb(
   pathname: string,
 ): SectionBreadcrumbInfo | null {
-  const databasePage = getActiveDatabaseSubPage(pathname);
-  if (databasePage) {
-    const isDeepPage = pathname !== databasePage.href;
+  for (const { root, getActivePage, hasDeepPages } of BREADCRUMB_SECTIONS) {
+    const page = getActivePage(pathname);
+    if (!page || page.href === root.href) continue;
+
+    const isDeepPage = Boolean(hasDeepPages) && pathname !== page.href;
     return {
-      sectionLabel: DATABASE_SECTION.label,
-      sectionHref: DATABASE_SECTION.href,
-      pageLabel: databasePage.label,
-      pageHref: isDeepPage ? databasePage.href : undefined,
+      sectionLabel: root.label,
+      sectionHref: root.href,
+      pageLabel: page.label,
+      pageHref: isDeepPage ? page.href : undefined,
       deepLabel: isDeepPage ? getSubPageLabel(pathname) : undefined,
-    };
-  }
-
-  const planningHref = getActivePlanningSubPageHref(pathname);
-  if (planningHref) {
-    const page = PLANNING_SUB_PAGES.find(
-      (entry) => entry.href === planningHref,
-    );
-    if (page) {
-      return {
-        sectionLabel: PLANNING_SECTION.label,
-        sectionHref: PLANNING_SECTION.href,
-        pageLabel: page.label,
-      };
-    }
-  }
-
-  const parentPage = getActiveParentSubPage(pathname);
-  if (parentPage && parentPage.href !== PARENT_SECTION.href) {
-    return {
-      sectionLabel: PARENT_SECTION.label,
-      sectionHref: PARENT_SECTION.href,
-      pageLabel: parentPage.label,
     };
   }
 
@@ -115,7 +172,8 @@ export function getPageTitle(pathname: string): string {
   const detailTitle = getDetailRouteTitle(pathname);
   if (detailTitle) return detailTitle;
 
-  if (isEnrollmentPath(pathname)) return getEnrollmentPageTitle(pathname);
+  const enrollmentPage = getActiveEnrollmentSubPage(pathname);
+  if (enrollmentPage) return getEnrollmentPageTitle(pathname, enrollmentPage);
 
   if (pathname.startsWith("/parents/children")) {
     return pathname === "/parents/children" ? "Meine Kinder" : "Kinderprofil";
@@ -126,10 +184,7 @@ export function getPageTitle(pathname: string): string {
 }
 
 function getStudentPageTitle(pathname: string): string {
-  if (pathname.includes("/feedback-history")) return "Feedback Historie";
-  if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
-  if (pathname.includes("/change-history")) return "Änderungsverlauf";
-  return "Kinder Details";
+  return getHistoryType(pathname) || "Kinder Details";
 }
 
 function getDetailRouteTitle(pathname: string): string | null {
@@ -141,52 +196,6 @@ function getDetailRouteTitle(pathname: string): string | null {
 }
 
 function getMainRouteTitle(pathname: string): string {
-  const mainRoutes: Record<string, string> = {
-    "/dashboard": "Home",
-    "/": "Home",
-    "/parents": "Start",
-    "/ogs-groups": "Meine Gruppe",
-    "/active-supervisions": "Aktuelle Aufsicht",
-    "/staff": "Mitarbeiter",
-    "/rooms": "Räume",
-    "/activities": "Aktivitäten",
-    "/reminders": "Erinnerungen",
-    "/substitutions": "Gruppenzugriff",
-    "/calendar": "Mein Kalender",
-    "/day-log": "Tagesauswertung",
-    "/info-displays": "Info-Displays",
-    // Die Planungsseiten selbst kommen aus PLANNING_SUB_PAGES
-    // (getSectionBreadcrumb); /planung ist nur der Redirect-Frame und behält
-    // einen Eintrag, damit während des Client-Redirects kein falscher Titel
-    // aufblitzt.
-    "/planung": "Planung",
-    // Die beiden Sektions-Hubs; ihre Unterseiten kommen aus den Katalogen.
-    "/database": "Datenverwaltung",
-    "/eltern": "Eltern",
-    "/emergency": "Notfall",
-    "/settings": "Einstellungen",
-    "/profile": "Profil",
-    "/admin/enrollments": "Überblick",
-    "/admin/enrollments/change-requests": "Änderungsanfragen",
-    "/enrollment-phases": "Anmeldephasen",
-    "/care-offerings": "Betreuungsangebote",
-    "/enrollment-form": "Anmeldeformulare",
-    "/time-tracking": "Zeiterfassung",
-    "/suggestions": "Feedback",
-    "/operator/suggestions": "Vorschläge",
-    "/operator/announcements": "Ankündigungen",
-    "/operator/organizations": "Träger",
-    "/operator/schools": "Schulen",
-    "/operator/accounts": "Konten",
-    "/operator/devices": "Geräte",
-    "/operator/persons": "Personen",
-    "/operator/unregistered-tags": "Unbekannte RFID",
-    "/operator/operators": "Operatoren",
-    "/parents/messages": "Nachrichten",
-    "/parents/news": "Neuigkeiten",
-    "/parents/meal-plan": "Essensplan",
-  };
-
   return mainRoutes[pathname] ?? "Home";
 }
 
@@ -196,14 +205,6 @@ function getMainRouteTitle(pathname: string): string {
 export function getSubPageLabel(pathname: string): string {
   const segments = pathname.split("/").filter(Boolean);
   const lastSegment = segments.at(-1);
-
-  const subPageLabels: Record<string, string> = {
-    import: "Importieren",
-    create: "Erstellen",
-    edit: "Bearbeiten",
-    details: "Details",
-    permissions: "Berechtigungen",
-  };
 
   if (!lastSegment) return "Unbekannt";
   return (
@@ -268,7 +269,7 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     pathname !== "/staff" &&
     pathname !== "/staff/dienstplan";
 
-  const isEnrollmentPage = isEnrollmentPath(pathname);
+  const isEnrollmentPage = getActiveEnrollmentSubPage(pathname) !== null;
 
   return {
     isStudentDetailPage,
@@ -278,28 +279,18 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
   };
 }
 
-function isEnrollmentPath(pathname: string): boolean {
-  return (
-    pathname.startsWith("/admin/enrollments") ||
-    pathname.startsWith("/enrollment-phases") ||
-    pathname.startsWith("/care-offerings") ||
-    pathname.startsWith("/enrollment-form")
-  );
-}
-
-function getEnrollmentPageTitle(pathname: string): string {
-  if (pathname.startsWith("/admin/enrollments/change-requests")) {
-    return "Änderungsanfragen";
-  }
-  if (pathname.startsWith("/admin/enrollments/phases/")) {
-    return "Anmeldephase";
-  }
-  if (pathname.startsWith("/admin/enrollments/")) {
+/**
+ * Die Anmeldungen-Seiten tragen die Labels ihres Katalogeintrags. Nur die
+ * beiden Detailrouten unterhalb des Hubs haben keinen eigenen Eintrag und
+ * brauchen deshalb eine Sonderregel.
+ */
+function getEnrollmentPageTitle(
+  pathname: string,
+  page: SectionSubPage,
+): string {
+  if (pathname.startsWith("/admin/enrollments/phases/")) return "Anmeldephase";
+  if (page.href === ENROLLMENT_SECTION.href && pathname !== page.href) {
     return "Anmeldung";
   }
-  if (pathname.startsWith("/admin/enrollments")) return "Überblick";
-  if (pathname.startsWith("/enrollment-phases")) return "Anmeldephasen";
-  if (pathname.startsWith("/care-offerings")) return "Betreuungsangebote";
-  if (pathname.startsWith("/enrollment-form")) return "Anmeldeformulare";
-  return "Anmeldungen";
+  return page.label;
 }

@@ -44,9 +44,15 @@ import {
   PLANNING_SUB_PAGES,
 } from "~/lib/planning-navigation";
 import {
+  DATABASE_SECTION,
   DATABASE_SUB_PAGES,
+  ENROLLMENT_SECTION,
+  ENROLLMENT_SUB_PAGES,
+  getActiveEnrollmentSubPageHref,
   getActiveParentSubPageHref,
+  PARENT_SECTION,
   PARENT_SUB_PAGES,
+  PLANNING_SECTION,
 } from "~/lib/section-navigation";
 
 // Type für Navigation Items
@@ -296,26 +302,11 @@ const NFC_ONLY_HREFS = new Set<string>([
   "/database/devices",
 ]);
 
-// Static sub-pages for Anmeldungen accordion (admin only).
-const ENROLLMENTS_SUB_PAGES = [
-  { href: "/admin/enrollments", label: "Überblick" },
-  { href: "/admin/enrollments/change-requests", label: "Änderungsanfragen" },
-  { href: "/enrollment-phases", label: "Anmeldephasen" },
-  { href: "/care-offerings", label: "Betreuungsangebote" },
-  { href: "/enrollment-form", label: "Anmeldeformulare" },
-];
-
-function matchesEnrollmentSubPage(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function getActiveEnrollmentSubPageHref(pathname: string): string | null {
-  return (
-    ENROLLMENTS_SUB_PAGES.filter((page) =>
-      matchesEnrollmentSubPage(pathname, page.href),
-    ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
-  );
-}
+// Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
+// concepts with no operational meaning when the tenant only tracks
+// in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
+// accordion is gated separately below (it's not in NAV_ITEMS).
+const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
 // `tKey` is the parentNav catalog key; the German `label` is the fallback used
 // only when the preview list is rendered outside an intl context. Mapping on a
@@ -548,12 +539,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const parentSectionBadgeCount =
     messagesUnreadCount +
     (parentShowsChangeRequests ? changeRequestsPendingCount : 0);
-
-  // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
-  // concepts with no operational meaning when the tenant only tracks
-  // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
-  // accordion is gated separately below (it's not in NAV_ITEMS).
-  const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
@@ -1322,7 +1307,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               overview hub. Shown to all staff; sub-items are gated per item. */}
           <SidebarAccordionSection
             icon={navigationIcons.parents}
-            label="Eltern"
+            label={PARENT_SECTION.label}
             activeColor="text-[#5080D8]"
             isExpanded={expanded === "eltern"}
             onToggle={handleParentToggle}
@@ -1360,7 +1345,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {userIsAdmin && (
             <SidebarAccordionSection
               icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-              label="Datenverwaltung"
+              label={DATABASE_SECTION.label}
               activeColor="text-gray-500"
               isExpanded={expanded === "database"}
               onToggle={handleDatabaseToggle}
@@ -1393,7 +1378,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {userIsAdmin && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
-              label="Planung"
+              label={PLANNING_SECTION.label}
               activeColor="text-[#5080D8]"
               isExpanded={expanded === "planning"}
               onToggle={handlePlanningToggle}
@@ -1420,15 +1405,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {userIsAdmin && (
             <SidebarAccordionSection
               icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              label="Anmeldungen"
+              label={ENROLLMENT_SECTION.label}
               activeColor="text-[#83CD2D]"
               isExpanded={expanded === "enrollments"}
               onToggle={handleEnrollmentsToggle}
               isActive={isOnEnrollmentsPage}
               isIconActive={isOnEnrollmentsPage}
-              hasChildren={ENROLLMENTS_SUB_PAGES.length > 0}
+              hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
             >
-              {ENROLLMENTS_SUB_PAGES.map((page) => (
+              {ENROLLMENT_SUB_PAGES.map((page) => (
                 <SidebarSubItem
                   key={page.href}
                   href={page.href}

@@ -37,6 +37,13 @@ import {
 } from "~/lib/planning-navigation";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
+  DATABASE_SECTION,
+  ENROLLMENT_SECTION,
+  ENROLLMENT_SUB_PAGES,
+  PARENT_SECTION,
+  PARENT_SUB_PAGES,
+} from "~/lib/section-navigation";
+import {
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -325,22 +332,17 @@ const additionalNavItems: AdditionalNavItem[] = [
   // desktop-only calendar-period editor and supplies all legacy active paths.
   ...PLANNING_ADDITIONAL_ITEMS,
   {
-    href: "/database",
-    label: "Datenverwaltung",
+    href: DATABASE_SECTION.href,
+    label: DATABASE_SECTION.label,
     iconKey: "database",
     requiresAdmin: true,
   },
   {
-    href: "/admin/enrollments",
-    label: "Anmeldungen",
+    href: ENROLLMENT_SECTION.href,
+    label: ENROLLMENT_SECTION.label,
     iconKey: "enrollments",
     requiresAdmin: true,
-    activePaths: [
-      "/admin/enrollments",
-      "/enrollment-phases",
-      "/care-offerings",
-      "/enrollment-form",
-    ],
+    activePaths: ENROLLMENT_SUB_PAGES.map((page) => page.href),
   },
   {
     href: "/time-tracking",
@@ -379,18 +381,11 @@ const additionalNavItems: AdditionalNavItem[] = [
   // Datenverwaltung / Anmeldungen). Shown to all staff; the overview itself
   // renders only the cards the caller may access.
   {
-    href: "/eltern",
-    label: "Eltern",
+    href: PARENT_SECTION.href,
+    label: PARENT_SECTION.label,
     iconKey: "parents",
     alwaysShow: true,
-    activePaths: [
-      "/eltern",
-      "/messages",
-      "/admin/guardian-approvals",
-      "/admin/change-requests",
-      "/parent-announcements",
-      "/meal-plan",
-    ],
+    activePaths: PARENT_SUB_PAGES.map((page) => page.href),
   },
   // Reminders live in the header bell (always visible on desktop + mobile),
   // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
