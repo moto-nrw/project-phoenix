@@ -4292,11 +4292,12 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 			// Should be impossible (validateOfferingSelections ran first).
 			return nil, fmt.Errorf("submit: offering %d not in open catalog", offeringID)
 		}
-		capacityDate := timezone.TodayDate()
-		if phase.ServiceStartDate.After(capacityDate) {
-			capacityDate = phase.ServiceStartDate
+		capacityFrom := timezone.TodayDate()
+		if phase.ServiceStartDate.After(capacityFrom) {
+			capacityFrom = phase.ServiceStartDate
 		}
-		count, err := s.RequestChildOfferingRepo.CountActiveByCareOfferingOnDate(ctx, offeringID, capacityDate)
+		capacityUntil := phase.ServiceEndDate.AddDays(1)
+		count, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRange(ctx, offeringID, capacityFrom, capacityUntil)
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}

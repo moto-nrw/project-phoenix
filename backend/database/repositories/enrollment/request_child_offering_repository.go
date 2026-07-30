@@ -229,6 +229,53 @@ func (r *RequestChildOfferingRepository) CountActiveByCareOfferingOnDate(ctx con
 	return count, nil
 }
 
+// CountMaxActiveByCareOfferingInRange returns the maximum number of children
+// holding a slot at the same time within [from, until). Looking only at the
+// first day misses a later approved offering change; summing intervals would
+// instead double-count children whose non-overlapping intervals share a slot.
+func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingInRange(
+	ctx context.Context,
+	careOfferingID int64,
+	from, until timezone.Date,
+) (int, error) {
+	if !from.Before(until) {
+		return 0, fmt.Errorf("capacity range must not be empty")
+	}
+	var count int
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH intervals AS (
+			SELECT
+				"request_child_offering".request_child_id,
+				GREATEST(COALESCE("request_child_offering".valid_from, ?), ?) AS starts_at,
+				LEAST(COALESCE("request_child_offering".valid_until, ?), ?) AS ends_at
+			FROM enrollment.request_child_offerings AS "request_child_offering"
+			INNER JOIN enrollment.request_children AS "child"
+				ON "child".id = "request_child_offering".request_child_id
+			WHERE "request_child_offering".care_offering_id = ?
+				AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
+				AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
+				AND "child".status NOT IN (?)
+		), boundaries AS (
+			SELECT starts_at AS boundary FROM intervals
+			UNION
+			SELECT ends_at AS boundary FROM intervals
+		)
+		SELECT COALESCE(MAX((
+			SELECT COUNT(DISTINCT interval_row.request_child_id)
+			FROM intervals AS interval_row
+			WHERE interval_row.starts_at <= boundaries.boundary
+				AND interval_row.ends_at > boundaries.boundary
+		)), 0)
+		FROM boundaries
+	`, from, from, until, until, careOfferingID, until, from,
+		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
+	).Scan(ctx, &count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count peak active children for care offering %d: %w", careOfferingID, err)
+	}
+	return count, nil
+}
+
 // CountMaterializableByCareOffering counts non-terminal selections that are
 // active today or scheduled for the future. Completed intervals no longer need
 // an offering template and must not block catalog maintenance.

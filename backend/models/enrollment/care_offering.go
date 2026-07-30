@@ -431,6 +431,11 @@ type RequestChildOfferingRepository interface {
 	// time.
 	CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
 	CountActiveByCareOfferingOnDate(ctx context.Context, careOfferingID int64, onDate timezone.Date) (int, error)
+	// CountMaxActiveByCareOfferingInRange returns the highest simultaneous
+	// number of non-terminal bookings whose validity intervals overlap the
+	// half-open [from, until) range. Capacity checks use it to reserve slots
+	// for approved future offering changes.
+	CountMaxActiveByCareOfferingInRange(ctx context.Context, careOfferingID int64, from, until timezone.Date) (int, error)
 	// CountMaterializableByCareOffering includes every non-terminal selection,
 	// including a replacement scheduled for a future date. It protects later
 	// materialization from incompatible offering/template edits.
