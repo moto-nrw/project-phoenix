@@ -443,6 +443,9 @@ func (s *offeringChangeRequestService) CatalogAt(
 	if err != nil {
 		return nil, err
 	}
+	if earliest.Before(phase.ServiceStartDate) {
+		earliest = phase.ServiceStartDate
+	}
 	return s.catalogAt(ctx, period, phase, earliest, effectiveFrom)
 }
 
@@ -919,7 +922,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err != nil {
 		return err
 	}
-	effectiveFrom := appliedOfferingChangeDate(row.EffectiveFrom)
+	effectiveFrom := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
 	// A request whose date has passed while it waited applies as soon as
 	// possible instead of being refused: the family asked for a change, the
 	// office agreed, and a date in the past would be rejected by the adjustment
@@ -957,6 +960,14 @@ func (s *offeringChangeRequestService) applyApproved(
 func appliedOfferingChangeDate(effectiveFrom timezone.Date) timezone.Date {
 	if today := timezone.TodayDate(); effectiveFrom.Before(today) {
 		return today
+	}
+	return effectiveFrom
+}
+
+func appliedOfferingChangeDateForPhase(effectiveFrom timezone.Date, phase *enrollmentModels.Phase) timezone.Date {
+	effectiveFrom = appliedOfferingChangeDate(effectiveFrom)
+	if phase != nil && effectiveFrom.Before(phase.ServiceStartDate) {
+		return phase.ServiceStartDate
 	}
 	return effectiveFrom
 }
@@ -1274,7 +1285,6 @@ func (s *offeringChangeRequestService) diffForRequest(
 	row *enrollmentModels.OfferingChangeRequest,
 ) ([]OfferingChangeDiffEntry, error) {
 	rowCopy := *row
-	rowCopy.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom)
 	row = &rowCopy
 	requested, err := selectionsFromPayload(row.Payload)
 	if err != nil {
@@ -1292,6 +1302,7 @@ func (s *offeringChangeRequestService) diffForRequest(
 	if err != nil || phase == nil {
 		return nil, fmt.Errorf("offering change: load phase for diff: %w", err)
 	}
+	row.EffectiveFrom = appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
 	materialized, err := s.materializedSelections(ctx, phase, row.RequestChildID, row.EffectiveFrom, requested)
 	if err != nil {
 		return nil, err
