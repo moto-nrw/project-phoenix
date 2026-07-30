@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -662,6 +663,38 @@ describe("InstanceDetailModal", () => {
       ),
     );
     expect(onDeleteFollowing).not.toHaveBeenCalled();
+  });
+
+  it("switches an open recurring-delete dialog to single delete after Berlin midnight", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-05-04T21:59:30Z"));
+    try {
+      render(
+        <InstanceDetailModal
+          instance={instance({ activityGroupId: "7", date: "2026-05-04" })}
+          onClose={vi.fn()}
+          onLifecycleAction={vi.fn()}
+          onDeleteCancelled={vi.fn()}
+          onDeleteFollowing={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+      expect(
+        screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+      ).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      expect(
+        screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renders completed, empty, and detailed attendance states", async () => {

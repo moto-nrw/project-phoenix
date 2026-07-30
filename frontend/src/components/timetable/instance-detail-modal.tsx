@@ -41,7 +41,8 @@ import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
-import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { parseISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -449,6 +450,7 @@ export function InstanceDetailModal({
   // Tenant-bewusster Pfad: im Path-Routing-Modus muss /vertretung den
   // /{slug}-Präfix tragen, sonst führt der Link ins Leere.
   const tenantPath = useTenantAwarePath();
+  const today = useBerlinToday();
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
@@ -465,7 +467,7 @@ export function InstanceDetailModal({
   const poolAvailable =
     instance !== null &&
     (instance.status === "planned" || instance.status === "active") &&
-    instance.date >= berlinTodayISO();
+    instance.date >= today;
   const students = useMemo(() => studentsForInstance(instance), [instance]);
   // Same split the header counts use (#1747): an assignment row still reads
   // "expected" when the care plan does not place the child here today, so it
@@ -537,7 +539,17 @@ export function InstanceDetailModal({
     Boolean(instance.activityGroupId) &&
     !instance.isSpontaneous &&
     Boolean(onDeleteFollowing) &&
-    instance.date >= berlinTodayISO();
+    instance.date >= today;
+
+  // If the scope dialog was opened before Berlin midnight, its recurring
+  // option becomes invalid at the rollover. Continue with the only valid
+  // deletion flow instead of leaving a stale option that the backend rejects.
+  useEffect(() => {
+    if (deleteScopeOpen && !seriesEndAvailable) {
+      setDeleteScopeOpen(false);
+      setPendingConfirm("delete");
+    }
+  }, [deleteScopeOpen, seriesEndAvailable]);
 
   const openDeleteFlow = () => {
     if (seriesEndAvailable) {
