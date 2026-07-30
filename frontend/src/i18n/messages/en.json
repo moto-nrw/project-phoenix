@@ -1073,6 +1073,7 @@
     "noSchoolsTitle": "No school linked yet",
     "noSchoolsDescription": "Once your child is enrolled at a school, you can leave feedback here.",
     "loadError": "The feedback could not be loaded.",
+    "retry": "Try again",
     "formHint": "This entry goes to the moto product team, not to the after-school care. Other parents at your school can read and rate it.",
     "deleteTitle": "Delete entry?",
     "deleteBody": "This entry and all its votes will be deleted permanently.",

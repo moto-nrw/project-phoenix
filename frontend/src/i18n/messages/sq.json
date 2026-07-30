@@ -1073,6 +1073,7 @@
     "noSchoolsTitle": "Ende asnjë shkollë e lidhur",
     "noSchoolsDescription": "Sapo fëmija yt të regjistrohet në një shkollë, mund të lësh reagime këtu.",
     "loadError": "Reagimet nuk mund të ngarkoheshin.",
+    "retry": "Provo përsëri",
     "formHint": "Ky shënim shkon te ekipi i moto-s, jo te kujdesi passhkollor. Prindërit e tjerë të shkollës sate mund ta lexojnë dhe ta vlerësojnë.",
     "deleteTitle": "Të fshihet shënimi?",
     "deleteBody": "Ky shënim dhe të gjitha votat fshihen përgjithmonë.",

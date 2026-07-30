@@ -1073,6 +1073,7 @@
     "noSchoolsTitle": "Noch keine Schule verknüpft",
     "noSchoolsDescription": "Sobald dein Kind an einer Schule angemeldet ist, kannst du hier Feedback geben.",
     "loadError": "Das Feedback konnte nicht geladen werden.",
+    "retry": "Erneut laden",
     "formHint": "Dieser Beitrag geht an das Produktteam von moto, nicht an die OGS. Andere Eltern deiner Schule können ihn lesen und bewerten.",
     "deleteTitle": "Beitrag löschen?",
     "deleteBody": "Dieser Beitrag und alle Stimmen werden unwiderruflich gelöscht.",

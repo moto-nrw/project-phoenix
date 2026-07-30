@@ -49,6 +49,7 @@ export default function ParentFeedbackPage() {
   const [posts, setPosts] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [boardReloadVersion, setBoardReloadVersion] = useState(0);
 
   const [sortBy, setSortBy] = useState<SortOption>("score");
   const [formOpen, setFormOpen] = useState(false);
@@ -77,29 +78,36 @@ export default function ParentFeedbackPage() {
     [t],
   );
 
+  const loadSchools = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    setSchools(null);
+    setSchoolId("");
+    setPosts([]);
+
+    try {
+      const list = await fetchFeedbackSchools();
+      setSchools(list);
+      setSchoolId((current) =>
+        list.some((school) => school.id === current)
+          ? current
+          : (list[0]?.id ?? ""),
+      );
+      setBoardReloadVersion((current) => current + 1);
+      if (list.length === 0) setLoading(false);
+    } catch (err) {
+      logger.error("parent_feedback_schools_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setLoadError(true);
+      setLoading(false);
+    }
+  }, []);
+
   // Load the boards the guardian may use, then pick the first one.
   useEffect(() => {
-    let active = true;
-    fetchFeedbackSchools()
-      .then((list) => {
-        if (!active) return;
-        setSchools(list);
-        setSchoolId((current) => current || (list[0]?.id ?? ""));
-        if (list.length === 0) setLoading(false);
-      })
-      .catch((err: unknown) => {
-        logger.error("parent_feedback_schools_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        if (active) {
-          setLoadError(true);
-          setLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+    void loadSchools();
+  }, [loadSchools]);
 
   const reload = useCallback(async () => {
     if (!schoolId) return;
@@ -130,7 +138,7 @@ export default function ParentFeedbackPage() {
     return () => {
       active = false;
     };
-  }, [schoolId, sortBy]);
+  }, [schoolId, sortBy, boardReloadVersion]);
 
   const boardApi = useMemo(() => parentFeedbackBoardApi(schoolId), [schoolId]);
 
@@ -174,6 +182,7 @@ export default function ParentFeedbackPage() {
   }, [reload]);
 
   const noSchools = schools !== null && schools.length === 0;
+  const boardReady = Boolean(schoolId) && !loading && !loadError;
 
   // Same shell as the other parents-portal pages (see /parents/news): full
   // width up to max-w-7xl, header in its own card.
@@ -194,7 +203,18 @@ export default function ParentFeedbackPage() {
         </p>
       </header>
 
-      {loadError && <Alert type="error" message={t("loadError")} />}
+      {loadError && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Alert type="error" message={t("loadError")} />
+          <button
+            type="button"
+            onClick={() => void loadSchools()}
+            className="h-9 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            {t("retry")}
+          </button>
+        </div>
+      )}
 
       {noSchools && (
         <EmptyState
@@ -247,16 +267,18 @@ export default function ParentFeedbackPage() {
                 ]}
               />
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setEditPost(null);
-                setFormOpen(true);
-              }}
-              className="ml-auto h-9 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-            >
-              {t("newEntry")}
-            </button>
+            {boardReady && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditPost(null);
+                  setFormOpen(true);
+                }}
+                className="ml-auto h-9 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+              >
+                {t("newEntry")}
+              </button>
+            )}
           </div>
 
           {loading && (
@@ -266,7 +288,7 @@ export default function ParentFeedbackPage() {
             </div>
           )}
 
-          {!loading && posts.length === 0 && (
+          {boardReady && posts.length === 0 && (
             <EmptyState
               icon={<Lightbulb className="h-12 w-12" strokeWidth={1.5} />}
               title={t("emptyTitle")}
@@ -283,7 +305,7 @@ export default function ParentFeedbackPage() {
             />
           )}
 
-          {!loading && posts.length > 0 && (
+          {boardReady && posts.length > 0 && (
             <div className="space-y-4">
               {posts.map((post) => (
                 <SuggestionCard
