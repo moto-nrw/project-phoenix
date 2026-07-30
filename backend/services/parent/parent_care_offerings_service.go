@@ -488,28 +488,6 @@ func (s *service) offeringChangesEnabledForTenant(ctx context.Context, tenantID 
 	return enabled
 }
 
-// offeringChangeLeadDays is the configured minimum notice for a dated change.
-// Falls back to the registry default on error for the same reason the gate
-// fails closed: a wrong-but-safe lead time beats a 500 on a read view.
-func (s *service) offeringChangeLeadDays(ctx context.Context, tenantID int64) int {
-	const fallbackLeadDays = 14
-	if s.Settings == nil {
-		return fallbackLeadDays
-	}
-	days, err := s.Settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyEnrollmentOfferingChangesLeadDays)
-	if err != nil {
-		s.Logger.Warn("parent: resolve offering-changes lead days failed, using default",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("error", err.Error()),
-		)
-		return fallbackLeadDays
-	}
-	if days < 0 {
-		return 0
-	}
-	return days
-}
-
 // resolveOfferingChangeAvailability decides whether the guardian may open a
 // change request, and if not, why. Order matters: the most specific,
 // least-fixable reason wins, so a guardian without permission is not told the

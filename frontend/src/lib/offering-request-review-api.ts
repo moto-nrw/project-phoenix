@@ -12,7 +12,7 @@ const logger = createLogger({ component: "OfferingRequestReviewAPI" });
 type OfferingRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
 /** One "current → requested" line, pre-rendered in German by the backend. */
-export interface OfferingRequestDiffLine {
+interface OfferingRequestDiffLine {
   readonly label: string;
   readonly old: string;
   readonly new: string;

@@ -997,7 +997,7 @@ export async function withdrawCareScheduleRequest(
 // --- Booked care offerings + AGs (#1665) ---
 
 /** One booked care offering of the child's current care period. */
-export interface CareOfferingItem {
+interface CareOfferingItem {
   readonly id: string;
   readonly name: string;
   readonly description?: string;
@@ -1009,7 +1009,7 @@ export interface CareOfferingItem {
 }
 
 /** One activity-group membership of the child. */
-export interface CareGroupItem {
+interface CareGroupItem {
   readonly id: string;
   readonly name: string;
   readonly weekdays: number[];
@@ -1024,14 +1024,14 @@ export interface CareGroupItem {
 }
 
 /** One "current -> requested" line of a pending offering change. */
-export interface OfferingDiffLine {
+interface OfferingDiffLine {
   readonly label: string;
   readonly old: string;
   readonly new: string;
 }
 
 /** The child's open offering change request. */
-export interface PendingOfferingChange {
+interface PendingOfferingChange {
   readonly id: string;
   readonly created_at: string;
   /** Date the switch would take effect (YYYY-MM-DD). */
@@ -1042,7 +1042,7 @@ export interface PendingOfferingChange {
 }
 
 /** One offering of a decided request. */
-export interface OfferingRequestedItem {
+interface OfferingRequestedItem {
   readonly id: string;
   readonly name: string;
   /** ISO weekdays (1=Mon..7=Sun); empty means every care day. */
@@ -1050,7 +1050,7 @@ export interface OfferingRequestedItem {
 }
 
 /** A decided change request: the outcome plus a rejection's reason. */
-export interface OfferingDecision {
+interface OfferingDecision {
   readonly id: string;
   readonly status: "approved" | "rejected";
   readonly decided_at: string;
