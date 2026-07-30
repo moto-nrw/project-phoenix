@@ -106,6 +106,27 @@ export function OfferingChangeRequestModal({
     void load();
   }, [load]);
 
+  const loadForEffectiveDate = async (date: string) => {
+    if (!date || date === effectiveFrom) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const loaded = await getChildOfferingCatalog(studentId, date);
+      setCatalog(loaded);
+      setDraft(draftFromCatalog(loaded.items));
+      setEffectiveFrom(date);
+    } catch (err) {
+      logger.warn("offering_catalog_reload_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+        effective_from: date,
+      });
+      setError(t("careOfferingsModal.loadError"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const weekdayLabel = useCallback(
     (day: string) => t(`weekdayShort.${DAY_TO_ISO[day] ?? 1}`),
     [t],
@@ -289,10 +310,11 @@ export function OfferingChangeRequestModal({
                           ).map((day) => (
                             <label
                               key={day}
-                              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5"
+                              className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${item.automatic ? "cursor-not-allowed" : "cursor-pointer"}`}
                             >
                               <Checkbox
                                 checked={row?.days.has(day) ?? false}
+                                disabled={item.automatic}
                                 onChange={() => toggleDay(item.id, day)}
                               />
                               <span className="text-sm text-gray-700">
@@ -325,8 +347,8 @@ export function OfferingChangeRequestModal({
                 min={catalog.earliest_effective_from}
                 max={catalog.latest_effective_from}
                 required
-                disabled
-                onChange={setEffectiveFrom}
+                disabled={loading}
+                onChange={(date) => void loadForEffectiveDate(date)}
               />
               <p className="mt-1 text-xs text-gray-500">
                 {t("careOfferingsModal.effectiveFromHint", {

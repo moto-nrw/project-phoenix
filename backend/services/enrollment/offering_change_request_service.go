@@ -196,6 +196,9 @@ type DecideOfferingChangeInput struct {
 type OfferingChangeRequestService interface {
 	// Catalog returns the offerings a guardian may choose from for this child.
 	Catalog(ctx context.Context, studentID int64) (*OfferingChangeCatalog, error)
+	// CatalogAt returns the offerings and booking state at a chosen effective
+	// date, so a complete replacement selection cannot be based on stale rows.
+	CatalogAt(ctx context.Context, studentID int64, effectiveFrom timezone.Date) (*OfferingChangeCatalog, error)
 
 	// GetForStudent returns the child's open request (nil when none) plus its
 	// live diff against the current booking.
@@ -415,11 +418,45 @@ func (s *offeringChangeRequestService) Catalog(
 	if err != nil {
 		return nil, err
 	}
+	return s.catalogAt(ctx, period, phase, earliest, earliest)
+}
+
+func (s *offeringChangeRequestService) CatalogAt(
+	ctx context.Context,
+	studentID int64,
+	effectiveFrom timezone.Date,
+) (*OfferingChangeCatalog, error) {
+	if effectiveFrom.IsZero() {
+		return s.Catalog(ctx, studentID)
+	}
+	if err := s.changesEnabled(ctx); err != nil {
+		return nil, err
+	}
+	earliest, err := s.EarliestEffectiveFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if effectiveFrom.Before(earliest) {
+		return nil, fmt.Errorf("%w: effective date is earlier than the school's notice period", ErrOfferingChangeInvalid)
+	}
+	period, phase, err := s.carePeriodAt(ctx, studentID, effectiveFrom)
+	if err != nil {
+		return nil, err
+	}
+	return s.catalogAt(ctx, period, phase, earliest, effectiveFrom)
+}
+
+func (s *offeringChangeRequestService) catalogAt(
+	ctx context.Context,
+	period *enrollmentModels.StudentCarePeriod,
+	phase *enrollmentModels.Phase,
+	earliest, onDate timezone.Date,
+) (*OfferingChangeCatalog, error) {
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, period.RequestChildID, earliest)
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, period.RequestChildID, onDate)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
@@ -431,7 +468,7 @@ func (s *offeringChangeRequestService) Catalog(
 	}
 	activeByID := offeringsByID(active)
 	allowed := offeringsByID(active)
-	if err := s.addHeldOfferingsAtDate(ctx, period.RequestChildID, earliest, allowed); err != nil {
+	if err := s.addHeldOfferingsAtDate(ctx, period.RequestChildID, onDate, allowed); err != nil {
 		return nil, err
 	}
 	catalog := &OfferingChangeCatalog{
@@ -446,7 +483,7 @@ func (s *offeringChangeRequestService) Catalog(
 		if offering == nil {
 			continue
 		}
-		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], earliest)
+		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], onDate)
 		if itemErr != nil {
 			return nil, itemErr
 		}

@@ -280,7 +280,17 @@ func (rs *Resource) getChildOfferingCatalog(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	catalog, err := rs.ParentService.GetChildOfferingCatalog(r.Context(), accountID, studentID)
+	var effectiveFrom timezone.Date
+	if raw := strings.TrimSpace(r.URL.Query().Get("effective_from")); raw != "" {
+		parsed, parseErr := timezone.ParseDate(raw)
+		if parseErr != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
+				errors.New("effective_from must be a date in YYYY-MM-DD form"), "offering_change_invalid"))
+			return
+		}
+		effectiveFrom = parsed
+	}
+	catalog, err := rs.ParentService.GetChildOfferingCatalogAt(r.Context(), accountID, studentID, effectiveFrom)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return

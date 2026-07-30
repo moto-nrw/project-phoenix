@@ -1136,9 +1136,13 @@ export async function getChildCareOfferings(
 /** Returns the offerings the guardian may pick from, prefilled. */
 export async function getChildOfferingCatalog(
   studentId: string,
+  effectiveFrom?: string,
 ): Promise<OfferingCatalog> {
+  const params = effectiveFrom
+    ? `?effective_from=${encodeURIComponent(effectiveFrom)}`
+    : "";
   return getJson<OfferingCatalog>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/catalog`,
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/catalog${params}`,
   );
 }
 

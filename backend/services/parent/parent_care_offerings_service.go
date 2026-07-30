@@ -224,6 +224,14 @@ func (s *service) GetChildOfferingCatalog(
 	ctx context.Context,
 	accountID, studentID int64,
 ) (*enrollmentSvc.OfferingChangeCatalog, error) {
+	return s.GetChildOfferingCatalogAt(ctx, accountID, studentID, timezone.Date{})
+}
+
+func (s *service) GetChildOfferingCatalogAt(
+	ctx context.Context,
+	accountID, studentID int64,
+	effectiveFrom timezone.Date,
+) (*enrollmentSvc.OfferingChangeCatalog, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
@@ -233,7 +241,7 @@ func (s *service) GetChildOfferingCatalog(
 	}
 	var catalog *enrollmentSvc.OfferingChangeCatalog
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		resolved, resolveErr := s.OfferingChanges.Catalog(txCtx, studentID)
+		resolved, resolveErr := s.OfferingChanges.CatalogAt(txCtx, studentID, effectiveFrom)
 		if resolveErr != nil {
 			return resolveErr
 		}

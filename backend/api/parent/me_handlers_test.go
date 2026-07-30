@@ -152,6 +152,10 @@ func (f *fakeParentService) GetChildOfferingCatalog(context.Context, int64, int6
 	return nil, nil
 }
 
+func (f *fakeParentService) GetChildOfferingCatalogAt(context.Context, int64, int64, timezone.Date) (*enrollmentService.OfferingChangeCatalog, error) {
+	return nil, nil
+}
+
 func (f *fakeParentService) CreateOfferingChangeRequest(
 	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string,
 ) (*parentService.ChildCareOfferings, error) {

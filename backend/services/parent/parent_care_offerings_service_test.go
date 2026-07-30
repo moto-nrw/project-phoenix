@@ -146,6 +146,14 @@ func (s *offeringChangesStub) Catalog(
 	return s.catalog, s.catalogErr
 }
 
+func (s *offeringChangesStub) CatalogAt(
+	_ context.Context,
+	_ int64,
+	_ timezone.Date,
+) (*enrollmentSvc.OfferingChangeCatalog, error) {
+	return s.catalog, s.catalogErr
+}
+
 func (s *offeringChangesStub) GetForStudent(
 	_ context.Context,
 	_ int64,

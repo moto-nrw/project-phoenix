@@ -283,6 +283,7 @@ type Service interface {
 	// for a change request, prefilled with the current booking. Requires
 	// parent_portal.request.submit.
 	GetChildOfferingCatalog(ctx context.Context, accountID, studentID int64) (*enrollmentSvc.OfferingChangeCatalog, error)
+	GetChildOfferingCatalogAt(ctx context.Context, accountID, studentID int64, effectiveFrom timezone.Date) (*enrollmentSvc.OfferingChangeCatalog, error)
 
 	// CreateOfferingChangeRequest stores a pending post-enrollment offering
 	// change for staff review. Requires parent_portal.request.submit.
