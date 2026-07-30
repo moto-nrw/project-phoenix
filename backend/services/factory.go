@@ -144,6 +144,9 @@ type Factory struct {
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
+	// OfferingChanges is the post-enrollment offering change-request lifecycle
+	// (#1665), shared by the parents portal and the staff review queue.
+	OfferingChanges      enrollment.OfferingChangeRequestService
 	ExcusedRequests      absence.ExcusedAbsenceRequestService
 	StudentStatusDays    *active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
@@ -1897,6 +1900,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentAudit:         studentAuditService,
 		MasterDataReview:     users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,
+		OfferingChanges:      offeringChangeRequestService,
 		ExcusedRequests:      excusedRequestService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),

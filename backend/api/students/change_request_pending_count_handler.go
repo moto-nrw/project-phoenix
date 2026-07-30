@@ -8,7 +8,10 @@ import (
 )
 
 // pendingChangeRequestCount returns the combined number of pending parent
-// change requests (master-data + care-schedule) for the current tenant. It
+// change requests (master-data + care-schedule + excused absences + offering
+// changes) for the current tenant. Every queue rendered on the
+// Änderungsanfragen page must be summed here: a request missing from the count
+// is a request nobody looks at until someone happens to open the page. It
 // backs the Änderungsanfragen sidebar badge, which reuses the same UnreadBadge
 // as the Nachrichten badge: a single number the deciding staffer clears by
 // working the queue. Both sub-queues are users:update-gated and per-child
@@ -38,8 +41,19 @@ func (rs *Resource) pendingChangeRequestCount(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	// Offering changes (#1665) are counted when the service is wired; a nil
+	// service (older wiring in tests) contributes zero rather than a 500.
+	offeringChanges := 0
+	if rs.OfferingChangeService != nil {
+		offerings, offeringErr := rs.OfferingChangeService.ListPending(ctx)
+		if offeringErr != nil {
+			renderError(w, r, common.ErrorInternalServer(offeringErr))
+			return
+		}
+		offeringChanges = len(offerings)
+	}
 
 	common.Respond(w, r, http.StatusOK, map[string]int{
-		"pending_count": len(masterData) + len(care) + len(excused),
+		"pending_count": len(masterData) + len(care) + len(excused) + offeringChanges,
 	}, "Pending change request count retrieved")
 }

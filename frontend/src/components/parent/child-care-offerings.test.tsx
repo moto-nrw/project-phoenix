@@ -1,0 +1,200 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ChildCareOfferingsSection } from "./child-care-offerings";
+import {
+  getChildCareOfferings,
+  withdrawOfferingChangeRequest,
+  type ChildCareOfferings,
+} from "~/lib/parent-api";
+
+vi.mock("~/lib/parent-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/parent-api")>();
+  return {
+    ...actual,
+    getChildCareOfferings: vi.fn(),
+    getChildOfferingCatalog: vi.fn(),
+    submitOfferingChangeRequest: vi.fn(),
+    withdrawOfferingChangeRequest: vi.fn(),
+  };
+});
+
+const mockGet = vi.mocked(getChildCareOfferings);
+const mockWithdraw = vi.mocked(withdrawOfferingChangeRequest);
+
+function view(overrides: Partial<ChildCareOfferings> = {}): ChildCareOfferings {
+  return {
+    period_name: "Schuljahr 2026/27",
+    period_start: "2026-09-01",
+    period_end: "2027-07-31",
+    offerings: [
+      {
+        id: "5",
+        name: "Regelbetreuung",
+        weekdays: [1, 2, 3],
+        includes_lunch: true,
+        includes_holiday_care: false,
+      },
+    ],
+    groups: [
+      {
+        id: "9",
+        name: "Gruppe Sonne",
+        weekdays: [1, 2, 3],
+        valid_from: "2026-09-01",
+        valid_until: "2027-07-31",
+        from_offering: true,
+        starts_later: false,
+      },
+    ],
+    can_request: true,
+    earliest_effective_from: "2026-08-14",
+    ...overrides,
+  };
+}
+
+const pending: ChildCareOfferings["pending_request"] = {
+  id: "77",
+  created_at: "2026-07-30T10:00:00Z",
+  effective_from: "2027-02-01",
+  diff: [{ label: "Regelbetreuung", old: "Mo, Di, Mi", new: "Mo, Di" }],
+  submitted_by_self: true,
+};
+
+describe("ChildCareOfferingsSection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGet.mockResolvedValue(view());
+  });
+
+  it("renders the booked offerings and groups", async () => {
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Betreuungsangebote")).toBeInTheDocument();
+    expect(screen.getByText("Regelbetreuung")).toBeInTheDocument();
+    expect(screen.getByText("Gruppe Sonne")).toBeInTheDocument();
+    // Weekdays render as short labels, not raw ISO numbers.
+    expect(screen.getAllByText("Mo, Di, Mi").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Änderung anfragen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an offering with no weekday restriction as covering all care days", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        offerings: [
+          {
+            id: "5",
+            name: "Mittagessen",
+            weekdays: [],
+            includes_lunch: true,
+            includes_holiday_care: false,
+          },
+        ],
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("alle Betreuungstage")).toBeInTheDocument();
+  });
+
+  it("marks a membership that has not started yet", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        groups: [
+          {
+            id: "9",
+            name: "Gruppe Mond",
+            weekdays: [4],
+            valid_from: "2027-02-01",
+            from_offering: true,
+            starts_later: true,
+          },
+        ],
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Gruppe Mond")).toBeInTheDocument();
+    expect(screen.getByText("ab 01.02.2027")).toBeInTheDocument();
+  });
+
+  it("shows the pending request with its effective date, diff and withdraw button", async () => {
+    mockGet.mockResolvedValue(view({ pending_request: pending }));
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
+    expect(screen.getByText("Gewünscht ab 01.02.2027")).toBeInTheDocument();
+    expect(screen.getByText("Mo, Di")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
+    ).toBeInTheDocument();
+    // No second request while one is open.
+    expect(
+      screen.queryByRole("button", { name: "Änderung anfragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the withdraw button for another guardian's request", async () => {
+    mockGet.mockResolvedValue(
+      view({ pending_request: { ...pending, submitted_by_self: false } }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anfrage zurückziehen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains a disabled change option instead of only hiding the button", async () => {
+    mockGet.mockResolvedValue(
+      view({ can_request: false, changes_disabled_reason: "school_disabled" }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(
+      await screen.findByText(/nimmt Änderungswünsche nicht über die App an/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Änderung anfragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("stays silent about a missing permission", async () => {
+    mockGet.mockResolvedValue(
+      view({ can_request: false, changes_disabled_reason: "no_permission" }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Betreuungsangebote")).toBeInTheDocument();
+    expect(screen.queryByText(/keine Berechtigung/)).not.toBeInTheDocument();
+  });
+
+  it("withdraws the pending request through the confirmation modal", async () => {
+    mockGet.mockResolvedValue(view({ pending_request: pending }));
+    mockWithdraw.mockResolvedValue(view());
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anfrage zurückziehen" }),
+    );
+    const confirmButtons = await screen.findAllByRole("button", {
+      name: "Anfrage zurückziehen",
+    });
+    // The modal's confirm button is the last one rendered.
+    fireEvent.click(confirmButtons[confirmButtons.length - 1]!);
+
+    await waitFor(() => expect(mockWithdraw).toHaveBeenCalledWith("42", "77"));
+  });
+
+  it("shows a load error without breaking the page", async () => {
+    mockGet.mockRejectedValue(new Error("boom"));
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(
+      await screen.findByText(/konnten nicht geladen werden/),
+    ).toBeInTheDocument();
+  });
+});

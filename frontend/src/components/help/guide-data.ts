@@ -608,15 +608,16 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Änderungsanfragen der Eltern prüfen",
         icon: ClipboardCheck,
         summary:
-          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten) und die dauerhaften Betreuungszeiten ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
+          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), die dauerhaften Betreuungszeiten und die gebuchten Betreuungsangebote ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
         steps: [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
           "Für Name, Geburtsdatum und Gehzeiten sowie für die dauerhaften Bring- und Abholzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
-          "Offene Anfragen finden Sie als Admin in der Seitenleiste unter `Eltern` > `Änderungsanfragen`, getrennt nach `Stammdaten`, `Betreuungszeiten` und – falls aktiviert – `Entschuldigte Abmeldungen`.",
-          "Pro Anfrage sehen Sie das Kind und die Änderung (alter → neuer Wert); bei Betreuungszeiten den Wochenplan-Vergleich je Wochentag (Bringzeit, Abholzeit, Abholart); bei entschuldigten Abmeldungen die betroffenen Tage und die Begründung der Eltern.",
-          "Mit `Freigeben` wird der neue Wert übernommen – bei Betreuungszeiten direkt in den Wochenplan des Kindes, bei einer entschuldigten Abmeldung wird das Kind für die Tage als entschuldigt eingetragen. Mit `Ablehnen` bleibt der bisherige Stand erhalten; bei Betreuungszeiten und entschuldigten Abmeldungen ist dafür eine Begründung erforderlich, bei Stammdaten optional.",
+          "Offene Anfragen finden Sie als Admin in der Seitenleiste unter `Eltern` > `Änderungsanfragen`, getrennt nach `Stammdaten`, `Betreuungszeiten`, `Betreuungsangebote und AGs` und – falls aktiviert – `Entschuldigte Abmeldungen`.",
+          "Pro Anfrage sehen Sie das Kind und die Änderung (alter → neuer Wert); bei Betreuungszeiten den Wochenplan-Vergleich je Wochentag (Bringzeit, Abholzeit, Abholart); bei Betreuungsangeboten das gewünschte Startdatum und welche Angebote dazukommen oder wegfallen; bei entschuldigten Abmeldungen die betroffenen Tage und die Begründung der Eltern.",
+          "Mit `Freigeben` wird der neue Wert übernommen – bei Betreuungszeiten direkt in den Wochenplan des Kindes, bei einer entschuldigten Abmeldung wird das Kind für die Tage als entschuldigt eingetragen. Mit `Ablehnen` bleibt der bisherige Stand erhalten; bei Betreuungszeiten, Betreuungsangeboten und entschuldigten Abmeldungen ist dafür eine Begründung erforderlich, bei Stammdaten optional.",
+          "Anfragen zu Betreuungsangeboten gelten ab dem gewünschten Datum: Das bisherige Angebot endet an diesem Tag, das neue beginnt dann. Vergangene Wochen bleiben unverändert, damit Anwesenheiten und Listen weiterhin stimmen. Ist ein gewünschtes Angebot inzwischen voll, meldet die App das beim Freigeben und die Anfrage bleibt offen.",
           "Die Eltern sehen die Entscheidung als Hinweis in ihrem Nachrichten-Verlauf.",
-          "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`.",
+          "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
         ],
         callout: {
           title: "Was wird direkt übernommen?",
@@ -624,7 +625,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Admin-Seite „Änderungsanfragen“ mit den Bereichen Stammdaten und Betreuungszeiten, je mit Kind, Änderung (alt → neu) sowie Freigeben- und Ablehnen-Schaltflächen.",
+          "Admin-Seite „Änderungsanfragen“ mit den Bereichen Stammdaten, Betreuungszeiten und Betreuungsangebote, je mit Kind, Änderung (alt → neu) sowie Freigeben- und Ablehnen-Schaltflächen.",
       },
       {
         id: "meine-gruppen",

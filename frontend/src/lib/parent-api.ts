@@ -994,6 +994,154 @@ export async function withdrawCareScheduleRequest(
   );
 }
 
+// --- Booked care offerings + AGs (#1665) ---
+
+/** One booked care offering of the child's current care period. */
+export interface CareOfferingItem {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+  /** Booked ISO weekdays (1=Mon..7=Sun); empty when the offering has no per-day choice. */
+  readonly weekdays: number[];
+  readonly price_cents?: number;
+  readonly includes_lunch: boolean;
+  readonly includes_holiday_care: boolean;
+}
+
+/** One activity-group membership of the child. */
+export interface CareGroupItem {
+  readonly id: string;
+  readonly name: string;
+  readonly weekdays: number[];
+  /** First day (YYYY-MM-DD). */
+  readonly valid_from: string;
+  /** Last day (YYYY-MM-DD, inclusive) — absent for open-ended memberships. */
+  readonly valid_until?: string;
+  /** True for rows materialized from an enrollment selection. */
+  readonly from_offering: boolean;
+  /** True while the membership has not started yet (an approved future switch). */
+  readonly starts_later: boolean;
+}
+
+/** One "current -> requested" line of a pending offering change. */
+export interface OfferingDiffLine {
+  readonly label: string;
+  readonly old: string;
+  readonly new: string;
+}
+
+/** The child's open offering change request. */
+export interface PendingOfferingChange {
+  readonly id: string;
+  readonly created_at: string;
+  /** Date the switch would take effect (YYYY-MM-DD). */
+  readonly effective_from: string;
+  readonly note?: string;
+  readonly diff: OfferingDiffLine[];
+  readonly submitted_by_self: boolean;
+}
+
+/** Why the change button is unavailable. Stable identifiers from the backend. */
+export type OfferingChangesDisabledReason =
+  "no_enrollment" | "no_permission" | "school_disabled" | "period_over";
+
+/** Parent-facing view of what the child is booked into. */
+export interface ChildCareOfferings {
+  readonly period_name?: string;
+  readonly period_start?: string;
+  readonly period_end?: string;
+  readonly offerings: CareOfferingItem[];
+  readonly groups: CareGroupItem[];
+  readonly can_request: boolean;
+  readonly pending_request?: PendingOfferingChange;
+  /** Earliest date a new request may take effect (YYYY-MM-DD). */
+  readonly earliest_effective_from?: string;
+  readonly changes_disabled_reason?: OfferingChangesDisabledReason;
+}
+
+/** One selectable offering in the change-request modal. */
+export interface OfferingCatalogItem {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+  /** "fixed" = the school sets the days; "parent_choice" = the family picks. */
+  readonly days_of_week_mode: string;
+  readonly available_days: string[];
+  readonly selection_group?: string;
+  readonly selection_rule: string;
+  readonly is_required: boolean;
+  readonly price_cents?: number;
+  readonly includes_lunch: boolean;
+  readonly includes_holiday_care: boolean;
+  readonly selected: boolean;
+  readonly selected_days: string[];
+  readonly capacity?: number;
+  readonly free_slots?: number;
+}
+
+/** The selectable catalog plus the allowed effective-date window. */
+export interface OfferingCatalog {
+  readonly phase_name: string;
+  readonly selection_mode: string;
+  readonly earliest_effective_from: string;
+  readonly latest_effective_from: string;
+  readonly items: OfferingCatalogItem[];
+}
+
+/** One desired offering in a submission. */
+export interface OfferingChangeSelectionInput {
+  readonly offering_id: string;
+  readonly selected_days: string[];
+}
+
+/** Returns the offerings and groups the child is booked into. */
+export async function getChildCareOfferings(
+  studentId: string,
+): Promise<ChildCareOfferings> {
+  return getJson<ChildCareOfferings>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings`,
+  );
+}
+
+/** Returns the offerings the guardian may pick from, prefilled. */
+export async function getChildOfferingCatalog(
+  studentId: string,
+): Promise<OfferingCatalog> {
+  return getJson<OfferingCatalog>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/catalog`,
+  );
+}
+
+/**
+ * Submits a post-enrollment offering change. The selection is the COMPLETE
+ * desired booking, not a delta: staff decide one coherent booking, and the
+ * backend re-validates it against capacity and the phase rules on approval.
+ */
+export async function submitOfferingChangeRequest(
+  studentId: string,
+  input: {
+    offerings: OfferingChangeSelectionInput[];
+    effective_from: string;
+    note?: string;
+  },
+): Promise<ChildCareOfferings> {
+  return postJson<ChildCareOfferings>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests`,
+    input,
+  );
+}
+
+/** Withdraws the guardian's own still-open offering change request. */
+export async function withdrawOfferingChangeRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ChildCareOfferings> {
+  return postJson<ChildCareOfferings>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
+  );
+}
+
 // --- Stammdaten (master data view + change flow) ---
 
 // One change-request row in the parent view. Mirrors

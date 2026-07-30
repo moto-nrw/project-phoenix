@@ -3,6 +3,7 @@
 import { CareRequestReviewList } from "~/components/students/care-request-review-list";
 import { ExcusedRequestReviewList } from "~/components/students/excused-request-review-list";
 import { MasterDataReviewList } from "~/components/students/master-data-review-list";
+import { OfferingRequestReviewList } from "~/components/students/offering-request-review-list";
 import { Loading } from "~/components/ui/loading";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
@@ -13,7 +14,7 @@ export default function AdminChangeRequestsPage() {
   const { isReady } = useRequirePermission("users:update");
   if (!isReady) return <Loading fullPage={false} />;
 
-  // Two stacked sections instead of tabs: both queues are short, and tabs
+  // Stacked sections instead of tabs: both queues are short, and tabs
   // would hide the pending count of the inactive one. Unlike the enrollment
   // queues, these guardian change requests are not tied to Anmeldung and are
   // fully reviewable on mobile — so no DesktopOnlyNotice gate here. Each
@@ -48,6 +49,18 @@ export default function AdminChangeRequestsPage() {
           Kindes.
         </p>
         <CareRequestReviewList />
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-base font-semibold text-gray-900">
+          Betreuungsangebote und AGs
+        </h2>
+        <p className="mt-1 mb-3 text-sm text-gray-600">
+          Anfragen zu den gebuchten Betreuungsangeboten. Freigeben stellt das
+          Kind zum gewünschten Datum um: Bisheriges endet an diesem Tag, Neues
+          beginnt dann. Vergangene Zeiträume bleiben unverändert.
+        </p>
+        <OfferingRequestReviewList />
       </section>
 
       <section>

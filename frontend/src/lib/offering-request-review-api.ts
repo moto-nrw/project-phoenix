@@ -1,0 +1,128 @@
+/**
+ * Staff client for the post-enrollment offering change-request review queue
+ * (#1665). Calls the Next.js proxy routes under
+ * /api/students/offering-change-requests which forward (with the tenant session
+ * token) to the backend.
+ */
+
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OfferingRequestReviewAPI" });
+
+type OfferingRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
+
+/** One "current → requested" line, pre-rendered in German by the backend. */
+export interface OfferingRequestDiffLine {
+  readonly label: string;
+  readonly old: string;
+  readonly new: string;
+}
+
+/**
+ * One offering change request in the staff queue. Mirrors
+ * api/students.OfferingRequestResponse.
+ */
+export interface StaffOfferingRequest {
+  readonly id: string;
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly status: OfferingRequestStatus;
+  /** Date the switch would take effect (YYYY-MM-DD). */
+  readonly effective_from: string;
+  readonly note?: string;
+  readonly diff: readonly OfferingRequestDiffLine[];
+  readonly reason?: string;
+  readonly created_at: string;
+  readonly reviewed_at?: string;
+}
+
+interface Envelope<T> {
+  readonly data?: T;
+}
+
+function unwrap<T>(json: Envelope<T>): T {
+  if (json && typeof json === "object" && "data" in json) {
+    return json.data as T;
+  }
+  return json as unknown as T;
+}
+
+/**
+ * Error thrown by the offering-request client. Carries the backend's stable
+ * conflict `code` (e.g. "offering_change_capacity_full",
+ * "change_request_not_pending") so the review UI can name the concrete recovery
+ * action instead of collapsing every failure into one message.
+ */
+export class OfferingRequestApiError extends Error {
+  readonly code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "OfferingRequestApiError";
+    this.code = code;
+  }
+}
+
+async function readError(
+  response: Response,
+  fallback: string,
+): Promise<OfferingRequestApiError> {
+  let message = fallback;
+  let code: string | undefined;
+  try {
+    const body = (await response.json()) as { error?: string; code?: string };
+    if (body.error) message = body.error;
+    if (body.code) code = body.code;
+  } catch {
+    // not JSON
+  }
+  logger.error("offering_request_review_request_failed", {
+    status: response.status,
+    message,
+    ...(code ? { code } : {}),
+  });
+  return new OfferingRequestApiError(message, code);
+}
+
+/** Lists the tenant's pending offering change requests. */
+export async function listOfferingChangeRequests(): Promise<
+  StaffOfferingRequest[]
+> {
+  const response = await fetch("/api/students/offering-change-requests", {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Angebots-Anfragen konnten nicht geladen werden",
+    );
+  }
+  return unwrap((await response.json()) as Envelope<StaffOfferingRequest[]>);
+}
+
+/**
+ * Approves (applies the dated switch) or rejects one offering change request.
+ * Approval can legitimately fail (capacity, deactivated offering); the row then
+ * stays pending on purpose.
+ */
+export async function decideOfferingChangeRequest(
+  requestId: string,
+  approve: boolean,
+  reason?: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approve, reason: reason ?? "" }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Entscheidung konnte nicht gespeichert werden",
+    );
+  }
+}
