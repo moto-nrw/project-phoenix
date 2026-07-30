@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 
 import { isPlanningPath } from "~/lib/planning-navigation";
+import { isElternPath, isEnrollmentPath } from "~/lib/section-navigation";
 
 type AccordionSection =
   | "groups"
@@ -12,34 +13,6 @@ type AccordionSection =
   | "enrollments"
   | "eltern"
   | null;
-
-// Paths that belong to the enrollments accordion. Centralized so the
-// sidebar's render code and the auto-expand logic stay in sync.
-const ENROLLMENT_PATH_PREFIXES = [
-  "/admin/enrollments",
-  "/enrollment-phases",
-  "/enrollment-form",
-  "/care-offerings",
-];
-
-function isEnrollmentPath(p: string): boolean {
-  return ENROLLMENT_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
-}
-
-// Paths that belong to the "Eltern" accordion (overview hub + the parent
-// communication sub-pages). Keep in sync with PARENT_SUB_PAGES in sidebar.tsx.
-const ELTERN_PATH_PREFIXES = [
-  "/eltern",
-  "/messages",
-  "/admin/guardian-approvals",
-  "/admin/change-requests",
-  "/parent-announcements",
-  "/meal-plan",
-];
-
-function isElternPath(p: string): boolean {
-  return ELTERN_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
-}
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
 

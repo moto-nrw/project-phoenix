@@ -44,6 +44,18 @@ import {
   getActivePlanningSubPageHref,
   PLANNING_SUB_PAGES,
 } from "~/lib/planning-navigation";
+import {
+  DATABASE_SECTION,
+  DATABASE_SUB_PAGES,
+  ENROLLMENT_SECTION,
+  ENROLLMENT_SUB_PAGES,
+  getActiveEnrollmentSubPageHref,
+  getActiveParentSubPageHref,
+  PARENT_SECTION,
+  PARENT_SUB_PAGES,
+  PLANNING_SECTION,
+  STAFF_FLAT_PAGES,
+} from "~/lib/section-navigation";
 
 // Type für Navigation Items
 interface NavItem {
@@ -68,43 +80,37 @@ interface NavItem {
 // Flat navigation items (excludes accordion sections: ogs-groups, active-supervisions, database)
 const NAV_ITEMS: NavItem[] = [
   {
-    href: "/dashboard",
-    label: "Home",
+    ...STAFF_FLAT_PAGES.dashboard,
     icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
     activeColor: "text-[#5080D8]",
     requiresAdmin: true,
   },
   {
-    href: "/students/search",
-    label: "Kindersuche",
+    ...STAFF_FLAT_PAGES.studentSearch,
     icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
     activeColor: "text-[#5080D8]",
     alwaysShow: true,
   },
   {
-    href: "/activities",
-    label: "Aktivitäten",
+    ...STAFF_FLAT_PAGES.activities,
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     activeColor: "text-[#FF3130]",
     alwaysShow: true,
   },
   {
-    href: "/rooms",
-    label: "Räume",
+    ...STAFF_FLAT_PAGES.rooms,
     icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
     activeColor: "text-indigo-500",
     alwaysShow: true,
   },
   {
-    href: "/staff",
-    label: "Mitarbeiter",
+    ...STAFF_FLAT_PAGES.staff,
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
     activeColor: "text-[#F78C10]",
     alwaysShow: true,
   },
   {
-    href: "/calendar",
-    label: "Kalender",
+    ...STAFF_FLAT_PAGES.calendar,
     icon: navigationIcons.calendar,
     activeColor: "text-[#5080D8]",
     // Backend gates GET /api/calendar/my on calendar:own; match it so
@@ -117,40 +123,29 @@ const NAV_ITEMS: NavItem[] = [
     // "Gruppenzugriff" zur Abgrenzung vom Planungsbereich "Vertretung"
     // (#1940). Nur relevant bei festen Gruppen (operations.group_mode);
     // Gating siehe substitutionsItem-Rendering unten.
-    href: "/substitutions",
-    label: "Gruppenzugriff",
+    ...STAFF_FLAT_PAGES.substitutions,
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     activeColor: "text-pink-500",
     requiresAdmin: true,
   },
   {
-    href: "/info-displays",
-    label: "Info-Displays",
+    ...STAFF_FLAT_PAGES.infoDisplays,
     icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
     activeColor: "text-[#5080D8]",
     requiresPermission: ["display:read", "display:manage"],
   },
   {
-    href: "/time-tracking",
-    label: "Zeiterfassung",
+    ...STAFF_FLAT_PAGES.timeTracking,
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
     activeColor: "text-sky-500",
     alwaysShow: true,
-  },
-  {
-    href: "/payroll",
-    label: "Abrechnung",
-    icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
-    activeColor: "text-[#83CD2D]",
-    requiresPermission: "config:manage",
   },
   {
     // Tagesauswertung (#1456): rückwirkender Tagesstatus pro Gruppe
     // (Anwesend/Krank/Entschuldigt/Abwesend). Als Auswertung unten bei den
     // Berichts-Einträgen einsortiert. Opt-in über
     // gdpr.attendance_log_enabled — Gating siehe filteredNavItems.
-    href: "/day-log",
-    label: "Tagesauswertung",
+    ...STAFF_FLAT_PAGES.dayLog,
     icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
     activeColor: "text-[#83CD2D]",
     requiresPermission: "users:read",
@@ -163,16 +158,14 @@ const NAV_ITEMS: NavItem[] = [
     comingSoon: true,
   },
   {
-    href: "/emergency",
-    label: "Notfall",
+    ...STAFF_FLAT_PAGES.emergency,
     icon: navigationIcons.emergency,
     activeColor: "text-[#FF3130]",
     alwaysShow: true,
     bottomPinned: true,
   },
   {
-    href: "/help",
-    label: "Hilfe",
+    ...STAFF_FLAT_PAGES.help,
     icon: navigationIcons.book,
     activeColor: "text-[#83CD2D]",
     alwaysShow: true,
@@ -180,16 +173,14 @@ const NAV_ITEMS: NavItem[] = [
     newTab: true,
   },
   {
-    href: "/suggestions",
-    label: "Feedback",
+    ...STAFF_FLAT_PAGES.suggestions,
     icon: "M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46",
     activeColor: "text-teal-500",
     alwaysShow: true,
     bottomPinned: true,
   },
   {
-    href: "/settings",
-    label: "Einstellungen",
+    ...STAFF_FLAT_PAGES.settings,
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
     activeColor: "text-gray-500",
     requiresAdmin: true,
@@ -293,98 +284,17 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   },
 ];
 
-// Static sub-pages for Datenverwaltung accordion
-const DATABASE_SUB_PAGES = [
-  { href: "/database/students", label: "Kinder" },
-  { href: "/database/personal", label: "Personal" },
-  { href: "/database/rooms", label: "Räume" },
-  { href: "/database/activities", label: "Aktivitäten" },
-  { href: "/database/groups", label: "Gruppen" },
-  { href: "/database/roles", label: "Rollen" },
-  { href: "/database/devices", label: "Geräte" },
-  { href: "/database/permissions", label: "Berechtigungen" },
-  { href: "/database/grade-transitions", label: "Jahrgangswechsel" },
-  { href: "/database/exports", label: "Exporte" },
-];
-
 const NFC_ONLY_HREFS = new Set<string>([
   "/activities",
   "/database/activities",
   "/database/devices",
 ]);
 
-// Static sub-pages for Anmeldungen accordion (admin only).
-const ENROLLMENTS_SUB_PAGES = [
-  { href: "/admin/enrollments", label: "Überblick" },
-  { href: "/admin/enrollments/change-requests", label: "Änderungsanfragen" },
-  { href: "/enrollment-phases", label: "Anmeldephasen" },
-  { href: "/care-offerings", label: "Betreuungsangebote" },
-  { href: "/enrollment-form", label: "Anmeldeformulare" },
-];
-
-function matchesEnrollmentSubPage(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function getActiveEnrollmentSubPageHref(pathname: string): string | null {
-  return (
-    ENROLLMENTS_SUB_PAGES.filter((page) =>
-      matchesEnrollmentSubPage(pathname, page.href),
-    ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
-  );
-}
-
-// Sub-pages for the "Eltern" accordion. `feature` selects the visibility rule
-// applied in the component — Nachrichten (and the overview hub) show for all
-// staff; the rest are gated per permission / feature flag exactly as the old
-// flat NAV_ITEMS were. Keep the path list in sync with ELTERN_PATH_PREFIXES in
-// use-sidebar-accordion.ts and the cards on /eltern.
-type ParentSubPageFeature =
-  | "overview"
-  | "messages"
-  | "approvals"
-  | "changeRequests"
-  | "announcements"
-  | "mealPlan";
-
-const PARENT_SUB_PAGES: readonly {
-  readonly href: string;
-  readonly label: string;
-  readonly feature: ParentSubPageFeature;
-}[] = [
-  // "Übersicht" (not "Überblick") so it does not collide with the Anmeldungen
-  // accordion's "Überblick" hub — both would otherwise render simultaneously.
-  { href: "/eltern", label: "Übersicht", feature: "overview" },
-  { href: "/messages", label: "Nachrichten", feature: "messages" },
-  {
-    href: "/admin/guardian-approvals",
-    label: "Konto-Anfragen",
-    feature: "approvals",
-  },
-  {
-    href: "/admin/change-requests",
-    label: "Änderungsanfragen",
-    feature: "changeRequests",
-  },
-  {
-    href: "/parent-announcements",
-    label: "Elternmitteilungen",
-    feature: "announcements",
-  },
-  { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
-];
-
-function matchesParentSubPage(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function getActiveParentSubPageHref(pathname: string): string | null {
-  return (
-    PARENT_SUB_PAGES.filter((page) =>
-      matchesParentSubPage(pathname, page.href),
-    ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
-  );
-}
+// Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
+// concepts with no operational meaning when the tenant only tracks
+// in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
+// accordion is gated separately below (it's not in NAV_ITEMS).
+const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
 // `tKey` is the parentNav catalog key; the German `label` is the fallback used
 // only when the preview list is rendered outside an intl context. Mapping on a
@@ -553,12 +463,23 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const timetableEnabled =
     getSettingValue(settingsSchema, "timetable.enabled") !== false;
 
-  // Kalenderzeiträume bleiben auch bei abgeschaltetem Planungsbereich
-  // erreichbar: die Anmeldephasen (Anmeldungen-Akkordeon) verknüpfen sich mit
-  // Kalenderzeiträumen, unabhängig von timetable.enabled.
-  const planningSubPages = timetableEnabled
-    ? PLANNING_SUB_PAGES
-    : PLANNING_SUB_PAGES.filter((page) => page.href === "/calendar-periods");
+  // Kalenderzeiträume und Abrechnung bleiben auch bei abgeschaltetem
+  // Planungsbereich erreichbar: Anmeldephasen verknüpfen sich mit
+  // Kalenderzeiträumen; Abrechnung ist unabhängig davon über config:manage
+  // geschützt.
+  const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
+    if (!userIsAdmin) {
+      return (
+        page.nonAdminPermission !== undefined &&
+        hasPermission(session, page.nonAdminPermission)
+      );
+    }
+    return (
+      timetableEnabled ||
+      page.href === "/calendar-periods" ||
+      page.href === "/payroll"
+    );
+  });
 
   // Gruppenzugriff (#1940): temporäre Gruppen-Datenzugriffe sind nur bei
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
@@ -621,12 +542,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const parentSectionBadgeCount =
     messagesUnreadCount +
     (parentShowsChangeRequests ? changeRequestsPendingCount : 0);
-
-  // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
-  // concepts with no operational meaning when the tenant only tracks
-  // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
-  // accordion is gated separately below (it's not in NAV_ITEMS).
-  const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
@@ -1421,7 +1336,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               overview hub. Shown to all staff; sub-items are gated per item. */}
           <SidebarAccordionSection
             icon={navigationIcons.parents}
-            label="Eltern"
+            label={PARENT_SECTION.label}
             activeColor="text-[#5080D8]"
             isExpanded={expanded === "eltern"}
             onToggle={handleParentToggle}
@@ -1459,7 +1374,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {userIsAdmin && (
             <SidebarAccordionSection
               icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-              label="Datenverwaltung"
+              label={DATABASE_SECTION.label}
               activeColor="text-gray-500"
               isExpanded={expanded === "database"}
               onToggle={handleDatabaseToggle}
@@ -1485,14 +1400,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Planung accordion (admin only, #1946) — bündelt Betreuungsplan,
-              Dienstplan, Vertretung und Kalenderzeiträume. Bei explizit
-              ausgeschaltetem timetable.enabled bleiben nur die
-              Kalenderzeiträume übrig (Anmeldephasen hängen daran). */}
-          {userIsAdmin && (
+          {/* Planung accordion (#1946) — bündelt Betreuungsplan, Dienstplan,
+              Vertretung und Kalenderzeiträume für Admins. Berechtigte
+              Nicht-Admins behalten Abrechnung als einzigen Unterpunkt. Bei
+              explizit ausgeschaltetem timetable.enabled bleiben für Admins
+              Kalenderzeiträume und Abrechnung übrig. */}
+          {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
-              label="Planung"
+              label={PLANNING_SECTION.label}
               activeColor="text-[#5080D8]"
               isExpanded={expanded === "planning"}
               onToggle={handlePlanningToggle}
@@ -1519,15 +1435,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {userIsAdmin && (
             <SidebarAccordionSection
               icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              label="Anmeldungen"
+              label={ENROLLMENT_SECTION.label}
               activeColor="text-[#83CD2D]"
               isExpanded={expanded === "enrollments"}
               onToggle={handleEnrollmentsToggle}
               isActive={isOnEnrollmentsPage}
               isIconActive={isOnEnrollmentsPage}
-              hasChildren={ENROLLMENTS_SUB_PAGES.length > 0}
+              hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
             >
-              {ENROLLMENTS_SUB_PAGES.map((page) => (
+              {ENROLLMENT_SUB_PAGES.map((page) => (
                 <SidebarSubItem
                   key={page.href}
                   href={page.href}

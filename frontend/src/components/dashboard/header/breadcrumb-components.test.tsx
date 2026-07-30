@@ -3,14 +3,14 @@
  * Tests rendering and navigation breadcrumb patterns
  */
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { useTenantRoutingModeSafe } from "~/lib/tenant-context";
 import {
   PageTitleDisplay,
-  DatabaseBreadcrumb,
+  SectionBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   EnrollmentBreadcrumb,
-  RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
 } from "./breadcrumb-components";
@@ -33,6 +33,12 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
+
+const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
+
+beforeEach(() => {
+  mockUseTenantRoutingModeSafe.mockReturnValue("path");
+});
 
 describe("PageTitleDisplay", () => {
   it("renders page title", () => {
@@ -62,48 +68,91 @@ describe("PageTitleDisplay", () => {
   });
 });
 
-describe("DatabaseBreadcrumb", () => {
-  it("renders database breadcrumb with page title", () => {
+describe("SectionBreadcrumb", () => {
+  it("renders section breadcrumb with page title", () => {
     render(
-      <DatabaseBreadcrumb
-        pathname="/database/students"
-        pageTitle="Kinder"
-        subPageLabel=""
-        isDeepPage={false}
+      <SectionBreadcrumb
+        sectionLabel="Datenverwaltung"
+        sectionHref="/database"
+        pageLabel="Kinder"
       />,
     );
 
-    expect(screen.getByText("Datenbank")).toBeInTheDocument();
+    expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     expect(screen.getByText("Kinder")).toBeInTheDocument();
   });
 
   it("renders deep page with three levels", () => {
     render(
-      <DatabaseBreadcrumb
-        pathname="/database/students/123"
-        pageTitle="Kinder"
-        subPageLabel="Details"
-        isDeepPage={true}
+      <SectionBreadcrumb
+        sectionLabel="Datenverwaltung"
+        sectionHref="/database"
+        pageLabel="Kinder"
+        pageHref="/database/students"
+        deepLabel="Details"
       />,
     );
 
-    expect(screen.getByText("Datenbank")).toBeInTheDocument();
+    expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     expect(screen.getByText("Kinder")).toBeInTheDocument();
     expect(screen.getByText("Details")).toBeInTheDocument();
   });
 
   it("links correctly", () => {
     render(
-      <DatabaseBreadcrumb
-        pathname="/database/students"
-        pageTitle="Kinder"
-        subPageLabel=""
-        isDeepPage={false}
+      <SectionBreadcrumb
+        sectionLabel="Datenverwaltung"
+        sectionHref="/database"
+        pageLabel="Kinder"
       />,
     );
 
-    const databaseLink = screen.getByRole("link", { name: "Datenbank" });
-    expect(databaseLink).toHaveAttribute("href", "/database");
+    const sectionLink = screen.getByRole("link", { name: "Datenverwaltung" });
+    expect(sectionLink).toHaveAttribute("href", "/test-tenant/database");
+  });
+
+  it("renders the section as plain text when no sectionHref is given", () => {
+    render(<SectionBreadcrumb sectionLabel="Planung" pageLabel="Dienstplan" />);
+
+    expect(screen.getByText("Planung")).toBeInTheDocument();
+    expect(screen.getByText("Dienstplan")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Planung" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("renders an Eltern section breadcrumb", () => {
+    render(
+      <SectionBreadcrumb
+        sectionLabel="Eltern"
+        sectionHref="/eltern"
+        pageLabel="Nachrichten"
+      />,
+    );
+
+    expect(screen.getByText("Eltern")).toBeInTheDocument();
+    expect(screen.getByText("Nachrichten")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Eltern" })).toHaveAttribute(
+      "href",
+      "/test-tenant/eltern",
+    );
+  });
+
+  it("keeps section links bare in subdomain routing mode", () => {
+    mockUseTenantRoutingModeSafe.mockReturnValue("subdomain");
+
+    render(
+      <SectionBreadcrumb
+        sectionLabel="Datenverwaltung"
+        sectionHref="/database"
+        pageLabel="Kinder"
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Datenverwaltung" }),
+    ).toHaveAttribute("href", "/database");
   });
 });
 
@@ -120,6 +169,22 @@ describe("OgsGroupsBreadcrumb", () => {
     expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
     expect(screen.getByText("Eulen")).toBeInTheDocument();
   });
+
+  it("shrinks with the header when scrolled", () => {
+    // Diese Breadcrumb reichte isScrolled als einzige nicht durch und blieb
+    // beim Scrollen groß, während der Rest der Kopfzeile schrumpfte.
+    const { container } = render(
+      <OgsGroupsBreadcrumb groupName="Eulen" isScrolled />,
+    );
+
+    expect(container.querySelector("nav")).toHaveClass("text-sm");
+  });
+
+  it("shrinks the plain title when scrolled without a group", () => {
+    render(<OgsGroupsBreadcrumb isScrolled />);
+
+    expect(screen.getByText("Meine Gruppe")).toHaveClass("text-sm");
+  });
 });
 
 describe("ActiveSupervisionsBreadcrumb", () => {
@@ -135,6 +200,14 @@ describe("ActiveSupervisionsBreadcrumb", () => {
     expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     expect(screen.getByText("Raum 1.2")).toBeInTheDocument();
   });
+
+  it("shrinks with the header when scrolled", () => {
+    const { container } = render(
+      <ActiveSupervisionsBreadcrumb supervisionName="Raum 1.2" isScrolled />,
+    );
+
+    expect(container.querySelector("nav")).toHaveClass("text-sm");
+  });
 });
 
 describe("EnrollmentBreadcrumb", () => {
@@ -149,7 +222,7 @@ describe("EnrollmentBreadcrumb", () => {
     render(<EnrollmentBreadcrumb current="Betreuungsangebote" />);
 
     const link = screen.getByRole("link", { name: "Anmeldungen" });
-    expect(link).toHaveAttribute("href", "/admin/enrollments");
+    expect(link).toHaveAttribute("href", "/test-tenant/admin/enrollments");
   });
 
   it("renders nested enrollment detail breadcrumbs", () => {
@@ -163,22 +236,6 @@ describe("EnrollmentBreadcrumb", () => {
     expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
     expect(screen.getByText("Überblick")).toBeInTheDocument();
     expect(screen.getByText("Schuljahr 2026/2027")).toBeInTheDocument();
-  });
-});
-
-describe("RoomBreadcrumb", () => {
-  it("renders room breadcrumb", () => {
-    render(<RoomBreadcrumb roomName="Sporthalle" />);
-
-    expect(screen.getByText("Räume")).toBeInTheDocument();
-    expect(screen.getByText("Sporthalle")).toBeInTheDocument();
-  });
-
-  it("links to rooms page", () => {
-    render(<RoomBreadcrumb roomName="Sporthalle" />);
-
-    const roomsLink = screen.getByRole("link", { name: "Räume" });
-    expect(roomsLink).toHaveAttribute("href", "/rooms");
   });
 });
 
@@ -226,7 +283,10 @@ describe("StudentHistoryBreadcrumb", () => {
     );
 
     const referrerLink = screen.getByRole("link", { name: "Kinder" });
-    expect(referrerLink).toHaveAttribute("href", "/database/students");
+    expect(referrerLink).toHaveAttribute(
+      "href",
+      "/test-tenant/database/students",
+    );
   });
 });
 

@@ -6,6 +6,16 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import {
+  ENROLLMENT_SECTION,
+  ENROLLMENT_SUB_PAGES,
+} from "~/lib/section-navigation";
+import { useTenantAwarePath } from "~/lib/tenant-path";
+
+// Die Hub-Seite der Anmeldungen ("Überblick") — erster Katalogeintrag, nicht
+// der Sektionsname. Beide stehen in der Breadcrumb übereinander.
+const ENROLLMENT_HUB_PAGE = ENROLLMENT_SUB_PAGES[0]!;
+
 /**
  * Chevron separator icon for breadcrumbs
  */
@@ -37,9 +47,11 @@ interface BreadcrumbLinkProps {
 }
 
 function BreadcrumbLink({ href, children, onClick }: BreadcrumbLinkProps) {
+  const tenantPath = useTenantAwarePath();
+
   return (
     <Link
-      href={href}
+      href={tenantPath(href)}
       onClick={onClick}
       className="font-medium text-gray-500 transition-colors hover:text-gray-900"
     >
@@ -103,37 +115,84 @@ export function PageTitleDisplay({
 }
 
 /**
- * Database breadcrumb with optional deep page support
+ * Breadcrumb einer gruppierten Navigationssektion: "Sektion › Seite", optional
+ * mit dritter Stufe. Eine Komponente für Datenverwaltung, Planung und Eltern,
+ * damit die drei Bereiche nicht auseinanderdriften.
+ *
+ * Ohne `sectionHref` steht der Sektionsname als reiner Text — die Planung hat
+ * keine Hub-Seite, auf die man verlinken könnte.
  */
-interface DatabaseBreadcrumbProps {
-  readonly pathname: string;
-  readonly pageTitle: string;
-  readonly subPageLabel: string;
-  readonly isDeepPage: boolean;
+interface SectionBreadcrumbProps {
+  readonly sectionLabel: string;
+  readonly sectionHref?: string;
+  readonly pageLabel: string;
+  readonly pageHref?: string;
+  readonly deepLabel?: string;
+  readonly isScrolled?: boolean;
 }
 
-export function DatabaseBreadcrumb({
-  pathname,
-  pageTitle,
-  subPageLabel,
-  isDeepPage,
-}: DatabaseBreadcrumbProps) {
+export function SectionBreadcrumb({
+  sectionLabel,
+  sectionHref,
+  pageLabel,
+  pageHref,
+  deepLabel,
+  isScrolled = false,
+}: SectionBreadcrumbProps) {
   return (
-    <BreadcrumbNav>
-      <BreadcrumbLink href="/database">Datenbank</BreadcrumbLink>
+    <BreadcrumbNav isScrolled={isScrolled}>
+      {sectionHref ? (
+        <BreadcrumbLink href={sectionHref}>{sectionLabel}</BreadcrumbLink>
+      ) : (
+        <span className="font-medium text-gray-500">{sectionLabel}</span>
+      )}
       <BreadcrumbSeparator />
-      {isDeepPage ? (
+      {deepLabel ? (
         <>
-          <BreadcrumbLink href={pathname.split("/").slice(0, 3).join("/")}>
-            {pageTitle}
-          </BreadcrumbLink>
+          {pageHref ? (
+            <BreadcrumbLink href={pageHref}>{pageLabel}</BreadcrumbLink>
+          ) : (
+            <span className="font-medium text-gray-500">{pageLabel}</span>
+          )}
           <BreadcrumbSeparator />
-          <BreadcrumbCurrent>{subPageLabel}</BreadcrumbCurrent>
+          <BreadcrumbCurrent>{deepLabel}</BreadcrumbCurrent>
         </>
       ) : (
-        <BreadcrumbCurrent>{pageTitle}</BreadcrumbCurrent>
+        <BreadcrumbCurrent>{pageLabel}</BreadcrumbCurrent>
       )}
     </BreadcrumbNav>
+  );
+}
+
+/**
+ * Breadcrumb eines Akkordeon-Bereichs ohne verlinkbare Hub-Seite: der
+ * Bereichsname als Text, dahinter der gewählte Eintrag. Ohne Eintrag bleibt
+ * nur der Bereichsname als Seitentitel.
+ *
+ * Die beiden Bereiche hatten diese Struktur vorher je einmal von Hand
+ * nachgebaut — und dabei `isScrolled` nicht durchgereicht, weshalb ihre
+ * Kopfzeile als einzige beim Scrollen nicht mitschrumpfte.
+ */
+interface AccordionSectionBreadcrumbProps {
+  readonly sectionLabel: string;
+  readonly itemName?: string;
+  readonly isScrolled?: boolean;
+}
+
+function AccordionSectionBreadcrumb({
+  sectionLabel,
+  itemName,
+  isScrolled = false,
+}: AccordionSectionBreadcrumbProps) {
+  if (!itemName) {
+    return <PageTitleDisplay title={sectionLabel} isScrolled={isScrolled} />;
+  }
+  return (
+    <SectionBreadcrumb
+      sectionLabel={sectionLabel}
+      pageLabel={itemName}
+      isScrolled={isScrolled}
+    />
   );
 }
 
@@ -142,19 +201,20 @@ export function DatabaseBreadcrumb({
  */
 interface OgsGroupsBreadcrumbProps {
   readonly groupName?: string;
+  readonly isScrolled?: boolean;
 }
 
-export function OgsGroupsBreadcrumb({ groupName }: OgsGroupsBreadcrumbProps) {
-  if (groupName) {
-    return (
-      <BreadcrumbNav>
-        <span className="font-medium text-gray-500">Meine Gruppe</span>
-        <BreadcrumbSeparator />
-        <BreadcrumbCurrent>{groupName}</BreadcrumbCurrent>
-      </BreadcrumbNav>
-    );
-  }
-  return <PageTitleDisplay title="Meine Gruppe" />;
+export function OgsGroupsBreadcrumb({
+  groupName,
+  isScrolled,
+}: OgsGroupsBreadcrumbProps) {
+  return (
+    <AccordionSectionBreadcrumb
+      sectionLabel="Meine Gruppe"
+      itemName={groupName}
+      isScrolled={isScrolled}
+    />
+  );
 }
 
 /**
@@ -162,21 +222,20 @@ export function OgsGroupsBreadcrumb({ groupName }: OgsGroupsBreadcrumbProps) {
  */
 interface ActiveSupervisionsBreadcrumbProps {
   readonly supervisionName?: string;
+  readonly isScrolled?: boolean;
 }
 
 export function ActiveSupervisionsBreadcrumb({
   supervisionName,
+  isScrolled,
 }: ActiveSupervisionsBreadcrumbProps) {
-  if (supervisionName) {
-    return (
-      <BreadcrumbNav>
-        <span className="font-medium text-gray-500">Aktuelle Aufsicht</span>
-        <BreadcrumbSeparator />
-        <BreadcrumbCurrent>{supervisionName}</BreadcrumbCurrent>
-      </BreadcrumbNav>
-    );
-  }
-  return <PageTitleDisplay title="Aktuelle Aufsicht" />;
+  return (
+    <AccordionSectionBreadcrumb
+      sectionLabel="Aktuelle Aufsicht"
+      itemName={supervisionName}
+      isScrolled={isScrolled}
+    />
+  );
 }
 
 interface EnrollmentBreadcrumbProps {
@@ -198,34 +257,21 @@ export function EnrollmentBreadcrumb({
 
   return (
     <BreadcrumbNav isScrolled={isScrolled}>
-      <BreadcrumbLink href="/admin/enrollments">Anmeldungen</BreadcrumbLink>
+      <BreadcrumbLink href={ENROLLMENT_SECTION.href}>
+        {ENROLLMENT_SECTION.label}
+      </BreadcrumbLink>
       <BreadcrumbSeparator />
       {nestedCurrent ? (
         <>
-          <BreadcrumbLink href="/admin/enrollments">Überblick</BreadcrumbLink>
+          <BreadcrumbLink href={ENROLLMENT_HUB_PAGE.href}>
+            {ENROLLMENT_HUB_PAGE.label}
+          </BreadcrumbLink>
           <BreadcrumbSeparator />
           <BreadcrumbCurrent>{nestedCurrent}</BreadcrumbCurrent>
         </>
       ) : (
         <BreadcrumbCurrent>{current}</BreadcrumbCurrent>
       )}
-    </BreadcrumbNav>
-  );
-}
-
-/**
- * Room detail breadcrumb
- */
-interface RoomBreadcrumbProps {
-  readonly roomName: string;
-}
-
-export function RoomBreadcrumb({ roomName }: RoomBreadcrumbProps) {
-  return (
-    <BreadcrumbNav>
-      <BreadcrumbLink href="/rooms">Räume</BreadcrumbLink>
-      <BreadcrumbSeparator />
-      <BreadcrumbCurrent>{roomName}</BreadcrumbCurrent>
     </BreadcrumbNav>
   );
 }

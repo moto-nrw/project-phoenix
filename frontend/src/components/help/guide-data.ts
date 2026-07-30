@@ -865,9 +865,9 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Abrechnung vorbereiten (DATEV)",
         icon: ClipboardList,
         summary:
-          "Lohnarten, DATEV-Mandantendaten und Personalnummern pflegen, damit der DATEV-Export in der Zeitkonten-Ansicht Dateien für die Lohnabrechnung erzeugen kann (nur mit Berechtigung `config:manage`).",
+          "Lohnarten, DATEV-Mandantendaten und Personalnummern pflegen, damit der DATEV-Export in der Zeitkonten-Ansicht Dateien für die Lohnabrechnung erzeugen kann. Die Seite liegt in der Seitenleiste unter `Planung` und ist Admins vorbehalten.",
         steps: [
-          "`Abrechnung` in der Seitenleiste öffnen. Die Karte `Vollständigkeit` zeigt, welche Angaben noch fehlen.",
+          "In der Seitenleiste `Planung` -> `Abrechnung` öffnen. Die Karte `Vollständigkeit` zeigt, welche Angaben noch fehlen.",
           "Unter `Lohnarten` für jede Kategorie (Regelarbeit, Plus-Stunden, Auszahlung, Freizeitausgleich, Krank, Urlaub, Fortbildung) die Lohnartnummer aus dem Lohnsystem des Trägers eintragen. Die Nummern liefert das Lohnbüro; es gibt bewusst keine Vorbelegung. Eine Kategorie ohne Nummer wird später einfach nicht exportiert.",
           "Bei Krank, Urlaub und Fortbildung zusätzlich die `Einheit` wählen: ob die Lohnart im Lohnsystem Stunden oder Tage erwartet.",
           "Unter `DATEV-Mandant` die Beraternummer und Mandantennummer eintragen. Beide stehen im DATEV-Bestand des Lohnbüros und werden nur für den LODAS-Export benötigt.",
@@ -990,7 +990,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Zeigt persönliche Termine, Einladungen, eigene Dienstplan-Schichten und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen, bearbeiten und sagen Termine für Team, Eltern oder ganze Gruppen ab und benachrichtigen Eltern optional per E-Mail.",
         steps: [
-          "In der Seitenleiste `Kalender` öffnen. Die Seite selbst heißt `Mein Kalender`.",
+          "In der Seitenleiste `Mein Kalender` öffnen.",
           "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen. Samstag und Sonntag sind standardmäßig ausgeblendet; über `Sa/So` blendest du sie ein — steht dort ein Zähler, liegen Einträge am Wochenende.",
           "Die Tages- und Wochenansicht ordnen Einträge auf einer Stunden-Zeitachse an; Dienstplan-Schichten hinterlegen ihren Zeitraum als farbiges Band im Hintergrund, Termine und Betreuungsblöcke liegen darüber.",
           "Einträge an der Farbe unterscheiden: grüne Karten sind Termine (`Termin`), blaue Karten Betreuungsblöcke (`Betreuung`), orangefarbene die eigenen Dienstplan-Schichten (`Dienst`). Schichten kommen aus dem Dienstplan und lassen sich hier nicht bearbeiten.",

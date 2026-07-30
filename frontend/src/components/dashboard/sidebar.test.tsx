@@ -64,7 +64,7 @@ import { Sidebar } from "./sidebar";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
@@ -79,6 +79,13 @@ const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockHasPermission = vi.mocked(hasPermission);
+// Standardverhalten des geteilten hasPermission-Mocks: Rechte hat nur der
+// Admin. Tests, die einzelne Rechte gezielt vergeben, stellen darüber wieder
+// den Ausgangszustand her (vi.clearAllMocks setzt Implementierungen nicht
+// zurück).
+const restoreDefaultHasPermission = () =>
+  mockHasPermission.mockImplementation((session) => mockIsAdmin(session));
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
@@ -206,6 +213,18 @@ describe("Sidebar", () => {
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretung")).toBeInTheDocument();
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
+    });
+
+    it("labels the personal calendar entry 'Mein Kalender'", () => {
+      // Der Eintrag trägt jetzt denselben Namen wie die H1 der Seite; das
+      // alte, unspezifische "Kalender" darf nicht mehr auftauchen.
+      render(<Sidebar />);
+
+      expect(screen.getByText("Mein Kalender").closest("a")).toHaveAttribute(
+        "href",
+        "/calendar",
+      );
+      expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
 
     it("hides staff-only items for admins (hideForAdmin)", () => {
@@ -386,7 +405,8 @@ describe("Sidebar", () => {
       const betreuungsplanLink = screen
         .getByText("Betreuungsplan")
         .closest("a");
-      const kalenderLink = screen.getByText("Kalender").closest("a");
+      // Der /calendar-Eintrag heißt "Mein Kalender" (wie die H1 der Seite).
+      const kalenderLink = screen.getByText("Mein Kalender").closest("a");
       expect(periodsLink).toHaveClass("bg-gray-100");
       expect(betreuungsplanLink).not.toHaveClass("bg-gray-100");
       // /calendar darf nicht per Präfix auf /calendar-periods mitleuchten.
@@ -862,21 +882,6 @@ describe("Sidebar", () => {
 
       expect(screen.getByText("Feedback")).toBeInTheDocument();
       expect(screen.getByText("Einstellungen")).toBeInTheDocument();
-    });
-
-    // Abrechnung (#1417) gates on config:manage; the shared hasPermission
-    // mock grants permissions to admins only.
-    it("renders Abrechnung only for config:manage holders", () => {
-      mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
-      const { unmount } = render(<Sidebar />);
-      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
-      unmount();
-
-      mockIsAdmin.mockReturnValue(false);
-      mockUseSession.mockReturnValue(createMockSession(false));
-      render(<Sidebar />);
-      expect(screen.queryByText("Abrechnung")).not.toBeInTheDocument();
     });
 
     it("highlights active icon color for active links", () => {
@@ -1689,7 +1694,7 @@ describe("Sidebar", () => {
       } as unknown as ReturnType<typeof useSWR>);
     });
 
-    it("keeps only Kalenderzeiträume when timetable.enabled is false", () => {
+    it("keeps Kalenderzeiträume and Abrechnung when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -1715,6 +1720,7 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });
 
     it("reads the settings schema from the tenant-scoped SWR key", () => {
@@ -1774,6 +1780,68 @@ describe("Sidebar", () => {
       expect(mockRouterPush).toHaveBeenCalledWith(
         "/test-tenant/calendar-periods",
       );
+    });
+  });
+
+  // Abrechnung (#1417) war ein flacher Top-Level-Eintrag mit
+  // config:manage-Gate und ist jetzt Unterpunkt des Planung-Akkordeons. Damit
+  // gilt dort dasselbe Gate wie für den ganzen Bereich: nur Admins, und nur
+  // solange timetable.enabled nicht ausgeschaltet ist.
+  describe("Abrechnung im Planung-Akkordeon", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+    });
+
+    afterEach(() => {
+      restoreDefaultHasPermission();
+    });
+
+    it("renders Abrechnung as a Planung sub-item, not as a flat entry", () => {
+      render(<Sidebar />);
+
+      const abrechnungLink = screen.getByText("Abrechnung").closest("a");
+      expect(abrechnungLink).toHaveAttribute("href", "/test-tenant/payroll");
+
+      // Der Eintrag steckt im Planung-Akkordeon (gemeinsamer Container mit
+      // dem Bereichs-Header), nicht als eigener Top-Level-Eintrag daneben.
+      const planningSection = screen.getByText("Planung").closest("div");
+      expect(planningSection).toContainElement(abrechnungLink);
+
+      // Unterpunkte tragen die Einrückung und kein eigenes Icon; flache
+      // NAV_ITEMS rendern beides genau umgekehrt.
+      expect(abrechnungLink).toHaveClass("pl-10");
+      expect(abrechnungLink?.querySelector("svg")).toBeNull();
+    });
+
+    it("highlights Abrechnung on /payroll", () => {
+      mockUsePathname.mockReturnValue("/payroll");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Abrechnung").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.getByText("Betreuungsplan").closest("a")).not.toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
+    it("keeps Abrechnung visible for non-admins holding config:manage", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "config:manage",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+      expect(screen.getByText("Abrechnung").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/payroll",
+      );
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
   });
 

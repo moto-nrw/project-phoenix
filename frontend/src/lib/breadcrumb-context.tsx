@@ -14,7 +14,6 @@ import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 interface BreadcrumbData {
   studentName?: string;
   staffName?: string;
-  roomName?: string;
   referrerPage?: string;
   activeSupervisionName?: string;
   ogsGroupName?: string;
