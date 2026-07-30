@@ -40,7 +40,11 @@ import {
 } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
-import { latestISODate, weekdayDatesInRange } from "~/lib/timetable-helpers";
+import {
+  latestISODate,
+  materializedRecurrenceDates,
+  weekdayDatesInRange,
+} from "~/lib/timetable-helpers";
 
 import {
   formatWeekdays,
@@ -68,6 +72,18 @@ function getShiftMutationErrorMessage(
       return "Diese Schicht überschneidet sich mit einer bestehenden Schicht.";
     }
     if (err.status === 400) {
+      // A series edit rejects for reasons that have nothing to do with the
+      // times, so translate those instead of sending the planner to check
+      // Beginn/Ende/Pause (#2028).
+      if (detail.includes("no occurrences left")) {
+        return 'Diese Serie hat ab morgen keine Termine mehr. Setzen Sie „Gültig bis" auf ein späteres Datum, um sie fortzuführen.';
+      }
+      if (detail.includes("calendar period")) {
+        return "Der gewählte Zeitraum liegt außerhalb des Kalenderzeitraums der Serie.";
+      }
+      if (detail.includes("week cycle")) {
+        return "Woche A/B benötigt einen Kalenderzeitraum mit gepflegtem Wochenzyklus.";
+      }
       return "Ungültige Schichtdaten. Bitte prüfen Sie Beginn, Ende und Pause.";
     }
     if (err.status === 401) {
@@ -409,9 +425,23 @@ export function ShiftEditModal({
     [periods, seriesRule],
   );
   const seriesPeriodHasCycle = (seriesPeriod?.weekCycleLength ?? 1) > 1;
+  // The backend never re-plans today or the past, so a series edit takes effect
+  // tomorrow at the earliest (clamped up to the segment start). Every hint in
+  // the editor describes THIS date — showing the opened occurrence promised a
+  // change for a day the re-plan does not touch (#2028).
+  const seriesAppliesFrom = latestISODate(
+    seriesEffectiveDate,
+    dayAfterISO(berlinTodayISO()),
+    seriesRule?.validFrom ?? seriesEffectiveDate,
+  );
+  // "Gültig bis" is inclusive in the picker: the segment still has something to
+  // change while its last day is on or after the applies-from date. Without the
+  // check the save fails server-side with a 400 the planner cannot act on.
+  const seriesHasDateRange =
+    seriesValidUntil === "" || seriesValidUntil >= seriesAppliesFrom;
   const seriesDefaultAbPattern = weekPatternForDate(
     seriesPeriod,
-    seriesEffectiveDate,
+    seriesAppliesFrom,
   );
   // Keep the stored A/B pattern until the series period is available:
   // otherwise a save while its metadata is still loading would silently turn
@@ -429,28 +459,23 @@ export function ShiftEditModal({
   // morgen, weil die Materialisierung vergangene Tage ohnehin nicht anfasst.
   const seriesEditClosingDayWindow = useMemo(() => {
     if (!seriesEditOpen || !seriesPeriod) return null;
-    const tomorrow = dayAfterISO(berlinTodayISO());
-    const from = latestISODate(
-      seriesEffectiveDate,
-      seriesPeriod.startDate,
-      tomorrow,
-    );
+    const from = latestISODate(seriesAppliesFrom, seriesPeriod.startDate);
     const to =
       seriesValidUntil !== "" && seriesValidUntil < seriesPeriod.endDate
         ? seriesValidUntil
         : seriesPeriod.endDate;
-    const dates = weekdayDatesInRange(from, to, seriesWeekdays).filter(
-      (dateISO) =>
-        shouldMaterializeWeekPattern(
-          seriesPeriod,
-          dateISO,
-          seriesRuleWeekPattern,
-        ),
-    );
+    const dates = materializedRecurrenceDates({
+      period: seriesPeriod,
+      fromISO: from,
+      weekdays: seriesWeekdays,
+      weekPattern: seriesRuleWeekPattern,
+      validUntil:
+        seriesValidUntil === "" ? undefined : dayAfterISO(seriesValidUntil),
+    });
     return { from, to, dates };
   }, [
     seriesEditOpen,
-    seriesEffectiveDate,
+    seriesAppliesFrom,
     seriesPeriod,
     seriesRuleWeekPattern,
     seriesValidUntil,
@@ -478,6 +503,12 @@ export function ShiftEditModal({
   // Markierung ist ein Hinweis, kein Sperrmechanismus.
   const seriesEditClosingDaysLoading =
     seriesEditOpen && (periods === null || seriesEditClosingDayState.isLoading);
+  const seriesHasRemainingOccurrence =
+    seriesHasDateRange &&
+    (seriesPeriod === null || seriesEditClosingDayWindow?.dates.length !== 0);
+  const seriesNoOccurrenceMessage = seriesHasDateRange
+    ? `Für die gewählten Wochentage und den Wochenrhythmus bleibt ab ${formatShortDate(seriesAppliesFrom)} kein Termin mehr. Setzen Sie „Gültig bis" auf ein späteres Datum oder ändern Sie die Wiederholung.`
+    : `Diese Serie endet am ${formatShortDate(seriesValidUntil)}, Änderungen wirken aber erst ab ${formatShortDate(seriesAppliesFrom)}. Setzen Sie „Gültig bis" auf ein späteres Datum, um die Serie fortzuführen.`;
   const seriesEditConfirmationKey =
     seriesEditClosingDayConflict === null
       ? null
@@ -613,6 +644,10 @@ export function ShiftEditModal({
     if (!validateInputs()) return;
     if (seriesWeekdays.length === 0) {
       setError("Bitte mindestens einen Wochentag auswählen.");
+      return;
+    }
+    if (!seriesHasRemainingOccurrence) {
+      setError(seriesNoOccurrenceMessage);
       return;
     }
     // Schließtag-Rückfrage vor dem Neuplanen (#2032).
@@ -1174,7 +1209,7 @@ export function ShiftEditModal({
             {seriesEditOpen && seriesRule && (
               <div className="space-y-3 rounded-md border border-gray-200 p-3">
                 <p className="text-xs text-gray-600">
-                  {`Die Änderungen gelten ab ${formatShortDate(seriesEffectiveDate)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
+                  {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
                 </p>
                 <FieldGroup label="Wochentage">
                   <WeekdayPicker
@@ -1193,7 +1228,7 @@ export function ShiftEditModal({
                     periodHasCycle={seriesPeriodHasCycle}
                     weekHint={
                       seriesDefaultAbPattern !== null
-                        ? `Die Woche vom ${formatShortDate(seriesEffectiveDate)} ist Woche ${
+                        ? `Die Woche vom ${formatShortDate(seriesAppliesFrom)} ist Woche ${
                             seriesDefaultAbPattern === 1 ? "A" : "B"
                           }.`
                         : undefined
@@ -1201,12 +1236,13 @@ export function ShiftEditModal({
                   />
                 </FieldGroup>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {/* The date the change takes effect — the occurrence the
-                      planner opened, not the original series start. */}
+                  {/* The date the change actually takes effect: the opened
+                      occurrence, moved forward to tomorrow when it already
+                      passed — the re-plan never touches today or earlier. */}
                   <Field label="Gilt ab">
                     <input
                       type="text"
-                      value={formatShortDate(seriesEffectiveDate)}
+                      value={formatShortDate(seriesAppliesFrom)}
                       disabled
                       className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
                     />
@@ -1227,6 +1263,19 @@ export function ShiftEditModal({
                     />
                   </FieldGroup>
                 </div>
+                {/* Say it before the save fails: a segment whose last day has
+                    arrived has nothing left for the re-plan to change (#2028). */}
+                {!seriesHasRemainingOccurrence && (
+                  <p
+                    className="rounded-md px-3 py-2 text-xs"
+                    style={{
+                      backgroundColor: `${LOCATION_COLORS.SCHOOLYARD}14`,
+                      color: LOCATION_COLORS.SCHOOLYARD,
+                    }}
+                  >
+                    {seriesNoOccurrenceMessage}
+                  </p>
+                )}
               </div>
             )}
             {mode === "edit" &&
