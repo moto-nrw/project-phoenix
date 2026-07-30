@@ -39,3 +39,25 @@ func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRange_Incl
 	assert.Zero(t, activeToday, "a future booking is not active on the range start")
 	assert.Equal(t, 1, peak, "a future booking must reserve its later capacity")
 }
+
+func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRangeExcludingRequestChild_ExcludesReplacedIntervals(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	from := timezone.TodayDate()
+	until := from.AddDays(90)
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID,
+			CareOfferingID: offeringID,
+		})
+	}))
+
+	var peak int
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		peak, err = repo.CountMaxActiveByCareOfferingInRangeExcludingRequestChild(ctx, offeringID, childID, from, until)
+		return err
+	}))
+
+	assert.Zero(t, peak, "the replacing child's old interval must not consume a second slot")
+}

@@ -436,6 +436,11 @@ type RequestChildOfferingRepository interface {
 	// half-open [from, until) range. Capacity checks use it to reserve slots
 	// for approved future offering changes.
 	CountMaxActiveByCareOfferingInRange(ctx context.Context, careOfferingID int64, from, until timezone.Date) (int, error)
+	// CountMaxActiveByCareOfferingInRangeExcludingRequestChild returns the
+	// peak occupancy after removing one child's existing intervals. A dated
+	// replacement uses it to validate the post-replacement state before it
+	// writes the new intervals.
+	CountMaxActiveByCareOfferingInRangeExcludingRequestChild(ctx context.Context, careOfferingID, requestChildID int64, from, until timezone.Date) (int, error)
 	// CountMaterializableByCareOffering includes every non-terminal selection,
 	// including a replacement scheduled for a future date. It protects later
 	// materialization from incompatible offering/template edits.

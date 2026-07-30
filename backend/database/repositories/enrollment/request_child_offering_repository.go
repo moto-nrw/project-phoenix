@@ -260,6 +260,28 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingInRange(
 	careOfferingID int64,
 	from, until timezone.Date,
 ) (int, error) {
+	return r.countMaxActiveByCareOfferingInRange(ctx, careOfferingID, 0, from, until)
+}
+
+// CountMaxActiveByCareOfferingInRangeExcludingRequestChild returns the
+// maximum occupancy in [from, until) after excluding one child's intervals.
+// This models a dated replacement before its old rows have been removed.
+func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingInRangeExcludingRequestChild(
+	ctx context.Context,
+	careOfferingID, requestChildID int64,
+	from, until timezone.Date,
+) (int, error) {
+	if requestChildID <= 0 {
+		return 0, fmt.Errorf("request_child_id is required")
+	}
+	return r.countMaxActiveByCareOfferingInRange(ctx, careOfferingID, requestChildID, from, until)
+}
+
+func (r *RequestChildOfferingRepository) countMaxActiveByCareOfferingInRange(
+	ctx context.Context,
+	careOfferingID, excludedRequestChildID int64,
+	from, until timezone.Date,
+) (int, error) {
 	if !from.Before(until) {
 		return 0, fmt.Errorf("capacity range must not be empty")
 	}
@@ -276,6 +298,7 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingInRange(
 			WHERE "request_child_offering".care_offering_id = ?
 				AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
 				AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
+				AND (? = 0 OR "request_child_offering".request_child_id <> ?)
 				AND "child".status NOT IN (?)
 		), boundaries AS (
 			SELECT starts_at AS boundary FROM intervals
@@ -289,7 +312,7 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingInRange(
 				AND interval_row.ends_at > boundaries.boundary
 		)), 0)
 		FROM boundaries
-	`, from, from, until, until, careOfferingID, until, from,
+	`, from, from, until, until, careOfferingID, until, from, excludedRequestChildID, excludedRequestChildID,
 		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
 	).Scan(ctx, &count)
 	if err != nil {

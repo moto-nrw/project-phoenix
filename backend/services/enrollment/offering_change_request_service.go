@@ -972,10 +972,9 @@ func appliedOfferingChangeDateForPhase(effectiveFrom timezone.Date, phase *enrol
 	return effectiveFrom
 }
 
-// assertCapacityAvailable refuses an approval that would overbook an offering
-// the child does not already hold. Offerings the child keeps are exempt: their
-// slot is already counted, and re-checking them would reject a request that
-// only changes days.
+// assertCapacityAvailable refuses an approval that would overbook an offering.
+// It counts every selected offering after removing this child's old intervals,
+// then reserves one replacement interval through the end of the care period.
 func (s *offeringChangeRequestService) assertCapacityAvailable(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
@@ -992,29 +991,22 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	if err != nil {
 		return err
 	}
-	needed := make([]int64, 0, len(allOfferingIDs))
-	for _, offeringID := range allOfferingIDs {
-		if held[offeringID] {
-			continue
-		}
-		needed = append(needed, offeringID)
-	}
-	sort.Slice(needed, func(i, j int) bool { return needed[i] < needed[j] })
-	locked, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, needed)
+	sort.Slice(allOfferingIDs, func(i, j int) bool { return allOfferingIDs[i] < allOfferingIDs[j] })
+	locked, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, allOfferingIDs)
 	if err != nil {
 		return fmt.Errorf("offering change: lock offering capacity: %w", err)
 	}
 	lockedByID := offeringsByID(locked)
-	for _, offeringID := range needed {
+	for _, offeringID := range allOfferingIDs {
 		offering := lockedByID[offeringID]
-		if offering == nil || !offering.IsActive {
+		if offering == nil || (!held[offeringID] && !offering.IsActive) {
 			return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, offeringID)
 		}
 		if offering.Capacity == nil {
 			continue
 		}
-		taken, countErr := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRange(
-			ctx, offering.ID, effectiveFrom, phase.ServiceEndDate.AddDays(1),
+		taken, countErr := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChild(
+			ctx, offering.ID, requestChildID, effectiveFrom, phase.ServiceEndDate.AddDays(1),
 		)
 		if countErr != nil {
 			return fmt.Errorf("offering change: count offering occupancy: %w", countErr)
