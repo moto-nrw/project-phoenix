@@ -41,7 +41,7 @@ import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
-import { parseISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getActivityTypeBadge,
@@ -534,25 +534,29 @@ export function InstanceDetailModal({
   // Für einen vergangenen Termin bleibt daher nur das Löschen dieser einen
   // Woche, also entfällt die Auswahl komplett statt eine Option anzubieten,
   // die zwangsläufig scheitert.
-  const seriesEndAvailable =
+  const canEndSeries = (currentToday: string) =>
     instance !== null &&
     Boolean(instance.activityGroupId) &&
     !instance.isSpontaneous &&
     Boolean(onDeleteFollowing) &&
-    instance.date >= today;
+    instance.date >= currentToday;
+  const seriesEndAvailable = canEndSeries(today);
 
   // If the scope dialog was opened before Berlin midnight, its recurring
   // option becomes invalid at the rollover. Continue with the only valid
   // deletion flow instead of leaving a stale option that the backend rejects.
   useEffect(() => {
-    if (deleteScopeOpen && !seriesEndAvailable) {
+    if (deleteScopeOpen && pendingDeleteScope === null && !seriesEndAvailable) {
       setDeleteScopeOpen(false);
       setPendingConfirm("delete");
     }
-  }, [deleteScopeOpen, seriesEndAvailable]);
+  }, [deleteScopeOpen, pendingDeleteScope, seriesEndAvailable]);
 
   const openDeleteFlow = () => {
-    if (seriesEndAvailable) {
+    // The hook refreshes once a minute. Re-read Berlin's current date at the
+    // interaction boundary so the short interval after midnight cannot open
+    // an already invalid series-ending flow.
+    if (canEndSeries(berlinTodayISO())) {
       setDeleteScopeOpen(true);
       return;
     }
@@ -570,6 +574,13 @@ export function InstanceDetailModal({
   };
 
   const handleDeleteScopeSelect = async (scope: string) => {
+    // The scope modal may have been open across midnight. Do not send a
+    // stale "following" request that the backend must reject.
+    if (scope === "following" && !canEndSeries(berlinTodayISO())) {
+      setDeleteScopeOpen(false);
+      setPendingConfirm("delete");
+      return;
+    }
     setPendingDeleteScope(scope);
     try {
       const succeeded =

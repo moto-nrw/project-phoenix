@@ -697,6 +697,108 @@ describe("InstanceDetailModal", () => {
     }
   });
 
+  it("does not open recurring delete during the hook refresh interval after Berlin midnight", () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-05-04T21:59:30Z"));
+    try {
+      render(
+        <InstanceDetailModal
+          instance={instance({ activityGroupId: "7", date: "2026-05-04" })}
+          onClose={vi.fn()}
+          onLifecycleAction={vi.fn()}
+          onDeleteCancelled={vi.fn()}
+          onDeleteFollowing={vi.fn()}
+        />,
+      );
+
+      vi.setSystemTime(new Date("2026-05-04T22:00:01Z"));
+      fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+
+      expect(
+        screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rechecks Berlin's date before ending a series from an already open scope dialog", () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-05-04T21:59:30Z"));
+    const onDeleteFollowing = vi.fn();
+    try {
+      render(
+        <InstanceDetailModal
+          instance={instance({ activityGroupId: "7", date: "2026-05-04" })}
+          onClose={vi.fn()}
+          onLifecycleAction={vi.fn()}
+          onDeleteCancelled={vi.fn()}
+          onDeleteFollowing={onDeleteFollowing}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+      vi.setSystemTime(new Date("2026-05-04T22:00:01Z"));
+      fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
+
+      expect(onDeleteFollowing).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not open a second confirmation while a scope deletion spans Berlin midnight", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-05-04T21:59:30Z"));
+    let resolveDeletion: (() => void) | undefined;
+    const onDeleteFollowing = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDeletion = resolve;
+        }),
+    );
+    try {
+      render(
+        <InstanceDetailModal
+          instance={instance({ activityGroupId: "7", date: "2026-05-04" })}
+          onClose={vi.fn()}
+          onLifecycleAction={vi.fn()}
+          onDeleteCancelled={vi.fn()}
+          onDeleteFollowing={onDeleteFollowing}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+      fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
+      await waitFor(() => expect(onDeleteFollowing).toHaveBeenCalledOnce());
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      expect(
+        screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Termin löschen?")).not.toBeInTheDocument();
+
+      await act(async () => {
+        resolveDeletion?.();
+      });
+
+      expect(
+        screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Termin löschen?")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders completed, empty, and detailed attendance states", async () => {
     const onClose = vi.fn();
     const { rerender } = render(
