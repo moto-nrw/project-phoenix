@@ -402,7 +402,7 @@ func careOfferingSelection(
 	item := CareOfferingSelection{
 		OfferingID:      offering.ID,
 		Name:            offering.Name,
-		Weekdays:        weekdaysFromOfferingDays(link.SelectedDays),
+		Weekdays:        weekdaysFromOfferingDays(careOfferingDays(offering, link)),
 		PriceCents:      offering.PriceCents,
 		IncludesLunch:   offering.IncludesLunch,
 		IncludesHoliday: offering.IncludesHolidayCare,
@@ -411,6 +411,13 @@ func careOfferingSelection(
 		item.Description = *offering.Description
 	}
 	return item, true
+}
+
+func careOfferingDays(offering *enrollmentModels.CareOffering, link *enrollmentModels.RequestChildOffering) []string {
+	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+		return offering.AvailableDays
+	}
+	return link.SelectedDays
 }
 
 func sortCareOfferingSelections(

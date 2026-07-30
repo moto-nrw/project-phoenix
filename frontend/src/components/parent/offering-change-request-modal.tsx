@@ -141,9 +141,9 @@ export function OfferingChangeRequestModal({
       // parent-choice offering starts from the days already booked, else empty
       // so the parent has to make the choice deliberately.
       const days =
-        nextSelected && item.days_of_week_mode !== "parent_choice"
-          ? new Set(item.available_days)
-          : new Set(row.days);
+        nextSelected && item.days_of_week_mode === "parent_choice"
+          ? new Set(row.days)
+          : new Set<string>();
       return { ...prev, [item.id]: { selected: nextSelected, days } };
     });
 
@@ -183,7 +183,10 @@ export function OfferingChangeRequestModal({
         setError(t("careOfferingsModal.noDaysSelected"));
         return;
       }
-      offerings.push({ offering_id: item.id, selected_days: days });
+      offerings.push({
+        offering_id: item.id,
+        selected_days: item.days_of_week_mode === "parent_choice" ? days : [],
+      });
     }
     setSubmitting(true);
     setError(null);
@@ -261,7 +264,9 @@ export function OfferingChangeRequestModal({
                     <label className="flex cursor-pointer items-start gap-3">
                       <Checkbox
                         checked={selected}
-                        disabled={item.is_required || full || unavailable}
+                        disabled={
+                          full || unavailable || (item.is_required && selected)
+                        }
                         onChange={() => toggleOffering(item)}
                       />
                       <span className="min-w-0 flex-1">

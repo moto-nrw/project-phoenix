@@ -364,6 +364,9 @@ func (s *offeringChangeRequestService) Catalog(
 	if err != nil {
 		return nil, err
 	}
+	if earliest.Before(phase.ServiceStartDate) {
+		earliest = phase.ServiceStartDate
+	}
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
@@ -605,6 +608,9 @@ func (s *offeringChangeRequestService) Create(
 	}
 	if input.EffectiveFrom.Before(earliest) {
 		return nil, fmt.Errorf("%w: effective date is earlier than the school's notice period", ErrOfferingChangeInvalid)
+	}
+	if input.EffectiveFrom.Before(phase.ServiceStartDate) {
+		return nil, fmt.Errorf("%w: effective date is before the care period starts", ErrOfferingChangeInvalid)
 	}
 	if input.EffectiveFrom.After(phase.ServiceEndDate) {
 		return nil, fmt.Errorf("%w: effective date is after the care period ends", ErrOfferingChangeInvalid)
@@ -994,15 +1000,29 @@ func (s *offeringChangeRequestService) validateSelections(
 		return nil, fmt.Errorf("offering change: load request child: %w", err)
 	}
 	submit.TargetGradeLevel = child.TargetGradeLevel
-	if _, err := materializeAndValidateChildrenOfferingSelections(
+	materialized, err := materializeAndValidateChildrenOfferingSelections(
 		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
 	}
+	normalized = offeringChangeSelectionsFromMaterialized(materialized[0])
 	sort.SliceStable(normalized, func(i, j int) bool {
 		return normalized[i].OfferingID < normalized[j].OfferingID
 	})
 	return normalized, nil
+}
+
+func offeringChangeSelectionsFromMaterialized(rows []materializedOfferingSelection) []OfferingChangeSelection {
+	out := make([]OfferingChangeSelection, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, OfferingChangeSelection{
+			OfferingID:   row.OfferingID,
+			SelectedDays: append([]string(nil), row.SelectedDays...),
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].OfferingID < out[j].OfferingID })
+	return out
 }
 
 func offeringsByID(offerings []*enrollmentModels.CareOffering) map[int64]*enrollmentModels.CareOffering {
