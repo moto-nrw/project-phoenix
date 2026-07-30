@@ -198,6 +198,51 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 	assert.Equal(t, downstreamFrom, *result.Series.ValidUntil)
 }
 
+func TestStaffShiftSeries_SplitRejectsWhenNextSegmentLeavesNoOccurrence(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodEnd := today.AddDays(28)
+	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
+	effective := today.AddDays(1)
+	nextFrom := effective.AddDays(1)
+	weekday := int16((int(nextFrom.Weekday())+6)%7 + 1)
+	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
+	series.Weekdays = []int16{weekday}
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: nextFrom,
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+
+	err := env.inTxExpectErr(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: effective,
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ValidUntilSet: true,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+	assert.Contains(t, err.Error(), "no occurrences left to change")
+	assert.NotEmpty(t, env.shiftsInRange(t, nextFrom, nextFrom),
+		"the rejected edit must leave the later segment's shift intact")
+}
+
 func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()

@@ -453,13 +453,6 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if err != nil {
 		return nil, err
 	}
-	if !hasFutureSeriesOccurrence(successor, period) {
-		return nil, fmt.Errorf(
-			"%w: no occurrences left to change for the selected weekdays and week pattern",
-			ErrSeriesInvalid,
-		)
-	}
-
 	if err := s.lockShiftWrites(ctx, old.StaffID); err != nil {
 		return nil, err
 	}
@@ -476,6 +469,12 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if next != nil && (successor.ValidUntil == nil || next.ValidFrom.Before(*successor.ValidUntil)) {
 		until := next.ValidFrom
 		successor.ValidUntil = &until
+	}
+	if !hasFutureSeriesOccurrence(successor, period) {
+		return nil, fmt.Errorf(
+			"%w: no occurrences left to change for the selected weekdays and week pattern",
+			ErrSeriesInvalid,
+		)
 	}
 	if err := s.seriesRepo.CapValidUntil(ctx, old.ID, effective); err != nil {
 		return nil, err
