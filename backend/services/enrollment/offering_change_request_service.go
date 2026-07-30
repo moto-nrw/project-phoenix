@@ -347,6 +347,42 @@ func (s *offeringChangeRequestService) carePeriodAt(
 	return nil, nil, ErrOfferingChangeNoEnrollment
 }
 
+// carePeriodAtOrNext resolves the period covering onDate, or the nearest
+// approved period beginning after it. The catalog needs the latter so it can
+// offer the first valid date when a lead time falls before the next period.
+func (s *offeringChangeRequestService) carePeriodAtOrNext(
+	ctx context.Context,
+	studentID int64,
+	onDate timezone.Date,
+) (*enrollmentModels.StudentCarePeriod, *enrollmentModels.Phase, error) {
+	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("offering change: list care periods: %w", err)
+	}
+	var next *enrollmentModels.StudentCarePeriod
+	for _, candidate := range periods {
+		if !candidate.ServiceStartDate.After(onDate) && !candidate.ServiceEndDate.Before(onDate) {
+			phase, phaseErr := s.PhaseRepo.FindByID(ctx, candidate.PhaseID)
+			if phaseErr != nil || phase == nil {
+				return nil, nil, fmt.Errorf("offering change: load phase: %w", phaseErr)
+			}
+			return candidate, phase, nil
+		}
+		if candidate.ServiceStartDate.After(onDate) &&
+			(next == nil || candidate.ServiceStartDate.Before(next.ServiceStartDate)) {
+			next = candidate
+		}
+	}
+	if next == nil {
+		return nil, nil, ErrOfferingChangeNoEnrollment
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, next.PhaseID)
+	if err != nil || phase == nil {
+		return nil, nil, fmt.Errorf("offering change: load phase: %w", err)
+	}
+	return next, phase, nil
+}
+
 func (s *offeringChangeRequestService) carePeriodForEarliestEffectiveDate(
 	ctx context.Context,
 	studentID int64,
@@ -355,7 +391,7 @@ func (s *offeringChangeRequestService) carePeriodForEarliestEffectiveDate(
 	if err != nil {
 		return nil, nil, timezone.Date{}, err
 	}
-	period, phase, err := s.carePeriodAt(ctx, studentID, earliest)
+	period, phase, err := s.carePeriodAtOrNext(ctx, studentID, earliest)
 	if err != nil {
 		return nil, nil, timezone.Date{}, err
 	}
