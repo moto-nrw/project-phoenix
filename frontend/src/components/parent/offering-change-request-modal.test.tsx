@@ -12,6 +12,14 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
   return { ...actual, getChildOfferingCatalog: vi.fn() };
 });
 
+vi.mock("~/components/ui/date-picker", () => ({
+  ISODatePicker: ({ onChange }: { onChange: (date: string) => void }) => (
+    <button type="button" onClick={() => onChange("2026-09-01")}>
+      Datum ändern
+    </button>
+  ),
+}));
+
 const mockCatalog = vi.mocked(getChildOfferingCatalog);
 
 function catalog(overrides: Partial<OfferingCatalog> = {}): OfferingCatalog {
@@ -146,6 +154,82 @@ describe("OfferingChangeRequestModal", () => {
           { offering_id: "6", selected_days: [] },
         ],
         effective_from: "2026-08-14",
+        note: undefined,
+      }),
+    );
+  });
+
+  it("uses the catalog for the newly selected effective date without edits", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    mockCatalog.mockResolvedValueOnce(catalog()).mockResolvedValueOnce(
+      catalog({
+        items: [
+          {
+            ...catalog().items[1]!,
+            selected: true,
+          },
+        ],
+      }),
+    );
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await screen.findByText("Regelbetreuung");
+    fireEvent.click(screen.getByRole("button", { name: "Datum ändern" }));
+    expect(await screen.findByText("Ferienbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        offerings: [{ offering_id: "6", selected_days: [] }],
+        effective_from: "2026-09-01",
+        note: undefined,
+      }),
+    );
+  });
+
+  it("keeps only selections the guardian edited when changing the date", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    mockCatalog.mockResolvedValueOnce(catalog()).mockResolvedValueOnce(
+      catalog({
+        items: [
+          {
+            ...catalog().items[0]!,
+            selected: true,
+          },
+          {
+            ...catalog().items[1]!,
+            selected: true,
+          },
+        ],
+      }),
+    );
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const ruleOffering = (await screen.findByText("Regelbetreuung")).closest(
+      "label",
+    );
+    fireEvent.click(ruleOffering?.querySelector('input[type="checkbox"]')!);
+    fireEvent.click(screen.getByRole("button", { name: "Datum ändern" }));
+    await screen.findByText("Ferienbetreuung");
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        offerings: [{ offering_id: "6", selected_days: [] }],
+        effective_from: "2026-09-01",
         note: undefined,
       }),
     );

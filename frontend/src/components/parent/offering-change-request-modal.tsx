@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
@@ -53,9 +53,11 @@ function draftFromCatalog(items: OfferingCatalogItem[]): DraftMap {
 function rebaseDraftForCatalog(
   draft: DraftMap,
   items: OfferingCatalogItem[],
+  editedOfferingIDs: ReadonlySet<string>,
 ): DraftMap {
   const rebased = draftFromCatalog(items);
   for (const item of items) {
+    if (!editedOfferingIDs.has(item.id)) continue;
     const previous = draft[item.id];
     if (!previous || item.automatic || item.is_required) continue;
     const canKeep =
@@ -110,6 +112,7 @@ export function OfferingChangeRequestModal({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const editedOfferingIDs = useRef(new Set<string>());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,6 +121,7 @@ export function OfferingChangeRequestModal({
       const loaded = await getChildOfferingCatalog(studentId);
       setCatalog(loaded);
       setDraft(draftFromCatalog(loaded.items));
+      editedOfferingIDs.current.clear();
       setEffectiveFrom(loaded.earliest_effective_from);
     } catch (err) {
       logger.warn("offering_catalog_load_failed", {
@@ -141,7 +145,9 @@ export function OfferingChangeRequestModal({
     try {
       const loaded = await getChildOfferingCatalog(studentId, date);
       setCatalog(loaded);
-      setDraft((current) => rebaseDraftForCatalog(current, loaded.items));
+      setDraft((current) =>
+        rebaseDraftForCatalog(current, loaded.items, editedOfferingIDs.current),
+      );
       setEffectiveFrom(date);
     } catch (err) {
       logger.warn("offering_catalog_reload_failed", {
@@ -160,7 +166,8 @@ export function OfferingChangeRequestModal({
     [t],
   );
 
-  const toggleOffering = (item: OfferingCatalogItem) =>
+  const toggleOffering = (item: OfferingCatalogItem) => {
+    editedOfferingIDs.current.add(item.id);
     setDraft((prev) => {
       const row = prev[item.id] ?? { selected: false, days: new Set<string>() };
       const nextSelected = !row.selected;
@@ -173,8 +180,10 @@ export function OfferingChangeRequestModal({
           : new Set<string>();
       return { ...prev, [item.id]: { selected: nextSelected, days } };
     });
+  };
 
-  const toggleDay = (offeringId: string, day: string) =>
+  const toggleDay = (offeringId: string, day: string) => {
+    editedOfferingIDs.current.add(offeringId);
     setDraft((prev) => {
       const row = prev[offeringId];
       if (!row) return prev;
@@ -186,6 +195,7 @@ export function OfferingChangeRequestModal({
       }
       return { ...prev, [offeringId]: { ...row, days } };
     });
+  };
 
   const items = useMemo(() => catalog?.items ?? [], [catalog]);
   const emptyCatalog = catalog !== null && items.length === 0;
