@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -112,12 +113,16 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
+	actorRole := strings.Join(claims.Roles, ",")
+	if actorRole == "" {
+		actorRole = "unknown"
+	}
 	if err := rs.OfferingChangeService.Decide(r.Context(), enrollmentService.DecideOfferingChangeInput{
 		RequestID:  requestID,
 		Approve:    *body.Approve,
 		Reason:     body.Reason,
 		ReviewedBy: int64(claims.ID),
-		ActorRole:  "admin",
+		ActorRole:  actorRole,
 	}); err != nil {
 		renderOfferingDecisionError(w, r, err)
 		return
