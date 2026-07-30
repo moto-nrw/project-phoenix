@@ -3,7 +3,8 @@
  * Tests rendering and navigation breadcrumb patterns
  */
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { useTenantRoutingModeSafe } from "~/lib/tenant-context";
 import {
   PageTitleDisplay,
   SectionBreadcrumb,
@@ -32,6 +33,12 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
+
+const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
+
+beforeEach(() => {
+  mockUseTenantRoutingModeSafe.mockReturnValue("path");
+});
 
 describe("PageTitleDisplay", () => {
   it("renders page title", () => {
@@ -101,7 +108,7 @@ describe("SectionBreadcrumb", () => {
     );
 
     const sectionLink = screen.getByRole("link", { name: "Datenverwaltung" });
-    expect(sectionLink).toHaveAttribute("href", "/database");
+    expect(sectionLink).toHaveAttribute("href", "/test-tenant/database");
   });
 
   it("renders the section as plain text when no sectionHref is given", () => {
@@ -128,8 +135,24 @@ describe("SectionBreadcrumb", () => {
     expect(screen.getByText("Nachrichten")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Eltern" })).toHaveAttribute(
       "href",
-      "/eltern",
+      "/test-tenant/eltern",
     );
+  });
+
+  it("keeps section links bare in subdomain routing mode", () => {
+    mockUseTenantRoutingModeSafe.mockReturnValue("subdomain");
+
+    render(
+      <SectionBreadcrumb
+        sectionLabel="Datenverwaltung"
+        sectionHref="/database"
+        pageLabel="Kinder"
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Datenverwaltung" }),
+    ).toHaveAttribute("href", "/database");
   });
 });
 
@@ -199,7 +222,7 @@ describe("EnrollmentBreadcrumb", () => {
     render(<EnrollmentBreadcrumb current="Betreuungsangebote" />);
 
     const link = screen.getByRole("link", { name: "Anmeldungen" });
-    expect(link).toHaveAttribute("href", "/admin/enrollments");
+    expect(link).toHaveAttribute("href", "/test-tenant/admin/enrollments");
   });
 
   it("renders nested enrollment detail breadcrumbs", () => {
@@ -260,7 +283,10 @@ describe("StudentHistoryBreadcrumb", () => {
     );
 
     const referrerLink = screen.getByRole("link", { name: "Kinder" });
-    expect(referrerLink).toHaveAttribute("href", "/database/students");
+    expect(referrerLink).toHaveAttribute(
+      "href",
+      "/test-tenant/database/students",
+    );
   });
 });
 

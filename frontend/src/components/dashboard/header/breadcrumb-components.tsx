@@ -10,6 +10,7 @@ import {
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
 } from "~/lib/section-navigation";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 // Die Hub-Seite der Anmeldungen ("Überblick") — erster Katalogeintrag, nicht
 // der Sektionsname. Beide stehen in der Breadcrumb übereinander.
@@ -46,9 +47,11 @@ interface BreadcrumbLinkProps {
 }
 
 function BreadcrumbLink({ href, children, onClick }: BreadcrumbLinkProps) {
+  const tenantPath = useTenantAwarePath();
+
   return (
     <Link
-      href={href}
+      href={tenantPath(href)}
       onClick={onClick}
       className="font-medium text-gray-500 transition-colors hover:text-gray-900"
     >

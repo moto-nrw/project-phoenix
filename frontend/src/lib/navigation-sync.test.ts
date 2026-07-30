@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -134,7 +135,7 @@ describe("navigation catalogs stay in sync with the header", () => {
    * Operator-Seite automatisch mitgeprüft wird.
    */
   describe("static page titles agree with the header fallback", () => {
-    const APP_DIR = join(__dirname, "..", "app");
+    const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "app");
     const SET_BREADCRUMB_TITLE =
       /useSetBreadcrumb\(\{\s*pageTitle:\s*"([^"]+)"\s*,?\s*\}\)/;
 

@@ -90,7 +90,7 @@ import { MobileBottomNav } from "./mobile-bottom-nav";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
@@ -106,6 +106,7 @@ const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
@@ -182,6 +183,7 @@ describe("MobileBottomNav", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    mockHasPermission.mockReturnValue(false);
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
     // Re-establish tenant defaults each test so per-test subdomain/slug
@@ -400,6 +402,23 @@ describe("MobileBottomNav", () => {
         .getAllByRole("link")
         .map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/test-tenant/payroll");
+    });
+
+    it("lists only Abrechnung for non-admins holding config:manage", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "config:manage",
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Abrechnung").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/payroll",
+      );
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
 
     it("prefixes all planning links in tenant path-routing mode", () => {

@@ -461,9 +461,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Kalenderzeiträume bleiben auch bei abgeschaltetem Planungsbereich
   // erreichbar: die Anmeldephasen (Anmeldungen-Akkordeon) verknüpfen sich mit
   // Kalenderzeiträumen, unabhängig von timetable.enabled.
-  const planningSubPages = timetableEnabled
-    ? PLANNING_SUB_PAGES
-    : PLANNING_SUB_PAGES.filter((page) => page.href === "/calendar-periods");
+  const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
+    if (!userIsAdmin) {
+      return (
+        page.nonAdminPermission !== undefined &&
+        hasPermission(session, page.nonAdminPermission)
+      );
+    }
+    return timetableEnabled || page.href === "/calendar-periods";
+  });
 
   // Gruppenzugriff (#1940): temporäre Gruppen-Datenzugriffe sind nur bei
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
@@ -1358,11 +1364,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Planung accordion (admin only, #1946) — bündelt Betreuungsplan,
-              Dienstplan, Vertretung und Kalenderzeiträume. Bei explizit
-              ausgeschaltetem timetable.enabled bleiben nur die
-              Kalenderzeiträume übrig (Anmeldephasen hängen daran). */}
-          {userIsAdmin && (
+          {/* Planung accordion (#1946) — bündelt Betreuungsplan, Dienstplan,
+              Vertretung und Kalenderzeiträume für Admins. Berechtigte
+              Nicht-Admins behalten Abrechnung als einzigen Unterpunkt. Bei
+              explizit ausgeschaltetem timetable.enabled bleiben für Admins
+              nur die Kalenderzeiträume übrig (Anmeldephasen hängen daran). */}
+          {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
               label={PLANNING_SECTION.label}

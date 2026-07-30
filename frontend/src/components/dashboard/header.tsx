@@ -10,7 +10,12 @@ import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
-import { useTenantSafe } from "~/lib/tenant-context";
+import {
+  useTenantRoutingModeSafe,
+  useTenantSafe,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
+import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
 
 // Import extracted components
@@ -52,7 +57,14 @@ export function Header() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const tenantSlug = useTenantSlugSafe();
+  const routingMode = useTenantRoutingModeSafe();
+  const pathname = normalizeTenantPathname(
+    rawPathname,
+    tenantSlug,
+    routingMode,
+  );
   const tenantContext = useTenantSafe();
   // parentNav is available in every shell; only parent-mode branches read it, so
   // the German staff/operator labels are untouched (they render the de mirror).

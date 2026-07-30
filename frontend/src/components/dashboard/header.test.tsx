@@ -255,6 +255,14 @@ describe("Header", () => {
     expect(screen.getByTestId("page-title")).toHaveTextContent("Rooms");
   });
 
+  it("normalizes tenant-prefixed paths before resolving page titles", () => {
+    mockUsePathname.mockReturnValue("/test-tenant/rooms");
+
+    render(<Header />);
+
+    expect(screen.getByTestId("page-title")).toHaveTextContent("Rooms");
+  });
+
   it("renders database breadcrumb for database pages", () => {
     mockUsePathname.mockReturnValue("/database/groups");
 
@@ -263,6 +271,16 @@ describe("Header", () => {
     expect(breadcrumb).toBeInTheDocument();
     // Die Sektionswurzel heißt wie der Seitenleisten-Eintrag
     // ("Datenverwaltung", nicht mehr "Datenbank").
+    expect(breadcrumb).toHaveTextContent("Datenverwaltung");
+    expect(breadcrumb).toHaveTextContent("Gruppen");
+  });
+
+  it("normalizes tenant-prefixed paths before resolving breadcrumbs", () => {
+    mockUsePathname.mockReturnValue("/test-tenant/database/groups");
+
+    render(<Header />);
+
+    const breadcrumb = screen.getByTestId("section-breadcrumb");
     expect(breadcrumb).toHaveTextContent("Datenverwaltung");
     expect(breadcrumb).toHaveTextContent("Gruppen");
   });

@@ -1828,10 +1828,7 @@ describe("Sidebar", () => {
       );
     });
 
-    it("hides Abrechnung for non-admins holding config:manage", () => {
-      // Bewusste Verhaltensänderung: als flacher Eintrag war Abrechnung für
-      // jeden config:manage-Träger sichtbar. Im Planung-Akkordeon entscheidet
-      // nur noch die Admin-Rolle.
+    it("keeps Abrechnung visible for non-admins holding config:manage", () => {
       mockIsAdmin.mockReturnValue(false);
       mockUseSession.mockReturnValue(createMockSession(false));
       mockHasPermission.mockImplementation(
@@ -1840,10 +1837,12 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Gegenprobe, dass überhaupt eine Seitenleiste gerendert wurde.
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
-      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      expect(screen.queryByText("Abrechnung")).not.toBeInTheDocument();
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+      expect(screen.getByText("Abrechnung").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/payroll",
+      );
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
   });
 

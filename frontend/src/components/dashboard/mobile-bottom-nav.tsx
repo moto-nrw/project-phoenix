@@ -300,7 +300,8 @@ const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
     href: page.href,
     label: page.label,
     iconKey: PLANNING_ICON_KEYS[page.href],
-    requiresAdmin: true,
+    requiresAdmin: page.nonAdminPermission === undefined,
+    requiresPermission: page.nonAdminPermission,
     activePaths: getPlanningMobileActivePaths(page.href),
   }));
 
@@ -625,7 +626,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (
       isPlanningPageHref(item.href) &&
       item.href !== "/calendar-periods" &&
-      !timetableEnabled
+      !timetableEnabled &&
+      (userIsAdmin || item.requiresPermission === undefined)
     ) {
       return false;
     }

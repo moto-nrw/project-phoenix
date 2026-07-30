@@ -13,6 +13,7 @@ export interface PlanningSubPage {
   readonly label: string;
   readonly legacyPrefixes: readonly string[];
   readonly showInMobileNav: boolean;
+  readonly nonAdminPermission?: string;
 }
 
 /**
@@ -69,6 +70,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Abrechnung",
     legacyPrefixes: [],
     showInMobileNav: true,
+    nonAdminPermission: "config:manage",
   },
 ];
 
