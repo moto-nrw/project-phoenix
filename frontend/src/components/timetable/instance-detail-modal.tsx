@@ -526,12 +526,21 @@ export function InstanceDetailModal({
     }
   };
 
+  // "Ab jetzt dauerhaft" beendet den Regeltermin ab dem Datum des Termins —
+  // das Backend lehnt ein Datum vor heute ab, weil das Vergangenheit löschen
+  // würde (template_split_service: effective_date must not be in the past).
+  // Für einen vergangenen Termin bleibt daher nur das Löschen dieser einen
+  // Woche, also entfällt die Auswahl komplett statt eine Option anzubieten,
+  // die zwangsläufig scheitert.
+  const seriesEndAvailable =
+    instance !== null &&
+    Boolean(instance.activityGroupId) &&
+    !instance.isSpontaneous &&
+    Boolean(onDeleteFollowing) &&
+    instance.date >= berlinTodayISO();
+
   const openDeleteFlow = () => {
-    if (
-      instance?.activityGroupId &&
-      !instance.isSpontaneous &&
-      onDeleteFollowing
-    ) {
+    if (seriesEndAvailable) {
       setDeleteScopeOpen(true);
       return;
     }

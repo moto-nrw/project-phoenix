@@ -533,7 +533,11 @@ describe("InstanceDetailModal", () => {
 
     render(
       <InstanceDetailModal
-        instance={instance({ activityGroupId: "7", isSpontaneous: false })}
+        instance={instance({
+          activityGroupId: "7",
+          isSpontaneous: false,
+          date: "2099-05-04",
+        })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
         onDeleteCancelled={onDeleteCancelled}
@@ -562,7 +566,11 @@ describe("InstanceDetailModal", () => {
 
     render(
       <InstanceDetailModal
-        instance={instance({ activityGroupId: "7", isSpontaneous: false })}
+        instance={instance({
+          activityGroupId: "7",
+          isSpontaneous: false,
+          date: "2099-05-04",
+        })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
         onDeleteCancelled={vi.fn()}
@@ -614,6 +622,43 @@ describe("InstanceDetailModal", () => {
           activityGroupId: "7",
           isSpontaneous: true,
         }),
+      ),
+    );
+    expect(onDeleteFollowing).not.toHaveBeenCalled();
+  });
+
+  it("uses single delete for past occurrences of a series", async () => {
+    const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
+    const onDeleteFollowing = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <InstanceDetailModal
+        instance={instance({
+          activityGroupId: "7",
+          isSpontaneous: false,
+          date: "2020-05-04",
+          status: "cancelled",
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onDeleteCancelled={onDeleteCancelled}
+        onDeleteFollowing={onDeleteFollowing}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+    // "Ab jetzt dauerhaft" beendet die Serie ab dem Termindatum — das lehnt
+    // das Backend für vergangene Daten ab, also darf die Auswahl gar nicht
+    // erst erscheinen.
+    expect(
+      screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+
+    fireEvent.click(confirmDialogButton("Löschen"));
+    await waitFor(() =>
+      expect(onDeleteCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "42", activityGroupId: "7" }),
       ),
     );
     expect(onDeleteFollowing).not.toHaveBeenCalled();
