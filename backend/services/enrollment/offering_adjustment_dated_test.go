@@ -152,7 +152,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 	require.NotNil(t, newRow.EnrollmentRequestChildID)
 	assert.Equal(t, childID, *newRow.EnrollmentRequestChildID)
 
-	currentLinks, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, childID)
+	currentLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, childID, timezone.TodayDate())
 	require.NoError(t, err)
 	require.Len(t, currentLinks, 1)
 	assert.Equal(t, oldOffering.ID, currentLinks[0].CareOfferingID,
