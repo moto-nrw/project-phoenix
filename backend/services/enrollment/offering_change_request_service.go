@@ -809,8 +809,10 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 		if !writable(student) || student.IsAlumnus() {
 			continue
 		}
-		view := &OfferingChangeView{Request: row, StudentName: s.studentName(ctx, row.StudentID)}
-		if diff, diffErr := s.diffForRequest(ctx, row); diffErr == nil {
+		reviewRow := *row
+		reviewRow.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom)
+		view := &OfferingChangeView{Request: &reviewRow, StudentName: s.studentName(ctx, row.StudentID)}
+		if diff, diffErr := s.diffForRequest(ctx, &reviewRow); diffErr == nil {
 			view.Diff = diff
 		} else {
 			s.Logger.Warn("offering change: build diff failed",
@@ -917,14 +919,11 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err != nil {
 		return err
 	}
-	effectiveFrom := row.EffectiveFrom
+	effectiveFrom := appliedOfferingChangeDate(row.EffectiveFrom)
 	// A request whose date has passed while it waited applies as soon as
 	// possible instead of being refused: the family asked for a change, the
 	// office agreed, and a date in the past would be rejected by the adjustment
 	// validator.
-	if today := timezone.TodayDate(); effectiveFrom.Before(today) {
-		effectiveFrom = today
-	}
 	if effectiveFrom.After(phase.ServiceEndDate) {
 		return fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
 	}
@@ -953,6 +952,13 @@ func (s *offeringChangeRequestService) applyApproved(
 		return fmt.Errorf("offering change: update applied effective date: %w", err)
 	}
 	return nil
+}
+
+func appliedOfferingChangeDate(effectiveFrom timezone.Date) timezone.Date {
+	if today := timezone.TodayDate(); effectiveFrom.Before(today) {
+		return today
+	}
+	return effectiveFrom
 }
 
 // assertCapacityAvailable refuses an approval that would overbook an offering
@@ -1267,6 +1273,9 @@ func (s *offeringChangeRequestService) diffForRequest(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
 ) ([]OfferingChangeDiffEntry, error) {
+	rowCopy := *row
+	rowCopy.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom)
+	row = &rowCopy
 	requested, err := selectionsFromPayload(row.Payload)
 	if err != nil {
 		return nil, err
