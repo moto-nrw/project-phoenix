@@ -25,6 +25,7 @@ import (
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
@@ -33,6 +34,7 @@ import (
 	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -199,6 +201,55 @@ type Service interface {
 	// with unread staff-side activity across all their children's schools — the
 	// parent-portal sidebar badge. Cross-tenant; a light COUNT, not a projection.
 	UnreadMessageCount(ctx context.Context, accountID int64) (int, error)
+
+	// --- Feedback board to the product team (#1678) ---
+	//
+	// This board is deliberately NOT the school's: entries are addressed to
+	// moto, the school never sees them, and guardian identities are replaced by
+	// a pseudonym before they leave the database. Every method below validates
+	// that the guardian has a child at tenantID and then runs inside a
+	// parent-actor transaction.
+
+	// ListFeedbackSchools returns the schools whose feedback board the guardian
+	// may post to, for the picker shown to multi-school guardians.
+	ListFeedbackSchools(ctx context.Context, accountID int64) ([]*FeedbackSchool, error)
+
+	// ListFeedback returns one school's parent feedback board.
+	// sortBy is "score" (default), "newest" or "status".
+	ListFeedback(ctx context.Context, accountID, tenantID int64, sortBy string) ([]*suggestionsModels.Post, error)
+
+	// CreateFeedback posts new feedback and returns the stored entry.
+	CreateFeedback(ctx context.Context, accountID, tenantID int64, title, description string) (*suggestionsModels.Post, error)
+
+	// GetFeedback returns one entry including vote and comment counts.
+	GetFeedback(ctx context.Context, accountID, tenantID, postID int64) (*suggestionsModels.Post, error)
+
+	// UpdateFeedback edits the guardian's own entry (title/description only).
+	UpdateFeedback(ctx context.Context, accountID, tenantID, postID int64, title, description string) (*suggestionsModels.Post, error)
+
+	// DeleteFeedback removes the guardian's own entry.
+	DeleteFeedback(ctx context.Context, accountID, tenantID, postID int64) error
+
+	// VoteFeedback casts or changes a vote ("up"/"down").
+	VoteFeedback(ctx context.Context, accountID, tenantID, postID int64, direction string) (*suggestionsModels.Post, error)
+
+	// RemoveFeedbackVote withdraws the guardian's vote.
+	RemoveFeedbackVote(ctx context.Context, accountID, tenantID, postID int64) (*suggestionsModels.Post, error)
+
+	// ListFeedbackComments returns one entry's thread, oldest first.
+	ListFeedbackComments(ctx context.Context, accountID, tenantID, postID int64) ([]*suggestionsModels.Comment, error)
+
+	// CreateFeedbackComment appends a comment to a thread.
+	CreateFeedbackComment(ctx context.Context, accountID, tenantID, postID int64, content string) error
+
+	// DeleteFeedbackComment removes the guardian's own comment from one thread.
+	DeleteFeedbackComment(ctx context.Context, accountID, tenantID, postID, commentID int64) error
+
+	// MarkFeedbackCommentsRead clears the unread marker of one thread.
+	MarkFeedbackCommentsRead(ctx context.Context, accountID, tenantID, postID int64) error
+
+	// FeedbackUnreadCount sums unread replies across all the guardian's boards.
+	FeedbackUnreadCount(ctx context.Context, accountID int64) (int, error)
 
 	// GetChildConversation returns the guardian's conversation about one owned
 	// child (oldest-first) and marks it read. Returns an empty view (ThreadID
@@ -380,6 +431,11 @@ type ServiceConfig struct {
 
 	// Parent announcements (broadcast news feed).
 	AnnouncementRepo usersModels.ParentAnnouncementRepository
+
+	// Suggestions backs the parent feedback board (#1678). It is the same
+	// service the staff board uses; the two are kept apart by the actor-scoped
+	// RLS policy, which tenant.WithParentTx switches to the parent side.
+	Suggestions suggestionsSvc.Service
 
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.

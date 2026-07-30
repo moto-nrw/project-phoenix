@@ -20,10 +20,10 @@ import (
 )
 
 type seriesMockRepo struct {
-	createFn        func(ctx context.Context, series *scheduleModels.StaffShiftSeries) error
-	findByIDFn      func(ctx context.Context, id any) (*scheduleModels.StaffShiftSeries, error)
-	capValidUntilFn func(ctx context.Context, id int64, until timezone.Date) error
-	findNextFn      func(ctx context.Context, rootID int64, after timezone.Date) (*scheduleModels.StaffShiftSeries, error)
+	createFn          func(ctx context.Context, series *scheduleModels.StaffShiftSeries) error
+	findByIDFn        func(ctx context.Context, id any) (*scheduleModels.StaffShiftSeries, error)
+	capValidUntilFn   func(ctx context.Context, id int64, until timezone.Date) error
+	findOverlappingFn func(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*scheduleModels.StaffShiftSeries, error)
 }
 
 func (m *seriesMockRepo) Create(ctx context.Context, series *scheduleModels.StaffShiftSeries) error {
@@ -55,9 +55,9 @@ func (m *seriesMockRepo) CapAllByStaffID(context.Context, int64, timezone.Date) 
 	return 0, nil
 }
 
-func (m *seriesMockRepo) FindNextInLineage(ctx context.Context, rootID int64, after timezone.Date) (*scheduleModels.StaffShiftSeries, error) {
-	if m.findNextFn != nil {
-		return m.findNextFn(ctx, rootID, after)
+func (m *seriesMockRepo) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*scheduleModels.StaffShiftSeries, error) {
+	if m.findOverlappingFn != nil {
+		return m.findOverlappingFn(ctx, rootID, excludeID, from)
 	}
 	return nil, nil
 }
@@ -386,7 +386,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		nextFrom := timezone.TodayDate().AddDays(8)
 		var created *scheduleModels.StaffShiftSeries
 		repo := found(t)
-		repo.findNextFn = func(context.Context, int64, timezone.Date) (*scheduleModels.StaffShiftSeries, error) {
+		repo.findOverlappingFn = func(context.Context, int64, int64, timezone.Date) (*scheduleModels.StaffShiftSeries, error) {
 			return &scheduleModels.StaffShiftSeries{ValidFrom: nextFrom}, nil
 		}
 		repo.createFn = func(_ context.Context, successor *scheduleModels.StaffShiftSeries) error {

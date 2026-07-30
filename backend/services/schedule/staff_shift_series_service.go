@@ -277,6 +277,33 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	return len(candidates), skipped, nil
 }
 
+// hasFutureSeriesOccurrence checks the recurrence itself before a split mutates
+// the predecessor. Exceptions and overlapping shifts intentionally do not
+// count here: they are deviations of an otherwise valid recurring rule.
+func hasFutureSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *scheduleModels.CalendarPeriod) bool {
+	from := series.ValidFrom
+	if period.StartDate.After(from) {
+		from = period.StartDate
+	}
+	tomorrow := timezone.TodayDate().AddDays(1)
+	if tomorrow.After(from) {
+		from = tomorrow
+	}
+	to := period.EndDate
+	if series.ValidUntil != nil {
+		lastIncluded := series.ValidUntil.AddDays(-1)
+		if lastIncluded.Before(to) {
+			to = lastIncluded
+		}
+	}
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		if series.ContainsWeekday(isoWeekday(d)) && ShouldMaterializeWeekPattern(series.WeekPattern, d, period) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *staffShiftSeriesService) CreateSeries(ctx context.Context, series *scheduleModels.StaffShiftSeries) (*SeriesResult, error) {
 	if err := series.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrSeriesInvalid, err.Error())
@@ -365,8 +392,20 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if effective.Before(old.ValidFrom) {
 		effective = old.ValidFrom
 	}
-	if old.ValidUntil != nil && !effective.Before(*old.ValidUntil) {
-		return nil, fmt.Errorf("%w: effective date lies outside the series segment", ErrSeriesInvalid)
+	// The successor is bounded by the EDITED end, not the predecessor's: an
+	// editor that extends "Gültig bis" is deliberately re-opening a series whose
+	// stored end already passed, and that is a legitimate edit. Checking the old
+	// bound here made every series whose last day had arrived permanently
+	// uneditable, because the effective date is clamped to tomorrow (#2028).
+	validUntil := old.ValidUntil
+	if input.ValidUntilSet {
+		validUntil = input.ValidUntil
+	}
+	if validUntil != nil && !effective.Before(*validUntil) {
+		return nil, fmt.Errorf(
+			"%w: series ends before %s, no occurrences left to change",
+			ErrSeriesInvalid, effective.String(),
+		)
 	}
 
 	rootID := old.RootID()
@@ -385,10 +424,6 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	notes := old.Notes
 	if input.Notes != nil {
 		notes = *input.Notes
-	}
-	validUntil := old.ValidUntil
-	if input.ValidUntilSet {
-		validUntil = input.ValidUntil
 	}
 	successor := &scheduleModels.StaffShiftSeries{
 		StaffID:          old.StaffID,
@@ -418,20 +453,28 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if err != nil {
 		return nil, err
 	}
-
 	if err := s.lockShiftWrites(ctx, old.StaffID); err != nil {
 		return nil, err
 	}
-	// A predecessor can be edited after a later segment already exists. Keep
-	// the new segment strictly before that successor even when the editor clears
-	// a stored valid_until, otherwise two rules of one lineage overlap.
-	next, err := s.seriesRepo.FindNextInLineage(ctx, rootID, effective)
+	// A predecessor can be edited before a later segment begins. Keep the new
+	// segment strictly before that successor, but never reopen a segment that a
+	// current successor has already superseded.
+	next, err := s.seriesRepo.FindOverlappingInLineage(ctx, rootID, old.ID, effective)
 	if err != nil {
 		return nil, err
+	}
+	if next != nil && !effective.Before(next.ValidFrom) {
+		return nil, fmt.Errorf("%w: series segment has already been superseded", ErrSeriesInvalid)
 	}
 	if next != nil && (successor.ValidUntil == nil || next.ValidFrom.Before(*successor.ValidUntil)) {
 		until := next.ValidFrom
 		successor.ValidUntil = &until
+	}
+	if !hasFutureSeriesOccurrence(successor, period) {
+		return nil, fmt.Errorf(
+			"%w: no occurrences left to change for the selected weekdays and week pattern",
+			ErrSeriesInvalid,
+		)
 	}
 	if err := s.seriesRepo.CapValidUntil(ctx, old.ID, effective); err != nil {
 		return nil, err

@@ -39,6 +39,35 @@ func (s *suggestionsService) getLogger() *slog.Logger {
 	return cmp.Or(s.Logger, slog.Default())
 }
 
+// readerTypeFor maps the request's actor to the read-tracking namespace. The
+// two boards track "seen" state independently, so a dual-role account (staff at
+// a school AND guardian of a child there) never carries read state across.
+func readerTypeFor(ctx context.Context) string {
+	if tenant.IsParentActor(ctx) {
+		return suggestions.ReaderTypeParent
+	}
+	return suggestions.ReaderTypeUser
+}
+
+// postAuthorTypeFor maps the request's actor to the board a new post belongs to.
+// RLS rejects a mismatch between this value and app.current_actor_type, so a
+// parent post written outside a parent transaction fails loudly instead of
+// landing on the school's board.
+func postAuthorTypeFor(ctx context.Context) string {
+	if tenant.IsParentActor(ctx) {
+		return suggestions.PostAuthorParent
+	}
+	return suggestions.PostAuthorStaff
+}
+
+// commentAuthorTypeFor maps the request's actor to the comment author type.
+func commentAuthorTypeFor(ctx context.Context) string {
+	if tenant.IsParentActor(ctx) {
+		return suggestions.AuthorTypeParent
+	}
+	return suggestions.AuthorTypeUser
+}
+
 func notificationContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
@@ -83,6 +112,7 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 	// Force default status for new posts
 	post.Status = suggestions.StatusOpen
 	post.Score = 0
+	post.AuthorType = postAuthorTypeFor(ctx)
 	post.SetTenantID(tenant.FromContext(ctx))
 
 	if err := post.Validate(); err != nil {
@@ -94,9 +124,11 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 	}
 
 	// Fetch post with author name for the notification email
-	fullPost, err := s.PostRepo.FindByIDWithVote(notificationContext(ctx), post.ID, 0, suggestions.ReaderTypeUser)
+	fullPost, err := s.PostRepo.FindByIDWithVote(notificationContext(ctx), post.ID, 0, readerTypeFor(ctx))
 	if err == nil && fullPost != nil {
-		s.notifyNewPost(fullPost)
+		tenant.RegisterAfterCommit(ctx, func() {
+			s.notifyNewPost(fullPost)
+		})
 	}
 
 	return nil
@@ -104,7 +136,7 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 
 // GetPost retrieves a post by ID with author name and vote info
 func (s *suggestionsService) GetPost(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
-	post, err := s.PostRepo.FindByIDWithVote(ctx, id, accountID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByIDWithVote(ctx, id, accountID, readerTypeFor(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +152,7 @@ func (s *suggestionsService) UpdatePost(ctx context.Context, post *suggestions.P
 		return &InvalidDataError{Err: fmt.Errorf("post cannot be nil")}
 	}
 
-	existing, err := s.PostRepo.FindByID(ctx, post.ID, suggestions.ReaderTypeUser)
+	existing, err := s.PostRepo.FindByID(ctx, post.ID, readerTypeFor(ctx))
 	if err != nil {
 		return err
 	}
@@ -146,7 +178,7 @@ func (s *suggestionsService) UpdatePost(ctx context.Context, post *suggestions.P
 
 // DeletePost deletes a post. Only the author can delete their own posts.
 func (s *suggestionsService) DeletePost(ctx context.Context, id int64, accountID int64) error {
-	existing, err := s.PostRepo.FindByID(ctx, id, suggestions.ReaderTypeUser)
+	existing, err := s.PostRepo.FindByID(ctx, id, readerTypeFor(ctx))
 	if err != nil {
 		return err
 	}
@@ -164,7 +196,7 @@ func (s *suggestionsService) DeletePost(ctx context.Context, id int64, accountID
 
 // ListPosts returns all posts sorted as requested
 func (s *suggestionsService) ListPosts(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error) {
-	return s.PostRepo.List(ctx, accountID, suggestions.ReaderTypeUser, sortBy, "")
+	return s.PostRepo.List(ctx, accountID, readerTypeFor(ctx), sortBy, "")
 }
 
 // Vote casts or changes a vote on a post, then recalculates score in a transaction
@@ -174,7 +206,7 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 	}
 
 	// Verify post exists and is visible to users
-	existing, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	existing, err := s.PostRepo.FindByID(ctx, postID, readerTypeFor(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -197,13 +229,13 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 		return nil, err
 	}
 
-	return s.PostRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
+	return s.PostRepo.FindByIDWithVote(ctx, postID, accountID, readerTypeFor(ctx))
 }
 
 // RemoveVote removes a user's vote from a post, then recalculates score
 func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accountID int64) (*suggestions.Post, error) {
 	// Verify post exists and is visible to users
-	existing, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	existing, err := s.PostRepo.FindByID(ctx, postID, readerTypeFor(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +251,7 @@ func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accou
 		return nil, err
 	}
 
-	return s.PostRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
+	return s.PostRepo.FindByIDWithVote(ctx, postID, accountID, readerTypeFor(ctx))
 }
 
 // CreateComment creates a new user-facing comment on a post
@@ -228,12 +260,13 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 		return &InvalidDataError{Err: fmt.Errorf("comment cannot be nil")}
 	}
 
-	// User-facing comments are always from type "user"
-	comment.AuthorType = suggestions.AuthorTypeUser
+	// User-facing comments carry the actor's author type: "user" on the staff
+	// board, "parent" on the parent feedback board.
+	comment.AuthorType = commentAuthorTypeFor(ctx)
 	comment.SetTenantID(tenant.FromContext(ctx))
 
 	// Verify post exists and is visible to users
-	post, err := s.PostRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByID(ctx, comment.PostID, readerTypeFor(ctx))
 	if err != nil {
 		return err
 	}
@@ -252,11 +285,13 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 	notifyCtx := notificationContext(ctx)
 
 	// Fetch full post for notification (with author name resolved)
-	fullPost, fetchErr := s.PostRepo.FindByIDWithVote(notifyCtx, comment.PostID, 0, suggestions.ReaderTypeUser)
+	fullPost, fetchErr := s.PostRepo.FindByIDWithVote(notifyCtx, comment.PostID, 0, readerTypeFor(ctx))
 	if fetchErr == nil && fullPost != nil {
 		resolvedComment, commentErr := s.CommentRepo.FindByIDWithAuthor(notifyCtx, comment.ID)
 		if commentErr == nil && resolvedComment != nil {
-			s.notifyNewComment(fullPost, resolvedComment)
+			tenant.RegisterAfterCommit(ctx, func() {
+				s.notifyNewComment(fullPost, resolvedComment)
+			})
 		}
 	}
 
@@ -266,7 +301,7 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 // GetComments retrieves comments for a post.
 // Hidden posts return PostNotFoundError — comments on hidden posts are not accessible to users.
 func (s *suggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
-	post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByID(ctx, postID, readerTypeFor(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +324,7 @@ func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64,
 	}
 
 	// Verify the parent post is visible to users
-	post, err := s.PostRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByID(ctx, comment.PostID, readerTypeFor(ctx))
 	if err != nil {
 		return err
 	}
@@ -297,8 +332,8 @@ func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64,
 		return &PostNotFoundError{PostID: comment.PostID}
 	}
 
-	// Users can only delete their own comments
-	if comment.AuthorType != suggestions.AuthorTypeUser || comment.AuthorID != accountID {
+	// Users can only delete their own comments, and only on their own board
+	if comment.AuthorType != commentAuthorTypeFor(ctx) || comment.AuthorID != accountID {
 		return &ForbiddenError{Reason: "you can only delete your own comments"}
 	}
 
@@ -308,7 +343,7 @@ func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64,
 // MarkCommentsRead marks all comments on a post as read for the user
 func (s *suggestionsService) MarkCommentsRead(ctx context.Context, postID int64, accountID int64) error {
 	// Verify post exists and is visible to users
-	post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByID(ctx, postID, readerTypeFor(ctx))
 	if err != nil {
 		return err
 	}
@@ -316,12 +351,21 @@ func (s *suggestionsService) MarkCommentsRead(ctx context.Context, postID int64,
 		return &PostNotFoundError{PostID: postID}
 	}
 
-	return s.CommentReadRepo.Upsert(ctx, accountID, postID, suggestions.ReaderTypeUser)
+	return s.CommentReadRepo.Upsert(ctx, accountID, postID, readerTypeFor(ctx))
 }
 
 // GetTotalUnreadCount returns the total number of unread comments across all posts
 func (s *suggestionsService) GetTotalUnreadCount(ctx context.Context, accountID int64) (int, error) {
-	return s.CommentReadRepo.CountTotalUnread(ctx, accountID, suggestions.ReaderTypeUser)
+	return s.CommentReadRepo.CountTotalUnread(ctx, accountID, readerTypeFor(ctx))
+}
+
+// newPostSubjectPrefix labels the notification by board so the product team can
+// tell a school's suggestion from a guardian's feedback at a glance.
+func newPostSubjectPrefix(post *suggestions.Post) string {
+	if post.IsFromParent() {
+		return "Neues Eltern-Feedback"
+	}
+	return "Neuer Vorschlag"
 }
 
 // notifyNewPost sends an email notification for a new suggestion post
@@ -339,7 +383,7 @@ func (s *suggestionsService) notifyNewPost(post *suggestions.Post) {
 		message := email.Message{
 			From:     s.DefaultFrom,
 			To:       email.NewEmail("", recipient),
-			Subject:  fmt.Sprintf("Neuer Vorschlag: %s", post.Title),
+			Subject:  fmt.Sprintf("%s: %s", newPostSubjectPrefix(post), post.Title),
 			Template: "suggestion-notification.html",
 			Content: map[string]string{
 				"LogoURL":       fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL),

@@ -273,6 +273,16 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     tKey: "mealPlan",
     iconKey: "utensils",
   },
+  // Feedback ans Produktteam (#1678) — last of the real entries, mirroring the
+  // desktop sidebar where it sits pinned below the daily-use areas. It is a
+  // channel to moto, not to the school, so no per-school gate applies.
+  {
+    href: "/parents/feedback",
+    label: "Feedback",
+    tKey: "feedback",
+    iconKey: "feedback",
+    alwaysShow: true,
+  },
   {
     href: "#",
     label: "Kontaktdaten",

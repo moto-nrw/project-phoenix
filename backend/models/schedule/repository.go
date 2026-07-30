@@ -114,9 +114,10 @@ type StaffShiftSeriesRepository interface {
 	// exclusive date (staff offboarding).
 	CapAllByStaffID(ctx context.Context, staffID int64, until timezone.Date) (int64, error)
 
-	// FindNextInLineage returns the first segment of a split lineage that starts
-	// after the given date. A newly inserted predecessor must not extend into it.
-	FindNextInLineage(ctx context.Context, rootID int64, after timezone.Date) (*StaffShiftSeries, error)
+	// FindOverlappingInLineage returns another segment of a split lineage that
+	// is active on or after the given date. A superseded predecessor must not be
+	// reopened across it.
+	FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*StaffShiftSeries, error)
 }
 
 // StaffShiftSeriesExceptionRepository stores deliberately removed single
