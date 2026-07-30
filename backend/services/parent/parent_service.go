@@ -241,8 +241,8 @@ type Service interface {
 	// CreateFeedbackComment appends a comment to a thread.
 	CreateFeedbackComment(ctx context.Context, accountID, tenantID, postID int64, content string) error
 
-	// DeleteFeedbackComment removes the guardian's own comment.
-	DeleteFeedbackComment(ctx context.Context, accountID, tenantID, commentID int64) error
+	// DeleteFeedbackComment removes the guardian's own comment from one thread.
+	DeleteFeedbackComment(ctx context.Context, accountID, tenantID, postID, commentID int64) error
 
 	// MarkFeedbackCommentsRead clears the unread marker of one thread.
 	MarkFeedbackCommentsRead(ctx context.Context, accountID, tenantID, postID int64) error

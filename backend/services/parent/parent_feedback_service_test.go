@@ -259,7 +259,14 @@ func TestParentFeedbackThreadReadState(t *testing.T) {
 		}
 	}
 	require.NotZero(t, ownCommentID)
-	require.NoError(t, svc.DeleteFeedbackComment(ctx, chain.AccountID, chain.TenantID, ownCommentID))
+
+	otherPost, err := svc.CreateFeedback(ctx, chain.AccountID, chain.TenantID,
+		"Andere Rückmeldung", "Ein anderer Thread.")
+	require.NoError(t, err)
+	require.Error(t, svc.DeleteFeedbackComment(ctx, chain.AccountID, chain.TenantID, otherPost.ID, ownCommentID),
+		"a comment must not be deletable through a different thread URL")
+
+	require.NoError(t, svc.DeleteFeedbackComment(ctx, chain.AccountID, chain.TenantID, post.ID, ownCommentID))
 
 	remaining, err := svc.ListFeedbackComments(ctx, chain.AccountID, chain.TenantID, post.ID)
 	require.NoError(t, err)

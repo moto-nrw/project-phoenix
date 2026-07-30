@@ -10,6 +10,7 @@ import (
 
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
+	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -159,10 +160,19 @@ func (s *service) CreateFeedbackComment(ctx context.Context, accountID, tenantID
 	})
 }
 
-// DeleteFeedbackComment removes the guardian's own comment.
-func (s *service) DeleteFeedbackComment(ctx context.Context, accountID, tenantID, commentID int64) error {
+// DeleteFeedbackComment removes the guardian's own comment from one thread.
+func (s *service) DeleteFeedbackComment(ctx context.Context, accountID, tenantID, postID, commentID int64) error {
 	return s.withFeedbackTx(ctx, accountID, tenantID, func(txCtx context.Context) error {
-		return s.Suggestions.DeleteComment(txCtx, commentID, accountID)
+		comments, err := s.Suggestions.GetComments(txCtx, postID)
+		if err != nil {
+			return err
+		}
+		for _, comment := range comments {
+			if comment != nil && comment.ID == commentID {
+				return s.Suggestions.DeleteComment(txCtx, commentID, accountID)
+			}
+		}
+		return &suggestionsSvc.CommentNotFoundError{CommentID: commentID}
 	})
 }
 

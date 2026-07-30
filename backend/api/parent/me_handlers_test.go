@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -50,6 +51,8 @@ type fakeParentService struct {
 	listRows         []*userModels.StudentDataChangeRequest
 	listErr          error
 	submitStatus     *parentModels.GuardianSubmitStatus
+	gotDeletePostID  int64
+	gotDeleteComment int64
 }
 
 func (f *fakeParentService) GetProfile(_ context.Context, _ int64) (*parentService.Profile, error) {
@@ -246,7 +249,9 @@ func (f *fakeParentService) CreateFeedbackComment(context.Context, int64, int64,
 	return nil
 }
 
-func (f *fakeParentService) DeleteFeedbackComment(context.Context, int64, int64, int64) error {
+func (f *fakeParentService) DeleteFeedbackComment(_ context.Context, _ int64, _ int64, postID, commentID int64) error {
+	f.gotDeletePostID = postID
+	f.gotDeleteComment = commentID
 	return nil
 }
 
@@ -256,6 +261,39 @@ func (f *fakeParentService) MarkFeedbackCommentsRead(context.Context, int64, int
 
 func (f *fakeParentService) FeedbackUnreadCount(context.Context, int64) (int, error) {
 	return 0, nil
+}
+
+func feedbackCommentDeleteRequest(postID, commentID string) *http.Request {
+	req := withClaims(httptest.NewRequest(http.MethodDelete,
+		"/me/feedback/"+postID+"/comments/"+commentID+"?school_id=7", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("postId", postID)
+	route.URLParams.Add("commentId", commentID)
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func TestDeleteFeedbackComment_RequiresValidPostID(t *testing.T) {
+	service := &fakeParentService{}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.deleteFeedbackComment(w, feedbackCommentDeleteRequest("not-a-post", "42"))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Zero(t, service.gotDeletePostID)
+	assert.Zero(t, service.gotDeleteComment)
+}
+
+func TestDeleteFeedbackComment_PassesPostIDToService(t *testing.T) {
+	service := &fakeParentService{}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.deleteFeedbackComment(w, feedbackCommentDeleteRequest("5", "42"))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(5), service.gotDeletePostID)
+	assert.Equal(t, int64(42), service.gotDeleteComment)
 }
 
 // withClaims attaches a parent account id to the request context the way the

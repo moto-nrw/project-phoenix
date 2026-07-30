@@ -376,6 +376,10 @@ func (rs *Resource) deleteFeedbackComment(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	postID, ok := parseFeedbackPostID(w, r)
+	if !ok {
+		return
+	}
 	commentID, ok := common.ParsePositiveInt64IDWithError(w, r, "commentId", "invalid comment ID")
 	if !ok {
 		return
@@ -384,7 +388,7 @@ func (rs *Resource) deleteFeedbackComment(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if err := rs.ParentService.DeleteFeedbackComment(r.Context(), accountID, schoolID, commentID); err != nil {
+	if err := rs.ParentService.DeleteFeedbackComment(r.Context(), accountID, schoolID, postID, commentID); err != nil {
 		renderParentWriteError(w, r, err)
 		return
 	}
