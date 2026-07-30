@@ -118,7 +118,7 @@ describe("OfferingChangeRequestModal", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         offerings: [
           { offering_id: "5", selected_days: ["mon", "tue"] },
-          { offering_id: "6", selected_days: ["mon", "tue"] },
+          { offering_id: "6", selected_days: [] },
         ],
         effective_from: "2026-08-14",
         note: undefined,
