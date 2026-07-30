@@ -308,6 +308,37 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 	assert.Empty(t, pending)
 }
 
+func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAreDisabled(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "DisabledApproval")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
+	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:  row.ID,
+		Approve:    true,
+		ReviewedBy: env.creatorID,
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingsDisabled)
+
+	pending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+}
+
 func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNothing(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

@@ -848,7 +848,7 @@ func (s *changeRequestService) prepareProposed(
 		for _, child := range children {
 			childIDs = append(childIDs, child.ID)
 		}
-		existingLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+		existingLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, timezone.TodayDate())
 		if linkErr != nil {
 			return editReq, nil, nil, nil, fmt.Errorf("change request: preserve child offerings: %w", linkErr)
 		}
@@ -960,7 +960,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 		childIndexByID[child.ID] = i
 	}
 
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, timezone.TodayDate())
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
 	}
@@ -1122,7 +1122,7 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, timezone.TodayDate())
 	if err != nil {
 		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}
@@ -1442,7 +1442,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 	}
 
 	preservedClaims := make(map[int64]int)
-	existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, preservedChildIDs)
+	existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, preservedChildIDs, timezone.TodayDate())
 	if err != nil {
 		return nil, fmt.Errorf("change request approve: load existing child offerings for capacity: %w", err)
 	}

@@ -50,9 +50,9 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 
 // applyApprovedChangeRequestOfferings applies an offering proposal whose
 // capability was validated and pinned when the parent created the change
-// request. The unexported method keeps this bypass inaccessible to HTTP input;
-// all validation, capacity-related preparation, rematerialization, and audit
-// behavior below remains identical to a direct admin adjustment.
+// request. The offering-change request service separately enforces the live
+// care-offerings setting before using this shared path; generic form
+// corrections intentionally preserve their frozen offering snapshot.
 func (s *decisionService) applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
 	return s.updateChildOfferings(ctx, input, false)
 }

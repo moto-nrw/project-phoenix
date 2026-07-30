@@ -9,6 +9,7 @@ import (
 	"github.com/uptrace/bun"
 
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -159,6 +160,50 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDs_BatchLoad(t *testi
 	}))
 	require.Len(t, list, 2)
 	assert.Equal(t, childID, list[0].RequestChildID)
+}
+
+func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	var first *enrollmentModels.CareOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		first, err = offeringRepo.FindByID(ctx, offeringID)
+		return err
+	}))
+	currentOffering := makeOffering(first.PhaseID, uniqueOfferingName("batch-current"))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return offeringRepo.Create(ctx, currentOffering)
+	}))
+	today := timezone.TodayDate()
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		if err := repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID,
+			CareOfferingID: offeringID,
+			ValidUntil:     &today,
+		}); err != nil {
+			return err
+		}
+		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID,
+			CareOfferingID: currentOffering.ID,
+			ValidFrom:      &today,
+		})
+	}))
+
+	var history, active []*enrollmentModels.RequestChildOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		history, err = repo.ListByRequestChildIDs(ctx, []int64{childID})
+		if err != nil {
+			return err
+		}
+		active, err = repo.ListByRequestChildIDsAtDate(ctx, []int64{childID}, today)
+		return err
+	}))
+	require.Len(t, history, 2, "batch history must retain expired offering intervals")
+	require.Len(t, active, 1)
+	assert.Equal(t, currentOffering.ID, active[0].CareOfferingID)
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.T) {

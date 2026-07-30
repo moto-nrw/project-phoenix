@@ -95,6 +95,28 @@ describe("OfferingChangeRequestModal", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("explains and disables submission when the catalog is empty", async () => {
+    mockCatalog.mockResolvedValue(catalog({ items: [] }));
+    const onSubmit = vi.fn();
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Für diesen Zeitraum sind keine Betreuungsangebote verfügbar.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeDisabled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("sends the complete desired booking with the effective date", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(

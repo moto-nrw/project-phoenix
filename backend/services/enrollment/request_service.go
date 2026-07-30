@@ -1819,7 +1819,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		for _, c := range children {
 			childIDs = append(childIDs, c.ID)
 		}
-		loadedLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(tenantCtx, childIDs)
+		loadedLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(tenantCtx, childIDs, timezone.TodayDate())
 		if err != nil {
 			return fmt.Errorf("edit draft: list child offerings: %w", err)
 		}
@@ -2170,7 +2170,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				return err
 			}
 		}
-		existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(txCtx, existingChildIDs)
+		existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(txCtx, existingChildIDs, timezone.TodayDate())
 		if err != nil {
 			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
 		}
@@ -4271,7 +4271,11 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 			// Should be impossible (validateOfferingSelections ran first).
 			return nil, fmt.Errorf("submit: offering %d not in open catalog", offeringID)
 		}
-		count, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offeringID)
+		capacityDate := timezone.TodayDate()
+		if phase.ServiceStartDate.After(capacityDate) {
+			capacityDate = phase.ServiceStartDate
+		}
+		count, err := s.RequestChildOfferingRepo.CountActiveByCareOfferingOnDate(ctx, offeringID, capacityDate)
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}

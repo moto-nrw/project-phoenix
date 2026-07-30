@@ -1065,6 +1065,7 @@
       "title": "Request a change to the care offerings",
       "intro": "Choose which offerings your child should attend and when the change should take effect. The team reviews your request.",
       "loadError": "The available offerings could not be loaded.",
+      "noOfferings": "There are no care offerings available for this period.",
       "effectiveFromLabel": "Change applies from",
       "effectiveFromHint": "Earliest {date}, latest {latest}.",
       "daysLabel": "Days",

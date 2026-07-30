@@ -161,8 +161,9 @@ export function OfferingChangeRequestModal({
     });
 
   const items = useMemo(() => catalog?.items ?? [], [catalog]);
+  const emptyCatalog = catalog !== null && items.length === 0;
   const unchanged = useMemo(
-    () => items.length > 0 && unchangedFromCatalog(items, draft),
+    () => items.length === 0 || unchangedFromCatalog(items, draft),
     [items, draft],
   );
 
@@ -223,7 +224,7 @@ export function OfferingChangeRequestModal({
             size="md"
             className="gap-2"
             onClick={() => void handleSubmit()}
-            disabled={submitting || loading || !catalog}
+            disabled={submitting || loading || !catalog || emptyCatalog}
           >
             {submitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -245,7 +246,11 @@ export function OfferingChangeRequestModal({
           </div>
         )}
 
-        {!loading && catalog && (
+        {!loading && emptyCatalog && (
+          <Alert type="info" message={t("careOfferingsModal.noOfferings")} />
+        )}
+
+        {!loading && catalog && !emptyCatalog && (
           <>
             <div className="space-y-3">
               {items.map((item) => {

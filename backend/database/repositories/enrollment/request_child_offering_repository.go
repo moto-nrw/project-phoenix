@@ -159,10 +159,10 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.
 	return rows, nil
 }
 
-// ListByRequestChildIDs returns every offering link across the given
-// children in a single query, sorted by request_child_id, id. Powers
-// the phase export's N+1-free load. Empty input short-circuits to an
-// empty slice. Tenant-scoped via RLS.
+// ListByRequestChildIDs returns every historical offering link across the
+// given children in a single query, sorted by request_child_id, id. Powers
+// the phase export's N+1-free load. Empty input short-circuits to an empty
+// slice. Tenant-scoped via RLS.
 func (r *RequestChildOfferingRepository) ListByRequestChildIDs(ctx context.Context, requestChildIDs []int64) ([]*enrollment.RequestChildOffering, error) {
 	if len(requestChildIDs) == 0 {
 		return nil, nil
@@ -172,12 +172,31 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDs(ctx context.Conte
 		Model(&rows).
 		ModelTableExpr(requestChildOfferingTableExpr).
 		Where(`"request_child_offering".request_child_id IN (?)`, bun.List(requestChildIDs)).
-		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, timezone.TodayDate()).
-		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, timezone.TodayDate()).
 		OrderExpr(`"request_child_offering".request_child_id, "request_child_offering".id`).
 		Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list request child offerings by child ids: %w", err)
+	}
+	return rows, nil
+}
+
+// ListByRequestChildIDsAtDate returns the offering links active on onDate
+// across the given children in one query.
+func (r *RequestChildOfferingRepository) ListByRequestChildIDsAtDate(ctx context.Context, requestChildIDs []int64, onDate timezone.Date) ([]*enrollment.RequestChildOffering, error) {
+	if len(requestChildIDs) == 0 {
+		return nil, nil
+	}
+	var rows []*enrollment.RequestChildOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Where(`"request_child_offering".request_child_id IN (?)`, bun.List(requestChildIDs)).
+		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, onDate).
+		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, onDate).
+		OrderExpr(`"request_child_offering".request_child_id, "request_child_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list request child offerings by child ids at date: %w", err)
 	}
 	return rows, nil
 }

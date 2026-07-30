@@ -419,6 +419,9 @@ type RequestChildOfferingRepository interface {
 	// the given children. Powers the phase export's N+1-free load.
 	// Empty input returns an empty slice without a query.
 	ListByRequestChildIDs(ctx context.Context, requestChildIDs []int64) ([]*RequestChildOffering, error)
+	// ListByRequestChildIDsAtDate is the batched point-in-time variant used by
+	// write paths that must only inspect the selection active on a given date.
+	ListByRequestChildIDsAtDate(ctx context.Context, requestChildIDs []int64, onDate timezone.Date) ([]*RequestChildOffering, error)
 
 	// CountActiveByCareOffering returns the number of children currently
 	// holding (or competing for) a slot in the given care offering.

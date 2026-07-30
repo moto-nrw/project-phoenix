@@ -1065,6 +1065,7 @@
       "title": "Änderung der Betreuungsangebote anfragen",
       "intro": "Wählen Sie, welche Angebote Ihr Kind künftig besuchen soll, und ab wann die Änderung gelten soll. Das Team prüft Ihre Anfrage.",
       "loadError": "Die verfügbaren Angebote konnten nicht geladen werden.",
+      "noOfferings": "Für diesen Zeitraum sind keine Betreuungsangebote verfügbar.",
       "effectiveFromLabel": "Änderung gilt ab",
       "effectiveFromHint": "Frühestens {date}, spätestens {latest}.",
       "daysLabel": "Tage",

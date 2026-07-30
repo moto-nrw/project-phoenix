@@ -310,6 +310,16 @@ func (s *offeringChangeRequestService) changesEnabled(ctx context.Context) error
 	if !enabled {
 		return ErrOfferingChangeDisabled
 	}
+	careOfferingsEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
+	if err != nil {
+		s.Logger.Warn("offering change: resolve care offerings enabled failed, failing closed",
+			slog.String("error", err.Error()),
+		)
+		return ErrCareOfferingsDisabled
+	}
+	if !careOfferingsEnabled {
+		return ErrCareOfferingsDisabled
+	}
 	return nil
 }
 
@@ -795,6 +805,16 @@ func (s *offeringChangeRequestService) applyApproved(
 	row *enrollmentModels.OfferingChangeRequest,
 	input DecideOfferingChangeInput,
 ) error {
+	if s.Settings == nil {
+		return ErrCareOfferingsDisabled
+	}
+	careOfferingsEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
+	if err != nil {
+		return fmt.Errorf("offering change: resolve care offerings setting: %w", err)
+	}
+	if !careOfferingsEnabled {
+		return ErrCareOfferingsDisabled
+	}
 	child, err := s.RequestChildRepo.FindByID(ctx, row.RequestChildID)
 	if err != nil || child == nil {
 		return fmt.Errorf("offering change: load request child: %w", err)
