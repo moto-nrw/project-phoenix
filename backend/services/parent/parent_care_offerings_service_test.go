@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -160,15 +161,21 @@ func (s *offeringChangesStub) EarliestEffectiveFrom(
 
 type offeringChangeSettingsStub struct {
 	configSvc.SettingsService
-	enabled bool
-	err     error
+	enabled              bool
+	careOfferingsEnabled *bool
+	err                  error
 }
+
+func boolPtr(value bool) *bool { return &value }
 
 func (s offeringChangeSettingsStub) ResolveBoolForTenant(
 	_ context.Context,
 	_ int64,
-	_ string,
+	key string,
 ) (bool, error) {
+	if key == configModel.KeyEnrollmentCareOfferingsEnabled && s.careOfferingsEnabled != nil {
+		return *s.careOfferingsEnabled, s.err
+	}
 	return s.enabled, s.err
 }
 
@@ -529,6 +536,16 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 		{
 			name:       "school disabled",
 			settings:   offeringChangeSettingsStub{},
+			child:      permitted,
+			period:     activePeriod,
+			wantReason: OfferingChangesReasonSchoolOff,
+		},
+		{
+			name: "care offerings disabled",
+			settings: offeringChangeSettingsStub{
+				enabled:              true,
+				careOfferingsEnabled: boolPtr(false),
+			},
 			child:      permitted,
 			period:     activePeriod,
 			wantReason: OfferingChangesReasonSchoolOff,

@@ -139,6 +139,8 @@ func renderOfferingDecisionError(w http.ResponseWriter, r *http.Request, err err
 		renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeForbidden):
 		renderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+		renderError(w, r, common.ErrorForbiddenWithCode(err, "care_offerings_disabled"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeCapacityFull):
 		renderError(w, r, common.ErrorConflictWithCode(err, "offering_change_capacity_full"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeNoEnrollment):

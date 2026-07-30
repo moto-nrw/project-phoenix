@@ -75,8 +75,8 @@ describe("OfferingChangeRequestModal", () => {
     expect(screen.getByText("Mo")).toBeInTheDocument();
   });
 
-  it("refuses a submission that matches the current booking", async () => {
-    const onSubmit = vi.fn();
+  it("submits a selection matching the earliest booking for a later date", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <OfferingChangeRequestModal
         studentId="42"
@@ -89,10 +89,13 @@ describe("OfferingChangeRequestModal", () => {
       await screen.findByRole("button", { name: "Anfrage senden" }),
     );
 
-    expect(
-      await screen.findByText(/entspricht der aktuellen Buchung/),
-    ).toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        offerings: [{ offering_id: "5", selected_days: ["mon", "tue"] }],
+        effective_from: "2026-08-14",
+        note: undefined,
+      }),
+    );
   });
 
   it("explains and disables submission when the catalog is empty", async () => {

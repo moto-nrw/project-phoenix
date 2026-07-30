@@ -495,6 +495,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_changes_disabled"))
+	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_offerings_disabled"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeNoEnrollment):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_changes_no_enrollment"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeForbidden):

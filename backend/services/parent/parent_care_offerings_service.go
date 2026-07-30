@@ -580,7 +580,18 @@ func (s *service) offeringChangesEnabledForTenant(ctx context.Context, tenantID 
 		)
 		return false
 	}
-	return enabled
+	if !enabled {
+		return false
+	}
+	careOfferingsEnabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyEnrollmentCareOfferingsEnabled)
+	if err != nil {
+		s.Logger.Warn("parent: resolve care-offerings setting failed, failing closed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return careOfferingsEnabled
 }
 
 // resolveOfferingChangeAvailability decides whether the guardian may open a

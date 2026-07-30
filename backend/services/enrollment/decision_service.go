@@ -595,7 +595,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		childIDs = append(childIDs, c.ID)
 	}
 
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, reportOfferingDate(phase))
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load offerings: %w", err)
 	}
@@ -727,7 +727,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		childIDs = append(childIDs, child.ID)
 	}
 
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, timezone.TodayDate())
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load offerings: %w", err)
 	}

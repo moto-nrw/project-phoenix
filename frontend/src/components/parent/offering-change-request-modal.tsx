@@ -56,28 +56,6 @@ function orderedDays(days: Set<string>): string[] {
 }
 
 /**
- * unchangedFromCatalog reports whether the draft still equals the child's
- * current booking. Submitting an unchanged selection would create a request the
- * office has to decide for nothing, so the modal refuses it up front.
- */
-function unchangedFromCatalog(items: OfferingCatalogItem[], draft: DraftMap) {
-  return items.every((item) => {
-    const row = draft[item.id];
-    if (!row) return true;
-    if (row.selected !== item.selected) return false;
-    if (!row.selected) return true;
-    const current = [...item.selected_days].sort((left, right) =>
-      left.localeCompare(right),
-    );
-    const next = [...row.days].sort((left, right) => left.localeCompare(right));
-    return (
-      current.length === next.length &&
-      current.every((day, index) => day === next[index])
-    );
-  });
-}
-
-/**
  * The parent -> OGS "change the booked care offerings" request form. The parent
  * picks the offerings the child should attend from that date on; the submission
  * carries the COMPLETE desired booking, because that is what staff decide and
@@ -162,17 +140,9 @@ export function OfferingChangeRequestModal({
 
   const items = useMemo(() => catalog?.items ?? [], [catalog]);
   const emptyCatalog = catalog !== null && items.length === 0;
-  const unchanged = useMemo(
-    () => items.length === 0 || unchangedFromCatalog(items, draft),
-    [items, draft],
-  );
 
   const handleSubmit = async () => {
     if (!catalog) return;
-    if (unchanged) {
-      setError(t("careOfferingsModal.noChange"));
-      return;
-    }
     const offerings: OfferingChangeSelectionInput[] = [];
     for (const item of items) {
       const row = draft[item.id];

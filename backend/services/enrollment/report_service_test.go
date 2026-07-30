@@ -979,6 +979,10 @@ func (r *fakeClassRosterChildOfferingRepo) ListByRequestChildIDs(_ context.Conte
 	return nil, nil
 }
 
+func (r *fakeClassRosterChildOfferingRepo) ListByRequestChildIDsAtDate(_ context.Context, _ []int64, _ timezone.Date) ([]*enrollmentModels.RequestChildOffering, error) {
+	return nil, nil
+}
+
 type fakeClassRosterCareOfferingRepo struct {
 	enrollmentModels.CareOfferingRepository
 }
