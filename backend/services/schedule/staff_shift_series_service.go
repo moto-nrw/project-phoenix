@@ -365,8 +365,20 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if effective.Before(old.ValidFrom) {
 		effective = old.ValidFrom
 	}
-	if old.ValidUntil != nil && !effective.Before(*old.ValidUntil) {
-		return nil, fmt.Errorf("%w: effective date lies outside the series segment", ErrSeriesInvalid)
+	// The successor is bounded by the EDITED end, not the predecessor's: an
+	// editor that extends "Gültig bis" is deliberately re-opening a series whose
+	// stored end already passed, and that is a legitimate edit. Checking the old
+	// bound here made every series whose last day had arrived permanently
+	// uneditable, because the effective date is clamped to tomorrow (#2028).
+	validUntil := old.ValidUntil
+	if input.ValidUntilSet {
+		validUntil = input.ValidUntil
+	}
+	if validUntil != nil && !effective.Before(*validUntil) {
+		return nil, fmt.Errorf(
+			"%w: series ends before %s, no occurrences left to change",
+			ErrSeriesInvalid, effective.String(),
+		)
 	}
 
 	rootID := old.RootID()
@@ -385,10 +397,6 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	notes := old.Notes
 	if input.Notes != nil {
 		notes = *input.Notes
-	}
-	validUntil := old.ValidUntil
-	if input.ValidUntilSet {
-		validUntil = input.ValidUntil
 	}
 	successor := &scheduleModels.StaffShiftSeries{
 		StaffID:          old.StaffID,

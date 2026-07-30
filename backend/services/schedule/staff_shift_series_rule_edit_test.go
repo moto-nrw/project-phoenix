@@ -197,3 +197,79 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 	require.NotNil(t, result.Series.ValidUntil)
 	assert.Equal(t, downstreamFrom, *result.Series.ValidUntil)
 }
+
+// A series whose last planned day has arrived was permanently uneditable: the
+// effective date is clamped to tomorrow, and the segment check compared that
+// against the STORED end. Extending "Gültig bis" is the one edit that has to
+// work there, otherwise "Serie bearbeiten" cannot edit the series at all.
+func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodEnd := today.AddDays(28)
+	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
+
+	// valid_until is exclusive: the last day carrying a shift is today.
+	storedEnd := today.AddDays(1)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	newEnd := today.AddDays(15)
+	var result *scheduleSvc.SeriesResult
+	env.inTx(t, func(ctx context.Context) error {
+		var err error
+		result, err = env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID: series.ID,
+			// The planner opened an occurrence in the past; the split clamps it
+			// to tomorrow rather than rejecting the edit.
+			EffectiveDate: today.AddDays(-3),
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ValidUntil:    &newEnd,
+			ValidUntilSet: true,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+
+	require.NotNil(t, result.Series)
+	assert.Equal(t, today.AddDays(1), result.Series.ValidFrom)
+	require.NotNil(t, result.Series.ValidUntil)
+	assert.Equal(t, newEnd, *result.Series.ValidUntil)
+	assert.NotEmpty(t, env.shiftsInRange(t, today.AddDays(1), today.AddDays(14)),
+		"the extended segment must materialize shifts")
+	assert.Empty(t, env.shiftsInRange(t, newEnd, periodEnd),
+		"nothing may be planned past the new end date")
+}
+
+// The same series without an extended end has no day left to change. That is
+// still a 400, but it must say so instead of passing for a generic input error.
+func TestStaffShiftSeries_SplitRejectsWhenNoOccurrenceRemains(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(28), 1, nil)
+
+	storedEnd := today.AddDays(1)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	err := env.inTxExpectErr(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: today.AddDays(-3),
+			StartTime:     seriesClock(t, "13:00"),
+			EndTime:       seriesClock(t, "15:00"),
+			BreakMinutes:  0,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+	assert.Contains(t, err.Error(), "no occurrences left to change")
+}

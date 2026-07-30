@@ -5,7 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShiftEditModal } from "./shift-edit-modal";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -761,5 +761,73 @@ describe("ShiftEditModal series rule editing", () => {
 
     fireEvent.click(save);
     expect(splitSeries).not.toHaveBeenCalled();
+  });
+});
+
+// A segment whose last day has arrived used to be uneditable: the re-plan
+// starts tomorrow at the earliest, so the save came back as a generic 400
+// pointing at Beginn/Ende/Pause. The editor now says what to do instead (#2028).
+describe("ShiftEditModal series rule editing at the end of a segment", () => {
+  beforeEach(() => {
+    // Fake ONLY Date: testing-library's findBy* polls on real timers.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 12:00 Berlin on the opened occurrence's own day.
+    vi.setSystemTime(new Date("2026-09-07T10:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("warns instead of saving when nothing is left to change", async () => {
+    // Exclusive valid_until 2026-09-08 = last shift day is today.
+    getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Serie bearbeiten" }),
+    );
+
+    // The effective date is the clamped one, not the opened occurrence.
+    expect(
+      await screen.findByText(/Die Änderungen gelten ab 08\.09\.2026/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Setzen Sie „Gültig bis" auf ein späteres Datum/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+    expect(splitSeries).not.toHaveBeenCalled();
+  });
+
+  it("saves once the end date is extended", async () => {
+    getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
+    splitSeries.mockResolvedValue({
+      seriesId: "6",
+      created: 12,
+      skippedDates: [],
+    });
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Serie bearbeiten" }),
+    );
+    // The stubbed DatePicker picks 2026-12-31.
+    fireEvent.click(await screen.findByText("DatePicker Auswahl"));
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+
+    await waitFor(() => {
+      expect(splitSeries).toHaveBeenCalledWith("5", {
+        effectiveDate: "2026-09-07",
+        startTime: "08:00",
+        endTime: "12:00",
+        breakMinutes: 0,
+        shiftTypeId: null,
+        weekdays: [1, 3],
+        weekPattern: 0,
+        // Picker is inclusive, the API's valid_until exclusive.
+        validUntil: "2027-01-01",
+      });
+    });
   });
 });
