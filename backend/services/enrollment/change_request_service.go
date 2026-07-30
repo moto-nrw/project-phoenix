@@ -1452,6 +1452,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 
 	rs := &requestService{RequestServiceConfig: RequestServiceConfig{
 		RequestChildOfferingRepo: s.RequestChildOfferingRepo,
+		CareOfferingRepo:         s.CareOfferingRepo,
 		Settings:                 s.Settings,
 	}}
 	candidateOverrides, err := rs.applyCapacityOverflowWithPreservedClaims(ctx, phase, candidates, openByID, preservedClaims)
