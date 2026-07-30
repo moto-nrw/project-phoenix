@@ -1050,7 +1050,14 @@
       "disabledNoEnrollment": "Für Ihr Kind liegt keine Anmeldung vor, über die eine Änderung beantragt werden kann. Wenden Sie sich bitte direkt an die Betreuung.",
       "disabledNoPermission": "Sie haben keine Berechtigung, Änderungen für dieses Kind zu beantragen.",
       "disabledSchoolOff": "Diese Betreuung nimmt Änderungswünsche nicht über die App an. Wenden Sie sich bitte direkt an das Team.",
-      "disabledPeriodOver": "Der Betreuungszeitraum ist abgelaufen. Für den neuen Zeitraum melden Sie Ihr Kind bitte neu an."
+      "disabledPeriodOver": "Der Betreuungszeitraum ist abgelaufen. Für den neuen Zeitraum melden Sie Ihr Kind bitte neu an.",
+      "requestsTitle": "Änderungsanfragen",
+      "decisionApproved": "Änderung übernommen",
+      "decisionApprovedFrom": "Gültig ab {date}",
+      "decisionRejected": "Anfrage abgelehnt",
+      "decisionReason": "Begründung der Betreuung: {reason}",
+      "decisionDecidedAt": "Entschieden am {date}",
+      "noRequests": "Derzeit liegt keine Änderungsanfrage vor."
     },
     "careOfferingsModal": {
       "title": "Änderung der Betreuungsangebote anfragen",

@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -122,7 +123,30 @@ type OfferingChangeView struct {
 	// portal already knows whose child it is.
 	StudentName string
 	Diff        []OfferingChangeDiffEntry
+	// LastDecision is the most recent decided request inside the recency window,
+	// so a guardian learns the outcome (and a rejection's reason) on the page
+	// they submitted from instead of only in the chat.
+	LastDecision *OfferingChangeDecision
 }
+
+// OfferingChangeDecision is a decided request as the guardian sees it. It
+// carries no diff: after an approval was applied the "current → requested"
+// comparison is empty, which would read as "nothing changed".
+type OfferingChangeDecision struct {
+	ID     int64
+	Status string
+	// DecidedAt is when staff decided it.
+	DecidedAt time.Time
+	// EffectiveFrom is the date the switch took (or would have taken) effect.
+	EffectiveFrom timezone.Date
+	Reason        string
+}
+
+// offeringDecisionRecencyDays bounds how long a decided request keeps being
+// reported. Same window the excused-absence requests use for the same purpose:
+// long enough that a guardian sees the outcome on their next visit, short
+// enough that the card does not turn into a history list.
+const offeringDecisionRecencyDays = 14
 
 // CreateOfferingChangeInput is a guardian's submission.
 type CreateOfferingChangeInput struct {
@@ -387,10 +411,17 @@ func (s *offeringChangeRequestService) GetForStudent(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: get pending: %w", err)
 	}
-	if pending == nil {
+	decision, err := s.lastDecisionForStudent(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if pending == nil && decision == nil {
 		return nil, nil
 	}
-	view := &OfferingChangeView{Request: pending}
+	view := &OfferingChangeView{Request: pending, LastDecision: decision}
+	if pending == nil {
+		return view, nil
+	}
 	diff, diffErr := s.diffForRequest(ctx, pending)
 	if diffErr != nil {
 		// A diff we cannot build must not hide the request itself: the guardian
@@ -403,6 +434,44 @@ func (s *offeringChangeRequestService) GetForStudent(
 	}
 	view.Diff = diff
 	return view, nil
+}
+
+// lastDecisionForStudent returns the newest approved/rejected request decided
+// within the recency window. Withdrawals are skipped: the guardian withdrew it
+// themselves and does not need to be told about it.
+func (s *offeringChangeRequestService) lastDecisionForStudent(
+	ctx context.Context,
+	studentID int64,
+) (*OfferingChangeDecision, error) {
+	rows, err := s.ChangeRepo.ListByStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: list requests: %w", err)
+	}
+	cutoff := time.Now().AddDate(0, 0, -offeringDecisionRecencyDays)
+	for _, row := range rows {
+		if row == nil || row.ReviewedAt == nil {
+			continue
+		}
+		if row.Status != enrollmentModels.OfferingChangeStatusApproved &&
+			row.Status != enrollmentModels.OfferingChangeStatusRejected {
+			continue
+		}
+		if row.ReviewedAt.Before(cutoff) {
+			// Rows are newest-first, so everything below is older too.
+			return nil, nil
+		}
+		decision := &OfferingChangeDecision{
+			ID:            row.ID,
+			Status:        row.Status,
+			DecidedAt:     *row.ReviewedAt,
+			EffectiveFrom: row.EffectiveFrom,
+		}
+		if row.DecisionReason != nil {
+			decision.Reason = *row.DecisionReason
+		}
+		return decision, nil
+	}
+	return nil, nil
 }
 
 func (s *offeringChangeRequestService) Create(

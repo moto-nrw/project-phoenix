@@ -96,6 +96,9 @@ type ChildCareOfferings struct {
 	ChangesDisabledReason string
 	// PendingRequest is the child's open change request, nil when none.
 	PendingRequest *PendingOfferingChange
+	// LastDecision is the most recent decided request inside the recency window,
+	// so the outcome of a request is visible where it was submitted.
+	LastDecision *enrollmentSvc.OfferingChangeDecision
 	// EarliestEffectiveFrom is the first date a new request may take effect
 	// under the school's notice period — the date picker's lower bound. Zero
 	// when requesting is not possible anyway.
@@ -151,6 +154,9 @@ func (s *service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 			pending, pendingErr := s.OfferingChanges.GetForStudent(txCtx, studentID)
 			if pendingErr != nil {
 				return pendingErr
+			}
+			if pending != nil {
+				view.LastDecision = pending.LastDecision
 			}
 			if pending != nil && pending.Request != nil {
 				view.PendingRequest = &PendingOfferingChange{

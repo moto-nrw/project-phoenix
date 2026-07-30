@@ -1050,7 +1050,14 @@
       "disabledNoEnrollment": "There is no enrolment for your child that a change could be applied to. Please contact the care team directly.",
       "disabledNoPermission": "You are not allowed to request changes for this child.",
       "disabledSchoolOff": "This care team does not accept change requests through the app. Please contact them directly.",
-      "disabledPeriodOver": "The care period has ended. Please enrol your child again for the new period."
+      "disabledPeriodOver": "The care period has ended. Please enrol your child again for the new period.",
+      "requestsTitle": "Change requests",
+      "decisionApproved": "Change applied",
+      "decisionApprovedFrom": "Valid from {date}",
+      "decisionRejected": "Request rejected",
+      "decisionReason": "Reason given by the care team: {reason}",
+      "decisionDecidedAt": "Decided on {date}",
+      "noRequests": "There is no change request at the moment."
     },
     "careOfferingsModal": {
       "title": "Request a change to the care offerings",

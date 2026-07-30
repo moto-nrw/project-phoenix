@@ -1041,6 +1041,16 @@ export interface PendingOfferingChange {
   readonly submitted_by_self: boolean;
 }
 
+/** A decided change request: the outcome plus a rejection's reason. */
+export interface OfferingDecision {
+  readonly id: string;
+  readonly status: "approved" | "rejected";
+  readonly decided_at: string;
+  /** Date the switch took (or would have taken) effect (YYYY-MM-DD). */
+  readonly effective_from: string;
+  readonly reason?: string;
+}
+
 /** Why the change button is unavailable. Stable identifiers from the backend. */
 export type OfferingChangesDisabledReason =
   "no_enrollment" | "no_permission" | "school_disabled" | "period_over";
@@ -1056,6 +1066,8 @@ export interface ChildCareOfferings {
   readonly pending_request?: PendingOfferingChange;
   /** Earliest date a new request may take effect (YYYY-MM-DD). */
   readonly earliest_effective_from?: string;
+  /** Most recent decided request, dropped once it ages out of the window. */
+  readonly last_decision?: OfferingDecision;
   readonly changes_disabled_reason?: OfferingChangesDisabledReason;
 }
 

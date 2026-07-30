@@ -172,6 +172,75 @@ describe("ChildCareOfferingsSection", () => {
     expect(screen.queryByText(/keine Berechtigung/)).not.toBeInTheDocument();
   });
 
+  it("shows an approved decision with the date it applies from", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        last_decision: {
+          id: "77",
+          status: "approved",
+          decided_at: "2026-07-30T10:00:00Z",
+          effective_from: "2027-02-01",
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Änderungsanfragen")).toBeInTheDocument();
+    expect(screen.getByText("Änderung übernommen")).toBeInTheDocument();
+    expect(screen.getByText("Gültig ab 01.02.2027")).toBeInTheDocument();
+    // A new request stays possible right away.
+    expect(
+      screen.getByRole("button", { name: "Änderung anfragen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a rejection with the reason the office gave", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        last_decision: {
+          id: "78",
+          status: "rejected",
+          decided_at: "2026-07-30T10:00:00Z",
+          effective_from: "2027-02-01",
+          reason: "Kein Platz in der Gruppe",
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Anfrage abgelehnt")).toBeInTheDocument();
+    expect(screen.getByText(/Kein Platz in der Gruppe/)).toBeInTheDocument();
+    // A rejected request carries no effective date claim.
+    expect(screen.queryByText(/Gültig ab/)).not.toBeInTheDocument();
+  });
+
+  it("prefers the open request over an older decision", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        pending_request: pending,
+        last_decision: {
+          id: "77",
+          status: "rejected",
+          decided_at: "2026-07-20T10:00:00Z",
+          effective_from: "2026-12-01",
+          reason: "Alte Ablehnung",
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
+    expect(screen.queryByText("Anfrage abgelehnt")).not.toBeInTheDocument();
+  });
+
+  it("says so when there is no request at all", async () => {
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(
+      await screen.findByText("Derzeit liegt keine Änderungsanfrage vor."),
+    ).toBeInTheDocument();
+  });
+
   it("withdraws the pending request through the confirmation modal", async () => {
     mockGet.mockResolvedValue(view({ pending_request: pending }));
     mockWithdraw.mockResolvedValue(view());

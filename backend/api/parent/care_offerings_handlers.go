@@ -30,6 +30,9 @@ type CareOfferingsResponse struct {
 	PendingRequest *PendingOfferingChangeResponse `json:"pending_request,omitempty"`
 	// EarliestEffectiveFrom bounds the date picker (YYYY-MM-DD).
 	EarliestEffectiveFrom string `json:"earliest_effective_from,omitempty"`
+	// LastDecision is the most recent decided request inside the recency window,
+	// absent when there is none.
+	LastDecision *OfferingDecisionResponse `json:"last_decision,omitempty"`
 	// ChangesDisabledReason is a stable identifier (no_enrollment,
 	// no_permission, school_disabled, period_over) the UI turns into German
 	// copy. Empty when CanRequest is true.
@@ -79,6 +82,15 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 	}
 	if !v.EarliestEffectiveFrom.IsZero() {
 		resp.EarliestEffectiveFrom = v.EarliestEffectiveFrom.String()
+	}
+	if v.LastDecision != nil {
+		resp.LastDecision = &OfferingDecisionResponse{
+			ID:            strconv.FormatInt(v.LastDecision.ID, 10),
+			Status:        v.LastDecision.Status,
+			DecidedAt:     v.LastDecision.DecidedAt.Format("2006-01-02T15:04:05Z07:00"),
+			EffectiveFrom: v.LastDecision.EffectiveFrom.String(),
+			Reason:        v.LastDecision.Reason,
+		}
 	}
 	if v.PendingRequest != nil {
 		pending := &PendingOfferingChangeResponse{
@@ -145,6 +157,17 @@ type PendingOfferingChangeResponse struct {
 	// Diff lists the "current → requested" lines, already rendered in German.
 	Diff            []OfferingDiffResponse `json:"diff"`
 	SubmittedBySelf bool                   `json:"submitted_by_self"`
+}
+
+// OfferingDecisionResponse is a decided request: what the office decided, when,
+// from which date it would have applied, and why it was rejected.
+type OfferingDecisionResponse struct {
+	ID string `json:"id"`
+	// Status is "approved" or "rejected".
+	Status        string `json:"status"`
+	DecidedAt     string `json:"decided_at"`
+	EffectiveFrom string `json:"effective_from"`
+	Reason        string `json:"reason,omitempty"`
 }
 
 // OfferingDiffResponse is one diff line.

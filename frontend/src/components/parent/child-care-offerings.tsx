@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarClock, Clock } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, XCircle } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -105,6 +105,7 @@ export function ChildCareOfferingsSection({
   }
 
   const pending = data.pending_request;
+  const decision = data.last_decision;
 
   const handleWithdraw = async () => {
     if (!pending) return;
@@ -212,92 +213,145 @@ export function ChildCareOfferingsSection({
         )}
       </div>
 
-      {pending && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
-              <Clock className="h-3 w-3" aria-hidden="true" />
-              {t("careOfferings.pendingBadge")}
-            </p>
-            <p className="text-xs text-gray-500">
-              {t("careOfferings.requestedAt", {
-                date: formatDate(pending.created_at),
+      {/* Requests get their own labelled block, separated from the read-only
+          lists above: what is booked and what was asked for are two different
+          questions, and a decided request must not read like a booking. */}
+      <div className="space-y-2 border-t border-gray-100 pt-4">
+        <h3 className="text-xs font-semibold tracking-wide text-gray-500">
+          {t("careOfferings.requestsTitle")}
+        </h3>
+
+        {pending && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+                <Clock className="h-3 w-3" aria-hidden="true" />
+                {t("careOfferings.pendingBadge")}
+              </p>
+              <p className="text-xs text-gray-500">
+                {t("careOfferings.requestedAt", {
+                  date: formatDate(pending.created_at),
+                })}
+              </p>
+            </div>
+            <p className="mt-2 text-sm font-medium text-gray-900">
+              {t("careOfferings.pendingEffectiveFrom", {
+                date: formatDate(pending.effective_from),
               })}
             </p>
-          </div>
-          <p className="mt-2 text-sm font-medium text-gray-900">
-            {t("careOfferings.pendingEffectiveFrom", {
-              date: formatDate(pending.effective_from),
-            })}
-          </p>
-          {pending.diff.length > 0 && (
-            <dl className="mt-2 space-y-1">
-              {pending.diff.map((line) => (
-                <div
-                  key={line.label}
-                  className="flex flex-wrap items-baseline gap-x-2 text-sm"
-                >
-                  <dt className="font-medium text-gray-700">{line.label}</dt>
-                  <dd className="text-gray-500 line-through">{line.old}</dd>
-                  <dd className="text-gray-900">{line.new}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-          {pending.note && (
-            <p className="mt-2 text-xs text-gray-500">
-              {t("careOfferings.pendingNote", { note: pending.note })}
+            {pending.diff.length > 0 && (
+              <dl className="mt-2 space-y-1">
+                {pending.diff.map((line) => (
+                  <div
+                    key={line.label}
+                    className="flex flex-wrap items-baseline gap-x-2 text-sm"
+                  >
+                    <dt className="font-medium text-gray-700">{line.label}</dt>
+                    <dd className="text-gray-500 line-through">{line.old}</dd>
+                    <dd className="text-gray-900">{line.new}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {pending.note && (
+              <p className="mt-2 text-xs text-gray-500">
+                {t("careOfferings.pendingNote", { note: pending.note })}
+              </p>
+            )}
+            <p className="mt-3 text-xs text-gray-500">
+              {t("careOfferings.pendingNotice")}
             </p>
-          )}
-          <p className="mt-3 text-xs text-gray-500">
-            {t("careOfferings.pendingNotice")}
-          </p>
-          {pending.submitted_by_self && (
-            <div className="mt-3">
-              <Button
-                type="button"
-                variant="outline_danger"
-                size="md"
-                onClick={() => {
-                  setWithdrawError(null);
-                  setConfirmWithdraw(true);
-                }}
-              >
-                {t("careOfferings.withdraw")}
-              </Button>
-              {withdrawError && (
-                <p className="mt-1 text-sm text-[#CC2626]">{withdrawError}</p>
+            {pending.submitted_by_self && (
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  variant="outline_danger"
+                  size="md"
+                  onClick={() => {
+                    setWithdrawError(null);
+                    setConfirmWithdraw(true);
+                  }}
+                >
+                  {t("careOfferings.withdraw")}
+                </Button>
+                {withdrawError && (
+                  <p className="mt-1 text-sm text-[#CC2626]">{withdrawError}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* The outcome of a decided request, so a guardian learns it here and
+            not only in the chat. No diff: after an approval was applied the
+            comparison is empty and would read as "nothing changed". */}
+        {!pending && decision && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {decision.status === "approved" ? (
+                <p className="inline-flex items-center gap-1 rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-semibold text-[#4f7d18]">
+                  <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                  {t("careOfferings.decisionApproved")}
+                </p>
+              ) : (
+                <p className="inline-flex items-center gap-1 rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-xs font-semibold text-[#CC2626]">
+                  <XCircle className="h-3 w-3" aria-hidden="true" />
+                  {t("careOfferings.decisionRejected")}
+                </p>
               )}
+              <p className="text-xs text-gray-500">
+                {t("careOfferings.decisionDecidedAt", {
+                  date: formatDate(decision.decided_at),
+                })}
+              </p>
             </div>
-          )}
-        </div>
-      )}
+            {decision.status === "approved" && (
+              <p className="mt-2 text-sm font-medium text-gray-900">
+                {t("careOfferings.decisionApprovedFrom", {
+                  date: formatDate(decision.effective_from),
+                })}
+              </p>
+            )}
+            {decision.reason && (
+              <p className="mt-2 text-sm text-gray-600">
+                {t("careOfferings.decisionReason", { reason: decision.reason })}
+              </p>
+            )}
+          </div>
+        )}
 
-      {!pending && data.can_request && (
-        <div>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setModalOpen(true)}
-          >
-            {t("careOfferings.requestButton")}
-          </Button>
-        </div>
-      )}
-
-      {/* A missing enrollment or a school that keeps changes offline is worth
-          saying out loud: silently hiding the button reads as a broken app. The
-          no-permission case stays silent — a guardian who may not request
-          changes does not need to be reminded of it on every visit. */}
-      {!pending &&
-        !data.can_request &&
-        data.changes_disabled_reason &&
-        data.changes_disabled_reason !== "no_permission" && (
-          <p className="text-xs text-gray-500">
-            {t(DISABLED_REASON_KEYS[data.changes_disabled_reason])}
+        {!pending && !decision && data.can_request && (
+          <p className="text-sm text-gray-600">
+            {t("careOfferings.noRequests")}
           </p>
         )}
+
+        {!pending && data.can_request && (
+          <div>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setModalOpen(true)}
+            >
+              {t("careOfferings.requestButton")}
+            </Button>
+          </div>
+        )}
+
+        {/* A missing enrollment or a school that keeps changes offline is worth
+            saying out loud: silently hiding the button reads as a broken app.
+            The no-permission case stays silent — a guardian who may not request
+            changes does not need to be reminded of it on every visit. */}
+        {!pending &&
+          !data.can_request &&
+          data.changes_disabled_reason &&
+          data.changes_disabled_reason !== "no_permission" && (
+            <p className="text-xs text-gray-500">
+              {t(DISABLED_REASON_KEYS[data.changes_disabled_reason])}
+            </p>
+          )}
+      </div>
 
       {modalOpen && (
         <OfferingChangeRequestModal

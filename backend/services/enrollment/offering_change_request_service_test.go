@@ -414,3 +414,76 @@ func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *
 	require.NotNil(t, other.FreeSlots)
 	assert.Equal(t, 3, *other.FreeSlots)
 }
+
+func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "Decision")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:  row.ID,
+		Approve:    false,
+		Reason:     "Gruppe ist voll",
+		ReviewedBy: env.creatorID,
+	}))
+
+	view, err := svc.GetForStudent(ctx, fx.studentID)
+	require.NoError(t, err)
+	require.NotNil(t, view, "a decided request must still be reported")
+	assert.Nil(t, view.Request, "no request is open anymore")
+	require.NotNil(t, view.LastDecision)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, view.LastDecision.Status)
+	assert.Equal(t, "Gruppe ist voll", view.LastDecision.Reason)
+	assert.Equal(t, fx.switchDate, view.LastDecision.EffectiveFrom)
+
+	// Aged past the recency window it drops out, so the card does not turn into
+	// a history list.
+	_, err = env.db.NewRaw(`
+		UPDATE enrollment.offering_change_requests
+		SET reviewed_at = NOW() - INTERVAL '20 days'
+		WHERE id = ?
+	`, row.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	view, err = svc.GetForStudent(ctx, fx.studentID)
+	require.NoError(t, err)
+	assert.Nil(t, view, "an old decision is no longer reported")
+}
+
+func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "Silent")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
+
+	view, err := svc.GetForStudent(ctx, fx.studentID)
+	require.NoError(t, err)
+	assert.Nil(t, view, "a guardian's own withdrawal needs no status message")
+}
