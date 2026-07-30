@@ -80,6 +80,16 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 
+vi.mock("~/lib/shift-api", () => ({
+  staffShiftService: {
+    getOverview: vi.fn(),
+  },
+}));
+
+vi.mock("~/lib/tenant-path", () => ({
+  useTenantAwarePath: () => (path: string) => `/acme${path}`,
+}));
+
 // Nur die Tagesliste selbst ersetzen. Die übrigen Exporte (Klassifikation und
 // Zeilendarstellung) bleiben echt, weil die Wochenliste sie importiert — ein
 // Voll-Mock des Moduls würde sie beim Rendern der Wochenansicht verschlucken.
@@ -212,6 +222,12 @@ interface SwrState {
   staffError?: Error;
   settingsSchema?: unknown;
   settingsLoading?: boolean;
+  /** Dienstplan-Übersicht für den Abdeckungshinweis; ohne sie kein Hinweis. */
+  coverageData?: {
+    dienstplanInUse: boolean;
+    assignments: Array<Record<string, unknown>>;
+  };
+  coverageError?: Error;
 }
 
 function setupSWR(state: SwrState = {}) {
@@ -235,6 +251,8 @@ function setupSWR(state: SwrState = {}) {
     staffError,
     settingsSchema = null,
     settingsLoading = false,
+    coverageData,
+    coverageError,
   } = state;
 
   mockUseSWRAuth.mockImplementation((key: string | null) => {
@@ -257,6 +275,9 @@ function setupSWR(state: SwrState = {}) {
         error: weekError,
         isLoading: weekLoading,
       };
+    }
+    if (key.startsWith("dienstplan-overview")) {
+      return { data: coverageData, error: coverageError };
     }
     return {};
   });
@@ -762,5 +783,146 @@ describe("VertretungView", () => {
 
     expect(screen.getByTestId("vertretung-disabled-state")).toBeVisible();
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
+  });
+
+  // Einsätze ohne Dienstplan-Abdeckung sind KEINE Störung (die Definition
+  // bleibt vierteilig), sondern ein Planungshinweis über der Liste.
+  describe("Dienstplan-Abdeckungshinweis", () => {
+    function coverageAssignment(overrides: Record<string, unknown> = {}) {
+      return {
+        instanceId: "42",
+        staffId: "11",
+        date: "2026-07-15",
+        startTime: "12:00",
+        endTime: "14:00",
+        activityTitle: "Mensa",
+        status: "planned",
+        isAbsent: false,
+        isSubstitute: false,
+        coverageStatus: "uncovered",
+        coverageReason: null,
+        uncoveredIntervals: [{ startTime: "12:30", endTime: "14:00" }],
+        ...overrides,
+      };
+    }
+
+    function authenticateWithOverviewAccess() {
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: {
+            permissions: [
+              "schedules:manage",
+              "schedules:read",
+              "time_tracking:manage",
+              "users:read",
+            ],
+          },
+        },
+      });
+    }
+
+    it("nennt Person und offenen Zeitraum und verlinkt den Dienstplan", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.getByText(
+          "1 Einsatz an diesem Tag ist nicht durch den Dienstplan abgedeckt: Ada Staff (12:30–14:00).",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Dienstplan öffnen" }),
+      ).toHaveAttribute("href", "/acme/dienstplan?d=2026-07-15");
+    });
+
+    it("zählt nicht in die Störungszähler", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(screen.getByText("Offen: 0")).toBeInTheDocument();
+      expect(screen.getByText("Quittiert: 0")).toBeInTheDocument();
+    });
+
+    it("bleibt still ohne die Rechte der Dienstplan-Übersicht", () => {
+      // Standard-Session aus beforeEach: nur schedules:manage.
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("bleibt still, solange kein Dienstplan gepflegt ist", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: false,
+          assignments: [coverageAssignment()],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("bleibt still für einen vergangenen Tag", () => {
+      authenticateWithOverviewAccess();
+      mockSearch.value = "d=2026-07-14";
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment({ date: "2026-07-14" })],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("nennt in der Wochenansicht den Wochentag und öffnet die gezeigte Woche", () => {
+      authenticateWithOverviewAccess();
+      mockSearch.value = "view=woche";
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [
+            coverageAssignment({ date: "2026-07-16", instanceId: "43" }),
+          ],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.getByText(
+          "1 Einsatz ab heute in dieser Woche ist nicht durch den Dienstplan abgedeckt: Ada Staff (Do, 12:30–14:00).",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Dienstplan öffnen" }),
+      ).toHaveAttribute("href", "/acme/dienstplan?d=2026-07-13");
+    });
   });
 });
