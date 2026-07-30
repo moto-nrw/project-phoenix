@@ -58,7 +58,7 @@ func (r *OfferingChangeRequestRepository) GetPendingForStudent(
 	return row, nil
 }
 
-// ListByStudent returns every request of one child, newest first.
+// ListByStudent returns every request of one child, newest decision first.
 func (r *OfferingChangeRequestRepository) ListByStudent(
 	ctx context.Context,
 	studentID int64,
@@ -71,7 +71,7 @@ func (r *OfferingChangeRequestRepository) ListByStudent(
 
 	query = base.WithTenantFilter(ctx, query, "offering_change_request")
 	query = query.
-		OrderExpr(`"offering_change_request".created_at DESC`).
+		OrderExpr(`"offering_change_request".reviewed_at DESC NULLS LAST`).
 		OrderExpr(`"offering_change_request".id DESC`)
 
 	if err := query.Scan(ctx); err != nil {

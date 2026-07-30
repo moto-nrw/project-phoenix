@@ -85,8 +85,7 @@ type OfferingChangeRequestRepository interface {
 	// is none. The partial unique index guarantees at most one.
 	GetPendingForStudent(ctx context.Context, studentID int64) (*OfferingChangeRequest, error)
 
-	// ListByStudent returns the child's requests, newest first, so a guardian
-	// sees what happened to earlier ones.
+	// ListByStudent returns the child's requests with the newest decision first.
 	ListByStudent(ctx context.Context, studentID int64) ([]*OfferingChangeRequest, error)
 
 	// ListPendingForTenant backs the staff review queue, ordered by effective

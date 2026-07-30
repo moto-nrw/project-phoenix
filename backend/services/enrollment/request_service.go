@@ -654,18 +654,11 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		return nil, err
 	}
 
-	// Decide per-child overflow status before opening the write tx.
 	// childStatusOverrides[i] is set when capacity logic forces a
-	// non-default status (e.g. waitlisted under mode=waitlist). When the
-	// mode is 'reject' an over-capacity offering aborts the whole
-	// submission with ErrCareOfferingFull. Mode comes from the phase row.
+	// non-default status (e.g. waitlisted under mode=waitlist). It is resolved
+	// inside the write transaction below, so the offering locks protect both
+	// the count and the request-child offering rows that consume the slot.
 	childStatusOverrides := map[int]string{}
-	if capabilities.CareOfferingsEnabled {
-		childStatusOverrides, err = s.applyCapacityOverflow(ctx, phase, req.Children, openByID)
-	}
-	if err != nil {
-		return nil, err
-	}
 
 	// Pin the schema version to whichever schema the phase points at,
 	// or the tenant's currently-active schema if the phase has no
@@ -830,6 +823,14 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			default:
 				return fmt.Errorf("submit: unsupported duplicate handling %q", duplicatePolicy)
 			}
+		}
+
+		if capabilities.CareOfferingsEnabled {
+			overrides, capacityErr := s.applyCapacityOverflow(txCtx, phase, req.Children, openByID)
+			if capacityErr != nil {
+				return capacityErr
+			}
+			childStatusOverrides = overrides
 		}
 
 		var schemaID *int64

@@ -1232,6 +1232,23 @@ func (s *offeringChangeRequestService) diffForRequest(
 	if err != nil {
 		return nil, err
 	}
+	child, err := s.RequestChildRepo.FindByID(ctx, row.RequestChildID)
+	if err != nil || child == nil {
+		return nil, fmt.Errorf("offering change: load request child for diff: %w", err)
+	}
+	request, err := s.RequestRepo.FindByID(ctx, child.RequestID)
+	if err != nil || request == nil {
+		return nil, fmt.Errorf("offering change: load request for diff: %w", err)
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	if err != nil || phase == nil {
+		return nil, fmt.Errorf("offering change: load phase for diff: %w", err)
+	}
+	materialized, err := s.materializedSelections(ctx, phase, row.RequestChildID, row.EffectiveFrom, requested)
+	if err != nil {
+		return nil, err
+	}
+	requested = offeringChangeSelections(materialized)
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, row.RequestChildID, row.EffectiveFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
@@ -1252,6 +1269,17 @@ func (s *offeringChangeRequestService) diffForRequest(
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
 	return entries, nil
+}
+
+func offeringChangeSelections(materialized []materializedOfferingSelection) []OfferingChangeSelection {
+	selections := make([]OfferingChangeSelection, 0, len(materialized))
+	for _, selection := range materialized {
+		selections = append(selections, OfferingChangeSelection{
+			OfferingID:   selection.OfferingID,
+			SelectedDays: append([]string(nil), selection.SelectedDays...),
+		})
+	}
+	return selections
 }
 
 func offeringChangeSides(
