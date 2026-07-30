@@ -204,8 +204,11 @@ type Factory struct {
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
 	ChangeRequest        enrollmentModels.ChangeRequestRepository
 	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
-	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
-	Phase                enrollmentModels.PhaseRepository
+	// OfferingChangeRequest carries post-enrollment care/AG change requests
+	// from the parents portal (#1665).
+	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
+	SubmissionRateLimit   enrollmentModels.SubmissionRateLimitRepository
+	Phase                 enrollmentModels.PhaseRepository
 
 	// Display domain (info-point dashboards, issue #1325)
 	Display displayModels.Repository
@@ -387,18 +390,19 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 
 		// Enrollment repositories
-		FormSchema:           enrollment.NewFormSchemaRepository(db),
-		Request:              enrollment.NewRequestRepository(db),
-		EnrollmentDeletion:   enrollment.NewDeletionRepository(db),
-		RequestChild:         enrollment.NewRequestChildRepository(db),
-		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
-		LateInvite:           enrollment.NewLateInviteRepository(db),
-		CareOffering:         enrollment.NewCareOfferingRepository(db),
-		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
-		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
-		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
-		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
-		Phase:                enrollment.NewPhaseRepository(db),
+		FormSchema:            enrollment.NewFormSchemaRepository(db),
+		Request:               enrollment.NewRequestRepository(db),
+		EnrollmentDeletion:    enrollment.NewDeletionRepository(db),
+		RequestChild:          enrollment.NewRequestChildRepository(db),
+		RequestGuardian:       enrollment.NewRequestGuardianRepository(db),
+		LateInvite:            enrollment.NewLateInviteRepository(db),
+		CareOffering:          enrollment.NewCareOfferingRepository(db),
+		RequestChildOffering:  enrollment.NewRequestChildOfferingRepository(db),
+		OfferingChangeRequest: enrollment.NewOfferingChangeRequestRepository(db),
+		ChangeRequest:         enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage:  enrollment.NewChangeRequestMessageRepository(db),
+		SubmissionRateLimit:   enrollment.NewSubmissionRateLimitRepository(db),
+		Phase:                 enrollment.NewPhaseRepository(db),
 
 		// Display (info-point dashboards, issue #1325)
 		Display: displayRepo.NewDisplayRepository(db),

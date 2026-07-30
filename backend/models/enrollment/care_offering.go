@@ -31,6 +31,20 @@ var canonicalDaySet = map[string]bool{
 	"sat": true, "sun": true,
 }
 
+// canonicalDayISOWeekday maps each canonical day to its ISO weekday number.
+var canonicalDayISOWeekday = map[string]int{
+	"mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6, "sun": 7,
+}
+
+// CanonicalDayToISOWeekday translates a stored day abbreviation ("mon") into
+// its ISO weekday number (1=Mon..7=Sun). Lives on the model so enrollment
+// materialization and the parents-portal read view cannot drift apart on the
+// mapping.
+func CanonicalDayToISOWeekday(day string) (int, bool) {
+	weekday, ok := canonicalDayISOWeekday[strings.ToLower(strings.TrimSpace(day))]
+	return weekday, ok
+}
+
 // Selection rules constrain how many offerings within the same
 // selection_group a parent may/must pick. Match the column CHECK
 // constraint from migration 1.15.78.
