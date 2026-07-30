@@ -126,7 +126,9 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 	// Fetch post with author name for the notification email
 	fullPost, err := s.PostRepo.FindByIDWithVote(notificationContext(ctx), post.ID, 0, readerTypeFor(ctx))
 	if err == nil && fullPost != nil {
-		s.notifyNewPost(fullPost)
+		tenant.RegisterAfterCommit(ctx, func() {
+			s.notifyNewPost(fullPost)
+		})
 	}
 
 	return nil
@@ -287,7 +289,9 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 	if fetchErr == nil && fullPost != nil {
 		resolvedComment, commentErr := s.CommentRepo.FindByIDWithAuthor(notifyCtx, comment.ID)
 		if commentErr == nil && resolvedComment != nil {
-			s.notifyNewComment(fullPost, resolvedComment)
+			tenant.RegisterAfterCommit(ctx, func() {
+				s.notifyNewComment(fullPost, resolvedComment)
+			})
 		}
 	}
 
