@@ -1,12 +1,14 @@
 package enrollment_test
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -18,6 +20,12 @@ import (
 // Post-enrollment offering change requests (#1665). The service is exercised
 // against the real test DB; the emitter is left nil (chat pills are covered by
 // the messaging tests and are best-effort by contract).
+
+// offeringChangeAdminContext makes the staff-side service calls explicit about
+// their authority. TenantContext alone deliberately carries no JWT permissions.
+func offeringChangeAdminContext() context.Context {
+	return context.WithValue(testpkg.TenantContext(1), jwt.CtxPermissions, []string{"admin:*"})
+}
 
 func newOfferingChangeServiceForTest(
 	t *testing.T,
@@ -96,7 +104,7 @@ func setupOfferingChangeFixture(
 func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Create")
 
@@ -133,7 +141,7 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Second")
 
@@ -162,7 +170,7 @@ func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *test
 func TestOfferingChangeRequestService_Create_RejectsEffectiveDateInsideNoticePeriod(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Notice")
 
@@ -180,7 +188,7 @@ func TestOfferingChangeRequestService_Create_RejectsEffectiveDateInsideNoticePer
 func TestOfferingChangeRequestService_Create_RejectsOfferingOutsideThePhase(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Foreign")
 
@@ -198,7 +206,7 @@ func TestOfferingChangeRequestService_Create_RejectsOfferingOutsideThePhase(t *t
 func TestOfferingChangeRequestService_Create_RefusedWhenSchoolDisabledIt(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Off")
 	env.settings.boolValues[configModel.KeyEnrollmentOfferingChangesEnabled] = false
@@ -217,7 +225,7 @@ func TestOfferingChangeRequestService_Create_RefusedWhenSchoolDisabledIt(t *test
 func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Approve")
 
@@ -267,7 +275,7 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNothing(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Reject")
 
@@ -310,7 +318,7 @@ func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNoth
 func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Full")
 
@@ -349,7 +357,7 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t
 func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Withdraw")
 
@@ -385,7 +393,7 @@ func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
 func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Catalog")
 
@@ -418,7 +426,7 @@ func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *
 func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Decision")
 
@@ -471,7 +479,7 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Silent")
 
