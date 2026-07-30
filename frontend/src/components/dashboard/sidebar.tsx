@@ -53,6 +53,7 @@ import {
   PARENT_SECTION,
   PARENT_SUB_PAGES,
   PLANNING_SECTION,
+  STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 
 // Type für Navigation Items
@@ -78,43 +79,37 @@ interface NavItem {
 // Flat navigation items (excludes accordion sections: ogs-groups, active-supervisions, database)
 const NAV_ITEMS: NavItem[] = [
   {
-    href: "/dashboard",
-    label: "Home",
+    ...STAFF_FLAT_PAGES.dashboard,
     icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
     activeColor: "text-[#5080D8]",
     requiresAdmin: true,
   },
   {
-    href: "/students/search",
-    label: "Kindersuche",
+    ...STAFF_FLAT_PAGES.studentSearch,
     icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
     activeColor: "text-[#5080D8]",
     alwaysShow: true,
   },
   {
-    href: "/activities",
-    label: "Aktivitäten",
+    ...STAFF_FLAT_PAGES.activities,
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     activeColor: "text-[#FF3130]",
     alwaysShow: true,
   },
   {
-    href: "/rooms",
-    label: "Räume",
+    ...STAFF_FLAT_PAGES.rooms,
     icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
     activeColor: "text-indigo-500",
     alwaysShow: true,
   },
   {
-    href: "/staff",
-    label: "Mitarbeiter",
+    ...STAFF_FLAT_PAGES.staff,
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
     activeColor: "text-[#F78C10]",
     alwaysShow: true,
   },
   {
-    href: "/calendar",
-    label: "Mein Kalender",
+    ...STAFF_FLAT_PAGES.calendar,
     icon: navigationIcons.calendar,
     activeColor: "text-[#5080D8]",
     // Backend gates GET /api/calendar/my on calendar:own; match it so
@@ -127,22 +122,19 @@ const NAV_ITEMS: NavItem[] = [
     // "Gruppenzugriff" zur Abgrenzung vom Planungsbereich "Vertretung"
     // (#1940). Nur relevant bei festen Gruppen (operations.group_mode);
     // Gating siehe substitutionsItem-Rendering unten.
-    href: "/substitutions",
-    label: "Gruppenzugriff",
+    ...STAFF_FLAT_PAGES.substitutions,
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     activeColor: "text-pink-500",
     requiresAdmin: true,
   },
   {
-    href: "/info-displays",
-    label: "Info-Displays",
+    ...STAFF_FLAT_PAGES.infoDisplays,
     icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
     activeColor: "text-[#5080D8]",
     requiresPermission: ["display:read", "display:manage"],
   },
   {
-    href: "/time-tracking",
-    label: "Zeiterfassung",
+    ...STAFF_FLAT_PAGES.timeTracking,
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
     activeColor: "text-sky-500",
     alwaysShow: true,
@@ -152,8 +144,7 @@ const NAV_ITEMS: NavItem[] = [
     // (Anwesend/Krank/Entschuldigt/Abwesend). Als Auswertung unten bei den
     // Berichts-Einträgen einsortiert. Opt-in über
     // gdpr.attendance_log_enabled — Gating siehe filteredNavItems.
-    href: "/day-log",
-    label: "Tagesauswertung",
+    ...STAFF_FLAT_PAGES.dayLog,
     icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
     activeColor: "text-[#83CD2D]",
     requiresPermission: "users:read",
@@ -166,16 +157,14 @@ const NAV_ITEMS: NavItem[] = [
     comingSoon: true,
   },
   {
-    href: "/emergency",
-    label: "Notfall",
+    ...STAFF_FLAT_PAGES.emergency,
     icon: navigationIcons.emergency,
     activeColor: "text-[#FF3130]",
     alwaysShow: true,
     bottomPinned: true,
   },
   {
-    href: "/help",
-    label: "Hilfe",
+    ...STAFF_FLAT_PAGES.help,
     icon: navigationIcons.book,
     activeColor: "text-[#83CD2D]",
     alwaysShow: true,
@@ -183,16 +172,14 @@ const NAV_ITEMS: NavItem[] = [
     newTab: true,
   },
   {
-    href: "/suggestions",
-    label: "Feedback",
+    ...STAFF_FLAT_PAGES.suggestions,
     icon: "M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46",
     activeColor: "text-teal-500",
     alwaysShow: true,
     bottomPinned: true,
   },
   {
-    href: "/settings",
-    label: "Einstellungen",
+    ...STAFF_FLAT_PAGES.settings,
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
     activeColor: "text-gray-500",
     requiresAdmin: true,

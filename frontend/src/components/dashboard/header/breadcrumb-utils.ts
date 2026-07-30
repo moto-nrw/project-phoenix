@@ -10,12 +10,17 @@ import {
   getActiveParentSubPage,
   PARENT_SECTION,
   PLANNING_SECTION,
+  STAFF_FLAT_PAGES,
   type SectionRoot,
   type SectionSubPage,
 } from "~/lib/section-navigation";
 
+/**
+ * Pfade, die vor jeder Präfixregel greifen müssen. /students/search liegt
+ * unter /students/, würde also sonst als Kinder-Detailseite gelesen.
+ */
 const exactPageTitles: Record<string, string> = {
-  "/students/search": "Kindersuche",
+  [STAFF_FLAT_PAGES.studentSearch.href]: STAFF_FLAT_PAGES.studentSearch.label,
 };
 
 const detailRouteTitles: Array<{
@@ -39,19 +44,21 @@ const detailRouteTitles: Array<{
  * "Home" — `navigation-sync.test.ts` fängt genau das für die Katalogseiten ab.
  */
 const mainRoutes: Record<string, string> = {
-  "/dashboard": "Home",
+  // Die flachen Mitarbeiter-Seiten stehen im gemeinsamen Katalog, aus dem
+  // auch die Seitenleiste ihre Einträge baut.
+  ...Object.fromEntries(
+    Object.values(STAFF_FLAT_PAGES).map((page) => [page.href, page.label]),
+  ),
   "/": "Home",
   "/parents": "Start",
+  // Die beiden Akkordeon-Bereiche. Ihre Beschriftung in der Seitenleiste ist
+  // dynamisch (Ein-/Mehrzahl je nach Anzahl, plus Anwesenheitszähler) und
+  // taugt deshalb nicht als gemeinsame Quelle.
   "/ogs-groups": "Meine Gruppe",
   "/active-supervisions": "Aktuelle Aufsicht",
-  "/staff": "Mitarbeiter",
-  "/rooms": "Räume",
-  "/activities": "Aktivitäten",
+  // Ohne Navigationseintrag, nur über Verlinkung erreichbar.
   "/reminders": "Erinnerungen",
-  "/substitutions": "Gruppenzugriff",
-  "/calendar": "Mein Kalender",
-  "/day-log": "Tagesauswertung",
-  "/info-displays": "Info-Displays",
+  "/profile": "Profil",
   // Die Planungsseiten selbst kommen aus PLANNING_SUB_PAGES
   // (getSectionBreadcrumb); /planung ist nur der Redirect-Frame und behält
   // einen Eintrag, damit während des Client-Redirects kein falscher Titel
@@ -60,12 +67,12 @@ const mainRoutes: Record<string, string> = {
   // Die Sektions-Hubs; ihre Unterseiten kommen aus den Katalogen.
   [DATABASE_SECTION.href]: DATABASE_SECTION.label,
   [PARENT_SECTION.href]: PARENT_SECTION.label,
-  "/emergency": "Notfall",
-  "/settings": "Einstellungen",
-  "/profile": "Profil",
-  "/time-tracking": "Zeiterfassung",
-  "/suggestions": "Feedback",
-  "/operator/suggestions": "Vorschläge",
+  // Operator-Seiten setzen ihren Titel selbst per useSetBreadcrumb. Diese
+  // Einträge sind der Wert für den ersten Frame davor und müssen deshalb
+  // wörtlich mit dem Seitentitel übereinstimmen, sonst blitzt beim Laden
+  // kurz ein anderes Wort auf. `operator_page_titles` in
+  // navigation-sync.test.ts hält beide Seiten zusammen.
+  "/operator/suggestions": "Feedback",
   "/operator/announcements": "Ankündigungen",
   "/operator/organizations": "Träger",
   "/operator/schools": "Schulen",
@@ -74,6 +81,8 @@ const mainRoutes: Record<string, string> = {
   "/operator/persons": "Personen",
   "/operator/unregistered-tags": "Unbekannte RFID",
   "/operator/operators": "Operatoren",
+  // Elternportal: nur der deutsche Rückfallwert. Die Kopfzeile überschreibt
+  // ihn im Elternmodus mit dem übersetzten parentNav-Eintrag.
   "/parents/messages": "Nachrichten",
   "/parents/news": "Neuigkeiten",
   "/parents/meal-plan": "Essensplan",

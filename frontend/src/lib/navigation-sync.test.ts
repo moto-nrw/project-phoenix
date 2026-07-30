@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,6 +16,7 @@ import {
   PARENT_SECTION,
   PARENT_SUB_PAGES,
   PLANNING_SECTION,
+  STAFF_FLAT_PAGES,
   type SectionRoot,
   type SectionSubPage,
 } from "~/lib/section-navigation";
@@ -110,6 +114,72 @@ describe("navigation catalogs stay in sync with the header", () => {
       });
     },
   );
+
+  describe("flat staff pages", () => {
+    it.each(
+      Object.values(STAFF_FLAT_PAGES).map((page) => [page.href, page.label]),
+    )("titles %s as its catalog label", (href, label) => {
+      expect(getPageTitle(href)).toBe(label);
+    });
+  });
+
+  /**
+   * Seiten, die ihren Titel selbst per `useSetBreadcrumb({ pageTitle })`
+   * setzen, überschreiben getPageTitle — aber erst in einem Effekt, also nach
+   * dem ersten Frame. Weichen die beiden Werte ab, blitzt beim Laden kurz das
+   * falsche Wort auf. Genau das war bei /operator/suggestions der Fall
+   * ("Vorschläge" statt "Feedback").
+   *
+   * Der Test liest die Seiten direkt aus dem Quelltext, damit eine neue
+   * Operator-Seite automatisch mitgeprüft wird.
+   */
+  describe("static page titles agree with the header fallback", () => {
+    const APP_DIR = join(__dirname, "..", "app");
+    const SET_BREADCRUMB_TITLE =
+      /useSetBreadcrumb\(\{\s*pageTitle:\s*"([^"]+)"\s*,?\s*\}\)/;
+
+    function collectStaticTitles(dir: string): [string, string][] {
+      const found: [string, string][] = [];
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) {
+          found.push(...collectStaticTitles(full));
+          continue;
+        }
+        if (entry !== "page.tsx") continue;
+        const title = SET_BREADCRUMB_TITLE.exec(
+          readFileSync(full, "utf8"),
+        )?.[1];
+        if (!title) continue;
+
+        const route = full
+          .slice(APP_DIR.length)
+          .replace(/\/page\.tsx$/, "")
+          .replace(/\/\([^)]+\)/g, "")
+          .replace(/^\/\[tenant\]/, "");
+        // Dynamische Segmente haben keinen festen Pfad, den getPageTitle
+        // nachschlagen könnte.
+        if (route.includes("[")) continue;
+        found.push([route || "/", title]);
+      }
+      return found;
+    }
+
+    const staticTitles = collectStaticTitles(APP_DIR);
+
+    it("finds the pages it is supposed to guard", () => {
+      // Schutz gegen eine stillschweigend leere Prüfung, falls sich die
+      // Schreibweise von useSetBreadcrumb einmal ändert.
+      expect(staticTitles.length).toBeGreaterThanOrEqual(9);
+    });
+
+    it.each(staticTitles)(
+      "%s renders '%s' on the first frame too",
+      (route, title) => {
+        expect(getPageTitle(route)).toBe(title);
+      },
+    );
+  });
 
   it("never routes a catalog page to the 'Home' fallback", () => {
     // Die Regressionen, die dieser Test fängt, sehen im Code harmlos aus: eine

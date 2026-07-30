@@ -116,6 +116,41 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
   { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
 ];
 
+/**
+ * Die flachen Seiten der Mitarbeiter-Navigation: alles, was in der
+ * Seitenleiste als einzelner Eintrag steht statt in einem Akkordeon.
+ *
+ * Titel und Pfad standen bisher doppelt im Code — einmal in `NAV_ITEMS`
+ * (sidebar.tsx), einmal in `mainRoutes` (breadcrumb-utils.ts). Wer eine Seite
+ * umbenannte und nur eine Stelle traf, bekam eine Seitenleiste und eine
+ * Kopfzeile mit unterschiedlichen Wörtern.
+ *
+ * Hier steht nur, wie die Seite heißt und wo sie liegt. Symbol, Farbe und
+ * Sichtbarkeitsregeln bleiben in `NAV_ITEMS`, wo sie hingehören: sie sind
+ * Darstellung, kein Navigationsfakt.
+ *
+ * Die mobile Navigation kürzt einige Namen bewusst ("Suchen" statt
+ * "Kindersuche", weil unter einem Symbol nur wenig Platz ist) und weicht
+ * deshalb ab. Der Test in navigation-sync.test.ts prüft trotzdem, dass jeder
+ * mobile Pfad einen Kopfzeilen-Titel bekommt.
+ */
+export const STAFF_FLAT_PAGES = {
+  dashboard: { href: "/dashboard", label: "Home" },
+  studentSearch: { href: "/students/search", label: "Kindersuche" },
+  activities: { href: "/activities", label: "Aktivitäten" },
+  rooms: { href: "/rooms", label: "Räume" },
+  staff: { href: "/staff", label: "Mitarbeiter" },
+  calendar: { href: "/calendar", label: "Mein Kalender" },
+  substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
+  infoDisplays: { href: "/info-displays", label: "Info-Displays" },
+  timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
+  dayLog: { href: "/day-log", label: "Tagesauswertung" },
+  emergency: { href: "/emergency", label: "Notfall" },
+  help: { href: "/help", label: "Hilfe" },
+  suggestions: { href: "/suggestions", label: "Feedback" },
+  settings: { href: "/settings", label: "Einstellungen" },
+} as const satisfies Record<string, SectionSubPage>;
+
 /** Unterseiten des Anmeldungen-Akkordeons, in Anzeigereihenfolge. */
 export const ENROLLMENT_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/admin/enrollments", label: "Überblick" },
