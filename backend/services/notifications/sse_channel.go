@@ -49,6 +49,8 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		return nil
 	case ScopeGroup:
 		return c.broadcaster.BroadcastToGroup(event.Audience.TenantID, event.Audience.ActiveGroupID, sseEvent)
+	case ScopeStaff:
+		return c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, staffAccountIDs(event.Audience), sseEvent)
 	default:
 		return fmt.Errorf("sse channel cannot route audience scope %q (tenant %s)",
 			event.Audience.Scope, strconv.FormatInt(event.Audience.TenantID, 10))

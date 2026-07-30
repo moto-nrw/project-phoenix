@@ -36,8 +36,16 @@ const commentAuthorNameExpr = `COALESCE(CASE
 // Joins backing commentAuthorNameExpr.
 const (
 	joinCommentOperator = `LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`
-	joinCommentPerson   = `LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`
-	joinCommentPost     = `LEFT JOIN suggestions.posts AS "post" ON "post".id = "comment".post_id`
+	// joinCommentPerson is scoped to the comment's own tenant and to live rows
+	// for the same reason as joinPostPerson: the operator reads through
+	// phoenix_admin (BYPASSRLS), where an account with person records in
+	// several schools would otherwise duplicate the comment once per record.
+	joinCommentPerson = `LEFT JOIN users.persons AS "person"
+			ON "comment".author_type = 'user'
+			AND "person".account_id = "comment".author_id
+			AND "person".tenant_id = "comment".tenant_id
+			AND "person".deleted_at IS NULL`
+	joinCommentPost = `LEFT JOIN suggestions.posts AS "post" ON "post".id = "comment".post_id`
 )
 
 // CommentRepository implements suggestions.CommentRepository interface

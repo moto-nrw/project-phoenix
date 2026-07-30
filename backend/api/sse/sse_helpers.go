@@ -16,14 +16,18 @@ import (
 
 // sseConnection holds all state for an active SSE connection
 type sseConnection struct {
-	writer   http.ResponseWriter
-	flusher  http.Flusher
-	staffID  int64
-	tenantID int64
-	isAdmin  bool
-	client   *realtime.Client
-	topics   *sseTopics
-	logger   *slog.Logger
+	writer  http.ResponseWriter
+	flusher http.Flusher
+	staffID int64
+	// accountID is auth.accounts.id. Carried separately from staffID because
+	// personal notifications address accounts, and a staff-less effective admin
+	// has staffID 0.
+	accountID int64
+	tenantID  int64
+	isAdmin   bool
+	client    *realtime.Client
+	topics    *sseTopics
+	logger    *slog.Logger
 }
 
 // sseTopics holds subscription topic information
@@ -135,6 +139,7 @@ func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 	conn.client = &realtime.Client{
 		Channel:          make(chan realtime.Event, 32), // Buffer up to 32 events (issue #848: headroom for bursts, e.g. admin-overview clients subscribed to every group)
 		UserID:           conn.staffID,
+		AccountID:        conn.accountID,
 		TenantID:         conn.tenantID,
 		IsAdmin:          conn.isAdmin,
 		SubscribedGroups: make(map[string]bool),

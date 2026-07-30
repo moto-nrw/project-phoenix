@@ -73,16 +73,17 @@ func (r *StaffShiftSeriesRepository) CapAllByStaffID(ctx context.Context, staffI
 	return rows, nil
 }
 
-// FindNextInLineage returns the next chronological segment in one split
-// lineage. Root rows store a NULL series_root_id, so resolve both roots and
-// successors through COALESCE.
-func (r *StaffShiftSeriesRepository) FindNextInLineage(ctx context.Context, rootID int64, after timezone.Date) (*schedule.StaffShiftSeries, error) {
+// FindOverlappingInLineage returns another chronological segment in one split
+// lineage that is active on or after from. Root rows store a NULL series_root_id,
+// so resolve both roots and successors through COALESCE.
+func (r *StaffShiftSeriesRepository) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*schedule.StaffShiftSeries, error) {
 	series := new(schedule.StaffShiftSeries)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(series).
 		ModelTableExpr(tableExprStaffShiftSeriesAsSeries).
 		Where(`COALESCE("staff_shift_series".series_root_id, "staff_shift_series".id) = ?`, rootID).
-		Where(`"staff_shift_series".valid_from > ?`, after).
+		Where(`"staff_shift_series".id != ?`, excludeID).
+		Where(`("staff_shift_series".valid_until IS NULL OR "staff_shift_series".valid_until > ?)`, from).
 		OrderExpr(`"staff_shift_series".valid_from ASC`).
 		Limit(1)
 
@@ -91,7 +92,7 @@ func (r *StaffShiftSeriesRepository) FindNextInLineage(ctx context.Context, root
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find next staff shift series in lineage", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find overlapping staff shift series in lineage", Err: err}
 	}
 	return series, nil
 }

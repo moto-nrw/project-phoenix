@@ -1082,8 +1082,9 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 // plain name/notes edit changes nothing parent-visible, so it wakes no one
 // (#1725). Runs after the OUTER tx commits so a woken client never reads the
 // pre-commit snapshot; tenantID is captured before the hook fires.
-func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool) {
+func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool, reportedStatus string, reportDate timezone.Date) {
 	statusChanged := req.Sick != nil || req.Excused != nil
+	actorAccountID := int64(jwt.ClaimsFromCtx(ctx).ID)
 	tenant.RegisterAfterCommit(ctx, func() {
 		rs.broadcastStudentUpdated(tenantID, studentID)
 		// Only when the write actually changed the links (or a linked child's
@@ -1096,6 +1097,9 @@ func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, st
 		}
 		if statusChanged {
 			rs.wakeChildGuardians(tenantID, studentID)
+		}
+		if reportedStatus != "" {
+			rs.notifyAbsenceReported(tenantID, []int64{studentID}, reportedStatus, []timezone.Date{reportDate}, false, actorAccountID)
 		}
 	})
 }
@@ -1210,6 +1214,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// leave a partial write behind either — checking first keeps the refusal
 	// cheap, the rollback makes it safe.
 	applyStudentFieldUpdates(req, fresh)
+	reportedStatus := newlyReportedAbsenceStatus(fresh, wasSick, wasExcused)
 	authorizedExtensions, err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions)
 	if err != nil {
 		return false, err
@@ -1256,7 +1261,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 
 	// Broadcast after the OUTER tx commits. Broadcasting now would race
 	// subscribers into refetching the still-pre-commit row.
-	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged)
+	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged, reportedStatus, timezone.DateFromTime(statusHistoryNow))
 	return companionsChanged, nil
 }
 

@@ -47,10 +47,11 @@ func newTestRequest(tenantID int64) *http.Request {
 	if tenantID > 0 {
 		ctx = tenant.WithTenantID(ctx, tenantID)
 	}
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 73})
 	return httptest.NewRequest(http.MethodPost, "/test", nil).WithContext(ctx)
 }
 
-func TestSendTestNotificationDispatchesTenantEvent(t *testing.T) {
+func TestSendTestNotificationDispatchesOnlyToRequester(t *testing.T) {
 	svc := &captureService{}
 	rs := &Resource{NotificationsService: svc}
 
@@ -61,7 +62,8 @@ func TestSendTestNotificationDispatchesTenantEvent(t *testing.T) {
 	require.True(t, svc.called)
 	assert.Equal(t, "test", svc.gotEvent.Type)
 	assert.Equal(t, int64(41), svc.gotEvent.Audience.TenantID)
-	assert.Equal(t, notificationsService.ScopeTenant, svc.gotEvent.Audience.Scope)
+	assert.Equal(t, notificationsService.ScopeStaff, svc.gotEvent.Audience.Scope)
+	assert.Equal(t, []int64{73}, svc.gotEvent.Audience.StaffAccountIDs)
 	assert.NotEmpty(t, svc.gotEvent.Title)
 }
 
@@ -93,6 +95,19 @@ func TestSendTestNotificationMissingTenant(t *testing.T) {
 	rs.sendTestNotification(rec, newTestRequest(0))
 
 	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.False(t, svc.called)
+}
+
+func TestSendTestNotificationMissingAccount(t *testing.T) {
+	svc := &captureService{}
+	rs := &Resource{NotificationsService: svc}
+	ctx := tenant.WithTenantID(context.Background(), 41)
+	req := httptest.NewRequest(http.MethodPost, "/test", nil).WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	rs.sendTestNotification(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	assert.False(t, svc.called)
 }
 

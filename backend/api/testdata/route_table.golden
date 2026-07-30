@@ -26,6 +26,7 @@ DELETE /api/iot/*/{id}
 DELETE /api/iot/staff/{staffId}/rfid
 DELETE /api/me/profile/avatar
 DELETE /api/meal-plan/{date}
+DELETE /api/notifications/preferences/
 DELETE /api/notifications/push/subscriptions
 DELETE /api/parent-announcements/{announcementId}
 DELETE /api/rooms/{id}
@@ -94,6 +95,7 @@ DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/feedback/{postId}
 DELETE /parent/me/feedback/{postId}/comments/{commentId}
 DELETE /parent/me/feedback/{postId}/vote
+DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
 GET /
 GET /api/active/analytics/dashboard
@@ -244,6 +246,7 @@ GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
 GET /api/messages/threads/{threadId}
 GET /api/messages/unread-count
+GET /api/notifications/preferences/
 GET /api/notifications/push/public-key
 GET /api/parent-announcements/
 GET /api/parent-announcements/{announcementId}
@@ -469,6 +472,7 @@ GET /parent/me/messages/children/{studentId}/threads
 GET /parent/me/messages/unread-count
 GET /parent/me/news
 GET /parent/me/news/unread-count
+GET /parent/me/notification-preferences/
 GET /parent/me/profile
 GET /parent/me/push/public-key
 GET /public/calendar/{token}
@@ -777,6 +781,7 @@ PUT /api/iot/*/{id}
 PUT /api/iot/session/{sessionId}/supervisors
 PUT /api/me/profile
 PUT /api/meal-plan/{date}
+PUT /api/notifications/preferences/{type}
 PUT /api/parent-announcements/{announcementId}
 PUT /api/rooms/{id}
 PUT /api/schedules/dateframes/{id}
@@ -835,6 +840,7 @@ PUT /operator/suggestions/{id}/status
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
 PUT /parent/me/feedback/{postId}
+PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 QUERY /internal/metrics
 TRACE /internal/metrics

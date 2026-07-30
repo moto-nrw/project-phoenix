@@ -106,7 +106,9 @@ export function parentApiDelete<T>(
   return parentServerFetch<T>(endpoint, token, { method: "DELETE" });
 }
 
-function parentApiPut<T, B = unknown>(
+// Exported for parent routes with a dynamic path segment, which the static
+// proxy factories below cannot express.
+export function parentApiPut<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
@@ -220,7 +222,7 @@ export function createParentDeleteHandler<T>(handler: NoBodyHandler<T>) {
   return createParentNoBodyHandler(handler, jsonResponse);
 }
 
-function createParentPutHandler<T, B = unknown>(
+export function createParentPutHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
   return createParentWithBodyHandler(handler);

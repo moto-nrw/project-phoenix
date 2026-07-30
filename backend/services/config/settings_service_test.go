@@ -22,8 +22,9 @@ import (
 // --- Mock repositories ---
 
 type mockValueRepo struct {
-	values map[string]*config.SettingValue // key: "tenantID:settingKey"
-	err    error
+	values        map[string]*config.SettingValue // key: "tenantID:settingKey"
+	err           error
+	findManyCalls int
 }
 
 func newMockValueRepo() *mockValueRepo {
@@ -45,12 +46,23 @@ func (m *mockValueRepo) FindByTenantAndKey(_ context.Context, tenantID int64, se
 	return sv, nil
 }
 
-func (m *mockValueRepo) FindByTenant(_ context.Context, _ int64) ([]*config.SettingValue, error) {
+func (m *mockValueRepo) FindByTenantAndKeys(_ context.Context, tenantID int64, settingKeys []string) ([]*config.SettingValue, error) {
+	m.findManyCalls++
 	if m.err != nil {
 		return nil, m.err
 	}
+	requested := make(map[string]struct{}, len(settingKeys))
+	for _, key := range settingKeys {
+		requested[key] = struct{}{}
+	}
 	var result []*config.SettingValue
 	for _, v := range m.values {
+		if v.TenantID != tenantID {
+			continue
+		}
+		if _, ok := requested[v.SettingKey]; !ok {
+			continue
+		}
 		result = append(result, v)
 	}
 	return result, nil
@@ -189,6 +201,72 @@ func TestResolveBool(t *testing.T) {
 	val, err := svc.ResolveBool(tenantCtx(1), "test.enabled")
 	require.NoError(t, err)
 	assert.True(t, val)
+}
+
+func TestResolveBoolsLoadsOverridesOnceAndFillsDefaults(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.enabled", config.FieldBoolean, true)
+	registerTestSetting("test.disabled", config.FieldBoolean, false)
+
+	repo := newMockValueRepo()
+	repo.values["1:test.enabled"] = &config.SettingValue{
+		SettingKey: "test.enabled",
+		Value:      json.RawMessage(`false`),
+	}
+	repo.values["1:test.enabled"].TenantID = 1
+	repo.values["2:test.disabled"] = &config.SettingValue{
+		SettingKey: "test.disabled",
+		Value:      json.RawMessage(`true`),
+	}
+	repo.values["2:test.disabled"].TenantID = 2
+
+	svc := createService(repo, &mockAuditRepo{})
+	values, err := svc.ResolveBools(tenantCtx(1), []string{
+		"test.enabled",
+		"test.disabled",
+		"test.enabled",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]bool{
+		"test.enabled":  false,
+		"test.disabled": false,
+	}, values)
+	assert.Equal(t, 1, repo.findManyCalls, "all keys must share one repository query")
+}
+
+func TestResolveBoolsFailsClosedForInvalidDefinitionsAndValues(t *testing.T) {
+	t.Run("unknown key", func(t *testing.T) {
+		setupTest(t)
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.unknown"})
+		require.Error(t, err)
+	})
+
+	t.Run("non-boolean default", func(t *testing.T) {
+		setupTest(t)
+		registerTestSetting("test.text", config.FieldText, "value")
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.text"})
+		require.Error(t, err)
+	})
+
+	t.Run("non-boolean override", func(t *testing.T) {
+		setupTest(t)
+		registerTestSetting("test.enabled", config.FieldBoolean, true)
+		repo := newMockValueRepo()
+		repo.values["1:test.enabled"] = &config.SettingValue{
+			SettingKey: "test.enabled",
+			Value:      json.RawMessage(`"yes"`),
+		}
+		repo.values["1:test.enabled"].TenantID = 1
+		svc := createService(repo, &mockAuditRepo{})
+
+		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.enabled"})
+		require.Error(t, err)
+	})
 }
 
 func TestResolveInt(t *testing.T) {

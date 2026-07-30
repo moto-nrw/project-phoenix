@@ -268,6 +268,16 @@ type StaffRepository interface {
 	// (staff → person → account join). Used for absence-decision emails (#1419).
 	GetStaffContactInfo(ctx context.Context, staffID int64) (*StaffWithRoleInfo, error)
 
+	// ListAccountIDsByStaffIDs maps the given staff members to their login
+	// accounts. Staff without an account are omitted rather than mapped to
+	// zero. For callers that address people by account instead of by staff row.
+	ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
+
+	// ListAllStaffAccountIDs maps every staff member of the current tenant who
+	// can log in to their account: active account, active tenant mapping. The
+	// candidate set for anything addressed at the whole team.
+	ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
+
 	// ListStaffByRoles retrieves staff members who have any of the specified roles,
 	// including their person data, account ID, and email, using a single JOIN query.
 	ListStaffByRoles(ctx context.Context, roles []string) ([]*StaffWithRoleInfo, error)

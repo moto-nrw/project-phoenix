@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -358,6 +359,12 @@ func (m *mockGroupRepo) FindByTeacher(_ context.Context, _ int64) ([]*education.
 	return nil, nil
 }
 func (m *mockGroupRepo) FindWithRoom(_ context.Context, _ int64) (*education.Group, error) {
+	return nil, nil
+}
+func (m *mockGroupRepo) ListSupervisedGroupIDsByStaff(_ context.Context, _ []int64, _ timezone.Date) ([]education.StaffGroupID, error) {
+	return nil, nil
+}
+func (m *mockGroupRepo) ListStaffIDsByEducationGroupIDs(_ context.Context, _ []int64, _ timezone.Date) ([]education.StaffGroupID, error) {
 	return nil, nil
 }
 func (m *mockGroupRepo) CountWithOptions(_ context.Context, _ *base.QueryOptions) (int, error) {

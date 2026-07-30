@@ -28,6 +28,18 @@ const postAuthorNameExpr = `CASE
 			ELSE COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt')
 		END AS author_name`
 
+// joinPostPerson backs postAuthorNameExpr. It is deliberately narrow: the
+// operator board reads through phoenix_admin, which bypasses RLS, so an
+// unrestricted join would match every person row an account owns across all
+// tenants — plus soft-deleted leftovers — and multiply the post itself. The
+// join is skipped for parent posts entirely, because those resolve to the
+// pseudonym and must never touch a guardian's person row.
+const joinPostPerson = `LEFT JOIN users.persons AS p
+			ON "post".author_type <> 'parent'
+			AND p.account_id = "post".author_id
+			AND p.tenant_id = "post".tenant_id
+			AND p.deleted_at IS NULL`
+
 // PostRepository implements suggestions.PostRepository
 type PostRepository struct {
 	db *bun.DB
@@ -196,7 +208,7 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 		) AS is_new`, accountID, readerType).
 		ColumnExpr(`v.direction AS user_vote`).
 		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
-		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
+		Join(joinPostPerson).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
 		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
 		Join(`LEFT JOIN LATERAL (
@@ -268,7 +280,7 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 		ColumnExpr(`COALESCE(cc.unread_count, 0) AS unread_count`).
 		ColumnExpr(`v.direction AS user_vote`).
 		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
-		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
+		Join(joinPostPerson).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
 		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
 		Join(`LEFT JOIN LATERAL (

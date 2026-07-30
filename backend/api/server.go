@@ -150,10 +150,18 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 	if api.Services.RealtimeHub != nil {
 		sched.SetInstanceOverdueDeps(repos.ActivityInstance, repos.Room, api.Services.RealtimeHub)
 	}
-	// Reminder → notification bridge (#1624 follow-up): dispatches aggregated
-	// reminder notifications through the channel-agnostic abstraction. Gated
-	// per tenant by notifications.dispatch_enabled + the reminders.* settings.
-	sched.SetReminderNotificationDeps(api.Services.Reminders, api.Services.Notifications)
+	// Personal reminder notifications: dispatches one event per person and
+	// reminder kind through the channel-agnostic abstraction. Gated per tenant
+	// by notifications.dispatch_enabled and the reminders.* settings, and per
+	// person by their own consent plus notifications.on_duty_only.
+	sched.SetReminderNotificationDeps(scheduler.ReminderNotificationDeps{
+		Computer:     api.Services.Reminders,
+		Notifier:     api.Services.Notifications,
+		Preferences:  api.Services.NotificationPreferences,
+		Staff:        repos.Staff,
+		Accounts:     repos.Account,
+		WorkSessions: repos.WorkSession,
+	})
 	// Daily session-end bridge: closes schedule-side rows for ended
 	// active.groups via repositories (issue #585 layering).
 	sched.SetTimetableBridgeRepos(repos.InstanceStudent, repos.ActivityInstance, api.Services.TimetableBridge)

@@ -28,11 +28,15 @@ package notifications
 import (
 	"context"
 	"errors"
+
 	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
 	"strings"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -60,6 +64,10 @@ const (
 	ScopeGuardian AudienceScope = "guardian"
 	// ScopeGroup delivers to clients subscribed to one active group.
 	ScopeGroup AudienceScope = "group"
+	// ScopeStaff delivers to one or more named staff accounts' own clients and
+	// devices. This is the scope for personal notifications, where each
+	// recipient gets their own payload.
+	ScopeStaff AudienceScope = "staff"
 )
 
 // Audience describes the recipients of an event. TenantID is always required;
@@ -70,6 +78,7 @@ type Audience struct {
 	GuardianAccountID  int64   // one recipient for ScopeGuardian
 	GuardianAccountIDs []int64 // batched recipients for ScopeGuardian
 	ActiveGroupID      string  // required for ScopeGroup
+	StaffAccountIDs    []int64 // recipients for ScopeStaff (auth.accounts.id)
 }
 
 // Event is a channel-agnostic notification. Title/Body/DeepLink are
@@ -90,12 +99,40 @@ type Event struct {
 // effect should treat it as a silent no-op; the test endpoint surfaces it.
 var ErrDisabled = errors.New("notifications are disabled for this tenant")
 
+// ErrOutsideActiveWindow is returned when a tenant's delivery window has
+// closed for the day. Producers treat it like ErrDisabled: a silent no-op.
+var ErrOutsideActiveWindow = errors.New("outside the tenant's notification window")
+
 // Channel delivers an event over one transport. Implementations must be
 // fire-and-forget-safe: a returned error is logged by the router and never
 // propagated to the feature that triggered the event.
 type Channel interface {
 	Name() string
 	Deliver(ctx context.Context, event Event) error
+}
+
+// BatchChannel is implemented by channels that can serve many events at once
+// more cheaply than one at a time. The router uses it when available and loops
+// Deliver otherwise, so implementing it is always optional.
+type BatchChannel interface {
+	Channel
+	DeliverBatch(ctx context.Context, events []Event) error
+}
+
+// BatchNotifier dispatches many events sharing one tenant in one pass.
+//
+// Kept separate from Service because several test doubles implement Service and
+// have no business growing a batch method.
+type BatchNotifier interface {
+	NotifyBatch(ctx context.Context, events []Event) error
+}
+
+// Notifier is the full surface the concrete service provides. It is assignable
+// to Service, so consumers that only notify one audience keep their narrower
+// type.
+type Notifier interface {
+	Service
+	BatchNotifier
 }
 
 // Service is the entry point features use to trigger notifications.
@@ -114,8 +151,14 @@ type router struct {
 	logger   *slog.Logger
 }
 
+// TypeTest is the notification an admin can fire to verify the setup. It is
+// the one type exempt from the delivery window.
+const TypeTest = "test"
+
 // NewService builds the channel router. Channels are fixed at wiring time.
-func NewService(settings configService.SettingsService, logger *slog.Logger, channels ...Channel) Service {
+// It returns Notifier so wiring can reach NotifyBatch; the value stays
+// assignable to Service for consumers that only notify one audience.
+func NewService(settings configService.SettingsService, logger *slog.Logger, channels ...Channel) Notifier {
 	return &router{settings: settings, channels: channels, logger: logger}
 }
 
@@ -159,6 +202,15 @@ func validate(event Event) error {
 		if event.Audience.ActiveGroupID == "" {
 			return errors.New("group-scoped notification requires an active group id")
 		}
+	case ScopeStaff:
+		if len(event.Audience.StaffAccountIDs) == 0 {
+			return errors.New("staff-scoped notification requires at least one staff account id")
+		}
+		for _, accountID := range event.Audience.StaffAccountIDs {
+			if accountID <= 0 {
+				return errors.New("staff-scoped notification requires positive staff account ids")
+			}
+		}
 	default:
 		return fmt.Errorf("unknown audience scope %q", event.Audience.Scope)
 	}
@@ -196,13 +248,89 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 		return ErrDisabled
 	}
 
+	// The test notification is exempt from the delivery window on purpose: an
+	// admin verifying the setup in the evening must get an answer, not silence
+	// that looks like a broken configuration.
+	if event.Type != TypeTest {
+		within, werr := r.withinActiveWindow(ctx, event.Audience.TenantID)
+		if werr != nil {
+			return werr
+		}
+		if !within {
+			return ErrOutsideActiveWindow
+		}
+	}
+
 	// Channels run after commit, so they must not inherit the closed transaction.
 	// Snapshot the mutable payload before the callback outlives this call.
 	dispatchCtx := modelBase.ContextWithoutTx(ctx)
 	event.Data = maps.Clone(event.Data)
 	event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
+	event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
 	tenant.RegisterAfterCommit(ctx, func() {
 		r.deliver(dispatchCtx, event)
+	})
+	return nil
+}
+
+// NotifyBatch dispatches many events that share one tenant in a single
+// after-commit hook.
+//
+// It exists because the per-recipient shape of personal notifications would
+// otherwise multiply the fixed cost of Notify: one feature-flag read and one
+// delivery pass per event. Here the flag is resolved once, and a channel that
+// can group its own work gets the whole batch through DeliverBatch.
+//
+// Validation is all-or-nothing: one malformed event fails the batch rather than
+// silently dropping a recipient.
+func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	tenantID := events[0].Audience.TenantID
+	prepared := make([]Event, 0, len(events))
+	for _, event := range events {
+		if err := validate(event); err != nil {
+			return err
+		}
+		if event.Audience.TenantID != tenantID {
+			return errors.New("notification batch must not mix tenants")
+		}
+		if event.Priority == "" {
+			event.Priority = PriorityNormal
+		}
+		event.Data = maps.Clone(event.Data)
+		event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
+		event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
+		prepared = append(prepared, event)
+	}
+
+	if r.settings == nil {
+		return errors.New("notifications service has no settings service configured")
+	}
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyNotificationsDispatchEnabled)
+	if err != nil {
+		return fmt.Errorf("resolving notification feature flag: %w", err)
+	}
+	if !enabled {
+		return ErrDisabled
+	}
+	// As in Notify, test notifications deliberately bypass quiet hours. A
+	// batch containing real deliveries still observes the window as one unit.
+	if slices.ContainsFunc(prepared, func(event Event) bool { return event.Type != TypeTest }) {
+		within, werr := r.withinActiveWindow(ctx, tenantID)
+		if werr != nil {
+			return werr
+		}
+		if !within {
+			return ErrOutsideActiveWindow
+		}
+	}
+
+	dispatchCtx := modelBase.ContextWithoutTx(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		r.deliverBatch(dispatchCtx, prepared)
 	})
 	return nil
 }
@@ -215,6 +343,102 @@ func guardianAccountIDs(audience Audience) []int64 {
 		return []int64{audience.GuardianAccountID}
 	}
 	return nil
+}
+
+// staffAccountIDs returns the recipients of a staff-scoped event.
+func staffAccountIDs(audience Audience) []int64 {
+	return audience.StaffAccountIDs
+}
+
+// withinActiveWindow reports whether the tenant currently accepts delivery.
+//
+// The check lives here rather than in each producer so quiet hours hold for
+// everything by construction. An unparseable or empty setting closes the
+// window: corrupt configuration must never widen delivery into quiet hours.
+func (r *router) withinActiveWindow(ctx context.Context, tenantID int64) (bool, error) {
+	start, err := r.resolveWindowBound(ctx, tenantID, configModel.KeyNotificationsActiveWindowStart)
+	if err != nil {
+		return false, err
+	}
+	end, err := r.resolveWindowBound(ctx, tenantID, configModel.KeyNotificationsActiveWindowEnd)
+	if err != nil {
+		return false, err
+	}
+	if start < 0 || end < 0 {
+		return false, nil
+	}
+	// Equal valid bounds explicitly represent an unrestricted 24-hour window.
+	if start == end {
+		return true, nil
+	}
+
+	now := timezone.Now()
+	nowMin := now.Hour()*60 + now.Minute()
+	return withinWindow(nowMin, start, end), nil
+}
+
+func withinWindow(nowMin, start, end int) bool {
+	if start == end {
+		return true
+	}
+	if start > end {
+		return nowMin >= start || nowMin < end
+	}
+	return nowMin >= start && nowMin < end
+}
+
+// resolveWindowBound reads one "HH:MM" setting as a minute of day. Invalid
+// values return -1 so the shared window check fails closed.
+func (r *router) resolveWindowBound(ctx context.Context, tenantID int64, key string) (int, error) {
+	raw, err := r.settings.ResolveStringForTenant(ctx, tenantID, key)
+	if err != nil {
+		return 0, fmt.Errorf("resolving %s: %w", key, err)
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		r.getLogger().Warn("blank notification window bound; treating window as closed",
+			"key", key,
+			"tenant_id", tenantID,
+		)
+		return -1, nil
+	}
+	parsed, err := time.Parse("15:04", raw)
+	if err != nil {
+		r.getLogger().Warn("malformed notification window bound; treating window as closed",
+			"key", key,
+			"tenant_id", tenantID,
+			"value", raw,
+		)
+		return -1, nil
+	}
+	return parsed.Hour()*60 + parsed.Minute(), nil
+}
+
+// deliverBatch hands the whole batch to channels that can group their work and
+// falls back to one Deliver per event for the others.
+func (r *router) deliverBatch(ctx context.Context, events []Event) {
+	for _, ch := range r.channels {
+		if batch, ok := ch.(BatchChannel); ok {
+			if err := batch.DeliverBatch(ctx, events); err != nil {
+				r.getLogger().Error("notification channel batch delivery failed",
+					"channel", ch.Name(),
+					"event_count", len(events),
+					"error", err.Error(),
+				)
+			}
+			continue
+		}
+		for _, event := range events {
+			if err := ch.Deliver(ctx, event); err != nil {
+				r.getLogger().Error("notification channel delivery failed",
+					"channel", ch.Name(),
+					"notification_type", event.Type,
+					"tenant_id", event.Audience.TenantID,
+					"error", err.Error(),
+				)
+			}
+		}
+	}
 }
 
 func (r *router) deliver(ctx context.Context, event Event) {

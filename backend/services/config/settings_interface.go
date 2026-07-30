@@ -34,6 +34,11 @@ type SettingsService interface {
 	// ResolveBool resolves a setting as a bool.
 	ResolveBool(ctx context.Context, key string) (bool, error)
 
+	// ResolveBools resolves multiple boolean settings in one repository query.
+	// Every requested key is present in the result, using its registry default
+	// when the tenant has no stored override.
+	ResolveBools(ctx context.Context, keys []string) (map[string]bool, error)
+
 	// ResolveBoolForTenant resolves a setting as a bool for an explicitly
 	// provided tenant — required from call sites that run outside the
 	// TenantTxMiddleware (e.g. /auth/mfa/verify, which runs between the

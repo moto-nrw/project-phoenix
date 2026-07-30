@@ -31,6 +31,7 @@ import (
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
@@ -411,6 +412,10 @@ type ServiceConfig struct {
 	// submission becomes a pending request here instead of a direct status day.
 	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
 
+	// AbsenceNotifier informs the child's group and the office that an absence
+	// was reported. Optional and best-effort, after-commit only.
+	AbsenceNotifier notificationsSvc.AbsenceNotifier
+
 	// Emitter posts notification pills into the child's parent-OGS thread for
 	// self-service actions (sick note, one-day pickup change) and master-data
 	// request submissions. Best-effort, after-commit only.
@@ -464,6 +469,20 @@ func NewService(cfg ServiceConfig) Service {
 		cfg.Logger = slog.Default()
 	}
 	return &service{ServiceConfig: cfg}
+}
+
+// AbsenceNotifierSetter injects the sick/excused producer after construction.
+//
+// Deliberately a standalone interface rather than a method on Service: the
+// notification stack is wired later than this service, and widening Service
+// would force every test double to grow a method none of them call.
+type AbsenceNotifierSetter interface {
+	SetAbsenceNotifier(notifier notificationsSvc.AbsenceNotifier)
+}
+
+// SetAbsenceNotifier implements AbsenceNotifierSetter.
+func (s *service) SetAbsenceNotifier(notifier notificationsSvc.AbsenceNotifier) {
+	s.AbsenceNotifier = notifier
 }
 
 func (s *service) GetProfile(ctx context.Context, accountID int64) (*Profile, error) {

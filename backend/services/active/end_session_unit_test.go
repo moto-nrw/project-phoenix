@@ -344,6 +344,10 @@ func (m *mockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.V
 	return nil, nil
 }
 
+func (m *mockVisitRepository) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
+
 func (m *mockVisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
 	if m.endVisitsByActiveGroupIDsFunc != nil {
 		return m.endVisitsByActiveGroupIDsFunc(ctx, activeGroupIDs)
@@ -402,6 +406,10 @@ func (m *mockGroupSupervisorRepository) List(ctx context.Context, options *base.
 }
 
 func (m *mockGroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
+	return nil, nil
+}
+
+func (m *mockGroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Context) ([]active.StaffRoomSupervision, error) {
 	return nil, nil
 }
 

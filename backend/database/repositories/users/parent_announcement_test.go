@@ -645,6 +645,8 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 	foundEmail := false
 	for _, e := range emails {
 		if strings.EqualFold(e.Email, chain.Email) {
+			assert.Equal(t, chain.AccountID, e.AccountID,
+				"the e-mail recipient keeps the account identity needed for consent filtering")
 			foundEmail = true
 		}
 	}

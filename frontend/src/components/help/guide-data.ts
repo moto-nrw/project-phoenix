@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bell,
   BellRing,
   Building2,
   CalendarDays,
@@ -939,7 +940,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Beim Bearbeiten eines Termins aus einer Serie fragt die App, wofür die Änderung gilt: `Nur diese Woche`, `Ab jetzt dauerhaft` oder `Alle Termine der Serie`.",
           "Wenn Sie `Ab jetzt dauerhaft` oder `Alle Termine der Serie` wählen und einzelne Termine der Reihe zuvor per `Nur diese Woche` angepasst wurden (z. B. anderer Raum, andere Uhrzeit, geändertes Personal oder Kinder), warnt die App und listet die betroffenen Termine mit Datum auf, bevor diese Einzelanpassungen überschrieben werden. Notieren Sie sich diese Termine, um sie anschließend bei Bedarf erneut anzupassen.",
           "Für Notizen gibt es zwei Ebenen: Die `Wochennotiz` pflegen Sie am Regeltermin (Serie); sie erscheint an jedem Termin der Reihe und bleibt bei Re-Plan und Serienänderungen erhalten (z. B. `Raum erst ab 14 Uhr offen`). Die `Tagesnotiz` gilt nur für einen einzelnen Termin und wird über `Nur diese Woche` gespeichert. An einem Einzeltermin sehen Sie beide getrennt.",
-          "Beim Löschen eines Serientermins wählen Sie zwischen `Nur diese Woche` und `Ab jetzt dauerhaft`; frühere Termine bleiben erhalten. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
+          "Beim Löschen eines Serientermins wählen Sie zwischen `Nur diese Woche` und `Ab jetzt dauerhaft`; frühere Termine bleiben erhalten. Liegt der Termin in der Vergangenheit, entfällt die Auswahl und der Termin wird direkt gelöscht: Ein Regeltermin lässt sich nur ab heute beenden. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
           "Geplante Termine in normalen Räumen erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes` und werden dort mit `Starten` begonnen. Ein Schulhof-Termin bleibt ein Planungshinweis und wird nicht gestartet; Anwesenheit und Aufsicht werden unabhängig davon im separaten Schulhof-Tab geführt.",
           "Die Zahlen für erwartete und anwesende Kinder werden nur angezeigt, wenn `Erwartete Kinderzahl anzeigen` unter `Einstellungen` -> `Betrieb` aktiviert ist. Die Kinderliste und Planungslogik bleiben auch bei ausgeblendeten Zahlen erhalten.",
           "In der Wochenansicht lässt sich über das kleine Menü `Zeilenhöhe` in der Kontextzeile die Zeilenhöhe des Rasters zwischen `Kompakt`, `Normal` und `Komfortabel` umschalten.",
@@ -971,6 +972,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei einer Position `Bearbeiten` anklicken, um den Editor zu öffnen. Unter `Aktion` zwischen zwei Zweigen wählen: `Besetzung bearbeiten` markiert eine Person als abwesend, öffnet dafür eine Ersatzauswahl und erlaubt, den Block als `Bewusst unbesetzt` zu markieren, wenn keine Ersatzperson verfügbar ist; `Block absagen` sagt den Termin ab, optional mit einem Grund. Beide Zweige schließen sich gegenseitig aus.",
           "Ein einziges `Speichern` überträgt Abwesenheit, Ersatz, `Bewusst unbesetzt` oder Absage gemeinsam als eine Änderung. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
           "Im Editor den Reiter `Verlauf` öffnen, um das Änderungsprotokoll zu sehen: wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen hat, samt Begründung. Bei Blöcken aus dem Betreuungsplan zwischen `Dieser Block` und `Ganzer Tag` wechseln.",
+          "Ist eine Person für einen Betreuungsblock eingeteilt, hat dafür aber keine passende Schicht im Dienstplan, erscheint über der Liste ein Hinweis mit der Anzahl der betroffenen Einsätze und dem Link `Dienstplan öffnen`; dort steht bei jedem Einsatz, welche Person in welchem Zeitraum nicht abgedeckt ist. Das ist keine Störung und zählt nicht in `Offen` oder `Quittiert`: entweder die Schicht im Dienstplan nachtragen oder die Einteilung im Betreuungsplan anpassen. Einrichtungen ohne gepflegten Dienstplan sehen den Hinweis nicht.",
         ],
         callout: {
           title: "Abweichung statt neue Vorlage",
@@ -1588,16 +1590,38 @@ export const appChapters: readonly GuideChapter[] = [
           "Teilen-Menü in Safari mit dem Eintrag Zum Home-Bildschirm.",
       },
       {
+        id: "benachrichtigungen-auswaehlen",
+        title: "Auswählen, worüber moto informiert",
+        icon: Bell,
+        printCompact: true,
+        summary:
+          "Jede Person entscheidet selbst, worüber sie Bescheid bekommt. Ohne diese Auswahl wird nichts verschickt, auch nicht als Push. Die Auswahl gilt für alle Geräte.",
+        steps: [
+          "Im eigenen Profil den Abschnitt `Benachrichtigungen` öffnen.",
+          "Die gewünschten Arten einschalten. Sie sind nach Themen sortiert: `Abholungen` (anstehend, überfällig), `Aktivitäten` (Aktivität im eigenen Aufsichtsraum, nicht gestartete Aktivität, eigener Einsatz aus dem Betreuungsplan) und `Kinder` (Krankmeldung eines Kindes aus den eigenen Gruppen).",
+          "Jeder Schalter speichert sofort. `Alle deaktivieren` oben rechts schaltet alles auf einmal ab.",
+          "Steht unter einer Art `Von Ihrer Schule derzeit deaktiviert`, bleibt sie still. Der eigene Schalter darf trotzdem an bleiben und greift wieder, sobald die Schule die Art einschaltet.",
+        ],
+        callout: {
+          title: "Erst auswählen, dann Gerät freischalten",
+          body: "Diese Auswahl beantwortet `worüber`, der nächste Schritt `auf welchem Gerät`. Ohne Push-Freigabe erscheinen die Hinweise weiterhin in der geöffneten App; ohne Auswahl hier kommt auf keinem Weg etwas an.",
+          tone: "blue",
+        },
+        screenshot:
+          "Profilseite mit dem Abschnitt Benachrichtigungen: Schalter je Art, gruppiert nach Abholungen, Aktivitäten und Kinder, mit der Schaltfläche Alle deaktivieren.",
+      },
+      {
         id: "push-benachrichtigungen-aktivieren",
         title: "Push-Benachrichtigungen aktivieren",
         icon: BellRing,
         printCompact: true,
         summary:
-          "Erinnerungen (z. B. anstehende Abholungen) kommen auf Wunsch als Systembenachrichtigung an, auch wenn die App geschlossen ist. Aktiviert wird das pro Gerät im eigenen Profil.",
+          "Damit die ausgewählten Hinweise auch bei geschlossener App ankommen, wird jedes Gerät einmal freigeschaltet. Die Freigabe gilt nur für dieses eine Gerät.",
         steps: [
-          "Im eigenen Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
+          "Zuerst im Profil unter `Benachrichtigungen` auswählen, worüber informiert werden soll (siehe Schritt davor).",
+          "Im selben Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
           "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
-          "Fertig: Neue Erinnerungen erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
+          "Fertig: Die ausgewählten Hinweise erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
         ],
         callout: {
           title: "iPhone/iPad: erst installieren",
@@ -1652,6 +1676,27 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Sektion Indikatoren im Reiter Betrieb mit eingeschalteten Aktivitäts-Indikatoren und den Begriffen Mensa und Hausaufgaben.",
         image: "/help/screens/einstellungen.webp",
+      },
+      {
+        id: "einstellungen-benachrichtigungen",
+        title: "Benachrichtigungen der Schule steuern",
+        icon: Bell,
+        summary:
+          "Die Schule legt den Rahmen fest: ob überhaupt benachrichtigt wird, in welchem Zeitfenster und ob Krankmeldungen an die Gruppe gehen dürfen. Was eine einzelne Person davon bekommt, wählt sie weiterhin selbst im eigenen Profil.",
+        steps: [
+          "`Einstellungen` -> `Betrieb` öffnen und zur Sektion `Benachrichtigungen` scrollen.",
+          "`Benachrichtigungen aktivieren` ist im Auslieferungszustand an. Ausgeschaltet bleibt die ganze Schule still, unabhängig davon, was einzelne Personen in ihrem Profil ausgewählt haben.",
+          "`Benachrichtigungen ab` und `bis` begrenzen den Versand auf die Betreuungszeiten (Standard 06:00 bis 18:00). Außerhalb bleibt es still bis zum nächsten Morgen.",
+          "`Nur im Dienst benachrichtigen` beschränkt persönliche Hinweise auf Personen, die gerade eingestempelt sind. Solange noch niemand eingestempelt ist, bleibt es still. Schulen ohne Zeiterfassung schalten diese Einstellung aus.",
+          "`Krankmeldungen melden` erlaubt Hinweise an die Gruppe und die Leitung, wenn für ein Kind eine Krankmeldung oder Entschuldigung eingetragen wird. Diese Einstellung ist Admins vorbehalten.",
+        ],
+        callout: {
+          title: "Niemand wird ungefragt benachrichtigt",
+          body: "Diese Einstellungen erlauben etwas, sie verordnen nichts. Solange eine Person im eigenen Profil nichts eingeschaltet hat, bekommt sie auch nichts. Wer nach dem Einschalten nichts erhält, prüft also zuerst das eigene Profil.",
+          tone: "blue",
+        },
+        screenshot:
+          "Sektion Benachrichtigungen im Reiter Betrieb mit dem Hauptschalter, dem Zeitfenster von und bis, Nur im Dienst benachrichtigen und Krankmeldungen melden.",
       },
       {
         id: "einstellungen-zustaendigkeit",
