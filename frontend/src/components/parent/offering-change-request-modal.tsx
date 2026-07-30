@@ -50,6 +50,34 @@ function draftFromCatalog(items: OfferingCatalogItem[]): DraftMap {
   return draft;
 }
 
+function rebaseDraftForCatalog(
+  draft: DraftMap,
+  items: OfferingCatalogItem[],
+): DraftMap {
+  const rebased = draftFromCatalog(items);
+  for (const item of items) {
+    const previous = draft[item.id];
+    if (!previous || item.automatic || item.is_required) continue;
+    const canKeep =
+      item.is_active !== false &&
+      (item.selected || item.free_slots === undefined || item.free_slots > 0);
+    if (!canKeep) continue;
+    const days =
+      item.days_of_week_mode === "parent_choice"
+        ? new Set(
+            [...previous.days].filter((day) =>
+              item.available_days.includes(day),
+            ),
+          )
+        : new Set<string>();
+    rebased[item.id] = {
+      selected: previous.selected,
+      days,
+    };
+  }
+  return rebased;
+}
+
 /** Sorted day list so a comparison and the payload are order-independent. */
 function orderedDays(days: Set<string>): string[] {
   return DAY_ORDER.filter((day) => days.has(day));
@@ -113,7 +141,7 @@ export function OfferingChangeRequestModal({
     try {
       const loaded = await getChildOfferingCatalog(studentId, date);
       setCatalog(loaded);
-      setDraft(draftFromCatalog(loaded.items));
+      setDraft((current) => rebaseDraftForCatalog(current, loaded.items));
       setEffectiveFrom(date);
     } catch (err) {
       logger.warn("offering_catalog_reload_failed", {
