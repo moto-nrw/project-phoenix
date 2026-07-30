@@ -824,11 +824,8 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err := s.assertCapacityAvailable(ctx, phase, row.RequestChildID, selections); err != nil {
 		return err
 	}
-	// The stored date is also what guardians and the audit trail show. When a
-	// delayed decision is applied today, do not leave it reporting a past date.
-	if err := s.ChangeRepo.UpdateEffectiveFrom(ctx, row.ID, effectiveFrom); err != nil {
-		return fmt.Errorf("offering change: update applied effective date: %w", err)
-	}
+	// Keep the actual date in memory for the adjustment audit. Persist it only
+	// after the switch succeeds, so a client error leaves the pending row intact.
 	row.EffectiveFrom = effectiveFrom
 	adjustment := UpdateChildOfferingsInput{
 		RequestID:      request.ID,
@@ -841,6 +838,9 @@ func (s *offeringChangeRequestService) applyApproved(
 	}
 	if _, err := s.Applier.applyApprovedChangeRequestOfferings(ctx, adjustment); err != nil {
 		return fmt.Errorf("offering change: apply: %w", err)
+	}
+	if err := s.ChangeRepo.UpdateEffectiveFrom(ctx, row.ID, effectiveFrom); err != nil {
+		return fmt.Errorf("offering change: update applied effective date: %w", err)
 	}
 	return nil
 }
@@ -916,6 +916,11 @@ func (s *offeringChangeRequestService) materializedOfferingIDs(
 	if err != nil {
 		return nil, err
 	}
+	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
+	if err != nil || child == nil {
+		return nil, fmt.Errorf("offering change: load request child: %w", err)
+	}
+	submit.TargetGradeLevel = child.TargetGradeLevel
 	materialized, err := materializeAndValidateChildrenOfferingSelections(
 		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
 	)
@@ -984,6 +989,11 @@ func (s *offeringChangeRequestService) validateSelections(
 	if err != nil {
 		return nil, err
 	}
+	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
+	if err != nil || child == nil {
+		return nil, fmt.Errorf("offering change: load request child: %w", err)
+	}
+	submit.TargetGradeLevel = child.TargetGradeLevel
 	if _, err := materializeAndValidateChildrenOfferingSelections(
 		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
 	); err != nil {
@@ -1057,6 +1067,15 @@ func normalizeOfferingSelections(
 			return nil, SubmitChild{}, fmt.Errorf("%w: care offering %d cannot be booked for this child", ErrOfferingChangeInvalid, selection.OfferingID)
 		}
 		seen[selection.OfferingID] = true
+		for _, day := range selection.SelectedDays {
+			normalizedDay := strings.ToLower(strings.TrimSpace(day))
+			if normalizedDay == "" {
+				continue
+			}
+			if _, ok := enrollmentModels.CanonicalDayToISOWeekday(normalizedDay); !ok {
+				return nil, SubmitChild{}, fmt.Errorf("%w: unknown selected day %q", ErrOfferingChangeInvalid, day)
+			}
+		}
 		days := canonicalDays(selection.SelectedDays)
 		normalized = append(normalized, OfferingChangeSelection{
 			OfferingID:   selection.OfferingID,

@@ -261,7 +261,7 @@ export function OfferingChangeRequestModal({
                     <label className="flex cursor-pointer items-start gap-3">
                       <Checkbox
                         checked={selected}
-                        disabled={full || unavailable}
+                        disabled={item.is_required || full || unavailable}
                         onChange={() => toggleOffering(item)}
                       />
                       <span className="min-w-0 flex-1">
