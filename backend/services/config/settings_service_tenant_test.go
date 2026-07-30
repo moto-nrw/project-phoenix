@@ -77,6 +77,27 @@ func (r *inMemoryValueRepo) FindByTenantAndKeys(_ context.Context, tenantID int6
 	return out, nil
 }
 
+func (r *inMemoryValueRepo) FindByTenantsAndKeys(_ context.Context, tenantIDs []int64, settingKeys []string) ([]*config.SettingValue, error) {
+	tenants := make(map[int64]struct{}, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		tenants[tenantID] = struct{}{}
+	}
+	requested := make(map[string]struct{}, len(settingKeys))
+	for _, key := range settingKeys {
+		requested[key] = struct{}{}
+	}
+	var out []*config.SettingValue
+	for _, value := range r.rows {
+		if _, ok := tenants[value.GetTenantID()]; !ok {
+			continue
+		}
+		if _, ok := requested[value.SettingKey]; ok {
+			out = append(out, value)
+		}
+	}
+	return out, nil
+}
+
 func (r *inMemoryValueRepo) Upsert(_ context.Context, sv *config.SettingValue) error {
 	r.rows[r.key(sv.GetTenantID(), sv.SettingKey)] = sv
 	return nil

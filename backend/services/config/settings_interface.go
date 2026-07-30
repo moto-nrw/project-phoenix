@@ -115,6 +115,17 @@ type SettingsService interface {
 	LockClassCollectionPair(ctx context.Context) error
 }
 
+// BatchSettingsService extends SettingsService with query-coalescing reads.
+// Keeping it separate preserves the narrow test and domain interfaces that
+// intentionally expose only the single-value operations they consume.
+type BatchSettingsService interface {
+	SettingsService
+
+	ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error)
+	ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*SettingsSnapshot, error)
+	ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*SettingsSnapshot, error)
+}
+
 // --- Response types ---
 
 // SettingsSchema is the top-level response for the schema endpoint.

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -110,6 +111,10 @@ type Scheduler struct {
 	settings                   SettingsResolver
 	db                         *bun.DB
 	schoolRepo                 platform.SchoolRepository
+	minuteSnapshotMu           sync.Mutex
+	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
+	minuteSnapshotNow          func() time.Time
+	minuteSnapshotLoader       func(context.Context) (*schedulerMinuteSnapshot, error)
 	cleanupJobs                []CleanupJob
 	tasks                      map[string]*ScheduledTask
 	mu                         sync.RWMutex
@@ -346,8 +351,8 @@ func (s *Scheduler) SetStudentStatusDayRepo(repo activeModel.StudentStatusDayRep
 
 // forEachTenant executes fn for each active tenant inside a WithTenantTx.
 // If schoolRepo or db is not set, falls back to running fn with plain ctx (non-tenant-aware mode).
-// Thin wrapper over tenant.ForEachActive; the scheduler-owned fallback to non-tenant-aware mode
-// is preserved so existing tests that do not wire a school repo keep working.
+// Active tenant IDs share the same minute snapshot as settings-aware jobs so
+// concurrent polling goroutines do not repeat the platform.schools query.
 func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if s.db == nil || s.schoolRepo == nil {
 		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
@@ -355,14 +360,19 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 		return fn(ctx)
 	}
 
-	return tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, func(txCtx context.Context, _ int64) error {
+	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
+	if err != nil && (minuteSnapshot == nil || len(minuteSnapshot.tenantIDs) == 0) {
+		return fmt.Errorf("load active tenants for %s: %w", opName, err)
+	}
+	s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, _ int64) error {
 		return fn(txCtx)
 	})
+	return nil
 }
 
 // forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
 // Falls back to non-tenant-aware mode if schoolRepo/db is not set (tests, local dev without
-// seeded schools). Shared with the CLI via tenant.ForEachActive.
+// seeded schools). Production jobs share one cross-tenant settings snapshot per minute.
 func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) {
 	if s.db == nil || s.schoolRepo == nil {
 		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
@@ -371,12 +381,33 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		return
 	}
 
-	if err := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, fn); err != nil {
-		s.getLogger().Error("failed to list active tenants",
+	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
+	if err != nil {
+		// Older unit-test fakes implement only the narrow per-key resolver.
+		// Production SettingsService always implements the batch loader.
+		if errors.Is(err, errSchedulerSettingsBatchUnsupported) {
+			if iterationErr := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, fn); iterationErr != nil {
+				s.getLogger().Error("failed to list active tenants",
+					slog.String("operation", opName),
+					slog.String("error", iterationErr.Error()),
+				)
+			}
+			return
+		}
+		s.getLogger().Error("scheduler settings snapshot unavailable",
 			slog.String("operation", opName),
 			slog.String("error", err.Error()),
 		)
+		return
 	}
+
+	s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, tenantID int64) error {
+		snapshot := minuteSnapshot.settings[tenantID]
+		if snapshot == nil {
+			return fmt.Errorf("settings snapshot missing for tenant %d", tenantID)
+		}
+		return fn(config.WithSettingsSnapshot(txCtx, snapshot), tenantID)
+	})
 }
 
 // Start begins the scheduler

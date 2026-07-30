@@ -21,6 +21,9 @@ type Mock struct {
 	GetSchemaFn                    func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
 	GetSchemaForOperatorFn         func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
 	ResolveFn                      func(ctx context.Context, key string) (any, error)
+	ResolveManyFn                  func(ctx context.Context, keys []string) (*config.SettingsSnapshot, error)
+	ResolveManyForTenantFn         func(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error)
+	ResolveManyForTenantsFn        func(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*config.SettingsSnapshot, error)
 	ResolveStringFn                func(ctx context.Context, key string) (string, error)
 	ResolveStringForTenantFn       func(ctx context.Context, tenantID int64, key string) (string, error)
 	ResolveBoolFn                  func(ctx context.Context, key string) (bool, error)
@@ -41,6 +44,7 @@ type Mock struct {
 }
 
 var _ config.SettingsService = (*Mock)(nil)
+var _ config.BatchSettingsService = (*Mock)(nil)
 
 func (m *Mock) GetSchema(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error) {
 	if m.GetSchemaFn != nil {
@@ -59,6 +63,27 @@ func (m *Mock) GetSchemaForOperator(ctx context.Context, userPermissions []strin
 func (m *Mock) Resolve(ctx context.Context, key string) (any, error) {
 	if m.ResolveFn != nil {
 		return m.ResolveFn(ctx, key)
+	}
+	return nil, nil
+}
+
+func (m *Mock) ResolveMany(ctx context.Context, keys []string) (*config.SettingsSnapshot, error) {
+	if m.ResolveManyFn != nil {
+		return m.ResolveManyFn(ctx, keys)
+	}
+	return nil, nil
+}
+
+func (m *Mock) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error) {
+	if m.ResolveManyForTenantFn != nil {
+		return m.ResolveManyForTenantFn(ctx, tenantID, keys)
+	}
+	return nil, nil
+}
+
+func (m *Mock) ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*config.SettingsSnapshot, error) {
+	if m.ResolveManyForTenantsFn != nil {
+		return m.ResolveManyForTenantsFn(ctx, tenantIDs, keys)
 	}
 	return nil, nil
 }

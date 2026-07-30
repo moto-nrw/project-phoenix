@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -10,6 +11,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // deviceConfigCheckout holds checkout button visibility settings.
@@ -48,51 +50,87 @@ func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve checkout button settings (defaults to true if service unavailable)
-	raumwechsel := true
-	schulhof := true
-	wc := true
-	feedbackEnabled := false
+	response := rs.resolveDeviceConfig(r.Context(), deviceCtx.TenantID)
+	common.Respond(w, r, http.StatusOK, response, "Device configuration retrieved")
+}
 
-	if rs.SettingsService != nil {
-		if val, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyCheckoutRaumwechselEnabled); err == nil {
-			raumwechsel = val
-		}
-		if val, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyCheckoutSchulhofEnabled); err == nil {
-			schulhof = val
-		}
-		if val, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyCheckoutWCEnabled); err == nil {
-			wc = val
-		}
-		if val, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyFeedbackEnabled); err == nil {
-			feedbackEnabled = val
-		}
-	}
-
-	// Resolve daily checkout time via the shared helper so the fallback chain
-	// (tenant DB override → env var → nil) lives in a single place.
-	var dailyCheckoutTime *string
-	if rawTime := checkinSvc.ResolveRawDailyCheckoutTime(r.Context(), rs.SettingsService); rawTime != "" {
-		dailyCheckoutTime = &rawTime
-	}
-
-	// Resolve presence mode. Device auth runs before tenant middleware sets
-	// the PostgreSQL tenant role, so we use the ForTenant variant which opens
-	// its own tenant transaction.
-	presenceMode := configSvc.ResolvePresenceModeForTenant(r.Context(), rs.SettingsService, deviceCtx.TenantID, rs.getLogger())
-
+func (rs *Resource) resolveDeviceConfig(ctx context.Context, tenantID int64) deviceConfigResponse {
 	response := deviceConfigResponse{
 		Checkout: deviceConfigCheckout{
-			RaumwechselEnabled: raumwechsel,
-			SchulhofEnabled:    schulhof,
-			WCEnabled:          wc,
-			DailyCheckoutTime:  dailyCheckoutTime,
+			RaumwechselEnabled: true,
+			SchulhofEnabled:    true,
+			WCEnabled:          true,
 		},
-		Feedback: deviceConfigFeedback{
-			Enabled: feedbackEnabled,
-		},
-		PresenceMode: presenceMode,
+		PresenceMode: configModel.PresenceModeDetailed,
 	}
 
-	common.Respond(w, r, http.StatusOK, response, "Device configuration retrieved")
+	settingsCtx, available := rs.deviceConfigSettingsContext(ctx, tenantID)
+	if !available {
+		return response
+	}
+
+	response.Checkout.RaumwechselEnabled = resolveDeviceConfigBool(
+		settingsCtx, rs.SettingsService, configModel.KeyCheckoutRaumwechselEnabled, true)
+	response.Checkout.SchulhofEnabled = resolveDeviceConfigBool(
+		settingsCtx, rs.SettingsService, configModel.KeyCheckoutSchulhofEnabled, true)
+	response.Checkout.WCEnabled = resolveDeviceConfigBool(
+		settingsCtx, rs.SettingsService, configModel.KeyCheckoutWCEnabled, true)
+	response.Feedback.Enabled = resolveDeviceConfigBool(
+		settingsCtx, rs.SettingsService, configModel.KeyFeedbackEnabled, false)
+
+	if rawTime := checkinSvc.ResolveRawDailyCheckoutTime(settingsCtx, rs.SettingsService); rawTime != "" {
+		response.Checkout.DailyCheckoutTime = &rawTime
+	}
+	response.PresenceMode = configSvc.ResolvePresenceModeForTenant(
+		settingsCtx, rs.SettingsService, tenantID, rs.getLogger())
+	return response
+}
+
+func (rs *Resource) deviceConfigSettingsContext(ctx context.Context, tenantID int64) (context.Context, bool) {
+	if rs.SettingsService == nil {
+		return ctx, true
+	}
+	batch, ok := rs.SettingsService.(interface {
+		ResolveManyForTenant(context.Context, int64, []string) (*configSvc.SettingsSnapshot, error)
+	})
+	if !ok {
+		return ctx, true
+	}
+
+	snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, []string{
+		configModel.KeyCheckoutRaumwechselEnabled,
+		configModel.KeyCheckoutSchulhofEnabled,
+		configModel.KeyCheckoutWCEnabled,
+		configModel.KeyFeedbackEnabled,
+		configModel.KeyStudentDailyCheckoutTime,
+		configModel.KeyPresenceMode,
+	})
+	if err != nil {
+		rs.getLogger().WarnContext(ctx, "device config settings batch failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return ctx, false
+	}
+	if snapshot == nil {
+		return ctx, true
+	}
+	settingsCtx := tenant.WithTenantID(ctx, tenantID)
+	return configSvc.WithSettingsSnapshot(settingsCtx, snapshot), true
+}
+
+func resolveDeviceConfigBool(
+	ctx context.Context,
+	settings configSvc.SettingsService,
+	key string,
+	fallback bool,
+) bool {
+	if settings == nil {
+		return fallback
+	}
+	value, err := settings.ResolveBool(ctx, key)
+	if err != nil {
+		return fallback
+	}
+	return value
 }
