@@ -671,6 +671,15 @@ function TimetablesContent() {
   const handleDeleteFollowingInstances = useCallback(
     async (instance: EnrichedInstance) => {
       if (!instance.activityGroupId) return;
+      // Das Modal blendet die Option für vergangene Termine aus; bleibt es
+      // über Mitternacht offen, würde das Backend mit einer englischen
+      // Fehlermeldung antworten (effective_date must not be in the past).
+      if (instance.date < berlinTodayISO()) {
+        toast.error(
+          "Ein Regeltermin kann nur ab heute beendet werden. Vergangene Termine lassen sich nur einzeln löschen.",
+        );
+        throw new Error("effective_date in the past");
+      }
       try {
         const result = await timetableService.endTemplate(
           instance.activityGroupId,
