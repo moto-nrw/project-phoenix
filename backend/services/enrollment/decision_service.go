@@ -2384,6 +2384,19 @@ func (s *decisionService) careEnrollmentDraftsForChild(
 	if err != nil {
 		return nil, fmt.Errorf("decision: list child offerings: %w", err)
 	}
+	return s.careEnrollmentDraftsForLinks(ctx, requestChildID, links, phase)
+}
+
+// careEnrollmentDraftsForLinks materializes an explicitly supplied selection.
+// Dated offering changes use it after scheduling their future links: reading
+// the current links at that point would correctly return the old selection,
+// but incorrectly materialize that old selection at the switch date.
+func (s *decisionService) careEnrollmentDraftsForLinks(
+	ctx context.Context,
+	requestChildID int64,
+	links []*enrollmentModels.RequestChildOffering,
+	phase *enrollmentModels.Phase,
+) (map[int64]*careEnrollmentDraft, error) {
 	if len(links) == 0 {
 		return map[int64]*careEnrollmentDraft{}, nil
 	}

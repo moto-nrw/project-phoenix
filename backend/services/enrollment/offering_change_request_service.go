@@ -827,7 +827,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	if effectiveFrom.After(phase.ServiceEndDate) {
 		return fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
 	}
-	if err := s.assertCapacityAvailable(ctx, phase, row.RequestChildID, selections); err != nil {
+	if err := s.assertCapacityAvailable(ctx, phase, row.RequestChildID, effectiveFrom, selections); err != nil {
 		return err
 	}
 	// Keep the actual date in memory for the adjustment audit. Persist it only
@@ -859,9 +859,10 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
 	requestChildID int64,
+	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 ) error {
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, effectiveFrom)
 	if err != nil {
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
@@ -891,7 +892,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		if offering.Capacity == nil {
 			continue
 		}
-		taken, countErr := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
+		taken, countErr := s.RequestChildOfferingRepo.CountActiveByCareOfferingOnDate(ctx, offering.ID, effectiveFrom)
 		if countErr != nil {
 			return fmt.Errorf("offering change: count offering occupancy: %w", countErr)
 		}

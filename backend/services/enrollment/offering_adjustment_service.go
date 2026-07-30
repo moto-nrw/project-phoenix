@@ -211,10 +211,18 @@ func (s *decisionService) updateChildOfferings(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
+	if effectiveFrom != nil {
+		linkEffectiveFrom := *effectiveFrom
+		if linkEffectiveFrom.Before(phase.ServiceStartDate) {
+			linkEffectiveFrom = phase.ServiceStartDate
+		}
+		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, linkEffectiveFrom, replacement); err != nil {
+			return nil, fmt.Errorf("decision: schedule child offerings: %w", err)
+		}
+	} else if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
 		return nil, fmt.Errorf("decision: replace child offerings: %w", err)
 	}
-	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, phase, effectiveFrom); err != nil {
+	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, replacement, phase, effectiveFrom); err != nil {
 		return nil, err
 	}
 	actorName, actorEmail := s.actorSnapshot(ctx, input.ActorAccountID)
@@ -524,6 +532,7 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
 	beforeLinks []*enrollmentModels.RequestChildOffering,
+	replacement []*enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
 	effectiveFrom *timezone.Date,
 ) error {
@@ -539,7 +548,7 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 		}
 	}
 	if effectiveFrom != nil {
-		return s.splitAdjustedEnrollments(ctx, requestChildID, studentID, phase, *effectiveFrom)
+		return s.splitAdjustedEnrollments(ctx, requestChildID, studentID, replacement, phase, *effectiveFrom)
 	}
 	if _, err := s.StudentEnrollmentRepo.DeleteByEnrollmentRequestChild(ctx, studentID, requestChildID); err != nil {
 		return fmt.Errorf("decision: delete sourced adjusted enrollments: %w", err)
@@ -568,10 +577,11 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 func (s *decisionService) splitAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
+	replacement []*enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
 	effectiveFrom timezone.Date,
 ) error {
-	drafts, err := s.careEnrollmentDraftsForChild(ctx, requestChildID, phase)
+	drafts, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, replacement, phase)
 	if err != nil {
 		return err
 	}

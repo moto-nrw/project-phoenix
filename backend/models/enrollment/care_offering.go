@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"slices"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -383,6 +386,10 @@ type RequestChildOffering struct {
 	ManualSelectedDays    []string `bun:"manual_selected_days,type:jsonb,nullzero" json:"manual_selected_days,omitempty"`
 	AutomaticSelectedDays []string `bun:"automatic_selected_days,type:jsonb,nullzero" json:"automatic_selected_days,omitempty"`
 	Notes                 *string  `bun:"notes" json:"notes,omitempty"`
+	// ValidFrom / ValidUntil make an approved offering switch effective on its
+	// requested date. ValidUntil is exclusive, matching student enrollments.
+	ValidFrom  *timezone.Date `bun:"valid_from,type:date" json:"valid_from,omitempty"`
+	ValidUntil *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
 }
 
 // CareOfferingAutoTrigger links a target offering to one source offering
@@ -400,7 +407,11 @@ type CareOfferingAutoTrigger struct {
 type RequestChildOfferingRepository interface {
 	Create(ctx context.Context, row *RequestChildOffering) error
 	ReplaceForRequestChild(ctx context.Context, requestChildID int64, rows []*RequestChildOffering) error
+	// ScheduleReplacementForRequestChild closes the active selection at
+	// effectiveFrom and creates the replacement from that date onward.
+	ScheduleReplacementForRequestChild(ctx context.Context, requestChildID int64, effectiveFrom timezone.Date, rows []*RequestChildOffering) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
+	ListByRequestChildIDAtDate(ctx context.Context, requestChildID int64, onDate timezone.Date) ([]*RequestChildOffering, error)
 
 	// ListByRequestChildIDs is the batched form of
 	// ListByRequestChildID: one query for every offering link across
@@ -415,4 +426,5 @@ type RequestChildOfferingRepository interface {
 	// and withdrawn. Used for capacity-overflow enforcement at submit
 	// time.
 	CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
+	CountActiveByCareOfferingOnDate(ctx context.Context, careOfferingID int64, onDate timezone.Date) (int, error)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/uptrace/bun"
 )
@@ -13,6 +14,55 @@ const requestChildOfferingTableExpr = `enrollment.request_child_offerings AS "re
 
 type RequestChildOfferingRepository struct {
 	db *bun.DB
+}
+
+// ScheduleReplacementForRequestChild preserves the selection that is active
+// before effectiveFrom and writes the replacement as a subsequent interval.
+// Rows scheduled after effectiveFrom are superseded by the newer decision.
+func (r *RequestChildOfferingRepository) ScheduleReplacementForRequestChild(ctx context.Context, requestChildID int64, effectiveFrom timezone.Date, rows []*enrollment.RequestChildOffering) error {
+	if requestChildID <= 0 {
+		return fmt.Errorf("request_child_id is required")
+	}
+	if effectiveFrom.IsZero() {
+		return fmt.Errorf("effective_from is required")
+	}
+	db := base.GetDB(ctx, r.db)
+	deleteQuery := db.NewDelete().
+		Model((*enrollment.RequestChildOffering)(nil)).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`"request_child_offering".valid_from >= ?`, effectiveFrom)
+	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "request_child_offering")
+	if _, err := deleteQuery.Exec(ctx); err != nil {
+		return fmt.Errorf("failed to delete superseded scheduled request child offerings: %w", err)
+	}
+	updateQuery := db.NewUpdate().
+		Model((*enrollment.RequestChildOffering)(nil)).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Set(`valid_until = ?`, effectiveFrom).
+		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)`, effectiveFrom).
+		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, effectiveFrom)
+	updateQuery = base.WithTenantFilter(ctx, updateQuery, "request_child_offering")
+	if _, err := updateQuery.Exec(ctx); err != nil {
+		return fmt.Errorf("failed to close current request child offerings: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	for _, row := range rows {
+		if row == nil {
+			return fmt.Errorf("request child offering row cannot be nil")
+		}
+		row.RequestChildID = requestChildID
+		row.ValidFrom = &effectiveFrom
+		row.ValidUntil = nil
+		base.EnsureTenantID(ctx, row)
+	}
+	if _, err := db.NewInsert().Model(&rows).ModelTableExpr("enrollment.request_child_offerings").Exec(ctx); err != nil {
+		return fmt.Errorf("failed to insert scheduled request child offerings: %w", err)
+	}
+	return nil
 }
 
 func NewRequestChildOfferingRepository(db *bun.DB) enrollment.RequestChildOfferingRepository {
@@ -75,11 +125,18 @@ func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Cont
 // child. Admin review (PR 8) and the parent status page (PR 7) call
 // this.
 func (r *RequestChildOfferingRepository) ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*enrollment.RequestChildOffering, error) {
+	return r.ListByRequestChildIDAtDate(ctx, requestChildID, timezone.TodayDate())
+}
+
+// ListByRequestChildIDAtDate returns the selection active on onDate.
+func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.Context, requestChildID int64, onDate timezone.Date) ([]*enrollment.RequestChildOffering, error) {
 	var rows []*enrollment.RequestChildOffering
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(requestChildOfferingTableExpr).
 		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, onDate).
+		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, onDate).
 		OrderExpr(`"request_child_offering".id`).
 		Scan(ctx)
 	if err != nil {
@@ -101,6 +158,8 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDs(ctx context.Conte
 		Model(&rows).
 		ModelTableExpr(requestChildOfferingTableExpr).
 		Where(`"request_child_offering".request_child_id IN (?)`, bun.List(requestChildIDs)).
+		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, timezone.TodayDate()).
+		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, timezone.TodayDate()).
 		OrderExpr(`"request_child_offering".request_child_id, "request_child_offering".id`).
 		Scan(ctx)
 	if err != nil {
@@ -115,10 +174,17 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDs(ctx context.Conte
 // (rejected, withdrawn) so the count reflects what the admin is
 // actually managing. Tenant-scoped via RLS on both tables.
 func (r *RequestChildOfferingRepository) CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error) {
+	return r.CountActiveByCareOfferingOnDate(ctx, careOfferingID, timezone.TodayDate())
+}
+
+// CountActiveByCareOfferingOnDate counts slots held on the requested date.
+func (r *RequestChildOfferingRepository) CountActiveByCareOfferingOnDate(ctx context.Context, careOfferingID int64, onDate timezone.Date) (int, error) {
 	count, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(requestChildOfferingTableExpr).
 		Join(`INNER JOIN enrollment.request_children AS "child" ON "child".id = "request_child_offering".request_child_id`).
 		Where(`"request_child_offering".care_offering_id = ?`, careOfferingID).
+		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, onDate).
+		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, onDate).
 		Where(`"child".status NOT IN (?)`, bun.List([]string{
 			enrollment.ChildStatusRejected,
 			enrollment.ChildStatusWithdrawn,

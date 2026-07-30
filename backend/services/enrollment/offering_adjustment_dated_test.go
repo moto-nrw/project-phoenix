@@ -151,6 +151,23 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 	assert.Equal(t, *originalValidUntil, *newRow.ValidUntil, "new row runs to the end of the care period")
 	require.NotNil(t, newRow.EnrollmentRequestChildID)
 	assert.Equal(t, childID, *newRow.EnrollmentRequestChildID)
+
+	currentLinks, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, childID)
+	require.NoError(t, err)
+	require.Len(t, currentLinks, 1)
+	assert.Equal(t, oldOffering.ID, currentLinks[0].CareOfferingID,
+		"the parent-facing booking remains the old offering before the switch")
+	futureLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, childID, switchDate)
+	require.NoError(t, err)
+	require.Len(t, futureLinks, 1)
+	assert.Equal(t, newOffering.ID, futureLinks[0].CareOfferingID)
+
+	oldTaken, err := env.repos.RequestChildOffering.CountActiveByCareOfferingOnDate(ctx, oldOffering.ID, switchDate)
+	require.NoError(t, err)
+	assert.Zero(t, oldTaken)
+	newTaken, err := env.repos.RequestChildOffering.CountActiveByCareOfferingOnDate(ctx, newOffering.ID, switchDate)
+	require.NoError(t, err)
+	assert.Equal(t, 1, newTaken)
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(t *testing.T) {
