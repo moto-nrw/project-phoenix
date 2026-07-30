@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	suggestionsService "github.com/moto-nrw/project-phoenix/services/suggestions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -206,12 +207,32 @@ func TestParentFeedbackThreadReadState(t *testing.T) {
 
 	unreadBefore, err := svc.FeedbackUnreadCount(ctx, chain.AccountID)
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, unreadBefore, 1, "a fresh reply must show up in the badge")
+	assert.Equal(t, 0, unreadBefore, "a guardian's own comment is not a product-team reply")
 
 	withReply, err := svc.GetFeedback(ctx, chain.AccountID, chain.TenantID, post.ID)
 	require.NoError(t, err)
 	require.NotNil(t, withReply)
 	assert.Equal(t, 1, withReply.CommentCount)
+	assert.Equal(t, 0, withReply.UnreadCount)
+
+	operatorReply := &suggestionsModels.Comment{
+		PostID:     post.ID,
+		AuthorID:   chain.AccountID,
+		AuthorType: suggestionsModels.AuthorTypeOperator,
+		Content:    "Danke, wir schauen uns das an.",
+	}
+	operatorReply.SetTenantID(chain.TenantID)
+	_, err = db.NewInsert().Model(operatorReply).Exec(ctx)
+	require.NoError(t, err)
+
+	unreadBefore, err = svc.FeedbackUnreadCount(ctx, chain.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, unreadBefore, "a product-team reply must show up in the badge")
+
+	withReply, err = svc.GetFeedback(ctx, chain.AccountID, chain.TenantID, post.ID)
+	require.NoError(t, err)
+	require.NotNil(t, withReply)
+	assert.Equal(t, 2, withReply.CommentCount)
 	assert.Equal(t, 1, withReply.UnreadCount)
 
 	require.NoError(t, svc.MarkFeedbackCommentsRead(ctx, chain.AccountID, chain.TenantID, post.ID))
@@ -228,13 +249,22 @@ func TestParentFeedbackThreadReadState(t *testing.T) {
 
 	comments, err := svc.ListFeedbackComments(ctx, chain.AccountID, chain.TenantID, post.ID)
 	require.NoError(t, err)
-	require.Len(t, comments, 1)
+	require.Len(t, comments, 2)
 
-	require.NoError(t, svc.DeleteFeedbackComment(ctx, chain.AccountID, chain.TenantID, comments[0].ID))
+	var ownCommentID int64
+	for _, comment := range comments {
+		if comment.AuthorType == suggestionsModels.AuthorTypeParent {
+			ownCommentID = comment.ID
+			break
+		}
+	}
+	require.NotZero(t, ownCommentID)
+	require.NoError(t, svc.DeleteFeedbackComment(ctx, chain.AccountID, chain.TenantID, ownCommentID))
 
 	remaining, err := svc.ListFeedbackComments(ctx, chain.AccountID, chain.TenantID, post.ID)
 	require.NoError(t, err)
-	assert.Empty(t, remaining)
+	require.Len(t, remaining, 1)
+	assert.Equal(t, suggestionsModels.AuthorTypeOperator, remaining[0].AuthorType)
 }
 
 // TestParentFeedbackRejectsUnusableIdentifiers: every entry point takes the

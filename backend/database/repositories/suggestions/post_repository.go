@@ -208,12 +208,15 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 		Join(`LEFT JOIN LATERAL (
 			SELECT
 				COUNT(*) AS comment_count,
-				COUNT(*) FILTER (WHERE cr.last_read_at IS NULL OR c.created_at > cr.last_read_at) AS unread_count
+				COUNT(*) FILTER (WHERE
+					(cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
+					AND (? <> 'parent' OR c.author_type <> 'parent' OR c.author_id <> ?)
+				) AS unread_count
 			FROM suggestions.comments c
 			LEFT JOIN suggestions.comment_reads cr
 				ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
 			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
-		) cc ON true`, accountID, readerType)
+		) cc ON true`, readerType, accountID, accountID, readerType)
 
 	query = base.WithTenantFilter(ctx, query, "post")
 
@@ -277,12 +280,15 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 		Join(`LEFT JOIN LATERAL (
 			SELECT
 				COUNT(*) AS comment_count,
-				COUNT(*) FILTER (WHERE cr.last_read_at IS NULL OR c.created_at > cr.last_read_at) AS unread_count
+				COUNT(*) FILTER (WHERE
+					(cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
+					AND (? <> 'parent' OR c.author_type <> 'parent' OR c.author_id <> ?)
+				) AS unread_count
 			FROM suggestions.comments c
 			LEFT JOIN suggestions.comment_reads cr
 				ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
 			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
-		) cc ON true`, accountID, readerType).
+		) cc ON true`, readerType, accountID, accountID, readerType).
 		Where(`"post".id = ?`, id)
 
 	query = base.WithTenantFilter(ctx, query, "post")
