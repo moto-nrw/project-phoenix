@@ -4212,6 +4212,26 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	if s.RequestChildOfferingRepo == nil || len(children) == 0 {
 		return overrides, nil
 	}
+	// Serialize this count with offering-change approvals and other
+	// submissions. Both paths lock care offerings by ascending id before they
+	// inspect capacity and write the booking links.
+	if s.CareOfferingRepo == nil {
+		return nil, errors.New("care offering repository is not configured")
+	}
+	selectedIDs := make([]int64, 0)
+	seen := make(map[int64]bool)
+	for _, child := range children {
+		for _, offeringID := range child.OfferingIDs {
+			if offeringID > 0 && !seen[offeringID] {
+				seen[offeringID] = true
+				selectedIDs = append(selectedIDs, offeringID)
+			}
+		}
+	}
+	sort.Slice(selectedIDs, func(i, j int) bool { return selectedIDs[i] < selectedIDs[j] })
+	if _, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, selectedIDs); err != nil {
+		return nil, fmt.Errorf("lock care offering capacity: %w", err)
+	}
 
 	mode := phase.CareOverflowMode
 	if mode == "" {
