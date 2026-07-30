@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
@@ -84,13 +86,22 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 		resp.EarliestEffectiveFrom = v.EarliestEffectiveFrom.String()
 	}
 	if v.LastDecision != nil {
-		resp.LastDecision = &OfferingDecisionResponse{
+		decision := &OfferingDecisionResponse{
 			ID:            strconv.FormatInt(v.LastDecision.ID, 10),
 			Status:        v.LastDecision.Status,
 			DecidedAt:     v.LastDecision.DecidedAt.Format("2006-01-02T15:04:05Z07:00"),
 			EffectiveFrom: v.LastDecision.EffectiveFrom.String(),
 			Reason:        v.LastDecision.Reason,
+			Requested:     make([]OfferingRequestedItemResponse, 0, len(v.LastDecision.Requested)),
 		}
+		for _, item := range v.LastDecision.Requested {
+			decision.Requested = append(decision.Requested, OfferingRequestedItemResponse{
+				ID:       strconv.FormatInt(item.OfferingID, 10),
+				Name:     item.Name,
+				Weekdays: weekdaysFromDayKeys(item.Days),
+			})
+		}
+		resp.LastDecision = decision
 	}
 	if v.PendingRequest != nil {
 		pending := &PendingOfferingChangeResponse{
@@ -139,6 +150,19 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 	return resp
 }
 
+// weekdaysFromDayKeys maps stored day abbreviations to ISO weekdays so the
+// frontend renders them with the same labels as everywhere else.
+func weekdaysFromDayKeys(days []string) []int {
+	weekdays := make([]int, 0, len(days))
+	for _, day := range days {
+		if weekday, ok := enrollmentModels.CanonicalDayToISOWeekday(day); ok {
+			weekdays = append(weekdays, weekday)
+		}
+	}
+	sort.Ints(weekdays)
+	return weekdays
+}
+
 // weekdaysOrEmpty keeps the JSON array non-null so the frontend can map over it
 // without a nil check.
 func weekdaysOrEmpty(weekdays []int) []int {
@@ -168,6 +192,17 @@ type OfferingDecisionResponse struct {
 	DecidedAt     string `json:"decided_at"`
 	EffectiveFrom string `json:"effective_from"`
 	Reason        string `json:"reason,omitempty"`
+	// Requested recaps what the family asked for, so a decision stays readable
+	// on its own.
+	Requested []OfferingRequestedItemResponse `json:"requested"`
+}
+
+// OfferingRequestedItemResponse is one offering of a decided request.
+type OfferingRequestedItemResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Weekdays are ISO weekdays (1=Mon..7=Sun); empty means every care day.
+	Weekdays []int `json:"weekdays"`
 }
 
 // OfferingDiffResponse is one diff line.

@@ -1041,6 +1041,14 @@ export interface PendingOfferingChange {
   readonly submitted_by_self: boolean;
 }
 
+/** One offering of a decided request. */
+export interface OfferingRequestedItem {
+  readonly id: string;
+  readonly name: string;
+  /** ISO weekdays (1=Mon..7=Sun); empty means every care day. */
+  readonly weekdays: number[];
+}
+
 /** A decided change request: the outcome plus a rejection's reason. */
 export interface OfferingDecision {
   readonly id: string;
@@ -1049,6 +1057,8 @@ export interface OfferingDecision {
   /** Date the switch took (or would have taken) effect (YYYY-MM-DD). */
   readonly effective_from: string;
   readonly reason?: string;
+  /** What the family asked for, so the decision stays readable on its own. */
+  readonly requested: OfferingRequestedItem[];
 }
 
 /** Why the change button is unavailable. Stable identifiers from the backend. */

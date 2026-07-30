@@ -180,6 +180,7 @@ describe("ChildCareOfferingsSection", () => {
           status: "approved",
           decided_at: "2026-07-30T10:00:00Z",
           effective_from: "2027-02-01",
+          requested: [{ id: "5", name: "Regelbetreuung", weekdays: [1, 2] }],
         },
       }),
     );
@@ -203,6 +204,7 @@ describe("ChildCareOfferingsSection", () => {
           decided_at: "2026-07-30T10:00:00Z",
           effective_from: "2027-02-01",
           reason: "Kein Platz in der Gruppe",
+          requested: [{ id: "5", name: "Regelbetreuung", weekdays: [1, 2] }],
         },
       }),
     );
@@ -210,6 +212,11 @@ describe("ChildCareOfferingsSection", () => {
 
     expect(await screen.findByText("Anfrage abgelehnt")).toBeInTheDocument();
     expect(screen.getByText(/Kein Platz in der Gruppe/)).toBeInTheDocument();
+    // The request itself stays readable next to the rejection. Scoped to the
+    // recap block, because the offering name also appears in the booking list.
+    const recap = screen.getByText("Beantragt war:").parentElement;
+    expect(recap?.textContent).toContain("Regelbetreuung");
+    expect(recap?.textContent).toContain("Mo, Di");
     // A rejected request carries no effective date claim.
     expect(screen.queryByText(/Gültig ab/)).not.toBeInTheDocument();
   });
@@ -224,6 +231,7 @@ describe("ChildCareOfferingsSection", () => {
           decided_at: "2026-07-20T10:00:00Z",
           effective_from: "2026-12-01",
           reason: "Alte Ablehnung",
+          requested: [],
         },
       }),
     );

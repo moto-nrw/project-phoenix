@@ -317,6 +317,27 @@ export function ChildCareOfferingsSection({
                 {t("careOfferings.decisionReason", { reason: decision.reason })}
               </p>
             )}
+            {/* The request itself, read back from what was submitted. Without it
+                a rejection names a reason for something the family can no longer
+                see, and an approval does not say what was actually changed. */}
+            {decision.requested.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-gray-500">
+                  {t("careOfferings.decisionRequested")}
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {decision.requested.map((item) => (
+                    <li key={item.id} className="text-sm text-gray-700">
+                      <span className="font-medium text-gray-900">
+                        {item.name}
+                      </span>
+                      {" · "}
+                      {weekdayList(item.weekdays)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 

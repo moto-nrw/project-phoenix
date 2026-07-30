@@ -1057,7 +1057,8 @@
       "decisionRejected": "Anfrage abgelehnt",
       "decisionReason": "Begründung der Betreuung: {reason}",
       "decisionDecidedAt": "Entschieden am {date}",
-      "noRequests": "Derzeit liegt keine Änderungsanfrage vor."
+      "noRequests": "Derzeit liegt keine Änderungsanfrage vor.",
+      "decisionRequested": "Beantragt war:"
     },
     "careOfferingsModal": {
       "title": "Änderung der Betreuungsangebote anfragen",

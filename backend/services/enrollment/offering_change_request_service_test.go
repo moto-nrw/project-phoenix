@@ -448,6 +448,11 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, view.LastDecision.Status)
 	assert.Equal(t, "Gruppe ist voll", view.LastDecision.Reason)
 	assert.Equal(t, fx.switchDate, view.LastDecision.EffectiveFrom)
+	// The request itself is read back from the payload: a rejection is only
+	// understandable next to what was asked for.
+	require.Len(t, view.LastDecision.Requested, 1)
+	assert.Equal(t, fx.newOffering.Name, view.LastDecision.Requested[0].Name)
+	assert.Equal(t, []string{"mon"}, view.LastDecision.Requested[0].Days)
 
 	// Aged past the recency window it drops out, so the card does not turn into
 	// a history list.

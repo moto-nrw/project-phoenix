@@ -140,6 +140,22 @@ type OfferingChangeDecision struct {
 	// EffectiveFrom is the date the switch took (or would have taken) effect.
 	EffectiveFrom timezone.Date
 	Reason        string
+	// Requested is what the family asked for, read back from the stored payload.
+	// A rejection is only understandable next to the request it refers to, and a
+	// live "current → requested" comparison cannot serve here: after an approval
+	// was applied it is empty, and after a rejection the payload is the only
+	// record of the wish.
+	Requested []OfferingChangeRequestedItem
+}
+
+// OfferingChangeRequestedItem is one offering of a decided request, resolved to
+// its name and the booked days at read time.
+type OfferingChangeRequestedItem struct {
+	OfferingID int64
+	Name       string
+	// Days are the requested day abbreviations ("mon"), empty when the offering
+	// covers every care day.
+	Days []string
 }
 
 // offeringDecisionRecencyDays bounds how long a decided request keeps being
@@ -469,9 +485,73 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 		if row.DecisionReason != nil {
 			decision.Reason = *row.DecisionReason
 		}
+		requested, reqErr := s.requestedItems(ctx, row)
+		if reqErr != nil {
+			// The outcome matters more than the recap: report the decision even
+			// when the payload cannot be resolved to names.
+			s.Logger.Warn("offering change: resolve requested offerings failed",
+				slog.Int64("request_id", row.ID),
+				slog.String("error", reqErr.Error()),
+			)
+		} else {
+			decision.Requested = requested
+		}
 		return decision, nil
 	}
 	return nil, nil
+}
+
+// requestedItems reads the stored payload back into named offerings, sorted by
+// catalog order so the recap matches the booking list above it. An offering
+// deleted from the catalog since is still listed, by id, rather than dropped:
+// the family asked for it, and hiding it would make the decision unreadable.
+func (s *offeringChangeRequestService) requestedItems(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+) ([]OfferingChangeRequestedItem, error) {
+	selections, err := selectionsFromPayload(row.Payload)
+	if err != nil {
+		return nil, err
+	}
+	if len(selections) == 0 {
+		return []OfferingChangeRequestedItem{}, nil
+	}
+	ids := make([]int64, 0, len(selections))
+	for _, selection := range selections {
+		ids = append(ids, selection.OfferingID)
+	}
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list requested offerings: %w", err)
+	}
+	nameByID := make(map[int64]string, len(offerings))
+	sortByID := make(map[int64]int, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			nameByID[offering.ID] = offering.Name
+			sortByID[offering.ID] = offering.SortOrder
+		}
+	}
+	items := make([]OfferingChangeRequestedItem, 0, len(selections))
+	for _, selection := range selections {
+		name := nameByID[selection.OfferingID]
+		if name == "" {
+			name = fmt.Sprintf("Angebot %d", selection.OfferingID)
+		}
+		items = append(items, OfferingChangeRequestedItem{
+			OfferingID: selection.OfferingID,
+			Name:       name,
+			Days:       append([]string(nil), selection.SelectedDays...),
+		})
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		left, right := sortByID[items[i].OfferingID], sortByID[items[j].OfferingID]
+		if left == right {
+			return items[i].Name < items[j].Name
+		}
+		return left < right
+	})
+	return items, nil
 }
 
 func (s *offeringChangeRequestService) Create(
