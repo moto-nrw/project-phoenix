@@ -73,6 +73,30 @@ func TestNotificationPreferenceRepository(t *testing.T) {
 		assert.Empty(t, optedIn, "no row means no consent")
 	})
 
+	t.Run("tenant gate and multi-type filter use enabled rows only", func(t *testing.T) {
+		upsert(t, account.ID, "my_activity_starting", true)
+		upsert(t, other.ID, "activity_start", true)
+		upsert(t, other.ID, "pickup_overdue", false)
+
+		hasAny, err := repo.HasAnyOptedIn(ctx, []string{"my_activity_starting", "activity_start"})
+		require.NoError(t, err)
+		assert.True(t, hasAny)
+
+		hasAny, err = repo.HasAnyOptedIn(ctx, []string{"pickup_overdue"})
+		require.NoError(t, err)
+		assert.False(t, hasAny, "an explicit opt-out must not open the scheduler gate")
+
+		byType, err := repo.FilterOptedInByType(
+			ctx,
+			[]string{"my_activity_starting", "activity_start", "pickup_overdue"},
+			[]int64{account.ID, other.ID},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{account.ID}, byType["my_activity_starting"])
+		assert.Equal(t, []int64{other.ID}, byType["activity_start"])
+		assert.NotContains(t, byType, "pickup_overdue")
+	})
+
 	// The mirror rule, for channels that already reached people before consent
 	// existed: only a stored "no" filters, a missing row does not.
 	t.Run("not-opted-out drops an explicit no and keeps a missing decision", func(t *testing.T) {
@@ -142,6 +166,18 @@ func TestNotificationPreferenceRepository(t *testing.T) {
 		optedIn, err := repo.FilterOptedIn(ctx, "pickup_upcoming", []int64{account.ID})
 		require.NoError(t, err)
 		assert.Empty(t, optedIn, "consent is per school, not global")
+
+		hasAny, err := repo.HasAnyOptedIn(ctx, []string{"pickup_upcoming"})
+		require.NoError(t, err)
+		assert.False(t, hasAny, "another tenant's consent must not open this tenant's gate")
+
+		byType, err := repo.FilterOptedInByType(
+			ctx,
+			[]string{"pickup_upcoming"},
+			[]int64{account.ID},
+		)
+		require.NoError(t, err)
+		assert.Empty(t, byType, "another tenant's consent must not enter a bulk audience")
 
 		prefs, err := repo.ListByAccount(foreignCtx, account.ID)
 		require.NoError(t, err)

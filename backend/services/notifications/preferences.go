@@ -57,6 +57,15 @@ type PreferenceService interface {
 	// round.
 	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 
+	// HasAnyOptedIn is a cheap tenant-wide scheduling gate. It only reports
+	// stored consent and must never be used as the source of an audience.
+	HasAnyOptedIn(ctx context.Context, notificationTypes []string) (bool, error)
+
+	// FilterOptedInByType applies the same consent and tenant-gate rules as
+	// FilterOptedIn for multiple types, using one settings read and one
+	// preference read.
+	FilterOptedInByType(ctx context.Context, notificationTypes []string, accountIDs []int64) (map[string][]int64, error)
+
 	// FilterNotOptedOut is the mirror of FilterOptedIn for channels that already
 	// reached people before consent existed: it drops only the accounts that
 	// explicitly declined the type, and keeps the ones who never decided. Use it
@@ -194,29 +203,89 @@ func (s *preferenceService) FilterOptedIn(ctx context.Context, notificationType 
 		return nil, nil
 	}
 
-	def, known := GetType(notificationType)
-	if !known {
-		// Fail closed: an unknown type reaches nobody. A producer naming a type
-		// that is not in the catalogue is a bug, and delivering to everyone
-		// would be the worst possible interpretation of it.
-		return nil, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+	optedInByType, err := s.FilterOptedInByType(ctx, []string{notificationType}, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	return optedInByType[notificationType], nil
+}
+
+func (s *preferenceService) HasAnyOptedIn(ctx context.Context, notificationTypes []string) (bool, error) {
+	if len(notificationTypes) == 0 {
+		return false, nil
+	}
+	for _, notificationType := range notificationTypes {
+		if _, known := GetType(notificationType); !known {
+			return false, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+		}
+	}
+	hasAny, err := s.repo.HasAnyOptedIn(ctx, notificationTypes)
+	if err != nil {
+		return false, fmt.Errorf("check for opted-in accounts: %w", err)
+	}
+	return hasAny, nil
+}
+
+func (s *preferenceService) FilterOptedInByType(
+	ctx context.Context,
+	notificationTypes []string,
+	accountIDs []int64,
+) (map[string][]int64, error) {
+	filtered := make(map[string][]int64)
+	if len(notificationTypes) == 0 || len(accountIDs) == 0 {
+		return filtered, nil
 	}
 
-	if def.TenantGate != "" {
-		allowed, err := s.resolveBool(ctx, def.TenantGate)
+	gateKeys := make([]string, 0, len(notificationTypes))
+	gateByType := make(map[string]string, len(notificationTypes))
+	seenGates := make(map[string]struct{}, len(notificationTypes))
+	for _, notificationType := range notificationTypes {
+		def, known := GetType(notificationType)
+		if !known {
+			// Fail closed: an unknown type reaches nobody. A producer naming a
+			// type outside the catalogue is a bug.
+			return nil, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+		}
+		gateByType[notificationType] = def.TenantGate
+		if def.TenantGate == "" {
+			continue
+		}
+		if _, seen := seenGates[def.TenantGate]; seen {
+			continue
+		}
+		seenGates[def.TenantGate] = struct{}{}
+		gateKeys = append(gateKeys, def.TenantGate)
+	}
+
+	allowedByGate := make(map[string]bool)
+	if len(gateKeys) > 0 {
+		if s.settings == nil {
+			return nil, errors.New("notification preferences service has no settings service configured")
+		}
+		var err error
+		allowedByGate, err = s.settings.ResolveBools(ctx, gateKeys)
 		if err != nil {
-			return nil, err
-		}
-		if !allowed {
-			return nil, nil
+			return nil, fmt.Errorf("resolve notification gates: %w", err)
 		}
 	}
 
-	optedIn, err := s.repo.FilterOptedIn(ctx, notificationType, accountIDs)
+	allowedTypes := make([]string, 0, len(notificationTypes))
+	for _, notificationType := range notificationTypes {
+		gate := gateByType[notificationType]
+		if gate != "" && !allowedByGate[gate] {
+			continue
+		}
+		allowedTypes = append(allowedTypes, notificationType)
+	}
+	if len(allowedTypes) == 0 {
+		return filtered, nil
+	}
+
+	optedInByType, err := s.repo.FilterOptedInByType(ctx, allowedTypes, accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("filter opted-in accounts: %w", err)
 	}
-	return optedIn, nil
+	return optedInByType, nil
 }
 
 func (s *preferenceService) FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {

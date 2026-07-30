@@ -33,6 +33,9 @@ type fakePreferenceRepo struct {
 	filterErr     error
 	disableErr    error
 	filterArgs    []int64
+	filterTypes   []string
+	hasCalls      int
+	bulkCalls     int
 }
 
 func (f *fakePreferenceRepo) ListByAccount(_ context.Context, _ int64) ([]*userModel.NotificationPreference, error) {
@@ -53,6 +56,45 @@ func (f *fakePreferenceRepo) FilterOptedIn(_ context.Context, notificationType s
 	}
 	f.filterArgs = accountIDs
 	return f.optedIn[notificationType], nil
+}
+
+func (f *fakePreferenceRepo) HasAnyOptedIn(_ context.Context, notificationTypes []string) (bool, error) {
+	f.hasCalls++
+	if f.filterErr != nil {
+		return false, f.filterErr
+	}
+	for _, notificationType := range notificationTypes {
+		if len(f.optedIn[notificationType]) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakePreferenceRepo) FilterOptedInByType(
+	_ context.Context,
+	notificationTypes []string,
+	accountIDs []int64,
+) (map[string][]int64, error) {
+	f.bulkCalls++
+	if f.filterErr != nil {
+		return nil, f.filterErr
+	}
+	f.filterArgs = accountIDs
+	f.filterTypes = notificationTypes
+	candidates := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		candidates[accountID] = struct{}{}
+	}
+	result := make(map[string][]int64)
+	for _, notificationType := range notificationTypes {
+		for _, accountID := range f.optedIn[notificationType] {
+			if _, ok := candidates[accountID]; ok {
+				result[notificationType] = append(result[notificationType], accountID)
+			}
+		}
+	}
+	return result, nil
 }
 
 func (f *fakePreferenceRepo) FilterNotOptedOut(_ context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
@@ -249,6 +291,7 @@ func TestFilterOptedIn(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []int64{prefAccountA}, got)
 		assert.Equal(t, candidates, repo.filterArgs, "the whole candidate set is offered to the filter")
+		assert.Equal(t, 1, repo.bulkCalls)
 	})
 
 	t.Run("no candidates means nobody", func(t *testing.T) {
@@ -298,6 +341,82 @@ func TestFilterOptedIn(t *testing.T) {
 		_, err := svc.FilterOptedIn(context.Background(), notifications.TypePickupUpcoming, candidates)
 		require.Error(t, err)
 	})
+}
+
+func TestHasAnyOptedIn(t *testing.T) {
+	t.Run("reports stored consent without inventing an audience", func(t *testing.T) {
+		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
+			notifications.TypePickupUpcoming: {prefAccountA},
+		}}
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+
+		hasAny, err := svc.HasAnyOptedIn(context.Background(), []string{
+			notifications.TypePickupUpcoming,
+			notifications.TypeActivityStart,
+		})
+		require.NoError(t, err)
+		assert.True(t, hasAny)
+		assert.Equal(t, 1, repo.hasCalls)
+	})
+
+	t.Run("unknown types fail closed before the repository", func(t *testing.T) {
+		repo := &fakePreferenceRepo{}
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+
+		hasAny, err := svc.HasAnyOptedIn(context.Background(), []string{"not_a_type"})
+		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
+		assert.False(t, hasAny)
+		assert.Zero(t, repo.hasCalls)
+	})
+
+	t.Run("repository failure surfaces", func(t *testing.T) {
+		repo := &fakePreferenceRepo{filterErr: errors.New("boom")}
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+
+		_, err := svc.HasAnyOptedIn(context.Background(), []string{notifications.TypePickupUpcoming})
+		require.Error(t, err)
+	})
+}
+
+func TestFilterOptedInByTypeBatchesGatesAndPreferences(t *testing.T) {
+	candidates := []int64{prefAccountA, prefAccountB}
+	var gateCalls int
+	settings := &configtest.Mock{
+		ResolveBoolsFn: func(_ context.Context, keys []string) (map[string]bool, error) {
+			gateCalls++
+			assert.ElementsMatch(t, []string{
+				configModel.KeyRemindersPickupUpcomingEnabled,
+				configModel.KeyRemindersActivityStartEnabled,
+			}, keys)
+			return map[string]bool{
+				configModel.KeyRemindersPickupUpcomingEnabled: true,
+				configModel.KeyRemindersActivityStartEnabled:  false,
+			}, nil
+		},
+	}
+	repo := &fakePreferenceRepo{optedIn: map[string][]int64{
+		notifications.TypePickupUpcoming:     {prefAccountA},
+		notifications.TypeActivityStart:      {prefAccountB},
+		notifications.TypeMyActivityStarting: {prefAccountB},
+	}}
+	svc := notifications.NewPreferenceService(repo, settings, nil, nil)
+
+	got, err := svc.FilterOptedInByType(context.Background(), []string{
+		notifications.TypePickupUpcoming,
+		notifications.TypeActivityStart,
+		notifications.TypeMyActivityStarting,
+	}, candidates)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, gateCalls, "all tenant gates must share one settings read")
+	assert.Equal(t, 1, repo.bulkCalls, "all allowed types must share one preference read")
+	assert.ElementsMatch(t, []string{
+		notifications.TypePickupUpcoming,
+		notifications.TypeMyActivityStarting,
+	}, repo.filterTypes, "a school-gated type must not reach the preference query")
+	assert.Equal(t, []int64{prefAccountA}, got[notifications.TypePickupUpcoming])
+	assert.Equal(t, []int64{prefAccountB}, got[notifications.TypeMyActivityStarting])
+	assert.NotContains(t, got, notifications.TypeActivityStart)
 }
 
 // FilterNotOptedOut is the mirror rule for channels that predate consent: only

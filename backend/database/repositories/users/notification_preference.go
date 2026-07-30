@@ -91,6 +91,63 @@ func (r *NotificationPreferenceRepository) FilterOptedIn(ctx context.Context, no
 	return optedIn, nil
 }
 
+// HasAnyOptedIn answers whether the current tenant has at least one enabled
+// decision for any named type. The partial notification-preference index makes
+// this the cheap gate used before a scheduler resolves its full audience.
+func (r *NotificationPreferenceRepository) HasAnyOptedIn(ctx context.Context, notificationTypes []string) (bool, error) {
+	if len(notificationTypes) == 0 {
+		return false, nil
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprNotificationPreferences).
+		Where(`"notification_preference".notification_type IN (?)`, bun.List(notificationTypes)).
+		Where(`"notification_preference".enabled`)
+	query = base.WithTenantFilter(ctx, query, aliasNotificationPreference)
+
+	exists, err := query.Exists(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "check for opted-in accounts", Err: err}
+	}
+	return exists, nil
+}
+
+// FilterOptedInByType narrows one candidate set for multiple notification types
+// in a single query.
+func (r *NotificationPreferenceRepository) FilterOptedInByType(
+	ctx context.Context,
+	notificationTypes []string,
+	accountIDs []int64,
+) (map[string][]int64, error) {
+	optedInByType := make(map[string][]int64)
+	if len(notificationTypes) == 0 || len(accountIDs) == 0 {
+		return optedInByType, nil
+	}
+
+	var rows []struct {
+		NotificationType string `bun:"notification_type"`
+		AccountID        int64  `bun:"account_id"`
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprNotificationPreferences).
+		ColumnExpr(`"notification_preference".notification_type`).
+		ColumnExpr(`"notification_preference".account_id`).
+		Where(`"notification_preference".notification_type IN (?)`, bun.List(notificationTypes)).
+		Where(`"notification_preference".enabled`).
+		Where(`"notification_preference".account_id IN (?)`, bun.List(accountIDs)).
+		OrderExpr(`"notification_preference".notification_type ASC`).
+		OrderExpr(`"notification_preference".account_id ASC`)
+	query = base.WithTenantFilter(ctx, query, aliasNotificationPreference)
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "filter opted-in accounts by type", Err: err}
+	}
+	for _, row := range rows {
+		optedInByType[row.NotificationType] = append(optedInByType[row.NotificationType], row.AccountID)
+	}
+	return optedInByType, nil
+}
+
 // FilterNotOptedOut removes only the candidates who explicitly declined the type.
 //
 // It reads the opt-out rows and subtracts them instead of selecting survivors in

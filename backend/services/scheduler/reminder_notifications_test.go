@@ -57,42 +57,70 @@ type fakeConsent struct {
 	err    error
 	// asked records the candidate list the producer offered, so a test can
 	// assert that consent narrowed a relation instead of inventing one.
-	asked []int64
+	asked       []int64
+	askedTypes  []string
+	hasCalls    int
+	filterCalls int
 }
 
-func (f *fakeConsent) FilterOptedIn(_ context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+func (f *fakeConsent) HasAnyOptedIn(_ context.Context, notificationTypes []string) (bool, error) {
+	f.hasCalls++
+	if f.err != nil {
+		return false, f.err
+	}
+	for _, notificationType := range notificationTypes {
+		if len(f.byType[notificationType]) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakeConsent) FilterOptedInByType(
+	_ context.Context,
+	notificationTypes []string,
+	accountIDs []int64,
+) (map[string][]int64, error) {
+	f.filterCalls++
 	if f.err != nil {
 		return nil, f.err
 	}
 	f.asked = accountIDs
-	allowed := make(map[int64]struct{}, len(f.byType[notificationType]))
-	for _, id := range f.byType[notificationType] {
-		allowed[id] = struct{}{}
-	}
-	out := make([]int64, 0, len(allowed))
-	for _, id := range accountIDs {
-		if _, ok := allowed[id]; ok {
-			out = append(out, id)
+	f.askedTypes = notificationTypes
+	result := make(map[string][]int64)
+	for _, notificationType := range notificationTypes {
+		allowed := make(map[int64]struct{}, len(f.byType[notificationType]))
+		for _, id := range f.byType[notificationType] {
+			allowed[id] = struct{}{}
+		}
+		for _, id := range accountIDs {
+			if _, ok := allowed[id]; ok {
+				result[notificationType] = append(result[notificationType], id)
+			}
 		}
 	}
-	return out, nil
+	return result, nil
 }
 
 type fakeStaffAccounts struct {
 	accounts map[int64]int64
 	err      error
+	calls    int
 }
 
 func (f *fakeStaffAccounts) ListAllStaffAccountIDs(context.Context) (map[int64]int64, error) {
+	f.calls++
 	return f.accounts, f.err
 }
 
 type fakeAdminAccounts struct {
-	ids []int64
-	err error
+	ids   []int64
+	err   error
+	calls int
 }
 
 func (f *fakeAdminAccounts) ListEffectiveAdminAccountIDs(context.Context) ([]int64, error) {
+	f.calls++
 	return f.ids, f.err
 }
 
@@ -215,6 +243,7 @@ func TestPersonalRemindersReachOnlyTheConsenting(t *testing.T) {
 	// The consent filter was offered the whole team, not just the one who said
 	// yes: consent narrows a relation, it is never the source of the audience.
 	assert.ElementsMatch(t, []int64{caregiverAccountID, adminAccountID}, setup.consent.asked)
+	assert.Equal(t, 1, setup.consent.filterCalls, "all reminder types must share one consent filter call")
 
 	// The computation was scoped per person, with the admin marked as one.
 	require.Len(t, setup.computer.scopes, 1, "only people with consent are computed")
@@ -283,6 +312,27 @@ func TestPersonalRemindersSkipComputationWithoutConsent(t *testing.T) {
 	assert.Empty(t, setup.notifier.events)
 	assert.Zero(t, setup.computer.calls,
 		"with nobody to address, the tick must not compute reminders at all")
+	assert.Zero(t, setup.staff.calls, "the tenant-wide consent gate must run before staff resolution")
+	assert.Zero(t, setup.admins.calls, "the tenant-wide consent gate must run before admin resolution")
+	assert.Equal(t, 1, setup.consent.hasCalls)
+	assert.Zero(t, setup.consent.filterCalls)
+}
+
+func TestPersonalRemindersTreatStoredConsentAsGateNotAudience(t *testing.T) {
+	const staleAccountID int64 = 999
+	setup := buildReminderSched(
+		map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
+		map[string][]int64{notifications.TypePickupUpcoming: {staleAccountID}},
+	)
+
+	setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
+
+	assert.Equal(t, 1, setup.staff.calls, "a positive gate justifies canonical audience resolution")
+	assert.Equal(t, 1, setup.admins.calls)
+	assert.Equal(t, 1, setup.consent.filterCalls)
+	assert.Zero(t, setup.computer.calls,
+		"a stale preference row must not turn its account into a recipient")
+	assert.Empty(t, setup.notifier.events)
 }
 
 func TestPersonalRemindersAggregatePerTypeAndDedupPerPerson(t *testing.T) {

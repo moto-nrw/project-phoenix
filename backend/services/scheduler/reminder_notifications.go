@@ -20,8 +20,12 @@
 //
 // Re-fire guard: an in-memory sync.Map keyed by (tenant, account, reminder
 // identity), rotated on civil-date rollover — the same shape as the
-// instance-overdue tick. A mid-day restart re-fires currently-due reminders
-// once; toasts are ephemeral, that cost is acceptable for zero disk state.
+// instance-overdue tick. This is deliberately a single-scheduler-instance
+// guarantee: two active backend scheduler instances have independent maps and
+// may both emit the same reminder. Deployments must run one scheduler instance
+// until the guard is moved to shared durable state. A mid-day restart likewise
+// re-fires currently-due reminders once; toasts are ephemeral, that cost is
+// acceptable for zero disk state.
 package scheduler
 
 import (
@@ -50,9 +54,8 @@ type reminderNotificationKey struct {
 	reminder  string // type + entity id + due time
 }
 
-// The three reads the producer needs beyond its two services. Narrow interfaces
-// rather than the full repositories: they say exactly what this tick reads, and
-// a test double stays three methods long.
+// Narrow interfaces expose only the reads this tick needs and keep its test
+// doubles small.
 type (
 	staffAccountReader interface {
 		ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
@@ -63,10 +66,12 @@ type (
 	dutyReader interface {
 		GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	}
-	// consentFilter is the one method this producer uses of the consent
-	// service; notifications.PreferenceService satisfies it.
+	// consentFilter is the narrow subset of the consent service used here.
+	// HasAnyOptedIn is only a cheap gate; FilterOptedInByType still narrows the
+	// relation-derived audience.
 	consentFilter interface {
-		FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+		HasAnyOptedIn(ctx context.Context, notificationTypes []string) (bool, error)
+		FilterOptedInByType(ctx context.Context, notificationTypes []string, accountIDs []int64) (map[string][]int64, error)
 	}
 )
 
@@ -204,6 +209,21 @@ func (r reminderRecipient) resultKey() int64 {
 func (s *Scheduler) runReminderNotificationsForTenant(ctx context.Context, tenantID int64, now time.Time) {
 	deps := s.reminderNotifications
 
+	// This is a gate, never an audience source. Stale consent rows can survive
+	// offboarding, so a positive answer only justifies paying for the canonical
+	// staff/admin relationship lookup below.
+	hasAnyConsent, err := deps.Preferences.HasAnyOptedIn(ctx, personalReminderTypes)
+	if err != nil {
+		s.getLogger().Warn("reminder notification tick: consent gate failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if !hasAnyConsent {
+		return
+	}
+
 	recipients, err := s.resolveReminderRecipients(ctx)
 	if err != nil {
 		s.getLogger().Warn("reminder notification tick: audience resolution failed",
@@ -326,15 +346,15 @@ func (s *Scheduler) resolveReminderRecipients(ctx context.Context) ([]reminderRe
 	}
 	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
 
-	// FilterOptedIn also applies each type's school-wide gate (the matching
-	// reminders.* setting), so a reminder kind the school switched off reaches
-	// nobody without this tick having to know which setting that is.
+	// FilterOptedInByType also applies every type's school-wide gate (the
+	// matching reminders.* setting). The consent service resolves the gates in
+	// one settings query and the preferences in one IN query.
 	consentByAccount := make(map[int64]map[string]struct{}, len(accountIDs))
-	for _, notificationType := range personalReminderTypes {
-		optedIn, ferr := deps.Preferences.FilterOptedIn(ctx, notificationType, accountIDs)
-		if ferr != nil {
-			return nil, fmt.Errorf("filter opted-in accounts for %s: %w", notificationType, ferr)
-		}
+	optedInByType, err := deps.Preferences.FilterOptedInByType(ctx, personalReminderTypes, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("filter opted-in accounts: %w", err)
+	}
+	for notificationType, optedIn := range optedInByType {
 		for _, accountID := range optedIn {
 			if consentByAccount[accountID] == nil {
 				consentByAccount[accountID] = make(map[string]struct{}, len(personalReminderTypes))

@@ -50,6 +50,16 @@ type NotificationPreferenceRepository interface {
 	// returns an empty result and never the full list.
 	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 
+	// HasAnyOptedIn answers whether the current tenant has at least one enabled
+	// preference row for any named type. It is a cheap scheduling gate only;
+	// it does not establish that the stored account is still an eligible
+	// recipient.
+	HasAnyOptedIn(ctx context.Context, notificationTypes []string) (bool, error)
+
+	// FilterOptedInByType narrows the candidates for multiple types in one
+	// query, keyed by notification type.
+	FilterOptedInByType(ctx context.Context, notificationTypes []string, accountIDs []int64) (map[string][]int64, error)
+
 	// FilterNotOptedOut is the mirror of FilterOptedIn: it returns the candidates
 	// MINUS those who explicitly declined the type (a row with Enabled=false).
 	// A missing row does not filter anybody out. This is for channels that were

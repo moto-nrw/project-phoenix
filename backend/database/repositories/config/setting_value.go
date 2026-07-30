@@ -50,6 +50,29 @@ func (r *SettingValueRepository) FindByTenantAndKey(ctx context.Context, tenantI
 	return sv, nil
 }
 
+// FindByTenantAndKeys retrieves the stored overrides for the named keys in one
+// query. Registry defaults remain a service-layer concern.
+func (r *SettingValueRepository) FindByTenantAndKeys(ctx context.Context, tenantID int64, keys []string) ([]*config.SettingValue, error) {
+	if tenantID <= 0 || len(keys) == 0 {
+		return nil, nil
+	}
+
+	var values []*config.SettingValue
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&values).
+		ModelTableExpr(tableSettingValuesAlias).
+		Where(`"setting_value".tenant_id = ?`, tenantID).
+		Where(`"setting_value".setting_key IN (?)`, bun.List(keys)).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find setting values by tenant and keys",
+			Err: err,
+		}
+	}
+	return values, nil
+}
+
 // Upsert inserts or updates a setting value.
 func (r *SettingValueRepository) Upsert(ctx context.Context, sv *config.SettingValue) error {
 	if sv == nil {

@@ -164,7 +164,8 @@ type Scheduler struct {
 	// Personal reminder notifications. Wired via SetReminderNotificationDeps;
 	// anything missing → task does not register. reminderNotified is the
 	// once-per-day re-fire guard (now per person), rotated on civil-date
-	// rollover like overdueEmitted.
+	// rollover like overdueEmitted. It is process-local, so production must run
+	// only one scheduler instance until this state is shared.
 	reminderNotifications ReminderNotificationDeps
 	reminderNotified      sync.Map // reminderNotificationKey → time.Time
 	reminderNotifiedDay   timezone.Date
