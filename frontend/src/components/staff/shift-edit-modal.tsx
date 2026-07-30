@@ -40,7 +40,11 @@ import {
 } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
-import { latestISODate, weekdayDatesInRange } from "~/lib/timetable-helpers";
+import {
+  latestISODate,
+  materializedRecurrenceDates,
+  weekdayDatesInRange,
+} from "~/lib/timetable-helpers";
 
 import {
   formatWeekdays,
@@ -433,13 +437,8 @@ export function ShiftEditModal({
   // "Gültig bis" is inclusive in the picker: the segment still has something to
   // change while its last day is on or after the applies-from date. Without the
   // check the save fails server-side with a 400 the planner cannot act on.
-  const seriesHasRemainingOccurrence =
+  const seriesHasDateRange =
     seriesValidUntil === "" || seriesValidUntil >= seriesAppliesFrom;
-  const seriesNoOccurrenceMessage = `Diese Serie endet am ${formatShortDate(
-    seriesValidUntil === "" ? seriesAppliesFrom : seriesValidUntil,
-  )}, Änderungen wirken aber erst ab ${formatShortDate(
-    seriesAppliesFrom,
-  )}. Setzen Sie „Gültig bis" auf ein späteres Datum, um die Serie fortzuführen.`;
   const seriesDefaultAbPattern = weekPatternForDate(
     seriesPeriod,
     seriesAppliesFrom,
@@ -465,14 +464,14 @@ export function ShiftEditModal({
       seriesValidUntil !== "" && seriesValidUntil < seriesPeriod.endDate
         ? seriesValidUntil
         : seriesPeriod.endDate;
-    const dates = weekdayDatesInRange(from, to, seriesWeekdays).filter(
-      (dateISO) =>
-        shouldMaterializeWeekPattern(
-          seriesPeriod,
-          dateISO,
-          seriesRuleWeekPattern,
-        ),
-    );
+    const dates = materializedRecurrenceDates({
+      period: seriesPeriod,
+      fromISO: from,
+      weekdays: seriesWeekdays,
+      weekPattern: seriesRuleWeekPattern,
+      validUntil:
+        seriesValidUntil === "" ? undefined : dayAfterISO(seriesValidUntil),
+    });
     return { from, to, dates };
   }, [
     seriesEditOpen,
@@ -504,6 +503,12 @@ export function ShiftEditModal({
   // Markierung ist ein Hinweis, kein Sperrmechanismus.
   const seriesEditClosingDaysLoading =
     seriesEditOpen && (periods === null || seriesEditClosingDayState.isLoading);
+  const seriesHasRemainingOccurrence =
+    seriesHasDateRange &&
+    (seriesPeriod === null || seriesEditClosingDayWindow?.dates.length !== 0);
+  const seriesNoOccurrenceMessage = seriesHasDateRange
+    ? `Für die gewählten Wochentage und den Wochenrhythmus bleibt ab ${formatShortDate(seriesAppliesFrom)} kein Termin mehr. Setzen Sie „Gültig bis" auf ein späteres Datum oder ändern Sie die Wiederholung.`
+    : `Diese Serie endet am ${formatShortDate(seriesValidUntil)}, Änderungen wirken aber erst ab ${formatShortDate(seriesAppliesFrom)}. Setzen Sie „Gültig bis" auf ein späteres Datum, um die Serie fortzuführen.`;
   const seriesEditConfirmationKey =
     seriesEditClosingDayConflict === null
       ? null

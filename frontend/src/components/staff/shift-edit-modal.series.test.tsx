@@ -25,6 +25,9 @@ const mockUseClosingDaysState = vi.hoisted(() =>
     isLoading: false,
   })),
 );
+const mockDatePickerValue = vi.hoisted(() => ({
+  value: new Date(2026, 11, 31),
+}));
 
 vi.mock("~/lib/hooks/use-closing-days", () => ({
   useClosingDaysState: mockUseClosingDaysState,
@@ -67,7 +70,7 @@ vi.mock("~/lib/calendar-period-api", () => ({
 // onChange directly instead (same pattern as planned-status-days-modal.test).
 vi.mock("~/components/ui/date-picker", () => ({
   DatePicker: ({ onChange }: { onChange: (date: Date | null) => void }) => (
-    <button type="button" onClick={() => onChange(new Date(2026, 11, 31))}>
+    <button type="button" onClick={() => onChange(mockDatePickerValue.value)}>
       DatePicker Auswahl
     </button>
   ),
@@ -153,6 +156,7 @@ const seriesRule = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockDatePickerValue.value = new Date(2026, 11, 31);
   listPeriods.mockResolvedValue([halbjahr]);
   mockUseClosingDaysState.mockReturnValue({
     closingDays: new Map(),
@@ -829,5 +833,25 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
         validUntil: "2027-01-01",
       });
     });
+  });
+
+  it("warns instead of extending without a matching recurrence date", async () => {
+    // The change starts on Tuesday. Extending a Mo/Mi series only through
+    // Tuesday creates no future occurrence.
+    mockDatePickerValue.value = new Date(2026, 8, 8);
+    getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Serie bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByText("DatePicker Auswahl"));
+
+    expect(
+      await screen.findByText(/Für die gewählten Wochentage/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+    expect(splitSeries).not.toHaveBeenCalled();
   });
 });

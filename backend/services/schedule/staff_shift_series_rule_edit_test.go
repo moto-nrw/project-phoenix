@@ -198,6 +198,46 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 	assert.Equal(t, downstreamFrom, *result.Series.ValidUntil)
 }
 
+func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodEnd := today.AddDays(28)
+	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
+	effective := today.AddDays(1)
+
+	oldEnd := effective
+	series := env.buildSeries(t, periodID, today.AddDays(-7), &oldEnd, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	rootID := series.ID
+	successor := env.buildSeries(t, periodID, effective, nil, scheduleModels.WeekPatternEvery)
+	successor.SeriesRootID = &rootID
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, successor)
+		return err
+	})
+
+	newEnd := today.AddDays(15)
+	err := env.inTxExpectErr(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: effective,
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ValidUntil:    &newEnd,
+			ValidUntilSet: true,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+	assert.Contains(t, err.Error(), "already been superseded")
+}
+
 // A series whose last planned day has arrived was permanently uneditable: the
 // effective date is clamped to tomorrow, and the segment check compared that
 // against the STORED end. Extending "Gültig bis" is the one edit that has to
@@ -272,4 +312,39 @@ func TestStaffShiftSeries_SplitRejectsWhenNoOccurrenceRemains(t *testing.T) {
 	})
 	require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
 	assert.Contains(t, err.Error(), "no occurrences left to change")
+}
+
+func TestStaffShiftSeries_SplitRejectsExtensionWithoutRecurrenceOccurrence(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(28), 1, nil)
+	effective := today.AddDays(1)
+	newEnd := effective.AddDays(2)
+
+	// The two included dates are effective and effective+1. Select the next
+	// weekday so an extension exists by date but cannot produce a shift.
+	weekday := int16((int(newEnd.Weekday())+6)%7 + 1)
+	storedEnd := effective
+	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
+	series.Weekdays = []int16{weekday}
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	err := env.inTxExpectErr(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: effective,
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ValidUntil:    &newEnd,
+			ValidUntilSet: true,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+	assert.Contains(t, err.Error(), "selected weekdays and week pattern")
 }
