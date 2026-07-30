@@ -600,7 +600,10 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 	if row.ValidUntil != nil && !row.ValidUntil.After(effectiveFrom) {
 		return nil
 	}
-	if draft := drafts[row.ActivityGroupID]; draft != nil && careDraftMatchesEnrollment(draft, row) {
+	if draft := drafts[row.ActivityGroupID]; draft != nil &&
+		!row.ValidFrom.After(effectiveFrom) &&
+		(row.ValidUntil == nil || row.ValidUntil.After(effectiveFrom)) &&
+		careDraftMatchesEnrollment(draft, row) {
 		delete(drafts, row.ActivityGroupID)
 		return nil
 	}

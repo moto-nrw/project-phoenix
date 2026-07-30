@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -326,22 +327,26 @@ func (s *offeringChangeRequestService) carePeriod(
 		return nil, nil, fmt.Errorf("offering change: list care periods: %w", err)
 	}
 	today := timezone.TodayDate()
-	var chosen *enrollmentModels.StudentCarePeriod
+	var upcoming *enrollmentModels.StudentCarePeriod
 	for _, candidate := range periods {
-		if !candidate.ServiceEndDate.Before(today) {
+		if !candidate.ServiceStartDate.After(today) && !candidate.ServiceEndDate.Before(today) {
+			upcoming = candidate
+			break
+		}
+		if candidate.ServiceStartDate.After(today) {
 			// Repository order is latest first, so keep overwriting to end up
-			// with the earliest period that has not ended yet.
-			chosen = candidate
+			// with the nearest upcoming period when none covers today.
+			upcoming = candidate
 		}
 	}
-	if chosen == nil {
+	if upcoming == nil {
 		return nil, nil, ErrOfferingChangeNoEnrollment
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, chosen.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, upcoming.PhaseID)
 	if err != nil || phase == nil {
 		return nil, nil, fmt.Errorf("offering change: load phase: %w", err)
 	}
-	return chosen, phase, nil
+	return upcoming, phase, nil
 }
 
 func (s *offeringChangeRequestService) Catalog(
@@ -608,6 +613,13 @@ func (s *offeringChangeRequestService) Create(
 	if err != nil {
 		return nil, err
 	}
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, period.RequestChildID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
+	}
+	if sameOfferingSelections(current, selections) {
+		return nil, fmt.Errorf("%w: offerings are unchanged", ErrOfferingChangeInvalid)
+	}
 	existing, err := s.ChangeRepo.GetPendingForStudent(ctx, input.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: check pending: %w", err)
@@ -809,7 +821,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	if effectiveFrom.After(phase.ServiceEndDate) {
 		return fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
 	}
-	if err := s.assertCapacityAvailable(ctx, row.RequestChildID, selections); err != nil {
+	if err := s.assertCapacityAvailable(ctx, phase, row.RequestChildID, selections); err != nil {
 		return err
 	}
 	// The stored date is also what guardians and the audit trail show. When a
@@ -839,6 +851,7 @@ func (s *offeringChangeRequestService) applyApproved(
 // only changes days.
 func (s *offeringChangeRequestService) assertCapacityAvailable(
 	ctx context.Context,
+	phase *enrollmentModels.Phase,
 	requestChildID int64,
 	selections []OfferingChangeSelection,
 ) error {
@@ -847,12 +860,16 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	held := heldOfferingIDs(current)
-	needed := make([]int64, 0, len(selections))
-	for _, selection := range selections {
-		if held[selection.OfferingID] {
+	allOfferingIDs, err := s.materializedOfferingIDs(ctx, phase, requestChildID, selections)
+	if err != nil {
+		return err
+	}
+	needed := make([]int64, 0, len(allOfferingIDs))
+	for _, offeringID := range allOfferingIDs {
+		if held[offeringID] {
 			continue
 		}
-		needed = append(needed, selection.OfferingID)
+		needed = append(needed, offeringID)
 	}
 	sort.Slice(needed, func(i, j int) bool { return needed[i] < needed[j] })
 	locked, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, needed)
@@ -879,6 +896,39 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	return nil
 }
 
+// materializedOfferingIDs includes required and auto-added offerings, which
+// are not present in a guardian's raw selection but consume capacity too.
+func (s *offeringChangeRequestService) materializedOfferingIDs(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	requestChildID int64,
+	selections []OfferingChangeSelection,
+) ([]int64, error) {
+	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
+	}
+	allowed := offeringsByID(active)
+	if err := s.addHeldOfferings(ctx, requestChildID, allowed); err != nil {
+		return nil, err
+	}
+	_, submit, err := normalizeOfferingSelections(selections, allowed)
+	if err != nil {
+		return nil, err
+	}
+	materialized, err := materializeAndValidateChildrenOfferingSelections(
+		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
+	}
+	ids := make([]int64, 0, len(materialized[0]))
+	for _, selection := range materialized[0] {
+		ids = append(ids, selection.OfferingID)
+	}
+	return ids, nil
+}
+
 func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]bool {
 	held := make(map[int64]bool, len(links))
 	for _, link := range links {
@@ -887,6 +937,26 @@ func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]b
 		}
 	}
 	return held
+}
+
+func sameOfferingSelections(current []*enrollmentModels.RequestChildOffering, selections []OfferingChangeSelection) bool {
+	if len(current) != len(selections) {
+		return false
+	}
+	byID := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+	for _, link := range current {
+		if link == nil {
+			return false
+		}
+		byID[link.CareOfferingID] = link
+	}
+	for _, selection := range selections {
+		link := byID[selection.OfferingID]
+		if link == nil || !slices.Equal(canonicalDays(link.SelectedDays), canonicalDays(selection.SelectedDays)) {
+			return false
+		}
+	}
+	return true
 }
 
 // validateSelections checks the desired selection against the phase catalog and

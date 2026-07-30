@@ -130,18 +130,24 @@ func (s *service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 	}
 	today := timezone.TodayDate()
 	var period *enrollmentModels.StudentCarePeriod
+	var canRequest bool
+	var changesDisabledReason string
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		resolved, loadErr := s.loadChildCareOfferings(txCtx, studentID, today, view)
 		if loadErr != nil {
 			return loadErr
 		}
 		period = resolved
-		return s.loadOfferingChangeState(txCtx, accountID, studentID, view)
+		if err := s.loadOfferingChangeState(txCtx, accountID, studentID, view); err != nil {
+			return err
+		}
+		canRequest, changesDisabledReason = s.resolveOfferingChangeAvailability(txCtx, child, period, today)
+		return nil
 	})
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: get child care offerings: %w", txErr)
 	}
-	view.CanRequest, view.ChangesDisabledReason = s.resolveOfferingChangeAvailability(ctx, child, period, today)
+	view.CanRequest, view.ChangesDisabledReason = canRequest, changesDisabledReason
 	return view, nil
 }
 
