@@ -80,6 +80,34 @@ describe("ChildCareOfferingsSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("refreshes when the parent SSE bridge invalidates this child's care state", async () => {
+    mockGet.mockResolvedValueOnce(view()).mockResolvedValueOnce(
+      view({
+        offerings: [
+          {
+            id: "6",
+            name: "Spätbetreuung",
+            weekdays: [4, 5],
+            includes_lunch: false,
+            includes_holiday_care: false,
+          },
+        ],
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    await screen.findByText("Regelbetreuung");
+    fireEvent(
+      window,
+      new CustomEvent("parent-conversation-refresh", {
+        detail: { studentId: "42" },
+      }),
+    );
+
+    expect(await screen.findByText("Spätbetreuung")).toBeInTheDocument();
+    expect(mockGet).toHaveBeenCalledTimes(2);
+  });
+
   it("shows an offering with no weekday restriction as covering all care days", async () => {
     mockGet.mockResolvedValue(
       view({

@@ -17,6 +17,7 @@ import {
 } from "~/lib/parent-api";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
 const logger = createLogger({ component: "ChildCareOfferings" });
 
@@ -66,6 +67,19 @@ export function ChildCareOfferingsSection({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The portal-wide SSE bridge turns the guardian-only parent_child_updated
+  // invalidation into this event after any guardian submits or withdraws a
+  // request, or staff decide one. Refetching here keeps every guardian's open
+  // offerings section aligned with the committed booking and request state.
+  const refreshCareOfferings = useCallback(() => void load(), [load]);
+  useMessagesActivity({
+    eventName: "parent-conversation-refresh",
+    studentId,
+    onMatch: refreshCareOfferings,
+    marksRead: false,
+    refetchOnFocus: true,
+  });
 
   const weekdayList = useCallback(
     (weekdays: number[]) =>

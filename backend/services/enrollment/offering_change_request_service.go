@@ -1456,6 +1456,7 @@ func (s *offeringChangeRequestService) emitPillAfterCommit(
 	guardianAccountID := row.SubmittedBy
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.Emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
+		s.Emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 	})
 }
 
