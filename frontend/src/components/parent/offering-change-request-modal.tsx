@@ -113,24 +113,28 @@ export function OfferingChangeRequestModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const editedOfferingIDs = useRef(new Set<string>());
+  const catalogRequestID = useRef(0);
 
   const load = useCallback(async () => {
+    const requestID = ++catalogRequestID.current;
     setLoading(true);
     setError(null);
     try {
       const loaded = await getChildOfferingCatalog(studentId);
+      if (requestID !== catalogRequestID.current) return;
       setCatalog(loaded);
       setDraft(draftFromCatalog(loaded.items));
       editedOfferingIDs.current.clear();
       setEffectiveFrom(loaded.earliest_effective_from);
     } catch (err) {
+      if (requestID !== catalogRequestID.current) return;
       logger.warn("offering_catalog_load_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
       setError(t("careOfferingsModal.loadError"));
     } finally {
-      setLoading(false);
+      if (requestID === catalogRequestID.current) setLoading(false);
     }
   }, [studentId, t]);
 
@@ -140,16 +144,19 @@ export function OfferingChangeRequestModal({
 
   const loadForEffectiveDate = async (date: string) => {
     if (!date || date === effectiveFrom) return;
+    const requestID = ++catalogRequestID.current;
     setLoading(true);
     setError(null);
     try {
       const loaded = await getChildOfferingCatalog(studentId, date);
+      if (requestID !== catalogRequestID.current) return;
       setCatalog(loaded);
       setDraft((current) =>
         rebaseDraftForCatalog(current, loaded.items, editedOfferingIDs.current),
       );
       setEffectiveFrom(date);
     } catch (err) {
+      if (requestID !== catalogRequestID.current) return;
       logger.warn("offering_catalog_reload_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
@@ -157,7 +164,7 @@ export function OfferingChangeRequestModal({
       });
       setError(t("careOfferingsModal.loadError"));
     } finally {
-      setLoading(false);
+      if (requestID === catalogRequestID.current) setLoading(false);
     }
   };
 

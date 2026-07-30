@@ -1013,7 +1013,9 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		if offering.Capacity == nil {
 			continue
 		}
-		taken, countErr := s.RequestChildOfferingRepo.CountActiveByCareOfferingOnDate(ctx, offering.ID, effectiveFrom)
+		taken, countErr := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRange(
+			ctx, offering.ID, effectiveFrom, phase.ServiceEndDate.AddDays(1),
+		)
 		if countErr != nil {
 			return fmt.Errorf("offering change: count offering occupancy: %w", countErr)
 		}

@@ -27,6 +27,9 @@ func (r *RequestChildOfferingRepository) ScheduleReplacementForRequestChild(ctx 
 		return fmt.Errorf("effective_from is required")
 	}
 	db := base.GetDB(ctx, r.db)
+	if err := lockRequestChildOfferings(ctx, db, requestChildID); err != nil {
+		return err
+	}
 	deleteQuery := db.NewDelete().
 		Model((*enrollment.RequestChildOffering)(nil)).
 		ModelTableExpr(requestChildOfferingTableExpr).
@@ -94,6 +97,9 @@ func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Cont
 		return fmt.Errorf("request_child_id is required")
 	}
 	db := base.GetDB(ctx, r.db)
+	if err := lockRequestChildOfferings(ctx, db, requestChildID); err != nil {
+		return err
+	}
 	deleteQuery := db.NewDelete().
 		Model((*enrollment.RequestChildOffering)(nil)).
 		ModelTableExpr(requestChildOfferingTableExpr).
@@ -117,6 +123,22 @@ func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Cont
 		ModelTableExpr("enrollment.request_child_offerings").
 		Exec(ctx); err != nil {
 		return fmt.Errorf("failed to insert replacement request child offerings: %w", err)
+	}
+	return nil
+}
+
+// lockRequestChildOfferings serializes the delete/update/insert replacement
+// sequence for one child. Locking offering rows protects capacity across
+// children; this row lock protects the child's own interval history.
+func lockRequestChildOfferings(ctx context.Context, db bun.IDB, requestChildID int64) error {
+	var lockedID int64
+	if err := db.NewSelect().
+		TableExpr(`enrollment.request_children AS "request_child"`).
+		ColumnExpr(`"request_child".id`).
+		Where(`"request_child".id = ?`, requestChildID).
+		For("UPDATE").
+		Scan(ctx, &lockedID); err != nil {
+		return fmt.Errorf("failed to lock request child offerings: %w", err)
 	}
 	return nil
 }
