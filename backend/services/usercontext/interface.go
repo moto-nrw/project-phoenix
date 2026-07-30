@@ -30,7 +30,13 @@ type UserContextService interface {
 	// GetCurrentTeacher retrieves the teacher linked to the currently authenticated user
 	GetCurrentTeacher(ctx context.Context) (*users.Teacher, error)
 
-	// GetMyGroups retrieves educational groups associated with the current user
+	// GetMyGroups retrieves educational groups associated with the current user.
+	//
+	// The identity-free bulk counterpart is
+	// education.GroupRepository.ListSupervisedGroupIDsByStaff: same two sources
+	// (teacher assignments plus active substitutions), keyed by staff ID, for
+	// callers with no authenticated user. The two are pinned against each other
+	// by an equivalence test.
 	GetMyGroups(ctx context.Context) ([]*education.Group, error)
 
 	// GetSubstitutedGroupIDs returns the set of education group IDs the current

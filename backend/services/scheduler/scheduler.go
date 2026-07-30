@@ -23,8 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
-	"github.com/moto-nrw/project-phoenix/services/reminders"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -163,12 +161,12 @@ type Scheduler struct {
 	// SetRolloverDeadlineRunner. Nil → task does not register.
 	rolloverDeadlineRunner RolloverDeadlineRunner
 
-	// Reminder → notification bridge (#1624 follow-up). Wired via
-	// SetReminderNotificationDeps; either nil → task does not register.
-	// reminderNotified is the once-per-day re-fire guard, rotated on
-	// civil-date rollover like overdueEmitted.
-	reminderComputer      reminders.Service
-	reminderNotifier      notifications.Service
+	// Personal reminder notifications. Wired via SetReminderNotificationDeps;
+	// anything missing → task does not register. reminderNotified is the
+	// once-per-day re-fire guard (now per person), rotated on civil-date
+	// rollover like overdueEmitted. It is process-local, so production must run
+	// only one scheduler instance until this state is shared.
+	reminderNotifications ReminderNotificationDeps
 	reminderNotified      sync.Map // reminderNotificationKey → time.Time
 	reminderNotifiedDay   timezone.Date
 	reminderNotifiedDayMu sync.Mutex

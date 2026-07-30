@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bell,
   BellRing,
   Building2,
   CalendarDays,
@@ -1588,16 +1589,38 @@ export const appChapters: readonly GuideChapter[] = [
           "Teilen-Menü in Safari mit dem Eintrag Zum Home-Bildschirm.",
       },
       {
+        id: "benachrichtigungen-auswaehlen",
+        title: "Auswählen, worüber moto informiert",
+        icon: Bell,
+        printCompact: true,
+        summary:
+          "Jede Person entscheidet selbst, worüber sie Bescheid bekommt. Ohne diese Auswahl wird nichts verschickt, auch nicht als Push. Die Auswahl gilt für alle Geräte.",
+        steps: [
+          "Im eigenen Profil den Abschnitt `Benachrichtigungen` öffnen.",
+          "Die gewünschten Arten einschalten. Sie sind nach Themen sortiert: `Abholungen` (anstehend, überfällig), `Aktivitäten` (Aktivität im eigenen Aufsichtsraum, nicht gestartete Aktivität, eigener Einsatz aus dem Betreuungsplan) und `Kinder` (Krankmeldung eines Kindes aus den eigenen Gruppen).",
+          "Jeder Schalter speichert sofort. `Alle deaktivieren` oben rechts schaltet alles auf einmal ab.",
+          "Steht unter einer Art `Von Ihrer Schule derzeit deaktiviert`, bleibt sie still. Der eigene Schalter darf trotzdem an bleiben und greift wieder, sobald die Schule die Art einschaltet.",
+        ],
+        callout: {
+          title: "Erst auswählen, dann Gerät freischalten",
+          body: "Diese Auswahl beantwortet `worüber`, der nächste Schritt `auf welchem Gerät`. Ohne Push-Freigabe erscheinen die Hinweise weiterhin in der geöffneten App; ohne Auswahl hier kommt auf keinem Weg etwas an.",
+          tone: "blue",
+        },
+        screenshot:
+          "Profilseite mit dem Abschnitt Benachrichtigungen: Schalter je Art, gruppiert nach Abholungen, Aktivitäten und Kinder, mit der Schaltfläche Alle deaktivieren.",
+      },
+      {
         id: "push-benachrichtigungen-aktivieren",
         title: "Push-Benachrichtigungen aktivieren",
         icon: BellRing,
         printCompact: true,
         summary:
-          "Erinnerungen (z. B. anstehende Abholungen) kommen auf Wunsch als Systembenachrichtigung an, auch wenn die App geschlossen ist. Aktiviert wird das pro Gerät im eigenen Profil.",
+          "Damit die ausgewählten Hinweise auch bei geschlossener App ankommen, wird jedes Gerät einmal freigeschaltet. Die Freigabe gilt nur für dieses eine Gerät.",
         steps: [
-          "Im eigenen Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
+          "Zuerst im Profil unter `Benachrichtigungen` auswählen, worüber informiert werden soll (siehe Schritt davor).",
+          "Im selben Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
           "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
-          "Fertig: Neue Erinnerungen erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
+          "Fertig: Die ausgewählten Hinweise erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
         ],
         callout: {
           title: "iPhone/iPad: erst installieren",
@@ -1652,6 +1675,27 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Sektion Indikatoren im Reiter Betrieb mit eingeschalteten Aktivitäts-Indikatoren und den Begriffen Mensa und Hausaufgaben.",
         image: "/help/screens/einstellungen.webp",
+      },
+      {
+        id: "einstellungen-benachrichtigungen",
+        title: "Benachrichtigungen der Schule steuern",
+        icon: Bell,
+        summary:
+          "Die Schule legt den Rahmen fest: ob überhaupt benachrichtigt wird, in welchem Zeitfenster und ob Krankmeldungen an die Gruppe gehen dürfen. Was eine einzelne Person davon bekommt, wählt sie weiterhin selbst im eigenen Profil.",
+        steps: [
+          "`Einstellungen` -> `Betrieb` öffnen und zur Sektion `Benachrichtigungen` scrollen.",
+          "`Benachrichtigungen aktivieren` ist im Auslieferungszustand an. Ausgeschaltet bleibt die ganze Schule still, unabhängig davon, was einzelne Personen in ihrem Profil ausgewählt haben.",
+          "`Benachrichtigungen ab` und `bis` begrenzen den Versand auf die Betreuungszeiten (Standard 06:00 bis 18:00). Außerhalb bleibt es still bis zum nächsten Morgen.",
+          "`Nur im Dienst benachrichtigen` beschränkt persönliche Hinweise auf Personen, die gerade eingestempelt sind. Solange noch niemand eingestempelt ist, bleibt es still. Schulen ohne Zeiterfassung schalten diese Einstellung aus.",
+          "`Krankmeldungen melden` erlaubt Hinweise an die Gruppe und die Leitung, wenn für ein Kind eine Krankmeldung oder Entschuldigung eingetragen wird. Diese Einstellung ist Admins vorbehalten.",
+        ],
+        callout: {
+          title: "Niemand wird ungefragt benachrichtigt",
+          body: "Diese Einstellungen erlauben etwas, sie verordnen nichts. Solange eine Person im eigenen Profil nichts eingeschaltet hat, bekommt sie auch nichts. Wer nach dem Einschalten nichts erhält, prüft also zuerst das eigene Profil.",
+          tone: "blue",
+        },
+        screenshot:
+          "Sektion Benachrichtigungen im Reiter Betrieb mit dem Hauptschalter, dem Zeitfenster von und bis, Nur im Dienst benachrichtigen und Krankmeldungen melden.",
       },
       {
         id: "einstellungen-zustaendigkeit",

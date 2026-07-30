@@ -26,14 +26,17 @@ import (
 // embedded interface panics on anything else (nothing else may be called).
 type fakePushRepo struct {
 	iot.PushSubscriptionRepository
-	staff          []*iot.PushSubscription
-	admins         []*iot.PushSubscription
-	guardians      map[int64][]*iot.PushSubscription
-	deleted        []any
-	deleteAttempts []*iot.PushSubscription
-	keepExpired    bool
-	deleteErr      error
-	mu             sync.Mutex
+	staff              []*iot.PushSubscription
+	admins             []*iot.PushSubscription
+	guardians          map[int64][]*iot.PushSubscription
+	deleted            []any
+	deleteAttempts     []*iot.PushSubscription
+	keepExpired        bool
+	staffAccounts      map[int64][]*iot.PushSubscription
+	staffAccountsAsked []int64
+	staffAccountsErr   error
+	deleteErr          error
+	mu                 sync.Mutex
 }
 
 func (f *fakePushRepo) FindForTenantStaff(context.Context) ([]*iot.PushSubscription, error) {
@@ -439,4 +442,165 @@ func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("web push send did not finish")
 	}
+}
+
+// findForStaffAccounts is the batch path's finder. Kept next to the other
+// finders on the same double so both delivery paths see one fake repository.
+func (f *fakePushRepo) FindForStaffAccounts(_ context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+	if f.staffAccountsErr != nil {
+		return nil, f.staffAccountsErr
+	}
+	f.mu.Lock()
+	f.staffAccountsAsked = append(f.staffAccountsAsked, accountIDs...)
+	f.mu.Unlock()
+	var out []*iot.PushSubscription
+	for _, accountID := range accountIDs {
+		out = append(out, f.staffAccounts[accountID]...)
+	}
+	return out, nil
+}
+
+// mockTenantTx primes a sqlmock for exactly one tenant transaction.
+func mockTenantTx(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
+	t.Helper()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		_ = db.Close()
+		_ = sqlDB.Close()
+	})
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	return db, mock
+}
+
+func staffEventFor(accountID int64, title string) Event {
+	return Event{
+		Type:     TypePickupUpcoming,
+		Audience: Audience{TenantID: 41, Scope: ScopeStaff, StaffAccountIDs: []int64{accountID}},
+		Priority: PriorityNormal,
+		Title:    title,
+	}
+}
+
+// DeliverBatch exists to resolve every recipient's devices in ONE transaction
+// and still send each person their own payload. Both halves of that sentence
+// are load-bearing: one transaction is the whole point, and a shared payload
+// would hand one person another's message.
+func TestWebPushDeliverBatchResolvesOnceAndSendsPerRecipient(t *testing.T) {
+	subA := testSub(1, 41, "https://fcm.googleapis.com/a")
+	subA.AccountID = 11
+	subB := testSub(2, 41, "https://fcm.googleapis.com/b")
+	subB.AccountID = 12
+	repo := &fakePushRepo{staffAccounts: map[int64][]*iot.PushSubscription{
+		11: {subA},
+		12: {subB},
+	}}
+	sender := &fakeSender{}
+	channel := testChannel(repo, sender)
+	db, mock := mockTenantTx(t)
+	channel.db = db
+
+	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{
+		staffEventFor(11, "Abholung steht an"),
+		staffEventFor(12, "Aktivität beginnt"),
+	}))
+
+	require.Eventually(t, func() bool {
+		sender.mu.Lock()
+		defer sender.mu.Unlock()
+		return len(sender.sent) == 2
+	}, time.Second, 10*time.Millisecond)
+
+	assert.NoError(t, mock.ExpectationsWereMet(), "one transaction for the whole batch")
+	assert.ElementsMatch(t, []int64{11, 12}, repo.staffAccountsAsked,
+		"every recipient is resolved in the same read")
+
+	byEndpoint := map[string]string{}
+	sender.mu.Lock()
+	for _, push := range sender.sent {
+		byEndpoint[push.endpoint] = string(push.payload)
+	}
+	sender.mu.Unlock()
+	assert.Contains(t, byEndpoint[subA.Endpoint], "Abholung steht an")
+	assert.Contains(t, byEndpoint[subB.Endpoint], "Aktivität beginnt")
+	assert.NotContains(t, byEndpoint[subA.Endpoint], "Aktivität beginnt",
+		"each recipient gets their own payload")
+}
+
+func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
+	t.Run("no events is a no-op", func(t *testing.T) {
+		channel := testChannel(&fakePushRepo{}, &fakeSender{})
+		require.NoError(t, channel.DeliverBatch(context.Background(), nil))
+	})
+
+	t.Run("without VAPID keys the channel stays inert", func(t *testing.T) {
+		channel := testChannel(&fakePushRepo{}, &fakeSender{})
+		channel.vapid = VAPIDConfig{}
+		require.NoError(t, channel.DeliverBatch(context.Background(), []Event{staffEventFor(11, "x")}))
+	})
+
+	t.Run("a recipient without a device is skipped", func(t *testing.T) {
+		withDevice := testSub(1, 41, "https://fcm.googleapis.com/a")
+		withDevice.AccountID = 11
+		repo := &fakePushRepo{staffAccounts: map[int64][]*iot.PushSubscription{
+			11: {withDevice},
+		}}
+		sender := &fakeSender{}
+		channel := testChannel(repo, sender)
+		db, _ := mockTenantTx(t)
+		channel.db = db
+
+		require.NoError(t, channel.DeliverBatch(context.Background(), []Event{
+			staffEventFor(11, "erreicht"),
+			staffEventFor(12, "kein Gerät"),
+		}))
+
+		require.Eventually(t, func() bool {
+			sender.mu.Lock()
+			defer sender.mu.Unlock()
+			return len(sender.sent) == 1
+		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("nobody has a device", func(t *testing.T) {
+		channel := testChannel(&fakePushRepo{}, &fakeSender{})
+		db, _ := mockTenantTx(t)
+		channel.db = db
+		require.NoError(t, channel.DeliverBatch(context.Background(), []Event{staffEventFor(11, "x")}))
+	})
+
+	t.Run("a failing read is returned", func(t *testing.T) {
+		channel := testChannel(&fakePushRepo{staffAccountsErr: errors.New("boom")}, &fakeSender{})
+		db, _ := mockTenantTx(t)
+		channel.db = db
+		require.Error(t, channel.DeliverBatch(context.Background(), []Event{staffEventFor(11, "x")}))
+	})
+}
+
+// Only staff-scoped events are grouped; the other scopes resolve their devices
+// from the scope alone and go through the single path.
+func TestWebPushDeliverBatchFallsBackForOtherScopes(t *testing.T) {
+	repo := &fakePushRepo{staff: []*iot.PushSubscription{
+		testSub(1, 41, "https://fcm.googleapis.com/tenant"),
+	}}
+	sender := &fakeSender{}
+	channel := testChannel(repo, sender)
+	db, _ := mockTenantTx(t)
+	channel.db = db
+
+	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{{
+		Type:     "test",
+		Audience: Audience{TenantID: 41, Scope: ScopeTenant},
+		Title:    "An alle",
+	}}))
+
+	require.Eventually(t, func() bool {
+		sender.mu.Lock()
+		defer sender.mu.Unlock()
+		return len(sender.sent) == 1
+	}, time.Second, 10*time.Millisecond)
 }

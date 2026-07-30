@@ -146,6 +146,10 @@ vi.mock("lucide-react", () => ({
   BellRing: (props: Record<string, unknown>) => (
     <svg data-testid="bell-ring-icon" {...props} />
   ),
+  // Used by the NotificationPreferencesSection next to it.
+  Bell: (props: Record<string, unknown>) => (
+    <svg data-testid="bell-icon" {...props} />
+  ),
 }));
 
 // Mock Next.js Image component

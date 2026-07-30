@@ -180,6 +180,12 @@ type VisitRepository interface {
 	// flows through TenantTxMiddleware.
 	ListActiveStudentIDsByRoomID(ctx context.Context, roomID int64) ([]int64, error)
 
+	// ListOpenVisitStudentIDsByRoom returns every currently checked-in student
+	// of the tenant grouped by the room they are in. It is the whole-tenant
+	// counterpart of ListActiveStudentIDsByRoomID: one query instead of one per
+	// room, which is what a caller iterating many supervised rooms needs.
+	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
+
 	// CountActiveByGroupID counts currently active visits in a single active group.
 	CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error)
 
@@ -205,6 +211,13 @@ type GroupSupervisorRepository interface {
 
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
+
+	// ListActiveSupervisedRooms returns one (staff_id, room_id) pair per
+	// currently supervised room in the tenant, for every staff member at once.
+	// It answers in a single query what FindActiveByStaffID plus
+	// GetActiveGroupsByIDs answer per staff member, so a caller that needs the
+	// whole tenant does not pay a per-person round trip.
+	ListActiveSupervisedRooms(ctx context.Context) ([]StaffRoomSupervision, error)
 
 	// FindByActiveGroupID finds supervisors for a specific active group
 	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)

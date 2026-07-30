@@ -152,11 +152,17 @@ func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context,
 	return nil
 }
 
-// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
-func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]*iot.PushSubscription, error) {
-	var subs []*iot.PushSubscription
+// staffSubscriptionQuery builds the base query every staff-portal finder shares:
+// staff portal, active account, active tenant mapping, non-guardian role, and
+// the tenant predicate.
+//
+// Extracted so the eligibility rules cannot drift between finders. They are a
+// delivery-time authorization check, not a convenience filter: a subscription
+// must stop receiving pushes the moment the account is deactivated or its
+// mapping to this school ends, and that has to hold for every finder equally.
+func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context, subs *[]*iot.PushSubscription) *bun.SelectQuery {
 	query := base.GetDB(ctx, r.DB).NewSelect().
-		Model(&subs).
+		Model(subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
 		Join(activeAccountJoin).
 		Join(activeAccountTenantJoin).
@@ -164,9 +170,36 @@ func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]
 		Where(`"account".active = ?`, true).
 		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
 		Where(nonGuardianRoleFilter, authModels.BaseRoleGuardian)
-	query = base.WithTenantFilter(ctx, query, "push_subscription")
-	if err := query.Scan(ctx); err != nil {
+
+	return base.WithTenantFilter(ctx, query, "push_subscription")
+}
+
+// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
+func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]*iot.PushSubscription, error) {
+	var subs []*iot.PushSubscription
+	if err := r.staffSubscriptionQuery(ctx, &subs).Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff push subscriptions", Err: err}
+	}
+	return subs, nil
+}
+
+// FindForStaffAccounts returns the staff-portal subscriptions of the given
+// accounts in the current tenant. It is the addressing primitive for personal
+// notifications, where each recipient gets their own payload.
+//
+// The eligibility rules are re-checked here, at delivery time, rather than
+// inherited from whoever assembled the recipient list: that list is built in an
+// earlier transaction, and an account can be deactivated or unmapped from the
+// school in between.
+func (r *PushSubscriptionRepository) FindForStaffAccounts(ctx context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	var subs []*iot.PushSubscription
+	query := r.staffSubscriptionQuery(ctx, &subs).
+		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs))
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find staff account push subscriptions", Err: err}
 	}
 	return subs, nil
 }

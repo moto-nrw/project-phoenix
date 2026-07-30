@@ -169,6 +169,20 @@ const (
 	// abstraction (#1624). When off (the default), Notify(ctx, event) is a
 	// no-op and no channel delivers anything.
 	KeyNotificationsDispatchEnabled = "notifications.dispatch_enabled"
+	// KeyNotificationsActiveWindowStart / End bound the wall-clock window in
+	// which notifications may be delivered at all. Enforced once in the
+	// notification router, so it applies to every producer.
+	KeyNotificationsActiveWindowStart = "notifications.active_window_start"
+	KeyNotificationsActiveWindowEnd   = "notifications.active_window_end"
+	// KeyNotificationsAbsenceReportedEnabled lets a school switch off the
+	// sick/excused notification entirely. This is a data-minimisation decision
+	// about health information, not a matter of personal taste, which is why it
+	// exists on top of the per-person opt-in.
+	KeyNotificationsAbsenceReportedEnabled = "notifications.absence_reported_enabled"
+	// KeyNotificationsOnDutyOnly restricts personal notifications to staff who
+	// are currently checked in. An empty presence map fails closed; schools
+	// without time tracking must disable this setting.
+	KeyNotificationsOnDutyOnly = "notifications.on_duty_only"
 )
 
 // PresenceMode option values for KeyPresenceMode.

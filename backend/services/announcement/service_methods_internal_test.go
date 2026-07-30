@@ -406,9 +406,12 @@ func TestService_Publish_WithEmail(t *testing.T) {
 		publishIfDraft: func(_ context.Context, _ int64, _ time.Time) (bool, error) { return true, nil },
 		listTargetsFn:  func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
 		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipient, error) {
-			return []*usersModels.AnnouncementRecipient{{Email: "a@b.de", FirstName: "Ada", LastName: "L"}}, nil
+			return []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "a@b.de", FirstName: "Ada", LastName: "L"}}, nil
 		},
 		schoolNameFn: func(_ context.Context, _ int64) (string, error) { return "OGS Am Berg", nil },
+		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+			return []*usersModels.AnnouncementRecipientStatus{{AccountID: 101}}, nil
+		},
 	}
 	outbox := &stubOutbox{enqueueFn: func(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
 		enqueued++
@@ -423,6 +426,7 @@ func TestService_Publish_WithEmail(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   stubSettings{newsEnabled: true, loginImageURL: "logo.png"},
+		Notifier:   &fakeNotifier{},
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example",
 	})
@@ -591,8 +595,15 @@ func TestService_Publish_EmailNoOutbox(t *testing.T) {
 		},
 		publishIfDraft: func(_ context.Context, _ int64, _ time.Time) (bool, error) { return true, nil },
 		listTargetsFn:  func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
+		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+			return []*usersModels.AnnouncementRecipientStatus{{AccountID: 101}}, nil
+		},
 	}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: true}})
+	svc := NewService(ServiceConfig{
+		Repo:     repo,
+		Settings: stubSettings{newsEnabled: true},
+		Notifier: &fakeNotifier{},
+	})
 	if _, err := svc.Publish(context.Background(), testAnnID); err != nil {
 		t.Fatalf("Publish without outbox: %v", err)
 	}
@@ -668,9 +679,12 @@ func TestService_Publish_LogoLookupError_StillEnqueues(t *testing.T) {
 		publishIfDraft: func(_ context.Context, _ int64, _ time.Time) (bool, error) { return true, nil },
 		listTargetsFn:  func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
 		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipient, error) {
-			return []*usersModels.AnnouncementRecipient{{Email: "a@b.de"}}, nil
+			return []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "a@b.de"}}, nil
 		},
 		schoolNameFn: func(_ context.Context, _ int64) (string, error) { return "OGS", nil },
+		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+			return []*usersModels.AnnouncementRecipientStatus{{AccountID: 101}}, nil
+		},
 	}
 	outbox := &stubOutbox{enqueueFn: func(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
 		enqueued++
@@ -682,6 +696,7 @@ func TestService_Publish_LogoLookupError_StillEnqueues(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo:     repo,
 		Settings: stubSettings{newsEnabled: true, loginImageErr: errors.New("no logo")},
+		Notifier: &fakeNotifier{},
 		Outbox:   outbox,
 	})
 	if _, err := svc.Publish(context.Background(), testAnnID); err != nil {
@@ -702,12 +717,20 @@ func TestService_Publish_EmptyAudience(t *testing.T) {
 		publishIfDraft:  func(_ context.Context, _ int64, _ time.Time) (bool, error) { return true, nil },
 		listTargetsFn:   func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
 		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipient, error) { return nil, nil },
+		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+			return nil, nil
+		},
 	}
 	outbox := &stubOutbox{enqueueFn: func(_ context.Context, _ platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
 		t.Fatal("must not enqueue for empty audience")
 		return nil, nil
 	}}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: true}, Outbox: outbox})
+	svc := NewService(ServiceConfig{
+		Repo:     repo,
+		Settings: stubSettings{newsEnabled: true},
+		Notifier: &fakeNotifier{},
+		Outbox:   outbox,
+	})
 	if _, err := svc.Publish(context.Background(), testAnnID); err != nil {
 		t.Fatalf("Publish empty audience: %v", err)
 	}

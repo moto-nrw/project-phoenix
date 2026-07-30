@@ -204,6 +204,72 @@ func (s *settingsService) ResolveBool(ctx context.Context, key string) (bool, er
 	return b, nil
 }
 
+// ResolveBools resolves multiple boolean settings while loading all tenant
+// overrides in one query. Registry defaults are filled first, then explicit
+// tenant values replace them.
+func (s *settingsService) ResolveBools(ctx context.Context, keys []string) (map[string]bool, error) {
+	resolved := make(map[string]bool, len(keys))
+	uniqueKeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if _, seen := resolved[key]; seen {
+			continue
+		}
+		def := config.GetDefinition(key)
+		if def == nil {
+			return nil, &SettingsError{
+				Op:  "resolve_bools",
+				Err: &DefinitionNotFoundError{Key: key},
+			}
+		}
+		value, ok := def.Default.(bool)
+		if !ok {
+			return nil, &SettingsError{
+				Op:  "resolve_bools",
+				Err: fmt.Errorf("expected bool default for %s, got %T", key, def.Default),
+			}
+		}
+		resolved[key] = value
+		uniqueKeys = append(uniqueKeys, key)
+	}
+	if len(uniqueKeys) == 0 {
+		return resolved, nil
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return resolved, nil
+	}
+	stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, uniqueKeys)
+	if err != nil {
+		return nil, &SettingsError{Op: "resolve_bools", Err: err}
+	}
+	for _, sv := range stored {
+		if _, requested := resolved[sv.SettingKey]; !requested {
+			continue
+		}
+		var value any
+		if err := json.Unmarshal(sv.Value, &value); err != nil {
+			return nil, &SettingsError{
+				Op:  "resolve_bools",
+				Err: fmt.Errorf("unmarshal value for %s: %w", sv.SettingKey, err),
+			}
+		}
+		if value == nil {
+			resolved[sv.SettingKey] = false
+			continue
+		}
+		boolean, ok := value.(bool)
+		if !ok {
+			return nil, &SettingsError{
+				Op:  "resolve_bools",
+				Err: fmt.Errorf("expected bool for %s, got %T", sv.SettingKey, value),
+			}
+		}
+		resolved[sv.SettingKey] = boolean
+	}
+	return resolved, nil
+}
+
 // ResolveInt resolves a setting as an int.
 func (s *settingsService) ResolveInt(ctx context.Context, key string) (int, error) {
 	val, err := s.Resolve(ctx, key)
