@@ -1694,7 +1694,7 @@ describe("Sidebar", () => {
       } as unknown as ReturnType<typeof useSWR>);
     });
 
-    it("keeps only Kalenderzeiträume when timetable.enabled is false", () => {
+    it("keeps Kalenderzeiträume and Abrechnung when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -1720,8 +1720,7 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
-      // Abrechnung hängt seit dem Umzug in den Bereich am selben Gate.
-      expect(screen.queryByText("Abrechnung")).not.toBeInTheDocument();
+      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });
 
     it("reads the settings schema from the tenant-scoped SWR key", () => {

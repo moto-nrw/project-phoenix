@@ -626,6 +626,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (
       isPlanningPageHref(item.href) &&
       item.href !== "/calendar-periods" &&
+      item.href !== "/payroll" &&
       !timetableEnabled &&
       (userIsAdmin || item.requiresPermission === undefined)
     ) {

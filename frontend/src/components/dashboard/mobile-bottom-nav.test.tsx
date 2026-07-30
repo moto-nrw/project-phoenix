@@ -1129,7 +1129,7 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/ogs-groups");
     });
 
-    it("keeps calendar periods reachable when timetable.enabled is false", () => {
+    it("keeps calendar periods and payroll reachable when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -1153,6 +1153,7 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
+      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
       // Gruppenzugriff bleibt sichtbar (fixed_groups default).
       expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
     });

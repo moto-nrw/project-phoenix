@@ -458,9 +458,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const timetableEnabled =
     getSettingValue(settingsSchema, "timetable.enabled") !== false;
 
-  // Kalenderzeiträume bleiben auch bei abgeschaltetem Planungsbereich
-  // erreichbar: die Anmeldephasen (Anmeldungen-Akkordeon) verknüpfen sich mit
-  // Kalenderzeiträumen, unabhängig von timetable.enabled.
+  // Kalenderzeiträume und Abrechnung bleiben auch bei abgeschaltetem
+  // Planungsbereich erreichbar: Anmeldephasen verknüpfen sich mit
+  // Kalenderzeiträumen; Abrechnung ist unabhängig davon über config:manage
+  // geschützt.
   const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
     if (!userIsAdmin) {
       return (
@@ -468,7 +469,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
         hasPermission(session, page.nonAdminPermission)
       );
     }
-    return timetableEnabled || page.href === "/calendar-periods";
+    return (
+      timetableEnabled ||
+      page.href === "/calendar-periods" ||
+      page.href === "/payroll"
+    );
   });
 
   // Gruppenzugriff (#1940): temporäre Gruppen-Datenzugriffe sind nur bei
@@ -1368,7 +1373,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               Vertretung und Kalenderzeiträume für Admins. Berechtigte
               Nicht-Admins behalten Abrechnung als einzigen Unterpunkt. Bei
               explizit ausgeschaltetem timetable.enabled bleiben für Admins
-              nur die Kalenderzeiträume übrig (Anmeldephasen hängen daran). */}
+              Kalenderzeiträume und Abrechnung übrig. */}
           {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
