@@ -56,7 +56,7 @@ import { VertretungWeekList } from "~/components/timetable/vertretung-week-list"
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { useToast } from "~/contexts/ToastContext";
-import { hasPermission } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   berlinTodayISO,
   isValidISODate,
@@ -123,10 +123,12 @@ function VertretungContent() {
   const canManageSchedules = hasPermission(session, "schedules:manage");
   // Der Dienstplan-Hinweis über der Liste liest die Dienstplan-Übersicht. Deren
   // Endpunkt verlangt mehr Rechte als die Vertretung selbst
-  // (time_tracking:manage + schedules:read + users:read, siehe
-  // use-dienstplan-data.ts) — ohne sie entfällt der Hinweis still, statt einen
-  // 403 zu erzeugen.
+  // (Administrator + time_tracking:manage + schedules:read + users:read,
+  // siehe use-dienstplan-data.ts). Der Dienstplan leitet Nicht-Admins nach
+  // /staff um; ohne alle Voraussetzungen entfällt der Hinweis daher still,
+  // statt einen 403 oder einen toten Link zu erzeugen.
   const canReadCoverage =
+    isAdmin(session) &&
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "users:read");
@@ -412,14 +414,14 @@ function VertretungContent() {
   // bleiben still, genau wie bei den Lücken; eine Woche ohne gepflegten
   // Dienstplan liefert dienstplanInUse = false und damit gar nichts.
   const uncoveredCount = useMemo(() => {
-    if (!coverageData?.dienstplanInUse) return 0;
+    if (coverageError || !coverageData?.dienstplanInUse) return 0;
     const inScope = (date: string) =>
       date >= today && (isWeekView ? weekDayISOSet.has(date) : date === dayISO);
     return coverageData.assignments.filter(
       (assignment) =>
         assignment.coverageStatus === "uncovered" && inScope(assignment.date),
     ).length;
-  }, [coverageData, dayISO, isWeekView, today, weekDayISOSet]);
+  }, [coverageData, coverageError, dayISO, isWeekView, today, weekDayISOSet]);
   // Der Dienstplan versteht dasselbe `d` wie diese Ansicht; in der
   // Wochenansicht landet man auf dem Montag der gezeigten Woche.
   const dienstplanHref = tenantPath(

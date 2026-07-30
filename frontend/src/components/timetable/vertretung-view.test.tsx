@@ -811,6 +811,7 @@ describe("VertretungView", () => {
         status: "authenticated",
         data: {
           user: {
+            roles: ["admin"],
             permissions: [
               "schedules:manage",
               "schedules:read",
@@ -892,6 +893,33 @@ describe("VertretungView", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("bleibt still für Nicht-Administratoren mit den Rechten der Dienstplan-Übersicht", () => {
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+      });
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: {
+            permissions: [
+              "schedules:manage",
+              "schedules:read",
+              "time_tracking:manage",
+              "users:read",
+            ],
+          },
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
     it("bleibt still, solange kein Dienstplan gepflegt ist", () => {
       authenticateWithOverviewAccess();
       setupSWR({
@@ -899,6 +927,22 @@ describe("VertretungView", () => {
           dienstplanInUse: false,
           assignments: [coverageAssignment()],
         },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("bleibt still, wenn die Dienstplan-Abfrage fehlschlägt", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+        coverageError: new Error("Netzwerkfehler"),
       });
       render(<VertretungView />);
 
