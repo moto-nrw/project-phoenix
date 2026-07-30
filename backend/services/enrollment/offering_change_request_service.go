@@ -323,37 +323,46 @@ func (s *offeringChangeRequestService) changesEnabled(ctx context.Context) error
 	return nil
 }
 
-// carePeriod resolves the approved enrollment a change would be applied to:
-// the period covering today, else the next upcoming one.
-func (s *offeringChangeRequestService) carePeriod(
+// carePeriodAt resolves the approved enrollment that covers onDate. A request
+// may have to take effect in the next approved period when the notice period
+// crosses a care-period boundary.
+func (s *offeringChangeRequestService) carePeriodAt(
 	ctx context.Context,
 	studentID int64,
+	onDate timezone.Date,
 ) (*enrollmentModels.StudentCarePeriod, *enrollmentModels.Phase, error) {
 	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list care periods: %w", err)
 	}
-	today := timezone.TodayDate()
-	var upcoming *enrollmentModels.StudentCarePeriod
 	for _, candidate := range periods {
-		if !candidate.ServiceStartDate.After(today) && !candidate.ServiceEndDate.Before(today) {
-			upcoming = candidate
-			break
-		}
-		if candidate.ServiceStartDate.After(today) {
-			// Repository order is latest first, so keep overwriting to end up
-			// with the nearest upcoming period when none covers today.
-			upcoming = candidate
+		if !candidate.ServiceStartDate.After(onDate) && !candidate.ServiceEndDate.Before(onDate) {
+			phase, phaseErr := s.PhaseRepo.FindByID(ctx, candidate.PhaseID)
+			if phaseErr != nil || phase == nil {
+				return nil, nil, fmt.Errorf("offering change: load phase: %w", phaseErr)
+			}
+			return candidate, phase, nil
 		}
 	}
-	if upcoming == nil {
-		return nil, nil, ErrOfferingChangeNoEnrollment
+	return nil, nil, ErrOfferingChangeNoEnrollment
+}
+
+func (s *offeringChangeRequestService) carePeriodForEarliestEffectiveDate(
+	ctx context.Context,
+	studentID int64,
+) (*enrollmentModels.StudentCarePeriod, *enrollmentModels.Phase, timezone.Date, error) {
+	earliest, err := s.EarliestEffectiveFrom(ctx)
+	if err != nil {
+		return nil, nil, timezone.Date{}, err
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, upcoming.PhaseID)
-	if err != nil || phase == nil {
-		return nil, nil, fmt.Errorf("offering change: load phase: %w", err)
+	period, phase, err := s.carePeriodAt(ctx, studentID, earliest)
+	if err != nil {
+		return nil, nil, timezone.Date{}, err
 	}
-	return upcoming, phase, nil
+	if earliest.Before(phase.ServiceStartDate) {
+		earliest = phase.ServiceStartDate
+	}
+	return period, phase, earliest, nil
 }
 
 func (s *offeringChangeRequestService) Catalog(
@@ -363,16 +372,9 @@ func (s *offeringChangeRequestService) Catalog(
 	if err := s.changesEnabled(ctx); err != nil {
 		return nil, err
 	}
-	period, phase, err := s.carePeriod(ctx, studentID)
+	period, phase, earliest, err := s.carePeriodForEarliestEffectiveDate(ctx, studentID)
 	if err != nil {
 		return nil, err
-	}
-	earliest, err := s.EarliestEffectiveFrom(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if earliest.Before(phase.ServiceStartDate) {
-		earliest = phase.ServiceStartDate
 	}
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
@@ -606,16 +608,16 @@ func (s *offeringChangeRequestService) Create(
 	if utf8.RuneCountInString(note) > offeringChangeMaxNoteLen {
 		return nil, fmt.Errorf("%w: note is too long", ErrOfferingChangeInvalid)
 	}
-	period, phase, err := s.carePeriod(ctx, input.StudentID)
-	if err != nil {
-		return nil, err
-	}
 	earliest, err := s.EarliestEffectiveFrom(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if input.EffectiveFrom.Before(earliest) {
 		return nil, fmt.Errorf("%w: effective date is earlier than the school's notice period", ErrOfferingChangeInvalid)
+	}
+	period, phase, err := s.carePeriodAt(ctx, input.StudentID, input.EffectiveFrom)
+	if err != nil {
+		return nil, err
 	}
 	if input.EffectiveFrom.Before(phase.ServiceStartDate) {
 		return nil, fmt.Errorf("%w: effective date is before the care period starts", ErrOfferingChangeInvalid)
@@ -1021,29 +1023,19 @@ func (s *offeringChangeRequestService) validateSelections(
 		return nil, fmt.Errorf("offering change: load request child: %w", err)
 	}
 	submit.TargetGradeLevel = child.TargetGradeLevel
-	materialized, err := materializeAndValidateChildrenOfferingSelections(
+	_, err = materializeAndValidateChildrenOfferingSelections(
 		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
 	}
-	normalized = offeringChangeSelectionsFromMaterialized(materialized[0])
+	// Keep the guardian's explicit selection in the request payload. The
+	// materializer adds dependent offerings for validation and capacity, but
+	// storing those additions would turn them into manual bookings on approval.
 	sort.SliceStable(normalized, func(i, j int) bool {
 		return normalized[i].OfferingID < normalized[j].OfferingID
 	})
 	return normalized, nil
-}
-
-func offeringChangeSelectionsFromMaterialized(rows []materializedOfferingSelection) []OfferingChangeSelection {
-	out := make([]OfferingChangeSelection, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, OfferingChangeSelection{
-			OfferingID:   row.OfferingID,
-			SelectedDays: append([]string(nil), row.SelectedDays...),
-		})
-	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].OfferingID < out[j].OfferingID })
-	return out
 }
 
 func offeringsByID(offerings []*enrollmentModels.CareOffering) map[int64]*enrollmentModels.CareOffering {

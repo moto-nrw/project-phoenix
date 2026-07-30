@@ -168,6 +168,8 @@ func (s *service) loadChildCareOfferings(
 		selectionDate := today
 		if period.ServiceStartDate.After(today) {
 			selectionDate = period.ServiceStartDate
+		} else if period.ServiceEndDate.Before(today) {
+			selectionDate = period.ServiceEndDate
 		}
 		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, selectionDate)
 		if err != nil {

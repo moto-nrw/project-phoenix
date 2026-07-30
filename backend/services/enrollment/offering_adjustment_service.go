@@ -593,7 +593,7 @@ func (s *decisionService) splitAdjustedEnrollments(
 		return fmt.Errorf("decision: list enrollments for dated adjustment: %w", err)
 	}
 	for _, row := range existing {
-		if err := s.reconcileAdjustedEnrollment(ctx, row, requestChildID, effectiveFrom, drafts); err != nil {
+		if err := s.reconcileAdjustedEnrollment(ctx, row, requestChildID, phase, effectiveFrom, drafts); err != nil {
 			return err
 		}
 	}
@@ -604,6 +604,7 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 	ctx context.Context,
 	row *activities.StudentEnrollment,
 	requestChildID int64,
+	phase *enrollmentModels.Phase,
 	effectiveFrom timezone.Date,
 	drafts map[int64]*careEnrollmentDraft,
 ) error {
@@ -617,6 +618,12 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 		!row.ValidFrom.After(effectiveFrom) &&
 		(row.ValidUntil == nil || row.ValidUntil.After(effectiveFrom)) &&
 		careDraftMatchesEnrollment(draft, row) {
+		phaseEndExclusive := phase.ServiceEndDate.AddDays(1)
+		if row.ValidUntil != nil && row.ValidUntil.Before(phaseEndExclusive) {
+			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, phaseEndExclusive); err != nil {
+				return fmt.Errorf("decision: extend retained adjusted enrollment: %w", err)
+			}
+		}
 		delete(drafts, row.ActivityGroupID)
 		return nil
 	}

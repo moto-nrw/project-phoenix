@@ -55,6 +55,22 @@ type childOfferingRepoStub struct {
 	err   error
 }
 
+type recordingChildOfferingRepoStub struct {
+	enrollmentModels.RequestChildOfferingRepository
+	links []*enrollmentModels.RequestChildOffering
+	dates []timezone.Date
+	err   error
+}
+
+func (s *recordingChildOfferingRepoStub) ListByRequestChildIDAtDate(
+	_ context.Context,
+	_ int64,
+	onDate timezone.Date,
+) ([]*enrollmentModels.RequestChildOffering, error) {
+	s.dates = append(s.dates, onDate)
+	return s.links, s.err
+}
+
 func (s childOfferingRepoStub) ListByRequestChildID(
 	_ context.Context,
 	_ int64,
@@ -348,6 +364,26 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 	assert.NotNil(t, view.Groups)
 	assert.False(t, view.CanRequest)
 	assert.Equal(t, OfferingChangesReasonNoEnrollment, view.ChangesDisabledReason)
+}
+
+func TestLoadChildCareOfferingsReadsEndedPeriodAtItsEndDate(t *testing.T) {
+	today := timezone.TodayDate()
+	period := &enrollmentModels.StudentCarePeriod{
+		RequestChildID:   101,
+		ServiceStartDate: today.AddDays(-20),
+		ServiceEndDate:   today.AddDays(-1),
+	}
+	links := &recordingChildOfferingRepoStub{}
+	svc := &service{ServiceConfig: ServiceConfig{
+		RequestChildRepo:         carePeriodRepoStub{periods: []*enrollmentModels.StudentCarePeriod{period}},
+		RequestChildOfferingRepo: links,
+		CareOfferingRepo:         careOfferingRepoStub{},
+	}}
+	view := &ChildCareOfferings{Offerings: []CareOfferingSelection{}, Groups: []CareGroupMembership{}}
+
+	_, err := svc.loadChildCareOfferings(context.Background(), 22, today, view)
+	require.NoError(t, err)
+	require.Equal(t, []timezone.Date{period.ServiceEndDate}, links.dates)
 }
 
 func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {

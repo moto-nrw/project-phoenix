@@ -229,6 +229,69 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(
 	assert.Equal(t, switchDate, addedRow.ValidFrom)
 }
 
+func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOfferingPastSupersededSwitch(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	keptGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedKeptGroup")
+	firstAddedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedFirstGroup")
+	secondAddedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedSecondGroup")
+	defer testpkg.CleanupActivityFixtures(t, env.db,
+		keptGroup.ID, keptGroup.CategoryID, *keptGroup.CreatedBy,
+		firstAddedGroup.ID, firstAddedGroup.CategoryID, *firstAddedGroup.CreatedBy,
+		secondAddedGroup.ID, secondAddedGroup.CategoryID, *secondAddedGroup.CreatedBy,
+	)
+	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt durchgehend", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &keptGroup.ID
+		o.SortOrder = 114
+	})
+	firstAddedOffering := createAdjustmentCareOfferingWith(t, env, "Erste Planung", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &firstAddedGroup.ID
+		o.SortOrder = 115
+	})
+	secondAddedOffering := createAdjustmentCareOfferingWith(t, env, "Neue Planung", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &secondAddedGroup.ID
+		o.SortOrder = 116
+	})
+
+	requestID, childID, studentID := submitApprovedAdjustmentChild(
+		t, env, "dated-extend@example.com", "DatedExtend",
+		[]*enrollmentModels.CareOffering{keptOffering},
+	)
+	firstSwitch := env.sourcePhase.ServiceStartDate.AddDays(150)
+	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
+		Reason: "Erste geplante Änderung", EffectiveFrom: &firstSwitch,
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: keptOffering.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: firstAddedOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	secondSwitch := env.sourcePhase.ServiceStartDate.AddDays(80)
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
+		Reason: "Erste Planung ersetzt", EffectiveFrom: &secondSwitch,
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: keptOffering.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: secondAddedOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	rows := rowsByGroupForAdjustmentTest(listStudentEnrollmentRowsForDecisionTest(t, env, studentID))
+	kept, ok := rows[keptGroup.ID]
+	require.True(t, ok)
+	require.NotNil(t, kept.ValidUntil)
+	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *kept.ValidUntil,
+		"the retained offering must not end at the superseded switch date")
+	_, firstStillPlanned := rows[firstAddedGroup.ID]
+	assert.False(t, firstStillPlanned)
+	assert.Equal(t, secondSwitch, rows[secondAddedGroup.ID].ValidFrom)
+}
+
 func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUnstartedRow(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

@@ -139,6 +139,43 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 	assert.Contains(t, labels, fx.newOffering.Name, "added offering must appear in the diff")
 }
 
+func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "PayloadAuto")
+	automatic := createAdjustmentCareOfferingWith(t, env, "Automatisch PayloadAuto", func(o *enrollmentModels.CareOffering) {
+		o.AutoAddTriggerOfferingIDs = []int64{fx.newOffering.ID}
+		o.SortOrder = 203
+	})
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{{
+			OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"},
+		}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	offerings, ok := row.Payload["offerings"].([]any)
+	require.True(t, ok)
+	require.Len(t, offerings, 1, "the payload must record only the guardian's explicit choice")
+
+	automatic.AutoAddTriggerOfferingIDs = nil
+	require.NoError(t, env.repos.CareOffering.Update(ctx, automatic))
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: row.ID, ReviewedBy: env.creatorID, Approve: true,
+	}))
+	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	require.NoError(t, err)
+	for _, link := range links {
+		assert.NotEqual(t, automatic.ID, link.CareOfferingID,
+			"an offering whose automatic trigger was removed must not become a manual booking")
+	}
+}
+
 func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
