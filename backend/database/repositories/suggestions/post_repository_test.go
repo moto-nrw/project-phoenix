@@ -324,6 +324,90 @@ func TestPostRepository_List(t *testing.T) {
 	})
 }
 
+// TestPostRepository_ListOperatorAuthorJoinIsScoped pins the operator listing
+// against duplicated posts. The operator reads through phoenix_admin, which
+// bypasses RLS, so an unscoped author join matches every users.persons row the
+// author's account owns — one per school, plus retained soft-deleted records —
+// and returns the post once per match. users.persons is unique on
+// (tenant_id, account_id) only for live rows, so both shapes are reachable.
+func TestPostRepository_ListOperatorAuthorJoinIsScoped(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoSuggestions.NewPostRepository(db)
+
+	const otherTenantID int64 = 99678
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "suggestions-operator-join")
+	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+
+	// The author's person record in the post's own tenant — the only one the
+	// operator board may resolve the display name from.
+	homePerson := testpkg.CreateTestPersonForTenant(t, db, 1, "Operator", "Home")
+	// The same human at a second school, and a soft-deleted leftover in the
+	// post's own tenant. Both used to multiply the post.
+	otherPerson := testpkg.CreateTestPersonForTenant(t, db, otherTenantID, "Operator", "Elsewhere")
+	removedPerson := testpkg.CreateTestPersonForTenant(t, db, 1, "Operator", "Removed")
+	defer testpkg.CleanupTableRecords(t, db, "users.persons",
+		homePerson.ID, otherPerson.ID, removedPerson.ID)
+
+	ctx := context.Background()
+
+	// Soft-delete first: the partial unique index forbids two live person rows
+	// for the same account within one tenant.
+	_, err := db.NewUpdate().
+		TableExpr("users.persons").
+		Set("deleted_at = ?", time.Now()).
+		Where("id = ?", removedPerson.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = db.NewUpdate().
+		TableExpr("users.persons").
+		Set("account_id = ?", account.ID).
+		Where("id IN (?)", bun.List([]int64{homePerson.ID, otherPerson.ID, removedPerson.ID})).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	ts := time.Now().UnixNano()
+	staffPost := testpkg.CreateTestPost(t, db, account.ID,
+		fmt.Sprintf("Operator Join Staff %d", ts), "Staff description")
+	parentPost := testpkg.CreateTestPost(t, db, account.ID,
+		fmt.Sprintf("Operator Join Parent %d", ts), "Parent description")
+	defer cleanupPosts(t, db, staffPost.ID, parentPost.ID)
+
+	_, err = db.NewUpdate().
+		TableExpr("suggestions.posts").
+		Set("author_type = ?", suggestions.PostAuthorParent).
+		Where("id = ?", parentPost.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Operator context carries no tenant, so no tenant filter narrows the join.
+	posts, err := repo.List(ctx, account.ID, suggestions.ReaderTypeOperator, "newest", "")
+	require.NoError(t, err)
+
+	matches := func(id int64) []*suggestions.Post {
+		var found []*suggestions.Post
+		for _, p := range posts {
+			if p.ID == id {
+				found = append(found, p)
+			}
+		}
+		return found
+	}
+
+	staffMatches := matches(staffPost.ID)
+	require.Len(t, staffMatches, 1, "staff post must appear exactly once for the operator")
+	assert.Equal(t, "Operator H.", staffMatches[0].AuthorName,
+		"name must resolve from the person record in the post's own tenant")
+
+	parentMatches := matches(parentPost.ID)
+	require.Len(t, parentMatches, 1, "parent post must appear exactly once for the operator")
+	assert.Equal(t, "Elternteil", parentMatches[0].AuthorName)
+}
+
 func TestPostRepository_FindByIDWithVote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	modelSuggestions "github.com/moto-nrw/project-phoenix/models/suggestions"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,4 +81,33 @@ func TestNotifyNewComment_NoRecipientsDoesNothing(t *testing.T) {
 			&modelSuggestions.Comment{Content: "Test comment", AuthorName: "Alice"},
 		)
 	})
+}
+
+// The actor mappers are the whole seam between the two boards: every read, write
+// and read-marker in this service picks its namespace from them, so a wrong
+// default would mix a school's suggestions with the parents' feedback.
+func TestActorMappers_DefaultToStaffBoard(t *testing.T) {
+	ctx := context.Background()
+
+	assert.Equal(t, modelSuggestions.ReaderTypeUser, readerTypeFor(ctx))
+	assert.Equal(t, modelSuggestions.PostAuthorStaff, postAuthorTypeFor(ctx))
+	assert.Equal(t, modelSuggestions.AuthorTypeUser, commentAuthorTypeFor(ctx))
+}
+
+func TestActorMappers_ParentContextUsesParentBoard(t *testing.T) {
+	ctx := tenant.WithActor(context.Background(), tenant.ActorParent)
+
+	assert.Equal(t, modelSuggestions.ReaderTypeParent, readerTypeFor(ctx))
+	assert.Equal(t, modelSuggestions.PostAuthorParent, postAuthorTypeFor(ctx))
+	assert.Equal(t, modelSuggestions.AuthorTypeParent, commentAuthorTypeFor(ctx))
+}
+
+// The product team reads both boards in one inbox, so the notification subject
+// has to say which one an entry came from.
+func TestNewPostSubjectPrefix(t *testing.T) {
+	assert.Equal(t, "Neues Eltern-Feedback",
+		newPostSubjectPrefix(&modelSuggestions.Post{AuthorType: modelSuggestions.PostAuthorParent}))
+	assert.Equal(t, "Neuer Vorschlag",
+		newPostSubjectPrefix(&modelSuggestions.Post{AuthorType: modelSuggestions.PostAuthorStaff}))
+	assert.Equal(t, "Neuer Vorschlag", newPostSubjectPrefix(&modelSuggestions.Post{}))
 }

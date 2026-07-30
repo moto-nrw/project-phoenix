@@ -154,6 +154,7 @@ function getMainRouteTitle(pathname: string): string {
     "/parents/messages": "Nachrichten",
     "/parents/news": "Neuigkeiten",
     "/parents/meal-plan": "Essensplan",
+    "/parents/feedback": "Feedback",
   };
 
   return mainRoutes[pathname] ?? "Home";
