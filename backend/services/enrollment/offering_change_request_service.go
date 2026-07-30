@@ -21,6 +21,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -87,6 +89,9 @@ type OfferingChangeCatalogItem struct {
 	// Selected marks the child's current booking, so the modal opens prefilled.
 	Selected     bool
 	SelectedDays []string
+	// IsActive is false only for a held offering that was removed from the
+	// catalog. It remains visible to preserve the existing booking.
+	IsActive bool
 	// Capacity is nil for unlimited; FreeSlots is nil then too. FreeSlots can be
 	// zero for an offering the child already holds — losing the slot by editing
 	// an unrelated day would be a nasty surprise, so the frontend shows "voll"
@@ -220,6 +225,7 @@ type OfferingChangeRequestServiceConfig struct {
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	StudentRepo              usersModels.StudentRepository
 	PersonRepo               usersModels.PersonRepository
+	UserContext              authorize.StudentModifyUserContext
 	// Applier performs the dated adjustment on approval. It is the decision
 	// service, reached through the same narrow interface the change-request
 	// service uses.
@@ -367,15 +373,20 @@ func (s *offeringChangeRequestService) Catalog(
 			currentByID[link.CareOfferingID] = link
 		}
 	}
+	activeByID := offeringsByID(active)
+	allowed := offeringsByID(active)
+	if err := s.addHeldOfferings(ctx, period.RequestChildID, allowed); err != nil {
+		return nil, err
+	}
 	catalog := &OfferingChangeCatalog{
 		PhaseID:               phase.ID,
 		PhaseName:             phase.Name,
 		SelectionMode:         phase.CareOfferingSelectionMode,
 		EarliestEffectiveFrom: earliest,
 		LatestEffectiveFrom:   phase.ServiceEndDate,
-		Items:                 make([]OfferingChangeCatalogItem, 0, len(active)),
+		Items:                 make([]OfferingChangeCatalogItem, 0, len(allowed)),
 	}
-	for _, offering := range active {
+	for _, offering := range allowed {
 		if offering == nil {
 			continue
 		}
@@ -383,6 +394,7 @@ func (s *offeringChangeRequestService) Catalog(
 		if itemErr != nil {
 			return nil, itemErr
 		}
+		item.IsActive = activeByID[offering.ID] != nil
 		catalog.Items = append(catalog.Items, item)
 	}
 	sort.SliceStable(catalog.Items, func(i, j int) bool {
@@ -668,8 +680,23 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list pending: %w", err)
 	}
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			studentIDs = append(studentIDs, row.StudentID)
+		}
+	}
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: load students: %w", err)
+	}
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
 	views := make([]*OfferingChangeView, 0, len(rows))
 	for _, row := range rows {
+		student := students[row.StudentID]
+		if !writable(student) || student.IsAlumnus() {
+			continue
+		}
 		view := &OfferingChangeView{Request: row, StudentName: s.studentName(ctx, row.StudentID)}
 		if diff, diffErr := s.diffForRequest(ctx, row); diffErr == nil {
 			view.Diff = diff
@@ -703,6 +730,16 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	}
 	if row.IsTerminal() {
 		return enrollmentModels.ErrOfferingChangeNotPending
+	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, row.StudentID)
+	if err != nil {
+		return fmt.Errorf("offering change: load student for decision: %w", err)
+	}
+	if student.IsAlumnus() {
+		return enrollmentModels.ErrOfferingChangeNotFound
+	}
+	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
+		return ErrOfferingChangeForbidden
 	}
 	if !input.Approve {
 		if err := s.ChangeRepo.Decide(
@@ -761,9 +798,6 @@ func (s *offeringChangeRequestService) applyApproved(
 	if _, err := s.validateSelections(ctx, phase, row.RequestChildID, selections); err != nil {
 		return err
 	}
-	if err := s.assertCapacityAvailable(ctx, row.RequestChildID, selections); err != nil {
-		return err
-	}
 	effectiveFrom := row.EffectiveFrom
 	// A request whose date has passed while it waited applies as soon as
 	// possible instead of being refused: the family asked for a change, the
@@ -775,6 +809,15 @@ func (s *offeringChangeRequestService) applyApproved(
 	if effectiveFrom.After(phase.ServiceEndDate) {
 		return fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
 	}
+	if err := s.assertCapacityAvailable(ctx, row.RequestChildID, selections); err != nil {
+		return err
+	}
+	// The stored date is also what guardians and the audit trail show. When a
+	// delayed decision is applied today, do not leave it reporting a past date.
+	if err := s.ChangeRepo.UpdateEffectiveFrom(ctx, row.ID, effectiveFrom); err != nil {
+		return fmt.Errorf("offering change: update applied effective date: %w", err)
+	}
+	row.EffectiveFrom = effectiveFrom
 	adjustment := UpdateChildOfferingsInput{
 		RequestID:      request.ID,
 		ChildID:        row.RequestChildID,
@@ -804,12 +847,33 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	held := heldOfferingIDs(current)
+	needed := make([]int64, 0, len(selections))
 	for _, selection := range selections {
 		if held[selection.OfferingID] {
 			continue
 		}
-		if err := s.assertOfferingCapacity(ctx, selection.OfferingID); err != nil {
-			return err
+		needed = append(needed, selection.OfferingID)
+	}
+	sort.Slice(needed, func(i, j int) bool { return needed[i] < needed[j] })
+	locked, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, needed)
+	if err != nil {
+		return fmt.Errorf("offering change: lock offering capacity: %w", err)
+	}
+	lockedByID := offeringsByID(locked)
+	for _, offeringID := range needed {
+		offering := lockedByID[offeringID]
+		if offering == nil {
+			return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, offeringID)
+		}
+		if offering.Capacity == nil {
+			continue
+		}
+		taken, countErr := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
+		if countErr != nil {
+			return fmt.Errorf("offering change: count offering occupancy: %w", countErr)
+		}
+		if taken >= *offering.Capacity {
+			return fmt.Errorf("%w: %s", ErrOfferingChangeCapacityFull, offering.Name)
 		}
 	}
 	return nil
@@ -823,24 +887,6 @@ func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]b
 		}
 	}
 	return held
-}
-
-func (s *offeringChangeRequestService) assertOfferingCapacity(ctx context.Context, offeringID int64) error {
-	offering, err := s.CareOfferingRepo.FindByID(ctx, offeringID)
-	if err != nil || offering == nil {
-		return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, offeringID)
-	}
-	if offering.Capacity == nil {
-		return nil
-	}
-	taken, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
-	if err != nil {
-		return fmt.Errorf("offering change: count offering occupancy: %w", err)
-	}
-	if taken >= *offering.Capacity {
-		return fmt.Errorf("%w: %s", ErrOfferingChangeCapacityFull, offering.Name)
-	}
-	return nil
 }
 
 // validateSelections checks the desired selection against the phase catalog and

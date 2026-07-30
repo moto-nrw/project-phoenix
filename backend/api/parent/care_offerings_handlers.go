@@ -236,6 +236,7 @@ type OfferingCatalogItemResponse struct {
 	IncludesHoliday bool     `json:"includes_holiday_care"`
 	Selected        bool     `json:"selected"`
 	SelectedDays    []string `json:"selected_days"`
+	IsActive        bool     `json:"is_active"`
 	Capacity        *int     `json:"capacity,omitempty"`
 	FreeSlots       *int     `json:"free_slots,omitempty"`
 }
@@ -380,6 +381,7 @@ func toOfferingCatalogResponse(catalog *enrollmentService.OfferingChangeCatalog)
 			IncludesHoliday: item.IncludesHoliday,
 			Selected:        item.Selected,
 			SelectedDays:    stringsOrEmpty(item.SelectedDays),
+			IsActive:        item.IsActive,
 			Capacity:        item.Capacity,
 			FreeSlots:       item.FreeSlots,
 		})

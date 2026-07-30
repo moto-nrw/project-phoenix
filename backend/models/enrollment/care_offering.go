@@ -335,6 +335,9 @@ func (c *CareOffering) HasUnlimitedCapacity() bool {
 type CareOfferingRepository interface {
 	Create(ctx context.Context, offering *CareOffering) error
 	FindByID(ctx context.Context, id int64) (*CareOffering, error)
+	// ListByIDsForUpdate locks the referenced offerings in ascending id order.
+	// Capacity checks use this to serialize competing approvals.
+	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*CareOffering, error)
 	Update(ctx context.Context, offering *CareOffering) error
 	Delete(ctx context.Context, id int64) error
 	ReplaceAutoAddTriggers(ctx context.Context, targetOfferingID int64, triggerOfferingIDs []int64) error

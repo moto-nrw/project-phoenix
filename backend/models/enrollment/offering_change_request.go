@@ -98,6 +98,10 @@ type OfferingChangeRequestRepository interface {
 	// stays reported as not-found).
 	FindByIDForUpdate(ctx context.Context, id int64) (*OfferingChangeRequest, error)
 
+	// UpdateEffectiveFrom records the date an approved request was actually
+	// applied on when a delayed review moves it forward to today.
+	UpdateEffectiveFrom(ctx context.Context, id int64, effectiveFrom timezone.Date) error
+
 	// Decide moves a pending row to a terminal status, guarding the transition
 	// in SQL so two reviewers cannot both decide it. Returns
 	// ErrOfferingChangeNotPending when the row was no longer pending. Guardian

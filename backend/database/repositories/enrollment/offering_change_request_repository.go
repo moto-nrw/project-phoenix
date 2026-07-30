@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/uptrace/bun"
@@ -123,6 +124,29 @@ func (r *OfferingChangeRequestRepository) FindByIDForUpdate(
 		return nil, &modelBase.DatabaseError{Op: "find offering change request for update", Err: err}
 	}
 	return row, nil
+}
+
+func (r *OfferingChangeRequestRepository) UpdateEffectiveFrom(
+	ctx context.Context,
+	id int64,
+	effectiveFrom timezone.Date,
+) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*enrollment.OfferingChangeRequest)(nil)).
+		ModelTableExpr(tableExprOfferingChangeRequestsAsReq).
+		Set("effective_from = ?", effectiveFrom).
+		Set("updated_at = NOW()").
+		Where(`"offering_change_request".id = ?`, id).
+		Where(`"offering_change_request".status = ?`, enrollment.OfferingChangeStatusPending)
+	q = base.WithTenantFilter(ctx, q, "offering_change_request")
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update offering change effective date", Err: err}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return enrollment.ErrOfferingChangeNotPending
+	}
+	return nil
 }
 
 // Decide transitions a pending row to its final state. The pending predicate

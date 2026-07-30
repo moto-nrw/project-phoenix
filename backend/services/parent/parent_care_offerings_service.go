@@ -112,6 +112,7 @@ const (
 	OfferingChangesReasonNoPermission = "no_permission"
 	OfferingChangesReasonSchoolOff    = "school_disabled"
 	OfferingChangesReasonPeriodOver   = "period_over"
+	OfferingChangesReasonNoTime       = "no_time_remaining"
 )
 
 // GetChildCareOfferings returns what the child is booked into today (plus
@@ -582,6 +583,12 @@ func (s *service) resolveOfferingChangeAvailability(
 	}
 	if period.ServiceEndDate.Before(today) {
 		return false, OfferingChangesReasonPeriodOver
+	}
+	if s.OfferingChanges != nil {
+		earliest, err := s.OfferingChanges.EarliestEffectiveFrom(ctx)
+		if err != nil || earliest.After(period.ServiceEndDate) {
+			return false, OfferingChangesReasonNoTime
+		}
 	}
 	if !s.offeringChangesEnabledForTenant(ctx, child.tenantID) {
 		return false, OfferingChangesReasonSchoolOff

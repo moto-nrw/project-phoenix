@@ -25,6 +25,7 @@ const DISABLED_REASON_KEYS: Record<OfferingChangesDisabledReason, string> = {
   no_enrollment: "careOfferings.disabledNoEnrollment",
   no_permission: "careOfferings.disabledNoPermission",
   school_disabled: "careOfferings.disabledSchoolOff",
+  no_time_remaining: "careOfferings.disabledPeriodOver",
   period_over: "careOfferings.disabledPeriodOver",
 };
 

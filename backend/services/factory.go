@@ -1607,6 +1607,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		StudentRepo:              repos.Student,
 		PersonRepo:               repos.Person,
+		UserContext:              userContextService,
 		Applier:                  enrollmentDecisionApplier,
 		Settings:                 settingsService,
 		Emitter:                  pillEmitter,

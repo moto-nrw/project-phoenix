@@ -252,6 +252,7 @@ export function OfferingChangeRequestModal({
                   item.free_slots !== undefined &&
                   item.free_slots <= 0 &&
                   !item.selected;
+                const unavailable = item.is_active === false && !item.selected;
                 return (
                   <div
                     key={item.id}
@@ -260,7 +261,7 @@ export function OfferingChangeRequestModal({
                     <label className="flex cursor-pointer items-start gap-3">
                       <Checkbox
                         checked={selected}
-                        disabled={full}
+                        disabled={full || unavailable}
                         onChange={() => toggleOffering(item)}
                       />
                       <span className="min-w-0 flex-1">

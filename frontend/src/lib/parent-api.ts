@@ -1063,7 +1063,11 @@ interface OfferingDecision {
 
 /** Why the change button is unavailable. Stable identifiers from the backend. */
 export type OfferingChangesDisabledReason =
-  "no_enrollment" | "no_permission" | "school_disabled" | "period_over";
+  | "no_enrollment"
+  | "no_permission"
+  | "school_disabled"
+  | "period_over"
+  | "no_time_remaining";
 
 /** Parent-facing view of what the child is booked into. */
 export interface ChildCareOfferings {
@@ -1097,6 +1101,8 @@ export interface OfferingCatalogItem {
   readonly includes_holiday_care: boolean;
   readonly selected: boolean;
   readonly selected_days: string[];
+  /** False for a booking retained after the school deactivated the offering. */
+  readonly is_active?: boolean;
   readonly capacity?: number;
   readonly free_slots?: number;
 }

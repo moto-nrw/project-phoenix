@@ -227,6 +227,30 @@ func (r *CareOfferingRepository) ListByIDs(ctx context.Context, ids []int64) ([]
 	return offerings, nil
 }
 
+// ListByIDsForUpdate loads and locks the requested offerings in a stable order.
+// The lock is held by the surrounding tenant transaction and serializes the
+// capacity check with the booking mutation of competing approvals.
+func (r *CareOfferingRepository) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollment.CareOffering, error) {
+	if len(ids) == 0 {
+		return []*enrollment.CareOffering{}, nil
+	}
+	var offerings []*enrollment.CareOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&offerings).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".id IN (?)`, bun.List(ids)).
+		OrderExpr(`"care_offering".id`).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock care offerings by ids: %w", err)
+	}
+	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
+		return nil, err
+	}
+	return offerings, nil
+}
+
 func (r *CareOfferingRepository) ListByActivityGroupIDs(
 	ctx context.Context,
 	activityGroupIDs []int64,
