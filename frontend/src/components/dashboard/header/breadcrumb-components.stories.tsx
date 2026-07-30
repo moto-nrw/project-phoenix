@@ -6,7 +6,6 @@ import {
   OgsGroupsBreadcrumb,
   PageTitleDisplay,
   ParentChildBreadcrumb,
-  RoomBreadcrumb,
   SectionBreadcrumb,
   StaffDetailBreadcrumb,
   StudentDetailBreadcrumb,
@@ -94,10 +93,6 @@ export const EnrollmentNested: Story = {
       pathname="/admin/enrollments/phases/1"
     />
   ),
-};
-
-export const Room: Story = {
-  render: () => <RoomBreadcrumb roomName="Turnhalle" />,
 };
 
 export const ParentChild: Story = {

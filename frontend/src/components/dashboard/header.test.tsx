@@ -107,7 +107,6 @@ vi.mock("./header/breadcrumb-components", () => ({
   ActiveSupervisionsBreadcrumb: () => (
     <div data-testid="active-supervisions-breadcrumb">Active</div>
   ),
-  RoomBreadcrumb: () => <div data-testid="room-breadcrumb">Room</div>,
   StudentHistoryBreadcrumb: () => (
     <div data-testid="student-history-breadcrumb">History</div>
   ),
@@ -137,7 +136,6 @@ vi.mock("./header/breadcrumb-utils", () => ({
         }
       : null,
   getPageTypeInfo: (pathname: string) => ({
-    isRoomDetailPage: pathname.includes("/rooms/") && pathname !== "/rooms",
     isStudentHistoryPage:
       pathname.includes("/students/") && pathname.includes("/history"),
     isStudentDetailPage:
@@ -283,16 +281,6 @@ describe("Header", () => {
     expect(
       screen.getByTestId("active-supervisions-breadcrumb"),
     ).toBeInTheDocument();
-  });
-
-  it("renders room breadcrumb for room detail pages", () => {
-    mockUsePathname.mockReturnValue("/rooms/123");
-    mockUseBreadcrumb.mockReturnValue({
-      breadcrumb: { roomName: "Test Room" },
-    });
-
-    render(<Header />);
-    expect(screen.getByTestId("room-breadcrumb")).toBeInTheDocument();
   });
 
   it("renders student history breadcrumb", () => {

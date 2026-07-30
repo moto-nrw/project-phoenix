@@ -228,23 +228,6 @@ export function EnrollmentBreadcrumb({
   );
 }
 
-/**
- * Room detail breadcrumb
- */
-interface RoomBreadcrumbProps {
-  readonly roomName: string;
-}
-
-export function RoomBreadcrumb({ roomName }: RoomBreadcrumbProps) {
-  return (
-    <BreadcrumbNav>
-      <BreadcrumbLink href="/rooms">Räume</BreadcrumbLink>
-      <BreadcrumbSeparator />
-      <BreadcrumbCurrent>{roomName}</BreadcrumbCurrent>
-    </BreadcrumbNav>
-  );
-}
-
 interface ParentChildBreadcrumbProps {
   readonly childName: string;
   readonly isScrolled?: boolean;

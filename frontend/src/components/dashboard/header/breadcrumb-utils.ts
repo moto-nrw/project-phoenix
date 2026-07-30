@@ -27,11 +27,6 @@ const detailRouteTitles: Array<{
     rootPath: "/staff",
     title: "Mitarbeiter Details",
   },
-  {
-    basePath: "/rooms/",
-    rootPath: "/rooms",
-    title: "Raum Details",
-  },
 ];
 
 /**
@@ -249,7 +244,6 @@ export interface PageTypeInfo {
   isStudentDetailPage: boolean;
   isStudentHistoryPage: boolean;
   isStaffDetailPage: boolean;
-  isRoomDetailPage: boolean;
   isEnrollmentPage: boolean;
 }
 
@@ -274,16 +268,12 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     pathname !== "/staff" &&
     pathname !== "/staff/dienstplan";
 
-  const isRoomDetailPage =
-    pathname.startsWith("/rooms/") && pathname !== "/rooms";
-
   const isEnrollmentPage = isEnrollmentPath(pathname);
 
   return {
     isStudentDetailPage,
     isStudentHistoryPage,
     isStaffDetailPage,
-    isRoomDetailPage,
     isEnrollmentPage,
   };
 }

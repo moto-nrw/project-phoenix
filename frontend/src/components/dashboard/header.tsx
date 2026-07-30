@@ -23,7 +23,6 @@ import {
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   EnrollmentBreadcrumb,
-  RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
   StaffDetailBreadcrumb,
@@ -47,7 +46,6 @@ export function Header() {
   const {
     studentName,
     staffName,
-    roomName,
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
@@ -203,7 +201,6 @@ export function Header() {
               isScrolled={isScrolled}
               studentName={studentName}
               staffName={staffName}
-              roomName={roomName}
               referrer={referrer}
               breadcrumbLabel={breadcrumbLabel}
               historyType={historyType}
@@ -292,7 +289,6 @@ interface HeaderBreadcrumbProps {
   readonly isScrolled: boolean;
   readonly studentName?: string;
   readonly staffName?: string;
-  readonly roomName?: string;
   readonly referrer: string;
   readonly breadcrumbLabel: string;
   readonly historyType: string;
@@ -308,7 +304,6 @@ function HeaderBreadcrumb({
   isScrolled,
   studentName,
   staffName,
-  roomName,
   referrer,
   breadcrumbLabel,
   historyType,
@@ -346,11 +341,6 @@ function HeaderBreadcrumb({
     return (
       <ParentChildBreadcrumb childName={pageTitle} isScrolled={isScrolled} />
     );
-  }
-
-  // Room detail page
-  if (pageTypeInfo.isRoomDetailPage && roomName) {
-    return <RoomBreadcrumb roomName={roomName} />;
   }
 
   // Enrich referrer with sub-item param so the sidebar highlights the correct
@@ -397,20 +387,6 @@ function HeaderBreadcrumb({
         subSectionName={subSectionName}
       />
     );
-  }
-
-  // Simple page routes
-  const simpleTitleRoutes = [
-    "/rooms",
-    "/activities",
-    "/staff",
-    "/substitutions",
-    "/timetables",
-    "/time-tracking",
-  ];
-
-  if (simpleTitleRoutes.includes(pathname)) {
-    return <PageTitleDisplay title={pageTitle} isScrolled={isScrolled} />;
   }
 
   // Default: show page title

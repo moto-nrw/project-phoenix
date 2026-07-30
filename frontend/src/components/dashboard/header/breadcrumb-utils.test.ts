@@ -34,10 +34,9 @@ describe("breadcrumb-utils", () => {
     });
 
     describe("room pages", () => {
-      it("should return 'Raum Details' for room detail page", () => {
-        expect(getPageTitle("/rooms/456")).toBe("Raum Details");
-      });
-
+      // Eine Detailregel für /rooms/{id} gibt es nicht mehr: die Route ist
+      // eine Server-Weiterleitung auf /rooms?room={id} und rendert nie einen
+      // Header.
       it("should return 'Räume' for /rooms route", () => {
         expect(getPageTitle("/rooms")).toBe("Räume");
       });
@@ -527,18 +526,6 @@ describe("breadcrumb-utils", () => {
       });
     });
 
-    describe("room detail page", () => {
-      it("should identify room detail page", () => {
-        const result = getPageTypeInfo("/rooms/456");
-        expect(result.isRoomDetailPage).toBe(true);
-      });
-
-      it("should not identify /rooms as detail page", () => {
-        const result = getPageTypeInfo("/rooms");
-        expect(result.isRoomDetailPage).toBe(false);
-      });
-    });
-
     describe("combined page types", () => {
       it("should return all false for root path", () => {
         const result = getPageTypeInfo("/");
@@ -546,7 +533,6 @@ describe("breadcrumb-utils", () => {
           isStudentDetailPage: false,
           isStudentHistoryPage: false,
           isStaffDetailPage: false,
-          isRoomDetailPage: false,
           isEnrollmentPage: false,
         };
         expect(result).toEqual(expected);
@@ -556,7 +542,6 @@ describe("breadcrumb-utils", () => {
         const result = getPageTypeInfo("/dashboard");
         expect(result.isStudentDetailPage).toBe(false);
         expect(result.isStudentHistoryPage).toBe(false);
-        expect(result.isRoomDetailPage).toBe(false);
         expect(result.isStaffDetailPage).toBe(false);
         expect(result.isEnrollmentPage).toBe(false);
       });
@@ -577,7 +562,6 @@ describe("breadcrumb-utils", () => {
       it("should handle empty pathname", () => {
         const result = getPageTypeInfo("");
         expect(result.isStudentDetailPage).toBe(false);
-        expect(result.isRoomDetailPage).toBe(false);
       });
 
       it("should handle pathname with trailing slash", () => {

@@ -10,7 +10,6 @@ import {
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   EnrollmentBreadcrumb,
-  RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
 } from "./breadcrumb-components";
@@ -190,22 +189,6 @@ describe("EnrollmentBreadcrumb", () => {
     expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
     expect(screen.getByText("Überblick")).toBeInTheDocument();
     expect(screen.getByText("Schuljahr 2026/2027")).toBeInTheDocument();
-  });
-});
-
-describe("RoomBreadcrumb", () => {
-  it("renders room breadcrumb", () => {
-    render(<RoomBreadcrumb roomName="Sporthalle" />);
-
-    expect(screen.getByText("Räume")).toBeInTheDocument();
-    expect(screen.getByText("Sporthalle")).toBeInTheDocument();
-  });
-
-  it("links to rooms page", () => {
-    render(<RoomBreadcrumb roomName="Sporthalle" />);
-
-    const roomsLink = screen.getByRole("link", { name: "Räume" });
-    expect(roomsLink).toHaveAttribute("href", "/rooms");
   });
 });
 
