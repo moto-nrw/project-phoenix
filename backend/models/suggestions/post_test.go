@@ -220,3 +220,63 @@ func TestPost_GetUpdatedAt(t *testing.T) {
 	post.UpdatedAt = now
 	assert.Equal(t, now, post.GetUpdatedAt())
 }
+
+// The author type decides which board a post belongs to (#1678). An unset value
+// has to keep meaning "staff", because every post written before the parent
+// board existed carries the column default.
+func TestPost_Validate_DefaultsAuthorTypeToStaff(t *testing.T) {
+	post := &Post{
+		Title:       "Ohne Autorentyp",
+		Description: "Legacy-Beitrag ohne gesetzten Autorentyp",
+		AuthorID:    1,
+		Status:      StatusOpen,
+	}
+
+	require.NoError(t, post.Validate())
+	assert.Equal(t, PostAuthorStaff, post.AuthorType)
+	assert.False(t, post.IsFromParent())
+}
+
+func TestPost_Validate_AcceptsParentAuthorType(t *testing.T) {
+	post := &Post{
+		Title:       "Eltern-Feedback",
+		Description: "Aus dem Elternportal",
+		AuthorID:    1,
+		AuthorType:  PostAuthorParent,
+		Status:      StatusOpen,
+	}
+
+	require.NoError(t, post.Validate())
+	assert.Equal(t, PostAuthorParent, post.AuthorType)
+	assert.True(t, post.IsFromParent())
+}
+
+// An unknown author type must be refused rather than silently stored: RLS
+// matches this column against the transaction's actor, so a third value would
+// produce a row no board can read.
+func TestPost_Validate_RejectsUnknownAuthorType(t *testing.T) {
+	post := &Post{
+		Title:       "Falscher Autorentyp",
+		Description: "operator ist kein Board",
+		AuthorID:    1,
+		AuthorType:  "operator",
+		Status:      StatusOpen,
+	}
+
+	err := post.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "author type")
+}
+
+func TestIsValidPostAuthorType(t *testing.T) {
+	assert.True(t, IsValidPostAuthorType(PostAuthorStaff))
+	assert.True(t, IsValidPostAuthorType(PostAuthorParent))
+	assert.False(t, IsValidPostAuthorType(""))
+	assert.False(t, IsValidPostAuthorType("operator"))
+}
+
+func TestPost_IsFromParent(t *testing.T) {
+	assert.True(t, (&Post{AuthorType: PostAuthorParent}).IsFromParent())
+	assert.False(t, (&Post{AuthorType: PostAuthorStaff}).IsFromParent())
+	assert.False(t, (&Post{}).IsFromParent())
+}

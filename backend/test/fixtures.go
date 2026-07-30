@@ -2607,6 +2607,7 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		"schedule.timeframes",
 		"iot.devices",
 		"suggestions.votes",
+		"suggestions.comment_reads",
 		"suggestions.comments",
 		"suggestions.posts",
 		"audit.data_deletions",
