@@ -412,6 +412,7 @@ type RequestChildOfferingRepository interface {
 	ScheduleReplacementForRequestChild(ctx context.Context, requestChildID int64, effectiveFrom timezone.Date, rows []*RequestChildOffering) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
 	ListByRequestChildIDAtDate(ctx context.Context, requestChildID int64, onDate timezone.Date) ([]*RequestChildOffering, error)
+	ListHistoryByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
 
 	// ListByRequestChildIDs is the batched form of
 	// ListByRequestChildID: one query for every offering link across

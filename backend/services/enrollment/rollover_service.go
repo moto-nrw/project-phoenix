@@ -501,7 +501,7 @@ func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverReq
 		}
 		return "", fmt.Errorf("rollover: create request_child: %w", err)
 	}
-	if err := s.copyRolloverOfferings(ctx, input.tenantID, source.ID, child.ID); err != nil {
+	if err := s.copyRolloverOfferings(ctx, input.tenantID, source.ID, child.ID, input.newPhase.ServiceStartDate); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s %s", source.FirstName, source.LastName), nil
@@ -529,8 +529,8 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentM
 	return attributes
 }
 
-func (s *rolloverService) copyRolloverOfferings(ctx context.Context, tenantID, sourceChildID, newChildID int64) error {
-	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, sourceChildID)
+func (s *rolloverService) copyRolloverOfferings(ctx context.Context, tenantID, sourceChildID, newChildID int64, rolloverDate timezone.Date) error {
+	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, sourceChildID, rolloverDate)
 	if err != nil {
 		return fmt.Errorf("rollover: list source offerings: %w", err)
 	}

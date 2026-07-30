@@ -121,9 +121,14 @@ func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Cont
 	return nil
 }
 
-// ListByRequestChildID returns the complete offering history for the given
-// child. Point-in-time consumers must use ListByRequestChildIDAtDate.
+// ListByRequestChildID returns the selection active today. Historical rows
+// remain available through ListHistoryByRequestChildID.
 func (r *RequestChildOfferingRepository) ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*enrollment.RequestChildOffering, error) {
+	return r.ListByRequestChildIDAtDate(ctx, requestChildID, timezone.TodayDate())
+}
+
+// ListHistoryByRequestChildID returns all offering intervals for reporting.
+func (r *RequestChildOfferingRepository) ListHistoryByRequestChildID(ctx context.Context, requestChildID int64) ([]*enrollment.RequestChildOffering, error) {
 	var rows []*enrollment.RequestChildOffering
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
@@ -167,6 +172,8 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDs(ctx context.Conte
 		Model(&rows).
 		ModelTableExpr(requestChildOfferingTableExpr).
 		Where(`"request_child_offering".request_child_id IN (?)`, bun.List(requestChildIDs)).
+		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, timezone.TodayDate()).
+		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, timezone.TodayDate()).
 		OrderExpr(`"request_child_offering".request_child_id, "request_child_offering".id`).
 		Scan(ctx)
 	if err != nil {

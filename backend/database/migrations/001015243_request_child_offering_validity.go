@@ -58,10 +58,14 @@ func requestChildOfferingValidityUp(ctx context.Context, db *bun.DB) error {
 func requestChildOfferingValidityDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.243: Removing validity intervals from request child offerings...")
 	if _, err := db.NewRaw(`
+		-- Expired-only intervals must stay absent in the legacy model: retaining
+		-- their last row would resurrect a removed booking on rollback.
+		DELETE FROM enrollment.request_child_offerings
+		WHERE valid_until IS NOT NULL AND valid_until <= CURRENT_DATE;
+
 		-- A pre-1.15.243 schema has one row per child/offering pair. Keep the
 		-- interval active today; when none is active, keep the latest scheduled
-		-- interval. This makes the historical interval model safely reducible to
-		-- the legacy current-selection model before restoring its UNIQUE key.
+		-- interval before restoring its UNIQUE key.
 		WITH ranked AS (
 			SELECT id, ROW_NUMBER() OVER (
 				PARTITION BY request_child_id, care_offering_id
