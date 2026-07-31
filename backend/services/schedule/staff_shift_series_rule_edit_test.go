@@ -283,9 +283,10 @@ func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
 	assert.Contains(t, err.Error(), "already been superseded")
 }
 
-// A series whose last planned day is today can still be edited today. The
-// current-day rule is shared with standalone shifts; only earlier dates stay
-// untouched.
+// A series whose last planned day has arrived was permanently uneditable: the
+// effective date is clamped to tomorrow, and the segment check compared that
+// against the STORED end. Extending "Gültig bis" is the one edit that has to
+// work there, otherwise "Serie bearbeiten" cannot edit the series at all.
 func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
@@ -296,8 +297,7 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 	storedEnd := today.AddDays(1)
 	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
-		_, err := env.series.CreateSeries(ctx, series)
-		return err
+		return env.repos.StaffShiftSeries.Create(ctx, series)
 	})
 
 	newEnd := today.AddDays(15)
@@ -307,7 +307,7 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 		result, err = env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
 			SeriesID: series.ID,
 			// The planner opened an occurrence in the past; the split clamps it
-			// to today rather than rejecting the edit.
+			// to tomorrow rather than rejecting the edit.
 			EffectiveDate: today.AddDays(-3),
 			StartTime:     series.StartTime,
 			EndTime:       series.EndTime,
@@ -320,10 +320,10 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 	})
 
 	require.NotNil(t, result.Series)
-	assert.Equal(t, today, result.Series.ValidFrom)
+	assert.Equal(t, today.AddDays(1), result.Series.ValidFrom)
 	require.NotNil(t, result.Series.ValidUntil)
 	assert.Equal(t, newEnd, *result.Series.ValidUntil)
-	assert.NotEmpty(t, env.shiftsInRange(t, today, today.AddDays(14)),
+	assert.NotEmpty(t, env.shiftsInRange(t, today.AddDays(1), today.AddDays(14)),
 		"the extended segment must materialize shifts")
 	assert.Empty(t, env.shiftsInRange(t, newEnd, periodEnd),
 		"nothing may be planned past the new end date")
@@ -336,9 +336,7 @@ func TestStaffShiftSeries_SplitRejectsWhenNoOccurrenceRemains(t *testing.T) {
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(28), 1, nil)
 
-	// valid_until is exclusive. Ending it today leaves no editable occurrence:
-	// past dates must remain untouched.
-	storedEnd := today
+	storedEnd := today.AddDays(1)
 	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		return env.repos.StaffShiftSeries.Create(ctx, series)

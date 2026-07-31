@@ -294,9 +294,9 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 			}},
 		})
 		series := unitSeries(t)
-		// valid_until today (exclusive) puts the whole window behind the past
-		// boundary: nothing to create, no skipped days.
-		until := timezone.TodayDate()
+		// valid_until tomorrow (exclusive) leaves no future occurrence to
+		// materialize, so the series must not be persisted.
+		until := timezone.TodayDate().AddDays(1)
 		series.ValidUntil = &until
 		_, err := service.CreateSeries(context.Background(), series)
 		require.ErrorIs(t, err, ErrSeriesInvalid)
@@ -448,6 +448,41 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		_, err := service.SplitSeries(context.Background(), splitInput(t, 12))
 		assert.ErrorIs(t, err, dbErr)
 	})
+
+	t.Run("effective clamps all split writes to tomorrow", func(t *testing.T) {
+		var capped, deleted, repointed timezone.Date
+		repo := found(t)
+		repo.capValidUntilFn = func(_ context.Context, _ int64, until timezone.Date) error {
+			capped = until
+			return nil
+		}
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: repo,
+			shifts: &seriesShiftMockRepo{
+				deleteNonDetachedFn: func(_ context.Context, _ int64, from timezone.Date) (int64, error) {
+					deleted = from
+					return 0, nil
+				},
+				repointDetachedFn: func(_ context.Context, _, _ int64, from timezone.Date) (int64, error) {
+					repointed = from
+					return 0, nil
+				},
+			},
+			exceptions: &seriesMockExceptionRepo{repointFn: func(_ context.Context, _, _ int64, from timezone.Date) (int64, error) {
+				assert.Equal(t, timezone.TodayDate().AddDays(1), from)
+				return 0, nil
+			}},
+		})
+
+		input := splitInput(t, 12)
+		input.EffectiveDate = timezone.TodayDate().AddDays(-1)
+		_, err := service.SplitSeries(context.Background(), input)
+		require.NoError(t, err)
+		tomorrow := timezone.TodayDate().AddDays(1)
+		assert.Equal(t, tomorrow, capped)
+		assert.Equal(t, tomorrow, deleted)
+		assert.Equal(t, tomorrow, repointed)
+	})
 }
 
 func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
@@ -477,18 +512,26 @@ func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
 		assert.ErrorIs(t, err, dbErr)
 	})
 
-	t.Run("effective clamps to valid_from and today", func(t *testing.T) {
-		var capped timezone.Date
+	t.Run("effective clamps to valid_from and tomorrow", func(t *testing.T) {
+		var capped, deleted timezone.Date
 		repo := found(t)
 		repo.capValidUntilFn = func(_ context.Context, _ int64, until timezone.Date) error {
 			capped = until
 			return nil
 		}
-		service := newSeriesServiceForTest(seriesServiceMocks{series: repo})
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: repo,
+			shifts: &seriesShiftMockRepo{deleteNonDetachedFn: func(_ context.Context, _ int64, from timezone.Date) (int64, error) {
+				deleted = from
+				return 0, nil
+			}},
+		})
 		_, err := service.EndSeries(context.Background(), 12, timezone.TodayDate().AddDays(-30))
 		require.NoError(t, err)
-		assert.Equal(t, timezone.TodayDate(), capped,
-			"an end date in the past must clamp to today (past rows stay)")
+		assert.Equal(t, timezone.TodayDate().AddDays(1), capped,
+			"an end date in the past must clamp to tomorrow (past and current rows stay)")
+		assert.Equal(t, timezone.TodayDate().AddDays(1), deleted,
+			"an end date in the past must not delete the current-day shift")
 	})
 }
 
