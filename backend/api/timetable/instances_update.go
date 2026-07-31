@@ -71,14 +71,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
 	}
-	if err := rs.validateUpdateInstanceDate(r.Context(), id, date); err != nil {
-		if errors.Is(err, errTimetableWeekend) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		} else if errors.Is(err, sql.ErrNoRows) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance for workday validation failed", err))
-		}
+	if !rs.validateUpdateInstanceDateRequest(w, r, id, date) {
 		return
 	}
 	startTime, err := parseClockTime(req.StartTime)
@@ -154,4 +147,19 @@ func (rs *Resource) validateUpdateInstanceDate(ctx context.Context, id int64, da
 		return nil
 	}
 	return weekendErr
+}
+
+func (rs *Resource) validateUpdateInstanceDateRequest(w http.ResponseWriter, r *http.Request, id int64, date timezone.Date) bool {
+	err := rs.validateUpdateInstanceDate(r.Context(), id, date)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, errTimetableWeekend) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	} else if errors.Is(err, sql.ErrNoRows) {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+	} else {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance for workday validation failed", err))
+	}
+	return false
 }
