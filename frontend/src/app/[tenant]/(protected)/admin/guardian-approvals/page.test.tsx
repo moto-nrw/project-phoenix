@@ -16,8 +16,19 @@ vi.mock("~/lib/hooks/use-settings-schema", () => ({
 }));
 
 vi.mock("~/components/admin/guardian-approval-queue", () => ({
-  default: ({ inviteMode }: { inviteMode: string }) => (
-    <div data-testid="approval-queue">{inviteMode}</div>
+  default: ({
+    inviteModeState,
+  }: {
+    inviteModeState: { status: string; mode?: string; retry?: () => void };
+  }) => (
+    <div data-testid="approval-queue">
+      {inviteModeState.status}:{inviteModeState.mode}
+      {inviteModeState.retry ? (
+        <button type="button" onClick={inviteModeState.retry}>
+          Einstellungen erneut laden
+        </button>
+      ) : null}
+    </div>
   ),
 }));
 
@@ -80,15 +91,12 @@ describe("GuardianApprovalsPage", () => {
     setSettingsResult({ data: schemaWithInviteMode("staff_approval") });
   });
 
-  it("waits for the invite mode before rendering the queue", () => {
+  it("mounts the queue while the invite mode is loading", () => {
     setSettingsResult({ data: undefined, isLoading: true });
 
     render(<GuardianApprovalsPage />);
 
-    expect(
-      screen.getByLabelText("Einladungs-Einstellung wird geladen…"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("approval-queue")).not.toBeInTheDocument();
+    expect(screen.getByTestId("approval-queue")).toHaveTextContent("loading:");
   });
 
   it("passes a valid invite mode to the queue", () => {
@@ -96,20 +104,20 @@ describe("GuardianApprovalsPage", () => {
 
     render(<GuardianApprovalsPage />);
 
-    expect(screen.getByTestId("approval-queue")).toHaveTextContent("disabled");
+    expect(screen.getByTestId("approval-queue")).toHaveTextContent(
+      "ready:disabled",
+    );
   });
 
-  it("shows a retryable error when settings access returns no schema", () => {
+  it("passes an error state when settings access returns no schema", () => {
     setSettingsResult({ data: null });
 
     render(<GuardianApprovalsPage />);
 
-    expect(
-      screen.getByText(/Einladungs-Einstellung konnte nicht geladen werden/),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("approval-queue")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(screen.getByTestId("approval-queue")).toHaveTextContent("error:");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Einstellungen erneut laden" }),
+    );
     expect(mocks.mutate).toHaveBeenCalledOnce();
   });
 
@@ -121,10 +129,7 @@ describe("GuardianApprovalsPage", () => {
 
     render(<GuardianApprovalsPage />);
 
-    expect(
-      screen.getByText(/Einladungs-Einstellung konnte nicht geladen werden/),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("approval-queue")).not.toBeInTheDocument();
+    expect(screen.getByTestId("approval-queue")).toHaveTextContent("error:");
   });
 
   it("shows an error when the required setting is missing", () => {
@@ -132,9 +137,6 @@ describe("GuardianApprovalsPage", () => {
 
     render(<GuardianApprovalsPage />);
 
-    expect(
-      screen.getByText(/Einladungs-Einstellung konnte nicht geladen werden/),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("approval-queue")).not.toBeInTheDocument();
+    expect(screen.getByTestId("approval-queue")).toHaveTextContent("error:");
   });
 });

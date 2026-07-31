@@ -8,6 +8,7 @@ import {
   rejectGuardianInvitation,
   type PendingApproval,
 } from "@/lib/guardian-api";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -20,13 +21,22 @@ const logger = createLogger({ component: "GuardianApprovalQueue" });
 /** Values of the `guardians.parent_invite_mode` setting. */
 export type GuardianInviteMode = "disabled" | "direct" | "staff_approval";
 
+export type GuardianInviteModeState =
+  | { readonly status: "loading" }
+  | {
+      readonly status: "error";
+      readonly isRetrying: boolean;
+      readonly retry: () => void;
+    }
+  | { readonly status: "ready"; readonly mode: GuardianInviteMode };
+
 // Only staff_approval ever puts a request into this queue: "disabled" blocks
 // parent invites outright and "direct" sends them without a review step. An
 // empty list then means "configured away", not "nothing to do yet", so the
 // empty state says which of the two it is instead of leaving an admin to
-// wonder whether the page is broken. An unknown mode (settings schema not
-// readable) falls back to the neutral wording, which claims nothing.
-function emptyStateCopy(inviteMode: GuardianInviteMode | undefined): {
+// wonder whether the page is broken. Loading and error states are handled
+// separately, so this copy always receives a validated mode.
+function emptyStateCopy(inviteMode: GuardianInviteMode): {
   readonly configuredAway: boolean;
   readonly title: string;
   readonly description: string;
@@ -58,7 +68,7 @@ function emptyStateCopy(inviteMode: GuardianInviteMode | undefined): {
 function ApprovalsEmptyState({
   inviteMode,
 }: {
-  readonly inviteMode?: GuardianInviteMode;
+  readonly inviteMode: GuardianInviteMode;
 }) {
   const router = useTenantRouter();
   const { configuredAway, title, description } = emptyStateCopy(inviteMode);
@@ -100,10 +110,50 @@ function ApprovalsEmptyState({
   );
 }
 
-export default function GuardianApprovalQueue({
-  inviteMode,
+function InviteModeDependentEmptyState({
+  state,
 }: {
-  readonly inviteMode?: GuardianInviteMode;
+  readonly state: GuardianInviteModeState;
+}) {
+  if (state.status === "loading") {
+    return (
+      <div className="flex items-center justify-center rounded-2xl border border-gray-200 bg-white p-12 shadow-sm">
+        <div className="flex items-center gap-3 text-sm text-gray-600">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900" />
+          Einladungs-Einstellung wird geladen…
+        </div>
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <Alert
+        type="error"
+        message="Die Einladungs-Einstellung konnte nicht geladen werden. Der leere Zustand der Konto-Anfragen kann deshalb derzeit nicht zuverlässig eingeordnet werden."
+        action={
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            isLoading={state.isRetrying}
+            loadingText="Wird geladen…"
+            onClick={state.retry}
+          >
+            Erneut versuchen
+          </Button>
+        }
+      />
+    );
+  }
+
+  return <ApprovalsEmptyState inviteMode={state.mode} />;
+}
+
+export default function GuardianApprovalQueue({
+  inviteModeState,
+}: {
+  readonly inviteModeState: GuardianInviteModeState;
 }) {
   const [requests, setRequests] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -197,7 +247,7 @@ export default function GuardianApprovalQueue({
       )}
 
       {requests.length === 0 && !error ? (
-        <ApprovalsEmptyState inviteMode={inviteMode} />
+        <InviteModeDependentEmptyState state={inviteModeState} />
       ) : (
         requests.map((req) => (
           <div

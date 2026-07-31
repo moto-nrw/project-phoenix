@@ -63,6 +63,11 @@ const sampleRequest: PendingApproval = {
   expiresAt: "2026-06-12T08:00:00Z",
 };
 
+const staffApprovalMode = {
+  status: "ready",
+  mode: "staff_approval",
+} as const;
+
 describe("GuardianApprovalQueue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,7 +77,7 @@ describe("GuardianApprovalQueue", () => {
   });
 
   it("renders a pending request with guardian, child and requester", async () => {
-    render(<GuardianApprovalQueue />);
+    render(<GuardianApprovalQueue inviteModeState={{ status: "loading" }} />);
     await waitFor(() =>
       expect(screen.getByText("Julia Schröder")).toBeInTheDocument(),
     );
@@ -83,7 +88,7 @@ describe("GuardianApprovalQueue", () => {
 
   it("shows the empty state when there are no requests", async () => {
     mockList.mockResolvedValue([]);
-    render(<GuardianApprovalQueue />);
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
     await waitFor(() =>
       expect(screen.getByText(/Keine offenen Anfragen/)).toBeInTheDocument(),
     );
@@ -95,7 +100,11 @@ describe("GuardianApprovalQueue", () => {
 
   it("explains an empty queue when parent invites are disabled", async () => {
     mockList.mockResolvedValue([]);
-    render(<GuardianApprovalQueue inviteMode="disabled" />);
+    render(
+      <GuardianApprovalQueue
+        inviteModeState={{ status: "ready", mode: "disabled" }}
+      />,
+    );
     await waitFor(() =>
       expect(
         screen.getByText(/Eltern können derzeit niemanden einladen/),
@@ -108,7 +117,11 @@ describe("GuardianApprovalQueue", () => {
 
   it("explains an empty queue when invites are sent without approval", async () => {
     mockList.mockResolvedValue([]);
-    render(<GuardianApprovalQueue inviteMode="direct" />);
+    render(
+      <GuardianApprovalQueue
+        inviteModeState={{ status: "ready", mode: "direct" }}
+      />,
+    );
     await waitFor(() =>
       expect(
         screen.getByText(/Einladungen gehen ohne Freigabe raus/),
@@ -121,7 +134,7 @@ describe("GuardianApprovalQueue", () => {
 
   it("keeps the neutral empty state when approval is the active mode", async () => {
     mockList.mockResolvedValue([]);
-    render(<GuardianApprovalQueue inviteMode="staff_approval" />);
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
     await waitFor(() =>
       expect(screen.getByText(/Keine offenen Anfragen/)).toBeInTheDocument(),
     );
@@ -130,8 +143,36 @@ describe("GuardianApprovalQueue", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("defers only an empty result while the invite mode is loading", async () => {
+    mockList.mockResolvedValue([]);
+
+    render(<GuardianApprovalQueue inviteModeState={{ status: "loading" }} />);
+
+    expect(
+      await screen.findByText("Einladungs-Einstellung wird geladen…"),
+    ).toBeInTheDocument();
+    expect(mockList).toHaveBeenCalledOnce();
+  });
+
+  it("shows a retryable settings error only for an empty result", async () => {
+    const retry = vi.fn();
+    mockList.mockResolvedValue([]);
+
+    render(
+      <GuardianApprovalQueue
+        inviteModeState={{ status: "error", isRetrying: false, retry }}
+      />,
+    );
+
+    expect(
+      await screen.findByText(/Einladungs-Einstellung konnte nicht geladen/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
   it("approves a request and reloads the list", async () => {
-    render(<GuardianApprovalQueue />);
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
     await waitFor(() => screen.getByText("Julia Schröder"));
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
@@ -142,7 +183,7 @@ describe("GuardianApprovalQueue", () => {
   });
 
   it("rejects a request via the confirmation modal", async () => {
-    render(<GuardianApprovalQueue />);
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
     await waitFor(() => screen.getByText("Julia Schröder"));
 
     fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));

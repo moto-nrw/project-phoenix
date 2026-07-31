@@ -2,9 +2,8 @@
 
 import GuardianApprovalQueue, {
   type GuardianInviteMode,
+  type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Loading } from "~/components/ui/loading";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
@@ -27,9 +26,10 @@ function parseInviteMode(value: unknown): GuardianInviteMode | undefined {
 export default function GuardianApprovalsPage() {
   const { isReady } = useRequireAdmin();
   // The queue is empty by design in the other two invite modes, so the empty
-  // state needs to know which one is active. Do not render the queue without
-  // that required setting: a failed or incomplete schema would otherwise make
-  // disabled/direct mode look like an empty staff-approval queue.
+  // state needs to know which one is active. The queue still mounts while this
+  // independent request runs; only its empty-result copy waits for the mode.
+  // A failed or incomplete schema must not make disabled/direct mode look like
+  // an empty staff-approval queue.
   const {
     data: settingsSchema,
     error: settingsError,
@@ -47,38 +47,23 @@ export default function GuardianApprovalsPage() {
 
   if (!isReady) return <Loading fullPage={false} />;
 
-  const settingsUnavailable =
-    settingsError != null || settingsSchema == null || inviteMode === undefined;
+  const inviteModeState: GuardianInviteModeState = isSettingsLoading
+    ? { status: "loading" }
+    : settingsError != null ||
+        settingsSchema == null ||
+        inviteMode === undefined
+      ? {
+          status: "error",
+          isRetrying: isSettingsValidating,
+          retry: () => void retrySettings(),
+        }
+      : { status: "ready", mode: inviteMode };
 
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch title="Konto-Anfragen" />
       <div className="mt-4">
-        {isSettingsLoading ? (
-          <Loading
-            message="Einladungs-Einstellung wird geladen…"
-            fullPage={false}
-          />
-        ) : settingsUnavailable ? (
-          <Alert
-            type="error"
-            message="Die Einladungs-Einstellung konnte nicht geladen werden. Konto-Anfragen können deshalb derzeit nicht zuverlässig angezeigt werden."
-            action={
-              <Button
-                type="button"
-                variant="outline_danger"
-                size="md"
-                isLoading={isSettingsValidating}
-                loadingText="Wird geladen…"
-                onClick={() => void retrySettings()}
-              >
-                Erneut versuchen
-              </Button>
-            }
-          />
-        ) : (
-          <GuardianApprovalQueue inviteMode={inviteMode} />
-        )}
+        <GuardianApprovalQueue inviteModeState={inviteModeState} />
       </div>
     </div>
   );

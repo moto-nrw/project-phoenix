@@ -27,6 +27,7 @@ const sampleRequest = {
 const meta = {
   title: "admin/GuardianApprovalQueue",
   component: GuardianApprovalQueue,
+  args: { inviteModeState: { status: "ready", mode: "staff_approval" } },
   decorators: [
     (Story) => (
       <ToastProvider>
@@ -56,7 +57,7 @@ export const WithRequest: Story = {
       return {};
     },
   ],
-  args: { inviteMode: "staff_approval" },
+  args: { inviteModeState: { status: "ready", mode: "staff_approval" } },
 };
 
 // Approval mode active, queue drained: the calm resting state.
@@ -67,7 +68,7 @@ export const EmptyWaitingForRequests: Story = {
       return {};
     },
   ],
-  args: { inviteMode: "staff_approval" },
+  args: { inviteModeState: { status: "ready", mode: "staff_approval" } },
 };
 
 // Parents cannot invite at all, so this queue can never fill up. The empty
@@ -79,7 +80,7 @@ export const EmptyInvitesDisabled: Story = {
       return {};
     },
   ],
-  args: { inviteMode: "disabled" },
+  args: { inviteModeState: { status: "ready", mode: "disabled" } },
 };
 
 // Invitations go out without a review step, same consequence for this page.
@@ -90,5 +91,5 @@ export const EmptyInvitesDirect: Story = {
       return {};
     },
   ],
-  args: { inviteMode: "direct" },
+  args: { inviteModeState: { status: "ready", mode: "direct" } },
 };
