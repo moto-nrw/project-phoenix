@@ -107,19 +107,20 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 		Exec(ctx)
 	require.NoError(t, err)
 	childAccount := testpkg.CreateTestAccount(t, db, "student-delete-child@example.com")
-	parentAccount := testpkg.CreateTestAccount(t, db, "student-delete-parent@example.com")
+	messageGuardianAccount := testpkg.CreateTestAccount(t, db, "student-delete-message-guardian@example.com")
+	legacyGuardianAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-legacy-guardian@example.com")
 	var messageThreadID, messageID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id)
 		VALUES (?, ?, ?)
 		RETURNING id
-	`, target.TenantID, target.ID, parentAccount.ID).Scan(ctx, &messageThreadID))
+	`, target.TenantID, target.ID, messageGuardianAccount.ID).Scan(ctx, &messageThreadID))
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO users.parent_messages
 			(tenant_id, thread_id, student_id, sender_account_id, sender_kind, sender_name, body)
 		VALUES (?, ?, ?, ?, 'guardian', 'Elternteil', 'Bitte um Rückruf')
 		RETURNING id
-	`, target.TenantID, messageThreadID, target.ID, parentAccount.ID).Scan(ctx, &messageID))
+	`, target.TenantID, messageThreadID, target.ID, messageGuardianAccount.ID).Scan(ctx, &messageID))
 	_, err = db.NewRaw(`
 		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id)
 		VALUES (?, ?, ?)
@@ -145,7 +146,7 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 			(tenant_id, person_id, guardian_account_id, relationship_type)
 		VALUES (?, ?, ?, 'parent')
 		RETURNING id
-	`, target.TenantID, target.PersonID, parentAccount.ID).Scan(ctx, &legacyGuardianLinkID))
+	`, target.TenantID, target.PersonID, legacyGuardianAccount.ID).Scan(ctx, &legacyGuardianLinkID))
 	var auditID int64
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "users.persons_guardians", legacyGuardianLinkID)
@@ -153,7 +154,8 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 		cleanupStudentDeletionTest(t, db,
 			[]int64{target.ID, spared.ID}, []int64{target.PersonID, spared.PersonID},
 			[]int64{targetAssignment.ID, sparedAssignment.ID}, []int64{instance.ID},
-			[]int64{room.ID}, []int64{actor.ID, childAccount.ID, parentAccount.ID}, []int64{auditID})
+			[]int64{room.ID}, []int64{actor.ID, childAccount.ID, messageGuardianAccount.ID}, []int64{auditID})
+		testpkg.CleanupParentAccountFixtures(t, db, legacyGuardianAccount.ID)
 		testpkg.CleanupRFIDCards(t, db, card.ID)
 	})
 
@@ -215,7 +217,8 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	assert.Nil(t, anonymized.AccountID)
 	assert.NotNil(t, anonymized.DeletedAt)
 	assert.Equal(t, 1, tableRowCount(t, db, "auth.accounts", childAccount.ID))
-	assert.Equal(t, 1, tableRowCount(t, db, "auth.accounts", parentAccount.ID))
+	assert.Equal(t, 1, tableRowCount(t, db, "auth.accounts", messageGuardianAccount.ID))
+	assert.Equal(t, 1, tableRowCount(t, db, "auth.accounts_parents", legacyGuardianAccount.ID))
 
 	var audit struct {
 		ID             int64
