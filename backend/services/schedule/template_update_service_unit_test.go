@@ -64,3 +64,19 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 		assert.Contains(t, err.Error(), "delete removed legacy weekend instances")
 	})
 }
+
+func TestValidateLegacyTemplateWeekdays(t *testing.T) {
+	existing := []*activitiesModel.Schedule{
+		{Weekday: activitiesModel.WeekdayFriday},
+		{Weekday: activitiesModel.WeekdaySaturday},
+	}
+
+	assert.NoError(t, validateLegacyTemplateWeekdays(existing, []int{
+		activitiesModel.WeekdayFriday,
+		activitiesModel.WeekdaySaturday,
+	}))
+	assert.ErrorIs(t, validateLegacyTemplateWeekdays(existing, []int{
+		activitiesModel.WeekdayFriday,
+		activitiesModel.WeekdaySunday,
+	}), ErrTemplateWeekendWeekday)
+}

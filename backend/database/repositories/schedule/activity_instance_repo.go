@@ -471,7 +471,7 @@ func (r *ActivityInstanceRepository) DeletePlannedMaterializedWeekendInstances(c
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
 		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
-		Where(`"activity_instance".date >= ?`, timezone.TodayDate()).
+		Where(`"activity_instance".date > ?`, timezone.TodayDate()).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
 		Where(`"activity_instance".is_spontaneous = ?`, false).
 		Where(`EXTRACT(ISODOW FROM "activity_instance".date)::int IN (?)`, bun.List(weekdays))

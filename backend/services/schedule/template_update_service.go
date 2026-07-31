@@ -20,6 +20,10 @@ import (
 // the recurrences.
 var ErrInconsistentTemplateScheduleValidity = errors.New("template schedules have inconsistent validity bounds")
 
+// ErrTemplateWeekendWeekday is returned when an update tries to introduce a
+// weekend weekday that was not already present on a legacy template.
+var ErrTemplateWeekendWeekday = errors.New("timetable templates can only be scheduled from Monday to Friday")
+
 // ErrTemplateSegmentNotEditable is returned when a full-series PUT reaches a
 // segment that has already been capped by Split/End. The active CRUD contract
 // exposes only open segments, so handlers map this race-safe service check to
@@ -133,6 +137,9 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	if err != nil {
 		return &ScheduleError{Op: "update template: load previous schedules", Err: err}
 	}
+	if err := validateLegacyTemplateWeekdays(previousSchedules, in.Weekdays); err != nil {
+		return &ScheduleError{Op: "update template: validate weekdays", Err: err}
+	}
 	// Capture the series' current Listenart before the field write so the
 	// instance propagation can tell an untouched occurrence (still carrying the
 	// series value) from a per-occurrence override.
@@ -162,6 +169,23 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 			"updated recurrence is incompatible with an existing care offering",
 			err,
 		)
+	}
+	return nil
+}
+
+func validateLegacyTemplateWeekdays(existing []*activitiesModel.Schedule, requested []int) error {
+	legacy := make(map[int]struct{})
+	for _, schedule := range existing {
+		if schedule != nil && schedule.Weekday > activitiesModel.WeekdayFriday {
+			legacy[schedule.Weekday] = struct{}{}
+		}
+	}
+	for _, weekday := range requested {
+		if weekday > activitiesModel.WeekdayFriday {
+			if _, ok := legacy[weekday]; !ok {
+				return ErrTemplateWeekendWeekday
+			}
+		}
 	}
 	return nil
 }
