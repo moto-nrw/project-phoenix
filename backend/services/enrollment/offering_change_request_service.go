@@ -1645,23 +1645,6 @@ func canonicalDays(days []string) []string {
 	return out
 }
 
-// germanDayLabel renders a day set for the diff ("Mo, Di" / "alle Tage").
-func germanDayLabel(days []string) string {
-	canonical := canonicalDays(days)
-	if len(canonical) == 0 {
-		return "alle Betreuungstage"
-	}
-	labels := map[string]string{
-		"mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do",
-		"fri": "Fr", "sat": "Sa", "sun": "So",
-	}
-	parts := make([]string, 0, len(canonical))
-	for _, day := range canonical {
-		parts = append(parts, labels[day])
-	}
-	return strings.Join(parts, ", ")
-}
-
 func optionalString(value string) *string {
 	if strings.TrimSpace(value) == "" {
 		return nil
