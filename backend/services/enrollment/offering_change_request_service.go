@@ -486,7 +486,7 @@ func (s *offeringChangeRequestService) catalogAt(
 		if offering == nil {
 			continue
 		}
-		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], onDate)
+		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], onDate, phase.ServiceEndDate.AddDays(1))
 		if itemErr != nil {
 			return nil, itemErr
 		}
@@ -503,7 +503,7 @@ func (s *offeringChangeRequestService) catalogItem(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
 	current *enrollmentModels.RequestChildOffering,
-	onDate timezone.Date,
+	onDate, phaseEndExclusive timezone.Date,
 ) (OfferingChangeCatalogItem, error) {
 	item := OfferingChangeCatalogItem{
 		OfferingID:      offering.ID,
@@ -530,7 +530,7 @@ func (s *offeringChangeRequestService) catalogItem(
 	}
 	capacity := *offering.Capacity
 	item.Capacity = &capacity
-	taken, err := s.RequestChildOfferingRepo.CountActiveByCareOfferingOnDate(ctx, offering.ID, onDate)
+	taken, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRange(ctx, offering.ID, onDate, phaseEndExclusive)
 	if err != nil {
 		return OfferingChangeCatalogItem{}, fmt.Errorf("offering change: count offering occupancy: %w", err)
 	}

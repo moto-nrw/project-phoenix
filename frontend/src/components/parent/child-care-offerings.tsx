@@ -162,6 +162,14 @@ export function ChildCareOfferingsSection({
                 <p className="text-sm font-semibold text-gray-900">
                   {offering.name}
                 </p>
+                {offering.starts_later && offering.valid_from && (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#3a63ad]">
+                    <CalendarClock className="h-3 w-3" aria-hidden="true" />
+                    {t("careOfferings.startsLater", {
+                      date: formatDate(offering.valid_from),
+                    })}
+                  </span>
+                )}
                 <p className="mt-0.5 text-sm text-gray-700">
                   {weekdayList(offering.weekdays)}
                 </p>
@@ -180,6 +188,13 @@ export function ChildCareOfferingsSection({
                     </span>
                   )}
                 </p>
+                {offering.valid_until && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {t("careOfferings.until", {
+                      date: formatDate(offering.valid_until),
+                    })}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

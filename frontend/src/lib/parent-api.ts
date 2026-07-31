@@ -1006,6 +1006,12 @@ interface CareOfferingItem {
   readonly price_cents?: number;
   readonly includes_lunch: boolean;
   readonly includes_holiday_care: boolean;
+  /** First day of a scheduled future booking (YYYY-MM-DD). */
+  readonly valid_from?: string;
+  /** Exclusive end of a superseded booking (YYYY-MM-DD). */
+  readonly valid_until?: string;
+  /** True while a booked offering has not started yet. */
+  readonly starts_later?: boolean;
 }
 
 /** One activity-group membership of the child. */

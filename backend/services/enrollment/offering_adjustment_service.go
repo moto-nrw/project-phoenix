@@ -218,15 +218,37 @@ func (s *decisionService) updateChildOfferings(
 		return nil, afterSnapshotErr
 	}
 
+	scheduled, err := s.scheduledOfferingReplacements(ctx, child.ID, effectiveFrom)
+	if err != nil {
+		return nil, err
+	}
 	if effectiveFrom != nil {
 		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, selectionDate, replacement); err != nil {
 			return nil, fmt.Errorf("decision: schedule child offerings: %w", err)
 		}
+	} else if len(scheduled) > 0 {
+		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, selectionDate, replacement); err != nil {
+			return nil, fmt.Errorf("decision: schedule corrected child offerings: %w", err)
+		}
+		for _, future := range scheduled {
+			if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, future.EffectiveFrom, future.Rows); err != nil {
+				return nil, fmt.Errorf("decision: restore scheduled child offerings: %w", err)
+			}
+		}
 	} else if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
 		return nil, fmt.Errorf("decision: replace child offerings: %w", err)
 	}
-	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, replacement, phase, effectiveFrom); err != nil {
+	materializeFrom := effectiveFrom
+	if effectiveFrom == nil && len(scheduled) > 0 {
+		materializeFrom = &selectionDate
+	}
+	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, replacement, phase, materializeFrom); err != nil {
 		return nil, err
+	}
+	for _, future := range scheduled {
+		if err := s.splitAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, future.Rows, phase, future.EffectiveFrom); err != nil {
+			return nil, err
+		}
 	}
 	actorName, actorEmail := s.actorSnapshot(ctx, input.ActorAccountID)
 	entry := &auditModels.EnrollmentOfferingAdjustment{
@@ -269,6 +291,47 @@ func validateAdjustmentEffectiveFrom(
 		return nil, fmt.Errorf("%w: effective_from must not be after the care period ends", ErrOfferingAdjustmentInvalid)
 	}
 	return effectiveFrom, nil
+}
+
+type scheduledOfferingReplacement struct {
+	EffectiveFrom timezone.Date
+	Rows          []*enrollmentModels.RequestChildOffering
+}
+
+// scheduledOfferingReplacements captures future changes before an undated
+// staff correction rewrites the current selection. A correction applies now;
+// it must not silently cancel a separately approved future request.
+func (s *decisionService) scheduledOfferingReplacements(
+	ctx context.Context,
+	requestChildID int64,
+	effectiveFrom *timezone.Date,
+) ([]scheduledOfferingReplacement, error) {
+	if effectiveFrom != nil {
+		return nil, nil
+	}
+	history, err := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, requestChildID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list scheduled child offerings: %w", err)
+	}
+	today := timezone.TodayDate()
+	byDate := make(map[timezone.Date][]*enrollmentModels.RequestChildOffering)
+	for _, row := range history {
+		if row == nil || row.ValidFrom == nil || !row.ValidFrom.After(today) {
+			continue
+		}
+		date := *row.ValidFrom
+		byDate[date] = append(byDate[date], row)
+	}
+	dates := make([]timezone.Date, 0, len(byDate))
+	for date := range byDate {
+		dates = append(dates, date)
+	}
+	sort.Slice(dates, func(i, j int) bool { return dates[i].Before(dates[j]) })
+	scheduled := make([]scheduledOfferingReplacement, 0, len(dates))
+	for _, date := range dates {
+		scheduled = append(scheduled, scheduledOfferingReplacement{EffectiveFrom: date, Rows: byDate[date]})
+	}
+	return scheduled, nil
 }
 
 func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error) {

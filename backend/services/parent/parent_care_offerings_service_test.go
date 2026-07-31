@@ -57,9 +57,10 @@ type childOfferingRepoStub struct {
 
 type recordingChildOfferingRepoStub struct {
 	enrollmentModels.RequestChildOfferingRepository
-	links []*enrollmentModels.RequestChildOffering
-	dates []timezone.Date
-	err   error
+	links        []*enrollmentModels.RequestChildOffering
+	dates        []timezone.Date
+	historyCalls int
+	err          error
 }
 
 func (s *recordingChildOfferingRepoStub) ListByRequestChildIDAtDate(
@@ -68,6 +69,14 @@ func (s *recordingChildOfferingRepoStub) ListByRequestChildIDAtDate(
 	onDate timezone.Date,
 ) ([]*enrollmentModels.RequestChildOffering, error) {
 	s.dates = append(s.dates, onDate)
+	return s.links, s.err
+}
+
+func (s *recordingChildOfferingRepoStub) ListHistoryByRequestChildID(
+	_ context.Context,
+	_ int64,
+) ([]*enrollmentModels.RequestChildOffering, error) {
+	s.historyCalls++
 	return s.links, s.err
 }
 
@@ -82,6 +91,13 @@ func (s childOfferingRepoStub) ListByRequestChildIDAtDate(
 	_ context.Context,
 	_ int64,
 	_ timezone.Date,
+) ([]*enrollmentModels.RequestChildOffering, error) {
+	return s.links, s.err
+}
+
+func (s childOfferingRepoStub) ListHistoryByRequestChildID(
+	_ context.Context,
+	_ int64,
 ) ([]*enrollmentModels.RequestChildOffering, error) {
 	return s.links, s.err
 }
@@ -244,6 +260,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	price := 4200
 	sourceChildID := int64(301)
 	validUntil := today.AddDays(10)
+	futureStart := today.AddDays(15)
 	note := "Ab Februar bitte dienstags"
 	createdAt := time.Now().Add(-time.Hour)
 
@@ -260,6 +277,11 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 		SortOrder:           10,
 		PriceCents:          &price,
 		IncludesHolidayCare: true,
+	}
+	futureOffering := &enrollmentModels.CareOffering{
+		Model:     base.Model{ID: 43},
+		Name:      "Zukünftige Betreuung",
+		SortOrder: 30,
 	}
 	firstGroup := &activitiesModels.Group{Model: base.Model{ID: 51}, Name: "Später"}
 	secondGroup := &activitiesModels.Group{Model: base.Model{ID: 52}, Name: "Aktuell"}
@@ -293,9 +315,10 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 		{CareOfferingID: 41, SelectedDays: []string{"fri", "mon", "fri", "bad"}},
 		{CareOfferingID: 42, SelectedDays: []string{"tue"}},
 		{CareOfferingID: 999},
+		{CareOfferingID: 43, ValidFrom: &futureStart},
 	}}
 	svc.CareOfferingRepo = careOfferingRepoStub{offerings: []*enrollmentModels.CareOffering{
-		firstOffering, nil, secondOffering,
+		firstOffering, nil, secondOffering, futureOffering,
 	}}
 	svc.StudentEnrollmentRepo = studentEnrollmentRepoStub{rows: []*activitiesModels.StudentEnrollment{
 		nil,
@@ -329,10 +352,14 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "Schuljahr 2026/27", view.PeriodName)
-	require.Len(t, view.Offerings, 2)
+	require.Len(t, view.Offerings, 3)
 	assert.Equal(t, int64(42), view.Offerings[0].OfferingID)
 	assert.Equal(t, description, view.Offerings[0].Description)
 	assert.Equal(t, []int{1, 5}, view.Offerings[1].Weekdays)
+	assert.Equal(t, futureOffering.Name, view.Offerings[2].Name)
+	assert.True(t, view.Offerings[2].StartsLater)
+	require.NotNil(t, view.Offerings[2].ValidFrom)
+	assert.Equal(t, futureStart, *view.Offerings[2].ValidFrom)
 	require.Len(t, view.Groups, 2)
 	assert.Equal(t, "Aktuell", view.Groups[0].Name)
 	assert.Equal(t, []int{2, 3}, view.Groups[0].Weekdays)
@@ -374,7 +401,7 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 	assert.Equal(t, OfferingChangesReasonNoEnrollment, view.ChangesDisabledReason)
 }
 
-func TestLoadChildCareOfferingsReadsEndedPeriodAtItsEndDate(t *testing.T) {
+func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 	today := timezone.TodayDate()
 	period := &enrollmentModels.StudentCarePeriod{
 		RequestChildID:   101,
@@ -391,7 +418,8 @@ func TestLoadChildCareOfferingsReadsEndedPeriodAtItsEndDate(t *testing.T) {
 
 	_, err := svc.loadChildCareOfferings(context.Background(), 22, today, view)
 	require.NoError(t, err)
-	require.Equal(t, []timezone.Date{period.ServiceEndDate}, links.dates)
+	assert.Equal(t, 1, links.historyCalls)
+	assert.Empty(t, links.dates)
 }
 
 func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {

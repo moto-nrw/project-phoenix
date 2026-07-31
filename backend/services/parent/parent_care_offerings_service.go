@@ -47,6 +47,13 @@ type CareOfferingSelection struct {
 	PriceCents      *int
 	IncludesLunch   bool
 	IncludesHoliday bool
+	// ValidFrom is set for a scheduled future booking. Nil means the offering
+	// has been effective since the start of the care period.
+	ValidFrom *timezone.Date
+	// ValidUntil is exclusive, mirroring the stored interval.
+	ValidUntil *timezone.Date
+	// StartsLater identifies an approved change that has not taken effect yet.
+	StartsLater bool
 }
 
 // CareGroupMembership is one activity-group enrollment of the child: where the
@@ -165,13 +172,7 @@ func (s *service) loadChildCareOfferings(
 		view.PeriodName = period.PhaseName
 		view.PeriodStart = period.ServiceStartDate
 		view.PeriodEnd = period.ServiceEndDate
-		selectionDate := today
-		if period.ServiceStartDate.After(today) {
-			selectionDate = period.ServiceStartDate
-		} else if period.ServiceEndDate.Before(today) {
-			selectionDate = period.ServiceEndDate
-		}
-		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, selectionDate)
+		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, today)
 		if err != nil {
 			return nil, err
 		}
@@ -356,12 +357,12 @@ func (s *service) currentCarePeriod(
 func (s *service) carePeriodOfferings(
 	ctx context.Context,
 	requestChildID int64,
-	onDate timezone.Date,
+	today timezone.Date,
 ) ([]CareOfferingSelection, error) {
 	if s.RequestChildOfferingRepo == nil || s.CareOfferingRepo == nil {
 		return []CareOfferingSelection{}, nil
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, onDate)
+	links, err := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, requestChildID)
 	if err != nil {
 		return nil, fmt.Errorf("list child offerings: %w", err)
 	}
@@ -381,10 +382,10 @@ func (s *service) carePeriodOfferings(
 	}
 	items := make([]CareOfferingSelection, 0, len(links))
 	for _, link := range links {
-		if link == nil {
+		if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(today)) {
 			continue
 		}
-		item, ok := careOfferingSelection(offeringByID[link.CareOfferingID], link)
+		item, ok := careOfferingSelection(offeringByID[link.CareOfferingID], link, today)
 		if !ok {
 			continue
 		}
@@ -410,6 +411,7 @@ func uniqueOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
 func careOfferingSelection(
 	offering *enrollmentModels.CareOffering,
 	link *enrollmentModels.RequestChildOffering,
+	today timezone.Date,
 ) (CareOfferingSelection, bool) {
 	if offering == nil {
 		// The offering was deleted from the catalog. Skipped rather than shown
@@ -423,7 +425,10 @@ func careOfferingSelection(
 		PriceCents:      offering.PriceCents,
 		IncludesLunch:   offering.IncludesLunch,
 		IncludesHoliday: offering.IncludesHolidayCare,
+		ValidFrom:       link.ValidFrom,
+		ValidUntil:      link.ValidUntil,
 	}
+	item.StartsLater = link.ValidFrom != nil && link.ValidFrom.After(today)
 	if offering.Description != nil {
 		item.Description = *offering.Description
 	}
