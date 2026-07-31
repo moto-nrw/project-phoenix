@@ -136,7 +136,9 @@ func NewStaffShiftSeriesService(
 // updateTodayOccurrence keeps a currently planned series occurrence as the
 // same concrete row while applying a permanent rule change. UpdateShift marks
 // it detached, so the successor re-plan beginning tomorrow cannot replace it.
-// The caller already runs inside the request's tenant transaction.
+// Existing deviations, including rows moved away from today, remain untouched
+// for the split to preserve and re-point. The caller already runs inside the
+// request's tenant transaction.
 func (s *staffShiftSeriesService) updateTodayOccurrence(ctx context.Context, input SplitSeriesInput) error {
 	if input.OccurrenceShiftID <= 0 {
 		return nil
@@ -156,6 +158,9 @@ func (s *staffShiftSeriesService) updateTodayOccurrence(ctx context.Context, inp
 		occurrence.SeriesOccurrenceDate == nil || *occurrence.SeriesOccurrenceDate != input.EffectiveDate {
 		return fmt.Errorf("%w: current occurrence does not belong to this series date", ErrSeriesInvalid)
 	}
+	if occurrence.Date != timezone.TodayDate() || occurrence.Detached {
+		return nil
+	}
 
 	updated := *occurrence
 	updated.StartTime = input.StartTime
@@ -164,7 +169,12 @@ func (s *staffShiftSeriesService) updateTodayOccurrence(ctx context.Context, inp
 	if input.ShiftTypeIDSet {
 		updated.ShiftTypeID = input.ShiftTypeID
 	}
-	if _, err := s.shiftService.UpdateShift(ctx, &updated); err != nil {
+	if input.ActorStaffID > 0 {
+		updated.UpdatedBy = &input.ActorStaffID
+	}
+	if _, err := s.shiftService.UpdateShiftWithOptions(ctx, &updated, StaffShiftUpdateOptions{
+		SuppressTimeTrackingBroadcast: true,
+	}); err != nil {
 		return fmt.Errorf("update current series occurrence: %w", err)
 	}
 	return nil

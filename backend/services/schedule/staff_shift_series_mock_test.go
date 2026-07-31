@@ -101,14 +101,14 @@ type seriesShiftMockRepo struct {
 // unexpected call fail loudly.
 type seriesOccurrenceUpdaterMock struct {
 	StaffShiftService
-	updateFn func(context.Context, *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error)
+	updateFn func(context.Context, *scheduleModels.StaffShift, StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error)
 }
 
-func (m *seriesOccurrenceUpdaterMock) UpdateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
+func (m *seriesOccurrenceUpdaterMock) UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
 	if m.updateFn == nil {
 		return shift, nil
 	}
-	return m.updateFn(ctx, shift)
+	return m.updateFn(ctx, shift, opts)
 }
 
 func (m *seriesShiftMockRepo) BulkCreate(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
@@ -339,6 +339,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		StartTime:         seriesClockForMockTest(t, "10:00"),
 		EndTime:           seriesClockForMockTest(t, "15:00"),
 		BreakMinutes:      30,
+		ActorStaffID:      8,
 	}
 
 	t.Run("requires an updater when an occurrence is supplied", func(t *testing.T) {
@@ -412,8 +413,9 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 					return occurrence, nil
 				},
 			}},
-			shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
+			shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
 				updated = shift
+				assert.True(t, opts.SuppressTimeTrackingBroadcast)
 				return nil, errors.New("write failed")
 			}},
 		}
@@ -427,7 +429,34 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		assert.Equal(t, 30, updated.BreakMinutes)
 		require.NotNil(t, updated.ShiftTypeID)
 		assert.Equal(t, shiftTypeID, *updated.ShiftTypeID)
+		require.NotNil(t, updated.UpdatedBy)
+		assert.Equal(t, input.ActorStaffID, *updated.UpdatedBy)
 	})
+
+	for name, mutate := range map[string]func(*scheduleModels.StaffShift){
+		"detached occurrence": func(shift *scheduleModels.StaffShift) { shift.Detached = true },
+		"moved occurrence":    func(shift *scheduleModels.StaffShift) { shift.Date = today.AddDays(1) },
+	} {
+		t.Run("preserves "+name, func(t *testing.T) {
+			preserved := *occurrence
+			mutate(&preserved)
+			updates := 0
+			service := &staffShiftSeriesService{
+				shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
+					findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+						return &preserved, nil
+					},
+				}},
+				shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(context.Context, *scheduleModels.StaffShift, StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
+					updates++
+					return nil, nil
+				}},
+			}
+
+			require.NoError(t, service.updateTodayOccurrence(context.Background(), input))
+			assert.Zero(t, updates)
+		})
+	}
 
 	t.Run("returns nil after a successful update", func(t *testing.T) {
 		service := &staffShiftSeriesService{
