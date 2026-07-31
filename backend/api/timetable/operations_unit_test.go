@@ -457,6 +457,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
+	const roomID int64 = 7
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
@@ -471,7 +472,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"title":   "Freispiel",
-		"room_id": int64(7),
+		"room_id": roomID,
 	})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
