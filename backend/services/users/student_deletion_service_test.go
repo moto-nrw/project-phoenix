@@ -102,7 +102,9 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 		Action:       educationModels.ActionPromoted,
 	}
 	history.SetTenantID(target.TenantID)
-	_, err := db.NewInsert().Model(history).Exec(ctx)
+	_, err := db.NewInsert().Model(history).
+		ModelTableExpr(`education.grade_transition_history`).
+		Exec(ctx)
 	require.NoError(t, err)
 	childAccount := testpkg.CreateTestAccount(t, db, "student-delete-child@example.com")
 	parentAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-parent@example.com")
