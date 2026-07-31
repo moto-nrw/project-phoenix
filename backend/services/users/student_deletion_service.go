@@ -181,9 +181,10 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 	return result, nil
 }
 
-// AuditGraduatePurge records the dedicated Abgänge hard-delete path. The
-// caller invokes it after taking the graph locks and before deleting any row;
-// its transaction therefore rolls the audit back when the purge cannot finish.
+// AuditGraduatePurge removes retained timetable assignments and records the
+// dedicated Abgänge hard-delete path. The caller invokes it after taking the
+// graph locks and before deleting the student row; its transaction therefore
+// rolls both cleanup and audit back when the purge cannot finish.
 func (s *studentDeletionService) AuditGraduatePurge(ctx context.Context, studentID, actorAccountID int64) error {
 	if studentID <= 0 || actorAccountID <= 0 {
 		return errors.New("graduate purge audit requires student and actor IDs")
@@ -197,6 +198,13 @@ func (s *studentDeletionService) AuditGraduatePurge(ctx context.Context, student
 	counts, err := s.deletionRepo.Preview(ctx, studentID)
 	if err != nil {
 		return err
+	}
+	deletedAssignments, err := s.deletionRepo.DeleteTimetableAssignments(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	if deletedAssignments != int64(counts.TimetableAssignments) {
+		return ErrStudentDeletionPreviewChanged
 	}
 	return s.createAudit(ctx, studentID, actorAccountID, StudentDeletionReasonGraduatePurge, *counts, 2)
 }
