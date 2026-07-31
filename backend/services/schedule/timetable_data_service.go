@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -75,10 +76,7 @@ func NewTimetableDataService(deps TimetableDataDependencies) *TimetableDataServi
 }
 
 func (s *TimetableDataService) getLogger() *slog.Logger {
-	if s.deps.Logger != nil {
-		return s.deps.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
 // ListDeviationEvents returns the Änderungsprotokoll rows in [from, to],
