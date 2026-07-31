@@ -147,7 +147,7 @@ describe("staffShiftSeriesService", () => {
     const init = mockSessionFetch.mock.calls[0]?.[1] as RequestInit | undefined;
     expect(JSON.parse((init?.body as string) ?? "{}")).toEqual({
       effective_date: "2026-10-05",
-      occurrence_shift_id: 42,
+      occurrence_shift_id: "42",
       start_time: "10:00",
       end_time: "14:00",
       break_minutes: 30,
@@ -155,6 +155,29 @@ describe("staffShiftSeriesService", () => {
       weekdays: [2, 5],
       week_pattern: 2,
       valid_until: "2026-11-02",
+    });
+  });
+
+  it("keeps a large occurrence ID lossless in the split payload", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json(
+        { data: { series_id: 9, created: 7, skipped_dates: [] } },
+        { status: 200 },
+      ),
+    );
+
+    await staffShiftSeriesService.splitSeries("5", {
+      effectiveDate: "2026-10-05",
+      occurrenceShiftId: "9223372036854775807",
+      startTime: "10:00",
+      endTime: "14:00",
+      breakMinutes: 30,
+      shiftTypeId: null,
+    });
+
+    const init = mockSessionFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(JSON.parse((init?.body as string) ?? "{}")).toMatchObject({
+      occurrence_shift_id: "9223372036854775807",
     });
   });
 

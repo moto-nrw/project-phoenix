@@ -459,10 +459,9 @@ class StaffShiftSeriesService {
           effective_date: payload.effectiveDate,
           ...(payload.occurrenceShiftId !== undefined
             ? {
-                occurrence_shift_id: Number.parseInt(
-                  payload.occurrenceShiftId,
-                  10,
-                ),
+                // Backend IDs are int64 values; serializing this as a number
+                // would round values beyond Number.MAX_SAFE_INTEGER.
+                occurrence_shift_id: payload.occurrenceShiftId,
               }
             : {}),
           start_time: payload.startTime,

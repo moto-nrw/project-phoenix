@@ -234,6 +234,24 @@ func TestSplitSeriesHandler_InheritsOmittedFields(t *testing.T) {
 	assert.Equal(t, []string{}, envelope.Data.SkippedDates)
 }
 
+func TestSplitSeriesHandler_AcceptsLosslessOccurrenceID(t *testing.T) {
+	var got scheduleSvc.SplitSeriesInput
+	service := &fakeSeriesService{
+		splitFn: func(_ context.Context, input scheduleSvc.SplitSeriesInput) (*scheduleSvc.SeriesResult, error) {
+			got = input
+			return &scheduleSvc.SeriesResult{Series: &scheduleModel.StaffShiftSeries{}}, nil
+		},
+	}
+	resource := seriesTestResource(service)
+	router := splitTestRouter(resource)
+	body := `{"effective_date":"2026-10-05","occurrence_shift_id":"9223372036854775807","start_time":"10:00","end_time":"14:00","break_minutes":0}`
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/series/12/split", strings.NewReader(body)))
+	router.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	assert.Equal(t, int64(9223372036854775807), got.OccurrenceShiftID)
+}
+
 func TestSplitSeriesHandler_RejectsBadEffectiveDate(t *testing.T) {
 	resource := seriesTestResource(&fakeSeriesService{})
 	router := splitTestRouter(resource)

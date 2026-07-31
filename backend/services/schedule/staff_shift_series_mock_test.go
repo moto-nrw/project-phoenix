@@ -157,11 +157,12 @@ func (r seriesFakePeriodRepo) FindByID(context.Context, any) (*scheduleModels.Ca
 }
 
 type seriesServiceMocks struct {
-	series     *seriesMockRepo
-	exceptions *seriesMockExceptionRepo
-	shifts     *seriesShiftMockRepo
-	staff      *shiftMockStaffRepo
-	period     seriesFakePeriodRepo
+	series            *seriesMockRepo
+	exceptions        *seriesMockExceptionRepo
+	shifts            *seriesShiftMockRepo
+	staff             *shiftMockStaffRepo
+	period            seriesFakePeriodRepo
+	occurrenceUpdater StaffShiftService
 }
 
 func newSeriesServiceForTest(m seriesServiceMocks) StaffShiftSeriesService {
@@ -192,7 +193,7 @@ func newSeriesServiceForTest(m seriesServiceMocks) StaffShiftSeriesService {
 	}
 	// nil db skips the advisory lock (same convention as the single-shift
 	// unit tests).
-	return NewStaffShiftSeriesService(m.series, m.exceptions, m.shifts, m.staff, m.period, nil, nil, nil)
+	return NewStaffShiftSeriesService(m.series, m.exceptions, m.shifts, m.staff, m.period, nil, nil, nil, m.occurrenceUpdater)
 }
 
 func unitSeries(t *testing.T) *scheduleModels.StaffShiftSeries {
@@ -659,6 +660,54 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		assert.Equal(t, tomorrow, capped)
 		assert.Equal(t, tomorrow, deleted)
 		assert.Equal(t, tomorrow, repointed)
+	})
+
+	t.Run("today occurrence repoints from today while future writes start tomorrow", func(t *testing.T) {
+		today := timezone.TodayDate()
+		seriesID := int64(12)
+		occurrence := &scheduleModels.StaffShift{
+			StaffID:              5,
+			Date:                 today,
+			SeriesID:             &seriesID,
+			SeriesOccurrenceDate: &today,
+			StartTime:            seriesClockForMockTest(t, "09:00"),
+			EndTime:              seriesClockForMockTest(t, "12:00"),
+		}
+		occurrence.ID = 44
+		var deleted, repointed timezone.Date
+		repo := found(t)
+		repo.createFn = func(_ context.Context, successor *scheduleModels.StaffShiftSeries) error {
+			successor.ID = 13
+			return nil
+		}
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: repo,
+			shifts: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
+				findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+					return occurrence, nil
+				},
+			},
+				deleteNonDetachedFn: func(_ context.Context, _ int64, from timezone.Date) (int64, error) {
+					deleted = from
+					return 0, nil
+				},
+				repointDetachedFn: func(_ context.Context, fromID, toID int64, from timezone.Date) (int64, error) {
+					assert.Equal(t, seriesID, fromID)
+					assert.Equal(t, int64(13), toID)
+					repointed = from
+					return 1, nil
+				},
+			},
+			occurrenceUpdater: &seriesOccurrenceUpdaterMock{},
+		})
+
+		input := splitInput(t, seriesID)
+		input.EffectiveDate = today
+		input.OccurrenceShiftID = occurrence.ID
+		_, err := service.SplitSeries(context.Background(), input)
+		require.NoError(t, err)
+		assert.Equal(t, today.AddDays(1), deleted)
+		assert.Equal(t, today, repointed)
 	})
 }
 

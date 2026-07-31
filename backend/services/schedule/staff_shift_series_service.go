@@ -563,7 +563,14 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	}
 	// Deviation preservation (#1890 counterpart): detached rows and removed
 	// occurrences from the effective date onward belong to the successor now.
-	if _, err := s.shiftRepo.RepointDetachedSeriesFrom(ctx, old.ID, successor.ID, effective); err != nil {
+	// A retained today occurrence was just detached in place, so it must join
+	// the successor too; otherwise reopening it would submit the capped segment
+	// ID and a second permanent edit would be rejected as superseded.
+	repointFrom := effective
+	if updateToday {
+		repointFrom = input.EffectiveDate
+	}
+	if _, err := s.shiftRepo.RepointDetachedSeriesFrom(ctx, old.ID, successor.ID, repointFrom); err != nil {
 		return nil, err
 	}
 	if _, err := s.exceptionRepo.RepointToSeriesFrom(ctx, old.ID, successor.ID, effective); err != nil {

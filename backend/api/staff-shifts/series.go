@@ -1,8 +1,10 @@
 package staffshifts
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/render"
 
@@ -11,6 +13,30 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
+
+// occurrenceShiftID accepts legacy JSON numbers as well as the lossless
+// decimal-string representation used by the frontend. JavaScript numbers
+// cannot faithfully represent every valid PostgreSQL bigint ID.
+type occurrenceShiftID int64
+
+func (id *occurrenceShiftID) UnmarshalJSON(data []byte) error {
+	var encoded string
+	if err := json.Unmarshal(data, &encoded); err == nil {
+		parsed, err := strconv.ParseInt(encoded, 10, 64)
+		if err != nil {
+			return errors.New("occurrence_shift_id must be an int64")
+		}
+		*id = occurrenceShiftID(parsed)
+		return nil
+	}
+
+	var parsed int64
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return errors.New("occurrence_shift_id must be an int64")
+	}
+	*id = occurrenceShiftID(parsed)
+	return nil
+}
 
 // SeriesRequest is the create payload for a recurring shift series (#1889).
 // Weekdays are ISO (1=Monday … 7=Sunday); week_pattern is 0 = every week,
@@ -36,7 +62,7 @@ type SeriesRequest struct {
 	// OccurrenceShiftID is the concrete row opened by the planner. For a
 	// permanent edit effective today it is updated in place before the series
 	// is re-planned from tomorrow.
-	OccurrenceShiftID int64 `json:"occurrence_shift_id"`
+	OccurrenceShiftID occurrenceShiftID `json:"occurrence_shift_id"`
 }
 
 // SeriesResponse is the wire format for series create/split/end results.
@@ -258,7 +284,7 @@ func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
 	result, err := rs.SeriesService.SplitSeries(r.Context(), scheduleSvc.SplitSeriesInput{
 		SeriesID:          id,
 		EffectiveDate:     effective,
-		OccurrenceShiftID: req.OccurrenceShiftID,
+		OccurrenceShiftID: int64(req.OccurrenceShiftID),
 		Weekdays:          weekdays,
 		StartTime:         start,
 		EndTime:           end,
