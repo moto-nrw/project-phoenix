@@ -21,6 +21,16 @@ import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
 const logger = createLogger({ component: "ChildCareOfferings" });
 
+const DAY_KEY_TO_WEEKDAY: Record<string, number> = {
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+  sun: 7,
+};
+
 // Reason identifier from the backend → the message key explaining it.
 const DISABLED_REASON_KEYS: Record<OfferingChangesDisabledReason, string> = {
   no_enrollment: "careOfferings.disabledNoEnrollment",
@@ -87,6 +97,26 @@ export function ChildCareOfferingsSection({
         ? t("careOfferings.allDays")
         : weekdays.map((day) => t(`weekdayShort.${day}`)).join(", "),
     [t],
+  );
+
+  const dayKeyList = useCallback(
+    (days: string[]) =>
+      weekdayList(
+        days.flatMap((day) => {
+          const weekday = DAY_KEY_TO_WEEKDAY[day];
+          return weekday === undefined ? [] : [weekday];
+        }),
+      ),
+    [weekdayList],
+  );
+
+  const diffValue = useCallback(
+    (state: "not_booked" | "removed" | "booked", days: string[]) => {
+      if (state === "not_booked") return t("careOfferings.notBooked");
+      if (state === "removed") return t("careOfferings.removed");
+      return dayKeyList(days);
+    },
+    [dayKeyList, t],
   );
 
   const periodLabel = useMemo(() => {
@@ -277,8 +307,12 @@ export function ChildCareOfferingsSection({
                     className="flex flex-wrap items-baseline gap-x-2 text-sm"
                   >
                     <dt className="font-medium text-gray-700">{line.label}</dt>
-                    <dd className="text-gray-500 line-through">{line.old}</dd>
-                    <dd className="text-gray-900">{line.new}</dd>
+                    <dd className="text-gray-500 line-through">
+                      {diffValue(line.old_state, line.old_days)}
+                    </dd>
+                    <dd className="text-gray-900">
+                      {diffValue(line.new_state, line.new_days)}
+                    </dd>
                   </div>
                 ))}
               </dl>

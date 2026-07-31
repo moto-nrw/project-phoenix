@@ -295,9 +295,10 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 				SubmittedBy:   11,
 			},
 			Diff: []enrollmentSvc.OfferingChangeDiffEntry{{
-				Label: "Erste Sortierung",
-				Old:   "nicht gebucht",
-				New:   "Dienstag",
+				Label:    "Erste Sortierung",
+				OldState: "not_booked",
+				NewState: "booked",
+				NewDays:  []string{"tue"},
 			}},
 			LastDecision: &enrollmentSvc.OfferingChangeDecision{ID: 60, Status: "rejected"},
 		},

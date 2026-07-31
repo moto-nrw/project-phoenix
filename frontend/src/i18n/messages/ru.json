@@ -1031,7 +1031,9 @@
       "groupsTitle": "AGs und Gruppen",
       "noOfferings": "Für Ihr Kind sind derzeit keine Betreuungsangebote gebucht.",
       "noGroups": "Ihr Kind ist derzeit keiner AG oder Gruppe zugeordnet.",
-      "allDays": "alle Betreuungstage",
+      "allDays": "все дни присмотра",
+      "notBooked": "не забронировано",
+      "removed": "отменено",
       "lunch": "mit Mittagessen",
       "holidayCare": "mit Ferienbetreuung",
       "price": "{amount} pro Monat",
@@ -1084,13 +1086,13 @@
       "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab."
     },
     "weekdayShort": {
-      "1": "Mo",
-      "2": "Di",
-      "3": "Mi",
-      "4": "Do",
-      "5": "Fr",
-      "6": "Sa",
-      "7": "So"
+      "1": "Пн",
+      "2": "Вт",
+      "3": "Ср",
+      "4": "Чт",
+      "5": "Пт",
+      "6": "Сб",
+      "7": "Вс"
     }
   },
   "parentOgsMessaging": {

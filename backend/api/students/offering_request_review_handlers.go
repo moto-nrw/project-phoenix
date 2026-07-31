@@ -31,7 +31,8 @@ type OfferingRequestResponse struct {
 	ReviewedAt    *time.Time                    `json:"reviewed_at,omitempty"`
 }
 
-// OfferingRequestDiffResponse is one diff line, pre-rendered in German.
+// OfferingRequestDiffResponse is one German-localized diff line for the
+// German-only staff portal.
 type OfferingRequestDiffResponse struct {
 	Label string `json:"label"`
 	Old   string `json:"old"`
@@ -44,8 +45,8 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 	for _, entry := range item.Diff {
 		diff = append(diff, OfferingRequestDiffResponse{
 			Label: entry.Label,
-			Old:   entry.Old,
-			New:   entry.New,
+			Old:   germanOfferingDiffLabel(entry.OldState, entry.OldDays),
+			New:   germanOfferingDiffLabel(entry.NewState, entry.NewDays),
 		})
 	}
 	resp := OfferingRequestResponse{
@@ -63,6 +64,29 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 		resp.Note = *row.ParentNote
 	}
 	return resp
+}
+
+func germanOfferingDiffLabel(state string, days []string) string {
+	switch state {
+	case "not_booked":
+		return "nicht gebucht"
+	case "removed":
+		return "abgemeldet"
+	}
+	if len(days) == 0 {
+		return "alle Betreuungstage"
+	}
+	labels := map[string]string{
+		"mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do",
+		"fri": "Fr", "sat": "Sa", "sun": "So",
+	}
+	parts := make([]string, 0, len(days))
+	for _, day := range days {
+		if label, ok := labels[day]; ok {
+			parts = append(parts, label)
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // listOfferingChangeRequests returns the tenant's pending offering-change

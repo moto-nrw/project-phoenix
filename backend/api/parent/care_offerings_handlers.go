@@ -119,9 +119,11 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 		}
 		for _, entry := range v.PendingRequest.Diff {
 			pending.Diff = append(pending.Diff, OfferingDiffResponse{
-				Label: entry.Label,
-				Old:   entry.Old,
-				New:   entry.New,
+				Label:    entry.Label,
+				OldState: entry.OldState,
+				OldDays:  append([]string{}, entry.OldDays...),
+				NewState: entry.NewState,
+				NewDays:  append([]string{}, entry.NewDays...),
 			})
 		}
 		resp.PendingRequest = pending
@@ -196,7 +198,8 @@ type PendingOfferingChangeResponse struct {
 	CreatedAt     string `json:"created_at"`
 	EffectiveFrom string `json:"effective_from"`
 	Note          string `json:"note,omitempty"`
-	// Diff lists the "current → requested" lines, already rendered in German.
+	// Diff lists the "current → requested" lines with stable states and canonical
+	// day keys. The parents portal renders them in the guardian's language.
 	Diff            []OfferingDiffResponse `json:"diff"`
 	SubmittedBySelf bool                   `json:"submitted_by_self"`
 }
@@ -225,9 +228,11 @@ type OfferingRequestedItemResponse struct {
 
 // OfferingDiffResponse is one diff line.
 type OfferingDiffResponse struct {
-	Label string `json:"label"`
-	Old   string `json:"old"`
-	New   string `json:"new"`
+	Label    string   `json:"label"`
+	OldState string   `json:"old_state"`
+	OldDays  []string `json:"old_days"` // Empty for not_booked.
+	NewState string   `json:"new_state"`
+	NewDays  []string `json:"new_days"` // Empty for removed.
 }
 
 // OfferingCatalogResponse is the selectable catalog for the request modal.

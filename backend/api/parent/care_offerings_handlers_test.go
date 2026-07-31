@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -29,4 +30,26 @@ func TestToCareOfferingsResponseIncludesOfferingInterval(t *testing.T) {
 	assert.Equal(t, "2026-10-01", item.ValidFrom)
 	assert.Equal(t, "2027-01-31", item.ValidUntil)
 	assert.True(t, item.StartsLater)
+}
+
+func TestToCareOfferingsResponseUsesStableOfferingDiffValues(t *testing.T) {
+	response := toCareOfferingsResponse(&parentService.ChildCareOfferings{
+		PendingRequest: &parentService.PendingOfferingChange{
+			Diff: []enrollmentService.OfferingChangeDiffEntry{{
+				Label:    "Care club",
+				OldState: "not_booked",
+				NewState: "booked",
+				NewDays:  []string{"mon", "wed"},
+			}},
+		},
+	})
+
+	require.NotNil(t, response.PendingRequest)
+	require.Equal(t, []OfferingDiffResponse{{
+		Label:    "Care club",
+		OldState: "not_booked",
+		OldDays:  []string{},
+		NewState: "booked",
+		NewDays:  []string{"mon", "wed"},
+	}}, response.PendingRequest.Diff)
 }

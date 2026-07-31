@@ -57,7 +57,15 @@ const pending: ChildCareOfferings["pending_request"] = {
   id: "77",
   created_at: "2026-07-30T10:00:00Z",
   effective_from: "2027-02-01",
-  diff: [{ label: "Regelbetreuung", old: "Mo, Di, Mi", new: "Mo, Di" }],
+  diff: [
+    {
+      label: "Regelbetreuung",
+      old_state: "booked",
+      old_days: ["mon", "tue", "wed"],
+      new_state: "booked",
+      new_days: ["mon", "tue"],
+    },
+  ],
   submitted_by_self: true,
 };
 

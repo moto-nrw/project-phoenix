@@ -120,11 +120,14 @@ type OfferingChangeCatalog struct {
 }
 
 // OfferingChangeDiffEntry is one "current → requested" line, shared by the
-// parent read view and the staff review card.
+// parent read view and the staff review card. State and day keys stay stable so
+// the parents portal can localize them in the guardian's chosen language.
 type OfferingChangeDiffEntry struct {
-	Label string
-	Old   string
-	New   string
+	Label    string
+	OldState string
+	OldDays  []string
+	NewState string
+	NewDays  []string
 }
 
 // OfferingChangeView is a request as both sides see it.
@@ -1421,15 +1424,26 @@ func offeringDiffEntry(
 	if name == "" {
 		name = fmt.Sprintf("Angebot %d", id)
 	}
-	oldLabel := "nicht gebucht"
+	oldState := "not_booked"
+	var oldDays []string
 	if current != nil {
-		oldLabel = germanDayLabel(current.SelectedDays)
+		oldState = "booked"
+		oldDays = canonicalDays(current.SelectedDays)
 	}
-	newLabel := "abgemeldet"
+	newState := "removed"
+	var newDays []string
 	if requested, wanted := requestedByID[id]; wanted {
-		newLabel = germanDayLabel(requested.SelectedDays)
+		newState = "booked"
+		newDays = canonicalDays(requested.SelectedDays)
 	}
-	return OfferingChangeDiffEntry{Label: name, Old: oldLabel, New: newLabel}, oldLabel != newLabel
+	changed := oldState != newState || !slices.Equal(oldDays, newDays)
+	return OfferingChangeDiffEntry{
+		Label:    name,
+		OldState: oldState,
+		OldDays:  oldDays,
+		NewState: newState,
+		NewDays:  newDays,
+	}, changed
 }
 
 func (s *offeringChangeRequestService) studentName(ctx context.Context, studentID int64) string {

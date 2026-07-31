@@ -1032,6 +1032,8 @@
       "noOfferings": "No care offerings are currently booked for your child.",
       "noGroups": "Your child is not currently assigned to a club or group.",
       "allDays": "all care days",
+      "notBooked": "not booked",
+      "removed": "cancelled",
       "lunch": "including lunch",
       "holidayCare": "including holiday care",
       "price": "{amount} per month",

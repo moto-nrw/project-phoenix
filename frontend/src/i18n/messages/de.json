@@ -1032,6 +1032,8 @@
       "noOfferings": "Für Ihr Kind sind derzeit keine Betreuungsangebote gebucht.",
       "noGroups": "Ihr Kind ist derzeit keiner AG oder Gruppe zugeordnet.",
       "allDays": "alle Betreuungstage",
+      "notBooked": "nicht gebucht",
+      "removed": "abgemeldet",
       "lunch": "mit Mittagessen",
       "holidayCare": "mit Ferienbetreuung",
       "price": "{amount} pro Monat",

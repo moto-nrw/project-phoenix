@@ -1032,8 +1032,12 @@ interface CareGroupItem {
 /** One "current -> requested" line of a pending offering change. */
 interface OfferingDiffLine {
   readonly label: string;
-  readonly old: string;
-  readonly new: string;
+  readonly old_state: "not_booked" | "booked";
+  /** Canonical day keys; empty for an all-day booking. */
+  readonly old_days: string[];
+  readonly new_state: "removed" | "booked";
+  /** Canonical day keys; empty for an all-day booking. */
+  readonly new_days: string[];
 }
 
 /** The child's open offering change request. */
