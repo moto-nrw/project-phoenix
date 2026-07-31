@@ -6,6 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import {
   duplicateLohnartNumbers,
@@ -77,7 +78,8 @@ export default function PayrollPage() {
   }
   if (error) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="-mt-1.5 w-full">
+        <PageHeaderWithSearch title="Abrechnung" />
         <Alert
           type="error"
           message="Die Abrechnungs-Konfiguration konnte nicht geladen werden."
@@ -92,28 +94,32 @@ export default function PayrollPage() {
   const duplicates = duplicateLohnartNumbers(status);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 px-4 py-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Abrechnung</h1>
-        <p className="mt-1 text-sm text-gray-500">
+    // Volle Inhaltsbreite und Abstände wie auf den übrigen Seiten: die eigene
+    // zentrierte max-w-4xl-Spalte mit extra px/py ließ die Abrechnung schmaler
+    // und tiefer beginnen als jede andere Seite. Der Titel steht auf dem
+    // Desktop in der Breadcrumb, PageHeaderWithSearch zeigt ihn nur mobil.
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch title="Abrechnung" />
+      <div className="space-y-5">
+        <p className="max-w-3xl text-sm text-gray-600">
           Zuordnung der Zeiterfassungs-Kategorien zu den Lohnarten des
           Lohnsystems und DATEV-Mandantendaten. Grundlage für den späteren
           DATEV-Export (LODAS und Lohn und Gehalt).
         </p>
+
+        <ReadinessCard status={status} />
+
+        {saveError && <Alert type="error" message={saveError} />}
+        {duplicates.length > 0 && (
+          <Alert
+            type="warning"
+            message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden — bitte prüfen.`}
+          />
+        )}
+
+        <LohnartenCard status={status} onSave={save} />
+        <DatevCard status={status} onSave={save} />
       </div>
-
-      <ReadinessCard status={status} />
-
-      {saveError && <Alert type="error" message={saveError} />}
-      {duplicates.length > 0 && (
-        <Alert
-          type="warning"
-          message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden — bitte prüfen.`}
-        />
-      )}
-
-      <LohnartenCard status={status} onSave={save} />
-      <DatevCard status={status} onSave={save} />
     </div>
   );
 }
@@ -144,9 +150,7 @@ function ReadinessCard({ status }: { readonly status: PayrollStatus }) {
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <h2 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-        Vollständigkeit
-      </h2>
+      <h2 className="text-base font-semibold text-gray-900">Vollständigkeit</h2>
       <ul className="mt-3 space-y-2">
         {items.map((item) => (
           <li key={item.label} className="flex items-start gap-2 text-sm">
@@ -180,10 +184,8 @@ function LohnartenCard({
 }) {
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <h2 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-        Lohnarten
-      </h2>
-      <p className="mt-1 text-xs text-gray-500">
+      <h2 className="text-base font-semibold text-gray-900">Lohnarten</h2>
+      <p className="mt-1 max-w-3xl text-sm text-gray-500">
         Mandantenspezifische Lohnartnummern aus dem Lohnsystem des Trägers (1
         bis 4 Ziffern). Für Krank, Urlaub und Fortbildung zusätzlich die
         Einheit, die die Lohnart erwartet.
@@ -191,7 +193,7 @@ function LohnartenCard({
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[28rem] text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500">
               <th className="py-2 pr-4">Kategorie</th>
               <th className="py-2 pr-4">Lohnartnummer</th>
               <th className="py-2">Einheit</th>
@@ -272,10 +274,8 @@ function DatevCard({
 }) {
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <h2 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-        DATEV-Mandant
-      </h2>
-      <p className="mt-1 text-xs text-gray-500">
+      <h2 className="text-base font-semibold text-gray-900">DATEV-Mandant</h2>
+      <p className="mt-1 max-w-3xl text-sm text-gray-500">
         Kennzahlen für den Kopf der LODAS-Datei. Lohn und Gehalt benötigt sie
         nicht.
       </p>
