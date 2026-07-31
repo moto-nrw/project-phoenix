@@ -1072,6 +1072,11 @@ func executeOperationRequest(router chi.Router, method, path string, body any) *
 	return rr
 }
 
+func TestSpontaneousStartWorkdayWindow_RejectsWeekend(t *testing.T) {
+	_, err := spontaneousStartWorkdayWindow(time.Date(2026, time.May, 9, 14, 0, 0, 0, timezone.Berlin))
+	require.ErrorIs(t, err, errTimetableWeekend)
+}
+
 func lastPathSegment(path string) string {
 	for i := len(path) - 1; i >= 0; i-- {
 		if path[i] == '/' {

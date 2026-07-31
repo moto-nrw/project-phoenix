@@ -162,6 +162,11 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	if !ok {
 		return
 	}
+	window, err := spontaneousStartWorkdayWindow(timezone.Now())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	if len(req.StudentIDs) > 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
 		return
@@ -185,7 +190,6 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	}
 
 	isSpontaneous := true
-	window := serverSpontaneousActivityWindow(timezone.Now())
 	claims := jwt.ClaimsFromCtx(r.Context())
 	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, scheduleSvc.CreateInstanceInput{
 		Date:             window.date,
@@ -348,6 +352,14 @@ func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
 		startTime: clockTimeFromMinutes(startMinutes),
 		endTime:   clockTimeFromMinutes(endMinutes),
 	}
+}
+
+func spontaneousStartWorkdayWindow(now time.Time) (spontaneousActivityWindow, error) {
+	window := serverSpontaneousActivityWindow(now)
+	if err := validateTimetableWorkday(window.date); err != nil {
+		return spontaneousActivityWindow{}, err
+	}
+	return window, nil
 }
 
 func clockTimeFromMinutes(minutes int) time.Time {

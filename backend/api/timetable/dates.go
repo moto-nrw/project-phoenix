@@ -14,6 +14,8 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
+var errTimetableWeekend = errors.New("timetable entries can only be scheduled from Monday to Friday")
+
 // berlinDate parses a YYYY-MM-DD input into a calendar date. timezone.Date
 // carries no instant, so the historical 00:00–02:00 CET/UTC anchoring pitfall
 // cannot occur by construction.
@@ -28,7 +30,7 @@ func berlinDate(input string) (timezone.Date, error) {
 func validateTimetableWorkday(date timezone.Date) error {
 	switch date.Weekday() {
 	case time.Saturday, time.Sunday:
-		return errors.New("timetable entries can only be scheduled from Monday to Friday")
+		return errTimetableWeekend
 	default:
 		return nil
 	}

@@ -2,7 +2,9 @@ package timetable
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -69,8 +71,14 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
 	}
-	if !rs.legacyInstanceDateIsAllowed(r.Context(), id, date) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("timetable entries can only be scheduled from Monday to Friday")))
+	if err := rs.validateUpdateInstanceDate(r.Context(), id, date); err != nil {
+		if errors.Is(err, errTimetableWeekend) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		} else if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance for workday validation failed", err))
+		}
 		return
 	}
 	startTime, err := parseClockTime(req.StartTime)
@@ -129,13 +137,21 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, enriched, "Instance updated")
 }
 
-// legacyInstanceDateIsAllowed permits a legacy weekend instance to retain its
+// validateUpdateInstanceDate permits a legacy weekend instance to retain its
 // date while preventing PUT from introducing or moving an instance to a
-// weekend.
-func (rs *Resource) legacyInstanceDateIsAllowed(ctx context.Context, id int64, date timezone.Date) bool {
-	if validateTimetableWorkday(date) == nil {
-		return true
+// weekend. Lookup failures are retained so they are not misreported as a
+// client workday validation error.
+func (rs *Resource) validateUpdateInstanceDate(ctx context.Context, id int64, date timezone.Date) error {
+	weekendErr := validateTimetableWorkday(date)
+	if weekendErr == nil {
+		return nil
 	}
-	existing, err := rs.TimetableData.GetActivityInstance(ctx, id)
-	return err == nil && existing.Date == date
+	existing, lookupErr := rs.TimetableData.GetActivityInstance(ctx, id)
+	if lookupErr != nil {
+		return fmt.Errorf("get existing instance: %w", lookupErr)
+	}
+	if existing.Date == date {
+		return nil
+	}
+	return weekendErr
 }

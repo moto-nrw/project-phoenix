@@ -198,10 +198,10 @@ function TimetablesContent() {
   const requestedDayISO =
     rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
   const view: TimetableView = parseViewParam(params.view);
-  // The monthly calendar remains a complete calendar, including weekend
-  // records. Only workweek/series navigation snaps its anchor to Monday.
+  // The monthly calendar and series period lookup retain their requested
+  // calendar date. Only the workweek view snaps weekend anchors to Monday.
   const dayISO =
-    view === "month" ? requestedDayISO : nextWorkdayISO(requestedDayISO);
+    view === "week" ? nextWorkdayISO(requestedDayISO) : requestedDayISO;
   const selectedInstanceId = params.block;
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
@@ -284,7 +284,7 @@ function TimetablesContent() {
   const goToToday = useCallback(
     () =>
       updateUrlParams({
-        d: view === "month" ? todayISO : todayTargetISO,
+        d: view === "week" ? todayTargetISO : todayISO,
         block: null,
       }),
     [todayISO, todayTargetISO, updateUrlParams, view],

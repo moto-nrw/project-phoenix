@@ -82,7 +82,7 @@ export function MonthPlannerGrid({
               key={iso}
               {...(!onInstanceClick
                 ? { type: "button" as const, onClick: () => onDayClick(iso) }
-                : {})}
+                : { onClick: () => onDayClick(iso) })}
               className={`min-h-[112px] border-r border-b border-gray-100 p-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${backgroundClass} ${outsideMonth ? "text-gray-400" : ""}`}
             >
               <div className="flex items-center justify-between gap-2">
@@ -90,7 +90,10 @@ export function MonthPlannerGrid({
                   {...(onInstanceClick
                     ? {
                         type: "button" as const,
-                        onClick: () => onDayClick(iso),
+                        onClick: (event: React.MouseEvent) => {
+                          event.stopPropagation();
+                          onDayClick(iso);
+                        },
                         "aria-label": `${getGermanWeekdayShort(day)} ${day.getDate()}.${day.getMonth() + 1}.${day.getFullYear()}`,
                       }
                     : {})}
@@ -138,7 +141,10 @@ export function MonthPlannerGrid({
                         {...(onInstanceClick
                           ? {
                               type: "button" as const,
-                              onClick: () => onInstanceClick(inst),
+                              onClick: (event: React.MouseEvent) => {
+                                event.stopPropagation();
+                                onInstanceClick(inst);
+                              },
                             }
                           : {})}
                         className={`flex min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
