@@ -18,7 +18,7 @@ describe("instrumentation-client", () => {
     vi.unstubAllEnvs();
   });
 
-  it("initializes PostHog when NEXT_PUBLIC_POSTHOG_KEY is set", async () => {
+  it("initializes PostHog with remote configuration disabled", async () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test_key_123");
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.i.posthog.com");
 
@@ -45,11 +45,20 @@ describe("instrumentation-client", () => {
         save_referrer: false,
         save_campaign_params: false,
         disable_surveys: true,
-        advanced_disable_feature_flags: true,
-        advanced_disable_feature_flags_on_first_load: true,
+        advanced_disable_flags: true,
         before_send: expect.any(Function),
       }),
     );
+  });
+
+  it("rejects an analytics key without an explicit ingestion host", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test_key_123");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "");
+
+    await expect(import("./instrumentation-client")).rejects.toThrow(
+      "NEXT_PUBLIC_POSTHOG_HOST is required when NEXT_PUBLIC_POSTHOG_KEY is set",
+    );
+    expect(mockInit).not.toHaveBeenCalled();
   });
 
   it("does not initialize PostHog when NEXT_PUBLIC_POSTHOG_KEY is not set", async () => {

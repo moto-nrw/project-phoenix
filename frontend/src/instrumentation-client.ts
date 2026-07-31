@@ -2,9 +2,18 @@ import "./sentry.client.config";
 import posthog from "posthog-js";
 import { sanitizePostHogEvent } from "~/lib/posthog-privacy";
 
-if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
-  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+const postHogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+
+if (postHogKey) {
+  const postHogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+  if (!postHogHost) {
+    throw new Error(
+      "NEXT_PUBLIC_POSTHOG_HOST is required when NEXT_PUBLIC_POSTHOG_KEY is set.",
+    );
+  }
+
+  posthog.init(postHogKey, {
+    api_host: postHogHost,
     defaults: "2026-01-30",
     autocapture: false,
     rageclick: false,
@@ -24,8 +33,7 @@ if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
     save_referrer: false,
     save_campaign_params: false,
     disable_surveys: true,
-    advanced_disable_feature_flags: true,
-    advanced_disable_feature_flags_on_first_load: true,
+    advanced_disable_flags: true,
     before_send: sanitizePostHogEvent,
   });
 }

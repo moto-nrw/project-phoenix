@@ -42,8 +42,14 @@ const TENANT_DOMAIN: string = (() => {
 })();
 
 const POSTHOG_INGESTION_ORIGIN: string | null = (() => {
+  const configuredKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   const configuredHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-  if (!configuredHost) return null;
+  if (!configuredKey) return null;
+  if (!configuredHost) {
+    throw new Error(
+      "NEXT_PUBLIC_POSTHOG_HOST is required when NEXT_PUBLIC_POSTHOG_KEY is set.",
+    );
+  }
 
   const url = new URL(configuredHost);
   if (url.protocol !== "http:" && url.protocol !== "https:") {
