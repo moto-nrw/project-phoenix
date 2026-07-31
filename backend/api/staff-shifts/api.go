@@ -95,7 +95,7 @@ type ShiftRequest struct {
 	ChangeReason optionalString `json:"change_reason"`
 	// OriginShiftID marks this shift as a replacement covering another shift
 	// (#1841). Only honoured on create; a plain edit never re-points it.
-	OriginShiftID *int64 `json:"origin_shift_id"`
+	OriginShiftID optionalID `json:"origin_shift_id"`
 }
 
 // optionalID captures whether a nullable ID field was present in the JSON
@@ -112,6 +112,15 @@ func (o *optionalID) UnmarshalJSON(data []byte) error {
 	o.Present = true
 	if string(data) == "null" {
 		o.Value = nil
+		return nil
+	}
+	var decimal string
+	if err := json.Unmarshal(data, &decimal); err == nil {
+		v, err := strconv.ParseInt(decimal, 10, 64)
+		if err != nil {
+			return fmt.Errorf("ID must be a signed 64-bit integer: %w", err)
+		}
+		o.Value = &v
 		return nil
 	}
 	var v int64
@@ -292,7 +301,7 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 		Notes:         notes,
 		Cancelled:     req.Cancelled.Value,
 		ChangeReason:  req.ChangeReason.Value,
-		OriginShiftID: req.OriginShiftID,
+		OriginShiftID: req.OriginShiftID.Value,
 	}, nil
 }
 

@@ -23,8 +23,9 @@ import (
 // so the payload-mapping and partial-edit-rejection behaviour can be asserted
 // without a database.
 type fakeShiftService struct {
-	applyFn func(ctx context.Context, input scheduleSvc.CancelShiftInput) (*scheduleSvc.CancelShiftResult, error)
-	moveFn  func(ctx context.Context, input scheduleSvc.MoveShiftInput) (*scheduleModel.StaffShift, error)
+	createFn func(ctx context.Context, shift *scheduleModel.StaffShift) (*scheduleModel.StaffShift, error)
+	applyFn  func(ctx context.Context, input scheduleSvc.CancelShiftInput) (*scheduleSvc.CancelShiftResult, error)
+	moveFn   func(ctx context.Context, input scheduleSvc.MoveShiftInput) (*scheduleModel.StaffShift, error)
 }
 
 func (f *fakeShiftService) ListShifts(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.StaffShift, error) {
@@ -35,7 +36,10 @@ func (f *fakeShiftService) ListShiftsForStaff(context.Context, int64, timezone.D
 	return nil, nil
 }
 
-func (f *fakeShiftService) CreateShift(context.Context, *scheduleModel.StaffShift) (*scheduleModel.StaffShift, error) {
+func (f *fakeShiftService) CreateShift(ctx context.Context, shift *scheduleModel.StaffShift) (*scheduleModel.StaffShift, error) {
+	if f.createFn != nil {
+		return f.createFn(ctx, shift)
+	}
 	return nil, nil
 }
 
@@ -100,6 +104,12 @@ func moveRouter(resource *Resource) chi.Router {
 	return router
 }
 
+func createRouter(resource *Resource) chi.Router {
+	router := chi.NewRouter()
+	router.Post("/", resource.create)
+	return router
+}
+
 func TestToShiftResponse_IncludesSeriesOccurrenceDate(t *testing.T) {
 	sourceDate := timezone.NewDate(2026, 7, 6)
 	seriesID := int64(9)
@@ -127,6 +137,43 @@ func TestToShiftResponse_SerializesShiftAndSeriesIDsAsStrings(t *testing.T) {
 	assert.Equal(t, "9223372036854775806", body["id"])
 	assert.Equal(t, "9223372036854775807", body["series_id"])
 	assert.Equal(t, "9223372036854775805", body["origin_shift_id"])
+}
+
+func TestCreateHandler_AcceptsStringOriginShiftIDWithoutPrecisionLoss(t *testing.T) {
+	const originShiftID = int64(9223372036854775807)
+	var got *scheduleModel.StaffShift
+	service := &fakeShiftService{
+		createFn: func(_ context.Context, shift *scheduleModel.StaffShift) (*scheduleModel.StaffShift, error) {
+			got = shift
+			return shift, nil
+		},
+	}
+	body := `{"staff_id":7,"date":"2026-07-07","start_time":"09:00","end_time":"15:00","break_minutes":20,"shift_type_id":null,"origin_shift_id":"9223372036854775807"}`
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)))
+	createRouter(shiftTestResource(service)).ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
+	require.NotNil(t, got)
+	require.NotNil(t, got.OriginShiftID)
+	assert.Equal(t, originShiftID, *got.OriginShiftID)
+}
+
+func TestCreateHandler_AcceptsLegacyNumericOriginShiftID(t *testing.T) {
+	var got *scheduleModel.StaffShift
+	service := &fakeShiftService{
+		createFn: func(_ context.Context, shift *scheduleModel.StaffShift) (*scheduleModel.StaffShift, error) {
+			got = shift
+			return shift, nil
+		},
+	}
+	body := `{"staff_id":7,"date":"2026-07-07","start_time":"09:00","end_time":"15:00","break_minutes":20,"shift_type_id":null,"origin_shift_id":42}`
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)))
+	createRouter(shiftTestResource(service)).ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
+	require.NotNil(t, got)
+	require.NotNil(t, got.OriginShiftID)
+	assert.Equal(t, int64(42), *got.OriginShiftID)
 }
 
 func TestMoveHandler_MapsAtomicMovePayload(t *testing.T) {

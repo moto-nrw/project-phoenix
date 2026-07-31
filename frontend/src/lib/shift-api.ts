@@ -221,7 +221,7 @@ function toBackendBody(payload: ShiftPayload) {
       ? { change_reason: payload.changeReason }
       : {}),
     ...(payload.originShiftId != null
-      ? { origin_shift_id: Number.parseInt(payload.originShiftId, 10) }
+      ? { origin_shift_id: payload.originShiftId }
       : {}),
   };
 }
