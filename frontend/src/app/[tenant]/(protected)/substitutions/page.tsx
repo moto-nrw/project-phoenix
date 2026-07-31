@@ -19,14 +19,11 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { StatusBadge } from "~/components/ui/status-badge";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
 import type { Group } from "~/lib/api";
 import { formatDate, toISODate } from "~/lib/date-helpers";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type {
@@ -35,7 +32,6 @@ import type {
 } from "~/lib/substitution-helpers";
 import {
   formatTeacherName,
-  getSubstitutionCounts,
   getTeacherStatus,
 } from "~/lib/substitution-helpers";
 import { useImmutableSWR, useSWRAuth } from "~/lib/swr";
@@ -84,25 +80,29 @@ function getSubstituteName(
 }
 
 /**
- * Status-Chip einer Fachkraft. Orange steht für Tagesübergaben, Lila für
- * mehrtägige Zugriffe, Grün für "nichts zugewiesen" — dieselbe Zuordnung wie in
- * den beiden Abschnitten weiter unten, damit die Farbe über die Seite hinweg
- * dasselbe bedeutet. Lila fehlt in den Tönen von StatusBadge, deshalb dort der
- * datengetriebene StatusDotBadge mit dem Hex aus LOCATION_COLORS.
+ * Meta-Zeile unter einem Namen oder Gruppennamen: durch Mittelpunkte getrennte
+ * Textstücke, leere Werte fallen weg.
+ *
+ * Bewusst ohne farbige Pillen. Eine getönte Pille ist im Produkt einem echten
+ * Ausnahmezustand vorbehalten (etwa "Abwesend" in der Mitarbeiterliste); hier
+ * hätte fast jede Zeile eine getragen, die meisten davon für den Normalfall
+ * "Verfügbar". Farbe, die auf jeder Zeile steht, unterscheidet nichts mehr und
+ * macht aus einer Arbeitsliste ein Schaubild.
  */
-function TeacherStatusChip({
-  teacher,
-}: Readonly<{ teacher: TeacherAvailability }>) {
-  const counts = getSubstitutionCounts(teacher);
-  const label = getTeacherStatus(teacher);
+function MetaLine({ parts }: Readonly<{ parts: (string | null)[] }>) {
+  const visible = parts.filter((part): part is string => Boolean(part));
+  if (visible.length === 0) return null;
 
-  if (counts.substitutions > 0) {
-    return <StatusDotBadge label={label} color={LOCATION_COLORS.EXCUSED} />;
-  }
-  if (counts.transfers > 0) {
-    return <StatusBadge label={label} tone="orange" />;
-  }
-  return <StatusBadge label={label} tone="green" />;
+  return (
+    <p className="mt-1 truncate text-xs text-gray-500">
+      {visible.map((part, index) => (
+        <span key={part}>
+          {index > 0 && <span className="mx-1.5 text-gray-300">·</span>}
+          {part}
+        </span>
+      ))}
+    </p>
+  );
 }
 
 /** Gemeinsame Listenfläche: eine weiße Karte mit Trennlinien statt einzelner Karten. */
@@ -141,33 +141,31 @@ function SectionHeading({
   );
 }
 
-/** Eine Zeile in den beiden Zugriffs-Abschnitten. */
+/**
+ * Eine Zeile in den beiden Zugriffs-Abschnitten. Die Art des Zugriffs steht
+ * schon in der Abschnittsüberschrift, deshalb trägt die Zeile sie nicht noch
+ * einmal als Kennzeichnung; nur das Enddatum kommt hinzu, wo es eines gibt.
+ */
 function AccessRow({
   groupName,
   personName,
-  chip,
+  until,
   onEnd,
   disabled,
 }: Readonly<{
   groupName: string;
   personName: string;
-  chip: ReactNode;
+  until: string | null;
   onEnd: () => void;
   disabled: boolean;
 }>) {
   return (
     <li className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium text-gray-900">
-            {groupName}
-          </p>
-          {chip}
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          Zugriff für{" "}
-          <span className="font-medium text-gray-700">{personName}</span>
+        <p className="truncate text-sm font-medium text-gray-900">
+          {groupName}
         </p>
+        <MetaLine parts={[`Zugriff für ${personName}`, until]} />
       </div>
       <Button
         type="button"
@@ -481,14 +479,16 @@ function SubstitutionPageContent() {
                   <p className="truncate text-sm font-medium text-gray-900">
                     {name}
                   </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    {teacher.regularGroup ? (
-                      <span className="truncate text-xs text-gray-500">
-                        {teacher.regularGroup}
-                      </span>
-                    ) : null}
-                    <TeacherStatusChip teacher={teacher} />
-                  </div>
+                  {/* "Verfügbar" ist der Normalfall und bekommt keine eigene
+                      Auszeichnung: wo nichts steht, ist nichts zugewiesen. */}
+                  <MetaLine
+                    parts={[
+                      teacher.regularGroup ?? null,
+                      teacher.substitutionCount > 0
+                        ? getTeacherStatus(teacher)
+                        : null,
+                    ]}
+                  />
                 </div>
               </div>
               <Button
@@ -511,7 +511,7 @@ function SubstitutionPageContent() {
   const renderAccessSection = (
     substitutions: Substitution[],
     emptyText: string,
-    chipFor: (substitution: Substitution) => ReactNode,
+    untilFor: (substitution: Substitution) => string | null,
   ) => {
     // Eine leere Liste bekommt dieselbe Fläche wie eine gefüllte, damit der
     // Abschnitt nicht als freischwebender Text im Raster steht. Bewusst knapp:
@@ -538,7 +538,7 @@ function SubstitutionPageContent() {
               key={substitution.id}
               groupName={group.name}
               personName={substituteName}
-              chip={chipFor(substitution)}
+              until={untilFor(substitution)}
               disabled={isMutating}
               onEnd={() =>
                 handleEndSubstitutionClick(
@@ -625,12 +625,12 @@ function SubstitutionPageContent() {
               count={transfers.length}
               hint="(enden heute 23:59)"
             />
+            {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
+                steht bereits in der Überschrift. */}
             {renderAccessSection(
               transfers,
               "Keine aktiven Tagesübergaben",
-              () => (
-                <StatusBadge label="Tagesübergabe" tone="orange" />
-              ),
+              () => null,
             )}
           </section>
 
@@ -644,19 +644,12 @@ function SubstitutionPageContent() {
             {renderAccessSection(
               longTermAccess,
               "Keine aktiven längerfristigen Zugriffe",
-              (substitution) => (
-                <StatusDotBadge
-                  label={`bis ${substitution.endDate.toLocaleDateString(
-                    "de-DE",
-                    {
-                      timeZone: "Europe/Berlin",
-                      day: "2-digit",
-                      month: "2-digit",
-                    },
-                  )}`}
-                  color={LOCATION_COLORS.EXCUSED}
-                />
-              ),
+              (substitution) =>
+                `bis ${substitution.endDate.toLocaleDateString("de-DE", {
+                  timeZone: "Europe/Berlin",
+                  day: "2-digit",
+                  month: "2-digit",
+                })}`,
             )}
           </section>
         </div>

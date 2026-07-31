@@ -415,11 +415,17 @@ describe("SubstitutionsPage", () => {
       expect(screen.getByText("Gruppe 3B")).toBeInTheDocument();
     });
 
+    // "Verfügbar" ist der Normalfall und wird nicht mehr ausgeschrieben: eine
+    // Fachkraft ohne Zuweisung zeigt nur ihre Stammgruppe. Nur ein tatsächlich
+    // vergebener Zugriff steht in der Zeile.
     it("displays teacher status correctly", () => {
       render(<SubstitutionsPage />);
 
-      expect(screen.getByText("Verfügbar")).toBeInTheDocument();
+      // Ben Schulz hat einen Zugriff auf Gruppe 1A.
       expect(screen.getByText(/Zugriff: Gruppe 1A/)).toBeInTheDocument();
+
+      // Anna Meyer hat keinen; ihre Zeile trägt keinen Status.
+      expect(screen.queryByText("Verfügbar")).not.toBeInTheDocument();
     });
 
     it("shows empty state when no teachers match filter", async () => {
