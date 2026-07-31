@@ -43,11 +43,16 @@ type SeriesResult struct {
 type SplitSeriesInput struct {
 	SeriesID      int64
 	EffectiveDate timezone.Date
-	Weekdays      []int16 // nil = keep predecessor weekdays
-	StartTime     time.Time
-	EndTime       time.Time
-	BreakMinutes  int
-	ShiftTypeID   *int64
+	// OccurrenceShiftID identifies the concrete occurrence opened by the
+	// planner. When EffectiveDate is today, this row is updated in place before
+	// the series is split from tomorrow, so its identity and audit references
+	// survive the permanent rule change.
+	OccurrenceShiftID int64
+	Weekdays          []int16 // nil = keep predecessor weekdays
+	StartTime         time.Time
+	EndTime           time.Time
+	BreakMinutes      int
+	ShiftTypeID       *int64
 	// ShiftTypeIDSet distinguishes "clear the type" (true, nil value) from
 	// "keep the predecessor's type" (false) — same tri-state as the single
 	// shift update payload.
@@ -92,6 +97,7 @@ type staffShiftSeriesService struct {
 	staffRepo     usersModels.StaffRepository
 	periodRepo    scheduleModels.CalendarPeriodRepository
 	shiftTypes    ShiftTypeService
+	shiftService  StaffShiftService
 	db            *bun.DB
 	broadcaster   realtime.Broadcaster
 	logger        *slog.Logger
@@ -108,7 +114,12 @@ func NewStaffShiftSeriesService(
 	shiftTypes ShiftTypeService,
 	db *bun.DB,
 	logger *slog.Logger,
+	shiftService ...StaffShiftService,
 ) StaffShiftSeriesService {
+	var occurrenceUpdater StaffShiftService
+	if len(shiftService) > 0 {
+		occurrenceUpdater = shiftService[0]
+	}
 	return &staffShiftSeriesService{
 		seriesRepo:    seriesRepo,
 		exceptionRepo: exceptionRepo,
@@ -116,9 +127,47 @@ func NewStaffShiftSeriesService(
 		staffRepo:     staffRepo,
 		periodRepo:    periodRepo,
 		shiftTypes:    shiftTypes,
+		shiftService:  occurrenceUpdater,
 		db:            db,
 		logger:        logger,
 	}
+}
+
+// updateTodayOccurrence keeps a currently planned series occurrence as the
+// same concrete row while applying a permanent rule change. UpdateShift marks
+// it detached, so the successor re-plan beginning tomorrow cannot replace it.
+// The caller already runs inside the request's tenant transaction.
+func (s *staffShiftSeriesService) updateTodayOccurrence(ctx context.Context, input SplitSeriesInput) error {
+	if input.OccurrenceShiftID <= 0 {
+		return nil
+	}
+	if s.shiftService == nil {
+		return fmt.Errorf("%w: concrete occurrence updater is not configured", ErrSeriesInvalid)
+	}
+
+	occurrence, err := s.shiftRepo.FindByID(ctx, input.OccurrenceShiftID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: current series occurrence not found", ErrSeriesInvalid)
+		}
+		return fmt.Errorf("find current series occurrence: %w", err)
+	}
+	if occurrence == nil || occurrence.SeriesID == nil || *occurrence.SeriesID != input.SeriesID ||
+		occurrence.SeriesOccurrenceDate == nil || *occurrence.SeriesOccurrenceDate != input.EffectiveDate {
+		return fmt.Errorf("%w: current occurrence does not belong to this series date", ErrSeriesInvalid)
+	}
+
+	updated := *occurrence
+	updated.StartTime = input.StartTime
+	updated.EndTime = input.EndTime
+	updated.BreakMinutes = input.BreakMinutes
+	if input.ShiftTypeIDSet {
+		updated.ShiftTypeID = input.ShiftTypeID
+	}
+	if _, err := s.shiftService.UpdateShift(ctx, &updated); err != nil {
+		return fmt.Errorf("update current series occurrence: %w", err)
+	}
+	return nil
 }
 
 func (s *staffShiftSeriesService) getLogger() *slog.Logger {
@@ -391,6 +440,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		return nil, err
 	}
 
+	updateToday := input.EffectiveDate == timezone.TodayDate()
 	effective := input.EffectiveDate
 	tomorrow := timezone.TodayDate().AddDays(1)
 	if tomorrow.After(effective) {
@@ -482,6 +532,11 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 			"%w: no occurrences left to change for the selected weekdays and week pattern",
 			ErrSeriesInvalid,
 		)
+	}
+	if updateToday {
+		if err := s.updateTodayOccurrence(ctx, input); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.seriesRepo.CapValidUntil(ctx, old.ID, effective); err != nil {
 		return nil, err

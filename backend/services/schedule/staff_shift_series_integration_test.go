@@ -364,6 +364,65 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	assert.Equal(t, deleteDate, exceptionDates[0])
 }
 
+func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	seriesID := series.ID
+	occurrenceDate := today
+	todayShift := &scheduleModels.StaffShift{
+		StaffID:              env.staff.ID,
+		Date:                 today,
+		StartTime:            series.StartTime,
+		EndTime:              series.EndTime,
+		BreakMinutes:         series.BreakMinutes,
+		SeriesID:             &seriesID,
+		SeriesOccurrenceDate: &occurrenceDate,
+		CreatedBy:            env.staff.ID,
+	}
+	todayShift.SetTenantID(env.scope.TenantID)
+	env.inTx(t, func(ctx context.Context) error {
+		return env.repos.StaffShift.Create(ctx, todayShift)
+	})
+
+	var result *scheduleSvc.SeriesResult
+	env.inTx(t, func(ctx context.Context) error {
+		var err error
+		result, err = env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:          series.ID,
+			EffectiveDate:     today,
+			OccurrenceShiftID: todayShift.ID,
+			StartTime:         seriesClock(t, "09:00"),
+			EndTime:           seriesClock(t, "15:00"),
+			BreakMinutes:      30,
+			ActorStaffID:      env.staff.ID,
+		})
+		return err
+	})
+
+	todayRows := env.shiftsInRange(t, today, today)
+	require.Len(t, todayRows, 1)
+	assert.Equal(t, todayShift.ID, todayRows[0].ID, "today must retain its concrete identity")
+	assert.True(t, todayRows[0].Detached)
+	assert.Equal(t, "09:00", timezone.WallClock(todayRows[0].StartTime).Format("15:04"))
+	assert.Equal(t, "15:00", timezone.WallClock(todayRows[0].EndTime).Format("15:04"))
+	assert.Equal(t, 30, todayRows[0].BreakMinutes)
+	require.NotNil(t, todayRows[0].SeriesID)
+	assert.Equal(t, series.ID, *todayRows[0].SeriesID)
+
+	tomorrowRows := env.shiftsInRange(t, today.AddDays(1), today.AddDays(1))
+	require.Len(t, tomorrowRows, 1)
+	assert.Equal(t, result.Series.ID, *tomorrowRows[0].SeriesID)
+	assert.False(t, tomorrowRows[0].Detached)
+	assert.Equal(t, "09:00", timezone.WallClock(tomorrowRows[0].StartTime).Format("15:04"))
+}
+
 func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *testing.T) {
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()

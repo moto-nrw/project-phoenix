@@ -253,8 +253,7 @@ func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
 	oldEnd := effective
 	series := env.buildSeries(t, periodID, today.AddDays(-7), &oldEnd, scheduleModels.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
-		_, err := env.series.CreateSeries(ctx, series)
-		return err
+		return env.repos.StaffShiftSeries.Create(ctx, series)
 	})
 
 	rootID := series.ID

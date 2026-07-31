@@ -33,6 +33,10 @@ type SeriesRequest struct {
 	// predecessor's end, an explicit null lets the series run to the period end.
 	ValidUntil    optionalString `json:"valid_until"`
 	EffectiveDate string         `json:"effective_date"`
+	// OccurrenceShiftID is the concrete row opened by the planner. For a
+	// permanent edit effective today it is updated in place before the series
+	// is re-planned from tomorrow.
+	OccurrenceShiftID int64 `json:"occurrence_shift_id"`
 }
 
 // SeriesResponse is the wire format for series create/split/end results.
@@ -252,19 +256,20 @@ func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := rs.SeriesService.SplitSeries(r.Context(), scheduleSvc.SplitSeriesInput{
-		SeriesID:       id,
-		EffectiveDate:  effective,
-		Weekdays:       weekdays,
-		StartTime:      start,
-		EndTime:        end,
-		BreakMinutes:   req.BreakMinutes,
-		ShiftTypeID:    req.ShiftTypeID.Value,
-		ShiftTypeIDSet: req.ShiftTypeID.Present,
-		Notes:          req.Notes,
-		ValidUntil:     validUntil,
-		ValidUntilSet:  req.ValidUntil.Present,
-		WeekPattern:    req.WeekPattern,
-		ActorStaffID:   editorID,
+		SeriesID:          id,
+		EffectiveDate:     effective,
+		OccurrenceShiftID: req.OccurrenceShiftID,
+		Weekdays:          weekdays,
+		StartTime:         start,
+		EndTime:           end,
+		BreakMinutes:      req.BreakMinutes,
+		ShiftTypeID:       req.ShiftTypeID.Value,
+		ShiftTypeIDSet:    req.ShiftTypeID.Present,
+		Notes:             req.Notes,
+		ValidUntil:        validUntil,
+		ValidUntilSet:     req.ValidUntil.Present,
+		WeekPattern:       req.WeekPattern,
+		ActorStaffID:      editorID,
 	})
 	if err != nil {
 		renderSeriesServiceError(w, r, err)

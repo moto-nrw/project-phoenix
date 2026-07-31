@@ -106,6 +106,9 @@ interface SeriesPayload {
 interface SeriesSplitPayload {
   /** "YYYY-MM-DD" */
   effectiveDate: string;
+  /** Concrete occurrence opened by the planner. If it is today, the backend
+   * updates this row in place and only re-plans the series from tomorrow. */
+  occurrenceShiftId?: string;
   startTime: string;
   endTime: string;
   breakMinutes: number;
@@ -454,6 +457,14 @@ class StaffShiftSeriesService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           effective_date: payload.effectiveDate,
+          ...(payload.occurrenceShiftId !== undefined
+            ? {
+                occurrence_shift_id: Number.parseInt(
+                  payload.occurrenceShiftId,
+                  10,
+                ),
+              }
+            : {}),
           start_time: payload.startTime,
           end_time: payload.endTime,
           break_minutes: payload.breakMinutes,

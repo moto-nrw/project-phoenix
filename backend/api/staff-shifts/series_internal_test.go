@@ -209,7 +209,7 @@ func TestSplitSeriesHandler_InheritsOmittedFields(t *testing.T) {
 	router := splitTestRouter(resource)
 	// Only times + effective date: weekdays, week_pattern, shift type, and
 	// notes are omitted and must reach the service as "inherit" markers.
-	body := `{"effective_date": "2026-10-05", "start_time": "10:00", "end_time": "14:00", "break_minutes": 0}`
+	body := `{"effective_date": "2026-10-05", "occurrence_shift_id": 73, "start_time": "10:00", "end_time": "14:00", "break_minutes": 0}`
 	recorder := httptest.NewRecorder()
 	request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/series/12/split", strings.NewReader(body)))
 	router.ServeHTTP(recorder, request)
@@ -217,6 +217,7 @@ func TestSplitSeriesHandler_InheritsOmittedFields(t *testing.T) {
 
 	assert.Equal(t, int64(12), got.SeriesID)
 	assert.Equal(t, timezone.NewDate(2026, time.October, 5), got.EffectiveDate)
+	assert.Equal(t, int64(73), got.OccurrenceShiftID)
 	assert.Nil(t, got.Weekdays)
 	assert.Nil(t, got.WeekPattern)
 	assert.False(t, got.ShiftTypeIDSet)
