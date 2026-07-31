@@ -48,10 +48,19 @@ func buildSchemaWithScope(
 	// separately. Tenant-visible settings can depend on operator-only
 	// provisioning flags such as attendance.nfc_enabled; hiding those parents
 	// before evaluating DependsOn would make the tenant-visible children vanish.
+	keys := make([]string, 0, len(defs))
+	for key := range defs {
+		keys = append(keys, key)
+	}
+	snapshot, err := svc.ResolveMany(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+
 	resolvedMap := make(map[string]*ResolvedSetting, len(defs))
 	outputMap := make(map[string]*ResolvedSetting, len(defs))
 	for key, def := range defs {
-		value, err := svc.Resolve(ctx, key)
+		value, err := snapshot.Value(key)
 		if err != nil {
 			svc.logger.Warn("failed to resolve setting",
 				"key", key,
@@ -71,7 +80,14 @@ func buildSchemaWithScope(
 		// stay tenant-pinned with no way to clear it from the UI).
 		// jsonValuesEqual handles the JSONB roundtrip (float64 vs int) and
 		// type-correct comparison.
-		hasOverride, _ := svc.HasTenantOverride(ctx, key)
+		hasOverride, overrideErr := snapshot.HasOverride(key)
+		if overrideErr != nil {
+			svc.logger.Warn("failed to inspect setting override",
+				"key", key,
+				"error", overrideErr.Error(),
+			)
+			continue
+		}
 		isDefault := !hasOverride
 		if def.Type == config.FieldBoolean {
 			isDefault = jsonValuesEqual(value, def.Default)

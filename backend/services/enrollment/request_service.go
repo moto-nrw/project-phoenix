@@ -2885,6 +2885,29 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if s.Settings == nil {
 		return LegalTexts{}, nil
 	}
+	keys := []string{
+		configModel.KeyEnrollmentLegalAGBText,
+		configModel.KeyEnrollmentLegalAGBDocumentURL,
+		configModel.KeyEnrollmentLegalAGBDisplayMode,
+		configModel.KeyEnrollmentLegalDSGVOText,
+		configModel.KeyEnrollmentLegalEmailContactText,
+		configModel.KeyEnrollmentLegalPhotoText,
+		configModel.KeyEnrollmentLegalTermsEnabled,
+		configModel.KeyEnrollmentLegalDSGVOEnabled,
+		configModel.KeyEnrollmentLegalEmailContactEnabled,
+		configModel.KeyEnrollmentLegalPhotoEnabled,
+	}
+	if batch, ok := s.Settings.(interface {
+		ResolveMany(context.Context, []string) (*config.SettingsSnapshot, error)
+	}); ok {
+		snapshot, err := batch.ResolveMany(ctx, keys)
+		if err != nil {
+			return LegalTexts{}, fmt.Errorf("resolve legal settings: %w", err)
+		}
+		if snapshot != nil {
+			ctx = config.WithSettingsSnapshot(ctx, snapshot)
+		}
+	}
 	agb, err := s.Settings.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBText)
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve AGB legal text: %w", err)

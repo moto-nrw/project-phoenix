@@ -81,6 +81,12 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 		return disabledResults(recipients), nil
 	}
 
+	var err error
+	ctx, err = s.withSettingsSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg, err := s.loadBatchConfig(ctx, recipients)
 	if err != nil {
 		return nil, err
