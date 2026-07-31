@@ -156,7 +156,7 @@ export function ChildCareOfferingsSection({
           <ul className="space-y-2">
             {data.offerings.map((offering) => (
               <li
-                key={offering.id}
+                key={`${offering.id}-${offering.valid_from ?? "current"}`}
                 className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
               >
                 <p className="text-sm font-semibold text-gray-900">
