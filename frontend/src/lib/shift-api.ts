@@ -143,7 +143,7 @@ export interface SeriesRule {
 }
 
 interface BackendSeriesRule {
-  id: number;
+  id: string;
   staff_id: number;
   weekdays: number[] | null;
   start_time: string;
@@ -164,7 +164,7 @@ export interface SeriesResult {
 }
 
 interface BackendSeriesResult {
-  series_id: number;
+  series_id: string;
   created: number;
   skipped_dates: string[] | null;
 }

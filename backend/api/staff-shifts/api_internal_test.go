@@ -2,6 +2,7 @@ package staffshifts
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -110,6 +111,22 @@ func TestToShiftResponse_IncludesSeriesOccurrenceDate(t *testing.T) {
 	response := ToShiftResponse(shift)
 	require.NotNil(t, response.SeriesOccurrenceDate)
 	assert.Equal(t, "2026-07-06", *response.SeriesOccurrenceDate)
+}
+
+func TestToShiftResponse_SerializesShiftAndSeriesIDsAsStrings(t *testing.T) {
+	seriesID := int64(9223372036854775807)
+	originShiftID := int64(9223372036854775805)
+	shift := &scheduleModel.StaffShift{SeriesID: &seriesID, OriginShiftID: &originShiftID}
+	shift.ID = 9223372036854775806
+
+	encoded, err := json.Marshal(ToShiftResponse(shift))
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &body))
+	assert.Equal(t, "9223372036854775806", body["id"])
+	assert.Equal(t, "9223372036854775807", body["series_id"])
+	assert.Equal(t, "9223372036854775805", body["origin_shift_id"])
 }
 
 func TestMoveHandler_MapsAtomicMovePayload(t *testing.T) {

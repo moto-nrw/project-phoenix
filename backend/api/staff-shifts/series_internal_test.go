@@ -252,6 +252,21 @@ func TestSplitSeriesHandler_AcceptsLosslessOccurrenceID(t *testing.T) {
 	assert.Equal(t, int64(9223372036854775807), got.OccurrenceShiftID)
 }
 
+func TestSeriesResponses_SerializeIDsAsStrings(t *testing.T) {
+	series := &scheduleModel.StaffShiftSeries{}
+	series.ID = 9223372036854775807
+	encoded, err := json.Marshal(toSeriesResponse(&scheduleSvc.SeriesResult{
+		Series:      series,
+		OldSeriesID: 9223372036854775806,
+	}))
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &body))
+	assert.Equal(t, "9223372036854775807", body["series_id"])
+	assert.Equal(t, "9223372036854775806", body["old_series_id"])
+}
+
 func TestSplitSeriesHandler_RejectsBadEffectiveDate(t *testing.T) {
 	resource := seriesTestResource(&fakeSeriesService{})
 	router := splitTestRouter(resource)

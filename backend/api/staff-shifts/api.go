@@ -189,7 +189,9 @@ func (o *optionalString) UnmarshalJSON(data []byte) error {
 
 // ShiftResponse is the wire format returned to clients.
 type ShiftResponse struct {
-	ID           int64  `json:"id"`
+	// IDs cross the JSON boundary as decimal strings. A JavaScript number cannot
+	// represent every PostgreSQL bigint value without rounding it.
+	ID           int64  `json:"id,string"`
 	StaffID      int64  `json:"staff_id"`
 	Date         string `json:"date"`
 	StartTime    string `json:"start_time"`
@@ -203,11 +205,11 @@ type ShiftResponse struct {
 	ShiftTypeName  *string `json:"shift_type_name,omitempty"`
 	ShiftTypeColor *string `json:"shift_type_color,omitempty"`
 	Notes          string  `json:"notes,omitempty"`
-	SeriesID       *int64  `json:"series_id,omitempty"`
+	SeriesID       *int64  `json:"series_id,omitempty,string"`
 	Detached       bool    `json:"detached"`
 	Cancelled      bool    `json:"cancelled"`
 	ChangeReason   *string `json:"change_reason,omitempty"`
-	OriginShiftID  *int64  `json:"origin_shift_id,omitempty"`
+	OriginShiftID  *int64  `json:"origin_shift_id,omitempty,string"`
 	// SeriesOccurrenceDate is the immutable recurrence slot. It lets clients
 	// apply a rule edit from a moved occurrence's source date, not its current
 	// display date.

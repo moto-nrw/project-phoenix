@@ -69,8 +69,10 @@ type SeriesRequest struct {
 // Skipped dates are days the series left out because an existing shift of
 // the same person would overlap there.
 type SeriesResponse struct {
-	SeriesID     int64    `json:"series_id"`
-	OldSeriesID  int64    `json:"old_series_id,omitempty"`
+	// Keep bigint identifiers as strings on the wire. The frontend needs to
+	// carry them through a subsequent split request without JavaScript rounding.
+	SeriesID     int64    `json:"series_id,string"`
+	OldSeriesID  int64    `json:"old_series_id,omitempty,string"`
 	Created      int      `json:"created"`
 	Deleted      int64    `json:"deleted"`
 	SkippedDates []string `json:"skipped_dates"`
@@ -114,7 +116,7 @@ func toWeekdays(values []int) ([]int16, error) {
 // wall-clock, dates "YYYY-MM-DD"; valid_until is exclusive, as everywhere in
 // the series API.
 type SeriesDetailResponse struct {
-	ID               int64   `json:"id"`
+	ID               int64   `json:"id,string"`
 	StaffID          int64   `json:"staff_id"`
 	Weekdays         []int   `json:"weekdays"`
 	StartTime        string  `json:"start_time"`
