@@ -71,7 +71,7 @@ func tableRowCount(t *testing.T, db *bun.DB, table string, id int64) int {
 
 func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	repos := repositories.NewFactory(db)
@@ -94,6 +94,13 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 		SET account_id = ?, tag_id = ?
 		WHERE id = ?
 	`, childAccount.ID, card.ID, target.PersonID).Exec(ctx)
+	require.NoError(t, err)
+	photoPath := "students/delete-service-target.webp"
+	_, err = db.NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Set(`photo_path = ?`, photoPath).
+		Where(`"student".id = ?`, target.ID).
+		Exec(ctx)
 	require.NoError(t, err)
 	var legacyGuardianLinkID int64
 	require.NoError(t, db.NewRaw(`
@@ -128,6 +135,7 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	})
 	require.NoError(t, err)
 	assert.Equal(t, preview.Counts, result.Counts)
+	assert.Equal(t, photoPath, result.PhotoPath)
 
 	assert.Zero(t, tableRowCount(t, db, "users.students", target.ID))
 	assert.Zero(t, tableRowCount(t, db, "schedule.instance_students", targetAssignment.ID))
@@ -181,7 +189,7 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 
 func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	repos := repositories.NewFactory(db)
@@ -216,9 +224,79 @@ func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 	assert.Equal(t, 1, tableRowCount(t, db, "schedule.instance_students", assignment.ID))
 }
 
+func TestStudentDeletionService_DeleteRejectsIncompleteConfirmation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := newStudentDeletionTestService(db, nil)
+
+	_, err := service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{})
+	require.ErrorIs(t, err, usersService.ErrStudentDeletionPreviewChanged)
+
+	_, err = service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{
+		StudentID:           1,
+		ActorAccountID:      1,
+		ExpectedFingerprint: "aabb",
+	})
+	require.ErrorIs(t, err, usersService.ErrStudentDeletionNotAcknowledged)
+
+	_, err = service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{
+		StudentID:           1,
+		ActorAccountID:      1,
+		ExpectedFingerprint: "aabb",
+		Acknowledged:        true,
+		Reason:              "other",
+	})
+	require.ErrorIs(t, err, usersService.ErrStudentDeletionInvalidReason)
+}
+
+func TestStudentDeletionService_PreviewRejectsAlumnus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "DeleteAlumnus", "Target", "1a")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "users.students", student.ID)
+		testpkg.CleanupTableRecords(t, db, "users.persons", student.PersonID)
+	})
+	_, err := db.NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Set(`status = ?`, userModels.StudentStatusAlumnus).
+		Where(`"student".id = ?`, student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = newStudentDeletionTestService(db, nil).Preview(ctx, student.ID)
+	require.ErrorIs(t, err, usersService.ErrStudentDeletionAlumnus)
+}
+
+func TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "DeleteMissingAudit", "Target", "1a")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "users.students", student.ID)
+		testpkg.CleanupTableRecords(t, db, "users.persons", student.PersonID)
+	})
+	service := newStudentDeletionTestService(db, nil)
+	preview, err := service.Preview(ctx, student.ID)
+	require.NoError(t, err)
+
+	_, err = service.Delete(ctx, usersService.StudentDeletionInput{
+		StudentID:           student.ID,
+		ActorAccountID:      1,
+		ExpectedFingerprint: preview.Fingerprint,
+		ConfirmationName:    preview.ConfirmationName,
+		Reason:              usersService.StudentDeletionReasonTestData,
+		Acknowledged:        true,
+	})
+	require.ErrorContains(t, err, "audit repository is not configured")
+	assert.Equal(t, 1, tableRowCount(t, db, "users.students", student.ID))
+}
+
 func TestStudentDeletionService_DeleteRollsBackWhenAuditFails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	auditErr := errors.New("audit unavailable")

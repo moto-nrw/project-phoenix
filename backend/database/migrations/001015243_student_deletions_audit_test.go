@@ -1,5 +1,7 @@
 package migrations
 
+// The filename follows the migration version to make collision checks auditable.
+
 import (
 	"context"
 	"testing"

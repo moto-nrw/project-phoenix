@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	studentDeletionsAuditVersion     = "1.15.242"
+	studentDeletionsAuditVersion     = "1.15.243"
 	studentDeletionsAuditDescription = "Create data-minimal audit trail for permanent student deletion (#2068)"
 )
 
@@ -23,7 +23,7 @@ func init() {
 }
 
 func studentDeletionsAuditUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.242: Creating audit.student_deletions...")
+	fmt.Println("Migration 1.15.243: Creating audit.student_deletions...")
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS audit.student_deletions (
 			id BIGSERIAL PRIMARY KEY,
@@ -68,7 +68,7 @@ func studentDeletionsAuditUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentDeletionsAuditDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.242: Dropping audit.student_deletions...")
+	fmt.Println("Rolling back migration 1.15.243: Dropping audit.student_deletions...")
 	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS audit.student_deletions CASCADE`); err != nil {
 		return fmt.Errorf("drop audit.student_deletions: %w", err)
 	}

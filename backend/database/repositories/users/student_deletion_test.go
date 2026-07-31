@@ -1,7 +1,9 @@
 package users_test
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -10,9 +12,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repo := repositories.NewFactory(db).StudentDeletion
+
+	_, err := repo.Preview(context.Background(), 1)
+	assert.ErrorContains(t, err, "tenant context is required")
+
+	err = repo.DeleteLegacyGuardianLinks(context.Background(), 1)
+	assert.ErrorContains(t, err, "tenant context is required")
+
+	_, err = repo.AnonymizePersonIfUnchanged(context.Background(), 1, time.Now())
+	assert.ErrorContains(t, err, "tenant context is required")
+
+	_, err = repo.DeleteTimetableAssignments(context.Background(), 1)
+	assert.ErrorContains(t, err, "tenant context is required")
+}
+
 func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	target := testpkg.CreateTestStudent(t, db, "DeletePreview", "Target", "1a")
