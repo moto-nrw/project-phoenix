@@ -390,6 +390,7 @@ export function OfferingChangeRequestModal({
                 label={t("careOfferingsModal.effectiveFromLabel")}
                 value={effectiveFrom}
                 min={catalog.earliest_effective_from}
+                max={catalog.latest_effective_from}
                 required
                 disabled={loading}
                 onChange={(date) => void loadForEffectiveDate(date)}

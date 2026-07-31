@@ -206,20 +206,22 @@ describe("OfferingChangeRequestModal", () => {
     );
   });
 
-  it("allows selecting an approved later care period and reloads its catalog", async () => {
-    mockCatalog.mockResolvedValueOnce(catalog()).mockResolvedValueOnce(
-      catalog({
-        phase_name: "Schuljahr 2027/28",
-        earliest_effective_from: "2027-08-01",
-        latest_effective_from: "2028-07-31",
-        items: [
-          {
-            ...catalog().items[0]!,
-            name: "Angebot nächster Zeitraum",
-          },
-        ],
-      }),
-    );
+  it("allows selecting an approved later care period within the enrollment window", async () => {
+    mockCatalog
+      .mockResolvedValueOnce(catalog({ latest_effective_from: "2028-07-31" }))
+      .mockResolvedValueOnce(
+        catalog({
+          phase_name: "Schuljahr 2027/28",
+          earliest_effective_from: "2027-08-01",
+          latest_effective_from: "2028-07-31",
+          items: [
+            {
+              ...catalog().items[0]!,
+              name: "Angebot nächster Zeitraum",
+            },
+          ],
+        }),
+      );
     render(
       <OfferingChangeRequestModal
         studentId="42"
@@ -229,7 +231,9 @@ describe("OfferingChangeRequestModal", () => {
     );
 
     await screen.findByText("Regelbetreuung");
-    expect(screen.getByTestId("effective-from-max")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("effective-from-max")).toHaveTextContent(
+      "2028-07-31",
+    );
 
     fireEvent.click(
       screen.getByRole("button", { name: "Nächsten Zeitraum wählen" }),
