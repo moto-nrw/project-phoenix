@@ -1528,6 +1528,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Student,
 		repos.Person,
 		repos.StudentDeletion,
+		repos.DataDeletion,
 		repos.StudentDeletionAudit,
 		db,
 	)

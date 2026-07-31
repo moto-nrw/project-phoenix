@@ -34,7 +34,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 			(SELECT COUNT(*) FROM schedule.instance_students WHERE tenant_id = ? AND student_id = ?)::int AS timetable_assignments,
 			(SELECT COUNT(*) FROM activities.student_enrollments WHERE tenant_id = ? AND student_id = ?)::int AS activity_enrollments,
 			(
-				(SELECT COUNT(*) FROM active.visits WHERE tenant_id = ? AND student_id = ?) +
+				active.count_student_visits_for_deletion(?, ?) +
 				(SELECT COUNT(*) FROM active.attendance WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM active.student_status_days WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?) +

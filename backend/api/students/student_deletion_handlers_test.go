@@ -39,6 +39,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 		repos.Student,
 		repos.Person,
 		repos.StudentDeletion,
+		repos.DataDeletion,
 		repos.StudentDeletionAudit,
 		tc.db,
 	)
@@ -55,6 +56,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	actor := testpkg.CreateTestAccount(t, tc.db, "student-delete-api@example.com")
 	var auditID int64
 	t.Cleanup(func() {
+		_, _ = tc.db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
 		testpkg.CleanupTableRecords(t, tc.db, "audit.student_deletions", auditID)
 		testpkg.CleanupTableRecords(t, tc.db, "schedule.instance_students", targetAssignment.ID, sparedAssignment.ID)
 		testpkg.CleanupTableRecords(t, tc.db, "schedule.activity_instances", instance.ID)

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -54,6 +55,7 @@ type studentDeletionService struct {
 	studentRepo    userModels.StudentRepository
 	personRepo     userModels.PersonRepository
 	deletionRepo   userModels.StudentDeletionRepository
+	dataAuditRepo  auditModels.DataDeletionRepository
 	auditRepo      auditModels.StudentDeletionRepository
 	txHandler      *modelBase.TxHandler
 }
@@ -63,6 +65,7 @@ func NewStudentDeletionService(
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
 	deletionRepo userModels.StudentDeletionRepository,
+	dataAuditRepo auditModels.DataDeletionRepository,
 	auditRepo auditModels.StudentDeletionRepository,
 	db *bun.DB,
 ) StudentDeletionService {
@@ -71,6 +74,7 @@ func NewStudentDeletionService(
 		studentRepo:    studentRepo,
 		personRepo:     personRepo,
 		deletionRepo:   deletionRepo,
+		dataAuditRepo:  dataAuditRepo,
 		auditRepo:      auditRepo,
 		txHandler:      modelBase.NewTxHandler(db),
 	}
@@ -151,8 +155,20 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 		if !anonymized {
 			return ErrStudentDeletionPreviewChanged
 		}
-		if s.auditRepo == nil {
-			return errors.New("student deletion audit repository is not configured")
+		if s.dataAuditRepo == nil || s.auditRepo == nil {
+			return errors.New("student deletion audit repositories are not configured")
+		}
+		dataDeletion := auditModels.NewDataDeletion(
+			input.StudentID,
+			auditModels.DeletionTypeManual,
+			counts.Total()+1,
+			"account:"+strconv.FormatInt(input.ActorAccountID, 10),
+		)
+		dataDeletion.DeletionReason = input.Reason
+		dataDeletion.SetMetadata("student_deletion", true)
+		dataDeletion.SetMetadata("counts", *counts)
+		if err := s.dataAuditRepo.Create(txCtx, dataDeletion); err != nil {
+			return err
 		}
 		if err := s.auditRepo.Create(txCtx, &auditModels.StudentDeletion{
 			StudentID:      input.StudentID,
