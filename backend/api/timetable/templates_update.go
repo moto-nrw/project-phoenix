@@ -65,10 +65,8 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if len(req.Weekdays) == 0 {
 		return errors.New("at least one weekday is required")
 	}
-	for _, w := range req.Weekdays {
-		if !activitiesModel.IsValidWeekday(w) {
-			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
-		}
+	if err := validateTemplateWorkdays(req.Weekdays); err != nil {
+		return err
 	}
 	target := &activitiesModel.Group{
 		TargetGroupType:   req.TargetGroupType,

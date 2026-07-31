@@ -67,6 +67,10 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
 	}
+	if err := validateTimetableWorkday(date); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	startTime, err := parseClockTime(req.StartTime)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_time format, expected HH:MM")))

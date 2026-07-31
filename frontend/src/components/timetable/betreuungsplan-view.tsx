@@ -316,21 +316,28 @@ function TimetablesContent() {
   // Fetch-Fenster. Woche/Monat leiten ihr Fenster aus `d` ab; die Serienansicht
   // lädt keine Instanzen. Die Jahresansicht ist ersatzlos entfallen.
   const fromISO = toISODate(weekRange.from);
-  const toISO = toISODate(weekRange.to);
   const monthRange = useMemo(() => getMonthRange(visibleDate), [visibleDate]);
   const monthDays = useMemo(() => getMonthDays(visibleDate), [visibleDate]);
-  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
-  const fetchToISO = view === "month" ? toISODate(monthRange.to) : toISO;
-  const weekDays = useMemo(() => getWeekdays(weekRange.from), [weekRange.from]);
+  // Der Betreuungsplan folgt derselben Betriebswoche wie Dienstplan und
+  // Vertretung: geplant und angezeigt wird nur Mo–Fr. Die Monatsansicht
+  // bleibt ein vollständiger Kalender, daher behält sie ihr eigenes Fenster.
+  const weekDays = useMemo(
+    () => getWeekdays(weekRange.from).slice(0, 5),
+    [weekRange.from],
+  );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
+  const workweekToISO = weekDayISOs[4]!;
+  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
+  const fetchToISO =
+    view === "month" ? toISODate(monthRange.to) : workweekToISO;
   const periodContextDays = view === "month" ? monthDays : weekDays;
   const periodContextDayISOs = useMemo(
     () => periodContextDays.map(toISODate),
     [periodContextDays],
   );
   const weekLabel = useMemo(
-    () => formatWeekLabel(weekRange.from, weekRange.to),
-    [weekRange.from, weekRange.to],
+    () => formatWeekLabel(weekRange.from, weekDays[4]!),
+    [weekRange.from, weekDays],
   );
   const monthLabel = useMemo(
     () => formatMonthLabel(visibleDate),
@@ -945,7 +952,7 @@ function TimetablesContent() {
     view === "series"
       ? true
       : view === "week"
-        ? todayISO >= fromISO && todayISO <= toISO
+        ? todayISO >= fromISO && todayISO <= workweekToISO
         : visibleDate.getFullYear() === todayDate.getFullYear() &&
           visibleDate.getMonth() === todayDate.getMonth();
   const showTodayButton = view !== "series" && !isOnToday;
@@ -1224,7 +1231,7 @@ function TimetablesContent() {
         closingDayRanges={closingDayRanges}
         closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}
-        weekTo={toISO}
+        weekTo={workweekToISO}
         calendarPeriods={modalCalendarPeriods}
         defaultCalendarPeriodId={templatePeriodID ?? null}
         showPeriodField={showTemplatePeriodField}

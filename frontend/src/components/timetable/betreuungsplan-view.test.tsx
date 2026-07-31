@@ -256,17 +256,20 @@ vi.mock("~/components/timetable/month-planner-grid", () => ({
 
 vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
   WeeklyCalendarGrid: ({
+    weekDays,
     instances,
     onInstanceClick,
     onSlotClick,
     gapInstanceIds,
   }: {
+    weekDays: Date[];
     instances: Array<{ id: string }>;
     onInstanceClick: (instance: { id: string } | null) => void;
     onSlotClick?: (dateISO: string, hour: number) => void;
     gapInstanceIds?: ReadonlySet<string>;
   }) => (
     <div>
+      <span data-testid="grid-week-days">{weekDays.length}</span>
       <span data-testid="grid-gap-ids">
         {gapInstanceIds ? [...gapInstanceIds].join(",") : ""}
       </span>
@@ -783,6 +786,7 @@ describe("BetreuungsplanView", () => {
       screen.getByRole("heading", { name: "Betreuungsplan" }),
     ).toBeVisible();
     expect(screen.getByText("week-grid")).toBeVisible();
+    expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
     // Kein Alt-URL-Parameter überlebt.
     expect(urlParams().has("week")).toBe(false);

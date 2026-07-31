@@ -40,7 +40,7 @@ func TestUpdateInstance_Success(t *testing.T) {
 	defer s.cleanupFn()
 	router := updateRouter(s.ctx, s.res)
 
-	targetDate := timezone.TodayDate().AddDays(2)
+	targetDate := nextTimetableWorkday()
 	persisted := testpkg.CreateTestActivityInstance(t, s.db, targetDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM:     "09:00",
 		EndHHMM:       "10:00",
@@ -97,6 +97,7 @@ func TestUpdateInstance_Validation(t *testing.T) {
 		{name: "missing time", path: "/instances/50", mutate: func(b map[string]any) { b["start_time"] = "" }},
 		{name: "missing room", path: "/instances/50", mutate: func(b map[string]any) { b["room_id"] = 0 }},
 		{name: "invalid date", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "tomorrow" }},
+		{name: "weekend date", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "2026-05-09" }},
 		{name: "invalid start", path: "/instances/50", mutate: func(b map[string]any) { b["start_time"] = "soon" }},
 		{name: "invalid end", path: "/instances/50", mutate: func(b map[string]any) { b["end_time"] = "later" }},
 		{name: "end before start", path: "/instances/50", mutate: func(b map[string]any) { b["end_time"] = "10:30" }},

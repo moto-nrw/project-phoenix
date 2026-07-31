@@ -592,6 +592,7 @@ func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
 	}{
 		{name: "invalid type", mutate: func(b map[string]any) { b["type"] = "party" }},
 		{name: "invalid weekday", mutate: func(b map[string]any) { b["weekdays"] = []int{8} }},
+		{name: "weekend weekday", mutate: func(b map[string]any) { b["weekdays"] = []int{activitiesModel.WeekdaySaturday} }},
 		{name: "invalid start time", mutate: func(b map[string]any) { b["start_time"] = "bad" }},
 		{name: "end before start", mutate: func(b map[string]any) { b["end_time"] = "11:00" }},
 		{name: "invalid week pattern", mutate: func(b map[string]any) { b["week_pattern"] = 9 }},
@@ -647,6 +648,7 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 		{name: "invalid end", path: "/templates/500", mutate: func(b map[string]any) { b["end_time"] = "nope" }, want: http.StatusBadRequest},
 		{name: "end before start", path: "/templates/500", mutate: func(b map[string]any) { b["end_time"] = "11:00" }, want: http.StatusBadRequest},
 		{name: "invalid week pattern", path: "/templates/500", mutate: func(b map[string]any) { b["week_pattern"] = -1 }, want: http.StatusBadRequest},
+		{name: "weekend weekday", path: "/templates/500", mutate: func(b map[string]any) { b["weekdays"] = []int{activitiesModel.WeekdaySunday} }, want: http.StatusBadRequest},
 		{name: "not found", path: "/templates/500", mutate: func(_ map[string]any) {}, want: http.StatusNotFound},
 	}
 
