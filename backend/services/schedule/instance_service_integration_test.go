@@ -1021,7 +1021,7 @@ func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *te
 
 	ai := seedInstance(t, s, true, true)
 	valid := scheduleSvc.UpdateInstanceInput{
-		Date:            timezone.NewDate(2026, 5, 10),
+		Date:            timezone.NewDate(2026, 5, 11),
 		StartTime:       time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 		Title:           "Cross tenant update should fail",

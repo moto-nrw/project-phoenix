@@ -87,10 +87,11 @@ func TestUpdateInstance_Validation(t *testing.T) {
 	}
 
 	cases := []struct {
-		name   string
-		path   string
-		mutate func(map[string]any)
-		want   int
+		name      string
+		path      string
+		mutate    func(map[string]any)
+		updateErr error
+		want      int
 	}{
 		{name: "invalid id", path: "/instances/not-number", mutate: func(_ map[string]any) {}, want: http.StatusBadRequest},
 		{name: "missing date", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "" }, want: http.StatusBadRequest},
@@ -98,7 +99,7 @@ func TestUpdateInstance_Validation(t *testing.T) {
 		{name: "missing time", path: "/instances/50", mutate: func(b map[string]any) { b["start_time"] = "" }, want: http.StatusBadRequest},
 		{name: "missing room", path: "/instances/50", mutate: func(b map[string]any) { b["room_id"] = 0 }, want: http.StatusBadRequest},
 		{name: "invalid date", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "tomorrow" }, want: http.StatusBadRequest},
-		{name: "weekend date on unknown instance", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "2026-05-09" }, want: http.StatusNotFound},
+		{name: "weekend date on unknown instance", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "2026-05-09" }, updateErr: scheduleSvc.ErrInstanceNotFound, want: http.StatusNotFound},
 		{name: "invalid start", path: "/instances/50", mutate: func(b map[string]any) { b["start_time"] = "soon" }, want: http.StatusBadRequest},
 		{name: "invalid end", path: "/instances/50", mutate: func(b map[string]any) { b["end_time"] = "later" }, want: http.StatusBadRequest},
 		{name: "end before start", path: "/instances/50", mutate: func(b map[string]any) { b["end_time"] = "10:30" }, want: http.StatusBadRequest},
@@ -106,6 +107,7 @@ func TestUpdateInstance_Validation(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			s.mock.updateErr = tc.updateErr
 			body := make(map[string]any, len(valid))
 			for key, value := range valid {
 				body[key] = value

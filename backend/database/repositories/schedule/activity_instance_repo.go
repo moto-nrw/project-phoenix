@@ -474,7 +474,7 @@ func (r *ActivityInstanceRepository) DeletePlannedMaterializedWeekendInstances(c
 		Where(`"activity_instance".date >= ?`, timezone.TodayDate()).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
 		Where(`"activity_instance".is_spontaneous = ?`, false).
-		Where(`EXTRACT(ISODOW FROM "activity_instance".date)::int IN (?)`, bun.In(weekdays))
+		Where(`EXTRACT(ISODOW FROM "activity_instance".date)::int IN (?)`, bun.List(weekdays))
 	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
 	res, err := q.Exec(ctx)
 	if err != nil {
