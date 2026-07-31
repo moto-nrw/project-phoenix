@@ -107,7 +107,7 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 		Exec(ctx)
 	require.NoError(t, err)
 	childAccount := testpkg.CreateTestAccount(t, db, "student-delete-child@example.com")
-	parentAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-parent@example.com")
+	parentAccount := testpkg.CreateTestAccount(t, db, "student-delete-parent@example.com")
 	var messageThreadID, messageID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id)
@@ -153,8 +153,7 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 		cleanupStudentDeletionTest(t, db,
 			[]int64{target.ID, spared.ID}, []int64{target.PersonID, spared.PersonID},
 			[]int64{targetAssignment.ID, sparedAssignment.ID}, []int64{instance.ID},
-			[]int64{room.ID}, []int64{actor.ID, childAccount.ID}, []int64{auditID})
-		testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
+			[]int64{room.ID}, []int64{actor.ID, childAccount.ID, parentAccount.ID}, []int64{auditID})
 		testpkg.CleanupRFIDCards(t, db, card.ID)
 	})
 
@@ -216,7 +215,7 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	assert.Nil(t, anonymized.AccountID)
 	assert.NotNil(t, anonymized.DeletedAt)
 	assert.Equal(t, 1, tableRowCount(t, db, "auth.accounts", childAccount.ID))
-	assert.Equal(t, 1, tableRowCount(t, db, "auth.accounts_parents", parentAccount.ID))
+	assert.Equal(t, 1, tableRowCount(t, db, "auth.accounts", parentAccount.ID))
 
 	var audit struct {
 		ID             int64
@@ -391,7 +390,7 @@ func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *tes
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Read", "1a")
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-stale-read@example.com")
-	parentAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-stale-read-parent@example.com")
+	parentAccount := testpkg.CreateTestAccount(t, db, "student-delete-stale-read-parent@example.com")
 	var messageThreadID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id)
@@ -400,8 +399,7 @@ func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *tes
 	`, target.TenantID, target.ID, parentAccount.ID).Scan(ctx, &messageThreadID))
 	t.Cleanup(func() {
 		cleanupStudentDeletionTest(t, db,
-			[]int64{target.ID}, []int64{target.PersonID}, nil, nil, nil, []int64{actor.ID}, nil)
-		testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
+			[]int64{target.ID}, []int64{target.PersonID}, nil, nil, nil, []int64{actor.ID, parentAccount.ID}, nil)
 	})
 
 	preview, err := service.Preview(ctx, target.ID)
