@@ -347,7 +347,7 @@ describe("StudentsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setSelectedStudent(null);
-    mockSessionWithPermissions(["config:manage"]);
+    mockSessionWithPermissions(["config:manage", "users:delete"]);
 
     // Default SWR mock - returns students data
     vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
@@ -412,6 +412,20 @@ describe("StudentsPage", () => {
         "true",
       );
     });
+  });
+
+  it("does not expose the deletion workflow without users delete permission", async () => {
+    mockSessionWithPermissions(["config:manage"]);
+    setSelectedStudent("1");
+
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: /Löschen/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows loading state when data is loading", () => {

@@ -188,6 +188,12 @@ func (s *studentDeletionService) AuditGraduatePurge(ctx context.Context, student
 	if studentID <= 0 || actorAccountID <= 0 {
 		return errors.New("graduate purge audit requires student and actor IDs")
 	}
+	// The purge path calculates its audit counts before the cascaded delete.
+	// Locking the threads first serializes new messages and read cursors with
+	// that snapshot, just as the regular deletion path does.
+	if err := s.deletionRepo.LockMessageThreads(ctx, studentID); err != nil {
+		return err
+	}
 	counts, err := s.deletionRepo.Preview(ctx, studentID)
 	if err != nil {
 		return err
