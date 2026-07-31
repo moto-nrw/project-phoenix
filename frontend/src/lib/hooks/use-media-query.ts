@@ -33,5 +33,7 @@ export function useMediaQuery(query: string): boolean {
 
 /** Tailwinds `sm`-Grenze: alles darunter ist ein Telefon-Format. */
 export const BELOW_SM = "(max-width: 639px)";
+/** Tailwinds `md`-Grenze: darunter zählt die Darstellung als Telefonformat. */
+export const BELOW_MD = "(max-width: 767px)";
 /** Tailwinds `lg`-Grenze: darunter ist kein Platz für breite Wochenraster. */
 export const BELOW_LG = "(max-width: 1023px)";

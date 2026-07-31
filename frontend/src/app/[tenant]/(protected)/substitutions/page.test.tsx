@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { formatDate, toISODate } from "~/lib/date-helpers";
 import SubstitutionsPage from "./page";
 
 // Hoist mocks
@@ -126,11 +127,13 @@ vi.mock("~/components/ui/modal", () => ({
     onClose,
     title,
     children,
+    footer,
   }: {
     isOpen: boolean;
     onClose: () => void;
     title: string;
     children: React.ReactNode;
+    footer?: React.ReactNode;
   }) =>
     isOpen ? (
       <div data-testid="assignment-modal" role="dialog">
@@ -139,6 +142,7 @@ vi.mock("~/components/ui/modal", () => ({
           Close
         </button>
         {children}
+        {footer}
       </div>
     ) : null,
   ConfirmationModal: ({
@@ -622,7 +626,11 @@ describe("SubstitutionsPage", () => {
       expect(groupSelect).toBeInTheDocument();
     });
 
-    it("displays days stepper in modal", async () => {
+    // Der Tage-Stepper (Plus/Minus plus Zahlenfeld) wurde durch den
+    // segmentierten Dauer-Umschalter ersetzt. Geprüft wird weiterhin dieselbe
+    // Fachlichkeit: Voreinstellung ist ein Tag, eine längere Dauer verschiebt
+    // das Enddatum, und der freie Wert ist weiterhin erreichbar.
+    it("displays duration options in modal", async () => {
       render(<SubstitutionsPage />);
 
       // Open modal
@@ -633,12 +641,23 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      // Check days stepper exists
-      expect(screen.getByLabelText("Tage verringern")).toBeInTheDocument();
-      expect(screen.getByLabelText("Tage erhöhen")).toBeInTheDocument();
+      const durationGroup = screen.getByRole("radiogroup");
+      expect(
+        within(durationGroup).getByRole("radio", { name: "Heute" }),
+      ).toHaveAttribute("aria-checked", "true");
+
+      for (const label of ["3 Tage", "1 Woche", "Individuell"]) {
+        expect(
+          within(durationGroup).getByRole("radio", { name: label }),
+        ).toHaveAttribute("aria-checked", "false");
+      }
+
+      expect(
+        screen.getByText("Zugriff nur für heute, endet um 23:59 Uhr."),
+      ).toBeInTheDocument();
     });
 
-    it("increments days when plus button clicked", async () => {
+    it("shows the resulting end date when a longer duration is selected", async () => {
       render(<SubstitutionsPage />);
 
       // Open modal
@@ -649,18 +668,22 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      // Default is 1 day
-      expect(screen.getByText("Zugriff für heute")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("radio", { name: "3 Tage" }));
 
-      // Click plus
-      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
+      // Der Starttag zählt mit, drei Tage enden also übermorgen.
+      const expectedEnd = new Date();
+      expectedEnd.setDate(expectedEnd.getDate() + 2);
 
       await waitFor(() => {
-        expect(screen.getByText("Zugriff für 2 Tage")).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`,
+          ),
+        ).toBeInTheDocument();
       });
     });
 
-    it("decrements days when minus button clicked", async () => {
+    it("reveals a day input for the individual duration", async () => {
       render(<SubstitutionsPage />);
 
       // Open modal
@@ -671,19 +694,24 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      // Click plus twice to get to 3
-      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
-      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
+      expect(
+        screen.queryByLabelText("Anzahl der Tage"),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("radio", { name: "Individuell" }));
+
+      const dayInput = await screen.findByLabelText("Anzahl der Tage");
+      fireEvent.change(dayInput, { target: { value: "5" } });
+
+      const expectedEnd = new Date();
+      expectedEnd.setDate(expectedEnd.getDate() + 4);
 
       await waitFor(() => {
-        expect(screen.getByText("Zugriff für 3 Tage")).toBeInTheDocument();
-      });
-
-      // Click minus
-      fireEvent.click(screen.getByLabelText("Tage verringern"));
-
-      await waitFor(() => {
-        expect(screen.getByText("Zugriff für 2 Tage")).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`,
+          ),
+        ).toBeInTheDocument();
       });
     });
 

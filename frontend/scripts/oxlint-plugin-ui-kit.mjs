@@ -41,7 +41,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/students/[id]/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
   "src/app/[tenant]/(protected)/students/search/page.tsx",
-  "src/app/[tenant]/(protected)/substitutions/page.tsx",
   "src/app/[tenant]/(protected)/suggestions/page.tsx",
   "src/app/[tenant]/(protected)/time-tracking/page.tsx",
   "src/app/operator/announcements/page.tsx",
@@ -188,7 +187,6 @@ src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx|bg-blue-100
 src/app/[tenant]/(protected)/students/[id]/page.tsx|bg-blue-100 bg-blue-200 text-amber-600 text-blue-800
 src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx|bg-amber-50:3 bg-blue-50/50:2 border-amber-200 text-amber-700:3 text-amber-800:3 text-amber-900
 src/app/[tenant]/(protected)/students/search/page.tsx|text-red-400
-src/app/[tenant]/(protected)/substitutions/page.tsx|bg-orange-100 bg-orange-50 bg-orange-50/70 bg-orange-500:5 bg-purple-100:2 bg-purple-50 bg-purple-50/70 bg-purple-500:5 border-orange-200 border-orange-300 border-purple-200 border-purple-300 text-orange-500 text-orange-700 text-purple-500 text-purple-600 text-purple-700:2
 src/app/[tenant]/(protected)/suggestions/page.tsx|bg-red-500 bg-red-600
 src/app/[tenant]/(protected)/time-tracking/page.tsx|bg-amber-100:3 bg-amber-50:2 bg-amber-500 bg-red-50 border-amber-200 border-amber-400:2 border-red-400:2 text-amber-300 text-amber-500:6 text-amber-600:6 text-amber-700:2 text-red-500:4 text-red-600 text-red-700
 src/app/operator/announcements/page.tsx|bg-amber-100 bg-red-500 bg-red-600 border-blue-500:3 ring-blue-500:3 text-amber-700
