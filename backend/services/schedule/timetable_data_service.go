@@ -20,6 +20,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -53,7 +54,11 @@ type TimetableDataDependencies struct {
 	ValidateCareOfferingSeries func(context.Context, int64) error
 	// DeviationEventRepo serves the Änderungsprotokoll read path (#1886).
 	DeviationEventRepo auditModel.DeviationEventRepository
-	DB                 *bun.DB
+	// Broadcaster invalidates planner and "Heute geplant" caches after
+	// template-side changes that bypass the instance CRUD flows.
+	Broadcaster realtime.Broadcaster
+	Logger      *slog.Logger
+	DB          *bun.DB
 }
 
 // TimetableDataService is the service boundary behind api/timetable (issue
@@ -67,6 +72,13 @@ type TimetableDataService struct {
 // NewTimetableDataService creates the data facade behind api/timetable.
 func NewTimetableDataService(deps TimetableDataDependencies) *TimetableDataService {
 	return &TimetableDataService{deps: deps}
+}
+
+func (s *TimetableDataService) getLogger() *slog.Logger {
+	if s.deps.Logger != nil {
+		return s.deps.Logger
+	}
+	return slog.Default()
 }
 
 // ListDeviationEvents returns the Änderungsprotokoll rows in [from, to],

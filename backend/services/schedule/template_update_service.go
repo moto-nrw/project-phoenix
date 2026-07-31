@@ -211,8 +211,14 @@ func (s *TimetableDataService) deleteRemovedLegacyWeekendInstances(ctx context.C
 	if !ok || len(removed) == 0 {
 		return nil
 	}
-	if _, err := cleaner.DeletePlannedMaterializedWeekendInstances(ctx, templateID, removed); err != nil {
+	deleted, err := cleaner.DeletePlannedMaterializedWeekendInstances(ctx, templateID, removed)
+	if err != nil {
 		return &ScheduleError{Op: "update template: delete removed legacy weekend instances", Err: err}
+	}
+	if deleted > 0 {
+		// This bulk deletion bypasses the planned-instance CRUD flow, so it must
+		// invalidate clients after the surrounding transaction commits.
+		broadcastStaffingChanged(ctx, s.deps.Broadcaster, s.getLogger(), "template_legacy_weekend_cleanup")
 	}
 	return nil
 }

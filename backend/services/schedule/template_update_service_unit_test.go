@@ -3,10 +3,14 @@ package schedule
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,6 +20,7 @@ type legacyWeekendCleanerTestRepo struct {
 	calls     int
 	template  int64
 	weekdays  []int
+	deleted   int64
 	deleteErr error
 }
 
@@ -23,7 +28,7 @@ func (r *legacyWeekendCleanerTestRepo) DeletePlannedMaterializedWeekendInstances
 	r.calls++
 	r.template = templateID
 	r.weekdays = append([]int(nil), weekdays...)
-	return 0, r.deleteErr
+	return r.deleted, r.deleteErr
 }
 
 func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
@@ -44,6 +49,26 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 		assert.Equal(t, 1, repo.calls)
 		assert.Equal(t, templateID, repo.template)
 		assert.Equal(t, []int{activitiesModel.WeekdaySaturday}, repo.weekdays)
+	})
+
+	t.Run("broadcasts after deleting materialized instances", func(t *testing.T) {
+		broadcaster := testpkg.NewRecordingBroadcaster()
+		repo := &legacyWeekendCleanerTestRepo{deleted: 2}
+		svc := NewTimetableDataService(TimetableDataDependencies{
+			ActivityInstanceRepo: repo,
+			Broadcaster:          broadcaster,
+			Logger:               slog.Default(),
+		})
+		ctx := tenant.WithTenantID(context.Background(), 314)
+
+		require.NoError(t, svc.deleteRemovedLegacyWeekendInstances(ctx, templateID, previous, []int{activitiesModel.WeekdayFriday}))
+
+		calls := broadcaster.CallsByMethod("tenant")
+		require.Len(t, calls, 1)
+		assert.Equal(t, int64(314), calls[0].TenantID)
+		assert.Equal(t, realtime.EventStaffingDeviationChanged, calls[0].Event.Type)
+		require.NotNil(t, calls[0].Event.Data.Source)
+		assert.Equal(t, "template_legacy_weekend_cleanup", *calls[0].Event.Data.Source)
 	})
 
 	t.Run("skips cleanup when all legacy days remain", func(t *testing.T) {
