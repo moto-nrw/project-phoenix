@@ -513,8 +513,16 @@ function SubstitutionPageContent() {
     emptyText: string,
     chipFor: (substitution: Substitution) => ReactNode,
   ) => {
+    // Eine leere Liste bekommt dieselbe Fläche wie eine gefüllte, damit der
+    // Abschnitt nicht als freischwebender Text im Raster steht. Bewusst knapp:
+    // das ist eine Liste ohne Einträge, kein leerer Seitenbereich, für den
+    // EmptyState mit seiner grossen zentrierten Überschrift gedacht ist.
     if (substitutions.length === 0) {
-      return <EmptyState title={emptyText} />;
+      return (
+        <div className="moto-content-surface rounded-2xl border p-4 text-sm text-gray-500">
+          {emptyText}
+        </div>
+      );
     }
 
     return (
