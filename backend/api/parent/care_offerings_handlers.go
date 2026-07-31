@@ -52,6 +52,11 @@ type CareOfferingItemResponse struct {
 	PriceCents      *int  `json:"price_cents,omitempty"`
 	IncludesLunch   bool  `json:"includes_lunch"`
 	IncludesHoliday bool  `json:"includes_holiday_care"`
+	// ValidFrom is present for a scheduled offering. ValidUntil is the
+	// inclusive last day, converted from the exclusive database interval.
+	ValidFrom   string `json:"valid_from,omitempty"`
+	ValidUntil  string `json:"valid_until,omitempty"`
+	StartsLater bool   `json:"starts_later"`
 }
 
 // CareGroupItemResponse is one activity-group membership.
@@ -122,7 +127,7 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 		resp.PendingRequest = pending
 	}
 	for _, offering := range v.Offerings {
-		resp.Offerings = append(resp.Offerings, CareOfferingItemResponse{
+		item := CareOfferingItemResponse{
 			ID:              strconv.FormatInt(offering.OfferingID, 10),
 			Name:            offering.Name,
 			Description:     offering.Description,
@@ -130,7 +135,15 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 			PriceCents:      offering.PriceCents,
 			IncludesLunch:   offering.IncludesLunch,
 			IncludesHoliday: offering.IncludesHoliday,
-		})
+			StartsLater:     offering.StartsLater,
+		}
+		if offering.ValidFrom != nil {
+			item.ValidFrom = offering.ValidFrom.String()
+		}
+		if offering.ValidUntil != nil {
+			item.ValidUntil = offering.ValidUntil.AddDays(-1).String()
+		}
+		resp.Offerings = append(resp.Offerings, item)
 	}
 	for _, group := range v.Groups {
 		item := CareGroupItemResponse{
