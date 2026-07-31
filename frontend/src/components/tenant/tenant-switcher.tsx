@@ -11,7 +11,7 @@ import {
 } from "~/lib/tenant-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
-import { trackEvent } from "~/lib/analytics";
+import { trackTenantEvent } from "~/lib/analytics";
 import { env } from "~/env";
 import { Alert } from "~/components/ui/alert";
 import {
@@ -103,7 +103,7 @@ export function BrandTenantSwitcher({
         };
         logger.info("tenant_switched", switchPayload);
         // Slugs identify organizations and must stay out of product analytics.
-        trackEvent("tenant_switched");
+        trackTenantEvent("tenant_switched", targetTenant.tenantId.toString());
 
         // 5. Hard-navigate to the new tenant subdomain.
         // Always use subdomain routing — the proxy rewrites subdomains

@@ -26,6 +26,10 @@ const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
   mockUseTenantSlugSafe: vi.fn(),
 }));
 
+const { mockTrackTenantEvent } = vi.hoisted(() => ({
+  mockTrackTenantEvent: vi.fn(),
+}));
+
 vi.mock("~/lib/tenant-api", () => ({
   listAvailableTenants: mockListAvailableTenants,
   performTenantSwitch: mockPerformTenantSwitch,
@@ -43,6 +47,10 @@ vi.mock("~/lib/swr", () => ({
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: mockUseTenantSlugSafe,
   useNFCEnabled: vi.fn(() => true),
+}));
+
+vi.mock("~/lib/analytics", () => ({
+  trackTenantEvent: mockTrackTenantEvent,
 }));
 
 vi.mock("~/env", () => ({
@@ -281,6 +289,9 @@ describe("BrandTenantSwitcher", () => {
         mockSignIn,
         mockMutate,
       );
+    });
+    await waitFor(() => {
+      expect(mockTrackTenantEvent).toHaveBeenCalledWith("tenant_switched", "2");
     });
 
     // Should redirect to the new tenant subdomain

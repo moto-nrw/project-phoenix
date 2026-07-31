@@ -55,7 +55,21 @@ export function trackTenantEvent(
   schoolId: string,
   props?: Record<string, string | number | boolean>,
 ): void {
-  if (!/^\d+$/.test(schoolId)) return;
+  if (!env.NEXT_PUBLIC_POSTHOG_KEY || !/^\d+$/.test(schoolId)) return;
+
+  // A completed tenant switch belongs to the target school and must not share
+  // the previous school's anonymous runtime identity.
+  if (event === "tenant_switched") {
+    try {
+      posthog.reset();
+    } catch (err) {
+      logger.warn("analytics_capture_failed", {
+        event,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+  }
 
   captureEvent(event, {
     ...props,
