@@ -510,15 +510,13 @@ export function useGlobalSSE(): SSEHookState {
     // receive check-ins only as the dashboard_counts_changed broadcast, so
     // include hasPendingDashboardEvent or their bell/list stays stale until poll.
     //
-    // This hook runs in TenantAuthWrapper, ABOVE TenantProvider, so
-    // useTenantSlugSafe() is null here and it cannot build the real
-    // "{slug}:reminders" SWR key that useReminders() writes under. Rather than
-    // mutate the wrong (unprefixed) key, dispatch a window event and let
-    // useReminders() — which runs under TenantProvider, owns the correctly
-    // tenant-prefixed key, and knows whether the feature is enabled — perform
-    // the revalidation. This mirrors the tenant_settings_changed / parent_message
-    // decoupling above and keeps the idle-poll throttle intact for disabled
-    // tenants (the consumer skips the mutate when the feature is off).
+    // This hook deliberately does not own the tenant-prefixed
+    // "{slug}:reminders" SWR key. Dispatch a window event and let
+    // useReminders() — which owns that key and knows whether the feature is
+    // enabled — perform the revalidation. This mirrors the
+    // tenant_settings_changed / parent_message decoupling above and keeps the
+    // idle-poll throttle intact for disabled tenants (the consumer skips the
+    // mutate when the feature is off).
     if (
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||

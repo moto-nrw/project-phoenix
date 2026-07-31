@@ -3,6 +3,7 @@
  *
  * Runs teacher-specific hooks: user context pre-warming, global SSE, PostHog.
  * Only active for tenant sessions — never runs for operator sessions.
+ * Must run inside both SessionProvider and TenantProvider.
  *
  * @example
  * ```tsx

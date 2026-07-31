@@ -39,6 +39,7 @@ describe("instrumentation-client", () => {
         capture_dead_clicks: false,
         capture_exceptions: false,
         disable_session_recording: true,
+        persistence: "memory",
         disable_persistence: true,
         person_profiles: "never",
         save_referrer: false,

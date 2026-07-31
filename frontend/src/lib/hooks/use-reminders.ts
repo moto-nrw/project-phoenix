@@ -206,8 +206,8 @@ export function useReminders() {
   const enabled = data?.enabled ?? false;
   const nextChangeAt = data?.next_change_at;
 
-  // Event-driven refresh. useGlobalSSE() runs above TenantProvider and cannot
-  // build the tenant-prefixed reminders SWR key, so it dispatches
+  // Event-driven refresh. useGlobalSSE() does not own the tenant-prefixed
+  // reminders SWR key, so it dispatches
   // "phoenix:reminders-stale" whenever an attendance / activity / student-data
   // change may alter what's due (or who may see it). Revalidate here, where the
   // SWR key is correctly tenant-scoped via useSWRAuth. Gate on `enabled`: a

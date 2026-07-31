@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { TenantProvider } from "~/lib/tenant-context";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
@@ -152,14 +151,12 @@ export default async function TenantLayout({
     : "path";
 
   return (
-    <TenantProviders>
-      <TenantProvider
-        tenantSlug={tenantSlug}
-        tenant={tenant}
-        routingMode={routingMode}
-      >
-        <TenantGuard>{children}</TenantGuard>
-      </TenantProvider>
+    <TenantProviders
+      tenantSlug={tenantSlug}
+      tenant={tenant}
+      routingMode={routingMode}
+    >
+      <TenantGuard>{children}</TenantGuard>
     </TenantProviders>
   );
 }
