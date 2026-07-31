@@ -6,7 +6,7 @@
  * PII; student IDs are forbidden entirely (GDPR).
  */
 
-import posthog from "posthog-js";
+import posthog, { type Properties } from "posthog-js";
 import { env } from "~/env";
 import { createLogger } from "~/lib/logger";
 import {
@@ -27,10 +27,7 @@ export type AnalyticsEvent =
   | "user_invited"
   | "data_exported";
 
-export function trackEvent(
-  event: AnalyticsEvent,
-  props?: Record<string, string | number | boolean>,
-): void {
+function captureEvent(event: AnalyticsEvent, props?: Properties): void {
   if (!env.NEXT_PUBLIC_POSTHOG_KEY) {
     return;
   }
@@ -44,6 +41,28 @@ export function trackEvent(
       error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+export function trackEvent(
+  event: AnalyticsEvent,
+  props?: Record<string, string | number | boolean>,
+): void {
+  captureEvent(event, props);
+}
+
+export function trackTenantEvent(
+  event: AnalyticsEvent,
+  schoolId: string,
+  props?: Record<string, string | number | boolean>,
+): void {
+  if (!/^\d+$/.test(schoolId)) return;
+
+  captureEvent(event, {
+    ...props,
+    deployment: env.NEXT_PUBLIC_TENANT_DOMAIN,
+    school_id: schoolId,
+    $groups: { school: schoolId },
+  });
 }
 
 export function trackPageView(viewId: AnalyticsViewId, schoolId: string): void {

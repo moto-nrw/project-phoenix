@@ -11,6 +11,11 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+const mockTrackTenantEvent = vi.fn();
+vi.mock("~/lib/analytics", () => ({
+  trackTenantEvent: (...args: unknown[]) => mockTrackTenantEvent(...args),
+}));
+
 // Mock next-auth/react
 const mockSignIn = vi.fn();
 vi.mock("next-auth/react", () => ({
@@ -107,6 +112,12 @@ const mockAnimate = vi.fn(() => ({
 
 const originalFetch = global.fetch;
 
+const resolvedTenant = {
+  tenantId: 42,
+  name: "",
+  settings: {},
+} as ReturnType<typeof useTenant>["tenant"];
+
 function mockFetchResponse(status: number, body: unknown): typeof global.fetch {
   return vi.fn().mockResolvedValue(
     new Response(JSON.stringify(body), {
@@ -136,7 +147,7 @@ describe("HomePage (Login)", () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
       routingMode: "path",
-      tenant: null,
+      tenant: resolvedTenant,
     });
 
     // Mock Element.animate globally
@@ -323,6 +334,11 @@ describe("HomePage (Login)", () => {
         refreshToken: "refresh-token",
       });
     });
+    expect(mockTrackTenantEvent).toHaveBeenCalledWith(
+      "login_success",
+      "42",
+      undefined,
+    );
   });
 
   it("removes stale session-expired query params before seeding the new session", async () => {
@@ -394,6 +410,9 @@ describe("HomePage (Login)", () => {
       expect(
         screen.getByText("Ungültige E-Mail oder Passwort"),
       ).toBeInTheDocument();
+    });
+    expect(mockTrackTenantEvent).toHaveBeenCalledWith("login_failed", "42", {
+      reason: "invalid_credentials",
     });
   });
 

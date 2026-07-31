@@ -14,7 +14,7 @@ vi.mock("posthog-js", () => ({
 
 vi.mock("~/env", () => ({ env: mockEnv }));
 
-import { trackEvent, trackPageView } from "./analytics";
+import { trackEvent, trackPageView, trackTenantEvent } from "./analytics";
 
 describe("trackEvent", () => {
   beforeEach(() => {
@@ -79,5 +79,28 @@ describe("trackEvent", () => {
       $geoip_disable: true,
       $process_person_profile: false,
     });
+  });
+
+  it("attaches trusted school context directly to pre-session events", () => {
+    mockEnv.NEXT_PUBLIC_POSTHOG_KEY = "phc_test_key_123";
+
+    trackTenantEvent("login_failed", "42", {
+      reason: "invalid_credentials",
+    });
+
+    expect(mockCapture).toHaveBeenCalledWith("login_failed", {
+      reason: "invalid_credentials",
+      deployment: "localhost",
+      school_id: "42",
+      $groups: { school: "42" },
+    });
+  });
+
+  it("rejects tenant events without a numeric school ID", () => {
+    mockEnv.NEXT_PUBLIC_POSTHOG_KEY = "phc_test_key_123";
+
+    trackTenantEvent("login_success", "school-a");
+
+    expect(mockCapture).not.toHaveBeenCalled();
   });
 });
