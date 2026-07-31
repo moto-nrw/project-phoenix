@@ -96,6 +96,21 @@ type seriesShiftMockRepo struct {
 	deleteFn            func(ctx context.Context, id any) error
 }
 
+// seriesOccurrenceUpdaterMock isolates the one StaffShiftService call used
+// when a permanent edit starts today. The embedded nil service makes an
+// unexpected call fail loudly.
+type seriesOccurrenceUpdaterMock struct {
+	StaffShiftService
+	updateFn func(context.Context, *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error)
+}
+
+func (m *seriesOccurrenceUpdaterMock) UpdateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
+	if m.updateFn == nil {
+		return shift, nil
+	}
+	return m.updateFn(ctx, shift)
+}
+
 func (m *seriesShiftMockRepo) BulkCreate(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
 	if m.bulkCreateFn != nil {
 		return m.bulkCreateFn(ctx, shifts)
@@ -303,6 +318,136 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 		assert.Contains(t, err.Error(), "no occurrences left to create")
 		assert.False(t, created)
 	})
+}
+
+func TestUpdateTodayOccurrence(t *testing.T) {
+	today := timezone.TodayDate()
+	seriesID := int64(12)
+	occurrence := &scheduleModels.StaffShift{
+		StaffID:              5,
+		Date:                 today,
+		StartTime:            seriesClockForMockTest(t, "09:00"),
+		EndTime:              seriesClockForMockTest(t, "12:00"),
+		SeriesID:             &seriesID,
+		SeriesOccurrenceDate: &today,
+	}
+
+	input := SplitSeriesInput{
+		SeriesID:          seriesID,
+		OccurrenceShiftID: 44,
+		EffectiveDate:     today,
+		StartTime:         seriesClockForMockTest(t, "10:00"),
+		EndTime:           seriesClockForMockTest(t, "15:00"),
+		BreakMinutes:      30,
+	}
+
+	t.Run("requires an updater when an occurrence is supplied", func(t *testing.T) {
+		service := &staffShiftSeriesService{}
+		err := service.updateTodayOccurrence(context.Background(), input)
+		assert.ErrorIs(t, err, ErrSeriesInvalid)
+		assert.Contains(t, err.Error(), "updater is not configured")
+	})
+
+	t.Run("does nothing without an occurrence id", func(t *testing.T) {
+		service := &staffShiftSeriesService{}
+		withoutOccurrence := input
+		withoutOccurrence.OccurrenceShiftID = 0
+		require.NoError(t, service.updateTodayOccurrence(context.Background(), withoutOccurrence))
+	})
+
+	t.Run("maps a missing or unreadable occurrence to the correct error", func(t *testing.T) {
+		for name, findErr := range map[string]error{
+			"missing":          sql.ErrNoRows,
+			"database failure": errors.New("read failed"),
+		} {
+			t.Run(name, func(t *testing.T) {
+				service := &staffShiftSeriesService{
+					shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
+						findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+							return nil, findErr
+						},
+					}},
+					shiftService: &seriesOccurrenceUpdaterMock{},
+				}
+
+				err := service.updateTodayOccurrence(context.Background(), input)
+				require.Error(t, err)
+				if errors.Is(findErr, sql.ErrNoRows) {
+					assert.ErrorIs(t, err, ErrSeriesInvalid)
+				} else {
+					assert.ErrorIs(t, err, findErr)
+				}
+			})
+		}
+	})
+
+	t.Run("rejects a row outside the selected series occurrence", func(t *testing.T) {
+		wrongSeriesID := seriesID + 1
+		wrong := *occurrence
+		wrong.SeriesID = &wrongSeriesID
+		service := &staffShiftSeriesService{
+			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
+				findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+					return &wrong, nil
+				},
+			}},
+			shiftService: &seriesOccurrenceUpdaterMock{},
+		}
+
+		err := service.updateTodayOccurrence(context.Background(), input)
+		assert.ErrorIs(t, err, ErrSeriesInvalid)
+		assert.Contains(t, err.Error(), "does not belong")
+	})
+
+	t.Run("updates the concrete row and propagates update failures", func(t *testing.T) {
+		var updated *scheduleModels.StaffShift
+		shiftTypeID := int64(7)
+		inputWithType := input
+		inputWithType.ShiftTypeID = &shiftTypeID
+		inputWithType.ShiftTypeIDSet = true
+		service := &staffShiftSeriesService{
+			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
+				findByIDFunc: func(_ context.Context, id any) (*scheduleModels.StaffShift, error) {
+					assert.Equal(t, int64(44), id)
+					return occurrence, nil
+				},
+			}},
+			shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
+				updated = shift
+				return nil, errors.New("write failed")
+			}},
+		}
+
+		err := service.updateTodayOccurrence(context.Background(), inputWithType)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "update current series occurrence")
+		require.NotNil(t, updated)
+		assert.Equal(t, "10:00", timezone.WallClock(updated.StartTime).Format("15:04"))
+		assert.Equal(t, "15:00", timezone.WallClock(updated.EndTime).Format("15:04"))
+		assert.Equal(t, 30, updated.BreakMinutes)
+		require.NotNil(t, updated.ShiftTypeID)
+		assert.Equal(t, shiftTypeID, *updated.ShiftTypeID)
+	})
+
+	t.Run("returns nil after a successful update", func(t *testing.T) {
+		service := &staffShiftSeriesService{
+			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
+				findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+					return occurrence, nil
+				},
+			}},
+			shiftService: &seriesOccurrenceUpdaterMock{},
+		}
+
+		require.NoError(t, service.updateTodayOccurrence(context.Background(), input))
+	})
+}
+
+func seriesClockForMockTest(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse("15:04", value)
+	require.NoError(t, err)
+	return timezone.WallClock(parsed)
 }
 
 func splitInput(t *testing.T, seriesID int64) SplitSeriesInput {
