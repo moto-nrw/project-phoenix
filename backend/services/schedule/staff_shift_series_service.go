@@ -169,6 +169,9 @@ func (s *staffShiftSeriesService) updateTodayOccurrence(ctx context.Context, inp
 	if input.ShiftTypeIDSet {
 		updated.ShiftTypeID = input.ShiftTypeID
 	}
+	if input.Notes != nil {
+		updated.Notes = *input.Notes
+	}
 	if input.ActorStaffID > 0 {
 		updated.UpdatedBy = &input.ActorStaffID
 	}

@@ -403,9 +403,11 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 	t.Run("updates the concrete row and propagates update failures", func(t *testing.T) {
 		var updated *scheduleModels.StaffShift
 		shiftTypeID := int64(7)
+		notes := "Updated permanent note"
 		inputWithType := input
 		inputWithType.ShiftTypeID = &shiftTypeID
 		inputWithType.ShiftTypeIDSet = true
+		inputWithType.Notes = &notes
 		service := &staffShiftSeriesService{
 			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
 				findByIDFunc: func(_ context.Context, id any) (*scheduleModels.StaffShift, error) {
@@ -429,6 +431,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		assert.Equal(t, 30, updated.BreakMinutes)
 		require.NotNil(t, updated.ShiftTypeID)
 		assert.Equal(t, shiftTypeID, *updated.ShiftTypeID)
+		assert.Equal(t, notes, updated.Notes)
 		require.NotNil(t, updated.UpdatedBy)
 		assert.Equal(t, input.ActorStaffID, *updated.UpdatedBy)
 	})
