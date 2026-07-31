@@ -404,6 +404,7 @@ describe("ShiftEditModal series scopes", () => {
     await waitFor(() => {
       expect(splitSeries).toHaveBeenCalledWith("5", {
         effectiveDate: "2026-09-07",
+        occurrenceShiftId: "9",
         startTime: "08:00",
         endTime: "12:00",
         breakMinutes: 0,
@@ -511,6 +512,7 @@ describe("ShiftEditModal series rule editing", () => {
     await waitFor(() => {
       expect(splitSeries).toHaveBeenCalledWith("5", {
         effectiveDate: "2026-09-07",
+        occurrenceShiftId: "9",
         startTime: "08:00",
         endTime: "14:00",
         breakMinutes: 0,
@@ -823,6 +825,7 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
     await waitFor(() => {
       expect(splitSeries).toHaveBeenCalledWith("5", {
         effectiveDate: "2026-09-07",
+        occurrenceShiftId: "9",
         startTime: "08:00",
         endTime: "12:00",
         breakMinutes: 0,

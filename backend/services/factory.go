@@ -774,6 +774,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		shiftTypeService,
 		db,
 		logger.With("service", "staff_shift_series"),
+		staffShiftService,
 	)
 	if broadcastAware, ok := staffShiftSeriesService.(interface {
 		SetBroadcaster(realtime.Broadcaster)

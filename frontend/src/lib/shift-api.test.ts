@@ -304,6 +304,38 @@ describe("staffShiftService requests", () => {
     });
   });
 
+  it("serializes replacement origin IDs as strings without bigint rounding", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({
+        data: { ...backendShift, origin_shift_id: "9223372036854775807" },
+      }),
+    );
+
+    await staffShiftService.createShift({
+      staffId: "7",
+      date: "2026-07-06",
+      startTime: "08:00",
+      endTime: "16:00",
+      breakMinutes: 30,
+      shiftTypeId: null,
+      originShiftId: "9223372036854775807",
+    });
+
+    expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shifts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        staff_id: 7,
+        date: "2026-07-06",
+        start_time: "08:00",
+        end_time: "16:00",
+        break_minutes: 30,
+        shift_type_id: null,
+        origin_shift_id: "9223372036854775807",
+      }),
+    });
+  });
+
   it("serializes an atomic move with explicit source and target owners", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json({ data: { ...backendShift, staff_id: 8 } }),

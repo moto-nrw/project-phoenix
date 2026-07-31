@@ -106,6 +106,9 @@ interface SeriesPayload {
 interface SeriesSplitPayload {
   /** "YYYY-MM-DD" */
   effectiveDate: string;
+  /** Concrete occurrence opened by the planner. If it is today, the backend
+   * updates this row in place and only re-plans the series from tomorrow. */
+  occurrenceShiftId?: string;
   startTime: string;
   endTime: string;
   breakMinutes: number;
@@ -140,7 +143,7 @@ export interface SeriesRule {
 }
 
 interface BackendSeriesRule {
-  id: number;
+  id: string;
   staff_id: number;
   weekdays: number[] | null;
   start_time: string;
@@ -161,7 +164,7 @@ export interface SeriesResult {
 }
 
 interface BackendSeriesResult {
-  series_id: number;
+  series_id: string;
   created: number;
   skipped_dates: string[] | null;
 }
@@ -218,7 +221,7 @@ function toBackendBody(payload: ShiftPayload) {
       ? { change_reason: payload.changeReason }
       : {}),
     ...(payload.originShiftId != null
-      ? { origin_shift_id: Number.parseInt(payload.originShiftId, 10) }
+      ? { origin_shift_id: payload.originShiftId }
       : {}),
   };
 }
@@ -454,6 +457,13 @@ class StaffShiftSeriesService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           effective_date: payload.effectiveDate,
+          ...(payload.occurrenceShiftId !== undefined
+            ? {
+                // Backend IDs are int64 values; serializing this as a number
+                // would round values beyond Number.MAX_SAFE_INTEGER.
+                occurrence_shift_id: payload.occurrenceShiftId,
+              }
+            : {}),
           start_time: payload.startTime,
           end_time: payload.endTime,
           break_minutes: payload.breakMinutes,

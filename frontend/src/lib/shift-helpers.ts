@@ -1,9 +1,9 @@
 // Types and mapping helpers for planned staff shifts (Dienstplan, #1376).
-// Backend wire format: snake_case, int64 ids as numbers, dates as
+// Backend wire format: snake_case, bigint shift/series IDs as strings, dates as
 // "YYYY-MM-DD", times as "HH:MM".
 
 export interface BackendStaffShift {
-  id: number;
+  id: string;
   staff_id: number;
   date: string;
   start_time: string;
@@ -15,13 +15,13 @@ export interface BackendStaffShift {
   shift_type_name?: string | null;
   shift_type_color?: string | null;
   notes?: string;
-  series_id?: number | null;
+  series_id?: string | null;
   /** Immutable source slot for a moved series occurrence. */
   series_occurrence_date?: string | null;
   detached?: boolean;
   cancelled?: boolean;
   change_reason?: string | null;
-  origin_shift_id?: number | null;
+  origin_shift_id?: string | null;
 }
 
 export interface StaffShift {

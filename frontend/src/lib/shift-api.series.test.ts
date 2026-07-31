@@ -16,7 +16,9 @@ describe("staffShiftSeriesService", () => {
   it("creates a series with a snake_case backend body", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json(
-        { data: { series_id: 5, created: 12, skipped_dates: ["2026-09-07"] } },
+        {
+          data: { series_id: "5", created: 12, skipped_dates: ["2026-09-07"] },
+        },
         { status: 201 },
       ),
     );
@@ -61,7 +63,7 @@ describe("staffShiftSeriesService", () => {
   it("defaults missing skipped_dates to an empty list and null type stays null", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json(
-        { data: { series_id: 5, created: 3, skipped_dates: null } },
+        { data: { series_id: "5", created: 3, skipped_dates: null } },
         { status: 201 },
       ),
     );
@@ -93,7 +95,7 @@ describe("staffShiftSeriesService", () => {
   it("splits a series sending only the edited fields", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json(
-        { data: { series_id: 9, created: 4, skipped_dates: [] } },
+        { data: { series_id: "9", created: 4, skipped_dates: [] } },
         { status: 200 },
       ),
     );
@@ -127,13 +129,14 @@ describe("staffShiftSeriesService", () => {
   it("sends the edited rule fields when the series editor changes them", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json(
-        { data: { series_id: 9, created: 7, skipped_dates: [] } },
+        { data: { series_id: "9", created: 7, skipped_dates: [] } },
         { status: 200 },
       ),
     );
 
     await staffShiftSeriesService.splitSeries("5", {
       effectiveDate: "2026-10-05",
+      occurrenceShiftId: "42",
       startTime: "10:00",
       endTime: "14:00",
       breakMinutes: 30,
@@ -146,6 +149,7 @@ describe("staffShiftSeriesService", () => {
     const init = mockSessionFetch.mock.calls[0]?.[1] as RequestInit | undefined;
     expect(JSON.parse((init?.body as string) ?? "{}")).toEqual({
       effective_date: "2026-10-05",
+      occurrence_shift_id: "42",
       start_time: "10:00",
       end_time: "14:00",
       break_minutes: 30,
@@ -153,6 +157,29 @@ describe("staffShiftSeriesService", () => {
       weekdays: [2, 5],
       week_pattern: 2,
       valid_until: "2026-11-02",
+    });
+  });
+
+  it("keeps a large occurrence ID lossless in the split payload", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json(
+        { data: { series_id: "9", created: 7, skipped_dates: [] } },
+        { status: 200 },
+      ),
+    );
+
+    await staffShiftSeriesService.splitSeries("5", {
+      effectiveDate: "2026-10-05",
+      occurrenceShiftId: "9223372036854775807",
+      startTime: "10:00",
+      endTime: "14:00",
+      breakMinutes: 30,
+      shiftTypeId: null,
+    });
+
+    const init = mockSessionFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(JSON.parse((init?.body as string) ?? "{}")).toMatchObject({
+      occurrence_shift_id: "9223372036854775807",
     });
   });
 
@@ -188,7 +215,7 @@ describe("staffShiftSeriesService", () => {
       Response.json(
         {
           data: {
-            id: 5,
+            id: "5",
             staff_id: 7,
             weekdays: [1, 3],
             start_time: "09:00",
@@ -227,7 +254,7 @@ describe("staffShiftSeriesService", () => {
       Response.json(
         {
           data: {
-            id: 5,
+            id: "5",
             staff_id: 7,
             weekdays: null,
             start_time: "09:00",

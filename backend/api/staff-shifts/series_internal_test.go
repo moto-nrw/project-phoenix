@@ -209,7 +209,7 @@ func TestSplitSeriesHandler_InheritsOmittedFields(t *testing.T) {
 	router := splitTestRouter(resource)
 	// Only times + effective date: weekdays, week_pattern, shift type, and
 	// notes are omitted and must reach the service as "inherit" markers.
-	body := `{"effective_date": "2026-10-05", "start_time": "10:00", "end_time": "14:00", "break_minutes": 0}`
+	body := `{"effective_date": "2026-10-05", "occurrence_shift_id": 73, "start_time": "10:00", "end_time": "14:00", "break_minutes": 0}`
 	recorder := httptest.NewRecorder()
 	request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/series/12/split", strings.NewReader(body)))
 	router.ServeHTTP(recorder, request)
@@ -217,6 +217,7 @@ func TestSplitSeriesHandler_InheritsOmittedFields(t *testing.T) {
 
 	assert.Equal(t, int64(12), got.SeriesID)
 	assert.Equal(t, timezone.NewDate(2026, time.October, 5), got.EffectiveDate)
+	assert.Equal(t, int64(73), got.OccurrenceShiftID)
 	assert.Nil(t, got.Weekdays)
 	assert.Nil(t, got.WeekPattern)
 	assert.False(t, got.ShiftTypeIDSet)
@@ -231,6 +232,39 @@ func TestSplitSeriesHandler_InheritsOmittedFields(t *testing.T) {
 	assert.Equal(t, int64(12), envelope.Data.OldSeriesID)
 	assert.Equal(t, int64(3), envelope.Data.Deleted)
 	assert.Equal(t, []string{}, envelope.Data.SkippedDates)
+}
+
+func TestSplitSeriesHandler_AcceptsLosslessOccurrenceID(t *testing.T) {
+	var got scheduleSvc.SplitSeriesInput
+	service := &fakeSeriesService{
+		splitFn: func(_ context.Context, input scheduleSvc.SplitSeriesInput) (*scheduleSvc.SeriesResult, error) {
+			got = input
+			return &scheduleSvc.SeriesResult{Series: &scheduleModel.StaffShiftSeries{}}, nil
+		},
+	}
+	resource := seriesTestResource(service)
+	router := splitTestRouter(resource)
+	body := `{"effective_date":"2026-10-05","occurrence_shift_id":"9223372036854775807","start_time":"10:00","end_time":"14:00","break_minutes":0}`
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/series/12/split", strings.NewReader(body)))
+	router.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	assert.Equal(t, int64(9223372036854775807), got.OccurrenceShiftID)
+}
+
+func TestSeriesResponses_SerializeIDsAsStrings(t *testing.T) {
+	series := &scheduleModel.StaffShiftSeries{}
+	series.ID = 9223372036854775807
+	encoded, err := json.Marshal(toSeriesResponse(&scheduleSvc.SeriesResult{
+		Series:      series,
+		OldSeriesID: 9223372036854775806,
+	}))
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &body))
+	assert.Equal(t, "9223372036854775807", body["series_id"])
+	assert.Equal(t, "9223372036854775806", body["old_series_id"])
 }
 
 func TestSplitSeriesHandler_RejectsBadEffectiveDate(t *testing.T) {
