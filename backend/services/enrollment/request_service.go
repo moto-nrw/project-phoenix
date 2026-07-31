@@ -1840,7 +1840,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		for _, c := range children {
 			childIDs = append(childIDs, c.ID)
 		}
-		loadedLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(tenantCtx, childIDs, timezone.TodayDate())
+		loadedLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(tenantCtx, childIDs)
 		if err != nil {
 			return fmt.Errorf("edit draft: list child offerings: %w", err)
 		}
@@ -2191,7 +2191,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				return err
 			}
 		}
-		existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(txCtx, existingChildIDs, timezone.TodayDate())
+		existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(txCtx, existingChildIDs)
 		if err != nil {
 			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
 		}

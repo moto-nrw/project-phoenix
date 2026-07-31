@@ -175,10 +175,8 @@ func setRequestChildOfferingValidity(
 	row *enrollment.RequestChildOffering,
 	phaseStart, phaseEndExclusive timezone.Date,
 ) {
-	if row.ValidFrom == nil || row.ValidFrom.Before(phaseStart) {
+	if row.ValidFrom == nil && row.ValidUntil == nil {
 		row.ValidFrom = &phaseStart
-	}
-	if row.ValidUntil == nil || row.ValidUntil.After(phaseEndExclusive) {
 		row.ValidUntil = &phaseEndExclusive
 	}
 }
@@ -199,10 +197,11 @@ func lockRequestChildOfferings(ctx context.Context, db bun.IDB, requestChildID i
 	return nil
 }
 
-// ListByRequestChildID returns the selection active today. Historical rows
-// remain available through ListHistoryByRequestChildID.
+// ListByRequestChildID returns every selection interval for one child.
+// Callers that need point-in-time semantics must use
+// ListByRequestChildIDAtDate explicitly.
 func (r *RequestChildOfferingRepository) ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*enrollment.RequestChildOffering, error) {
-	return r.ListByRequestChildIDAtDate(ctx, requestChildID, timezone.TodayDate())
+	return r.ListHistoryByRequestChildID(ctx, requestChildID)
 }
 
 // ListHistoryByRequestChildID returns all offering intervals for reporting.
@@ -279,13 +278,23 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDsAtDate(ctx context
 	return rows, nil
 }
 
-// CountActiveByCareOffering returns the count of children currently
-// holding (or competing for) a slot in the given care offering. Joins
-// to enrollment.request_children and filters out terminal statuses
-// (rejected, withdrawn) so the count reflects what the admin is
-// actually managing. Tenant-scoped via RLS on both tables.
+// CountActiveByCareOffering returns the number of non-terminal selections
+// across all intervals. Capacity decisions must use the date/range-specific
+// methods below; this legacy aggregate intentionally remains time-agnostic.
 func (r *RequestChildOfferingRepository) CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error) {
-	return r.CountActiveByCareOfferingOnDate(ctx, careOfferingID, timezone.TodayDate())
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(requestChildOfferingTableExpr).
+		Join(`INNER JOIN enrollment.request_children AS "child" ON "child".id = "request_child_offering".request_child_id`).
+		Where(`"request_child_offering".care_offering_id = ?`, careOfferingID).
+		Where(`"child".status NOT IN (?)`, bun.List([]string{
+			enrollment.ChildStatusRejected,
+			enrollment.ChildStatusWithdrawn,
+		})).
+		Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count active children for care offering %d: %w", careOfferingID, err)
+	}
+	return count, nil
 }
 
 // CountActiveByCareOfferingOnDate counts slots held on the requested date.

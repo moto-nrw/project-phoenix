@@ -423,12 +423,12 @@ type RequestChildOfferingRepository interface {
 	// write paths that must only inspect the selection active on a given date.
 	ListByRequestChildIDsAtDate(ctx context.Context, requestChildIDs []int64, onDate timezone.Date) ([]*RequestChildOffering, error)
 
-	// CountActiveByCareOffering returns the number of children currently
-	// holding (or competing for) a slot in the given care offering.
+	// CountActiveByCareOffering returns the number of non-terminal selections
+	// across all validity intervals for a care offering. New capacity decisions
+	// must use the date/range-specific methods below.
 	// Counts non-terminal statuses on the joined request_children row:
 	// submitted, under_review, approved, waitlisted. Excludes rejected
-	// and withdrawn. Used for capacity-overflow enforcement at submit
-	// time.
+	// and withdrawn.
 	CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
 	CountActiveByCareOfferingOnDate(ctx context.Context, careOfferingID int64, onDate timezone.Date) (int, error)
 	// CountMaxActiveByCareOfferingInRange returns the highest simultaneous

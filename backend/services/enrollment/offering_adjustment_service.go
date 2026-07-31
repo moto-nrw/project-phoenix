@@ -108,9 +108,9 @@ func (s *decisionService) updateChildOfferings(
 	selectionDate := timezone.TodayDate()
 	if effectiveFrom != nil {
 		selectionDate = *effectiveFrom
-		if selectionDate.Before(phase.ServiceStartDate) {
-			selectionDate = phase.ServiceStartDate
-		}
+	}
+	if selectionDate.Before(phase.ServiceStartDate) {
+		selectionDate = phase.ServiceStartDate
 	}
 
 	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, req.PhaseID)
