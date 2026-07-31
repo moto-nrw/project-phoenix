@@ -187,6 +187,24 @@ describe("CalendarPeriodsEditor", () => {
     expect(actionCell).toHaveClass("w-px");
   });
 
+  it("allows header actions to wrap within a constrained content column", async () => {
+    mockListPeriods.mockResolvedValue([makePeriod()]);
+
+    render(<CalendarPeriodsEditor />);
+
+    const createPeriodButton = await screen.findByRole("button", {
+      name: "Zeitraum anlegen",
+    });
+    const actions = createPeriodButton.parentElement;
+    const description = screen.getByText(
+      /Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis/,
+    );
+
+    expect(actions).toHaveClass("sm:flex-wrap");
+    expect(actions).toHaveClass("sm:justify-end");
+    expect(description).toHaveClass("min-w-0");
+  });
+
   it("keeps the modal mounted while the post-save refresh is in flight", async () => {
     const refresh = deferred<CalendarPeriod[]>();
     mockListPeriods
