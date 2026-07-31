@@ -30,6 +30,10 @@ func (r *RequestChildOfferingRepository) ScheduleReplacementForRequestChild(ctx 
 	if err := lockRequestChildOfferings(ctx, db, requestChildID); err != nil {
 		return err
 	}
+	_, phaseEndExclusive, err := requestChildOfferingValidityWindow(ctx, db, requestChildID)
+	if err != nil {
+		return err
+	}
 	deleteQuery := db.NewDelete().
 		Model((*enrollment.RequestChildOffering)(nil)).
 		ModelTableExpr(requestChildOfferingTableExpr).
@@ -59,7 +63,7 @@ func (r *RequestChildOfferingRepository) ScheduleReplacementForRequestChild(ctx 
 		}
 		row.RequestChildID = requestChildID
 		row.ValidFrom = &effectiveFrom
-		row.ValidUntil = nil
+		row.ValidUntil = &phaseEndExclusive
 		base.EnsureTenantID(ctx, row)
 	}
 	if _, err := db.NewInsert().Model(&rows).ModelTableExpr("enrollment.request_child_offerings").Exec(ctx); err != nil {
@@ -76,9 +80,17 @@ func NewRequestChildOfferingRepository(db *bun.DB) enrollment.RequestChildOfferi
 // submission service is the primary caller; PR 6 ships only the
 // schema + plumbing.
 func (r *RequestChildOfferingRepository) Create(ctx context.Context, row *enrollment.RequestChildOffering) error {
+	if row == nil || row.RequestChildID <= 0 {
+		return fmt.Errorf("request_child_id is required")
+	}
+	phaseStart, phaseEndExclusive, err := requestChildOfferingValidityWindow(ctx, base.GetDB(ctx, r.db), row.RequestChildID)
+	if err != nil {
+		return err
+	}
+	setRequestChildOfferingValidity(row, phaseStart, phaseEndExclusive)
 	base.EnsureTenantID(ctx, row)
 
-	_, err := base.GetDB(ctx, r.db).NewInsert().
+	_, err = base.GetDB(ctx, r.db).NewInsert().
 		Model(row).
 		ModelTableExpr(requestChildOfferingTableExpr).
 		Returning("*").
@@ -100,6 +112,10 @@ func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Cont
 	if err := lockRequestChildOfferings(ctx, db, requestChildID); err != nil {
 		return err
 	}
+	phaseStart, phaseEndExclusive, err := requestChildOfferingValidityWindow(ctx, db, requestChildID)
+	if err != nil {
+		return err
+	}
 	deleteQuery := db.NewDelete().
 		Model((*enrollment.RequestChildOffering)(nil)).
 		ModelTableExpr(requestChildOfferingTableExpr).
@@ -116,6 +132,7 @@ func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Cont
 			return fmt.Errorf("request child offering row cannot be nil")
 		}
 		row.RequestChildID = requestChildID
+		setRequestChildOfferingValidity(row, phaseStart, phaseEndExclusive)
 		base.EnsureTenantID(ctx, row)
 	}
 	if _, err := db.NewInsert().
@@ -125,6 +142,45 @@ func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Cont
 		return fmt.Errorf("failed to insert replacement request child offerings: %w", err)
 	}
 	return nil
+}
+
+// requestChildOfferingValidityWindow returns the phase window for a child
+// selection. All offering links must be bounded to this window: capacity is
+// calculated from these intervals and care offerings can be reused in later
+// phases.
+func requestChildOfferingValidityWindow(
+	ctx context.Context,
+	db bun.IDB,
+	requestChildID int64,
+) (timezone.Date, timezone.Date, error) {
+	var window struct {
+		Start timezone.Date `bun:"service_start_date"`
+		End   timezone.Date `bun:"service_end_date"`
+	}
+	err := db.NewSelect().
+		TableExpr(`enrollment.request_children AS "request_child"`).
+		Join(`INNER JOIN enrollment.requests AS "request" ON "request".id = "request_child".request_id`).
+		Join(`INNER JOIN enrollment.phases AS "phase" ON "phase".id = "request".phase_id`).
+		ColumnExpr(`"phase".service_start_date`).
+		ColumnExpr(`"phase".service_end_date`).
+		Where(`"request_child".id = ?`, requestChildID).
+		Scan(ctx, &window)
+	if err != nil {
+		return timezone.Date{}, timezone.Date{}, fmt.Errorf("find care period for request child %d: %w", requestChildID, err)
+	}
+	return window.Start, window.End.AddDays(1), nil
+}
+
+func setRequestChildOfferingValidity(
+	row *enrollment.RequestChildOffering,
+	phaseStart, phaseEndExclusive timezone.Date,
+) {
+	if row.ValidFrom == nil || row.ValidFrom.Before(phaseStart) {
+		row.ValidFrom = &phaseStart
+	}
+	if row.ValidUntil == nil || row.ValidUntil.After(phaseEndExclusive) {
+		row.ValidUntil = &phaseEndExclusive
+	}
 }
 
 // lockRequestChildOfferings serializes the delete/update/insert replacement

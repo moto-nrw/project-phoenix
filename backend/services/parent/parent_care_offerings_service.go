@@ -172,7 +172,11 @@ func (s *service) loadChildCareOfferings(
 		view.PeriodName = period.PhaseName
 		view.PeriodStart = period.ServiceStartDate
 		view.PeriodEnd = period.ServiceEndDate
-		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, today)
+		offeringDate := today
+		if period.ServiceEndDate.Before(today) {
+			offeringDate = period.ServiceEndDate
+		}
+		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, offeringDate)
 		if err != nil {
 			return nil, err
 		}

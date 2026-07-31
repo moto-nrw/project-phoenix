@@ -409,11 +409,17 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 		ServiceStartDate: today.AddDays(-20),
 		ServiceEndDate:   today.AddDays(-1),
 	}
-	links := &recordingChildOfferingRepoStub{}
+	periodEndExclusive := today
+	links := &recordingChildOfferingRepoStub{links: []*enrollmentModels.RequestChildOffering{{
+		CareOfferingID: 1,
+		ValidUntil:     &periodEndExclusive,
+	}}}
 	svc := &service{ServiceConfig: ServiceConfig{
 		RequestChildRepo:         carePeriodRepoStub{periods: []*enrollmentModels.StudentCarePeriod{period}},
 		RequestChildOfferingRepo: links,
-		CareOfferingRepo:         careOfferingRepoStub{},
+		CareOfferingRepo: careOfferingRepoStub{offerings: []*enrollmentModels.CareOffering{{
+			Model: base.Model{ID: 1}, Name: "Nachmittagsbetreuung",
+		}}},
 	}}
 	view := &ChildCareOfferings{Offerings: []CareOfferingSelection{}, Groups: []CareGroupMembership{}}
 
@@ -421,6 +427,8 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, links.historyCalls)
 	assert.Empty(t, links.dates)
+	require.Len(t, view.Offerings, 1)
+	assert.Equal(t, "Nachmittagsbetreuung", view.Offerings[0].Name)
 }
 
 func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {

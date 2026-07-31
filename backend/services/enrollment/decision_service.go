@@ -2429,7 +2429,9 @@ func (s *decisionService) careEnrollmentDraftsForChild(
 	requestChildID int64,
 	phase *enrollmentModels.Phase,
 ) (map[int64]*careEnrollmentDraft, error) {
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	// A future phase's selections are bounded to its service window and are
+	// therefore not active today while staff approve the request.
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, phase.ServiceStartDate)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list child offerings: %w", err)
 	}

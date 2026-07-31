@@ -88,6 +88,25 @@ func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T
 	require.NoError(t, err)
 	assert.NotZero(t, row.ID)
 	assert.Equal(t, tenantID, row.TenantID)
+
+	var window struct {
+		Start timezone.Date `bun:"service_start_date"`
+		End   timezone.Date `bun:"service_end_date"`
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return db.NewSelect().
+			TableExpr(`enrollment.request_children AS "request_child"`).
+			Join(`INNER JOIN enrollment.requests AS "request" ON "request".id = "request_child".request_id`).
+			Join(`INNER JOIN enrollment.phases AS "phase" ON "phase".id = "request".phase_id`).
+			ColumnExpr(`"phase".service_start_date`).
+			ColumnExpr(`"phase".service_end_date`).
+			Where(`"request_child".id = ?`, childID).
+			Scan(ctx, &window)
+	}))
+	require.NotNil(t, row.ValidFrom)
+	require.NotNil(t, row.ValidUntil)
+	assert.Equal(t, window.Start, *row.ValidFrom)
+	assert.Equal(t, window.End.AddDays(1), *row.ValidUntil)
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
