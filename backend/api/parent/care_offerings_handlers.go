@@ -127,23 +127,7 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 		resp.PendingRequest = pending
 	}
 	for _, offering := range v.Offerings {
-		item := CareOfferingItemResponse{
-			ID:              strconv.FormatInt(offering.OfferingID, 10),
-			Name:            offering.Name,
-			Description:     offering.Description,
-			Weekdays:        weekdaysOrEmpty(offering.Weekdays),
-			PriceCents:      offering.PriceCents,
-			IncludesLunch:   offering.IncludesLunch,
-			IncludesHoliday: offering.IncludesHoliday,
-			StartsLater:     offering.StartsLater,
-		}
-		if offering.ValidFrom != nil {
-			item.ValidFrom = offering.ValidFrom.String()
-		}
-		if offering.ValidUntil != nil {
-			item.ValidUntil = offering.ValidUntil.AddDays(-1).String()
-		}
-		resp.Offerings = append(resp.Offerings, item)
+		resp.Offerings = append(resp.Offerings, careOfferingItemResponse(offering))
 	}
 	for _, group := range v.Groups {
 		item := CareGroupItemResponse{
@@ -161,6 +145,27 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 		resp.Groups = append(resp.Groups, item)
 	}
 	return resp
+}
+
+func careOfferingItemResponse(offering parentService.CareOfferingSelection) CareOfferingItemResponse {
+	item := CareOfferingItemResponse{
+		ID:              strconv.FormatInt(offering.OfferingID, 10),
+		Name:            offering.Name,
+		Description:     offering.Description,
+		Weekdays:        weekdaysOrEmpty(offering.Weekdays),
+		PriceCents:      offering.PriceCents,
+		IncludesLunch:   offering.IncludesLunch,
+		IncludesHoliday: offering.IncludesHoliday,
+		StartsLater:     offering.StartsLater,
+	}
+	if offering.ValidFrom != nil {
+		item.ValidFrom = offering.ValidFrom.String()
+	}
+	if offering.ValidUntil != nil {
+		// Stored end is exclusive; report the inclusive last day.
+		item.ValidUntil = offering.ValidUntil.AddDays(-1).String()
+	}
+	return item
 }
 
 // weekdaysFromDayKeys maps stored day abbreviations to ISO weekdays so the
