@@ -182,6 +182,25 @@ func TestDiffOccurrence_NoExpectedSlotOnDate(t *testing.T) {
 	assert.Equal(t, []string{EditedChangeTime}, changes)
 }
 
+func TestExpectedSlotsOn_LegacyWeekendScheduleIsNotMaterializable(t *testing.T) {
+	// materializeTemplate skips legacy Saturday/Sunday schedules. The edited
+	// instance projection must do the same so it warns before a re-plan removes
+	// an existing weekend row without replacing it.
+	service := &materializationService{}
+	saturday := timezone.NewDate(2026, time.June, 13)
+
+	slots := service.expectedSlotsOn(
+		&activities.Group{},
+		[]*activities.Schedule{{Weekday: 6}},
+		nil,
+		nil,
+		nil,
+		saturday,
+	)
+
+	assert.Empty(t, slots)
+}
+
 func TestDiffOccurrence_ExceptionShiftedStartIsMatched(t *testing.T) {
 	// A modified exception shifts the template start to 16:00 for this date, so
 	// materialization creates the occurrence at 16:00–17:00. The (already
