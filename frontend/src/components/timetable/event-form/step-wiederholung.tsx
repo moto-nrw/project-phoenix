@@ -74,7 +74,10 @@ export function StepWiederholung({
   const legacyWeekendWeekdays = form.weekdays.filter((iso) => iso > 5);
   const normalizeLegacyWeekend = (legacyWeekday: number) => {
     const weekdays = form.weekdays.filter((iso) => iso !== legacyWeekday);
-    if (!weekdays.some((iso) => iso >= 1 && iso <= 5)) {
+    // This control explicitly migrates the selected legacy day to Monday. A
+    // different workday (for example Friday) must not turn that migration into
+    // a silent deletion of future weekend appointments.
+    if (!weekdays.includes(1)) {
       weekdays.push(1);
     }
     update(

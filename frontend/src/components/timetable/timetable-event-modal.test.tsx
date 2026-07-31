@@ -3223,6 +3223,33 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("moves a legacy Saturday to Monday even when another workday remains", async () => {
+    const fridaySaturdayTemplate: TimetableTemplate = {
+      ...template,
+      schedules: [
+        { ...template.schedules[0]!, weekday: 5 },
+        { ...template.schedules[0]!, id: "10", weekday: 6 },
+      ],
+    };
+    renderModal({ initialSeries: fridaySaturdayTemplate });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(2);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Alten Wochenendtag Sa zu Montag ändern",
+      }),
+    );
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ weekdays: [1, 5] }),
+      ),
+    );
+  });
+
   it("defaults a new biweekly series to the parity of the selected week", async () => {
     const cyclePeriod: CalendarPeriod = {
       ...periods[0]!,
