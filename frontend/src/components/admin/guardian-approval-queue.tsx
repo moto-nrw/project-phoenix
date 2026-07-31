@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, X, UserPlus } from "lucide-react";
+import { Check, X, Settings, UserCheck } from "lucide-react";
 import {
   listPendingApprovals,
   approveGuardianInvitation,
@@ -9,13 +9,102 @@ import {
   type PendingApproval,
 } from "@/lib/guardian-api";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "GuardianApprovalQueue" });
 
-export default function GuardianApprovalQueue() {
+/** Values of the `guardians.parent_invite_mode` setting. */
+export type GuardianInviteMode = "disabled" | "direct" | "staff_approval";
+
+// Only staff_approval ever puts a request into this queue: "disabled" blocks
+// parent invites outright and "direct" sends them without a review step. An
+// empty list then means "configured away", not "nothing to do yet", so the
+// empty state says which of the two it is instead of leaving an admin to
+// wonder whether the page is broken. An unknown mode (settings schema not
+// readable) falls back to the neutral wording, which claims nothing.
+function emptyStateCopy(inviteMode: GuardianInviteMode | undefined): {
+  readonly configuredAway: boolean;
+  readonly title: string;
+  readonly description: string;
+} {
+  if (inviteMode === "disabled") {
+    return {
+      configuredAway: true,
+      title: "Eltern können derzeit niemanden einladen",
+      description:
+        "Das Einladen weiterer Bezugspersonen durch Eltern ist ausgeschaltet. Anfragen erscheinen hier erst, wenn die Einstellung auf „Mit Freigabe durch das Team“ steht.",
+    };
+  }
+  if (inviteMode === "direct") {
+    return {
+      configuredAway: true,
+      title: "Einladungen gehen ohne Freigabe raus",
+      description:
+        "Eltern laden weitere Bezugspersonen aktuell direkt ein, ohne Bestätigung durch das Team. Diese Liste bleibt deshalb leer.",
+    };
+  }
+  return {
+    configuredAway: false,
+    title: "Keine offenen Anfragen",
+    description:
+      "Lädt eine Familie im Elternportal eine weitere Bezugsperson zu ihrem Kind ein, erscheint die Anfrage hier zur Freigabe. Bis dahin bekommt niemand zusätzlichen Zugang.",
+  };
+}
+
+function ApprovalsEmptyState({
+  inviteMode,
+}: {
+  readonly inviteMode?: GuardianInviteMode;
+}) {
+  const router = useTenantRouter();
+  const { configuredAway, title, description } = emptyStateCopy(inviteMode);
+
+  return (
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      <EmptyState
+        icon={
+          <span
+            className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+              configuredAway
+                ? "bg-[#5080D8]/12 text-[#3D63B0]"
+                : "bg-[#83CD2D]/14 text-[#3F6F12]"
+            }`}
+          >
+            {configuredAway ? (
+              <Settings className="h-6 w-6" />
+            ) : (
+              <UserCheck className="h-6 w-6" />
+            )}
+          </span>
+        }
+        title={title}
+        description={description}
+        action={
+          configuredAway ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => router.push("/settings?tab=operations")}
+            >
+              Zu den Einstellungen
+            </Button>
+          ) : undefined
+        }
+      />
+    </div>
+  );
+}
+
+export default function GuardianApprovalQueue({
+  inviteMode,
+}: {
+  readonly inviteMode?: GuardianInviteMode;
+}) {
   const [requests, setRequests] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,12 +197,7 @@ export default function GuardianApprovalQueue() {
       )}
 
       {requests.length === 0 && !error ? (
-        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center">
-          <UserPlus className="mx-auto mb-2 h-8 w-8 text-gray-400" />
-          <p className="text-sm text-gray-500">
-            Keine offenen Anfragen zur Freigabe
-          </p>
-        </div>
+        <ApprovalsEmptyState inviteMode={inviteMode} />
       ) : (
         requests.map((req) => (
           <div

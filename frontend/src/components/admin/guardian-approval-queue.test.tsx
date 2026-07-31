@@ -35,6 +35,12 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
+const mockPush = vi.fn();
+
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: mockPush }),
+}));
+
 const mockList = vi.fn();
 const mockApprove = vi.fn();
 const mockReject = vi.fn();
@@ -81,6 +87,47 @@ describe("GuardianApprovalQueue", () => {
     await waitFor(() =>
       expect(screen.getByText(/Keine offenen Anfragen/)).toBeInTheDocument(),
     );
+    // Nothing is misconfigured, so no settings shortcut is offered.
+    expect(
+      screen.queryByRole("button", { name: /Einstellungen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains an empty queue when parent invites are disabled", async () => {
+    mockList.mockResolvedValue([]);
+    render(<GuardianApprovalQueue inviteMode="disabled" />);
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Eltern können derzeit niemanden einladen/),
+      ).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Einstellungen/ }));
+    expect(mockPush).toHaveBeenCalledWith("/settings?tab=operations");
+  });
+
+  it("explains an empty queue when invites are sent without approval", async () => {
+    mockList.mockResolvedValue([]);
+    render(<GuardianApprovalQueue inviteMode="direct" />);
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Einladungen gehen ohne Freigabe raus/),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: /Einstellungen/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the neutral empty state when approval is the active mode", async () => {
+    mockList.mockResolvedValue([]);
+    render(<GuardianApprovalQueue inviteMode="staff_approval" />);
+    await waitFor(() =>
+      expect(screen.getByText(/Keine offenen Anfragen/)).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Einstellungen/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("approves a request and reloads the list", async () => {
