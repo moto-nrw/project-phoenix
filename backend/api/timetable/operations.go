@@ -162,7 +162,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	if !ok {
 		return
 	}
-	window, err := spontaneousStartWorkdayWindow(timezone.Now())
+	window, err := spontaneousStartWorkdayWindow(rs.Now())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return

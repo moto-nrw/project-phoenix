@@ -407,6 +407,13 @@ func (s *TemplateSplitService) prepareSplitSource(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
+	schedules, err := s.deps.ScheduleRepo.FindByGroupID(ctx, old.ID)
+	if err != nil {
+		return nil, nil, nil, nil, &ScheduleError{Op: "split template: load source schedules", Err: err}
+	}
+	if err := validateLegacyTemplateWeekdays(schedules, in.Weekdays); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
+	}
 	if sourceValidUntil != nil {
 		return nil, nil, nil, nil, fmt.Errorf(
 			"%w: bounded template segments cannot be split again",

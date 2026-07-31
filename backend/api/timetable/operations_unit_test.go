@@ -59,6 +59,10 @@ func TestOperationsPlannedNow(t *testing.T) {
 	assert.True(t, service.lastPlannedOptions.IncludeRoster)
 }
 
+func testWorkdayNow() time.Time {
+	return time.Date(2026, time.May, 11, 14, 0, 0, 0, timezone.Berlin)
+}
+
 func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
 	res := NewResource(Dependencies{})
 	router := operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
@@ -161,6 +165,7 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 			boolValue:   true,
 		},
 	})
+	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 	roomID := int64(70)
 
@@ -235,6 +240,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 		PersonService:     personSvc,
 		SettingsService:   settings,
 	})
+	res.Now = testWorkdayNow
 
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
@@ -341,6 +347,7 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 		},
 		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
 	})
+	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
@@ -388,6 +395,7 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 		},
 		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
 	})
+	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
@@ -433,6 +441,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 			boolValue:   true,
 		},
 	})
+	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
@@ -445,6 +454,28 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
+	service := &fakeOperationsService{}
+	res := NewResource(Dependencies{
+		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		InstanceService:   &mockInstanceService{},
+		OperationsService: service,
+		SettingsService:   &fakeOperationSettingsService{hasOverride: true, boolValue: true},
+		Now: func() time.Time {
+			return time.Date(2026, time.May, 9, 14, 0, 0, 0, timezone.Berlin)
+		},
+	})
+	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
+
+	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+		"title":   "Freispiel",
+		"room_id": int64(7),
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Nil(t, service.lastSpontaneousInput, "weekend starts must not reach the operations service")
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
@@ -465,6 +496,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
 			boolValue:   true,
 		},
 	})
+	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
@@ -488,6 +520,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 			boolValue:   true,
 		},
 	})
+	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
@@ -513,6 +546,7 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 			boolValue:   false,
 		},
 	})
+	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
@@ -539,6 +573,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *t
 			stringValue: configModel.CareConceptFixedSchedule,
 		},
 	})
+	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{

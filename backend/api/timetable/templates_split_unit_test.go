@@ -115,7 +115,7 @@ func TestBuildTemplateSplitInput_ListKindThreeState(t *testing.T) {
 	}
 }
 
-func TestSplitTemplateRequestBind_RejectsWeekendWeekdays(t *testing.T) {
+func TestSplitTemplateRequestBind_DefersWeekendWeekdaysToSourceValidation(t *testing.T) {
 	req := &splitTemplateRequest{}
 	require.NoError(t, json.Unmarshal([]byte(`{
 		"name": "AG Yoga",
@@ -128,5 +128,5 @@ func TestSplitTemplateRequestBind_RejectsWeekendWeekdays(t *testing.T) {
 		"effective_date": "2026-05-04"
 	}`), req))
 
-	require.ErrorContains(t, req.Bind(nil), "Monday to Friday")
+	require.NoError(t, req.Bind(nil))
 }
