@@ -390,7 +390,6 @@ export function OfferingChangeRequestModal({
                 label={t("careOfferingsModal.effectiveFromLabel")}
                 value={effectiveFrom}
                 min={catalog.earliest_effective_from}
-                max={catalog.latest_effective_from}
                 required
                 disabled={loading}
                 onChange={(date) => void loadForEffectiveDate(date)}
@@ -398,7 +397,6 @@ export function OfferingChangeRequestModal({
               <p className="mt-1 text-xs text-gray-500">
                 {t("careOfferingsModal.effectiveFromHint", {
                   date: formatGermanDate(catalog.earliest_effective_from),
-                  latest: formatGermanDate(catalog.latest_effective_from),
                 })}
               </p>
             </div>

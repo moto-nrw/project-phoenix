@@ -194,6 +194,8 @@ func (s *service) loadOfferingChangeState(
 	}
 	if pending != nil {
 		view.LastDecision = pending.LastDecision
+	}
+	if pending != nil && pending.Request != nil {
 		view.PendingRequest = pendingOfferingChange(pending, accountID)
 	}
 	view.EarliestEffectiveFrom, err = s.OfferingChanges.EarliestEffectiveFrom(ctx)

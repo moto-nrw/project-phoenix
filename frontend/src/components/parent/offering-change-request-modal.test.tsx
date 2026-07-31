@@ -13,10 +13,22 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
 });
 
 vi.mock("~/components/ui/date-picker", () => ({
-  ISODatePicker: ({ onChange }: { onChange: (date: string) => void }) => (
-    <button type="button" onClick={() => onChange("2026-09-01")}>
-      Datum ändern
-    </button>
+  ISODatePicker: ({
+    max,
+    onChange,
+  }: {
+    max?: string;
+    onChange: (date: string) => void;
+  }) => (
+    <>
+      <output data-testid="effective-from-max">{max}</output>
+      <button type="button" onClick={() => onChange("2026-09-01")}>
+        Datum ändern
+      </button>
+      <button type="button" onClick={() => onChange("2027-08-14")}>
+        Nächsten Zeitraum wählen
+      </button>
+    </>
   ),
 }));
 
@@ -192,6 +204,43 @@ describe("OfferingChangeRequestModal", () => {
         note: undefined,
       }),
     );
+  });
+
+  it("allows selecting an approved later care period and reloads its catalog", async () => {
+    mockCatalog.mockResolvedValueOnce(catalog()).mockResolvedValueOnce(
+      catalog({
+        phase_name: "Schuljahr 2027/28",
+        earliest_effective_from: "2027-08-01",
+        latest_effective_from: "2028-07-31",
+        items: [
+          {
+            ...catalog().items[0]!,
+            name: "Angebot nächster Zeitraum",
+          },
+        ],
+      }),
+    );
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    await screen.findByText("Regelbetreuung");
+    expect(screen.getByTestId("effective-from-max")).toBeEmptyDOMElement();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Nächsten Zeitraum wählen" }),
+    );
+
+    await waitFor(() =>
+      expect(mockCatalog).toHaveBeenLastCalledWith("42", "2027-08-14"),
+    );
+    expect(
+      await screen.findByText("Angebot nächster Zeitraum"),
+    ).toBeInTheDocument();
   });
 
   it("keeps only selections the guardian edited when changing the date", async () => {

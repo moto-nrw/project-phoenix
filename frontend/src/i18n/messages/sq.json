@@ -1067,7 +1067,7 @@
       "loadError": "Die verfügbaren Angebote konnten nicht geladen werden.",
       "noOfferings": "Für diesen Zeitraum sind keine Betreuungsangebote verfügbar.",
       "effectiveFromLabel": "Änderung gilt ab",
-      "effectiveFromHint": "Frühestens {date}, spätestens {latest}.",
+      "effectiveFromHint": "Frühestens {date}. Wählen Sie einen Termin innerhalb eines bestätigten Betreuungszeitraums.",
       "daysLabel": "Tage",
       "fixedDays": "Feste Tage: {days}",
       "requiredBadge": "Pflichtangebot",

@@ -1067,7 +1067,7 @@
       "loadError": "The available offerings could not be loaded.",
       "noOfferings": "There are no care offerings available for this period.",
       "effectiveFromLabel": "Change applies from",
-      "effectiveFromHint": "Earliest {date}, latest {latest}.",
+      "effectiveFromHint": "Earliest {date}. Please select a date within an approved care period.",
       "daysLabel": "Days",
       "fixedDays": "Fixed days: {days}",
       "requiredBadge": "Mandatory",
