@@ -1,16 +1,12 @@
 package timetable
 
 import (
-	"context"
-	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -71,9 +67,6 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
 	}
-	if !rs.validateUpdateInstanceDateRequest(w, r, id, date) {
-		return
-	}
 	startTime, err := parseClockTime(req.StartTime)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_time format, expected HH:MM")))
@@ -128,38 +121,4 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, enriched, "Instance updated")
-}
-
-// validateUpdateInstanceDate permits a legacy weekend instance to retain its
-// date while preventing PUT from introducing or moving an instance to a
-// weekend. Lookup failures are retained so they are not misreported as a
-// client workday validation error.
-func (rs *Resource) validateUpdateInstanceDate(ctx context.Context, id int64, date timezone.Date) error {
-	weekendErr := validateTimetableWorkday(date)
-	if weekendErr == nil {
-		return nil
-	}
-	existing, lookupErr := rs.TimetableData.GetActivityInstance(ctx, id)
-	if lookupErr != nil {
-		return fmt.Errorf("get existing instance: %w", lookupErr)
-	}
-	if existing.Date == date {
-		return nil
-	}
-	return weekendErr
-}
-
-func (rs *Resource) validateUpdateInstanceDateRequest(w http.ResponseWriter, r *http.Request, id int64, date timezone.Date) bool {
-	err := rs.validateUpdateInstanceDate(r.Context(), id, date)
-	if err == nil {
-		return true
-	}
-	if errors.Is(err, errTimetableWeekend) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	} else if errors.Is(err, sql.ErrNoRows) {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
-	} else {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance for workday validation failed", err))
-	}
-	return false
 }

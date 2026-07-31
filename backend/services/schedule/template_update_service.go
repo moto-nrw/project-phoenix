@@ -129,6 +129,10 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	if err != nil {
 		return err
 	}
+	previousSchedules, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, in.TemplateID)
+	if err != nil {
+		return &ScheduleError{Op: "update template: load previous schedules", Err: err}
+	}
 	// Capture the series' current Listenart before the field write so the
 	// instance propagation can tell an untouched occurrence (still carrying the
 	// series value) from a per-occurrence override.
@@ -140,6 +144,9 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 		return err
 	}
 	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
+		return err
+	}
+	if err := s.deleteRemovedLegacyWeekendInstances(ctx, in.TemplateID, previousSchedules, in.Weekdays); err != nil {
 		return err
 	}
 	if err := s.replaceTemplateRoster(ctx, in, tenantID, validFrom, validUntil); err != nil {
@@ -155,6 +162,33 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 			"updated recurrence is incompatible with an existing care offering",
 			err,
 		)
+	}
+	return nil
+}
+
+type legacyWeekendInstanceCleaner interface {
+	DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
+}
+
+func (s *TimetableDataService) deleteRemovedLegacyWeekendInstances(ctx context.Context, templateID int64, previous []*activitiesModel.Schedule, requested []int) error {
+	requestedWeekdays := make(map[int]struct{}, len(requested))
+	for _, weekday := range requested {
+		requestedWeekdays[weekday] = struct{}{}
+	}
+	removed := make([]int, 0, 2)
+	for _, schedule := range previous {
+		if schedule.Weekday > activitiesModel.WeekdayFriday {
+			if _, retained := requestedWeekdays[schedule.Weekday]; !retained {
+				removed = append(removed, schedule.Weekday)
+			}
+		}
+	}
+	cleaner, ok := s.deps.ActivityInstanceRepo.(legacyWeekendInstanceCleaner)
+	if !ok || len(removed) == 0 {
+		return nil
+	}
+	if _, err := cleaner.DeletePlannedMaterializedWeekendInstances(ctx, templateID, removed); err != nil {
+		return &ScheduleError{Op: "update template: delete removed legacy weekend instances", Err: err}
 	}
 	return nil
 }

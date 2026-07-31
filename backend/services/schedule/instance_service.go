@@ -62,6 +62,11 @@ var (
 	// Handlers map this to 400.
 	ErrInvalidInstanceReference = errors.New("invalid instance reference")
 
+	// ErrInstanceWeekend is returned when an update introduces or restores a
+	// weekend date. Existing legacy weekend rows may retain their date, but the
+	// decision is made after the instance and day locks are held.
+	ErrInstanceWeekend = errors.New("timetable entries can only be scheduled from Monday to Friday")
+
 	// ErrAmbiguousTemplateInstanceDelete is returned when a single-instance
 	// delete would need to persist a date-wide cancellation exception but the
 	// template has multiple materialized slots on that date. Handlers map this
@@ -936,7 +941,6 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
-
 	// Serialize with the day-wide staffing endpoints (#1840). This edit rewrites
 	// the block's assignments and may MOVE it to another date, so it must hold the
 	// same (tenant, date) advisory lock the /deviations and /substitute saves take
@@ -967,6 +971,9 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	}
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+	if err := validateLegacyWeekendInstanceDate(instance.Date, req.Date); err != nil {
+		return nil, err
 	}
 
 	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
@@ -1033,6 +1040,16 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 
 	s.broadcastPlannedInstanceChanged(ctx, "instance_update")
 	return instance, nil
+}
+
+func validateLegacyWeekendInstanceDate(existing, requested timezone.Date) error {
+	if requested.Weekday() != time.Saturday && requested.Weekday() != time.Sunday {
+		return nil
+	}
+	if existing == requested {
+		return nil
+	}
+	return ErrInstanceWeekend
 }
 
 // clearStaleAckIfStaffed clears a lingering "deliberately unstaffed"

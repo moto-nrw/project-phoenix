@@ -459,6 +459,31 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 	return deleted, nil
 }
 
+// DeletePlannedMaterializedWeekendInstances removes future materialized rows
+// for weekdays removed from a legacy template. It deliberately leaves manual,
+// active, cancelled, and historical rows untouched.
+func (r *ActivityInstanceRepository) DeletePlannedMaterializedWeekendInstances(ctx context.Context, activityGroupID int64, weekdays []int) (int64, error) {
+	if len(weekdays) == 0 {
+		return 0, nil
+	}
+	q := base.GetDB(ctx, r.db).NewDelete().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
+		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
+		Where(`"activity_instance".date >= ?`, timezone.TodayDate()).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".is_spontaneous = ?`, false).
+		Where(`EXTRACT(ISODOW FROM "activity_instance".date)::int IN (?)`, bun.In(weekdays))
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete removed legacy weekend instances", Err: err}
+	}
+	deleted, _ := res.RowsAffected()
+	return deleted, nil
+}
+
 // PropagateListKindToFutureInstances re-classifies the future template-backed
 // planned instances of one template whose list_kind still matches the series'
 // previous value, returning the number of rows changed. It closes the gap where
