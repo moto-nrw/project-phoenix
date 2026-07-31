@@ -1092,21 +1092,23 @@ func (r *GradeTransitionRepository) FindStudentStatesByIDs(ctx context.Context, 
 	return states, nil
 }
 
-// AnonymizeHistoryForStudent replaces the stored name on every ledger row of a
-// student that has just been hard-deleted.
+// AnonymizeHistoryForStudent replaces the stored name and clears the stored
+// RFID identifier on every ledger row of a student that has just been
+// hard-deleted.
 //
 // Without it the "endgültig löschen" the UI promises would be a half-truth:
 // grade_transition_history.person_name is a denormalized copy of the child's
 // name that carries no foreign key, so it survives the delete of both the
-// student and the person row and would keep naming the child indefinitely.
+// student and the person row and would keep identifying the child indefinitely.
 func (r *GradeTransitionRepository) AnonymizeHistoryForStudent(ctx context.Context, studentID int64) error {
 	updQuery := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*struct{})(nil)).
 		ModelTableExpr(`education.grade_transition_history AS "history"`).
 		Set("person_name = ?", PurgedStudentPlaceholder).
+		Set("rfid_tag = NULL").
 		Set("updated_at = NOW()").
 		Where(`"history".student_id = ?`, studentID).
-		Where(`"history".person_name <> ?`, PurgedStudentPlaceholder)
+		Where(`("history".person_name <> ? OR "history".rfid_tag IS NOT NULL)`, PurgedStudentPlaceholder)
 
 	updQuery = base.WithTenantFilter(ctx, updQuery, "history")
 

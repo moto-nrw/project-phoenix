@@ -117,6 +117,19 @@ var (
 	// reaches across siblings the caller may not supervise, so it is restricted
 	// to admins.
 	ErrGuardianForceDeleteRequiresAdmin = errors.New("only administrators can fully delete a guardian linked to students")
+
+	// ErrStudentDeletionPreviewChanged refuses a permanent deletion when the
+	// dependent row counts or the student/person record changed after the admin
+	// reviewed the impact.
+	ErrStudentDeletionPreviewChanged = errors.New("Die Daten haben sich seit der Vorschau geändert. Bitte Auswirkungen erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrStudentDeletionConfirmationMismatch means the typed name does not
+	// exactly match the currently stored child name.
+	ErrStudentDeletionConfirmationMismatch = errors.New("Der eingegebene Name stimmt nicht mit dem Kind überein.") //nolint:staticcheck // ST1005: user-facing German message
+
+	ErrStudentDeletionNotAcknowledged = errors.New("Die Unwiderruflichkeit der Löschung muss bestätigt werden.")    //nolint:staticcheck // ST1005: user-facing German message
+	ErrStudentDeletionInvalidReason   = errors.New("Ungültiger Löschgrund.")                                        //nolint:staticcheck // ST1005: user-facing German message
+	ErrStudentDeletionAlumnus         = errors.New("Abgänger werden über den Jahrgangswechsel endgültig gelöscht.") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // GuardianStillLinkedError signals that a guardian delete was refused because the

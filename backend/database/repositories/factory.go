@@ -70,6 +70,7 @@ type Factory struct {
 	RFIDCard            userModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
+	StudentDeletion     userModels.StudentDeletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
@@ -161,6 +162,7 @@ type Factory struct {
 
 	// Audit domain
 	DataDeletion                 auditModels.DataDeletionRepository
+	StudentDeletionAudit         auditModels.StudentDeletionRepository
 	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
@@ -266,6 +268,7 @@ func NewFactory(db *bun.DB) *Factory {
 		RFIDCard:            users.NewRFIDCardRepository(db),
 		Staff:               users.NewStaffRepository(db),
 		Student:             users.NewStudentRepository(db),
+		StudentDeletion:     users.NewStudentDeletionRepository(db),
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),
@@ -357,6 +360,7 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
+		StudentDeletionAudit:         audit.NewStudentDeletionRepository(db),
 		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(db),
 		DataAccessLog:                audit.NewDataAccessLogRepository(db),
 		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),

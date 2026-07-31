@@ -283,6 +283,7 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, purged.ID)
 	kept := testpkg.CreateTestStudent(t, db, "Bleibendes", "Kind", fmt.Sprintf("4anon-%s", suffix))
 	defer testpkg.CleanupActivityFixtures(t, db, kept.ID)
+	rfidTag := "rfid-deleted-student"
 
 	require.NoError(t, repo.CreateHistoryBatch(ctx, []*educationModels.GradeTransitionHistory{
 		{
@@ -291,6 +292,7 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 			PersonName:   "Mika Muster",
 			FromClass:    "4a",
 			Action:       educationModels.ActionGraduated,
+			RFIDTag:      &rfidTag,
 		},
 		{
 			TransitionID: transition.ID,
@@ -301,16 +303,16 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 		},
 	}))
 
-	nameOf := func(studentID int64) string {
+	historyOf := func(studentID int64) *educationModels.GradeTransitionHistory {
 		records, err := repo.GetHistory(ctx, transition.ID)
 		require.NoError(t, err)
 		for _, record := range records {
 			if record.StudentID == studentID {
-				return record.PersonName
+				return record
 			}
 		}
 		t.Fatalf("no ledger row for student %d", studentID)
-		return ""
+		return nil
 	}
 
 	require.NoError(t, repo.AnonymizeHistoryForStudent(ctx, purged.ID))
@@ -318,12 +320,15 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 	// person_name is a denormalized copy with no foreign key: it survives the
 	// hard delete of both the student and the person row, so "endgültig löschen"
 	// is only true once this replaced it.
-	assert.Equal(t, education.PurgedStudentPlaceholder, nameOf(purged.ID))
-	assert.Equal(t, "Nina Beispiel", nameOf(kept.ID), "only the purged child's rows may change")
+	assert.Equal(t, education.PurgedStudentPlaceholder, historyOf(purged.ID).PersonName)
+	assert.Nil(t, historyOf(purged.ID).RFIDTag)
+	assert.Equal(t, "Nina Beispiel", historyOf(kept.ID).PersonName, "only the purged child's rows may change")
 
-	// Idempotent: the second call matches no row thanks to the <> guard.
+	// Idempotent: the second call matches no row after both identifying fields
+	// have been cleared.
 	require.NoError(t, repo.AnonymizeHistoryForStudent(ctx, purged.ID))
-	assert.Equal(t, education.PurgedStudentPlaceholder, nameOf(purged.ID))
+	assert.Equal(t, education.PurgedStudentPlaceholder, historyOf(purged.ID).PersonName)
+	assert.Nil(t, historyOf(purged.ID).RFIDTag)
 }
 
 func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {

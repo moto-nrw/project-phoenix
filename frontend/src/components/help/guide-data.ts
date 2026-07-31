@@ -1172,6 +1172,26 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/datenverwaltung.webp",
       },
       {
+        id: "kind-dauerhaft-loeschen",
+        title: "Kind dauerhaft löschen",
+        summary:
+          "Entfernt einen Kind-Datensatz zusammen mit seinen kindbezogenen Verknüpfungen. Die App zeigt vorher genau, welche Daten betroffen sind, und verlangt mehrere Bestätigungen.",
+        steps: [
+          "`Datenverwaltung` -> `Kinder` öffnen und das betreffende Kind auswählen.",
+          "Oben in der Detailansicht `Löschen` wählen und warten, bis die Auswirkungs-Vorschau vollständig geladen ist.",
+          "Die aufgeführten Datensätze prüfen. Stundenplan-Zuordnungen, Anwesenheitsdaten, Betreuungszeiten, Einwilligungen und weitere kindbezogene Verknüpfungen werden gelöscht oder vom Kind getrennt.",
+          "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Weiter` wählen.",
+          "Den Namen des Kindes exakt wie angezeigt erneut eingeben und erst dann `Kind endgültig löschen` wählen.",
+        ],
+        callout: {
+          title: "Gemeinsam genutzte Daten bleiben erhalten",
+          body: "Elternkonten und Profile der Erziehungsberechtigten, andere Kinder sowie gemeinsam genutzte Stundenplan-Termine werden nicht gelöscht. Nur die Zuordnungen des gelöschten Kindes verschwinden. Ändern sich Daten zwischen Vorschau und Bestätigung, lädt moto die Vorschau neu und verlangt die Bestätigung erneut.",
+          tone: "red",
+        },
+        screenshot:
+          "Mehrstufiger Löschdialog mit Auswirkungs-Vorschau, Löschgrund, Bestätigung und Eingabe des vollständigen Kindernamens.",
+      },
+      {
         id: "jahrgangswechsel",
         title: "Jahrgangswechsel zum neuen Schuljahr",
         icon: GraduationCap,

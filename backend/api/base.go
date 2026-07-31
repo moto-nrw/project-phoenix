@@ -408,6 +408,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PersonService:           api.Services.Users,
 		GuardianService:         api.Services.Guardian,
 		StudentService:          api.Services.Students,
+		StudentDeletionService:  api.Services.StudentDeletion,
 		StudentAuditService:     api.Services.StudentAudit,
 		EducationService:        api.Services.Education,
 		GradeTransitionService:  api.Services.GradeTransition,

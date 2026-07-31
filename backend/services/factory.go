@@ -143,6 +143,7 @@ type Factory struct {
 	Schools              platform.SchoolService
 	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
+	StudentDeletion      users.StudentDeletionService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
@@ -1523,6 +1524,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentCompanion,
 		studentAuditService,
 	)
+	studentDeletionService := users.NewStudentDeletionService(
+		studentService,
+		repos.Student,
+		repos.Person,
+		repos.StudentDeletion,
+		repos.GradeTransition,
+		repos.DataDeletion,
+		repos.StudentDeletionAudit,
+		db,
+	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
@@ -1915,6 +1926,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       workTimeModelService,
 		Students:             studentService,
+		StudentDeletion:      studentDeletionService,
 		StudentAudit:         studentAuditService,
 		MasterDataReview:     users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,
