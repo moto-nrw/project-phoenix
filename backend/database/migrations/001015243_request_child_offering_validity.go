@@ -35,6 +35,25 @@ func requestChildOfferingValidityUp(ctx context.Context, db *bun.DB) error {
 			ADD COLUMN IF NOT EXISTS valid_until DATE,
 			DROP CONSTRAINT IF EXISTS uq_request_child_offerings_pair;
 
+		-- Existing selections applied to the complete care period of their
+		-- enrollment. Keep that boundary when converting them to intervals so
+		-- completed periods do not consume capacity in later ones.
+		UPDATE enrollment.request_child_offerings AS "request_child_offering"
+		SET
+			valid_from = "phase".service_start_date,
+			valid_until = "phase".service_end_date + 1
+		FROM enrollment.request_children AS "request_child"
+		INNER JOIN enrollment.requests AS "request"
+			ON "request".id = "request_child".request_id
+			AND "request".tenant_id = "request_child".tenant_id
+		INNER JOIN enrollment.phases AS "phase"
+			ON "phase".id = "request".phase_id
+			AND "phase".tenant_id = "request".tenant_id
+		WHERE "request_child_offering".request_child_id = "request_child".id
+			AND "request_child_offering".tenant_id = "request_child".tenant_id
+			AND "request_child_offering".valid_from IS NULL
+			AND "request_child_offering".valid_until IS NULL;
+
 		ALTER TABLE enrollment.request_child_offerings
 			ADD CONSTRAINT request_child_offerings_non_overlapping_validity
 			EXCLUDE USING gist (
