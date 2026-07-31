@@ -226,21 +226,6 @@ func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, request
 	return nil
 }
 
-// requireTemplateExists renders a 404 (missing) or 500 (load failure) and
-// returns false when the caller should stop.
-func (rs *Resource) requireTemplateExists(w http.ResponseWriter, r *http.Request, id int64) bool {
-	exists, err := rs.templateExists(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
-		return false
-	}
-	if !exists {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
-		return false
-	}
-	return true
-}
-
 // buildUpdateTemplateInput maps the parsed request and resolved preconditions
 // into the service input.
 func buildUpdateTemplateInput(
