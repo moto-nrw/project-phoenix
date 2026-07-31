@@ -89,7 +89,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/components/database/configs/teachers.config.tsx",
   "src/components/database/detail-delete-button.tsx",
   "src/components/devices/devices-master-detail.tsx",
-  "src/components/groups/group-transfer-modal.tsx",
   "src/components/guardians/guardian-form-modal.tsx",
   "src/components/guardians/guardian-list.tsx",
   "src/components/guardians/guardian-picker-panel.tsx",
@@ -235,7 +234,6 @@ src/components/database/configs/students.config.tsx|bg-blue-100 bg-blue-50 bg-fu
 src/components/database/configs/teachers.config.tsx|bg-blue-50 bg-green-50 bg-indigo-50 bg-purple-100 text-blue-800 text-indigo-800 text-purple-800:2
 src/components/database/detail-delete-button.tsx|bg-red-100 bg-red-50 border-red-200 text-red-700
 src/components/devices/devices-master-detail.tsx|bg-yellow-50 border-yellow-200 text-yellow-800
-src/components/groups/group-transfer-modal.tsx|bg-blue-50/50 bg-orange-50 bg-red-100 bg-red-50:2 border-blue-100 border-orange-200 border-red-200:2 text-blue-600 text-orange-600 text-orange-900 text-red-600 text-red-700 text-red-800
 src/components/guardians/guardian-form-modal.tsx|bg-blue-50/30:4 bg-red-50:4 border-red-200 border-red-400:4 text-blue-600:4 text-red-500:2 text-red-600:6 text-red-800 text-yellow-400 text-yellow-500
 src/components/guardians/guardian-list.tsx|bg-blue-100 bg-green-100 bg-purple-100:2 bg-red-100 decoration-blue-600:2 text-blue-600:2 text-blue-800 text-green-800 text-purple-700 text-purple-800 text-red-800
 src/components/guardians/guardian-picker-panel.tsx|bg-blue-50/40:2 bg-red-50 border-red-200 text-blue-600:2 text-red-800
