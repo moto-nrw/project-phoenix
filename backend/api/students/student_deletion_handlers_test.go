@@ -39,6 +39,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 		repos.Student,
 		repos.Person,
 		repos.StudentDeletion,
+		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
 		tc.db,

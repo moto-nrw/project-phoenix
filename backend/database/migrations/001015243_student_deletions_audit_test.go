@@ -36,6 +36,7 @@ func TestStudentDeletionsAuditMigration(t *testing.T) {
 	require.NoError(t, studentDeletionsAuditDown(ctx, db))
 	t.Cleanup(func() {
 		require.NoError(t, studentDeletionsAuditUp(context.Background(), db))
+		require.NoError(t, studentDeletionGraduatePurgeReasonUp(context.Background(), db))
 	})
 	require.NoError(t, studentDeletionsAuditUp(ctx, db))
 	require.NoError(t, studentDeletionsAuditUp(ctx, db), "up must be idempotent")

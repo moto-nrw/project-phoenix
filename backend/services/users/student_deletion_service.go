@@ -13,6 +13,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
@@ -57,6 +58,7 @@ type studentDeletionService struct {
 	studentRepo    userModels.StudentRepository
 	personRepo     userModels.PersonRepository
 	deletionRepo   userModels.StudentDeletionRepository
+	transitionRepo educationModels.GradeTransitionRepository
 	dataAuditRepo  auditModels.DataDeletionRepository
 	auditRepo      auditModels.StudentDeletionRepository
 	txHandler      *modelBase.TxHandler
@@ -67,6 +69,7 @@ func NewStudentDeletionService(
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
 	deletionRepo userModels.StudentDeletionRepository,
+	transitionRepo educationModels.GradeTransitionRepository,
 	dataAuditRepo auditModels.DataDeletionRepository,
 	auditRepo auditModels.StudentDeletionRepository,
 	db *bun.DB,
@@ -76,6 +79,7 @@ func NewStudentDeletionService(
 		studentRepo:    studentRepo,
 		personRepo:     personRepo,
 		deletionRepo:   deletionRepo,
+		transitionRepo: transitionRepo,
 		dataAuditRepo:  dataAuditRepo,
 		auditRepo:      auditRepo,
 		txHandler:      modelBase.NewTxHandler(db),
@@ -148,6 +152,9 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 		}
 
 		if err := s.studentRepo.Delete(txCtx, input.StudentID); err != nil {
+			return err
+		}
+		if err := s.transitionRepo.AnonymizeHistoryForStudent(txCtx, input.StudentID); err != nil {
 			return err
 		}
 		anonymized, err := s.deletionRepo.AnonymizePersonIfUnchanged(txCtx, student.PersonID, person.UpdatedAt)
@@ -225,6 +232,7 @@ func (s *studentDeletionService) loadPreview(
 ) (*userModels.Student, *userModels.Person, *userModels.StudentDeletionCounts, error) {
 	var (
 		student *userModels.Student
+		person  *userModels.Person
 		err     error
 	)
 	if lock {
@@ -235,7 +243,11 @@ func (s *studentDeletionService) loadPreview(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	if lock {
+		person, err = s.personRepo.FindByIDForUpdate(ctx, student.PersonID)
+	} else {
+		person, err = s.personRepo.FindByID(ctx, student.PersonID)
+	}
 	if err != nil {
 		return nil, nil, nil, err
 	}

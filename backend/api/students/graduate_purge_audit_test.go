@@ -24,6 +24,7 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 		repos.Student,
 		repos.Person,
 		repos.StudentDeletion,
+		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
 		tc.db,

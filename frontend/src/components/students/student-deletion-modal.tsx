@@ -37,7 +37,7 @@ const COUNT_LABELS: Record<keyof StudentDeletionCounts, string> = {
   companion_links: "Laufgemeinschaften",
   communications: "Nachrichten und Änderungsanfragen",
   consents: "Einwilligungen",
-  enrollment_references: "Verknüpfungen zu Anmeldungen",
+  enrollment_references: "Von Anmeldungen gelöste Verknüpfungen",
   other_records: "Weitere kindbezogene Datensätze",
 };
 
@@ -272,7 +272,7 @@ export function StudentDeletionModal({
 
         <Alert
           type="warning"
-          message={`${displayName} und die unten aufgeführten Daten werden dauerhaft entfernt. Dieser Schritt kann nicht rückgängig gemacht werden.`}
+          message={`${displayName} wird dauerhaft entfernt. Die unten aufgeführten Daten werden je nach Art gelöscht oder vom Kind gelöst. Dieser Schritt kann nicht rückgängig gemacht werden.`}
         />
 
         {loadingPreview ? (
@@ -283,7 +283,7 @@ export function StudentDeletionModal({
         {impact && step === 1 ? (
           <>
             <InfoSection
-              title={`Was wird entfernt? (${impact.total})`}
+              title={`Was wird gelöscht oder gelöst? (${impact.total})`}
               icon={<Database className="h-full w-full" strokeWidth={2} />}
               accentColor="red"
             >
@@ -308,7 +308,8 @@ export function StudentDeletionModal({
               <InfoText>
                 Elternkonten und Profile der Erziehungsberechtigten, andere
                 Kinder sowie gemeinsam genutzte Stundenplan-Termine bleiben
-                bestehen.
+                bestehen. Anmeldungen und Zugriffsprotokolle bleiben erhalten
+                und verlieren nur die Kindzuordnung.
               </InfoText>
             </InfoSection>
 

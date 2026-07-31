@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -43,6 +44,7 @@ func newStudentDeletionTestService(
 		repos.Student,
 		repos.Person,
 		repos.StudentDeletion,
+		repos.GradeTransition,
 		dataAuditRepo,
 		auditRepo,
 		db,
@@ -91,10 +93,21 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	targetAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 	sparedAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, spared.ID, "")
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-actor@example.com")
+	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", actor.ID)
+	history := &educationModels.GradeTransitionHistory{
+		TransitionID: transition.ID,
+		StudentID:    target.ID,
+		PersonName:   "DeleteService Target",
+		FromClass:    "1a",
+		Action:       educationModels.ActionPromoted,
+	}
+	history.SetTenantID(target.TenantID)
+	_, err := db.NewInsert().Model(history).Exec(ctx)
+	require.NoError(t, err)
 	childAccount := testpkg.CreateTestAccount(t, db, "student-delete-child@example.com")
 	parentAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-parent@example.com")
 	card := testpkg.CreateTestRFIDCard(t, db, "STUDENTDELETE")
-	_, err := db.NewRaw(`
+	_, err = db.NewRaw(`
 		UPDATE users.persons
 		SET account_id = ?, tag_id = ?
 		WHERE id = ?
@@ -117,6 +130,7 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	var auditID int64
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "users.persons_guardians", legacyGuardianLinkID)
+		testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 		cleanupStudentDeletionTest(t, db,
 			[]int64{target.ID, spared.ID}, []int64{target.PersonID, spared.PersonID},
 			[]int64{targetAssignment.ID, sparedAssignment.ID}, []int64{instance.ID},
@@ -148,6 +162,11 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	assert.Equal(t, 1, tableRowCount(t, db, "users.students", spared.ID))
 	assert.Equal(t, 1, tableRowCount(t, db, "schedule.instance_students", sparedAssignment.ID))
 	assert.Equal(t, 1, tableRowCount(t, db, "schedule.activity_instances", instance.ID))
+	var historyName string
+	require.NoError(t, db.NewRaw(`
+		SELECT person_name FROM education.grade_transition_history WHERE id = ?
+	`, history.ID).Scan(ctx, &historyName))
+	assert.Equal(t, "Gelöschtes Kind", historyName)
 
 	var anonymized struct {
 		FirstName string
@@ -251,7 +270,15 @@ func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testin
 	actor := testpkg.CreateTestAccount(t, db, "preserved-deletion-audit@example.com")
 	priorAudit := auditModels.NewDataDeletion(target.ID, auditModels.DeletionTypeVisitRetention, 1, "system")
 	require.NoError(t, repos.DataDeletion.Create(ctx, priorAudit))
+	var accessLogID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO audit.data_access_log
+			(tenant_id, actor_account_id, actor_role, resource_type, student_id, range_start, range_end)
+		VALUES (?, ?, 'admin', 'attendance_history', ?, NOW(), NOW())
+		RETURNING id
+	`, target.TenantID, actor.ID, target.ID).Scan(ctx, &accessLogID))
 	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr(`audit.data_access_log`).Where(`id = ?`, accessLogID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr(`audit.student_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
 		testpkg.CleanupActivityFixtures(t, db, target.ID)
@@ -283,6 +310,11 @@ func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testin
 		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, auditModels.DeletionTypeManual).
 		Scan(ctx))
 	assert.Equal(t, 1, deletionAudit.RecordsDeleted)
+	var detachedStudentID *int64
+	require.NoError(t, db.NewRaw(`
+		SELECT student_id FROM audit.data_access_log WHERE id = ?
+	`, accessLogID).Scan(ctx, &detachedStudentID))
+	assert.Nil(t, detachedStudentID)
 }
 
 func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
