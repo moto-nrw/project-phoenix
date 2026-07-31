@@ -39,23 +39,57 @@ export const clientEnvSchema = {
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: optionalString,
 };
 
-const buildEnvSchema = z.object({
-  API_URL: serverEnvSchema.API_URL,
-  TENANT_DOMAIN: serverEnvSchema.TENANT_DOMAIN,
-  NEXT_PUBLIC_API_URL: clientEnvSchema.NEXT_PUBLIC_API_URL,
-  NEXT_PUBLIC_TENANT_DOMAIN: clientEnvSchema.NEXT_PUBLIC_TENANT_DOMAIN,
-  NEXT_PUBLIC_OPERATOR_HOSTNAME: clientEnvSchema.NEXT_PUBLIC_OPERATOR_HOSTNAME,
-  NEXT_PUBLIC_PARENTS_HOSTNAME: clientEnvSchema.NEXT_PUBLIC_PARENTS_HOSTNAME,
-  NEXT_PUBLIC_SENTRY_DSN: clientEnvSchema.NEXT_PUBLIC_SENTRY_DSN,
-  NEXT_PUBLIC_SENTRY_ENVIRONMENT:
-    clientEnvSchema.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
-});
+/**
+ * @param {{ NEXT_PUBLIC_POSTHOG_KEY?: string, NEXT_PUBLIC_POSTHOG_HOST?: string }} values
+ * @param {z.RefinementCtx} ctx
+ */
+function requirePostHogHost(values, ctx) {
+  if (values.NEXT_PUBLIC_POSTHOG_KEY && !values.NEXT_PUBLIC_POSTHOG_HOST) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["NEXT_PUBLIC_POSTHOG_HOST"],
+      message: "Required when NEXT_PUBLIC_POSTHOG_KEY is set",
+    });
+  }
+  if (
+    values.NEXT_PUBLIC_POSTHOG_HOST &&
+    URL.canParse(values.NEXT_PUBLIC_POSTHOG_HOST) &&
+    !["http:", "https:"].includes(
+      new URL(values.NEXT_PUBLIC_POSTHOG_HOST).protocol,
+    )
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["NEXT_PUBLIC_POSTHOG_HOST"],
+      message: "Must use the http or https protocol",
+    });
+  }
+}
 
-const runtimeEnvSchema = z.object({
-  ...serverEnvSchema,
-  ...clientEnvSchema,
-  METRICS_BEARER_TOKEN: z.string().trim().min(1),
-});
+const buildEnvSchema = z
+  .object({
+    API_URL: serverEnvSchema.API_URL,
+    TENANT_DOMAIN: serverEnvSchema.TENANT_DOMAIN,
+    NEXT_PUBLIC_API_URL: clientEnvSchema.NEXT_PUBLIC_API_URL,
+    NEXT_PUBLIC_TENANT_DOMAIN: clientEnvSchema.NEXT_PUBLIC_TENANT_DOMAIN,
+    NEXT_PUBLIC_POSTHOG_KEY: clientEnvSchema.NEXT_PUBLIC_POSTHOG_KEY,
+    NEXT_PUBLIC_POSTHOG_HOST: clientEnvSchema.NEXT_PUBLIC_POSTHOG_HOST,
+    NEXT_PUBLIC_OPERATOR_HOSTNAME:
+      clientEnvSchema.NEXT_PUBLIC_OPERATOR_HOSTNAME,
+    NEXT_PUBLIC_PARENTS_HOSTNAME: clientEnvSchema.NEXT_PUBLIC_PARENTS_HOSTNAME,
+    NEXT_PUBLIC_SENTRY_DSN: clientEnvSchema.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT:
+      clientEnvSchema.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+  })
+  .superRefine(requirePostHogHost);
+
+const runtimeEnvSchema = z
+  .object({
+    ...serverEnvSchema,
+    ...clientEnvSchema,
+    METRICS_BEARER_TOKEN: z.string().trim().min(1),
+  })
+  .superRefine(requirePostHogHost);
 
 export function isSkipEnvValidationEnabled() {
   return process.env.SKIP_ENV_VALIDATION === "true";
