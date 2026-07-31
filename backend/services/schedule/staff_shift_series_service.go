@@ -137,9 +137,15 @@ func NewStaffShiftSeriesService(
 // same concrete row while applying a permanent rule change. UpdateShift marks
 // it detached, so the successor re-plan beginning tomorrow cannot replace it.
 // Existing deviations, including rows moved away from today, remain untouched
-// for the split to preserve and re-point. The caller already runs inside the
-// request's tenant transaction.
-func (s *staffShiftSeriesService) updateTodayOccurrence(ctx context.Context, input SplitSeriesInput) error {
+// for the split to preserve and re-point. A detached occurrence belonging to a
+// segment that starts tomorrow is the retained row from an earlier same-day
+// permanent edit, not an independent deviation, and must be updated again.
+// The caller already runs inside the request's tenant transaction.
+func (s *staffShiftSeriesService) updateTodayOccurrence(
+	ctx context.Context,
+	input SplitSeriesInput,
+	updateRetainedOccurrence bool,
+) error {
 	if input.OccurrenceShiftID <= 0 {
 		return nil
 	}
@@ -158,7 +164,11 @@ func (s *staffShiftSeriesService) updateTodayOccurrence(ctx context.Context, inp
 		occurrence.SeriesOccurrenceDate == nil || *occurrence.SeriesOccurrenceDate != input.EffectiveDate {
 		return fmt.Errorf("%w: current occurrence does not belong to this series date", ErrSeriesInvalid)
 	}
-	if occurrence.Date != timezone.TodayDate() || occurrence.Detached {
+	// A cancellation (and its replacement coverage) is a deliberate current-day
+	// deviation. Resizing it through UpdateShift can invalidate its covers, so
+	// retain the cancellation and apply the permanent rule only from tomorrow.
+	if occurrence.Date != timezone.TodayDate() || occurrence.Cancelled ||
+		(occurrence.Detached && !updateRetainedOccurrence) {
 		return nil
 	}
 
@@ -547,7 +557,11 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		)
 	}
 	if updateToday {
-		if err := s.updateTodayOccurrence(ctx, input); err != nil {
+		// A successor from a previous same-day permanent edit starts tomorrow.
+		// Its detached current-day occurrence is therefore safe to update again;
+		// detached rows on an already-active segment remain one-off deviations.
+		updateRetainedOccurrence := old.ValidFrom.After(timezone.TodayDate())
+		if err := s.updateTodayOccurrence(ctx, input, updateRetainedOccurrence); err != nil {
 			return nil, err
 		}
 	}

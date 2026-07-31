@@ -345,7 +345,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 
 	t.Run("requires an updater when an occurrence is supplied", func(t *testing.T) {
 		service := &staffShiftSeriesService{}
-		err := service.updateTodayOccurrence(context.Background(), input)
+		err := service.updateTodayOccurrence(context.Background(), input, false)
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
 		assert.Contains(t, err.Error(), "updater is not configured")
 	})
@@ -354,7 +354,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		service := &staffShiftSeriesService{}
 		withoutOccurrence := input
 		withoutOccurrence.OccurrenceShiftID = 0
-		require.NoError(t, service.updateTodayOccurrence(context.Background(), withoutOccurrence))
+		require.NoError(t, service.updateTodayOccurrence(context.Background(), withoutOccurrence, false))
 	})
 
 	t.Run("maps a missing or unreadable occurrence to the correct error", func(t *testing.T) {
@@ -372,7 +372,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 					shiftService: &seriesOccurrenceUpdaterMock{},
 				}
 
-				err := service.updateTodayOccurrence(context.Background(), input)
+				err := service.updateTodayOccurrence(context.Background(), input, false)
 				require.Error(t, err)
 				if errors.Is(findErr, sql.ErrNoRows) {
 					assert.ErrorIs(t, err, ErrSeriesInvalid)
@@ -396,7 +396,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 			shiftService: &seriesOccurrenceUpdaterMock{},
 		}
 
-		err := service.updateTodayOccurrence(context.Background(), input)
+		err := service.updateTodayOccurrence(context.Background(), input, false)
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
 		assert.Contains(t, err.Error(), "does not belong")
 	})
@@ -423,7 +423,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 			}},
 		}
 
-		err := service.updateTodayOccurrence(context.Background(), inputWithType)
+		err := service.updateTodayOccurrence(context.Background(), inputWithType, false)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "update current series occurrence")
 		require.NotNil(t, updated)
@@ -438,8 +438,9 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 	})
 
 	for name, mutate := range map[string]func(*scheduleModels.StaffShift){
-		"detached occurrence": func(shift *scheduleModels.StaffShift) { shift.Detached = true },
-		"moved occurrence":    func(shift *scheduleModels.StaffShift) { shift.Date = today.AddDays(1) },
+		"detached occurrence":  func(shift *scheduleModels.StaffShift) { shift.Detached = true },
+		"moved occurrence":     func(shift *scheduleModels.StaffShift) { shift.Date = today.AddDays(1) },
+		"cancelled occurrence": func(shift *scheduleModels.StaffShift) { shift.Cancelled = true },
 	} {
 		t.Run("preserves "+name, func(t *testing.T) {
 			preserved := *occurrence
@@ -457,10 +458,30 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 				}},
 			}
 
-			require.NoError(t, service.updateTodayOccurrence(context.Background(), input))
+			require.NoError(t, service.updateTodayOccurrence(context.Background(), input, false))
 			assert.Zero(t, updates)
 		})
 	}
+
+	t.Run("updates the retained occurrence from an earlier same-day permanent edit", func(t *testing.T) {
+		retained := *occurrence
+		retained.Detached = true
+		updates := 0
+		service := &staffShiftSeriesService{
+			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
+				findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+					return &retained, nil
+				},
+			}},
+			shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(context.Context, *scheduleModels.StaffShift, StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
+				updates++
+				return nil, nil
+			}},
+		}
+
+		require.NoError(t, service.updateTodayOccurrence(context.Background(), input, true))
+		assert.Equal(t, 1, updates)
+	})
 
 	t.Run("returns nil after a successful update", func(t *testing.T) {
 		service := &staffShiftSeriesService{
@@ -472,7 +493,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 			shiftService: &seriesOccurrenceUpdaterMock{},
 		}
 
-		require.NoError(t, service.updateTodayOccurrence(context.Background(), input))
+		require.NoError(t, service.updateTodayOccurrence(context.Background(), input, false))
 	})
 }
 
@@ -708,6 +729,50 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, today.AddDays(1), deleted)
 		assert.Equal(t, today, repointed)
+	})
+
+	t.Run("repeated same-day edit updates the retained occurrence", func(t *testing.T) {
+		today := timezone.TodayDate()
+		seriesID := int64(12)
+		occurrence := &scheduleModels.StaffShift{
+			StaffID:              5,
+			Date:                 today,
+			SeriesID:             &seriesID,
+			SeriesOccurrenceDate: &today,
+			Detached:             true,
+			StartTime:            seriesClockForMockTest(t, "09:00"),
+			EndTime:              seriesClockForMockTest(t, "12:00"),
+		}
+		occurrence.ID = 44
+		repo := found(t)
+		// The currently selected series was created by an earlier same-day
+		// split, so its rule begins tomorrow while its retained row is today.
+		repo.findByIDFn = func(context.Context, any) (*scheduleModels.StaffShiftSeries, error) {
+			series := storedSeries(t)
+			series.ValidFrom = today.AddDays(1)
+			return series, nil
+		}
+		updates := 0
+		service := newSeriesServiceForTest(seriesServiceMocks{
+			series: repo,
+			shifts: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
+				findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+					return occurrence, nil
+				},
+			}},
+			occurrenceUpdater: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, updated *scheduleModels.StaffShift, _ StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
+				updates++
+				assert.Equal(t, "10:00", timezone.WallClock(updated.StartTime).Format("15:04"))
+				return updated, nil
+			}},
+		})
+
+		input := splitInput(t, seriesID)
+		input.EffectiveDate = today
+		input.OccurrenceShiftID = occurrence.ID
+		_, err := service.SplitSeries(context.Background(), input)
+		require.NoError(t, err)
+		assert.Equal(t, 1, updates)
 	})
 }
 
