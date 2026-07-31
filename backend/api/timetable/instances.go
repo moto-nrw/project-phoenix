@@ -182,6 +182,8 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, schulhofSupervisionRequiredCode))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrInstanceWeekend):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrInstanceMoved):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("block was changed concurrently; reopen it and try again"),

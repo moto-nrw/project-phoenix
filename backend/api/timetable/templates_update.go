@@ -65,10 +65,8 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if len(req.Weekdays) == 0 {
 		return errors.New("at least one weekday is required")
 	}
-	for _, w := range req.Weekdays {
-		if !activitiesModel.IsValidWeekday(w) {
-			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
-		}
+	if err := validateTemplateWeekdays(req.Weekdays); err != nil {
+		return err
 	}
 	target := &activitiesModel.Group{
 		TargetGroupType:   req.TargetGroupType,
@@ -165,15 +163,29 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
+	templates, err := rs.loadTemplates(ctx, &id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
+		return
+	}
+	if len(templates) == 0 {
+		if hasWeekendTemplateWeekday(parsed.req.Weekdays) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("timetable templates can only be scheduled from Monday to Friday")))
+			return
+		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		return
+	}
+	if err := validateLegacyTemplateWorkdays(templates[0].Schedules, parsed.req.Weekdays); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID)
 	if !ok {
 		return
 	}
 	if err := rs.TimetableData.ValidateTemplateEducationGroup(ctx, parsed.req.EducationGroupID); err != nil {
 		renderTemplateEducationGroupError(w, r, err)
-		return
-	}
-	if !rs.requireTemplateExists(w, r, id) {
 		return
 	}
 	timeframeID, err := rs.TimetableData.FindOrCreateTimeframe(ctx, parsed.startTime, parsed.endTime, parsed.req.Name)
@@ -190,7 +202,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		renderUpdateTemplateError(w, r, updateErr)
 		return
 	}
-	templates, err := rs.loadTemplates(ctx, &id)
+	templates, err = rs.loadTemplates(ctx, &id)
 	if err != nil || len(templates) == 0 {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload template failed", err))
 		return
@@ -198,19 +210,33 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, templates[0], "Template updated")
 }
 
-// requireTemplateExists renders a 404 (missing) or 500 (load failure) and
-// returns false when the caller should stop.
-func (rs *Resource) requireTemplateExists(w http.ResponseWriter, r *http.Request, id int64) bool {
-	exists, err := rs.templateExists(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
-		return false
+// validateLegacyTemplateWorkdays permits an update to retain a weekend
+// schedule that already exists, so administrators can edit or normalize old
+// templates. A PUT can never introduce a new weekend weekday.
+func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, requested []int) error {
+	legacy := make(map[int]struct{})
+	for _, schedule := range existing {
+		if schedule.Weekday > activitiesModel.WeekdayFriday {
+			legacy[schedule.Weekday] = struct{}{}
+		}
 	}
-	if !exists {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
-		return false
+	for _, weekday := range requested {
+		if weekday > activitiesModel.WeekdayFriday {
+			if _, ok := legacy[weekday]; !ok {
+				return errors.New("timetable templates can only be scheduled from Monday to Friday")
+			}
+		}
 	}
-	return true
+	return nil
+}
+
+func hasWeekendTemplateWeekday(weekdays []int) bool {
+	for _, weekday := range weekdays {
+		if weekday > activitiesModel.WeekdayFriday {
+			return true
+		}
+	}
+	return false
 }
 
 // buildUpdateTemplateInput maps the parsed request and resolved preconditions
@@ -260,6 +286,8 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+	case errors.Is(err, scheduleSvc.ErrTemplateWeekendWeekday):
+		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
 	case renderTemplateCareOfferingConflict(w, r, err):
 	case renderTemplateRosterRebaseConflict(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):

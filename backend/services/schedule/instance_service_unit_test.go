@@ -33,6 +33,16 @@ func TestInstanceStart_SchulhofRequiresDedicatedSupervision(t *testing.T) {
 	assert.Equal(t, 1, roomRepo.findCalls)
 }
 
+func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
+	saturday := timezone.NewDate(2026, time.May, 9)
+	monday := saturday.AddDays(2)
+
+	assert.NoError(t, validateLegacyWeekendInstanceDate(monday, monday), "weekday updates stay valid")
+	assert.NoError(t, validateLegacyWeekendInstanceDate(saturday, saturday), "legacy weekend rows may retain their original date")
+	assert.ErrorIs(t, validateLegacyWeekendInstanceDate(monday, saturday), ErrInstanceWeekend,
+		"new weekend dates must be rejected")
+}
+
 func TestInstanceStart_RoomLookupFailuresAreInternal(t *testing.T) {
 	inst := deleteUnitInstance(99, nil, timezone.NewDate(2026, 7, 4), scheduleModel.InstanceStatusPlanned, false)
 	tests := []struct {

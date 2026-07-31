@@ -105,10 +105,8 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	if len(req.Weekdays) == 0 {
 		return errors.New("at least one weekday is required")
 	}
-	for _, w := range req.Weekdays {
-		if !activitiesModel.IsValidWeekday(w) {
-			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
-		}
+	if err := validateTemplateWorkdays(req.Weekdays); err != nil {
+		return err
 	}
 	target := &activitiesModel.Group{
 		TargetGroupType:   req.TargetGroupType,
@@ -126,6 +124,27 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 		return err
 	}
 	req.ListKind = listKind
+	return nil
+}
+
+func validateTemplateWorkdays(weekdays []int) error {
+	if err := validateTemplateWeekdays(weekdays); err != nil {
+		return err
+	}
+	for _, weekday := range weekdays {
+		if weekday > activitiesModel.WeekdayFriday {
+			return errors.New("timetable templates can only be scheduled from Monday to Friday")
+		}
+	}
+	return nil
+}
+
+func validateTemplateWeekdays(weekdays []int) error {
+	for _, weekday := range weekdays {
+		if !activitiesModel.IsValidWeekday(weekday) {
+			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", weekday)
+		}
+	}
 	return nil
 }
 

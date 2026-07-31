@@ -245,28 +245,38 @@ vi.mock("~/components/timetable/conflict-warnings-banner", () => ({
 vi.mock("~/components/timetable/month-planner-grid", () => ({
   MonthPlannerGrid: ({
     onDayClick,
+    onInstanceClick,
   }: {
     onDayClick: (date: string) => void;
+    onInstanceClick?: (instance: { id: string }) => void;
   }) => (
-    <button type="button" onClick={() => onDayClick("2026-05-06")}>
-      month-grid
-    </button>
+    <div>
+      <button type="button" onClick={() => onDayClick("2026-05-06")}>
+        month-grid
+      </button>
+      <button type="button" onClick={() => onInstanceClick?.({ id: "42" })}>
+        month-instance
+      </button>
+    </div>
   ),
 }));
 
 vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
   WeeklyCalendarGrid: ({
+    weekDays,
     instances,
     onInstanceClick,
     onSlotClick,
     gapInstanceIds,
   }: {
+    weekDays: Date[];
     instances: Array<{ id: string }>;
     onInstanceClick: (instance: { id: string } | null) => void;
     onSlotClick?: (dateISO: string, hour: number) => void;
     gapInstanceIds?: ReadonlySet<string>;
   }) => (
     <div>
+      <span data-testid="grid-week-days">{weekDays.length}</span>
       <span data-testid="grid-gap-ids">
         {gapInstanceIds ? [...gapInstanceIds].join(",") : ""}
       </span>
@@ -783,6 +793,7 @@ describe("BetreuungsplanView", () => {
       screen.getByRole("heading", { name: "Betreuungsplan" }),
     ).toBeVisible();
     expect(screen.getByText("week-grid")).toBeVisible();
+    expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
     // Kein Alt-URL-Parameter überlebt.
     expect(urlParams().has("week")).toBe(false);
@@ -863,6 +874,36 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().get("d")).toBe("2026-05-06");
   });
 
+  it("snaps weekend deep links and the Heute target to the following Monday", () => {
+    setUrl("d=2026-05-09");
+    const { unmount } = render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-11" }),
+    );
+
+    unmount();
+    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setUrl("d=2026-05-06");
+    render(<BetreuungsplanView />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Heute" })[0]!);
+    expect(urlParams().get("d")).toBe("2026-05-11");
+  });
+
+  it("does not query gaps for a finished Friday workweek on Saturday", () => {
+    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setUrl("view=woche&d=2026-05-04");
+    render(<BetreuungsplanView />);
+
+    const gapKeys = mockUseSWRAuth.mock.calls
+      .map(([key]) => key)
+      .filter(
+        (key) => typeof key === "string" && key.startsWith("timetable-gaps"),
+      );
+    expect(gapKeys).toEqual([]);
+  });
+
   it("switches to the week and sets d when a month day is clicked", () => {
     setUrl("view=monat");
     render(<BetreuungsplanView />);
@@ -871,6 +912,15 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().get("d")).toBe("2026-05-06");
     expect(urlParams().has("view")).toBe(false);
     expect(screen.getByText("week-grid")).toBeVisible();
+  });
+
+  it("keeps a weekend month anchor and opens retained month instances", () => {
+    setUrl("view=monat&d=2026-05-31");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("Mai 2026")).toBeVisible();
+    fireEvent.click(screen.getByText("month-instance"));
+    expect(screen.getByText("detail-close")).toBeVisible();
   });
 
   it("opens and closes the slide-over via the block param", async () => {

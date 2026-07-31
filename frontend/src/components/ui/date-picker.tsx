@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, type Matcher } from "react-day-picker";
 import { format, addMonths, subMonths, type Locale } from "date-fns";
 import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
@@ -99,6 +99,8 @@ type DatePickerProps =
       // Latest selectable day (inclusive). Days after it are disabled — used to
       // cap selection at a planning horizon while keeping that day choosable.
       readonly maxDate?: Date;
+      /** Additional days that cannot be selected. */
+      readonly disabledDay?: Matcher;
       /** Hide the inline clear ("X") control. Use when the value is required. */
       readonly hideClearButton?: boolean;
       /** Keeps a selected day from being deselected in the calendar. */
@@ -299,6 +301,7 @@ export function DatePicker({
       value={props.value}
       minDate={props.minDate}
       maxDate={props.maxDate}
+      disabledDay={props.disabledDay}
       monthYearNavigation={props.monthYearNavigation}
       locale={locale}
       labels={labels}
@@ -484,6 +487,7 @@ function DatePickerCalendar({
   value,
   minDate,
   maxDate,
+  disabledDay,
   monthYearNavigation,
   locale,
   labels,
@@ -495,6 +499,7 @@ function DatePickerCalendar({
   readonly value?: Date | null;
   readonly minDate?: Date;
   readonly maxDate?: Date;
+  readonly disabledDay?: Matcher;
   readonly monthYearNavigation?: boolean;
   readonly locale: Locale;
   readonly labels: Required<DatePickerLabels>;
@@ -524,7 +529,7 @@ function DatePickerCalendar({
         mode="single"
         selected={value ?? undefined}
         required={required}
-        disabled={buildSingleDisabledMatchers(minDate, maxDate)}
+        disabled={buildSingleDisabledMatchers(minDate, maxDate, disabledDay)}
         month={month}
         onMonthChange={setMonth}
         onSelect={(date: Date | undefined) => onChange(date ?? null)}
@@ -634,6 +639,7 @@ export function ISODatePicker({
   onChange,
   min,
   max,
+  disabledDay,
   label,
   error,
   ...rest
@@ -650,6 +656,8 @@ export function ISODatePicker({
   readonly min?: string;
   /** Latest selectable day as "YYYY-MM-DD". */
   readonly max?: string;
+  /** Additional days that cannot be selected. */
+  readonly disabledDay?: Matcher;
   readonly placeholder?: string;
   readonly className?: string;
   readonly dropdownPlacement?: "up" | "down";
@@ -676,6 +684,7 @@ export function ISODatePicker({
       value={toDateOrNull(value)}
       minDate={toDateOrNull(min) ?? undefined}
       maxDate={toDateOrNull(max) ?? undefined}
+      disabledDay={disabledDay}
       required={rest.required}
       onChange={(date) => onChange(date ? toISODate(date) : "")}
     />
@@ -895,10 +904,12 @@ function CalendarNavHeader({
 function buildSingleDisabledMatchers(
   minDate?: Date,
   maxDate?: Date,
-): ({ before: Date } | { after: Date })[] {
-  const matchers: ({ before: Date } | { after: Date })[] = [];
+  disabledDay?: Matcher,
+): Matcher[] {
+  const matchers: Matcher[] = [];
   if (minDate) matchers.push({ before: minDate });
   if (maxDate) matchers.push({ after: maxDate });
+  if (disabledDay) matchers.push(disabledDay);
   return matchers;
 }
 

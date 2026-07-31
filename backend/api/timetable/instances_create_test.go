@@ -92,6 +92,14 @@ func doCreate(t *testing.T, router chi.Router, body any) *httptest.ResponseRecor
 	return w
 }
 
+func nextTimetableWorkday() timezone.Date {
+	date := timezone.TodayDate().AddDays(1)
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(1)
+	}
+	return date
+}
+
 func decodeCreate(t *testing.T, w *httptest.ResponseRecorder) enrichedInstance {
 	t.Helper()
 	var env struct {
@@ -110,7 +118,7 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
 
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := nextTimetableWorkday()
 
 	// The mock returns a real-looking instance row; the handler still calls
 	// enrichInstance against the real DB so room_name + counts are exercised.
@@ -159,7 +167,11 @@ func TestCreateInstance_Validation(t *testing.T) {
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
 
-	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	tomorrow := nextTimetableWorkday().String()
+	weekend := timezone.TodayDate()
+	for weekend.Weekday() != time.Saturday {
+		weekend = weekend.AddDays(1)
+	}
 	cases := []struct {
 		name string
 		body map[string]any
@@ -196,6 +208,10 @@ func TestCreateInstance_Validation(t *testing.T) {
 			name: "end before start",
 			body: map[string]any{"date": tomorrow, "start_time": "15:00", "end_time": "14:00", "title": "X", "room_id": s.roomID},
 		},
+		{
+			name: "weekend date",
+			body: map[string]any{"date": weekend.String(), "start_time": "14:00", "end_time": "15:00", "title": "X", "room_id": s.roomID},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -213,7 +229,7 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	template := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Create-Bound-%d", time.Now().UnixNano()))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", template.ID) })
 	templateID := template.ID
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := nextTimetableWorkday()
 	persisted := testpkg.CreateTestActivityInstance(t, s.db, tomorrow, s.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &templateID,
 		StartHHMM:       "10:00",
@@ -277,7 +293,7 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	router := createRouter(ctx, res)
 
 	body := map[string]any{
-		"date":              time.Now().AddDate(0, 0, 1).Format("2006-01-02"),
+		"date":              nextTimetableWorkday().String(),
 		"start_time":        "10:00",
 		"end_time":          "11:00",
 		"title":             "Duplicate slot",
@@ -299,7 +315,7 @@ func TestCreateInstance_UnwiredResource(t *testing.T) {
 	router := createRouter(s.ctx, NewResource(Dependencies{InstanceService: s.mock}))
 
 	body := map[string]any{
-		"date":       time.Now().AddDate(0, 0, 1).Format("2006-01-02"),
+		"date":       nextTimetableWorkday().String(),
 		"start_time": "10:00",
 		"end_time":   "11:00",
 		"title":      "Unwired",
