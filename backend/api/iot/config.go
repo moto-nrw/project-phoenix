@@ -65,6 +65,9 @@ func (rs *Resource) resolveDeviceConfig(ctx context.Context, tenantID int64) dev
 	}
 
 	settingsCtx, available := rs.deviceConfigSettingsContext(ctx, tenantID)
+	if rawTime := checkinSvc.ResolveRawDailyCheckoutTime(settingsCtx, rs.SettingsService); rawTime != "" {
+		response.Checkout.DailyCheckoutTime = &rawTime
+	}
 	if !available {
 		return response
 	}
@@ -78,9 +81,6 @@ func (rs *Resource) resolveDeviceConfig(ctx context.Context, tenantID int64) dev
 	response.Feedback.Enabled = resolveDeviceConfigBool(
 		settingsCtx, rs.SettingsService, configModel.KeyFeedbackEnabled, false)
 
-	if rawTime := checkinSvc.ResolveRawDailyCheckoutTime(settingsCtx, rs.SettingsService); rawTime != "" {
-		response.Checkout.DailyCheckoutTime = &rawTime
-	}
 	response.PresenceMode = configSvc.ResolvePresenceModeForTenant(
 		settingsCtx, rs.SettingsService, tenantID, rs.getLogger())
 	return response
