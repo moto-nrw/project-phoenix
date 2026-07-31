@@ -407,13 +407,6 @@ func (s *TemplateSplitService) prepareSplitSource(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	schedules, err := s.deps.ScheduleRepo.FindByGroupID(ctx, old.ID)
-	if err != nil {
-		return nil, nil, nil, nil, &ScheduleError{Op: "split template: load source schedules", Err: err}
-	}
-	if err := validateLegacyTemplateWeekdays(schedules, in.Weekdays); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
-	}
 	if sourceValidUntil != nil {
 		return nil, nil, nil, nil, fmt.Errorf(
 			"%w: bounded template segments cannot be split again",
@@ -659,6 +652,9 @@ func validateSplitRecurrence(in TemplateSplitInput) error {
 	for _, w := range in.Weekdays {
 		if !activitiesModel.IsValidWeekday(w) {
 			return fmt.Errorf("%w: invalid weekday %d (must be 1=Mon … 7=Sun)", ErrSplitInvalidInput, w)
+		}
+		if w > activitiesModel.WeekdayFriday {
+			return fmt.Errorf("%w: timetable templates can only be scheduled from Monday to Friday", ErrSplitInvalidInput)
 		}
 	}
 	if !in.EndTime.After(in.StartTime) {

@@ -109,6 +109,9 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 		if !activitiesModel.IsValidWeekday(weekday) {
 			return fmt.Errorf("invalid weekday %d", weekday)
 		}
+		if weekday > activitiesModel.WeekdayFriday {
+			return errors.New("timetable templates can only be scheduled from Monday to Friday")
+		}
 	}
 	if in.WeekPattern < 0 || in.WeekPattern > 2 {
 		return errors.New("week pattern must be 0, 1, or 2")

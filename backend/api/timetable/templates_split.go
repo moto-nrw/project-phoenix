@@ -90,6 +90,9 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	if err := req.updateTemplateRequest.Bind(r); err != nil {
 		return err
 	}
+	if err := validateTemplateWorkdays(req.Weekdays); err != nil {
+		return err
+	}
 	if req.EffectiveDate == "" {
 		return errors.New("effective_date is required (YYYY-MM-DD)")
 	}
