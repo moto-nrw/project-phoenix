@@ -255,7 +255,7 @@ func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	const hostingTenantID int64 = 91
+	hostingTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.CleanupTenantTestData(t, db, hostingTenantID)
 	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, hostingTenantID) })
 	testpkg.EnsureTestTenant(t, db, hostingTenantID)
