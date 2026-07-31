@@ -891,6 +891,19 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().get("d")).toBe("2026-05-11");
   });
 
+  it("does not query gaps for a finished Friday workweek on Saturday", () => {
+    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setUrl("view=woche&d=2026-05-04");
+    render(<BetreuungsplanView />);
+
+    const gapKeys = mockUseSWRAuth.mock.calls
+      .map(([key]) => key)
+      .filter(
+        (key) => typeof key === "string" && key.startsWith("timetable-gaps"),
+      );
+    expect(gapKeys).toEqual([]);
+  });
+
   it("switches to the week and sets d when a month day is clicked", () => {
     setUrl("view=monat");
     render(<BetreuungsplanView />);

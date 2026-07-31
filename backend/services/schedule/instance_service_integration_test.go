@@ -760,6 +760,23 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	assert.True(t, instanceExists(t, s, cancelled), "cancelled must survive")
 }
 
+func TestInstance_ReplanWeek_RemovesFutureLegacyWeekendInstances(t *testing.T) {
+	s := buildLifecycle(t)
+
+	from := timezone.TodayDate()
+	for from.Weekday() != time.Monday {
+		from = from.AddDays(1)
+	}
+	to := from.AddDays(6)
+	legacyWeekend := insertInstance(t, s, from.AddDays(5), scheduleModels.InstanceStatusPlanned, false)
+
+	result, err := s.svc.ReplanWeek(s.ctx, from, to, &s.tmplID, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, result.DeletedInstances)
+	assert.False(t, instanceExists(t, s, legacyWeekend), "legacy weekend rows must not survive a series re-plan with stale template data")
+}
+
 // WP-B3: a re-plan scoped to one template deletes only that template's
 // planned non-spontaneous instances — other templates' rows survive.
 func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {

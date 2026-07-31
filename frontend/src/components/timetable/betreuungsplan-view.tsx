@@ -371,8 +371,12 @@ function TimetablesContent() {
   // Spec 06 §5.2): GET /gaps begrenzt das Fenster hart auf 14 Tage und lehnt
   // das Monatsfenster mit 400 ab — ein leerer Zähler wäre in der
   // Monatsansicht eine falsche "Keine Lücken"-Aussage.
-  const gapsFromISO = fetchFromISO < todayISO ? todayISO : fetchFromISO;
-  const shouldLoadGaps = view === "week" && fetchToISO >= todayISO;
+  // The workweek has no Saturday/Sunday destination. On weekends, start at
+  // Monday so the gap list cannot offer a retained legacy weekend block that
+  // the week view deliberately does not expose.
+  const gapsFromISO =
+    fetchFromISO < todayTargetISO ? todayTargetISO : fetchFromISO;
+  const shouldLoadGaps = view === "week" && fetchToISO >= todayTargetISO;
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
