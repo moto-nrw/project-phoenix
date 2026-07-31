@@ -416,6 +416,8 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 	require.NotNil(t, todayRows[0].SeriesID)
 	assert.Equal(t, result.Series.ID, *todayRows[0].SeriesID,
 		"the retained occurrence must open the active successor for another permanent edit")
+	require.NotNil(t, result.Series.RetainedOccurrenceShiftID)
+	assert.Equal(t, todayShift.ID, *result.Series.RetainedOccurrenceShiftID)
 
 	tomorrowRows := env.shiftsInRange(t, today.AddDays(1), today.AddDays(1))
 	require.Len(t, tomorrowRows, 1)
@@ -442,6 +444,7 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 	require.Len(t, todayRows, 1)
 	require.NotNil(t, todayRows[0].SeriesID)
 	assert.Equal(t, secondResult.Series.ID, *todayRows[0].SeriesID)
+	assert.Equal(t, "10:00", timezone.WallClock(todayRows[0].StartTime).Format("15:04"))
 }
 
 func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *testing.T) {
