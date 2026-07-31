@@ -25,6 +25,8 @@ interface SuggestionCardProps {
   readonly onVoteChange: (updated: Suggestion) => void;
   /** Which board this card belongs to. Defaults to the staff board. */
   readonly api?: SuggestionsBoardApi;
+  /** Enable analytics only from the authenticated tenant board. */
+  readonly analyticsEnabled?: boolean;
   /** Unread-refresh event name forwarded to the comment accordion. */
   readonly unreadRefreshEvent?: string;
   /**
@@ -43,6 +45,7 @@ export function SuggestionCard({
   onDelete,
   onVoteChange,
   api = staffBoardApi,
+  analyticsEnabled = false,
   unreadRefreshEvent,
   statusLabels = STATUS_LABELS,
   menuLabels = DEFAULT_MENU_LABELS,
@@ -70,6 +73,7 @@ export function SuggestionCard({
             suggestion={suggestion}
             onVoteChange={onVoteChange}
             api={api}
+            analyticsEnabled={analyticsEnabled}
           />
         </div>
 
@@ -135,6 +139,7 @@ export function SuggestionCard({
                 suggestion={suggestion}
                 onVoteChange={onVoteChange}
                 api={api}
+                analyticsEnabled={analyticsEnabled}
               />
             </div>
           </div>
