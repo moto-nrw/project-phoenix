@@ -139,6 +139,13 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 		if input.ConfirmationName != preview.ConfirmationName {
 			return ErrStudentDeletionConfirmationMismatch
 		}
+		// Child rows can be removed by another transaction without touching the
+		// locked student or person rows. Re-read every counted category directly
+		// before the cascade so the confirmation and both audit records describe
+		// this transaction's deletion, not an earlier snapshot.
+		if err := s.ensureCountsUnchanged(txCtx, input.StudentID, *counts); err != nil {
+			return err
+		}
 
 		deletedAssignments, err := s.deletionRepo.DeleteTimetableAssignments(txCtx, input.StudentID)
 		if err != nil {
@@ -199,6 +206,9 @@ func (s *studentDeletionService) AuditGraduatePurge(ctx context.Context, student
 	if err != nil {
 		return err
 	}
+	if err := s.ensureCountsUnchanged(ctx, studentID, *counts); err != nil {
+		return err
+	}
 	deletedAssignments, err := s.deletionRepo.DeleteTimetableAssignments(ctx, studentID)
 	if err != nil {
 		return err
@@ -207,6 +217,24 @@ func (s *studentDeletionService) AuditGraduatePurge(ctx context.Context, student
 		return ErrStudentDeletionPreviewChanged
 	}
 	return s.createAudit(ctx, studentID, actorAccountID, StudentDeletionReasonGraduatePurge, *counts, 2)
+}
+
+// ensureCountsUnchanged closes the gap between the locked preview and the
+// delete. Not every child relation updates users.students when it is removed,
+// so a student-row lock alone cannot make its earlier count authoritative.
+func (s *studentDeletionService) ensureCountsUnchanged(
+	ctx context.Context,
+	studentID int64,
+	expected userModels.StudentDeletionCounts,
+) error {
+	current, err := s.deletionRepo.Preview(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	if *current != expected {
+		return ErrStudentDeletionPreviewChanged
+	}
+	return nil
 }
 
 func (s *studentDeletionService) createAudit(
