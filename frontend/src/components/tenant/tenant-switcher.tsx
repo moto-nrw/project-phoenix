@@ -102,7 +102,8 @@ export function BrandTenantSwitcher({
           to_slug: targetTenant.subdomain,
         };
         logger.info("tenant_switched", switchPayload);
-        trackEvent("tenant_switched", switchPayload);
+        // Slugs identify organizations and must stay out of product analytics.
+        trackEvent("tenant_switched");
 
         // 5. Hard-navigate to the new tenant subdomain.
         // Always use subdomain routing — the proxy rewrites subdomains

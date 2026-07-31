@@ -105,6 +105,10 @@ func (t *httpTracker) Capture(distinctID, event string, props map[string]any) {
 		properties[k] = v
 	}
 	properties["$lib"] = "phoenix-backend"
+	// Product analytics is aggregated by school. Disable IP enrichment and
+	// person-profile processing for every backend event, regardless of caller.
+	properties["$geoip_disable"] = true
+	properties["$process_person_profile"] = false
 
 	body, err := json.Marshal(batchPayload{
 		APIKey: t.apiKey,

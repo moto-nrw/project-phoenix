@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockCapture = vi.fn();
 const mockEnv = vi.hoisted(() => ({
   NEXT_PUBLIC_POSTHOG_KEY: undefined as string | undefined,
+  NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
 }));
 
 vi.mock("posthog-js", () => ({
@@ -13,7 +14,7 @@ vi.mock("posthog-js", () => ({
 
 vi.mock("~/env", () => ({ env: mockEnv }));
 
-import { trackEvent } from "./analytics";
+import { trackEvent, trackPageView } from "./analytics";
 
 describe("trackEvent", () => {
   beforeEach(() => {
@@ -62,5 +63,21 @@ describe("trackEvent", () => {
       error: "boom",
     });
     warnSpy.mockRestore();
+  });
+
+  it("captures allowlisted page views without an account identifier", () => {
+    mockEnv.NEXT_PUBLIC_POSTHOG_KEY = "phc_test_key_123";
+
+    trackPageView("/students/:id", "42");
+
+    expect(mockCapture).toHaveBeenCalledWith("page_viewed", {
+      view_id: "/students/:id",
+      portal: "tenant",
+      deployment: "localhost",
+      school_id: "42",
+      $groups: { school: "42" },
+      $geoip_disable: true,
+      $process_person_profile: false,
+    });
   });
 });
