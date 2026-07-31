@@ -8,7 +8,7 @@ import Image from "next/image";
 import { KeyRound } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { refreshToken } from "~/lib/auth-api";
-import { trackEvent } from "~/lib/analytics";
+import { trackTenantEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import {
   AuthShell,
@@ -92,6 +92,15 @@ function LoginForm() {
   const loginTitle = tenant?.name?.trim() ? tenant.name : "Willkommen bei moto";
   const tenantLoginImageUrl = tenant?.settings?.loginImageUrl;
   const hasTenantLoginLogo = Boolean(tenantLoginImageUrl);
+  const analyticsSchoolId = tenant?.tenantId?.toString() ?? null;
+
+  const trackLoginEvent = (
+    event: "login_success" | "login_failed",
+    props?: Record<string, string | number | boolean>,
+  ) => {
+    if (!analyticsSchoolId) return;
+    trackTenantEvent(event, analyticsSchoolId, props);
+  };
 
   // Guard against calling signOut multiple times during stale session cleanup
   const isCleaningSessionRef = useRef(false);
@@ -225,10 +234,10 @@ function LoginForm() {
     if (result?.error) {
       setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
       logger.error("session_seed_failed", { error: result.error });
-      trackEvent("login_failed", { reason: "error" });
+      trackLoginEvent("login_failed", { reason: "error" });
       return;
     }
-    trackEvent("login_success");
+    trackLoginEvent("login_success");
     setAwaitingRedirect(true);
     router.refresh();
   };
@@ -278,10 +287,10 @@ function LoginForm() {
     } catch (err) {
       if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
-        trackEvent("login_failed", { reason: "invalid_credentials" });
+        trackLoginEvent("login_failed", { reason: "invalid_credentials" });
       } else {
         setError(germanMFAErrorMessage(err));
-        trackEvent("login_failed", { reason: "error" });
+        trackLoginEvent("login_failed", { reason: "error" });
       }
       logger.error("login failed", {
         error: err instanceof Error ? err.message : String(err),

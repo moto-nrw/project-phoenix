@@ -107,6 +107,8 @@ func TestCapturePostsBatchPayload(t *testing.T) {
 	assert.NotEmpty(t, payload.Batch[0].Timestamp)
 	assert.Equal(t, "rfid", payload.Batch[0].Properties["method"])
 	assert.Equal(t, "phoenix-backend", payload.Batch[0].Properties["$lib"])
+	assert.Equal(t, true, payload.Batch[0].Properties["$geoip_disable"])
+	assert.Equal(t, false, payload.Batch[0].Properties["$process_person_profile"])
 	assert.Empty(t, logs.String())
 }
 

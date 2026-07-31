@@ -395,10 +395,10 @@ describe("useGlobalSSE — SWR invalidation debounce", () => {
 // Reminders revalidation (issue #1457)
 // ---------------------------------------------------------------------------
 
-// useGlobalSSE runs ABOVE TenantProvider, so it cannot build the tenant-prefixed
-// "{slug}:reminders" SWR key. Instead of mutating the wrong key it dispatches a
-// window event; useReminders() (which runs under TenantProvider and owns the
-// correctly-scoped key + the enabled gate) performs the actual revalidation.
+// useGlobalSSE does not own the tenant-prefixed "{slug}:reminders" SWR key.
+// Instead of mutating the wrong key it dispatches a window event; useReminders()
+// owns the correctly scoped key and enabled gate, so it performs the actual
+// revalidation.
 describe("useGlobalSSE — reminders revalidation", () => {
   function listenForRemindersStale() {
     const listener = vi.fn();

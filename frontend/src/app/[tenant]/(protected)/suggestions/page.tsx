@@ -231,6 +231,7 @@ function SuggestionsPageContent() {
                     onEdit={handleEdit}
                     onDelete={setDeleteTarget}
                     onVoteChange={handleVoteChange}
+                    analyticsEnabled
                   />
                 </motion.div>
               ))}
@@ -244,6 +245,7 @@ function SuggestionsPageContent() {
         onClose={handleFormClose}
         onSuccess={handleFormSuccess}
         editSuggestion={editSuggestion}
+        analyticsEnabled
       />
 
       <ConfirmationModal

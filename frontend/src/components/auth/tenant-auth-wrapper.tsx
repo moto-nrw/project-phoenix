@@ -3,47 +3,86 @@
  *
  * Runs teacher-specific hooks: user context pre-warming, global SSE, PostHog.
  * Only active for tenant sessions — never runs for operator sessions.
- *
- * @example
- * ```tsx
- * <SessionProvider>
- *   <TenantAuthWrapper>
- *     {children}
- *   </TenantAuthWrapper>
- * </SessionProvider>
- * ```
+ * Must run inside both SessionProvider and TenantProvider.
+ * TenantProviders owns this composition so routing context is always present.
  */
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import posthog from "posthog-js";
+import { env } from "~/env";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
 import { createLogger } from "~/lib/logger";
+import { trackPageView } from "~/lib/analytics";
+import { resolveAnalyticsViewId } from "~/lib/analytics-routes";
+import { useTenant } from "~/lib/tenant-context";
+import { normalizeTenantPathname } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "TenantAuthWrapper" });
 
 function TeacherSpecificHooks() {
   const { data: session, status } = useSession();
+  const rawPathname = usePathname();
+  const { tenantSlug, tenant, routingMode } = useTenant();
+  const pathname = normalizeTenantPathname(
+    rawPathname,
+    tenantSlug,
+    routingMode,
+  );
+  const viewId = resolveAnalyticsViewId(pathname);
+  const schoolId = session?.user?.tenantId?.toString() ?? null;
+  const urlSchoolId = tenant?.tenantId?.toString() ?? null;
+  const tenantMatchesSession =
+    schoolId !== null && urlSchoolId !== null && schoolId === urlSchoolId;
+  const registeredSchoolIdRef = useRef<string | null>(null);
 
   const { isReady: contextReady } = useUserContext();
   const { status: sseStatus } = useGlobalSSE();
 
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.id) {
-      // GDPR: identify with the pseudonymous account ID only — never attach
-      // person properties like email.
-      posthog.identify(session.user.id);
-      if (session.user.tenantId != null) {
-        posthog.group("school", String(session.user.tenantId));
-        posthog.register({ school_id: session.user.tenantId });
+    if (status === "authenticated" && tenantMatchesSession && schoolId) {
+      if (
+        registeredSchoolIdRef.current !== null &&
+        registeredSchoolIdRef.current !== schoolId
+      ) {
+        posthog.reset();
       }
-    } else if (status === "unauthenticated") {
+      // School-level context only. Never send an account/person identifier.
+      posthog.register({
+        school_id: schoolId,
+        $groups: { school: schoolId },
+        deployment: env.NEXT_PUBLIC_TENANT_DOMAIN,
+      });
+      registeredSchoolIdRef.current = schoolId;
+    } else if (
+      status === "unauthenticated" ||
+      (status === "authenticated" && !tenantMatchesSession)
+    ) {
+      posthog.unregister("school_id");
+      posthog.unregister("$groups");
+      posthog.unregister("deployment");
       posthog.reset();
+      registeredSchoolIdRef.current = null;
     }
-  }, [status, session]);
+  }, [status, schoolId, tenantMatchesSession]);
+
+  useEffect(() => {
+    if (
+      status === "authenticated" &&
+      tenantMatchesSession &&
+      schoolId &&
+      viewId
+    ) {
+      trackPageView(viewId, schoolId);
+    }
+    // `pathname` is intentionally a dependency: navigating between two
+    // resources with the same template (for example /students/1 ->
+    // /students/2) is a new page view, while only `viewId` leaves the browser.
+  }, [status, schoolId, tenantMatchesSession, viewId, pathname]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "development" && status === "authenticated") {

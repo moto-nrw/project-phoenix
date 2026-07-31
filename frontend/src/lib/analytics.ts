@@ -6,9 +6,13 @@
  * PII; student IDs are forbidden entirely (GDPR).
  */
 
-import posthog from "posthog-js";
+import posthog, { type Properties } from "posthog-js";
 import { env } from "~/env";
 import { createLogger } from "~/lib/logger";
+import {
+  isAnalyticsViewId,
+  type AnalyticsViewId,
+} from "~/lib/analytics-routes";
 
 const logger = createLogger({ component: "Analytics" });
 
@@ -23,10 +27,7 @@ export type AnalyticsEvent =
   | "user_invited"
   | "data_exported";
 
-export function trackEvent(
-  event: AnalyticsEvent,
-  props?: Record<string, string | number | boolean>,
-): void {
+function captureEvent(event: AnalyticsEvent, props?: Properties): void {
   if (!env.NEXT_PUBLIC_POSTHOG_KEY) {
     return;
   }
@@ -37,6 +38,64 @@ export function trackEvent(
     // should not go dark silently either.
     logger.warn("analytics_capture_failed", {
       event,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+export function trackEvent(
+  event: AnalyticsEvent,
+  props?: Record<string, string | number | boolean>,
+): void {
+  captureEvent(event, props);
+}
+
+export function trackTenantEvent(
+  event: AnalyticsEvent,
+  schoolId: string,
+  props?: Record<string, string | number | boolean>,
+): void {
+  if (!env.NEXT_PUBLIC_POSTHOG_KEY || !/^\d+$/.test(schoolId)) return;
+
+  // A completed tenant switch belongs to the target school and must not share
+  // the previous school's anonymous runtime identity.
+  if (event === "tenant_switched") {
+    try {
+      posthog.reset();
+    } catch (err) {
+      logger.warn("analytics_capture_failed", {
+        event,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+  }
+
+  captureEvent(event, {
+    ...props,
+    deployment: env.NEXT_PUBLIC_TENANT_DOMAIN,
+    school_id: schoolId,
+    $groups: { school: schoolId },
+  });
+}
+
+export function trackPageView(viewId: AnalyticsViewId, schoolId: string): void {
+  if (!env.NEXT_PUBLIC_POSTHOG_KEY) return;
+  if (!isAnalyticsViewId(viewId) || !/^\d+$/.test(schoolId)) return;
+
+  try {
+    posthog.capture("page_viewed", {
+      view_id: viewId,
+      portal: "tenant",
+      deployment: env.NEXT_PUBLIC_TENANT_DOMAIN,
+      school_id: schoolId,
+      $groups: { school: schoolId },
+      $geoip_disable: true,
+      $process_person_profile: false,
+    });
+  } catch (err) {
+    logger.warn("analytics_capture_failed", {
+      event: "page_viewed",
       error: err instanceof Error ? err.message : String(err),
     });
   }
