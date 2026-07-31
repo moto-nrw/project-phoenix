@@ -76,7 +76,7 @@ function getShiftMutationErrorMessage(
       // times, so translate those instead of sending the planner to check
       // Beginn/Ende/Pause (#2028).
       if (detail.includes("no occurrences left")) {
-        return 'Diese Serie hat ab morgen keine Termine mehr. Setzen Sie „Gültig bis" auf ein späteres Datum, um sie fortzuführen.';
+        return 'Diese Serie hat ab dem ausgewählten Tag keine Termine mehr. Setzen Sie „Gültig bis" auf ein späteres Datum oder ändern Sie die Wiederholung.';
       }
       if (detail.includes("calendar period")) {
         return "Der gewählte Zeitraum liegt außerhalb des Kalenderzeitraums der Serie.";
@@ -359,8 +359,11 @@ export function ShiftEditModal({
   const effectiveWeekPattern = biweekly && periodHasCycle ? abPattern : 0;
   const seriesClosingDayWindow = useMemo(() => {
     if (!repeatEnabled || !selectedPeriod) return null;
-    const tomorrow = dayAfterISO(berlinTodayISO());
-    const from = latestISODate(date, selectedPeriod.startDate, tomorrow);
+    const from = latestISODate(
+      date,
+      selectedPeriod.startDate,
+      berlinTodayISO(),
+    );
     const to =
       validUntil !== "" && validUntil < selectedPeriod.endDate
         ? validUntil
@@ -425,13 +428,13 @@ export function ShiftEditModal({
     [periods, seriesRule],
   );
   const seriesPeriodHasCycle = (seriesPeriod?.weekCycleLength ?? 1) > 1;
-  // The backend never re-plans today or the past, so a series edit takes effect
-  // tomorrow at the earliest (clamped up to the segment start). Every hint in
+  // The backend never re-plans the past, so a series edit takes effect today
+  // at the earliest (clamped up to the segment start). Every hint in
   // the editor describes THIS date — showing the opened occurrence promised a
   // change for a day the re-plan does not touch (#2028).
   const seriesAppliesFrom = latestISODate(
     seriesEffectiveDate,
-    dayAfterISO(berlinTodayISO()),
+    berlinTodayISO(),
     seriesRule?.validFrom ?? seriesEffectiveDate,
   );
   // "Gültig bis" is inclusive in the picker: the segment still has something to
@@ -454,9 +457,9 @@ export function ShiftEditModal({
         : 0;
 
   // Schließtage der Serienbearbeitung (#2032): "Alle Termine der Serie" plant
-  // ab dieser Stelle neu, kann also spätere Termine auf einen Schließtag
-  // legen — dieselbe Rückfrage wie beim Anlegen. Das Fenster beginnt frühestens
-  // morgen, weil die Materialisierung vergangene Tage ohnehin nicht anfasst.
+  // ab dieser Stelle neu, kann also heutige und spätere Termine auf einen
+  // Schließtag legen — dieselbe Rückfrage wie beim Anlegen. Vergangene Termine
+  // fasst die Materialisierung nicht an.
   const seriesEditClosingDayWindow = useMemo(() => {
     if (!seriesEditOpen || !seriesPeriod) return null;
     const from = latestISODate(seriesAppliesFrom, seriesPeriod.startDate);
@@ -508,7 +511,7 @@ export function ShiftEditModal({
     (seriesPeriod === null || seriesEditClosingDayWindow?.dates.length !== 0);
   const seriesNoOccurrenceMessage = seriesHasDateRange
     ? `Für die gewählten Wochentage und den Wochenrhythmus bleibt ab ${formatShortDate(seriesAppliesFrom)} kein Termin mehr. Setzen Sie „Gültig bis" auf ein späteres Datum oder ändern Sie die Wiederholung.`
-    : `Diese Serie endet am ${formatShortDate(seriesValidUntil)}, Änderungen wirken aber erst ab ${formatShortDate(seriesAppliesFrom)}. Setzen Sie „Gültig bis" auf ein späteres Datum, um die Serie fortzuführen.`;
+    : `Diese Serie endet am ${formatShortDate(seriesValidUntil)}. Setzen Sie „Gültig bis" auf ein späteres Datum, um die Serie fortzuführen.`;
   const seriesEditConfirmationKey =
     seriesEditClosingDayConflict === null
       ? null
@@ -1209,7 +1212,7 @@ export function ShiftEditModal({
             {seriesEditOpen && seriesRule && (
               <div className="space-y-3 rounded-md border border-gray-200 p-3">
                 <p className="text-xs text-gray-600">
-                  {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
+                  {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Frühere Termine bleiben unverändert.`}
                 </p>
                 <FieldGroup label="Wochentage">
                   <WeekdayPicker
@@ -1237,8 +1240,8 @@ export function ShiftEditModal({
                 </FieldGroup>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {/* The date the change actually takes effect: the opened
-                      occurrence, moved forward to tomorrow when it already
-                      passed — the re-plan never touches today or earlier. */}
+                      occurrence, moved forward to today when it already
+                      passed — the re-plan never touches earlier dates. */}
                   <Field label="Gilt ab">
                     <input
                       type="text"

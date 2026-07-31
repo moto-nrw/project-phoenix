@@ -285,24 +285,23 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 		assert.ErrorIs(t, err, dbErr)
 	})
 
-	t.Run("empty window materializes nothing", func(t *testing.T) {
-		bulkCalled := false
+	t.Run("empty window is rejected instead of creating an invisible series", func(t *testing.T) {
+		created := false
 		service := newSeriesServiceForTest(seriesServiceMocks{
-			shifts: &seriesShiftMockRepo{bulkCreateFn: func(_ context.Context, shifts []*scheduleModels.StaffShift) error {
-				bulkCalled = len(shifts) > 0
+			series: &seriesMockRepo{createFn: func(context.Context, *scheduleModels.StaffShiftSeries) error {
+				created = true
 				return nil
 			}},
 		})
 		series := unitSeries(t)
-		// valid_until tomorrow (exclusive) puts the whole window behind the
-		// past boundary: nothing to create, no skipped days.
-		until := timezone.TodayDate().AddDays(1)
+		// valid_until today (exclusive) puts the whole window behind the past
+		// boundary: nothing to create, no skipped days.
+		until := timezone.TodayDate()
 		series.ValidUntil = &until
-		result, err := service.CreateSeries(context.Background(), series)
-		require.NoError(t, err)
-		assert.Equal(t, 0, result.Created)
-		assert.Empty(t, result.SkippedDates)
-		assert.False(t, bulkCalled)
+		_, err := service.CreateSeries(context.Background(), series)
+		require.ErrorIs(t, err, ErrSeriesInvalid)
+		assert.Contains(t, err.Error(), "no occurrences left to create")
+		assert.False(t, created)
 	})
 }
 
@@ -478,7 +477,7 @@ func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
 		assert.ErrorIs(t, err, dbErr)
 	})
 
-	t.Run("effective clamps to valid_from and tomorrow", func(t *testing.T) {
+	t.Run("effective clamps to valid_from and today", func(t *testing.T) {
 		var capped timezone.Date
 		repo := found(t)
 		repo.capValidUntilFn = func(_ context.Context, _ int64, until timezone.Date) error {
@@ -488,8 +487,8 @@ func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{series: repo})
 		_, err := service.EndSeries(context.Background(), 12, timezone.TodayDate().AddDays(-30))
 		require.NoError(t, err)
-		assert.Equal(t, timezone.TodayDate().AddDays(1), capped,
-			"an end date in the past must clamp to tomorrow (past rows stay)")
+		assert.Equal(t, timezone.TodayDate(), capped,
+			"an end date in the past must clamp to today (past rows stay)")
 	})
 }
 

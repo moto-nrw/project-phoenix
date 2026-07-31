@@ -768,9 +768,8 @@ describe("ShiftEditModal series rule editing", () => {
   });
 });
 
-// A segment whose last day has arrived used to be uneditable: the re-plan
-// starts tomorrow at the earliest, so the save came back as a generic 400
-// pointing at Beginn/Ende/Pause. The editor now says what to do instead (#2028).
+// A series rule can take effect on the current day, just like a standalone
+// shift. Only dates before today are left untouched.
 describe("ShiftEditModal series rule editing at the end of a segment", () => {
   beforeEach(() => {
     // Fake ONLY Date: testing-library's findBy* polls on real timers.
@@ -783,25 +782,27 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
     vi.useRealTimers();
   });
 
-  it("warns instead of saving when nothing is left to change", async () => {
+  it("saves when the last occurrence is today", async () => {
     // Exclusive valid_until 2026-09-08 = last shift day is today.
     getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
+    splitSeries.mockResolvedValue({
+      seriesId: "6",
+      created: 1,
+      skippedDates: [],
+    });
     renderModal({ mode: "edit", shift: seriesShift });
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Serie bearbeiten" }),
     );
 
-    // The effective date is the clamped one, not the opened occurrence.
+    // The effective date remains the opened current-day occurrence.
     expect(
-      await screen.findByText(/Die Änderungen gelten ab 08\.09\.2026/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Setzen Sie „Gültig bis" auf ein späteres Datum/),
+      await screen.findByText(/Die Änderungen gelten ab 07\.09\.2026/),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
-    expect(splitSeries).not.toHaveBeenCalled();
+    await waitFor(() => expect(splitSeries).toHaveBeenCalled());
   });
 
   it("saves once the end date is extended", async () => {
@@ -836,11 +837,14 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
   });
 
   it("warns instead of extending without a matching recurrence date", async () => {
-    // The change starts on Tuesday. Extending a Mo/Mi series only through
-    // Tuesday creates no future occurrence.
+    // The opened recurrence slot is Tuesday. Extending a Mo/Mi series only
+    // through Tuesday creates no occurrence on or after that slot.
     mockDatePickerValue.value = new Date(2026, 8, 8);
     getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
-    renderModal({ mode: "edit", shift: seriesShift });
+    renderModal({
+      mode: "edit",
+      shift: { ...seriesShift, seriesOccurrenceDate: "2026-09-08" },
+    });
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Serie bearbeiten" }),

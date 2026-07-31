@@ -68,7 +68,7 @@ type SplitSeriesInput struct {
 // every existing reader keeps working on concrete rows only.
 type StaffShiftSeriesService interface {
 	// CreateSeries validates the series, persists it, and materializes its
-	// concrete shifts from max(valid_from, tomorrow).
+	// concrete shifts from max(valid_from, today). Past dates are never changed.
 	CreateSeries(ctx context.Context, series *scheduleModels.StaffShiftSeries) (*SeriesResult, error)
 	// SplitSeries caps the series at the effective date and creates a
 	// successor with the edited fields ("Ab jetzt dauerhaft"). Detached rows
@@ -168,7 +168,7 @@ func (s *staffShiftSeriesService) loadPeriodForSeries(ctx context.Context, serie
 }
 
 // materializeSeries generates the series' concrete shifts between
-// max(valid_from, period start, tomorrow) and min(valid_until-1, period end).
+// max(valid_from, period start, today) and min(valid_until-1, period end).
 // Dates with an exception are skipped; dates where the generated shift would
 // overlap ANY existing shift of the staff member (standalone, detached, or
 // other series) are skipped and reported.
@@ -177,9 +177,9 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	if period.StartDate.After(from) {
 		from = period.StartDate
 	}
-	tomorrow := timezone.TodayDate().AddDays(1)
-	if tomorrow.After(from) {
-		from = tomorrow
+	today := timezone.TodayDate()
+	if today.After(from) {
+		from = today
 	}
 	to := period.EndDate
 	if series.ValidUntil != nil {
@@ -277,17 +277,17 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	return len(candidates), skipped, nil
 }
 
-// hasFutureSeriesOccurrence checks the recurrence itself before a split mutates
+// hasEditableSeriesOccurrence checks the recurrence itself before a split mutates
 // the predecessor. Exceptions and overlapping shifts intentionally do not
 // count here: they are deviations of an otherwise valid recurring rule.
-func hasFutureSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *scheduleModels.CalendarPeriod) bool {
+func hasEditableSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *scheduleModels.CalendarPeriod) bool {
 	from := series.ValidFrom
 	if period.StartDate.After(from) {
 		from = period.StartDate
 	}
-	tomorrow := timezone.TodayDate().AddDays(1)
-	if tomorrow.After(from) {
-		from = tomorrow
+	today := timezone.TodayDate()
+	if today.After(from) {
+		from = today
 	}
 	to := period.EndDate
 	if series.ValidUntil != nil {
@@ -324,6 +324,12 @@ func (s *staffShiftSeriesService) CreateSeries(ctx context.Context, series *sche
 	period, err := s.loadPeriodForSeries(ctx, series)
 	if err != nil {
 		return nil, err
+	}
+	if !hasEditableSeriesOccurrence(series, period) {
+		return nil, fmt.Errorf(
+			"%w: no occurrences left to create for the selected weekdays and week pattern",
+			ErrSeriesInvalid,
+		)
 	}
 	if err := s.lockShiftWrites(ctx, series.StaffID); err != nil {
 		return nil, err
@@ -385,9 +391,9 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	}
 
 	effective := input.EffectiveDate
-	tomorrow := timezone.TodayDate().AddDays(1)
-	if tomorrow.After(effective) {
-		effective = tomorrow
+	today := timezone.TodayDate()
+	if today.After(effective) {
+		effective = today
 	}
 	if effective.Before(old.ValidFrom) {
 		effective = old.ValidFrom
@@ -396,7 +402,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	// editor that extends "Gültig bis" is deliberately re-opening a series whose
 	// stored end already passed, and that is a legitimate edit. Checking the old
 	// bound here made every series whose last day had arrived permanently
-	// uneditable, because the effective date is clamped to tomorrow (#2028).
+	// uneditable, because the effective date is clamped to today (#2028).
 	validUntil := old.ValidUntil
 	if input.ValidUntilSet {
 		validUntil = input.ValidUntil
@@ -470,7 +476,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		until := next.ValidFrom
 		successor.ValidUntil = &until
 	}
-	if !hasFutureSeriesOccurrence(successor, period) {
+	if !hasEditableSeriesOccurrence(successor, period) {
 		return nil, fmt.Errorf(
 			"%w: no occurrences left to change for the selected weekdays and week pattern",
 			ErrSeriesInvalid,
@@ -517,9 +523,9 @@ func (s *staffShiftSeriesService) EndSeries(ctx context.Context, seriesID int64,
 		return nil, err
 	}
 	effective := from
-	tomorrow := timezone.TodayDate().AddDays(1)
-	if tomorrow.After(effective) {
-		effective = tomorrow
+	today := timezone.TodayDate()
+	if today.After(effective) {
+		effective = today
 	}
 	if effective.Before(series.ValidFrom) {
 		effective = series.ValidFrom

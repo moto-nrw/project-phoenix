@@ -138,7 +138,7 @@ func (e *seriesTestEnv) shiftsInRange(t *testing.T, from, to timezone.Date) []*s
 	return rows
 }
 
-func TestStaffShiftSeries_CreateMaterializesFromTomorrow(t *testing.T) {
+func TestStaffShiftSeries_CreateMaterializesFromToday(t *testing.T) {
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodStart := today.AddDays(-7)
@@ -153,17 +153,17 @@ func TestStaffShiftSeries_CreateMaterializesFromTomorrow(t *testing.T) {
 		return err
 	})
 
-	// valid_from lies in the past; materialization must start tomorrow and
-	// never touch today or earlier (#1837 AC / past boundary).
-	tomorrow := today.AddDays(1)
-	expected := tomorrow.DaysUntil(periodEnd) + 1
+	// valid_from lies in the past; materialization must start today and never
+	// touch earlier dates. The same current-day boundary applies to a single
+	// shift and a new series.
+	expected := today.DaysUntil(periodEnd) + 1
 	assert.Equal(t, expected, result.Created)
 	assert.Empty(t, result.SkippedDates)
 
 	rows := env.shiftsInRange(t, periodStart, periodEnd)
 	require.Len(t, rows, expected)
 	for _, row := range rows {
-		assert.True(t, row.Date.After(today), "no materialized row may lie on or before today: %s", row.Date)
+		assert.False(t, row.Date.Before(today), "no materialized row may lie before today: %s", row.Date)
 		require.NotNil(t, row.SeriesID)
 		assert.Equal(t, result.Series.ID, *row.SeriesID)
 		assert.False(t, row.Detached)
@@ -281,13 +281,12 @@ func TestStaffShiftSeries_SplitOutsideSegmentRejected(t *testing.T) {
 func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
-	tomorrow := today.AddDays(1)
 	periodEnd := today.AddDays(10)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
 	standalone := &scheduleModels.StaffShift{
 		StaffID:   env.staff.ID,
-		Date:      tomorrow,
+		Date:      today,
 		StartTime: seriesClock(t, "08:00"),
 		EndTime:   seriesClock(t, "16:00"),
 		CreatedBy: env.staff.ID,
@@ -304,12 +303,12 @@ func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
 	})
 
 	require.Len(t, result.SkippedDates, 1)
-	assert.Equal(t, tomorrow, result.SkippedDates[0])
-	assert.Equal(t, tomorrow.AddDays(1).DaysUntil(periodEnd)+1, result.Created)
+	assert.Equal(t, today, result.SkippedDates[0])
+	assert.Equal(t, today.AddDays(1).DaysUntil(periodEnd)+1, result.Created)
 
 	// The pre-existing standalone shift stays untouched and stays the only
 	// row on the collision day.
-	rows := env.shiftsInRange(t, tomorrow, tomorrow)
+	rows := env.shiftsInRange(t, today, today)
 	require.Len(t, rows, 1)
 	assert.Equal(t, standalone.ID, rows[0].ID)
 	assert.Nil(t, rows[0].SeriesID)
