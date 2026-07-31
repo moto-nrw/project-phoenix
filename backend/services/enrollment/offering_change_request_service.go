@@ -991,7 +991,15 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	if err != nil {
 		return err
 	}
+	// A concurrent approval that releases one of this child's current offerings
+	// must hold that offering's row lock too. Otherwise this approval can count
+	// the still-occupied row before the releasing transaction commits and reject
+	// a slot that is about to become available.
+	for offeringID := range held {
+		allOfferingIDs = append(allOfferingIDs, offeringID)
+	}
 	sort.Slice(allOfferingIDs, func(i, j int) bool { return allOfferingIDs[i] < allOfferingIDs[j] })
+	allOfferingIDs = slices.Compact(allOfferingIDs)
 	locked, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, allOfferingIDs)
 	if err != nil {
 		return fmt.Errorf("offering change: lock offering capacity: %w", err)
