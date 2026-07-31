@@ -60,11 +60,6 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
-// Use the real `useDeleteConfirmation` hook so the delete path is actually
-// exercised end-to-end (click "Löschen" → ConfirmationModal opens → click
-// "confirm-delete" button → handleDeleteStudent runs). The ConfirmationModal
-// mock below surfaces a `confirm-delete` button wired to `onConfirm`.
-
 const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
@@ -271,19 +266,27 @@ vi.mock("@/components/students/student-create-modal", () => ({
     ) : null,
 }));
 
-vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: ({
+vi.mock("~/components/students/student-deletion-modal", () => ({
+  StudentDeletionModal: ({
     isOpen,
-    onConfirm,
+    studentId,
+    displayName,
+    onDeleted,
     onClose,
   }: {
     isOpen: boolean;
-    onConfirm?: () => void;
+    studentId: string;
+    displayName: string;
+    onDeleted?: () => void;
     onClose?: () => void;
   }) =>
     isOpen ? (
-      <div data-testid="confirmation-modal">
-        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
+      <div
+        data-testid="student-deletion-modal"
+        data-student-id={studentId}
+        data-display-name={displayName}
+      >
+        <button type="button" data-testid="finish-delete" onClick={onDeleted}>
           Confirm
         </button>
         <button type="button" data-testid="cancel-delete" onClick={onClose}>
@@ -749,33 +752,7 @@ describe("StudentsPage", () => {
     expect(mockUpdate.mock.calls[0]?.[0]).toBe("1");
   });
 
-  it("calls delete service when deleting the selected student", async () => {
-    mockDelete.mockResolvedValueOnce(null);
-
-    setSelectedStudent("1");
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
-    });
-
-    // The Löschen button lives inside the page-supplied `detailActions`.
-    // Clicking it opens the ConfirmationModal; then the user confirms.
-    fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId("confirm-delete"));
-
-    await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("1");
-    });
-  });
-
-  it("shows error toast when delete returns error", async () => {
-    mockDelete.mockResolvedValueOnce("Kind kann nicht gelöscht werden");
-
+  it("opens the guarded deletion workflow for the selected student", async () => {
     setSelectedStudent("1");
     render(<StudentsPage />);
 
@@ -786,15 +763,33 @@ describe("StudentsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId("confirm-delete"));
-
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Kind kann nicht gelöscht werden",
+      expect(screen.getByTestId("student-deletion-modal")).toHaveAttribute(
+        "data-student-id",
+        "1",
       );
     });
+    expect(screen.getByTestId("student-deletion-modal")).toHaveAttribute(
+      "data-display-name",
+      "Max Mustermann",
+    );
+  });
+
+  it("clears the selected child after the guarded workflow succeeds", async () => {
+    setSelectedStudent("1");
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
+    fireEvent.click(await screen.findByTestId("finish-delete"));
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalled();
+    });
+    expect(
+      screen.queryByTestId("student-deletion-modal"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows not found message when search has no matches", async () => {

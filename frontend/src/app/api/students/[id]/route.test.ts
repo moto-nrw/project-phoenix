@@ -436,4 +436,29 @@ describe("DELETE /api/students/[id]", () => {
     }>(response);
     expect(json.success).toBe(true);
   });
+
+  it("forwards the guarded deletion confirmation body", async () => {
+    mockApiDelete.mockResolvedValueOnce({
+      message: "Student and linked data deleted successfully",
+    });
+    const body = {
+      expected_fingerprint: "abc123",
+      confirmation_name: "Mia Muster",
+      reason: "test_data",
+      acknowledged: true,
+    };
+
+    const request = createMockRequest("/api/students/123", {
+      method: "DELETE",
+      body,
+    });
+    const response = await DELETE(request, createMockContext({ id: "123" }));
+
+    expect(mockApiDelete).toHaveBeenCalledWith(
+      "/api/students/123",
+      "test-token",
+      body,
+    );
+    expect(response.status).toBe(200);
+  });
 });

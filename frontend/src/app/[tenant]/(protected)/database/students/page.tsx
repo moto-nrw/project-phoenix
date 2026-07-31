@@ -25,11 +25,10 @@ import {
   StudentsMasterDetail,
   type GroupingMode,
 } from "@/components/students/students-master-detail";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/components/database/configs/students.config";
-import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
 import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
@@ -85,10 +84,11 @@ function StudentsPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [arrivalRevision, setArrivalRevision] = useState(0);
   const isMobile = useIsMobile();
 
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
 
   const { data: session, status } = useSession({
     required: true,
@@ -313,14 +313,9 @@ function StudentsPageContent() {
     [service, tenantMutate, toastSuccess],
   );
 
-  const handleDeleteStudent = useCallback(async () => {
-    if (!selectedStudent) return;
-    const deleteError = await service.delete(selectedStudent.id);
-    if (deleteError) {
-      toastError(deleteError);
-      return;
-    }
-    const displayName = studentsConfig.list.item.title(selectedStudent);
+  const handleStudentDeleted = useCallback(async () => {
+    if (!deleteTarget) return;
+    const displayName = studentsConfig.list.item.title(deleteTarget);
     toastSuccess(
       getDbOperationMessage(
         "delete",
@@ -328,23 +323,10 @@ function StudentsPageContent() {
         displayName,
       ),
     );
+    setDeleteTarget(null);
     handleSelect(null);
     await tenantMutate("database-students-list");
-  }, [
-    selectedStudent,
-    service,
-    tenantMutate,
-    toastSuccess,
-    toastError,
-    handleSelect,
-  ]);
-
-  const {
-    showConfirmModal: showDeleteConfirmModal,
-    handleDeleteClick,
-    handleDeleteCancel,
-    confirmDelete,
-  } = useDeleteConfirmation();
+  }, [deleteTarget, tenantMutate, toastSuccess, handleSelect]);
 
   const handleArrivalChanged = useCallback(() => {
     setArrivalRevision((prev) => prev + 1);
@@ -378,7 +360,7 @@ function StudentsPageContent() {
   const detailActions = selectedStudent ? (
     <button
       type="button"
-      onClick={handleDeleteClick}
+      onClick={() => setDeleteTarget(selectedStudent)}
       className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100"
     >
       <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -490,24 +472,14 @@ function StudentsPageContent() {
         groups={allGroups}
       />
 
-      {selectedStudent ? (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteStudent())}
-          title="Kind löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie das Kind{" "}
-            <span className="font-medium">
-              {selectedStudent.first_name} {selectedStudent.second_name}
-            </span>{" "}
-            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
+      {deleteTarget ? (
+        <StudentDeletionModal
+          isOpen
+          studentId={String(deleteTarget.id)}
+          displayName={studentsConfig.list.item.title(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={handleStudentDeleted}
+        />
       ) : null}
     </DatabasePageLayout>
   );

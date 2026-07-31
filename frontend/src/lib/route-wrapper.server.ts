@@ -260,3 +260,14 @@ export function createPatchHandler<T, B = unknown>(
 export function createDeleteHandler<T>(handler: NoBodyHandler<T>) {
   return createNoBodyHandler(handler, (data) => formatDeleteResponse(data));
 }
+
+/**
+ * DELETE variant for destructive workflows that require an explicit JSON
+ * confirmation payload. Empty legacy requests still parse as an empty object,
+ * letting the backend reject them with the domain-specific conflict response.
+ */
+export function createDeleteWithBodyHandler<T, B = unknown>(
+  handler: WithBodyHandler<T, B>,
+) {
+  return createWithBodyHandler(handler, (data) => formatDeleteResponse(data));
+}

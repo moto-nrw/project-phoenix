@@ -449,6 +449,126 @@ export async function deleteStudent(id: string): Promise<void> {
   }
 }
 
+export interface StudentDeletionCounts {
+  timetable_assignments: number;
+  activity_enrollments: number;
+  attendance_records: number;
+  care_schedules: number;
+  guardian_links: number;
+  companion_links: number;
+  communications: number;
+  consents: number;
+  enrollment_references: number;
+  other_records: number;
+}
+
+export interface StudentDeletionImpact {
+  confirmation_name: string;
+  fingerprint: string;
+  total: number;
+  counts: StudentDeletionCounts;
+  preserved: {
+    guardian_profiles: boolean;
+    parent_accounts: boolean;
+    other_students: boolean;
+    shared_instances: boolean;
+  };
+}
+
+export type StudentDeletionReason =
+  "test_data" | "incorrect_entry" | "duplicate" | "privacy_request";
+
+export interface DeleteStudentWithDataInput {
+  expected_fingerprint: string;
+  confirmation_name: string;
+  reason: StudentDeletionReason;
+  acknowledged: true;
+}
+
+export class StudentDeletionApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "StudentDeletionApiError";
+    this.status = status;
+  }
+}
+
+function studentDeletionErrorMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") return fallback;
+  const candidate = payload as { error?: unknown; message?: unknown };
+  const raw =
+    typeof candidate.error === "string"
+      ? candidate.error
+      : typeof candidate.message === "string"
+        ? candidate.message
+        : "";
+  if (!raw) return fallback;
+
+  // The Next.js proxy may wrap the backend JSON inside
+  // "API error (409): {...}". Prefer the original German domain message.
+  const jsonStart = raw.indexOf("{");
+  if (jsonStart >= 0) {
+    try {
+      const nested = JSON.parse(raw.slice(jsonStart)) as {
+        error?: unknown;
+        message?: unknown;
+      };
+      if (typeof nested.error === "string") return nested.error;
+      if (typeof nested.message === "string") return nested.message;
+    } catch {
+      // Fall through to the unwrapped proxy message.
+    }
+  }
+  return raw;
+}
+
+async function studentDeletionResponse<T>(
+  response: Response,
+  fallbackError: string,
+): Promise<T> {
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    throw new StudentDeletionApiError(
+      response.status,
+      studentDeletionErrorMessage(payload, fallbackError),
+    );
+  }
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
+
+export async function fetchStudentDeletionImpact(
+  id: string,
+): Promise<StudentDeletionImpact> {
+  const response = await fetch(
+    `/api/students/${encodeURIComponent(id)}/delete-impact`,
+    { cache: "no-store" },
+  );
+  return studentDeletionResponse<StudentDeletionImpact>(
+    response,
+    "Auswirkungen der Löschung konnten nicht geladen werden.",
+  );
+}
+
+export async function deleteStudentWithData(
+  id: string,
+  input: DeleteStudentWithDataInput,
+): Promise<void> {
+  const response = await fetch(`/api/students/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  await studentDeletionResponse<unknown>(
+    response,
+    "Das Kind konnte nicht gelöscht werden.",
+  );
+}
+
 // ─── Student photo (Datenverwaltung) ────────────────────────────────────────
 
 /**

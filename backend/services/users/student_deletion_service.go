@@ -1,0 +1,255 @@
+package users
+
+import (
+	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/uptrace/bun"
+)
+
+const (
+	StudentDeletionReasonTestData       = "test_data"
+	StudentDeletionReasonIncorrectEntry = "incorrect_entry"
+	StudentDeletionReasonDuplicate      = "duplicate"
+	StudentDeletionReasonPrivacyRequest = "privacy_request"
+)
+
+type StudentDeletionPreview struct {
+	ConfirmationName string
+	Fingerprint      string
+	Counts           userModels.StudentDeletionCounts
+}
+
+type StudentDeletionInput struct {
+	StudentID           int64
+	ActorAccountID      int64
+	ExpectedFingerprint string
+	ConfirmationName    string
+	Reason              string
+	Acknowledged        bool
+}
+
+type StudentDeletionResult struct {
+	PhotoPath    string
+	CompanionIDs []int64
+	Counts       userModels.StudentDeletionCounts
+}
+
+type StudentDeletionService interface {
+	Preview(ctx context.Context, studentID int64) (*StudentDeletionPreview, error)
+	Delete(ctx context.Context, input StudentDeletionInput) (*StudentDeletionResult, error)
+}
+
+type studentDeletionService struct {
+	studentService StudentService
+	studentRepo    userModels.StudentRepository
+	personRepo     userModels.PersonRepository
+	deletionRepo   userModels.StudentDeletionRepository
+	auditRepo      auditModels.StudentDeletionRepository
+	txHandler      *modelBase.TxHandler
+}
+
+func NewStudentDeletionService(
+	studentService StudentService,
+	studentRepo userModels.StudentRepository,
+	personRepo userModels.PersonRepository,
+	deletionRepo userModels.StudentDeletionRepository,
+	auditRepo auditModels.StudentDeletionRepository,
+	db *bun.DB,
+) StudentDeletionService {
+	return &studentDeletionService{
+		studentService: studentService,
+		studentRepo:    studentRepo,
+		personRepo:     personRepo,
+		deletionRepo:   deletionRepo,
+		auditRepo:      auditRepo,
+		txHandler:      modelBase.NewTxHandler(db),
+	}
+}
+
+func (s *studentDeletionService) Preview(ctx context.Context, studentID int64) (*StudentDeletionPreview, error) {
+	student, person, counts, err := s.loadPreview(ctx, studentID, false)
+	if err != nil {
+		return nil, err
+	}
+	if student.IsAlumnus() {
+		return nil, ErrStudentDeletionAlumnus
+	}
+	return buildStudentDeletionPreview(student, person, counts)
+}
+
+func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeletionInput) (*StudentDeletionResult, error) {
+	if input.StudentID <= 0 || input.ActorAccountID <= 0 || strings.TrimSpace(input.ExpectedFingerprint) == "" {
+		return nil, ErrStudentDeletionPreviewChanged
+	}
+	if !input.Acknowledged {
+		return nil, ErrStudentDeletionNotAcknowledged
+	}
+	if !isValidStudentDeletionReason(input.Reason) {
+		return nil, ErrStudentDeletionInvalidReason
+	}
+
+	result := new(StudentDeletionResult)
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.studentService.LockCompanionGraph(txCtx, []int64{input.StudentID}, nil); err != nil {
+			return err
+		}
+		if err := s.studentService.CheckCompanionTrim(txCtx, input.StudentID, nil); err != nil {
+			return err
+		}
+
+		companionIDs, err := s.studentService.ListCompanionIDs(txCtx, input.StudentID)
+		if err != nil {
+			return err
+		}
+		student, person, counts, err := s.loadPreview(txCtx, input.StudentID, true)
+		if err != nil {
+			return err
+		}
+		if student.IsAlumnus() {
+			return ErrStudentDeletionAlumnus
+		}
+
+		preview, err := buildStudentDeletionPreview(student, person, counts)
+		if err != nil {
+			return err
+		}
+		if !equalFingerprint(preview.Fingerprint, input.ExpectedFingerprint) {
+			return ErrStudentDeletionPreviewChanged
+		}
+		if input.ConfirmationName != preview.ConfirmationName {
+			return ErrStudentDeletionConfirmationMismatch
+		}
+
+		deletedAssignments, err := s.deletionRepo.DeleteTimetableAssignments(txCtx, input.StudentID)
+		if err != nil {
+			return err
+		}
+		if deletedAssignments != int64(counts.TimetableAssignments) {
+			return ErrStudentDeletionPreviewChanged
+		}
+		if err := s.deletionRepo.DeleteLegacyGuardianLinks(txCtx, student.PersonID); err != nil {
+			return err
+		}
+
+		if err := s.studentRepo.Delete(txCtx, input.StudentID); err != nil {
+			return err
+		}
+		anonymized, err := s.deletionRepo.AnonymizePersonIfUnchanged(txCtx, student.PersonID, person.UpdatedAt)
+		if err != nil {
+			return err
+		}
+		if !anonymized {
+			return ErrStudentDeletionPreviewChanged
+		}
+		if s.auditRepo == nil {
+			return errors.New("student deletion audit repository is not configured")
+		}
+		if err := s.auditRepo.Create(txCtx, &auditModels.StudentDeletion{
+			StudentID:      input.StudentID,
+			ActorAccountID: input.ActorAccountID,
+			Reason:         input.Reason,
+			Counts:         *counts,
+		}); err != nil {
+			return err
+		}
+
+		if student.PhotoPath != nil {
+			result.PhotoPath = *student.PhotoPath
+		}
+		result.CompanionIDs = companionIDs
+		result.Counts = *counts
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *studentDeletionService) loadPreview(
+	ctx context.Context,
+	studentID int64,
+	lock bool,
+) (*userModels.Student, *userModels.Person, *userModels.StudentDeletionCounts, error) {
+	var (
+		student *userModels.Student
+		err     error
+	)
+	if lock {
+		student, err = s.studentService.GetByIDForUpdate(ctx, studentID)
+	} else {
+		student, err = s.studentRepo.FindByID(ctx, studentID)
+	}
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	counts, err := s.deletionRepo.Preview(ctx, studentID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return student, person, counts, nil
+}
+
+func buildStudentDeletionPreview(
+	student *userModels.Student,
+	person *userModels.Person,
+	counts *userModels.StudentDeletionCounts,
+) (*StudentDeletionPreview, error) {
+	if student == nil || person == nil || counts == nil {
+		return nil, errors.New("student deletion preview is incomplete")
+	}
+	payload := struct {
+		StudentUpdatedAt int64                            `json:"student_updated_at"`
+		PersonUpdatedAt  int64                            `json:"person_updated_at"`
+		Counts           userModels.StudentDeletionCounts `json:"counts"`
+	}{
+		StudentUpdatedAt: student.UpdatedAt.UnixNano(),
+		PersonUpdatedAt:  person.UpdatedAt.UnixNano(),
+		Counts:           *counts,
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal student deletion preview: %w", err)
+	}
+	sum := sha256.Sum256(encoded)
+	return &StudentDeletionPreview{
+		ConfirmationName: person.GetFullName(),
+		Fingerprint:      hex.EncodeToString(sum[:]),
+		Counts:           *counts,
+	}, nil
+}
+
+func equalFingerprint(actual, expected string) bool {
+	actualBytes, actualErr := hex.DecodeString(actual)
+	expectedBytes, expectedErr := hex.DecodeString(strings.TrimSpace(expected))
+	if actualErr != nil || expectedErr != nil || len(actualBytes) != len(expectedBytes) {
+		return false
+	}
+	return subtle.ConstantTimeCompare(actualBytes, expectedBytes) == 1
+}
+
+func isValidStudentDeletionReason(reason string) bool {
+	switch reason {
+	case StudentDeletionReasonTestData,
+		StudentDeletionReasonIncorrectEntry,
+		StudentDeletionReasonDuplicate,
+		StudentDeletionReasonPrivacyRequest:
+		return true
+	default:
+		return false
+	}
+}

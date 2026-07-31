@@ -1453,6 +1453,19 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A configured permanent-delete service makes the preview and explicit
+	// confirmation mandatory even when the child currently has no dependent
+	// rows. Otherwise an old or hand-written client could bypass the typed name,
+	// acknowledgement and audit trail simply by sending an empty DELETE.
+	if r.ContentLength != 0 {
+		rs.deleteStudentWithData(w, r, student)
+		return
+	}
+	if rs.StudentDeletionService != nil {
+		renderError(w, r, common.ErrorConflictMessage("Bitte die Löschvorschau prüfen und die endgültige Löschung bestätigen."))
+		return
+	}
+
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.deleteStudentTx(ctx, tenantID, student)
@@ -1466,6 +1479,126 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
+}
+
+type studentDeleteImpactResponse struct {
+	ConfirmationName string                             `json:"confirmation_name"`
+	Fingerprint      string                             `json:"fingerprint"`
+	Total            int                                `json:"total"`
+	Counts           users.StudentDeletionCounts        `json:"counts"`
+	Preserved        studentDeletePreservedDataResponse `json:"preserved"`
+}
+
+type studentDeletePreservedDataResponse struct {
+	GuardianProfiles bool `json:"guardian_profiles"`
+	ParentAccounts   bool `json:"parent_accounts"`
+	OtherStudents    bool `json:"other_students"`
+	SharedInstances  bool `json:"shared_instances"`
+}
+
+func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Request) {
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return
+	}
+	authorized, authErr := canDeleteStudent(
+		r.Context(),
+		jwt.PermissionsFromCtx(r.Context()),
+		student,
+		rs.UserContextService,
+	)
+	if !authorized {
+		renderError(w, r, common.ErrorForbidden(authErr))
+		return
+	}
+	if rs.StudentDeletionService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("student deletion service not configured")))
+		return
+	}
+	impact, err := rs.StudentDeletionService.Preview(r.Context(), student.ID)
+	if err != nil {
+		renderError(w, r, studentDeletionErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, studentDeleteImpactResponse{
+		ConfirmationName: impact.ConfirmationName,
+		Fingerprint:      impact.Fingerprint,
+		Total:            impact.Counts.Total(),
+		Counts:           impact.Counts,
+		Preserved: studentDeletePreservedDataResponse{
+			GuardianProfiles: true,
+			ParentAccounts:   true,
+			OtherStudents:    true,
+			SharedInstances:  true,
+		},
+	}, "Student deletion impact retrieved")
+}
+
+type studentDeleteRequest struct {
+	ExpectedFingerprint string `json:"expected_fingerprint"`
+	ConfirmationName    string `json:"confirmation_name"`
+	Reason              string `json:"reason"`
+	Acknowledged        bool   `json:"acknowledged"`
+}
+
+func (req *studentDeleteRequest) Bind(_ *http.Request) error {
+	if strings.TrimSpace(req.ExpectedFingerprint) == "" {
+		return errors.New("expected_fingerprint is required")
+	}
+	if strings.TrimSpace(req.ConfirmationName) == "" {
+		return errors.New("confirmation_name is required")
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		return errors.New("reason is required")
+	}
+	if !req.Acknowledged {
+		return userService.ErrStudentDeletionNotAcknowledged
+	}
+	return nil
+}
+
+func (rs *Resource) deleteStudentWithData(w http.ResponseWriter, r *http.Request, student *users.Student) {
+	if rs.StudentDeletionService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("student deletion service not configured")))
+		return
+	}
+	body := new(studentDeleteRequest)
+	if err := render.Bind(r, body); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		result, deleteErr := rs.StudentDeletionService.Delete(ctx, userService.StudentDeletionInput{
+			StudentID:           student.ID,
+			ActorAccountID:      actorAccountID,
+			ExpectedFingerprint: body.ExpectedFingerprint,
+			ConfirmationName:    body.ConfirmationName,
+			Reason:              body.Reason,
+			Acknowledged:        body.Acknowledged,
+		})
+		if deleteErr != nil {
+			return deleteErr
+		}
+		if rs.StudentPhotos != nil {
+			rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, result.PhotoPath)
+		}
+		if len(result.CompanionIDs) > 0 {
+			studentID := student.ID
+			tenant.RegisterAfterCommit(ctx, func() {
+				rs.broadcastStudentCompanionsChanged(tenantID, studentID)
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderError(w, r, studentDeletionErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Student and linked data deleted successfully")
 }
 
 // purgeGraduatedStudent hard-deletes a child that a grade transition graduated.
@@ -1683,3 +1816,16 @@ func deleteStudentTxErrorRenderer(err error) render.Renderer {
 		return common.ErrorInternalServer(err)
 	}
 }
+
+var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
+	{Target: userService.ErrStudentDeletionPreviewChanged, Render: common.ErrorConflict},
+	{Target: userService.ErrStudentDeletionConfirmationMismatch, Render: common.ErrorInvalidRequest},
+	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: common.ErrorInvalidRequest},
+	{Target: userService.ErrStudentDeletionInvalidReason, Render: common.ErrorInvalidRequest},
+	{Target: userService.ErrStudentDeletionAlumnus, Render: common.ErrorConflict},
+	{Target: userService.ErrCompanionWouldLoseDeparture, Render: common.ErrorConflict},
+	{Target: userService.ErrCompanionLockBusy, Render: common.ErrorConflict},
+	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {
+		return common.ErrorConflictMessage("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen.")
+	}},
+}, common.ErrorInternalServer)

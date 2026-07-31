@@ -47,6 +47,9 @@ import {
   updateStudentPrivacyConsent,
   uploadStudentPhoto,
   deleteStudentPhoto,
+  fetchStudentDeletionImpact,
+  deleteStudentWithData,
+  StudentDeletionApiError,
   type StudentFilters,
 } from "./student-api";
 
@@ -336,6 +339,95 @@ describe("student-api", () => {
         expect(mockDelete).toHaveBeenCalledWith(
           "http://server:8080/students/123",
         );
+      });
+    });
+  });
+
+  describe("guarded student deletion", () => {
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn();
+
+    beforeEach(() => {
+      global.fetch = fetchMock as unknown as typeof fetch;
+      fetchMock.mockReset();
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it("loads and unwraps the deletion impact", async () => {
+      const impact = {
+        confirmation_name: "Mia Muster",
+        fingerprint: "abc",
+        total: 0,
+        counts: {},
+        preserved: {},
+      };
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: impact }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      await expect(fetchStudentDeletionImpact("42/unsafe")).resolves.toEqual(
+        impact,
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/students/42%2Funsafe/delete-impact",
+        { cache: "no-store" },
+      );
+    });
+
+    it("sends every confirmation field in the DELETE body", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const input = {
+        expected_fingerprint: "abc",
+        confirmation_name: "Mia Muster",
+        reason: "test_data" as const,
+        acknowledged: true as const,
+      };
+
+      await deleteStudentWithData("42", input);
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/students/42", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+    });
+
+    it("preserves the status and original backend message on conflicts", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error:
+              'API error (409): {"status":"error","error":"Vorschau veraltet"}',
+          }),
+          {
+            status: 409,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+      const error = await deleteStudentWithData("42", {
+        expected_fingerprint: "abc",
+        confirmation_name: "Mia Muster",
+        reason: "test_data",
+        acknowledged: true,
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(StudentDeletionApiError);
+      expect(error).toMatchObject({
+        status: 409,
+        message: "Vorschau veraltet",
       });
     });
   });
