@@ -1532,7 +1532,22 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 	// preserveDeviations=false: delete deviated occurrences too so they are
 	// regenerated with the current template values; the snapshot above lets us
 	// reapply the overrides afterward.
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, &to, activityGroupID, false)
+	// Legacy Saturday/Sunday occurrences are not regenerated under the Mo–Fr
+	// planning contract, so a re-plan must leave them (and their rosters and
+	// deviations) intact. Delete each workday separately instead of widening
+	// the repository's shared delete contract used by split/end operations.
+	var deleted int64
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+			continue
+		}
+		n, deleteErr := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, date, &date, activityGroupID, false)
+		if deleteErr != nil {
+			err = deleteErr
+			break
+		}
+		deleted += n
+	}
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
 	}
@@ -1659,6 +1674,9 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 	// including those with no override.
 	occurrences := make(map[groupDay]int)
 	for _, inst := range instances {
+		if inst.Date.Weekday() == time.Saturday || inst.Date.Weekday() == time.Sunday {
+			continue
+		}
 		if inst.Status != scheduleModel.InstanceStatusPlanned || inst.IsSpontaneous || inst.ActivityGroupID == nil {
 			continue
 		}

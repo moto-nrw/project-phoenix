@@ -65,7 +65,7 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if len(req.Weekdays) == 0 {
 		return errors.New("at least one weekday is required")
 	}
-	if err := validateTemplateWorkdays(req.Weekdays); err != nil {
+	if err := validateTemplateWeekdays(req.Weekdays); err != nil {
 		return err
 	}
 	target := &activitiesModel.Group{
@@ -163,15 +163,25 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
+	templates, err := rs.loadTemplates(ctx, &id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
+		return
+	}
+	if len(templates) == 0 {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		return
+	}
+	if err := validateLegacyTemplateWorkdays(templates[0].Schedules, parsed.req.Weekdays); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID)
 	if !ok {
 		return
 	}
 	if err := rs.TimetableData.ValidateTemplateEducationGroup(ctx, parsed.req.EducationGroupID); err != nil {
 		renderTemplateEducationGroupError(w, r, err)
-		return
-	}
-	if !rs.requireTemplateExists(w, r, id) {
 		return
 	}
 	timeframeID, err := rs.TimetableData.FindOrCreateTimeframe(ctx, parsed.startTime, parsed.endTime, parsed.req.Name)
@@ -188,12 +198,32 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		renderUpdateTemplateError(w, r, updateErr)
 		return
 	}
-	templates, err := rs.loadTemplates(ctx, &id)
+	templates, err = rs.loadTemplates(ctx, &id)
 	if err != nil || len(templates) == 0 {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload template failed", err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, templates[0], "Template updated")
+}
+
+// validateLegacyTemplateWorkdays permits an update to retain a weekend
+// schedule that already exists, so administrators can edit or normalize old
+// templates. A PUT can never introduce a new weekend weekday.
+func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, requested []int) error {
+	legacy := make(map[int]struct{})
+	for _, schedule := range existing {
+		if schedule.Weekday > activitiesModel.WeekdayFriday {
+			legacy[schedule.Weekday] = struct{}{}
+		}
+	}
+	for _, weekday := range requested {
+		if weekday > activitiesModel.WeekdayFriday {
+			if _, ok := legacy[weekday]; !ok {
+				return errors.New("timetable templates can only be scheduled from Monday to Friday")
+			}
+		}
+	}
+	return nil
 }
 
 // requireTemplateExists renders a 404 (missing) or 500 (load failure) and

@@ -195,10 +195,13 @@ function TimetablesContent() {
   // mehr). Ein ungültiges `d` fällt still auf heute zurück, ein unbekanntes
   // `view` auf die Woche.
   const rawDay = params.d;
-  const dayISO = nextWorkdayISO(
-    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO(),
-  );
+  const requestedDayISO =
+    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
   const view: TimetableView = parseViewParam(params.view);
+  // The monthly calendar remains a complete calendar, including weekend
+  // records. Only workweek/series navigation snaps its anchor to Monday.
+  const dayISO =
+    view === "month" ? requestedDayISO : nextWorkdayISO(requestedDayISO);
   const selectedInstanceId = params.block;
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
@@ -279,8 +282,12 @@ function TimetablesContent() {
     [visibleDate, updateUrlParams],
   );
   const goToToday = useCallback(
-    () => updateUrlParams({ d: todayTargetISO, block: null }),
-    [todayTargetISO, updateUrlParams],
+    () =>
+      updateUrlParams({
+        d: view === "month" ? todayISO : todayTargetISO,
+        block: null,
+      }),
+    [todayISO, todayTargetISO, updateUrlParams, view],
   );
 
   const handlePrev = useCallback(() => {
@@ -950,7 +957,7 @@ function TimetablesContent() {
     );
   }
 
-  const todayDate = parseISODate(todayTargetISO);
+  const todayDate = parseISODate(view === "month" ? todayISO : todayTargetISO);
   const isOnToday =
     view === "series"
       ? true
@@ -1110,6 +1117,7 @@ function TimetablesContent() {
                 todayISO={todayISO}
                 closingDays={closingDays}
                 onDayClick={openWeekForDay}
+                onInstanceClick={handleSelectInstance}
               />
             ))}
 

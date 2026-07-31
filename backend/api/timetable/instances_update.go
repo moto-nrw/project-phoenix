@@ -3,6 +3,7 @@ package timetable
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -67,9 +68,15 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
 	}
-	if err := validateTimetableWorkday(date); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
+	if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		// A legacy weekend instance may be maintained in place, but PUT must
+		// never move a weekday instance onto a weekend or create a new weekend
+		// date through an update.
+		existing, getErr := rs.TimetableData.GetActivityInstance(r.Context(), id)
+		if getErr != nil || existing.Date != date {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("timetable entries can only be scheduled from Monday to Friday")))
+			return
+		}
 	}
 	startTime, err := parseClockTime(req.StartTime)
 	if err != nil {

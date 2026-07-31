@@ -128,12 +128,21 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 }
 
 func validateTemplateWorkdays(weekdays []int) error {
+	if err := validateTemplateWeekdays(weekdays); err != nil {
+		return err
+	}
+	for _, weekday := range weekdays {
+		if weekday > activitiesModel.WeekdayFriday {
+			return errors.New("timetable templates can only be scheduled from Monday to Friday")
+		}
+	}
+	return nil
+}
+
+func validateTemplateWeekdays(weekdays []int) error {
 	for _, weekday := range weekdays {
 		if !activitiesModel.IsValidWeekday(weekday) {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", weekday)
-		}
-		if weekday > activitiesModel.WeekdayFriday {
-			return errors.New("timetable templates can only be scheduled from Monday to Friday")
 		}
 	}
 	return nil

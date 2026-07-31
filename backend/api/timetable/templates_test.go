@@ -57,6 +57,25 @@ type mockMaterializationService struct {
 	detectFn func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error)
 }
 
+func TestValidateLegacyTemplateWorkdays(t *testing.T) {
+	existing := []templateScheduleResponse{
+		{Weekday: activitiesModel.WeekdayFriday},
+		{Weekday: activitiesModel.WeekdaySaturday},
+	}
+
+	assert.NoError(t, validateLegacyTemplateWorkdays(existing, []int{
+		activitiesModel.WeekdayFriday,
+		activitiesModel.WeekdaySaturday,
+	}))
+	assert.NoError(t, validateLegacyTemplateWorkdays(existing, []int{
+		activitiesModel.WeekdayFriday,
+	}))
+	assert.Error(t, validateLegacyTemplateWorkdays(existing, []int{
+		activitiesModel.WeekdayFriday,
+		activitiesModel.WeekdaySunday,
+	}))
+}
+
 func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to timezone.Date, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
 	m.from = from
 	m.to = to

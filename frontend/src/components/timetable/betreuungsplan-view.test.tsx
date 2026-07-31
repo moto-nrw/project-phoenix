@@ -245,12 +245,19 @@ vi.mock("~/components/timetable/conflict-warnings-banner", () => ({
 vi.mock("~/components/timetable/month-planner-grid", () => ({
   MonthPlannerGrid: ({
     onDayClick,
+    onInstanceClick,
   }: {
     onDayClick: (date: string) => void;
+    onInstanceClick?: (instance: { id: string }) => void;
   }) => (
-    <button type="button" onClick={() => onDayClick("2026-05-06")}>
-      month-grid
-    </button>
+    <div>
+      <button type="button" onClick={() => onDayClick("2026-05-06")}>
+        month-grid
+      </button>
+      <button type="button" onClick={() => onInstanceClick?.({ id: "42" })}>
+        month-instance
+      </button>
+    </div>
   ),
 }));
 
@@ -892,6 +899,15 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().get("d")).toBe("2026-05-06");
     expect(urlParams().has("view")).toBe(false);
     expect(screen.getByText("week-grid")).toBeVisible();
+  });
+
+  it("keeps a weekend month anchor and opens retained month instances", () => {
+    setUrl("view=monat&d=2026-05-31");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("Mai 2026")).toBeVisible();
+    fireEvent.click(screen.getByText("month-instance"));
+    expect(screen.getByText("detail-close")).toBeVisible();
   });
 
   it("opens and closes the slide-over via the block param", async () => {
