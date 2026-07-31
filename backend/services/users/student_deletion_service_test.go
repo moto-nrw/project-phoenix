@@ -108,6 +108,23 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	require.NoError(t, err)
 	childAccount := testpkg.CreateTestAccount(t, db, "student-delete-child@example.com")
 	parentAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-parent@example.com")
+	var messageThreadID, messageID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id)
+		VALUES (?, ?, ?)
+		RETURNING id
+	`, target.TenantID, target.ID, parentAccount.ID).Scan(ctx, &messageThreadID))
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO users.parent_messages
+			(tenant_id, thread_id, student_id, sender_account_id, sender_kind, sender_name, body)
+		VALUES (?, ?, ?, ?, 'guardian', 'Elternteil', 'Bitte um Rückruf')
+		RETURNING id
+	`, target.TenantID, messageThreadID, target.ID, parentAccount.ID).Scan(ctx, &messageID))
+	_, err = db.NewRaw(`
+		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id)
+		VALUES (?, ?, ?)
+	`, target.TenantID, messageThreadID, actor.ID).Exec(ctx)
+	require.NoError(t, err)
 	card := testpkg.CreateTestRFIDCard(t, db, "STUDENTDELETE")
 	_, err = db.NewRaw(`
 		UPDATE users.persons
@@ -145,6 +162,8 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	require.NoError(t, err)
 	require.Equal(t, 1, preview.Counts.TimetableAssignments)
 	require.Equal(t, 1, preview.Counts.GuardianLinks)
+	require.Equal(t, 3, preview.Counts.Communications)
+	require.Equal(t, 1, preview.Counts.OtherRecords)
 
 	result, err := service.Delete(ctx, usersService.StudentDeletionInput{
 		StudentID:           target.ID,
@@ -161,6 +180,13 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	assert.Zero(t, tableRowCount(t, db, "users.students", target.ID))
 	assert.Zero(t, tableRowCount(t, db, "schedule.instance_students", targetAssignment.ID))
 	assert.Zero(t, tableRowCount(t, db, "users.persons_guardians", legacyGuardianLinkID))
+	assert.Zero(t, tableRowCount(t, db, "users.parent_message_threads", messageThreadID))
+	assert.Zero(t, tableRowCount(t, db, "users.parent_messages", messageID))
+	var readCursorCount int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*) FROM users.parent_message_reads WHERE thread_id = ?
+	`, messageThreadID).Scan(ctx, &readCursorCount))
+	assert.Zero(t, readCursorCount)
 	assert.Equal(t, 1, tableRowCount(t, db, "users.students", spared.ID))
 	assert.Equal(t, 1, tableRowCount(t, db, "schedule.instance_students", sparedAssignment.ID))
 	assert.Equal(t, 1, tableRowCount(t, db, "schedule.activity_instances", instance.ID))
@@ -354,6 +380,49 @@ func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 	require.ErrorIs(t, err, usersService.ErrStudentDeletionPreviewChanged)
 	assert.Equal(t, 1, tableRowCount(t, db, "users.students", target.ID))
 	assert.Equal(t, 1, tableRowCount(t, db, "schedule.instance_students", assignment.ID))
+}
+
+func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	repos := repositories.NewFactory(db)
+	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
+	target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Read", "1a")
+	actor := testpkg.CreateTestAccount(t, db, "student-delete-stale-read@example.com")
+	parentAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-stale-read-parent@example.com")
+	var messageThreadID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id)
+		VALUES (?, ?, ?)
+		RETURNING id
+	`, target.TenantID, target.ID, parentAccount.ID).Scan(ctx, &messageThreadID))
+	t.Cleanup(func() {
+		cleanupStudentDeletionTest(t, db,
+			[]int64{target.ID}, []int64{target.PersonID}, nil, nil, nil, []int64{actor.ID}, nil)
+		testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
+	})
+
+	preview, err := service.Preview(ctx, target.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, preview.Counts.Communications)
+	_, err = db.NewRaw(`
+		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id)
+		VALUES (?, ?, ?)
+	`, target.TenantID, messageThreadID, actor.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = service.Delete(ctx, usersService.StudentDeletionInput{
+		StudentID:           target.ID,
+		ActorAccountID:      actor.ID,
+		ExpectedFingerprint: preview.Fingerprint,
+		ConfirmationName:    preview.ConfirmationName,
+		Reason:              usersService.StudentDeletionReasonTestData,
+		Acknowledged:        true,
+	})
+	require.ErrorIs(t, err, usersService.ErrStudentDeletionPreviewChanged)
+	assert.Equal(t, 1, tableRowCount(t, db, "users.students", target.ID))
 }
 
 func TestStudentDeletionService_DeleteRejectsIncompleteConfirmation(t *testing.T) {
