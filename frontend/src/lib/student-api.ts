@@ -427,28 +427,6 @@ export async function schoolCheckinStudent(
   }
 }
 
-// Delete a student
-export async function deleteStudent(id: string): Promise<void> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? `/api/students/${id}`
-    : `${env.API_URL}/students/${id}`;
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      await authFetch<void>(url, {
-        method: "DELETE",
-        token: session?.user?.token,
-      });
-    } else {
-      await api.delete(url);
-    }
-  } catch (error) {
-    handleStudentApiError(error, "delete student");
-  }
-}
-
 export interface StudentDeletionCounts {
   timetable_assignments: number;
   activity_enrollments: number;

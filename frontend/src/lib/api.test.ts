@@ -1905,54 +1905,6 @@ describe("api.ts helper functions", () => {
     });
   });
 
-  describe("studentService.deleteStudent", () => {
-    it("calls fetch with correct URL and method", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { studentService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await studentService.deleteStudent("123");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/students/123"),
-          expect.objectContaining({ method: "DELETE" }),
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("throws error on delete failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        text: () => Promise.resolve("Delete failed"),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { studentService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await expect(studentService.deleteStudent("123")).rejects.toThrow();
-      } finally {
-        restore();
-      }
-    });
-  });
-
   describe("roomService.deleteRoom", () => {
     it("calls fetch with correct URL and method", async () => {
       global.fetch = vi.fn().mockResolvedValue({

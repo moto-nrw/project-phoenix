@@ -40,7 +40,6 @@ import {
   fetchStudent,
   createStudent,
   updateStudent,
-  deleteStudent,
   fetchGroups,
   fetchStudentPrivacyConsent,
   fetchStudentEnrollmentExtraFields,
@@ -303,42 +302,6 @@ describe("student-api", () => {
           token: "test-token",
         });
         expect(result.id).toBe("1");
-      });
-    });
-  });
-
-  describe("deleteStudent", () => {
-    describe("client-side (browser)", () => {
-      beforeEach(() => {
-        mockedIsBrowserContext.mockReturnValue(true);
-      });
-
-      it("deletes a student", async () => {
-        mockedAuthFetch.mockResolvedValueOnce(undefined);
-
-        await deleteStudent("123");
-
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/123", {
-          method: "DELETE",
-          token: "test-token",
-        });
-      });
-    });
-
-    describe("server-side (SSR)", () => {
-      beforeEach(() => {
-        mockedIsBrowserContext.mockReturnValue(false);
-      });
-
-      it("deletes a student using axios", async () => {
-        const mockDelete = vi.mocked(api.delete);
-        mockDelete.mockResolvedValueOnce(createAxiosResponse({}));
-
-        await deleteStudent("123");
-
-        expect(mockDelete).toHaveBeenCalledWith(
-          "http://server:8080/students/123",
-        );
       });
     });
   });

@@ -1275,48 +1275,6 @@ export const studentService = {
       throw handleApiError(error, `Error updating student ${id}`);
     }
   },
-
-  // Delete a student
-  deleteStudent: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/students/${id}`
-      : `${env.API_URL}/api/students/${id}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.delete(url);
-        return;
-      }
-    } catch (error) {
-      throw handleApiError(error, `Error deleting student ${id}`);
-    }
-  },
 };
 
 // Group service for API operations
