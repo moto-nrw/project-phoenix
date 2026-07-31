@@ -92,6 +92,7 @@ import {
   getMonthRange,
   getWeekRange,
   getWeekdays,
+  nextWorkdayISO,
   resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableView,
@@ -194,13 +195,15 @@ function TimetablesContent() {
   // mehr). Ein ungültiges `d` fällt still auf heute zurück, ein unbekanntes
   // `view` auf die Woche.
   const rawDay = params.d;
-  const dayISO =
-    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
+  const dayISO = nextWorkdayISO(
+    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO(),
+  );
   const view: TimetableView = parseViewParam(params.view);
   const selectedInstanceId = params.block;
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
   const todayISO = useMemo(() => berlinTodayISO(), []);
+  const todayTargetISO = useMemo(() => nextWorkdayISO(todayISO), [todayISO]);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
   // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
@@ -276,8 +279,8 @@ function TimetablesContent() {
     [visibleDate, updateUrlParams],
   );
   const goToToday = useCallback(
-    () => updateUrlParams({ d: todayISO, block: null }),
-    [todayISO, updateUrlParams],
+    () => updateUrlParams({ d: todayTargetISO, block: null }),
+    [todayTargetISO, updateUrlParams],
   );
 
   const handlePrev = useCallback(() => {
@@ -301,7 +304,7 @@ function TimetablesContent() {
   // Monatsklick auf einen Tag: in die Woche wechseln und `d` auf den Tag setzen.
   const openWeekForDay = useCallback(
     (dateISO: string) => {
-      updateUrlParams({ view: null, d: dateISO, block: null });
+      updateUrlParams({ view: null, d: nextWorkdayISO(dateISO), block: null });
     },
     [updateUrlParams],
   );
@@ -947,12 +950,12 @@ function TimetablesContent() {
     );
   }
 
-  const todayDate = parseISODate(todayISO);
+  const todayDate = parseISODate(todayTargetISO);
   const isOnToday =
     view === "series"
       ? true
       : view === "week"
-        ? todayISO >= fromISO && todayISO <= workweekToISO
+        ? todayTargetISO >= fromISO && todayTargetISO <= workweekToISO
         : visibleDate.getFullYear() === todayDate.getFullYear() &&
           visibleDate.getMonth() === todayDate.getMonth();
   const showTodayButton = view !== "series" && !isOnToday;
@@ -1227,7 +1230,7 @@ function TimetablesContent() {
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
         }}
-        defaultDate={quickPrefill?.date ?? dayISO}
+        defaultDate={nextWorkdayISO(quickPrefill?.date ?? dayISO)}
         closingDayRanges={closingDayRanges}
         closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}

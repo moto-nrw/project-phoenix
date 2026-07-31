@@ -432,6 +432,12 @@ func (s *materializationService) materializeTemplate(
 	}
 
 	for date := from; !date.After(to); date = date.AddDays(1) {
+		// Templates created before the Mo–Fr planning rule may still contain
+		// weekend schedules. Keep those records intact for administration, but
+		// never create new invisible weekend instances from them.
+		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+			continue
+		}
 		isoWd := isoWeekday(date)
 		for _, sch := range schedules {
 			if sch.Weekday != isoWd {

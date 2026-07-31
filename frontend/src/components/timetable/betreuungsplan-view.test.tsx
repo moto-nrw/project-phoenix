@@ -867,6 +867,23 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().get("d")).toBe("2026-05-06");
   });
 
+  it("snaps weekend deep links and the Heute target to the following Monday", () => {
+    setUrl("d=2026-05-09");
+    const { unmount } = render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-11" }),
+    );
+
+    unmount();
+    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setUrl("d=2026-05-06");
+    render(<BetreuungsplanView />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Heute" })[0]!);
+    expect(urlParams().get("d")).toBe("2026-05-11");
+  });
+
   it("switches to the week and sets d when a month day is clicked", () => {
     setUrl("view=monat");
     render(<BetreuungsplanView />);

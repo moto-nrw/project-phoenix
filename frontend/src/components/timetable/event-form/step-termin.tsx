@@ -239,6 +239,7 @@ export function StepTermin({
             value={form.date}
             error={fieldErrors.date}
             calendarLayout="popover"
+            disabledDay={(date) => date.getDay() === 0 || date.getDay() === 6}
             onChange={(nextDate) => {
               const nextWeekday = isoWeekday(nextDate);
               update("date", nextDate);
