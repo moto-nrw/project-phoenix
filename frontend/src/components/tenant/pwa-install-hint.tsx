@@ -1,10 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { EllipsisVertical, Share, X } from "lucide-react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { Download, EllipsisVertical, Share, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { createLogger } from "~/lib/logger";
+import {
+  canPromptInstall,
+  subscribeInstallPrompt,
+  triggerInstallPrompt,
+} from "~/lib/pwa-install-prompt";
+
+const logger = createLogger({ component: "PwaInstallHint" });
 
 const DISMISS_KEY = "moto-pwa-install-hint-dismissed";
+const VISIT_COUNT_KEY = "moto-pwa-install-hint-visits";
+const SESSION_COUNTED_KEY = "moto-pwa-install-hint-session-counted";
+
+/**
+ * web.dev "Patterns for promoting PWA installation": promote after a few
+ * interactions, never on the first page load, or the promotion is missed and
+ * reads as noise. One visit = one browser session.
+ */
+const MIN_VISITS = 2;
 
 export type InstallPlatform = "ios" | "android";
 
@@ -39,15 +56,54 @@ export function isStandaloneDisplay(win: Window): boolean {
 }
 
 /**
- * Subtle, dismissible hint for iOS Safari and Android users browsing the
- * tenant app in a normal browser tab: add moto to the home screen from THIS
- * subdomain so the installed app keeps its standalone scope (issue #2010 —
- * both platforms show browser chrome after a cross-origin redirect, so
- * installing on the root host breaks fullscreen). Never rendered inside an
- * already-installed PWA or on desktop devices.
+ * Counts this browser session as one visit, exactly once, and returns the
+ * running total. The sessionStorage flag makes the call idempotent, so a
+ * StrictMode double-effect or a remount does not inflate the count.
+ */
+export function recordVisit(win: Window): number {
+  try {
+    const stored = Number(win.localStorage.getItem(VISIT_COUNT_KEY) ?? "0");
+    const previous = Number.isFinite(stored) && stored > 0 ? stored : 0;
+    if (win.sessionStorage.getItem(SESSION_COUNTED_KEY) === "1") {
+      return previous;
+    }
+    const next = previous + 1;
+    win.localStorage.setItem(VISIT_COUNT_KEY, String(next));
+    win.sessionStorage.setItem(SESSION_COUNTED_KEY, "1");
+    return next;
+  } catch {
+    // Private mode can block storage. Treat the visit as sufficient rather
+    // than hiding the hint forever on browsers that deny storage.
+    return MIN_VISITS;
+  }
+}
+
+/**
+ * Install promotion for iOS Safari and Android users browsing the tenant app
+ * in a normal browser tab: add moto to the home screen from THIS subdomain so
+ * the installed app keeps its standalone scope (issue #2010 — both platforms
+ * show browser chrome after a cross-origin redirect, so installing on the
+ * root host breaks fullscreen).
+ *
+ * Renders as a normal in-flow card, not a floating overlay, so it never
+ * overlaps the mobile bottom nav, the check-in FAB, or page content, and
+ * needs no offset arithmetic against them. Mount it inside page content, not
+ * in a layout: web.dev advises keeping install promotions out of the flow of
+ * user journeys.
+ *
+ * Never rendered on desktop, inside an already-installed PWA, before the
+ * second visit, or after the user dismissed it.
  */
 export function PwaInstallHint() {
   const [platform, setPlatform] = useState<InstallPlatform | null>(null);
+
+  // Chrome may fire beforeinstallprompt before or after this mounts, so read
+  // it from the module-level store rather than a local listener.
+  const oneTapInstallReady = useSyncExternalStore(
+    subscribeInstallPrompt,
+    canPromptInstall,
+    () => false,
+  );
 
   useEffect(() => {
     let detected: InstallPlatform | null = null;
@@ -60,6 +116,7 @@ export function PwaInstallHint() {
     } catch {
       // Private mode can block storage access; show the hint anyway.
     }
+    if (recordVisit(window) < MIN_VISITS) return;
     setPlatform(detected);
   }, []);
 
@@ -74,19 +131,52 @@ export function PwaInstallHint() {
     }
   };
 
-  const PlatformIcon = platform === "ios" ? Share : EllipsisVertical;
+  const install = () => {
+    void triggerInstallPrompt()
+      .then((outcome) => {
+        logger.info("pwa_install_prompt_answered", { outcome });
+        // A declined prompt leaves the card in place so the user can retry.
+        if (outcome === "accepted") dismiss();
+      })
+      .catch((err: unknown) => {
+        logger.error("pwa_install_prompt_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  };
 
-  // Below xl, reserve the bottom nav (5.5rem), the tallest fixed check-in
-  // control (3.5rem), and a 1.5rem gap. Those controls are hidden at xl.
+  // Android with a captured event gets a real one-tap install. Without one
+  // (event missed, or the browser exposes no install action) it falls back to
+  // the same manual instructions iOS needs, which is all Safari ever allows.
+  const showOneTapInstall = platform === "android" && oneTapInstallReady;
+  const PlatformIcon = showOneTapInstall
+    ? Download
+    : platform === "ios"
+      ? Share
+      : EllipsisVertical;
+
   return (
-    <div className="moto-content-surface fixed inset-x-4 bottom-[calc(10.5rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border p-4 shadow-lg sm:right-6 sm:left-auto sm:max-w-sm xl:bottom-6">
+    <section
+      aria-labelledby="pwa-install-hint-title"
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
+    >
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10">
           <PlatformIcon className="h-4 w-4 text-[#669f21]" aria-hidden="true" />
         </div>
-        <div className="min-w-0 text-sm text-gray-700">
-          <p className="font-semibold text-gray-900">moto als App nutzen</p>
-          {platform === "ios" ? (
+        <div className="min-w-0 flex-1 text-sm text-gray-700">
+          <h2
+            id="pwa-install-hint-title"
+            className="font-semibold text-gray-900"
+          >
+            moto als App nutzen
+          </h2>
+          {showOneTapInstall ? (
+            <p className="mt-1">
+              Installieren Sie moto direkt aus dieser Ansicht. So öffnet sich
+              moto immer im Vollbild, ohne Browserleiste.
+            </p>
+          ) : platform === "ios" ? (
             <p className="mt-1">
               Tippen Sie in Safari auf{" "}
               <span className="font-medium">Teilen</span> und dann auf{" "}
@@ -103,6 +193,17 @@ export function PwaInstallHint() {
               . So öffnet sich moto immer im Vollbild.
             </p>
           )}
+          {showOneTapInstall && (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="mt-3"
+              onClick={install}
+            >
+              App installieren
+            </Button>
+          )}
         </div>
         <Button
           type="button"
@@ -114,6 +215,6 @@ export function PwaInstallHint() {
           <X className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
-    </div>
+    </section>
   );
 }

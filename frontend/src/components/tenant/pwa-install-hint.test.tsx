@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PwaInstallHint,
@@ -6,7 +6,9 @@ import {
   isIosDevice,
   isIosSafari,
   isStandaloneDisplay,
+  recordVisit,
 } from "./pwa-install-hint";
+import { resetInstallPromptForTests } from "~/lib/pwa-install-prompt";
 
 const IPHONE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
@@ -141,25 +143,91 @@ describe("isStandaloneDisplay", () => {
   });
 });
 
+/**
+ * Puts storage in the state of someone opening the app for a second browser
+ * session, which is the earliest point the hint is allowed to appear.
+ */
+function seedReturningVisitor() {
+  localStorage.setItem("moto-pwa-install-hint-visits", "1");
+  sessionStorage.clear();
+}
+
+/** Fires the Chrome event the install-prompt module captures at import time. */
+function dispatchInstallPrompt(outcome: "accepted" | "dismissed" = "accepted") {
+  const prompt = vi.fn().mockResolvedValue(undefined);
+  const event = Object.assign(new Event("beforeinstallprompt"), {
+    prompt,
+    userChoice: Promise.resolve({ outcome }),
+  });
+  window.dispatchEvent(event);
+  return prompt;
+}
+
+describe("recordVisit", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it("counts one visit per browser session, not per call", () => {
+    expect(recordVisit(window)).toBe(1);
+    expect(recordVisit(window)).toBe(1);
+    sessionStorage.clear();
+    expect(recordVisit(window)).toBe(2);
+  });
+});
+
 describe("PwaInstallHint", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+    resetInstallPromptForTests();
+    seedReturningVisitor();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    resetInstallPromptForTests();
   });
 
-  it("renders Safari instructions above mobile check-in controls", () => {
+  it("renders Safari instructions as an in-flow card, not a floating overlay", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
     const { container } = render(<PwaInstallHint />);
     expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
     expect(screen.getByText("Zum Home-Bildschirm")).toBeInTheDocument();
-    expect(container.firstElementChild).toHaveClass(
-      "bottom-[calc(10.5rem+env(safe-area-inset-bottom))]",
-      "xl:bottom-6",
-    );
+
+    const card = container.firstElementChild;
+    expect(card).toHaveClass("moto-content-surface", "rounded-2xl");
+    // The whole point of the redesign: no fixed positioning, so no offset
+    // arithmetic against the bottom nav or the check-in FAB.
+    expect(card?.className).not.toMatch(/\bfixed\b/);
+    expect(card?.className).not.toMatch(/\bbottom-/);
+    expect(card?.className).not.toMatch(/\bz-\d/);
+  });
+
+  it("stays hidden on the very first visit", () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    stubNavigator({ userAgent: IPHONE_UA });
+    stubMatchMedia(false);
+    render(<PwaInstallHint />);
+    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
+  });
+
+  it("appears on the second visit", () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    stubNavigator({ userAgent: IPHONE_UA });
+    stubMatchMedia(false);
+
+    const first = render(<PwaInstallHint />);
+    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
+    first.unmount();
+
+    sessionStorage.clear(); // a new browser session
+    render(<PwaInstallHint />);
+    expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
   });
 
   it("does not render Safari instructions in other iOS browsers", () => {
@@ -176,12 +244,67 @@ describe("PwaInstallHint", () => {
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
   });
 
-  it("renders browser-menu instructions on Android in browser mode", () => {
+  it("renders browser-menu instructions on Android when no install event was captured", () => {
     stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
     stubMatchMedia(false);
     render(<PwaInstallHint />);
     expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
     expect(screen.getByText("App installieren")).toBeInTheDocument();
+    // Fallback path: instructions only, no actionable button.
+    expect(
+      screen.queryByRole("button", { name: "App installieren" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers a one-tap install on Android once Chrome fires beforeinstallprompt", () => {
+    stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
+    stubMatchMedia(false);
+    dispatchInstallPrompt();
+    render(<PwaInstallHint />);
+    expect(
+      screen.getByText("Installieren Sie moto direkt aus dieser Ansicht.", {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "App installieren" }),
+    ).toBeInTheDocument();
+    // The manual browser-menu instructions are replaced, not stacked on top.
+    expect(
+      screen.queryByText("Zum Startbildschirm hinzufügen"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("replays the captured prompt and hides the card once install is accepted", async () => {
+    stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
+    stubMatchMedia(false);
+    const prompt = dispatchInstallPrompt("accepted");
+    render(<PwaInstallHint />);
+
+    fireEvent.click(screen.getByRole("button", { name: "App installieren" }));
+
+    await waitFor(() => {
+      expect(prompt).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps the card in place when the install prompt is declined", async () => {
+    stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
+    stubMatchMedia(false);
+    const prompt = dispatchInstallPrompt("dismissed");
+    render(<PwaInstallHint />);
+
+    fireEvent.click(screen.getByRole("button", { name: "App installieren" }));
+
+    await waitFor(() => {
+      expect(prompt).toHaveBeenCalledTimes(1);
+    });
+    // Falls back to the manual instructions because the one-shot event is
+    // spent, but the promotion itself must not disappear silently.
+    expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
   });
 
   it("does not render inside Android WebViews", () => {

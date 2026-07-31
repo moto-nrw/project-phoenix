@@ -16,6 +16,7 @@ import {
 } from "~/lib/dashboard-helpers";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
+import { PwaInstallHint } from "~/components/tenant/pwa-install-hint";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -422,6 +423,13 @@ function DashboardContent() {
             loading={isLoading}
           />
         ) : null}
+      </div>
+
+      {/* Install promotion — in-flow so it never overlaps the bottom nav or
+          the check-in FAB. Lives on the dashboard only, not in the layout.
+          `empty:hidden` drops the spacing on the (usual) render-nothing case. */}
+      <div className="mb-6 empty:hidden md:mb-8">
+        <PwaInstallHint />
       </div>
 
       {/* Activity Lists Grid */}
