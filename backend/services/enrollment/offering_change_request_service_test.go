@@ -458,6 +458,41 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t
 	require.Len(t, rows, 1, "a refused approval must not change the booking")
 }
 
+func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "LeaveFull")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	// Capacity can be reduced after enrollment. That must never trap an
+	// already-booked child in the now-over-capacity offering.
+	zeroCapacity := 0
+	fx.oldOffering.Capacity = &zeroCapacity
+	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
+
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:  row.ID,
+		Approve:    true,
+		ReviewedBy: env.creatorID,
+	}))
+
+	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
+}
+
 func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

@@ -987,10 +987,11 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	held := heldOfferingIDs(current)
-	allOfferingIDs, err := s.materializedOfferingIDs(ctx, phase, requestChildID, effectiveFrom, selections)
+	replacementOfferingIDs, err := s.materializedOfferingIDs(ctx, phase, requestChildID, effectiveFrom, selections)
 	if err != nil {
 		return err
 	}
+	allOfferingIDs := append([]int64(nil), replacementOfferingIDs...)
 	// A concurrent approval that releases one of this child's current offerings
 	// must hold that offering's row lock too. Otherwise this approval can count
 	// the still-occupied row before the releasing transaction commits and reject
@@ -1005,7 +1006,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		return fmt.Errorf("offering change: lock offering capacity: %w", err)
 	}
 	lockedByID := offeringsByID(locked)
-	for _, offeringID := range allOfferingIDs {
+	for _, offeringID := range replacementOfferingIDs {
 		offering := lockedByID[offeringID]
 		if offering == nil || (!held[offeringID] && !offering.IsActive) {
 			return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, offeringID)
