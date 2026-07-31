@@ -11,9 +11,11 @@ import {
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "GuardianApprovalQueue" });
@@ -72,17 +74,18 @@ function ApprovalsEmptyState({
 }) {
   const router = useTenantRouter();
   const { configuredAway, title, description } = emptyStateCopy(inviteMode);
+  const iconColor = configuredAway
+    ? LOCATION_COLORS.OTHER_ROOM
+    : LOCATION_COLORS.GROUP_ROOM;
+  const iconBackground = `${iconColor}${configuredAway ? "1F" : "24"}`;
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <EmptyState
         icon={
           <span
-            className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-              configuredAway
-                ? "bg-[#5080D8]/12 text-[#3D63B0]"
-                : "bg-[#83CD2D]/14 text-[#3F6F12]"
-            }`}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: iconBackground, color: iconColor }}
           >
             {configuredAway ? (
               <Settings className="h-6 w-6" />
@@ -117,12 +120,10 @@ function InviteModeDependentEmptyState({
 }) {
   if (state.status === "loading") {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-gray-200 bg-white p-12 shadow-sm">
-        <div className="flex items-center gap-3 text-sm text-gray-600">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900" />
-          Einladungs-Einstellung wird geladen…
-        </div>
-      </div>
+      <Loading
+        message="Einladungs-Einstellung wird geladen…"
+        fullPage={false}
+      />
     );
   }
 

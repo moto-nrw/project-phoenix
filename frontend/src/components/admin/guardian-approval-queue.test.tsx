@@ -2,6 +2,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import GuardianApprovalQueue from "./guardian-approval-queue";
 import type { PendingApproval } from "@/lib/guardian-api";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({ success: vi.fn(), error: vi.fn() })),
@@ -100,7 +101,7 @@ describe("GuardianApprovalQueue", () => {
 
   it("explains an empty queue when parent invites are disabled", async () => {
     mockList.mockResolvedValue([]);
-    render(
+    const { container } = render(
       <GuardianApprovalQueue
         inviteModeState={{ status: "ready", mode: "disabled" }}
       />,
@@ -113,6 +114,13 @@ describe("GuardianApprovalQueue", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Einstellungen/ }));
     expect(mockPush).toHaveBeenCalledWith("/settings?tab=operations");
+
+    const iconBadge =
+      container.querySelector(".lucide-settings")?.parentElement;
+    expect(iconBadge).toHaveStyle({
+      backgroundColor: `${LOCATION_COLORS.OTHER_ROOM}1F`,
+      color: LOCATION_COLORS.OTHER_ROOM,
+    });
   });
 
   it("explains an empty queue when invites are sent without approval", async () => {
@@ -134,13 +142,22 @@ describe("GuardianApprovalQueue", () => {
 
   it("keeps the neutral empty state when approval is the active mode", async () => {
     mockList.mockResolvedValue([]);
-    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
+    const { container } = render(
+      <GuardianApprovalQueue inviteModeState={staffApprovalMode} />,
+    );
     await waitFor(() =>
       expect(screen.getByText(/Keine offenen Anfragen/)).toBeInTheDocument(),
     );
     expect(
       screen.queryByRole("button", { name: /Einstellungen/ }),
     ).not.toBeInTheDocument();
+
+    const iconBadge =
+      container.querySelector(".lucide-user-check")?.parentElement;
+    expect(iconBadge).toHaveStyle({
+      backgroundColor: `${LOCATION_COLORS.GROUP_ROOM}24`,
+      color: LOCATION_COLORS.GROUP_ROOM,
+    });
   });
 
   it("defers only an empty result while the invite mode is loading", async () => {
@@ -148,9 +165,10 @@ describe("GuardianApprovalQueue", () => {
 
     render(<GuardianApprovalQueue inviteModeState={{ status: "loading" }} />);
 
-    expect(
-      await screen.findByText("Einladungs-Einstellung wird geladen…"),
-    ).toBeInTheDocument();
+    const loading = await screen.findByLabelText(
+      "Einladungs-Einstellung wird geladen…",
+    );
+    expect(loading).toHaveAttribute("aria-live", "polite");
     expect(mockList).toHaveBeenCalledOnce();
   });
 

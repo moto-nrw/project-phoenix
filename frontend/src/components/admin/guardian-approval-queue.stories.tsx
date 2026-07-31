@@ -71,6 +71,18 @@ export const EmptyWaitingForRequests: Story = {
   args: { inviteModeState: { status: "ready", mode: "staff_approval" } },
 };
 
+// The approvals request has completed empty while the independent settings
+// request is still in flight.
+export const EmptyInviteModeLoading: Story = {
+  loaders: [
+    () => {
+      mockApprovals([]);
+      return {};
+    },
+  ],
+  args: { inviteModeState: { status: "loading" } },
+};
+
 // Parents cannot invite at all, so this queue can never fill up. The empty
 // state says so and links to the setting that changes it.
 export const EmptyInvitesDisabled: Story = {
