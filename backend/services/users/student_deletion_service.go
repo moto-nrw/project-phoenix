@@ -22,6 +22,7 @@ const (
 	StudentDeletionReasonIncorrectEntry = "incorrect_entry"
 	StudentDeletionReasonDuplicate      = "duplicate"
 	StudentDeletionReasonPrivacyRequest = "privacy_request"
+	StudentDeletionReasonGraduatePurge  = "graduate_purge"
 )
 
 type StudentDeletionPreview struct {
@@ -48,6 +49,7 @@ type StudentDeletionResult struct {
 type StudentDeletionService interface {
 	Preview(ctx context.Context, studentID int64) (*StudentDeletionPreview, error)
 	Delete(ctx context.Context, input StudentDeletionInput) (*StudentDeletionResult, error)
+	AuditGraduatePurge(ctx context.Context, studentID, actorAccountID int64) error
 }
 
 type studentDeletionService struct {
@@ -155,27 +157,7 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 		if !anonymized {
 			return ErrStudentDeletionPreviewChanged
 		}
-		if s.dataAuditRepo == nil || s.auditRepo == nil {
-			return errors.New("student deletion audit repositories are not configured")
-		}
-		dataDeletion := auditModels.NewDataDeletion(
-			input.StudentID,
-			auditModels.DeletionTypeManual,
-			counts.Total()+1,
-			"account:"+strconv.FormatInt(input.ActorAccountID, 10),
-		)
-		dataDeletion.DeletionReason = input.Reason
-		dataDeletion.SetMetadata("student_deletion", true)
-		dataDeletion.SetMetadata("counts", *counts)
-		if err := s.dataAuditRepo.Create(txCtx, dataDeletion); err != nil {
-			return err
-		}
-		if err := s.auditRepo.Create(txCtx, &auditModels.StudentDeletion{
-			StudentID:      input.StudentID,
-			ActorAccountID: input.ActorAccountID,
-			Reason:         input.Reason,
-			Counts:         *counts,
-		}); err != nil {
+		if err := s.createAudit(txCtx, input.StudentID, input.ActorAccountID, input.Reason, *counts, 1); err != nil {
 			return err
 		}
 
@@ -190,6 +172,50 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 		return nil, err
 	}
 	return result, nil
+}
+
+// AuditGraduatePurge records the dedicated Abgänge hard-delete path. The
+// caller invokes it after taking the graph locks and before deleting any row;
+// its transaction therefore rolls the audit back when the purge cannot finish.
+func (s *studentDeletionService) AuditGraduatePurge(ctx context.Context, studentID, actorAccountID int64) error {
+	if studentID <= 0 || actorAccountID <= 0 {
+		return errors.New("graduate purge audit requires student and actor IDs")
+	}
+	counts, err := s.deletionRepo.Preview(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	return s.createAudit(ctx, studentID, actorAccountID, StudentDeletionReasonGraduatePurge, *counts, 2)
+}
+
+func (s *studentDeletionService) createAudit(
+	ctx context.Context,
+	studentID, actorAccountID int64,
+	reason string,
+	counts userModels.StudentDeletionCounts,
+	primaryRowsDeleted int,
+) error {
+	if s.dataAuditRepo == nil || s.auditRepo == nil {
+		return errors.New("student deletion audit repositories are not configured")
+	}
+	dataDeletion := auditModels.NewDataDeletion(
+		studentID,
+		auditModels.DeletionTypeManual,
+		counts.Total()+primaryRowsDeleted,
+		"account:"+strconv.FormatInt(actorAccountID, 10),
+	)
+	dataDeletion.DeletionReason = reason
+	dataDeletion.SetMetadata("student_deletion", true)
+	dataDeletion.SetMetadata("counts", counts)
+	if err := s.dataAuditRepo.Create(ctx, dataDeletion); err != nil {
+		return err
+	}
+	return s.auditRepo.Create(ctx, &auditModels.StudentDeletion{
+		StudentID:      studentID,
+		ActorAccountID: actorAccountID,
+		Reason:         reason,
+		Counts:         counts,
+	})
 }
 
 func (s *studentDeletionService) loadPreview(

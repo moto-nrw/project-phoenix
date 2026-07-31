@@ -66,7 +66,6 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM feedback.entries WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM calendar.appointment_recipient_students WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM audit.data_access_log WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM audit.data_deletions WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM audit.enrollment_offering_adjustments WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM audit.guardian_changes WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM audit.student_field_edits WHERE tenant_id = ? AND student_id = ?) +
@@ -82,7 +81,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID,
 		tenantID, studentID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)

@@ -1645,10 +1645,18 @@ func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request
 			errors.New("grade transition service not configured, refusing to purge")))
 		return
 	}
+	if rs.StudentDeletionService == nil {
+		renderError(w, r, common.ErrorInternalServer(
+			errors.New("student deletion service not configured, refusing to purge")))
+		return
+	}
 
 	tenantID := tenant.FromContext(r.Context())
+	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := rs.deleteStudentTxMode(ctx, tenantID, student, true); err != nil {
+		if err := rs.deleteStudentTxMode(ctx, tenantID, student, true, func(ctx context.Context) error {
+			return rs.StudentDeletionService.AuditGraduatePurge(ctx, student.ID, actorAccountID)
+		}); err != nil {
 			return err
 		}
 		// Same transaction: the ledger name and the student row must vanish
@@ -1706,7 +1714,7 @@ var errStudentNoLongerGraduated = errors.New("Kind ist kein Abgänger mehr und w
 // a concurrent upload can't orphan a new file on disk; the unlink itself runs
 // after the OUTER tenant tx commits.
 func (rs *Resource) deleteStudentTx(ctx context.Context, tenantID int64, student *users.Student) error {
-	return rs.deleteStudentTxMode(ctx, tenantID, student, false)
+	return rs.deleteStudentTxMode(ctx, tenantID, student, false, nil)
 }
 
 // deleteStudentTxMode is deleteStudentTx with the alumnus rule inverted for the
@@ -1718,7 +1726,13 @@ func (rs *Resource) deleteStudentTx(ctx context.Context, tenantID int64, student
 // and a child restored by a concurrent revert must not be deleted by a click
 // aimed at a graduate). Sharing one body keeps the companion lock protocol,
 // the photo capture and the person delete identical for both.
-func (rs *Resource) deleteStudentTxMode(ctx context.Context, tenantID int64, student *users.Student, purgeGraduate bool) error {
+func (rs *Resource) deleteStudentTxMode(
+	ctx context.Context,
+	tenantID int64,
+	student *users.Student,
+	purgeGraduate bool,
+	afterLock func(context.Context) error,
+) error {
 	if err := rs.lockStudentCompanionGraph(ctx, student.ID, nil); err != nil {
 		return err
 	}
@@ -1763,6 +1777,11 @@ func (rs *Resource) deleteStudentTxMode(ctx context.Context, tenantID int64, stu
 	// the refreshed list simply no longer offers the action.
 	if purgeGraduate && !fresh.IsAlumnus() {
 		return errStudentNoLongerGraduated
+	}
+	if afterLock != nil {
+		if err := afterLock(ctx); err != nil {
+			return err
+		}
 	}
 
 	var photoToRemove string

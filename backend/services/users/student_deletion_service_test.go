@@ -240,6 +240,51 @@ func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
 	assert.Zero(t, tableRowCount(t, db, "active.visits", hostedVisit.ID))
 }
 
+func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	repos := repositories.NewFactory(db)
+	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
+	target := testpkg.CreateTestStudent(t, db, "Preserved", "Audit", "1a")
+	actor := testpkg.CreateTestAccount(t, db, "preserved-deletion-audit@example.com")
+	priorAudit := auditModels.NewDataDeletion(target.ID, auditModels.DeletionTypeVisitRetention, 1, "system")
+	require.NoError(t, repos.DataDeletion.Create(ctx, priorAudit))
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr(`audit.student_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
+		testpkg.CleanupActivityFixtures(t, db, target.ID)
+		testpkg.CleanupAuthFixtures(t, db, actor.ID)
+	})
+
+	preview, err := service.Preview(ctx, target.ID)
+	require.NoError(t, err)
+	assert.Zero(t, preview.Counts.OtherRecords)
+	assert.Zero(t, preview.Counts.Total())
+
+	_, err = service.Delete(ctx, usersService.StudentDeletionInput{
+		StudentID:           target.ID,
+		ActorAccountID:      actor.ID,
+		ExpectedFingerprint: preview.Fingerprint,
+		ConfirmationName:    preview.ConfirmationName,
+		Reason:              usersService.StudentDeletionReasonTestData,
+		Acknowledged:        true,
+	})
+	require.NoError(t, err)
+
+	var retainedAuditCount int
+	retainedAuditCount, err = db.NewSelect().TableExpr(`audit.data_deletions`).
+		Where(`id = ?`, priorAudit.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, retainedAuditCount)
+	var deletionAudit auditModels.DataDeletion
+	require.NoError(t, db.NewSelect().Model(&deletionAudit).
+		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, auditModels.DeletionTypeManual).
+		Scan(ctx))
+	assert.Equal(t, 1, deletionAudit.RecordsDeleted)
+}
+
 func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
