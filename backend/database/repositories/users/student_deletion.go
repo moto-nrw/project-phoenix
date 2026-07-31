@@ -97,6 +97,31 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 	return counts, nil
 }
 
+// LockMessageThreads prevents a read cursor or message from being added after
+// the deletion preview is rechecked. Both rows reference their thread, so the
+// FOR UPDATE lock serializes their FK checks until the deletion commits or
+// rolls back.
+func (r *StudentDeletionRepository) LockMessageThreads(ctx context.Context, studentID int64) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return fmt.Errorf("lock student message threads: tenant context is required")
+	}
+
+	var threadIDs []int64
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.parent_message_threads AS "parent_message_thread"`).
+		ColumnExpr(`"parent_message_thread".id`).
+		Where(`"parent_message_thread".tenant_id = ?`, tenantID).
+		Where(`"parent_message_thread".student_id = ?`, studentID).
+		OrderExpr(`"parent_message_thread".id ASC`).
+		For("UPDATE").
+		Scan(ctx, &threadIDs)
+	if err != nil {
+		return fmt.Errorf("lock student message threads: %w", err)
+	}
+	return nil
+}
+
 // DeleteLegacyGuardianLinks removes relationships from the superseded
 // person-based guardian junction. Current guardian links cascade from the
 // student row; these do not because the anonymized person tombstone remains.

@@ -244,6 +244,11 @@ func (s *studentDeletionService) loadPreview(
 		return nil, nil, nil, err
 	}
 	if lock {
+		if err := s.deletionRepo.LockMessageThreads(ctx, studentID); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	if lock {
 		person, err = s.personRepo.FindByIDForUpdate(ctx, student.PersonID)
 	} else {
 		person, err = s.personRepo.FindByID(ctx, student.PersonID)

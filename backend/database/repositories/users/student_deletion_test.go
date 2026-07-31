@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,47 @@ func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
 
 	_, err = repo.DeleteTimetableAssignments(context.Background(), 1)
 	assert.ErrorContains(t, err, "tenant context is required")
+
+	err = repo.LockMessageThreads(context.Background(), 1)
+	assert.ErrorContains(t, err, "tenant context is required")
+}
+
+func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	target := testpkg.CreateTestStudent(t, db, "DeletePreview", "Locked", "1a")
+	guardian := testpkg.CreateTestAccount(t, db, "delete-preview-message-guardian@example.com")
+	var threadID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id)
+		VALUES (?, ?, ?)
+		RETURNING id
+	`, target.TenantID, target.ID, guardian.ID).Scan(ctx, &threadID))
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "users.students", target.ID)
+		testpkg.CleanupTableRecords(t, db, "users.persons", target.PersonID)
+		testpkg.CleanupAuthFixtures(t, db, guardian.ID)
+	})
+
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	txCtx := modelBase.ContextWithTx(ctx, &tx)
+	repo := repositories.NewFactory(db).StudentDeletion
+	require.NoError(t, repo.LockMessageThreads(txCtx, target.ID))
+
+	concurrentTx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = concurrentTx.Rollback() })
+	_, err = concurrentTx.ExecContext(ctx, `SET LOCAL lock_timeout = '100ms'`)
+	require.NoError(t, err)
+	_, err = concurrentTx.ExecContext(ctx, `
+		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id)
+		VALUES (?, ?, ?)
+	`, target.TenantID, threadID, guardian.ID)
+	require.Error(t, err, "a read cursor must wait for the locked message thread")
 }
 
 func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {

@@ -36,6 +36,7 @@ func (c StudentDeletionCounts) Total() int {
 // child relation either cascades safely or is unlinked via ON DELETE SET NULL.
 type StudentDeletionRepository interface {
 	Preview(ctx context.Context, studentID int64) (*StudentDeletionCounts, error)
+	LockMessageThreads(ctx context.Context, studentID int64) error
 	DeleteTimetableAssignments(ctx context.Context, studentID int64) (int64, error)
 	DeleteLegacyGuardianLinks(ctx context.Context, personID int64) error
 	AnonymizePersonIfUnchanged(ctx context.Context, personID int64, updatedAt time.Time) (bool, error)
