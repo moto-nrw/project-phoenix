@@ -83,7 +83,7 @@ describe("TenantAuthWrapper analytics", () => {
     expect(mocks.unregister).toHaveBeenCalledWith("school_id");
     expect(mocks.unregister).toHaveBeenCalledWith("$groups");
     expect(mocks.unregister).toHaveBeenCalledWith("deployment");
-    expect(mocks.reset).not.toHaveBeenCalled();
+    expect(mocks.reset).toHaveBeenCalledOnce();
 
     mocks.useSession.mockReturnValue({
       status: "authenticated",
@@ -101,5 +101,51 @@ describe("TenantAuthWrapper analytics", () => {
       deployment: "moto-app.de",
     });
     expect(mocks.trackPageView).toHaveBeenCalledWith("/dashboard", "2");
+  });
+
+  it("resets identity before a direct authenticated tenant change", () => {
+    mocks.useTenant.mockReturnValue({
+      tenantSlug: "school-a",
+      routingMode: "path",
+      tenant: { tenantId: 1 },
+    });
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { tenantId: 1 } },
+    });
+
+    const view = renderWrapper();
+
+    expect(mocks.reset).not.toHaveBeenCalled();
+    expect(mocks.register).toHaveBeenCalledWith({
+      school_id: "1",
+      $groups: { school: "1" },
+      deployment: "moto-app.de",
+    });
+
+    mocks.useTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      routingMode: "path",
+      tenant: { tenantId: 2 },
+    });
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { tenantId: 2 } },
+    });
+    view.rerender(
+      <TenantAuthWrapper>
+        <div>Tenant content</div>
+      </TenantAuthWrapper>,
+    );
+
+    expect(mocks.reset).toHaveBeenCalledOnce();
+    expect(mocks.register).toHaveBeenNthCalledWith(2, {
+      school_id: "2",
+      $groups: { school: "2" },
+      deployment: "moto-app.de",
+    });
+    expect(mocks.reset.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.register.mock.invocationCallOrder[1]!,
+    );
   });
 });
