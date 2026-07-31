@@ -73,18 +73,28 @@ export function MonthPlannerGrid({
           } else if (outsideMonth) {
             backgroundClass = "bg-gray-50/40";
           }
+          const Cell = onInstanceClick ? "div" : "button";
+          const InstanceCard = onInstanceClick ? "button" : "div";
+          const DayTrigger = onInstanceClick ? "button" : "span";
 
           return (
-            <div
+            <Cell
               key={iso}
+              {...(!onInstanceClick
+                ? { type: "button" as const, onClick: () => onDayClick(iso) }
+                : {})}
               className={`min-h-[112px] border-r border-b border-gray-100 p-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${backgroundClass} ${outsideMonth ? "text-gray-400" : ""}`}
             >
               <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => onDayClick(iso)}
+                <DayTrigger
+                  {...(onInstanceClick
+                    ? {
+                        type: "button" as const,
+                        onClick: () => onDayClick(iso),
+                        "aria-label": `${getGermanWeekdayShort(day)} ${day.getDate()}.${day.getMonth() + 1}.${day.getFullYear()}`,
+                      }
+                    : {})}
                   className="rounded focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  aria-label={`${getGermanWeekdayShort(day)} ${day.getDate()}.${day.getMonth() + 1}.${day.getFullYear()}`}
                 >
                   {isToday ? (
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white tabular-nums">
@@ -95,7 +105,7 @@ export function MonthPlannerGrid({
                       {day.getDate()}
                     </span>
                   )}
-                </button>
+                </DayTrigger>
                 {conflicts > 0 && (
                   <AlertTriangle className="h-3.5 w-3.5 text-[#EAB308]" />
                 )}
@@ -123,11 +133,14 @@ export function MonthPlannerGrid({
                     const hasConflict = inst.conflictWarnings.length > 0;
 
                     return (
-                      <button
+                      <InstanceCard
                         key={inst.id}
-                        type="button"
-                        onClick={() => onInstanceClick?.(inst)}
-                        disabled={!onInstanceClick}
+                        {...(onInstanceClick
+                          ? {
+                              type: "button" as const,
+                              onClick: () => onInstanceClick(inst),
+                            }
+                          : {})}
                         className={`flex min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
                           isCancelled
                             ? "border-dashed border-[#FF3130] text-gray-400 line-through"
@@ -183,7 +196,7 @@ export function MonthPlannerGrid({
                             )}
                           />
                         )}
-                      </button>
+                      </InstanceCard>
                     );
                   })}
                   {moreCount > 0 && (
@@ -193,7 +206,7 @@ export function MonthPlannerGrid({
                   )}
                 </div>
               )}
-            </div>
+            </Cell>
           );
         })}
       </div>

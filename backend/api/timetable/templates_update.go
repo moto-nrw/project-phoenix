@@ -169,6 +169,10 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(templates) == 0 {
+		if hasWeekendTemplateWeekday(parsed.req.Weekdays) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("timetable templates can only be scheduled from Monday to Friday")))
+			return
+		}
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
 		return
 	}
@@ -224,6 +228,15 @@ func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, request
 		}
 	}
 	return nil
+}
+
+func hasWeekendTemplateWeekday(weekdays []int) bool {
+	for _, weekday := range weekdays {
+		if weekday > activitiesModel.WeekdayFriday {
+			return true
+		}
+	}
+	return false
 }
 
 // buildUpdateTemplateInput maps the parsed request and resolved preconditions

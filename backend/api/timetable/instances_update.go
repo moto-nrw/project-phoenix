@@ -1,13 +1,14 @@
 package timetable
 
 import (
+	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -68,15 +69,9 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
 	}
-	if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		// A legacy weekend instance may be maintained in place, but PUT must
-		// never move a weekday instance onto a weekend or create a new weekend
-		// date through an update.
-		existing, getErr := rs.TimetableData.GetActivityInstance(r.Context(), id)
-		if getErr != nil || existing.Date != date {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("timetable entries can only be scheduled from Monday to Friday")))
-			return
-		}
+	if !rs.legacyInstanceDateIsAllowed(r.Context(), id, date) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("timetable entries can only be scheduled from Monday to Friday")))
+		return
 	}
 	startTime, err := parseClockTime(req.StartTime)
 	if err != nil {
@@ -132,4 +127,15 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, enriched, "Instance updated")
+}
+
+// legacyInstanceDateIsAllowed permits a legacy weekend instance to retain its
+// date while preventing PUT from introducing or moving an instance to a
+// weekend.
+func (rs *Resource) legacyInstanceDateIsAllowed(ctx context.Context, id int64, date timezone.Date) bool {
+	if validateTimetableWorkday(date) == nil {
+		return true
+	}
+	existing, err := rs.TimetableData.GetActivityInstance(ctx, id)
+	return err == nil && existing.Date == date
 }
