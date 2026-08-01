@@ -2019,7 +2019,9 @@ function PollResultsPanel({
       {error && <p className="mb-2 text-sm text-[#CC2626]">{error}</p>}
 
       {results === null || children === null ? (
-        <Loading fullPage={false} />
+        error ? null : (
+          <Loading fullPage={false} />
+        )
       ) : (
         <>
           <p className="text-sm text-gray-700">
