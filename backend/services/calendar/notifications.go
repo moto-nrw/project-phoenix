@@ -129,9 +129,9 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 // It returns the recipient IDs in row order (duplicates included — callers
 // de-duplicate as they consume) plus the reachable profiles keyed by ID.
 //
-// Shared by the e-mail path and the push path so both address exactly the same
-// people: a guardian the mail skips as unreachable must not receive a push, and
-// vice versa.
+// Shared by the e-mail path and the push path so both address the same active
+// parents-portal profiles. Channel-specific reachability is handled by each
+// caller: e-mail requires an address, while push requires an opted-in account.
 func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID int64) ([]int64, map[int64]*userModels.GuardianProfile, error) {
 	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointmentID)
 	if err != nil {

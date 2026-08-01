@@ -265,6 +265,15 @@ func (s *service) enqueueAppointmentReminder(
 			}
 		}
 		if profile.Email == nil || *profile.Email == "" {
+			// Push delivery is addressed to the portal account, not the e-mail
+			// address. An e-mail-less parent therefore remains eligible for an
+			// opted-in reminder push.
+			if profile.AccountID != nil && *profile.AccountID > 0 {
+				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
+					seenAccountIDs[*profile.AccountID] = struct{}{}
+					guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
+				}
+			}
 			continue
 		}
 		row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{

@@ -1,6 +1,7 @@
 package calendar_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -9,10 +10,32 @@ import (
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type reminderCaptureNotifier struct {
+	events []notifications.Event
+}
+
+func (n *reminderCaptureNotifier) Notify(_ context.Context, event notifications.Event) error {
+	n.events = append(n.events, event)
+	return nil
+}
+
+type reminderPreferences struct {
+	notifications.PreferenceService
+}
+
+func (reminderPreferences) FilterNotOptedOut(_ context.Context, _ string, accountIDs []int64) ([]int64, error) {
+	return accountIDs, nil
+}
+
+func (reminderPreferences) FilterOptedIn(_ context.Context, _ string, accountIDs []int64) ([]int64, error) {
+	return accountIDs, nil
+}
 
 // berlinInstant builds the moment a Berlin wall-clock time happens on a date,
 // which is what the reminder window is expressed in.
@@ -97,6 +120,60 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 		require.NoError(t, err)
 		assert.Zero(t, queued)
 	})
+}
+
+func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmail(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	notifier := &reminderCaptureNotifier{}
+	cfg := calendarTestConfig(db)
+	cfg.Outbox = outbox
+	cfg.ParentsURL = "https://parents.test"
+	cfg.Notifier = notifier
+	cfg.Preferences = reminderPreferences{}
+	service := calendarSvc.NewService(cfg)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	ctx := calendarContext(organizerAccount.ID)
+	_, err := db.NewUpdate().
+		TableExpr(`users.guardian_profiles`).
+		Set(`email = NULL`).
+		Where(`id = ?`, parentChain.GuardianProfileID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	appointmentDate := timezone.NewDate(2026, 4, 2)
+	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    appointmentDate,
+		EndDate:      appointmentDate,
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	notifier.events = nil // Ignore the appointment publication push.
+
+	startsAt := berlinInstant(t, appointmentDate, 18, 0)
+	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Zero(t, queued, "an e-mail-less guardian has no outbox e-mail to queue")
+	require.Len(t, notifier.events, 1)
+	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
+	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 }
 
 // A cancelled appointment must not remind anyone: the guardians already got the
