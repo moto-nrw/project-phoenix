@@ -86,6 +86,12 @@ import { createLogger } from "~/lib/logger";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
+let nextDataRequestVersion = 0;
+
+function createDataRequestVersion() {
+  nextDataRequestVersion += 1;
+  return nextDataRequestVersion;
+}
 
 // Backend pickup time response (from BFF)
 interface BackendPickupTime {
@@ -170,6 +176,19 @@ interface OGSDashboardBFFResponse {
   }>;
   pickupTimes: BackendPickupTime[];
   firstGroupId: string | null;
+  // Client-only ordering metadata; never part of the BFF wire response.
+  clientRequestVersion?: number;
+}
+
+function recordLatestStudentSnapshotVersion(
+  versions: Map<string, number>,
+  groupId: string,
+  version: number,
+) {
+  const latestVersion = versions.get(groupId);
+  if (latestVersion === undefined || version > latestVersion) {
+    versions.set(groupId, version);
+  }
 }
 
 function mapStudentForOgsPage(
@@ -324,6 +343,13 @@ function OGSGroupPageContent() {
   const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
   const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
 
+  // Orders BFF and per-group requests across their separate SWR keys. The
+  // successful per-group version map prevents a slower, older BFF response
+  // from overwriting newer SSE-driven state for the same group.
+  const latestStudentSnapshotVersionByGroupRef = useRef<Map<string, number>>(
+    new Map(),
+  );
+
   // SWR-based dashboard data fetching with caching
   // Cache key "ogs-dashboard" will be invalidated by global SSE on relevant events
   const {
@@ -333,6 +359,7 @@ function OGSGroupPageContent() {
   } = useSWRAuth<OGSDashboardBFFResponse>(
     session?.user?.token ? "ogs-dashboard" : null,
     async () => {
+      const clientRequestVersion = createDataRequestVersion();
       logger.debug("SWR fetching dashboard via BFF");
       const start = performance.now();
 
@@ -356,7 +383,7 @@ function OGSGroupPageContent() {
       logger.debug("SWR fetch complete", {
         duration_ms: (performance.now() - start).toFixed(0),
       });
-      return json.data;
+      return { ...json.data, clientRequestVersion };
     },
     {
       keepPreviousData: true, // Show cached data while revalidating
@@ -410,8 +437,18 @@ function OGSGroupPageContent() {
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
+    // The BFF pre-loads data for the first alphabetically sorted group.
+    const firstGroupId = ogsGroups[0]?.id;
+    const latestStudentSnapshotVersion = firstGroupId
+      ? latestStudentSnapshotVersionByGroupRef.current.get(firstGroupId)
+      : undefined;
+    const isOlderThanStudentSnapshot =
+      dashboardData.clientRequestVersion !== undefined &&
+      latestStudentSnapshotVersion !== undefined &&
+      dashboardData.clientRequestVersion < latestStudentSnapshotVersion;
+
     // Update student count on the first sorted group (BFF pre-loads data for it)
-    if (ogsGroups[0]) {
+    if (ogsGroups[0] && !isOlderThanStudentSnapshot) {
       ogsGroups[0].student_count = studentsData.length;
       ogsGroups[0].present_count = countCheckedInStudents(studentsData);
       setGroupAttendanceCount(ogsGroups[0].id, {
@@ -420,14 +457,33 @@ function OGSGroupPageContent() {
       });
     }
 
-    setAllGroups(ogsGroups);
+    setAllGroups((previousGroups) => {
+      if (!isOlderThanStudentSnapshot || !firstGroupId) {
+        return ogsGroups;
+      }
+
+      const previousFirstGroup = previousGroups.find(
+        (group) => group.id === firstGroupId,
+      );
+      if (!previousFirstGroup) {
+        return ogsGroups;
+      }
+
+      return ogsGroups.map((group) =>
+        group.id === firstGroupId
+          ? {
+              ...group,
+              student_count: previousFirstGroup.student_count,
+              present_count: previousFirstGroup.present_count,
+            }
+          : group,
+      );
+    });
 
     // IMPORTANT: Only apply first group's students/roomStatus when first group is selected.
     // The BFF sorts groups alphabetically, so groups[0] matches ogsGroups[0].
     // When SSE triggers revalidation while user views another group, we must NOT
     // overwrite their current view with the first group's data.
-    const firstGroupId = ogsGroups[0]?.id;
-
     const isNewDashboardSnapshot =
       lastHandledDashboardSnapshotRef.current !== dashboardData;
     lastHandledDashboardSnapshotRef.current = dashboardData;
@@ -456,7 +512,7 @@ function OGSGroupPageContent() {
 
       // Apply only a newly fetched BFF snapshot. Re-renders caused by group
       // selection keep the SSE-driven ogs-students-{gid} SWR as sole writer.
-      if (isNewDashboardSnapshot) {
+      if (isNewDashboardSnapshot && !isOlderThanStudentSnapshot) {
         // Map backend students to frontend format (last_name → second_name)
         const mappedStudents = studentsData.map(mapStudentForOgsPage);
         setStudents(mappedStudents);
@@ -597,18 +653,21 @@ function OGSGroupPageContent() {
     >;
     pickupTimes?: Map<string, BulkPickupTime>;
     trackingIndicators?: TrackingIndicatorsResponse;
+    clientRequestVersion?: number;
   }>(
     hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
     async () => {
+      const groupId = currentGroupId!;
+      const clientRequestVersion = createDataRequestVersion();
       // Fetch students and room status in parallel for accurate filtering
       const [studentsResponse, roomStatusResponse] = await Promise.all([
         studentService.getStudents({
-          groupId: currentGroupId!,
+          groupId,
           includeArrivalTimes: true,
           token: session?.user?.token,
         }),
         // Fetch room status inline (don't use callback that sets state)
-        fetch(`/api/groups/${currentGroupId}/students/room-status`, {
+        fetch(`/api/groups/${groupId}/students/room-status`, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
@@ -659,12 +718,19 @@ function OGSGroupPageContent() {
         trackingIndicators = trackingResult;
       }
 
+      recordLatestStudentSnapshotVersion(
+        latestStudentSnapshotVersionByGroupRef.current,
+        groupId,
+        clientRequestVersion,
+      );
+
       return {
-        groupId: currentGroupId!,
+        groupId,
         students,
         roomStatus: roomStatusResponse ?? undefined,
         pickupTimes: pickupTimesMap,
         trackingIndicators,
+        clientRequestVersion,
       };
     },
     {
@@ -676,8 +742,16 @@ function OGSGroupPageContent() {
   // Sync SWR student data with local state
   // Also syncs room status and pickup times to keep UI in sync and prevent loading flash
   useEffect(() => {
-    if (swrStudentsData?.groupId !== currentGroupId) {
+    if (!swrStudentsData || swrStudentsData.groupId !== currentGroupId) {
       return;
+    }
+
+    if (swrStudentsData.clientRequestVersion !== undefined) {
+      recordLatestStudentSnapshotVersion(
+        latestStudentSnapshotVersionByGroupRef.current,
+        swrStudentsData.groupId,
+        swrStudentsData.clientRequestVersion,
+      );
     }
 
     if (swrStudentsData?.students) {

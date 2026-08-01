@@ -4218,6 +4218,86 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
       expect(screen.queryByText(/Max Mustermann/)).not.toBeInTheDocument();
     });
   });
+
+  it("does not apply a BFF snapshot older than the current group snapshot", async () => {
+    let dashboardData = {
+      groups: [
+        {
+          id: 1,
+          name: "Group A",
+          room_id: 10,
+          room: { id: 10, name: "Raum 101" },
+        },
+      ],
+      students: [
+        {
+          id: "1",
+          name: "Initial Student",
+          first_name: "Initial",
+          last_name: "Student",
+          current_location: "Raum 101",
+        },
+      ],
+      roomStatus: null,
+      substitutions: [],
+      pickupTimes: [],
+      firstGroupId: "1",
+      clientRequestVersion: 1,
+    };
+    const currentGroupData = {
+      groupId: "1",
+      students: [
+        {
+          id: "2",
+          name: "Fresh Student",
+          first_name: "Fresh",
+          second_name: "Student",
+          current_location: "Raum 101",
+        },
+      ],
+      roomStatus: { "2": { in_group_room: true } },
+      pickupTimes: new Map(),
+      clientRequestVersion: 4,
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => ({
+      data:
+        key === "ogs-dashboard"
+          ? dashboardData
+          : key === "ogs-students-1"
+            ? currentGroupData
+            : null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    })) as unknown as typeof useSWRAuth);
+
+    const { rerender } = render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Fresh Student/)).toBeInTheDocument();
+    });
+
+    dashboardData = {
+      ...dashboardData,
+      students: [
+        {
+          id: "3",
+          name: "Stale Student",
+          first_name: "Stale",
+          last_name: "Student",
+          current_location: "Raum 101",
+        },
+      ],
+      clientRequestVersion: 3,
+    };
+    rerender(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Fresh Student/)).toBeInTheDocument();
+      expect(screen.queryByText(/Stale Student/)).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("OGSGroupPage ID-based selection: URL param matching", () => {
