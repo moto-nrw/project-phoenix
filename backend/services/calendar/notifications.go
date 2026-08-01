@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -159,7 +160,45 @@ func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID
 	if err != nil {
 		return nil, nil, err
 	}
-	return guardianIDs, profiles, nil
+	if s.cfg.RecipientStudentRepo == nil || s.cfg.StudentGuardianRepo == nil {
+		return nil, nil, errors.New("calendar: guardian permission repositories are required")
+	}
+	recipientIDs := make([]int64, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.GuardianProfileID != nil {
+			recipientIDs = append(recipientIDs, recipient.ID)
+		}
+	}
+	studentLinks, err := s.cfg.RecipientStudentRepo.FindByRecipientIDs(ctx, recipientIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	studentsByRecipient := make(map[int64][]int64, len(recipientIDs))
+	for _, link := range studentLinks {
+		studentsByRecipient[link.RecipientID] = append(studentsByRecipient[link.RecipientID], link.StudentID)
+	}
+
+	reachable := make([]int64, 0, len(guardianIDs))
+	for _, recipient := range recipients {
+		if recipient.GuardianProfileID == nil {
+			continue
+		}
+		profile, ok := profiles[*recipient.GuardianProfileID]
+		if !ok || profile.AccountID == nil || *profile.AccountID <= 0 {
+			continue
+		}
+		for _, studentID := range studentsByRecipient[recipient.ID] {
+			allowed, err := s.cfg.StudentGuardianRepo.AccountHasStudentPermission(ctx, *profile.AccountID, studentID, profile.TenantID, authorize.GuardianPermissionPortalAccess)
+			if err != nil {
+				return nil, nil, fmt.Errorf("calendar: check guardian appointment recipient permission: %w", err)
+			}
+			if allowed {
+				reachable = append(reachable, *recipient.GuardianProfileID)
+				break
+			}
+		}
+	}
+	return reachable, profiles, nil
 }
 
 // guardianAccountIDs reduces resolved profiles to their distinct account IDs —
