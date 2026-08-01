@@ -11,6 +11,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,8 +43,9 @@ func norms(s string) string { return norm.NFC.String(s) }
 // column width, so pagination, splitting, and drawing all work on the
 // same line counts and cannot disagree.
 type styledLine struct {
-	text  string
-	style LineStyle
+	text   string
+	style  LineStyle
+	accent string
 }
 
 type renderRow struct {
@@ -199,6 +201,28 @@ type designRenderer struct {
 	cols   []Column
 	widths []float64
 	total  int
+	// gutter is the left inset every body cell reserves for the accent bar.
+	// It is derived from the document rather than passed in: the width has to
+	// be the same for every cell, and a caller-supplied flag is one more thing
+	// that can disagree with the rows it describes.
+	gutter float64
+}
+
+const (
+	accentBarW  = 2.5
+	accentInset = 7.0
+)
+
+// documentHasAccents reports whether any cell opens an accent group.
+func documentHasAccents(rows []Row) bool {
+	for _, row := range rows {
+		for _, value := range row.Values {
+			if strings.Contains(value, accentMark) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // newDesignRenderer prepares a renderer with fonts loaded but nothing
@@ -215,6 +239,9 @@ func newDesignRenderer(doc Document) (*designRenderer, error) {
 	}
 
 	r := &designRenderer{pageChrome: chrome, doc: doc, cols: cols}
+	if documentHasAccents(doc.Rows) {
+		r.gutter = accentInset
+	}
 	r.widths = pdfColumnWidths(cols, r.w-2*pageMargin-2*cardPadX)
 	return r, nil
 }
@@ -404,7 +431,7 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 func (r *designRenderer) buildRow(row Row) renderRow {
 	rr := renderRow{cells: make([][]styledLine, len(r.cols)), lines: 1}
 	for i, col := range r.cols {
-		rr.cells[i] = r.wrapStyled(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
+		rr.cells[i] = r.wrapStyled(norms(row.Values[col.ID]), r.widths[i]-cellPadX-r.gutter)
 		if n := len(rr.cells[i]); n > rr.lines {
 			rr.lines = n
 		}
@@ -417,14 +444,21 @@ func (r *designRenderer) wrapStyled(cell string, maxW float64) []styledLine {
 	cell = strings.ReplaceAll(strings.ReplaceAll(cell, "\r\n", "\n"), "\r", "\n")
 	out := []styledLine{}
 	for _, segment := range strings.Split(cell, "\n") {
-		style, text := DecodeLine(segment)
+		decoded, text := DecodeLine(segment)
 		// Measure in the face the line will be drawn in; a bold run is wider
 		// than the same string in the regular face.
-		if err := r.setFont(fontStyleFor(style), fontBody); err != nil {
+		if err := r.setFont(fontStyleFor(decoded.Style), fontBody); err != nil {
 			return []styledLine{{text: text}}
 		}
-		for _, line := range r.wrapSegment(text, maxW) {
-			out = append(out, styledLine{text: line, style: style})
+		for i, line := range r.wrapSegment(text, maxW) {
+			wrapped := styledLine{text: line, style: decoded.Style}
+			// Only the first wrapped line opens the accent group; the bar
+			// then runs on until the next accented line, so a heading that
+			// wraps does not restart its own bar.
+			if i == 0 {
+				wrapped.accent = decoded.Accent
+			}
+			out = append(out, wrapped)
 		}
 	}
 	// Restore the body face so callers that measure afterwards are unaffected.
@@ -1080,13 +1114,15 @@ func (r *designRenderer) drawCard(p designPage) error {
 	for _, row := range p.rows {
 		cx = textLeft
 		for i := range r.cols {
-			ty := y + cellPadY + rowLineHt - 2
+			top := y + cellPadY
+			r.drawAccentBars(cx, top, row.cells[i])
+			ty := top + rowLineHt - 2
 			for _, ln := range row.cells[i] {
 				if err := r.setFont(fontStyleFor(ln.style), fontBody); err != nil {
 					return err
 				}
 				r.setText(lineColorFor(ln.style))
-				if err := r.text(cx, ty, ln.text); err != nil {
+				if err := r.text(cx+r.gutter, ty, ln.text); err != nil {
 					return err
 				}
 				ty += rowLineHt
@@ -1099,6 +1135,58 @@ func (r *designRenderer) drawCard(p designPage) error {
 		r.pdf.Line(textLeft, y, textRight, y)
 	}
 	return nil
+}
+
+// drawAccentBars paints one bar per accent group: it starts at the accented
+// line and runs down to the line before the next accented one, so a shift and
+// the tasks under it read as one block. Lines with no accent above them get
+// no bar.
+func (r *designRenderer) drawAccentBars(x, top float64, lines []styledLine) {
+	if r.gutter == 0 {
+		return
+	}
+	start, color := -1, rgb{}
+	flush := func(end int) {
+		if start < 0 {
+			return
+		}
+		barTop := top + float64(start)*rowLineHt + 1
+		barBottom := top + float64(end)*rowLineHt - 1
+		r.setFill(color)
+		r.setStroke(color)
+		_ = r.pdf.Rectangle(x, barTop, x+accentBarW, barBottom, "F", 1, 4)
+		start = -1
+	}
+	for i, ln := range lines {
+		if ln.accent == "" {
+			continue
+		}
+		parsed, ok := parseHexColor(ln.accent)
+		if !ok {
+			continue
+		}
+		flush(i)
+		start, color = i, parsed
+	}
+	flush(len(lines))
+}
+
+// parseHexColor reads "#RRGGBB" — the shape every colour column in this
+// codebase stores. Anything else is ignored rather than guessed at.
+func parseHexColor(value string) (rgb, bool) {
+	value = strings.TrimPrefix(strings.TrimSpace(value), "#")
+	if len(value) != 6 {
+		return rgb{}, false
+	}
+	var out [3]uint8
+	for i := range out {
+		component, err := strconv.ParseUint(value[i*2:i*2+2], 16, 8)
+		if err != nil {
+			return rgb{}, false
+		}
+		out[i] = uint8(component)
+	}
+	return rgb{out[0], out[1], out[2]}, true
 }
 
 func (c *pageChrome) drawFooter(num, total int) error {

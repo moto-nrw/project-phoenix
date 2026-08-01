@@ -115,8 +115,8 @@ func cellLines(t *testing.T, doc listexport.Document, label string, column liste
 	raw := rawCellFor(t, doc, label, column)
 	lines := make([]listexport.Line, 0, 4)
 	for _, encoded := range strings.Split(raw, "\n") {
-		style, text := listexport.DecodeLine(encoded)
-		lines = append(lines, listexport.Line{Text: text, Style: style})
+		decoded, _ := listexport.DecodeLine(encoded)
+		lines = append(lines, decoded)
 	}
 	return lines
 }
@@ -581,5 +581,50 @@ func TestBetreuungsplanCellRanks(t *testing.T) {
 		if i >= len(lines) || lines[i] != want[i] {
 			t.Fatalf("lines = %+v, want %+v", lines, want)
 		}
+	}
+}
+
+// The colour bar carries the Schichtart colour from the screen onto the
+// paper. It sits on the shift line only: on the staff plan the bar means
+// "this is a Dienst", which is the distinction the sheet exists to make.
+func TestDienstplanShiftLineCarriesShiftTypeColour(t *testing.T) {
+	overview := &scheduleSvc.StaffScheduleOverview{
+		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*scheduleModel.StaffShift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
+		Assignments: []scheduleSvc.StaffScheduleAssignment{{
+			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+			ActivityTitle: "Mensa",
+		}},
+	}
+	coloured := shiftType(4, "Ganztag")
+	coloured.Color = "#83CD2D"
+
+	service, renderer := newDienstplanService(overview, []*scheduleModel.ShiftType{coloured})
+	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+
+	lines := cellLines(t, renderer.doc, "Kessener, Franziska", listexport.ColumnPlanMonday)
+	if lines[0].Accent != "#83CD2D" {
+		t.Fatalf("shift line accent = %q, want the Schichtart colour", lines[0].Accent)
+	}
+	if lines[1].Accent != "" {
+		t.Fatalf("task line accent = %q, want none — the bar marks the Dienst", lines[1].Accent)
+	}
+}
+
+// A Schichtart without a stored colour costs the bar and nothing else.
+func TestDienstplanWithoutColourStillRendersStrongLine(t *testing.T) {
+	overview := &scheduleSvc.StaffScheduleOverview{
+		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
+	}
+	service, renderer := newDienstplanService(overview, nil)
+	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+	lines := cellLines(t, renderer.doc, "Kessener, Franziska", listexport.ColumnPlanMonday)
+	if lines[0].Style != listexport.LineStrong || lines[0].Accent != "" {
+		t.Fatalf("line = %+v, want a strong line without an accent", lines[0])
 	}
 }

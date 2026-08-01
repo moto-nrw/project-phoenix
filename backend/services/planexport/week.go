@@ -109,6 +109,13 @@ func muted(text string) listexport.Line {
 	return listexport.Line{Text: text, Style: listexport.LineMuted}
 }
 
+// accented is a strong line that also opens a colour bar. An empty colour
+// degrades to a plain strong line, so a Schichtart or Kategorie without a
+// stored colour costs the bar and nothing else.
+func accented(text, color string) listexport.Line {
+	return listexport.Line{Text: text, Style: listexport.LineStrong, Accent: color}
+}
+
 // toRow turns the collected lines into a listexport row. Empty days print an
 // em dash rather than blank space, so a reader can tell "nothing planned"
 // from "the export lost it".

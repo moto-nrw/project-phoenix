@@ -1788,16 +1788,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Printable weekly plans (#2079). A pure projection over the same reads
 	// the two planning screens use — it renders, it never writes.
 	planExportService := planexport.NewService(planexport.Dependencies{
-		Overview:      staffScheduleOverviewService,
-		ShiftTypes:    repos.ShiftType,
-		Instances:     repos.ActivityInstance,
-		InstanceStaff: repos.InstanceStaff,
-		Students:      repos.InstanceStudent,
-		Rooms:         repos.Room,
-		Staff:         repos.Staff,
-		ClosingDays:   closingDayService,
-		Holidays:      holidayService,
-		Renderer:      listExportService,
+		Overview:       staffScheduleOverviewService,
+		ShiftTypes:     repos.ShiftType,
+		Instances:      repos.ActivityInstance,
+		InstanceStaff:  repos.InstanceStaff,
+		Students:       repos.InstanceStudent,
+		Rooms:          repos.Room,
+		Staff:          repos.Staff,
+		ActivityGroups: repos.ActivityGroup,
+		Categories:     repos.ActivityCategory,
+		ClosingDays:    closingDayService,
+		Holidays:       holidayService,
+		Renderer:       listExportService,
 	}, logger.With("service", "plan_export"))
 
 	pushSubscriptionsService := notifications.NewPushSubscriptionService(

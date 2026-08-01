@@ -113,7 +113,18 @@ const (
 type Line struct {
 	Text  string
 	Style LineStyle
+	// Accent is an optional "#RRGGBB" that paints a colour bar down the left
+	// edge of this line and every line under it until the next accented line.
+	// It carries the same colour coding the screen uses (a Schichtart, a
+	// Kategorie), so a printed plan and the plan on screen group the same way.
+	// The bar is redundant by design: the emphasis above already separates the
+	// ranks, so a greyscale copy loses nothing but the recognition.
+	Accent string
 }
+
+// accentMark separates an accent colour from the line text; it follows the
+// style marker: "\x01#83CD2D\x03 07:30-14:00".
+const accentMark = "\x03"
 
 // Style markers. They are encoded IN the cell string rather than beside it so
 // that Row.Values stays a plain map[ColumnID]string and the eight existing
@@ -131,34 +142,46 @@ const (
 func StyledCell(lines []Line) string {
 	parts := make([]string, 0, len(lines))
 	for _, line := range lines {
+		prefix := ""
 		switch line.Style {
 		case LineStrong:
-			parts = append(parts, markStrong+line.Text)
+			prefix = markStrong
 		case LineMuted:
-			parts = append(parts, markMuted+line.Text)
-		default:
-			parts = append(parts, line.Text)
+			prefix = markMuted
 		}
+		if line.Accent != "" {
+			prefix += line.Accent + accentMark
+		}
+		parts = append(parts, prefix+line.Text)
 	}
 	return strings.Join(parts, "\n")
 }
 
-// DecodeLine splits a stored line into its style and its text.
-func DecodeLine(line string) (LineStyle, string) {
+// DecodeLine splits a stored line into its style, accent, and text.
+func DecodeLine(line string) (Line, string) {
+	out := Line{Style: LineNormal}
 	switch {
 	case strings.HasPrefix(line, markStrong):
-		return LineStrong, strings.TrimPrefix(line, markStrong)
+		out.Style, line = LineStrong, strings.TrimPrefix(line, markStrong)
 	case strings.HasPrefix(line, markMuted):
-		return LineMuted, strings.TrimPrefix(line, markMuted)
-	default:
-		return LineNormal, line
+		out.Style, line = LineMuted, strings.TrimPrefix(line, markMuted)
 	}
+	if idx := strings.Index(line, accentMark); idx >= 0 {
+		out.Accent, line = line[:idx], line[idx+len(accentMark):]
+	}
+	out.Text = line
+	return out, line
 }
 
-// StripStyleMarkers removes every marker from a cell, for renderers that
-// cannot express per-line emphasis.
+// StripStyleMarkers removes every marker (and accent) from a cell, for
+// renderers that cannot express per-line emphasis.
 func StripStyleMarkers(s string) string {
-	return strings.NewReplacer(markStrong, "", markMuted, "").Replace(s)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		_, text := DecodeLine(line)
+		lines[i] = text
+	}
+	return strings.Join(lines, "\n")
 }
 
 type Row struct {

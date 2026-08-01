@@ -43,7 +43,7 @@ func (s *service) ExportDienstplan(ctx context.Context, params Params) (listexpo
 		return listexport.File{}, fmt.Errorf("load staff schedule overview: %w", err)
 	}
 
-	data := newDienstplanData(overview, s.shiftTypeNames(ctx), s.nonWorkingDays(ctx, from, to), params.Variant)
+	data := newDienstplanData(overview, s.shiftTypes(ctx), s.nonWorkingDays(ctx, from, to), params.Variant)
 
 	title := "Dienstplan"
 	rowLabel := "Mitarbeitende"
@@ -68,24 +68,31 @@ func (s *service) ExportDienstplan(ctx context.Context, params Params) (listexpo
 	return s.deps.Renderer.Render(doc, params.Format, filename("Dienstplan", weeks))
 }
 
-// shiftTypeNames maps Schichtart ids to their names. An unwired or failing
-// reader costs the type label on the sheet, never the shift itself.
-func (s *service) shiftTypeNames(ctx context.Context) map[int64]string {
-	names := map[int64]string{}
+// shiftTypes maps Schichtart ids to their name and colour. An unwired or
+// failing reader costs the label and the colour bar on the sheet, never the
+// shift itself.
+func (s *service) shiftTypes(ctx context.Context) map[int64]shiftTypeInfo {
+	out := map[int64]shiftTypeInfo{}
 	if s.deps.ShiftTypes == nil {
-		return names
+		return out
 	}
 	types, err := s.deps.ShiftTypes.ListAll(ctx)
 	if err != nil {
 		s.getLogger().Warn("plan export: shift type lookup failed", "error", err.Error())
-		return names
+		return out
 	}
 	for _, shiftType := range types {
 		if shiftType != nil {
-			names[shiftType.ID] = shiftType.Name
+			out[shiftType.ID] = shiftTypeInfo{name: shiftType.Name, color: shiftType.Color}
 		}
 	}
-	return names
+	return out
+}
+
+// shiftTypeInfo is the slice of a Schichtart the sheet prints.
+type shiftTypeInfo struct {
+	name  string
+	color string
 }
 
 // dienstplanData is the overview indexed the way the two templates read it.
@@ -97,7 +104,7 @@ type dienstplanData struct {
 	// coversByOrigin lists the replacement shifts attached to a cancelled
 	// shift, so the cancelled row can name who steps in (#1841).
 	coversByOrigin map[int64][]*scheduleModel.StaffShift
-	shiftTypeNames map[int64]string
+	shiftTypes     map[int64]shiftTypeInfo
 	closedDays     map[timezone.Date]string
 	variant        Variant
 }
@@ -109,7 +116,7 @@ type staffDay struct {
 
 func newDienstplanData(
 	overview *scheduleSvc.StaffScheduleOverview,
-	shiftTypeNames map[int64]string,
+	shiftTypes map[int64]shiftTypeInfo,
 	closedDays map[timezone.Date]string,
 	variant Variant,
 ) *dienstplanData {
@@ -118,7 +125,7 @@ func newDienstplanData(
 		shifts:         map[staffDay][]*scheduleModel.StaffShift{},
 		assignments:    map[staffDay][]scheduleSvc.StaffScheduleAssignment{},
 		coversByOrigin: map[int64][]*scheduleModel.StaffShift{},
-		shiftTypeNames: shiftTypeNames,
+		shiftTypes:     shiftTypes,
 		closedDays:     closedDays,
 		variant:        variant,
 	}
@@ -242,24 +249,29 @@ func (d *dienstplanData) personDayLines(staffID int64, day timezone.Date) []list
 // shiftLines renders one planned presence window. The window leads in strong
 // weight — it is the anchor everything else in the cell sits under.
 func (d *dienstplanData) shiftLines(shift *scheduleModel.StaffShift) []listexport.Line {
+	info := d.shiftTypes[derefID(shift.ShiftTypeID)]
 	head := timeRange(shift.StartTime, shift.EndTime)
-	if name := d.shiftTypeNames[derefID(shift.ShiftTypeID)]; name != "" {
-		head += " · " + name
+	if info.name != "" {
+		head += " · " + info.name
 	}
 	if shift.OriginShiftID != nil {
 		head += " · Vertretung"
 	}
+	// The bar carries the Schichtart colour the screen uses, so the printout
+	// and the plan it came from group the same way. It opens on the shift
+	// line and runs on over the tasks inside it.
+	anchor := accented(head, info.color)
 
 	if !shift.Cancelled {
-		lines := []listexport.Line{strong(head)}
+		lines := []listexport.Line{anchor}
 		if d.variant.internal() && strings.TrimSpace(shift.Notes) != "" {
 			lines = append(lines, muted("Hinweis: "+strings.TrimSpace(shift.Notes)))
 		}
 		return lines
 	}
 
-	head += " · entfällt"
-	lines := []listexport.Line{strong(head)}
+	anchor.Text += " · entfällt"
+	lines := []listexport.Line{anchor}
 	if d.variant.internal() && shift.ChangeReason != nil && strings.TrimSpace(*shift.ChangeReason) != "" {
 		// The reason is a health datum often enough ("krank") that it is
 		// deliberately absent from the wall variant.
@@ -341,13 +353,18 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 				if assignment.IsAbsent {
 					label += " (abwesend)"
 				}
-				areaFor(areas, assignment.ActivityTitle).add(i,
-					assignment.StartTime, assignment.EndTime,
+				// Block rows deliberately carry no colour bar here: on the
+				// staff plan the bar means "this is a Dienst", which is the
+				// distinction the sheet exists to make. The care plan colours
+				// its blocks by Kategorie, where that is the useful axis.
+				areaFor(areas, assignment.ActivityTitle).add(
+					i, assignment.StartTime, assignment.EndTime,
 					distinctRoom(assignment.ActivityTitle, assignment.RoomName), label)
 			}
 
 			for _, shift := range d.shifts[key] {
-				title := d.shiftTypeNames[derefID(shift.ShiftTypeID)]
+				info := d.shiftTypes[derefID(shift.ShiftTypeID)]
+				title := info.name
 				if title == "" {
 					title = areaWithoutShiftType
 				}
@@ -358,7 +375,9 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 				if shift.Cancelled {
 					label += " (entfällt)"
 				}
-				areaFor(areas, title).add(i, shift.StartTime, shift.EndTime, "", label)
+				area := areaFor(areas, title)
+				area.color = info.color
+				area.add(i, shift.StartTime, shift.EndTime, "", label)
 			}
 		}
 	}
@@ -405,6 +424,7 @@ func areaFor(areas map[string]*areaRow, title string) *areaRow {
 // turns five separate "12:00–13:00 Name" lines into a readable block.
 type areaRow struct {
 	title    string
+	color    string
 	earliest string
 	days     [5][]areaEntry
 }
@@ -443,7 +463,7 @@ func (r *areaRow) lines(dayIndex int) []listexport.Line {
 		// The window heads each block in strong weight, the names under it in
 		// normal — otherwise a cell with two windows and five names is one
 		// undifferentiated column of text.
-		lines = append(lines, strong(entry.heading))
+		lines = append(lines, accented(entry.heading, r.color))
 		for _, name := range entry.names {
 			lines = append(lines, normal(name))
 		}

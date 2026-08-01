@@ -62,6 +62,9 @@ type betreuungsplanData struct {
 	staffNames  map[int64]string
 	roomNames   map[int64]string
 	childCounts map[int64]int
+	// blockColors maps an instance id to its Kategorie colour, the same
+	// colour the planner paints the block with on screen.
+	blockColors map[int64]string
 	closedDays  map[timezone.Date]string
 	variant     Variant
 }
@@ -106,10 +109,65 @@ func (s *service) loadBetreuungsplanData(
 		staffNames:  s.staffNames(ctx, staffIDs),
 		roomNames:   s.roomNames(ctx, roomIDs),
 		childCounts: s.childCounts(ctx, instanceIDs),
+		blockColors: s.blockColors(ctx, kept),
 		closedDays:  s.nonWorkingDays(ctx, from, to),
 		variant:     variant,
 	}
 	return data, nil
+}
+
+// blockColors resolves each block's Kategorie colour via its template. Both
+// readers are optional and every failure degrades to "no colour": the bar is
+// recognition, never information the sheet depends on.
+func (s *service) blockColors(ctx context.Context, instances []*scheduleModel.ActivityInstance) map[int64]string {
+	colors := map[int64]string{}
+	if s.deps.ActivityGroups == nil || s.deps.Categories == nil {
+		return colors
+	}
+
+	groupIDs := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		if instance.ActivityGroupID != nil {
+			groupIDs = append(groupIDs, *instance.ActivityGroupID)
+		}
+	}
+	if len(groupIDs) == 0 {
+		return colors
+	}
+
+	groups, err := s.deps.ActivityGroups.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		s.getLogger().Warn("plan export: activity group lookup failed", "error", err.Error())
+		return colors
+	}
+	categoryByGroup := make(map[int64]int64, len(groups))
+	for _, group := range groups {
+		if group != nil {
+			categoryByGroup[group.ID] = group.CategoryID
+		}
+	}
+
+	categories, err := s.deps.Categories.ListAll(ctx)
+	if err != nil {
+		s.getLogger().Warn("plan export: category lookup failed", "error", err.Error())
+		return colors
+	}
+	colorByCategory := make(map[int64]string, len(categories))
+	for _, category := range categories {
+		if category != nil {
+			colorByCategory[category.ID] = category.Color
+		}
+	}
+
+	for _, instance := range instances {
+		if instance.ActivityGroupID == nil {
+			continue
+		}
+		if color := colorByCategory[categoryByGroup[*instance.ActivityGroupID]]; color != "" {
+			colors[instance.ID] = color
+		}
+	}
+	return colors
 }
 
 // staffNames resolves the names of the assigned staff. Unlike the instance
@@ -255,14 +313,14 @@ func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInsta
 		// A cancelled block stays on the sheet — "entfällt" is the
 		// information the reader came for. The reason is internal.
 		head += " · entfällt"
-		lines := []listexport.Line{strong(head)}
+		lines := []listexport.Line{accented(head, d.blockColors[instance.ID])}
 		if d.variant.internal() && instance.CancelReason != nil && strings.TrimSpace(*instance.CancelReason) != "" {
 			lines = append(lines, muted("Grund: "+strings.TrimSpace(*instance.CancelReason)))
 		}
 		return lines
 	}
 
-	lines := []listexport.Line{strong(head)}
+	lines := []listexport.Line{accented(head, d.blockColors[instance.ID])}
 
 	if names := d.staffLine(instance.ID); names != "" {
 		lines = append(lines, normal(names))

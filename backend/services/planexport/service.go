@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -27,9 +28,20 @@ type InstanceStudentCountReader interface {
 	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
 }
 
-// ShiftTypeReader resolves Schichtart names for the shift cells.
+// ShiftTypeReader resolves Schichtart names and colours for the shift cells.
 type ShiftTypeReader interface {
 	ListAll(ctx context.Context) ([]*scheduleModel.ShiftType, error)
+}
+
+// ActivityGroupBatchReader and CategoryReader resolve the Kategorie colour of
+// a Betreuungsblock, so the printed plan groups by the same colours the
+// planner shows on screen.
+type ActivityGroupBatchReader interface {
+	FindByIDs(ctx context.Context, ids []int64) ([]*activitiesModel.Group, error)
+}
+
+type CategoryReader interface {
+	ListAll(ctx context.Context) ([]*activitiesModel.Category, error)
 }
 
 // Dependencies are the reads the two exports need. The instance-side
@@ -46,6 +58,10 @@ type Dependencies struct {
 	Students      InstanceStudentCountReader
 	Rooms         scheduleSvc.RoomBatchReader
 	Staff         scheduleSvc.StaffOverviewReader
+	// ActivityGroups and Categories drive the colour bar on the care plan.
+	// Optional: without them a block simply prints without its colour.
+	ActivityGroups ActivityGroupBatchReader
+	Categories     CategoryReader
 	// ClosingDays and Holidays label the days nobody is expected to work.
 	// Both are optional: without them a closed day simply prints as empty,
 	// which is a worse sheet but never a wrong one.
